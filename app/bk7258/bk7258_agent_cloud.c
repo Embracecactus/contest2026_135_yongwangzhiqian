@@ -5,6 +5,7 @@
 #include "bk7258_voice_tls.h"
 #include "bk7258_preferences.h"
 #include "voice/voice_asr.h"
+#include "voice/funasr_asr.h"
 #include "voice/voice_tts.h"
 #include "agent_config.h"
 #include "infra/config_store.h"
@@ -51,6 +52,7 @@ struct cloud_backend_s
 static pthread_mutex_t g_config_lock = PTHREAD_MUTEX_INITIALIZER;
 static struct cloud_settings_s *g_selected;
 static struct cloud_backend_s g_asr;
+static struct cloud_backend_s g_stream_asr;
 static struct cloud_backend_s g_tts;
 static struct cloud_backend_s g_llm;
 static atomic_int g_thinking = ATOMIC_VAR_INIT(-1);
@@ -333,6 +335,76 @@ static const struct bkvoice_wss_tls_ops_s g_transport =
   .close = cloud_close,
 };
 
+/* Opt-in reference ASR endpoint. This has its own TLS connection and never
+ * receives the LLM API key. The installed trust bundle and verified time are
+ * still mandatory; a different endpoint cannot reuse the cloud TLS session.
+ */
+static int stream_asr_prepare(void *context)
+{
+  return request_prepare(context);
+}
+
+static int stream_asr_random(void *context, uint8_t *data, size_t size)
+{
+  return bkvoice_tls_ops()->random(
+    &((struct cloud_backend_s *)context)->tls, data, size);
+}
+
+static int stream_asr_sha1(void *context, const uint8_t *data, size_t size,
+                           uint8_t digest[20])
+{
+  return bkvoice_tls_ops()->sha1(
+    &((struct cloud_backend_s *)context)->tls, data, size, digest);
+}
+
+static int stream_asr_cancel(void *context)
+{
+  return request_cancel(context);
+}
+
+static const funasr_asr_transport_t g_stream_transport =
+{
+  .prepare_request = stream_asr_prepare,
+  .open_verified = cloud_open,
+  .send = cloud_send,
+  .recv = cloud_recv,
+  .interrupt = stream_asr_cancel,
+  .close = cloud_close,
+  .random = stream_asr_random,
+  .sha1 = stream_asr_sha1,
+  .now_ms = bkvoice_config_now_ms,
+};
+
+int bkagent_cloud_prepare_asr(const char *name)
+{
+  if (!name) return -EINVAL;
+  if (strcmp(name, "funasr")) return 0;
+  if (voice_asr_is_busy()) return -EBUSY;
+  int ret = funasr_asr_recover();
+  if (ret) return ret; /* A failed close still owns its transport. */
+  char host[128] = { 0 }, path[128] = { 0 }, port_text[8] = { 0 };
+  if (claw_config_get("asr_stream_host", host, sizeof(host)) || !host[0] ||
+      claw_config_get("asr_stream_path", path, sizeof(path)) || !path[0] ||
+      claw_config_get("asr_stream_port", port_text, sizeof(port_text)))
+    return -ENOKEY;
+  char *end;
+  unsigned long port = strtoul(port_text, &end, 10);
+  if (!port_text[0] || *end || !port || port > 65535) return -EINVAL;
+  backend_release(&g_stream_asr);
+  pthread_mutex_lock(&g_config_lock);
+  uint8_t dialect = g_selected ? g_selected->service.dialect : 0;
+  pthread_mutex_unlock(&g_config_lock);
+  ret = backend_prepare(&g_stream_asr, dialect);
+  if (ret) return ret;
+  g_stream_asr.tls.config.session_load = NULL;
+  g_stream_asr.tls.config.session_save = NULL;
+  g_stream_asr.tls.config.session_context = NULL;
+  ret = funasr_asr_configure(&g_stream_transport, &g_stream_asr,
+                            host, (uint16_t)port, path);
+  if (ret) backend_release(&g_stream_asr);
+  return ret;
+}
+
 static int asr_mimo_prepare(void) { return backend_prepare(&g_asr, 2); }
 static int asr_audio_prepare(void) { return backend_prepare(&g_asr, 1); }
 static int tts_mimo_prepare(void) { return backend_prepare(&g_tts, 2); }
@@ -421,6 +493,70 @@ static int llm_transport(const char *request, char *response, size_t capacity,
 
 static int llm_cancel(void *context) { return request_cancel(context); }
 
+struct llm_stream_sink_s
+{
+  const struct bkcloud_http_s *http;
+  int (*receive)(void *, const char *, size_t);
+  void *receive_context;
+  int (*check)(void *);
+  void *request_context;
+};
+
+static int llm_stream_receive(void *context, const void *data, size_t size)
+{
+  struct llm_stream_sink_s *sink = context;
+  if (!sink->http->active || sink->http->active->http_status != 200)
+    return -EPROTO;
+  int ret = sink->check ? sink->check(sink->request_context) : 0;
+  return ret ? ret : sink->receive(sink->receive_context, data, size);
+}
+
+static int llm_stream_transport(const char *request,
+  int (*receive)(void *, const char *, size_t), void *receive_context,
+  int *status, void *context, int (*check)(void *), void *request_context)
+{
+  struct cloud_backend_s *backend = context;
+  struct bkcloud_http_s *http = calloc(1, sizeof(*http));
+  if (!http) return -ENOMEM;
+  *status = 0;
+  struct llm_stream_sink_s sink =
+    { http, receive, receive_context, check, request_context };
+  int ret = request_prepare(backend);
+  if (!ret && check) ret = check(request_context);
+  cJSON *root = !ret ? cJSON_Parse(request) : NULL;
+  char *adapted = NULL;
+  if (!ret && !cJSON_IsObject(root)) ret = -EPROTO;
+  int thinking = atomic_load(&g_thinking);
+  if (!ret && backend->service.dialect == 2 && thinking >= 0 &&
+      !cJSON_GetObjectItemCaseSensitive(root, "thinking"))
+    {
+      cJSON *item = cJSON_AddObjectToObject(root, "thinking");
+      if (!item || !cJSON_AddStringToObject(item, "type",
+                                            thinking ? "enabled" : "disabled"))
+        ret = -ENOMEM;
+    }
+  if (!ret)
+    {
+      adapted = cJSON_PrintUnformatted(root);
+      if (!adapted) ret = -ENOMEM;
+    }
+  if (!ret)
+    ret = bkcloud_http_events(http, &backend->service, &g_transport, backend,
+      bkvoice_config_now_ms(NULL) + 60000u, adapted, strlen(adapted),
+      llm_stream_receive, &sink, 1024u * 1024u);
+  if (atomic_load(&backend->canceled)) ret = -ECANCELED;
+  *status = http->status;
+  if (adapted)
+    {
+      mbedtls_platform_zeroize(adapted, strlen(adapted));
+      cJSON_free(adapted);
+    }
+  cJSON_Delete(root);
+  mbedtls_platform_zeroize(http, sizeof(*http));
+  free(http);
+  return ret;
+}
+
 int bkagent_cloud_activate_llm(void)
 {
   if (llm_request_busy()) return -EBUSY;
@@ -431,8 +567,9 @@ int bkagent_cloud_activate_llm(void)
   uint8_t dialect = g_selected ? g_selected->service.dialect : 0;
   pthread_mutex_unlock(&g_config_lock);
   ret = backend_prepare(&g_llm, dialect);
-  if (!ret) ret = llm_set_transport(g_llm.service.chat_model, g_llm.service.host,
-                                   llm_transport, llm_cancel, &g_llm);
+  if (!ret) ret = llm_set_transports(g_llm.service.chat_model, g_llm.service.host,
+                                    llm_transport, llm_stream_transport,
+                                    llm_cancel, &g_llm);
   if (ret) backend_release(&g_llm);
   return ret;
 }
@@ -441,11 +578,14 @@ int bkagent_cloud_clear(void)
 {
   if (voice_asr_is_busy() || voice_tts_is_busy() || llm_request_busy())
     return -EBUSY;
-  int ret = llm_clear_transport();
+  int ret = funasr_asr_recover();
+  if (ret) return ret;
+  ret = llm_clear_transport();
   if (ret) return ret;
   backend_release(&g_llm);
   backend_release(&g_tts);
   backend_release(&g_asr);
+  backend_release(&g_stream_asr);
   pthread_mutex_lock(&g_config_lock);
   struct cloud_settings_s *settings = g_selected;
   g_selected = NULL;
@@ -697,6 +837,7 @@ int bkagent_cloud_register(void)
 {
   int results[] = { voice_asr_register(&g_asr_mimo),
                     voice_asr_register(&g_asr_audio),
+                    funasr_asr_register(),
                     voice_tts_register(&g_tts_mimo),
                     voice_tts_register(&g_tts_audio) };
   for (unsigned int i = 0; i < sizeof(results) / sizeof(results[0]); i++)

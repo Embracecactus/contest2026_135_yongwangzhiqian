@@ -744,6 +744,12 @@ class MainActivity : Activity() {
 
     private fun beginWakePackage(pack: WakeModelPackage) {
         if (!configAvailable()) { wakeMessage = "设备忙或当前固件不支持模型部署"; render(); return }
+        if (pack.bytes[3] == '2'.code.toByte() &&
+            (wakeStatusGeneration != directSession.current().generation ||
+             wakeStatus?.supportsFrontendV2 != true)) {
+            wakeMessage = "此模型需要支持前端 v2 的固件；请先读取设备模型状态，旧固件不能仅替换模型。"
+            render(); return
+        }
         configFlow = ConfigFlow.WAKE
         wakePackage = pack; wakePayload = pack.bytes; wakeExpectedSha = pack.sha256
         wakeStatusGeneration = null
@@ -1557,8 +1563,11 @@ class MainActivity : Activity() {
             }
             DeviceControlProtocol.Command.CONFIG_READ -> {
                 val chunk = snapshot.configChunk ?: run { failWake("设备未返回模型状态"); return }
-                if (chunk.totalLength != 284) { failWake("模型状态长度无效"); return }
-                if (wakeReadTotal < 0) { wakeReadTotal = 284; wakeRead = ByteArray(284) }
+                if (chunk.totalLength !in setOf(284, 292) ||
+                    (wakeReadTotal >= 0 && chunk.totalLength != wakeReadTotal)) {
+                    failWake("模型状态长度无效"); return
+                }
+                if (wakeReadTotal < 0) { wakeReadTotal = chunk.totalLength; wakeRead = ByteArray(wakeReadTotal) }
                 if (wakeOffset !in wakeRead.indices) { failWake("模型状态偏移无效"); return }
                 val count = minOf(16, wakeRead.size - wakeOffset)
                 chunk.bytes.copyInto(wakeRead, wakeOffset, 0, count); wakeOffset += count

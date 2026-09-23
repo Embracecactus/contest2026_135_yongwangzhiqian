@@ -13,6 +13,7 @@ import argparse
 import ctypes
 import hashlib
 import json
+import math
 import re
 import stat
 import subprocess
@@ -26,6 +27,10 @@ from typing import Any, Callable, Iterable
 
 SCHEMA = "bkvoice-kws-dataset-v1"
 FRONTEND = "bkvoice-microfrontend-v1"
+FRONTEND_V2 = "bkvoice-microfrontend-pcan-v2"
+FRONTEND_VERSIONS = {FRONTEND: 1, FRONTEND_V2: 2}
+STREAM_ARCHITECTURE = "streaming-tcn"
+STREAM_DELAYS = (8, 16, 32, 64, 128)
 DEFAULT_WAKE_LABEL = "nihao_openvela"
 DEFAULT_WAKE_PHRASE = "你好，open-vela"
 BASE_LABELS = ("silence", "unknown")
@@ -93,6 +98,15 @@ def add_arguments(
     train.add_argument("--epochs", type=int, default=12)
     train.add_argument("--batch-size", type=int, default=16)
     train.add_argument("--seed", type=int, default=1337)
+    train.add_argument("--frontend", choices=tuple(FRONTEND_VERSIONS))
+    train.add_argument(
+        "--frontend-warmup-ms", type=int, default=0,
+        help="train-only synthetic preceding background (0..3000, 20 ms aligned); alternate cold starts",
+    )
+    train.add_argument(
+        "--streaming-negative-frame-loss-weight", type=float, default=0.0,
+        help="streaming-tcn only: penalize wake scores at source-clip frames of known negatives; 0 keeps last-frame-only training",
+    )
     train.add_argument(
         "--tempo-augmentation",
         action="store_true",
@@ -106,7 +120,7 @@ def add_arguments(
     )
     train.add_argument(
         "--architecture",
-        choices=("ds-cnn", "temporal-ds-cnn"),
+        choices=("ds-cnn", "temporal-ds-cnn", STREAM_ARCHITECTURE),
         default="ds-cnn",
         help="spatial DS-CNN or full-frequency projection followed by temporal separable convolutions",
     )
@@ -151,6 +165,7 @@ def add_arguments(
         help="stream a frozen validation or test session set through the KWS C policy",
     )
     evaluate.add_argument("--manifest", required=True, type=Path)
+    evaluate.add_argument("--frontend", choices=tuple(FRONTEND_VERSIONS))
     evaluate.add_argument(
         "--model", required=True, type=Path, help="existing full-INT8 TFLite candidate"
     )
@@ -172,10 +187,14 @@ def add_arguments(
         type=Path,
         help="new validation binding, or existing binding required for test",
     )
-    package = commands.add_parser("package", help="package a candidate as a WKM1 model")
+    package = commands.add_parser("package", help="package a bound candidate as WKM1/WKM2")
     package.add_argument("--model", required=True, type=Path)
     package.add_argument("--metadata", required=True, type=Path)
     package.add_argument("--output", required=True, type=Path)
+    binding = commands.add_parser("bind-frontend", help="add hash-covered frontend metadata without changing model computation")
+    binding.add_argument("--model", required=True, type=Path)
+    binding.add_argument("--metadata", required=True, type=Path)
+    binding.add_argument("--output", required=True, type=Path, help="new directory; original model and reports are preserved")
 
 
 def _fail(reason: str) -> None:
@@ -261,7 +280,7 @@ def _validate(
     wake_label, wake_phrase, labels = _wake_contract(document)
     if (
         document.get("schema") != SCHEMA
-        or document.get("frontend") != FRONTEND
+        or document.get("frontend") not in FRONTEND_VERSIONS
         or document.get("labels") != list(labels)
         or not isinstance(document.get("entries"), list)
     ):
@@ -351,7 +370,7 @@ def _validate(
     ).encode("utf-8")
     report = {
         "schema": SCHEMA,
-        "frontend": FRONTEND,
+        "frontend": document["frontend"],
         "labels": list(labels),
         "wake_label": wake_label,
         "wake_phrase": wake_phrase,
@@ -517,6 +536,9 @@ def _frontend_library() -> ctypes.CDLL:
         ctypes.c_size_t,
     ]
     function.restype = ctypes.c_int
+    versioned = library.bkvoice_kws_features_version
+    versioned.argtypes = [*function.argtypes, ctypes.c_int, ctypes.c_size_t]
+    versioned.restype = ctypes.c_int
     return library
 
 
@@ -534,25 +556,52 @@ def _record_pcm(record: dict[str, Any]) -> bytes:
 
 
 def _features(
-    records: Iterable[dict[str, Any]], numpy: Any, *, path: Path | None = None
+    records: Iterable[dict[str, Any]], numpy: Any, *, path: Path | None = None,
+    frontend: str = FRONTEND,
+    include_history: bool = False,
 ) -> Any:
+    if frontend not in FRONTEND_VERSIONS:
+        _fail("frontend_contract_invalid")
     library = _frontend_library()
     function = library.bkvoice_kws_features
     # Allocate the final array once: appending would let stack/astype hold
     # several complete copies of every feature at the same time.
     records = list(records)
-    shape = (len(records), FEATURE_ROWS, 40, 1)
+    if include_history and any(not isinstance(r.get("frontend_warmup_pcm", b""), bytes)
+                               for r in records):
+        _fail("frontend_warmup_invalid")
+    extra_rows = max((len(r.get("frontend_warmup_pcm", b"")) // 640 for r in records), default=0) if include_history else 0
+    shape = (len(records), FEATURE_ROWS + extra_rows, 40, 1)
+    streaming_library = _kws_library() if include_history else None
     output = (
         numpy.lib.format.open_memmap(path, mode="w+", dtype=numpy.float32, shape=shape)
         if path is not None
         else numpy.empty(shape, dtype=numpy.float32)
     )
     for index, record in enumerate(records):
-        pcm = (ctypes.c_int16 * SAMPLES).from_buffer_copy(_record_pcm(record))
-        feature = (ctypes.c_float * FEATURES)()
-        if function(pcm, SAMPLES, feature, FEATURES) != 0:
+        prefix = record.get("frontend_warmup_pcm", b"")
+        if not isinstance(prefix, bytes) or len(prefix) % 640 or len(prefix) > 320000:
+            _fail("frontend_warmup_invalid")
+        samples = SAMPLES + len(prefix) // 2
+        pcm = (ctypes.c_int16 * samples).from_buffer_copy(prefix + _record_pcm(record))
+        rows = FEATURE_ROWS + len(prefix) // 640 if include_history else FEATURE_ROWS
+        feature = (ctypes.c_float * (rows * 40))()
+        ret = streaming_library.bkvoice_kws_host_features_stream(
+            pcm, samples, feature, rows * 40, FRONTEND_VERSIONS[frontend]
+        ) if streaming_library else (
+            function(pcm, SAMPLES, feature, FEATURES)
+            if frontend == FRONTEND and not prefix else
+            library.bkvoice_kws_features_version(
+                pcm, samples, feature, FEATURES, FRONTEND_VERSIONS[frontend], len(prefix) // 640
+            )
+        )
+        if ret != 0:
             _fail("frontend_feature_failed")
-        output[index] = numpy.ctypeslib.as_array(feature).reshape(FEATURE_ROWS, 40, 1)
+        output[index, :rows] = numpy.ctypeslib.as_array(feature).reshape(rows, 40, 1)
+        if rows < shape[1]:
+            # Validation/test remain genuine cold clips; this unused memmap
+            # suffix is never passed to training, calibration or evaluation.
+            output[index, rows:] = 0
     if path is not None:
         output.flush()
     return output
@@ -619,14 +668,7 @@ def _evaluate_int8(
         _fail("tflite_input_not_quantized")
     predicted = []
     for item in features:
-        scaled = item / scale
-        rounded = numpy.copysign(numpy.floor(numpy.abs(scaled) + 0.5), scaled)
-        value = numpy.clip(rounded + zero, -128, 127).astype(numpy.int8)[None, ...]
-        interpreter.set_tensor(details_in["index"], value)
-        interpreter.invoke()
-        predicted.append(
-            int(numpy.argmax(interpreter.get_tensor(details_out["index"])[0]))
-        )
+        predicted.append(_predict_int8(interpreter, item, numpy)[0])
     labels = numpy.asarray(labels)
     predicted = numpy.asarray(predicted)
     positives = labels == 2
@@ -850,7 +892,8 @@ def _regular_file(path: Path, error: str) -> None:
 
 
 def _read_candidate_metadata(
-    model: Path, wake_contract: tuple[str, str, tuple[str, str, str]]
+    model: Path, wake_contract: tuple[str, str, tuple[str, str, str]],
+    frontend: str = FRONTEND,
 ) -> tuple[dict[str, Any], Path]:
     wake_label, wake_phrase, labels = wake_contract
     _regular_file(model, "model_unavailable")
@@ -867,7 +910,8 @@ def _read_candidate_metadata(
         not isinstance(metadata, dict)
         or metadata.get("model_sha256") != _sha256(model)
         or metadata.get("schema") != SCHEMA
-        or metadata.get("frontend") != FRONTEND
+        or frontend not in FRONTEND_VERSIONS
+        or metadata.get("frontend") != frontend
         or metadata.get("labels") != list(labels)
         or not isinstance(authorization, dict)
         or authorization.get("status") != "candidate"
@@ -888,6 +932,99 @@ def _read_candidate_metadata(
     return metadata, metadata_path
 
 
+def _tflite_frontend(raw: bytes) -> str | None:
+    from tensorflow.lite.python import schema_py_generated as schema
+
+    model = schema.Model.GetRootAsModel(raw, 0)
+    found = None
+    for index in range(model.MetadataLength()):
+        item = model.Metadata(index)
+        if item.Name() != b"bkvoice.frontend":
+            continue
+        if found is not None or item.Buffer() >= model.BuffersLength():
+            _fail("model_frontend_binding_invalid")
+        value = bytes(model.Buffers(item.Buffer()).DataAsNumpy())
+        try:
+            found = value.decode("ascii")
+        except UnicodeError:
+            _fail("model_frontend_binding_invalid")
+        if found not in FRONTEND_VERSIONS:
+            _fail("model_frontend_binding_invalid")
+    return found
+
+
+def _embed_tflite_frontend(raw: bytes, frontend: str) -> tuple[bytes, str]:
+    import flatbuffers
+    import numpy as np
+    from tensorflow.lite.python import schema_py_generated as schema
+
+    if frontend not in FRONTEND_VERSIONS:
+        _fail("frontend_contract_invalid")
+    if _tflite_frontend(raw) is not None:
+        _fail("model_frontend_already_bound")
+
+    def packed(value):
+        builder = flatbuffers.Builder(len(raw) + 256)
+        offset = value.Pack(builder)
+        builder.Finish(offset, file_identifier=b"TFL3")
+        return bytes(builder.Output())
+
+    model = schema.ModelT.InitFromObj(schema.Model.GetRootAsModel(raw, 0))
+    baseline = packed(model)
+    original_metadata = model.metadata
+    buffer = schema.BufferT()
+    buffer.data = np.frombuffer(frontend.encode("ascii"), dtype=np.uint8)
+    item = schema.MetadataT()
+    item.name = b"bkvoice.frontend"
+    item.buffer = len(model.buffers)
+    model.buffers.append(buffer)
+    model.metadata = [*(model.metadata or []), item]
+    result = packed(model)
+    # Reparse the emitted bytes and remove exactly our appended metadata and
+    # buffer. The canonical original must be byte-identical: tensors, weights,
+    # quantizers, operator options, signatures and existing metadata unchanged.
+    restored = schema.ModelT.InitFromObj(schema.Model.GetRootAsModel(result, 0))
+    restored.buffers = restored.buffers[:-1]
+    restored.metadata = restored.metadata[:-1] if original_metadata is not None else None
+    if packed(restored) != baseline or _tflite_frontend(result) != frontend:
+        _fail("model_frontend_binding_changed_computation")
+    return result, hashlib.sha256(baseline).hexdigest()
+
+
+def bind_frontend(model: Path, metadata_path: Path, output: Path) -> dict[str, Any]:
+    """Explicit migration of a previously audited export into a new directory."""
+    _regular_file(model, "model_unavailable")
+    _regular_file(metadata_path, "model_metadata_unavailable")
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    if (not isinstance(metadata, dict) or metadata.get("model_sha256") != _sha256(model)
+            or metadata.get("schema") != SCHEMA
+            or not isinstance(metadata.get("frontend"), str)
+            or metadata["frontend"] not in FRONTEND_VERSIONS):
+        _fail("model_metadata_contract_invalid")
+    if output.exists() or not output.parent.is_dir():
+        _fail("binding_output_invalid")
+    raw, payload_sha = _embed_tflite_frontend(model.read_bytes(), metadata["frontend"])
+    if not 1 <= len(raw) <= 65536:
+        _fail("model_export_size_invalid")
+    migration = {
+        "schema": "bkvoice-frontend-binding-migration-v1",
+        "source_model_sha256": metadata["model_sha256"],
+        "source_metadata_sha256": _sha256(metadata_path),
+        "bound_model_sha256": hashlib.sha256(raw).hexdigest(),
+        "frontend": metadata["frontend"],
+        "computation_canonical_sha256": payload_sha,
+        "computation_preserved": True,
+        "evaluation_status": "source metrics inherited; re-evaluate and rebind policy for new model hash",
+    }
+    metadata.update(model_sha256=migration["bound_model_sha256"], model_bytes=len(raw),
+                    frontend_binding_migration=migration)
+    output.mkdir(mode=0o700)
+    (output / "model_int8.tflite").write_bytes(raw)
+    (output / "metadata.json").write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n")
+    (output / "migration.json").write_text(json.dumps(migration, indent=2, sort_keys=True) + "\n")
+    return migration
+
+
 def package(model: Path, metadata_path: Path, output: Path) -> dict[str, Any]:
     _regular_file(model, "model_unavailable")
     _regular_file(metadata_path, "model_metadata_unavailable")
@@ -901,6 +1038,7 @@ def package(model: Path, metadata_path: Path, output: Path) -> dict[str, Any]:
         _fail("model_metadata_contract_invalid")
     label = metadata.get("wake_label")
     phrase = metadata.get("wake_phrase")
+    frontend = metadata.get("frontend")
     raw = model.read_bytes()
     if (
         not isinstance(label, str)
@@ -910,7 +1048,8 @@ def package(model: Path, metadata_path: Path, output: Path) -> dict[str, Any]:
         or any(ord(c) < 32 for c in phrase)
         or len(phrase.encode("utf-8")) > 63
         or metadata.get("model_sha256") != hashlib.sha256(raw).hexdigest()
-        or metadata.get("frontend") != FRONTEND
+        or not isinstance(frontend, str)
+        or frontend not in FRONTEND_VERSIONS
         or metadata.get("labels") != ["silence", "unknown", label]
         or len(raw) not in range(1, 65537)
     ):
@@ -922,12 +1061,20 @@ def package(model: Path, metadata_path: Path, output: Path) -> dict[str, Any]:
         raise KwsError("training_dependencies_unavailable") from error
     interpreter = tf.lite.Interpreter(model_path=str(model))
     interpreter.allocate_tensors()
-    if (
+    binding = _tflite_frontend(raw)
+    if (binding is None and frontend != FRONTEND) or (binding is not None and binding != frontend):
+        _fail("model_frontend_binding_mismatch")
+    streaming = metadata.get("architecture_family") == STREAM_ARCHITECTURE
+    contract = _streaming_contract(interpreter, np) if streaming else None
+    if not streaming and (
         len(interpreter.get_input_details()) != 1
         or len(interpreter.get_output_details()) != 1
     ):
         _fail("model_tensor_count_invalid")
-    inp, out = interpreter.get_input_details()[0], interpreter.get_output_details()[0]
+    if contract and metadata.get("streaming_contract") != _streaming_contract_report(contract):
+        _fail("model_quantization_mismatch")
+    inp = contract["frame"] if contract else interpreter.get_input_details()[0]
+    out = contract["score"] if contract else interpreter.get_output_details()[0]
     operators = sorted(
         {
             x["op_name"]
@@ -944,11 +1091,11 @@ def package(model: Path, metadata_path: Path, output: Path) -> dict[str, Any]:
         "SOFTMAX",
     ]
     if (
-        inp["shape"].tolist() != [1, 149, 40, 1]
+        inp["shape"].tolist() != [1, 1 if streaming else 149, 40, 1]
         or out["shape"].tolist() != [1, 3]
         or inp["dtype"] != np.int8
         or out["dtype"] != np.int8
-        or operators != expected
+        or (not streaming and operators != expected)
     ):
         _fail("model_export_incompatible")
     for name, tensor in (("input", inp), ("output", out)):
@@ -961,13 +1108,16 @@ def package(model: Path, metadata_path: Path, output: Path) -> dict[str, Any]:
             or metadata.get(name + "_quantization") != [float(scale), int(zero)]
         ):
             _fail("model_quantization_mismatch")
+    frontend_version = FRONTEND_VERSIONS[metadata["frontend"]]
     header = (
-        b"WKM1"
+        (b"WKM1" if frontend_version == 1 else b"WKM2")
         + len(raw).to_bytes(4, "big")
         + hashlib.sha256(raw).digest()
         + label.encode("ascii").ljust(32, b"\0")
         + phrase.encode("utf-8").ljust(64, b"\0")
     )
+    if frontend_version != 1:
+        header += frontend_version.to_bytes(4, "big")
     payload = header + raw
     if output.exists():
         if output.is_file() and output.read_bytes() == payload:
@@ -1227,6 +1377,10 @@ def _kws_library() -> ctypes.CDLL:
     library.bkvoice_kws_host_default_policy.argtypes = [ctypes.POINTER(ctypes.c_float)]
     library.bkvoice_kws_host_create.argtypes = [callback, ctypes.c_void_p]
     library.bkvoice_kws_host_create.restype = ctypes.c_void_p
+    library.bkvoice_kws_host_create_version.argtypes = [
+        callback, ctypes.c_void_p, ctypes.c_int
+    ]
+    library.bkvoice_kws_host_create_version.restype = ctypes.c_void_p
     library.bkvoice_kws_host_feed.argtypes = [
         ctypes.c_void_p,
         ctypes.POINTER(ctypes.c_int16),
@@ -1238,6 +1392,15 @@ def _kws_library() -> ctypes.CDLL:
     library.bkvoice_kws_host_pause.argtypes = [ctypes.c_void_p]
     library.bkvoice_kws_host_destroy.argtypes = [ctypes.c_void_p]
     library._callback_type = callback  # retain the ctypes signature for callers
+    reset = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
+    library.bkvoice_kws_host_create_stream.argtypes = [callback, reset, ctypes.c_void_p, ctypes.c_int]
+    library.bkvoice_kws_host_create_stream.restype = ctypes.c_void_p
+    library._reset_type = reset
+    library.bkvoice_kws_host_features_stream.argtypes = [
+        ctypes.POINTER(ctypes.c_int16), ctypes.c_size_t,
+        ctypes.POINTER(ctypes.c_float), ctypes.c_size_t, ctypes.c_int,
+    ]
+    library.bkvoice_kws_host_features_stream.restype = ctypes.c_int
     return library
 
 
@@ -1252,7 +1415,218 @@ def _policy_from_c(library: ctypes.CDLL) -> dict[str, int | float]:
     }
 
 
+def _streaming_models(tf: Any, channels: int) -> tuple[Any, Any, Any, Any]:
+    """One set of weights, full causal sequence training and one-row export.
+
+    States cache each block's *input* activations, not past logits. All temporal
+    convolutions have stride one; arbitrary caller chunking changes no math.
+    A 249-frame receptive field covers the complete existing 149-frame corpus
+    windows and does not introduce a new slow-phrase crop.
+    """
+    source = tf.keras.Input((None, 40, 1), name="features")
+    frame = tf.keras.Input((1, 40, 1), batch_size=1, name="frame")
+    projection = tf.keras.layers.Conv2D(
+        channels, (1, 40), use_bias=False, activation="relu", name="frequency"
+    )
+    full = projection(source)
+    step = projection(frame)
+    state_inputs, state_outputs, activations = [], [], []
+    for index, delay in enumerate(STREAM_DELAYS):
+        activations.append(full)
+        state = tf.keras.Input(
+            (delay, 1, channels), batch_size=1, name=f"state_{index}"
+        )
+        state_inputs.append(state)
+        joined = tf.keras.layers.Concatenate(axis=1)([state, step])
+        state_outputs.append(tf.keras.layers.Lambda(lambda x: x[:, 1:, :, :])(joined))
+        depth = tf.keras.layers.DepthwiseConv2D(
+            (9, 1), dilation_rate=(delay // 8, 1), padding="valid",
+            use_bias=False, activation="relu", name=f"causal_{index}"
+        )
+        point = tf.keras.layers.Conv2D(
+            channels, (1, 1), use_bias=False, activation="relu",
+            name=f"pointwise_{index}"
+        )
+        full = point(depth(tf.keras.layers.ZeroPadding2D(((delay, 0), (0, 0)))(full)))
+        step = point(depth(joined))
+    classifier = tf.keras.layers.Conv2D(3, (1, 1), name="classifier")
+    full = classifier(full)
+    step = classifier(step)
+    last = tf.keras.layers.Lambda(lambda x: x[:, -1, 0, :])(full)
+    score = tf.keras.layers.Softmax()(tf.keras.layers.Reshape((3,))(step))
+    return (
+        tf.keras.Model(source, tf.keras.layers.Softmax()(last), name=STREAM_ARCHITECTURE),
+        tf.keras.Model([frame, *state_inputs], [score, *state_outputs]),
+        tf.keras.Model(source, activations),
+        tf.keras.Model(source, tf.keras.layers.Softmax()(full)),
+    )
+
+
+def _streaming_negative_frame_loss(tf: Any, weight: float) -> Callable[[Any, Any], Any]:
+    """Add source-clip negative supervision without inventing positive timing."""
+    def loss(labels: Any, sequence: Any) -> Any:
+        labels = tf.reshape(tf.cast(labels, tf.int32), (-1,))
+        last = sequence[:, -1, 0, :]
+        final_loss = tf.keras.losses.sparse_categorical_crossentropy(labels, last)
+        # The leading history can be from another recording. Only the final
+        # FEATURE_ROWS belong to this labeled three-second source clip.
+        wake = sequence[:, -FEATURE_ROWS:, 0, 2]
+        negative_loss = -tf.math.log1p(-tf.clip_by_value(wake, 0.0, 1.0 - 1e-7))
+        negative_loss = tf.reduce_mean(negative_loss, axis=1)
+        return final_loss + weight * tf.where(labels == 2, 0.0, negative_loss)
+
+    return loss
+
+
+def _streaming_last_frame_accuracy(tf: Any) -> Callable[[Any, Any], Any]:
+    def accuracy(labels: Any, sequence: Any) -> Any:
+        labels = tf.reshape(tf.cast(labels, tf.int32), (-1,))
+        return tf.keras.metrics.sparse_categorical_accuracy(labels, sequence[:, -1, 0, :])
+
+    return accuracy
+
+
+def _streaming_representative(models: Any, features: Any, indices: Any, numpy: Any):
+    """Train-only actual activation histories, including real zero-state starts."""
+    probe = models[2]
+    chosen = numpy.asarray(indices)
+    if not len(chosen):
+        _fail("streaming_calibration_empty")
+    chosen = chosen[numpy.linspace(0, len(chosen) - 1, min(len(chosen), 128), dtype=int)]
+    for index in chosen:
+        sequence = features[index : index + 1]
+        activations = [x.numpy() for x in probe(sequence, training=False)]
+        positions = sorted({*range(0, sequence.shape[1], 15), sequence.shape[1] - 1})
+        for position in positions:
+            states = []
+            for delay, values in zip(STREAM_DELAYS, activations):
+                state = numpy.zeros((1, delay, 1, values.shape[-1]), dtype=numpy.float32)
+                count = min(position, delay)
+                if count:
+                    state[:, -count:] = values[:, position - count : position]
+                states.append(state)
+            yield {"frame": numpy.asarray(sequence[:, position : position + 1]),
+                   **{f"state_{i}": state for i, state in enumerate(states)}}
+
+
+def _streaming_equivalence(models: Any, sequence: Any, numpy: Any) -> float:
+    """Export gate: shared weights must agree across arbitrary chunk boundaries."""
+    channels = int(models[1].inputs[1].shape[-1])
+    states = [numpy.zeros((1, delay, 1, channels), dtype=numpy.float32)
+              for delay in STREAM_DELAYS]
+    expected = models[3](sequence[numpy.newaxis], training=False).numpy()[0, :, 0, :]
+    actual = []
+    # Deliberately cross every dilation boundary, retaining only exported state.
+    for begin in range(0, len(sequence), 37):
+        for row in sequence[begin : begin + 37]:
+            outputs = models[1]([row.reshape(1, 1, 40, 1), *states], training=False)
+            actual.append(outputs[0].numpy()[0])
+            states = [value.numpy() for value in outputs[1:]]
+    error = float(numpy.max(numpy.abs(numpy.asarray(actual) - expected)))
+    if not numpy.isfinite(error) or error > 1e-5:
+        _fail("streaming_chunk_equivalence_failed")
+    return error
+
+
+def _streaming_contract(interpreter: Any, numpy: Any) -> dict[str, Any]:
+    inputs, outputs = interpreter.get_input_details(), interpreter.get_output_details()
+    if len(inputs) != 6 or len(outputs) != 6:
+        _fail("streaming_tensor_count_invalid")
+    frame = [d for d in inputs if d["shape"].tolist() == [1, 1, 40, 1]]
+    score = [d for d in outputs if d["shape"].tolist() == [1, 3]]
+    if len(frame) != 1 or len(score) != 1:
+        _fail("streaming_tensor_shape_invalid")
+    states = []
+    channels = None
+    for delay in STREAM_DELAYS:
+        incoming = [d for d in inputs if len(d["shape"]) == 4 and d["shape"][1] == delay]
+        outgoing = [d for d in outputs if len(d["shape"]) == 4 and d["shape"][1] == delay]
+        if len(incoming) != 1 or len(outgoing) != 1:
+            _fail("streaming_state_shape_invalid")
+        a, b = incoming[0], outgoing[0]
+        shape = a["shape"].tolist()
+        channels = shape[-1] if channels is None else channels
+        if shape != [1, delay, 1, channels] or b["shape"].tolist() != shape or not 1 <= channels <= 64:
+            _fail("streaming_state_shape_invalid")
+        states.append((a, b))
+    for detail in [*inputs, *outputs]:
+        scale, zero = detail["quantization"]
+        if detail["dtype"] != numpy.int8 or not numpy.isfinite(scale) or scale <= 0 or not -128 <= zero <= 127:
+            _fail("streaming_quantization_invalid")
+    if score[0]["quantization"] != (1.0 / 256, -128):
+        _fail("streaming_score_quantization_invalid")
+    operators = sorted({d["op_name"] for d in interpreter._get_ops_details() if d["op_name"] != "DELEGATE"})
+    allowed = {"CONV_2D", "DEPTHWISE_CONV_2D", "CONCATENATION", "STRIDED_SLICE", "RESHAPE", "SOFTMAX", "QUANTIZE"}
+    if not set(operators).issubset(allowed) or not {"CONV_2D", "DEPTHWISE_CONV_2D", "CONCATENATION", "SOFTMAX"}.issubset(operators):
+        _fail("streaming_operator_unsupported")
+    for detail in interpreter.get_tensor_details():
+        if detail["dtype"] not in (numpy.int8, numpy.int32):
+            _fail("streaming_float_fallback")
+    return {"frame": frame[0], "score": score[0], "states": states, "channels": channels, "operators": operators}
+
+
+def _streaming_contract_report(contract: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "schema": "bkvoice-causal-state-v1",
+        "step_feature_rows": 1,
+        "state_bytes": sum(int(a["shape"].prod()) for a, _ in contract["states"]),
+        "state_lifecycle": "zero real-valued states at boot, pause, gap and rearm; no wall-clock inference",
+        "state_transfer": "round-half-away-from-zero(out-real/input-scale)+input-zero; saturate int8",
+        "states": [{"shape": a["shape"].tolist(),
+                    "input_quantization": list(a["quantization"]),
+                    "output_quantization": list(b["quantization"])}
+                   for a, b in contract["states"]],
+    }
+
+
+class _StreamingInt8:
+    """Identical INT8 state lifecycle for clip and product-policy evaluation."""
+    def __init__(self, interpreter: Any, numpy: Any):
+        self.interpreter, self.numpy = interpreter, numpy
+        self.contract = _streaming_contract(interpreter, numpy)
+        self.reset()
+
+    def reset(self) -> None:
+        self.states = [self.numpy.full(a["shape"], a["quantization"][1], dtype=self.numpy.int8)
+                       for a, _ in self.contract["states"]]
+
+    def quantize(self, value: Any, detail: Any) -> Any:
+        scale, zero = detail["quantization"]
+        scaled = value / scale
+        rounded = self.numpy.copysign(self.numpy.floor(self.numpy.abs(scaled) + .5), scaled)
+        return self.numpy.clip(rounded + zero, -128, 127).astype(self.numpy.int8)
+
+    def step(self, row: Any) -> Any:
+        c, np, interpreter = self.contract, self.numpy, self.interpreter
+        interpreter.set_tensor(c["frame"]["index"], self.quantize(np.asarray(row).reshape(1, 1, 40, 1), c["frame"]))
+        for value, (detail, _) in zip(self.states, c["states"]):
+            interpreter.set_tensor(detail["index"], value)
+        interpreter.invoke()
+        # State tensors can have independent affine quantizers. Never memcpy
+        # them merely because both sides happen to be signed 8-bit integers.
+        for index, (incoming, outgoing) in enumerate(c["states"]):
+            value = interpreter.get_tensor(outgoing["index"])
+            if incoming["quantization"] != outgoing["quantization"]:
+                scale, zero = outgoing["quantization"]
+                value = self.quantize((value.astype(np.float32) - zero) * scale, incoming)
+            self.states[index] = value
+        detail = c["score"]
+        scale, zero = detail["quantization"]
+        return (interpreter.get_tensor(detail["index"])[0].astype(np.float32) - zero) * scale
+
+    def sequence(self, features: Any, reset: bool = True) -> Any:
+        if reset:
+            self.reset()
+        values = [self.step(row) for row in features]
+        if not values:
+            _fail("streaming_sequence_empty")
+        return self.numpy.asarray(values)
+
+
 def _predict_int8(interpreter: Any, feature: Any, numpy: Any) -> tuple[int, Any]:
+    if len(interpreter.get_input_details()) > 1:
+        scores = _StreamingInt8(interpreter, numpy).sequence(feature)[-1]
+        return int(numpy.argmax(scores)), scores
     details_in = interpreter.get_input_details()[0]
     details_out = interpreter.get_output_details()[0]
     scale, zero = details_in["quantization"]
@@ -1284,7 +1658,8 @@ def _write_new_json(path: Path, value: dict[str, Any]) -> None:
 
 
 def evaluate(
-    manifest: Path, model: Path, output: Path, frozen_policy: Path, split_name: str
+    manifest: Path, model: Path, output: Path, frozen_policy: Path, split_name: str,
+    frontend: str | None = None,
 ) -> dict[str, Any]:
     """Evaluate explicitly timed sessions through the product C stream path.
 
@@ -1292,6 +1667,10 @@ def evaluate(
     is a host callback and TFLM board equivalence remains separate work.
     """
     records, report, wake_contract = _validate(manifest)
+    if frontend is not None:
+        if frontend not in FRONTEND_VERSIONS:
+            _fail("frontend_contract_invalid")
+        report["frontend"] = frontend
     wake_label, wake_phrase, class_labels = wake_contract
     document = _read_manifest(manifest)
     sessions = _validate_sessions(document, manifest, records)
@@ -1307,7 +1686,9 @@ def evaluate(
         frozen_policy.exists() or not frozen_policy.parent.is_dir()
     ):
         _fail("frozen_policy_output_invalid")
-    metadata, metadata_path = _read_candidate_metadata(model, wake_contract)
+    metadata, metadata_path = _read_candidate_metadata(
+        model, wake_contract, report["frontend"]
+    )
     try:
         import numpy as np
         import tensorflow as tf
@@ -1315,17 +1696,24 @@ def evaluate(
         raise KwsError("training_dependencies_unavailable") from error
     interpreter = tf.lite.Interpreter(model_path=str(model))
     interpreter.allocate_tensors()
-    details_in = interpreter.get_input_details()[0]
-    details_out = interpreter.get_output_details()[0]
+    streaming = metadata.get("architecture_family") == STREAM_ARCHITECTURE
+    contract = _streaming_contract(interpreter, np) if streaming else None
+    if not streaming and (len(interpreter.get_input_details()) != 1 or len(interpreter.get_output_details()) != 1):
+        _fail("tflite_shape_or_type_invalid")
+    details_in = contract["frame"] if contract else interpreter.get_input_details()[0]
+    details_out = contract["score"] if contract else interpreter.get_output_details()[0]
+    input_shape = [1, 1 if streaming else FEATURE_ROWS, 40, 1]
+    if contract and metadata.get("streaming_contract") != _streaming_contract_report(contract):
+        _fail("model_quantization_metadata_mismatch")
     if (
-        list(details_in["shape"]) != [1, FEATURE_ROWS, 40, 1]
+        list(details_in["shape"]) != input_shape
         or list(details_out["shape"]) != [1, len(class_labels)]
         or details_in["dtype"] != np.int8
         or details_out["dtype"] != np.int8
     ):
         _fail("tflite_shape_or_type_invalid")
     if (
-        metadata.get("input_shape") != [1, FEATURE_ROWS, 40, 1]
+        metadata.get("input_shape") != input_shape
         or metadata.get("output_shape") != [1, len(class_labels)]
         or metadata.get("input_quantization")
         != [float(details_in["quantization"][0]), int(details_in["quantization"][1])]
@@ -1376,7 +1764,7 @@ def evaluate(
         ):
             _fail("frozen_policy_binding_mismatch")
     # A test binding is checked above, before either slice or stream inference.
-    features = _features(chosen_records, np)
+    features = _features(chosen_records, np, frontend=report["frontend"])
     labels = np.asarray(
         [class_labels.index(record["label"]) for record in chosen_records],
         dtype=np.int32,
@@ -1397,13 +1785,17 @@ def evaluate(
     paused_ms = 0
     gap_ms = 0
     callback_error: list[Exception] = []
+    incremental = _StreamingInt8(interpreter, np) if streaming else None
 
     def infer(_context: Any, feature_pointer: Any, scores_pointer: Any) -> int:
         try:
-            feature = np.ctypeslib.as_array(feature_pointer, shape=(FEATURES,)).copy()
-            _, scores = _predict_int8(
-                interpreter, feature.reshape(FEATURE_ROWS, 40, 1), np
-            )
+            feature = np.ctypeslib.as_array(feature_pointer, shape=(40 if streaming else FEATURES,)).copy()
+            if incremental:
+                scores = incremental.step(feature)
+            else:
+                _, scores = _predict_int8(
+                    interpreter, feature.reshape(FEATURE_ROWS, 40, 1), np
+                )
             for index, value in enumerate(scores):
                 scores_pointer[index] = float(value)
             return 0
@@ -1414,10 +1806,15 @@ def evaluate(
             return -1
 
     callback = library._callback_type(infer)
+    reset = library._reset_type(lambda _: incremental.reset()) if incremental else None
     for session in chosen_sessions:
         # Each manifest session is a separate recording/clock epoch.  A
         # pause or gap within one session instead retains the C latch rules.
-        host = library.bkvoice_kws_host_create(callback, None)
+        host = (library.bkvoice_kws_host_create_stream(
+            callback, reset, None, FRONTEND_VERSIONS[report["frontend"]]
+        ) if streaming else library.bkvoice_kws_host_create_version(
+            callback, None, FRONTEND_VERSIONS[report["frontend"]]
+        ))
         if not host:
             _fail("kws_bridge_initialize_failed")
         try:
@@ -1631,17 +2028,32 @@ def train(
     room_augmentation: bool = False,
     positive_end_window_ms: int = 0,
     tempo_augmentation: bool = False,
+    frontend: str | None = None,
+    frontend_warmup_ms: int = 0,
+    streaming_negative_frame_loss_weight: float = 0.0,
 ) -> dict[str, Any]:
     """Train and export a full-INT8 candidate; imports ML packages only here."""
+    streaming = architecture == STREAM_ARCHITECTURE
+    if streaming and frontend_warmup_ms == 0:
+        frontend_warmup_ms = 2000
+    if streaming and frontend_warmup_ms < 2000:
+        _fail("streaming_training_history_too_short")
     if (
         epochs < 1
         or batch_size < 1
         or channels < 1
         or channels > 64
-        or architecture not in ("ds-cnn", "temporal-ds-cnn")
+        or architecture not in ("ds-cnn", "temporal-ds-cnn", STREAM_ARCHITECTURE)
         or initial_frequency_stride not in (1, 2, 4)
         or output.exists()
         or not output.parent.is_dir()
+        or (frontend is not None and frontend not in FRONTEND_VERSIONS)
+        or frontend_warmup_ms < 0
+        or frontend_warmup_ms > 3000
+        or frontend_warmup_ms % 20 != 0
+        or not math.isfinite(streaming_negative_frame_loss_weight)
+        or streaming_negative_frame_loss_weight < 0
+        or (not streaming and streaming_negative_frame_loss_weight != 0)
     ):
         _fail("training_arguments_invalid")
     if unknown_shift_step_ms not in (100, 200, 400, 800):
@@ -1653,6 +2065,9 @@ def train(
     ):
         _fail("positive_end_window_invalid")
     records, report, wake_contract = _validate(manifest)
+    manifest_frontend = report["frontend"]
+    if frontend is not None:
+        report["frontend"] = frontend
     wake_label, wake_phrase, class_labels = wake_contract
     document = _read_manifest(manifest)
     if "sessions" in document:
@@ -1753,7 +2168,30 @@ def train(
         train_records.extend(room_records)
         amplitude_copies *= 2
     feature_cache = tempfile.TemporaryDirectory(prefix="bkvoice-kws-features-")
-    features = _features(train_records, np, path=Path(feature_cache.name) / "train.npy")
+    warmup_count = 0
+    warmup_hashes: set[str] = set()
+    if frontend_warmup_ms:
+        # Synthetic history is drawn only from already-audited training
+        # negatives. It is not claimed to precede the source recording.
+        # Legacy alternates cold starts. Streaming exposes the complete
+        # synthetic history to the model; validation/test clips remain cold.
+        backgrounds = [r for r in records if r["split"] == "train"
+                       and r["label"] in BASE_LABELS]
+        prefixes = [_record_pcm(r)[:frontend_warmup_ms * 32] for r in backgrounds]
+        for index, record in enumerate(train_records):
+            if record["split"] != "train" or (not streaming and index % 2 == 0):
+                continue
+            digest = hashlib.sha256(
+                f"{seed}:{index}:{record['source_id']}".encode()).digest()
+            prefix = prefixes[int.from_bytes(digest[:8], "big") % len(prefixes)]
+            record["frontend_warmup_pcm"] = prefix
+            warmup_hashes.add(hashlib.sha256(prefix).hexdigest())
+            warmup_count += 1
+    features = _features(
+        train_records, np, path=Path(feature_cache.name) / "train.npy",
+        frontend=report["frontend"],
+        include_history=streaming,
+    )
     targets = np.asarray(
         [class_labels.index(record["label"]) for record in train_records],
         dtype=np.int32,
@@ -1840,7 +2278,7 @@ def train(
     training_data = tf.data.Dataset.from_generator(
         training_rows,
         output_signature=(
-            tf.TensorSpec((FEATURE_ROWS, 40, 1), tf.float32),
+            tf.TensorSpec((features.shape[1], 40, 1), tf.float32),
             tf.TensorSpec((), tf.int32),
             tf.TensorSpec((), tf.float32),
         ),
@@ -1865,7 +2303,8 @@ def train(
         ((9, depthwise_frequency), (1, 1)),
         ((9, depthwise_frequency), (1, 1)),
     )
-    model = tf.keras.Sequential(
+    streaming_models = _streaming_models(tf, channels) if architecture == STREAM_ARCHITECTURE else None
+    model = streaming_models[0] if streaming_models else tf.keras.Sequential(
         [
             tf.keras.layers.Input((FEATURE_ROWS, 40, 1)),
             tf.keras.layers.Conv2D(
@@ -1897,11 +2336,23 @@ def train(
             tf.keras.layers.Dense(3, activation="softmax"),
         ]
     )
-    model.compile(
-        optimizer="adam", loss="sparse_categorical_crossentropy", metrics=["accuracy"]
+    supervised_negative_frames = streaming and streaming_negative_frame_loss_weight > 0
+    training_model = streaming_models[3] if supervised_negative_frames else model
+    training_model.compile(
+        optimizer="adam",
+        loss=(_streaming_negative_frame_loss(tf, streaming_negative_frame_loss_weight)
+              if supervised_negative_frames else "sparse_categorical_crossentropy"),
+        metrics=([_streaming_last_frame_accuracy(tf)] if supervised_negative_frames
+                 else ["accuracy"]),
     )
     early = tf.keras.callbacks.EarlyStopping(
         monitor="val_loss", patience=20, restore_best_weights=True
+    )
+    output.mkdir(mode=0o700)
+    checkpoint_path = output / "best.weights.h5"
+    checkpoint = tf.keras.callbacks.ModelCheckpoint(
+        str(checkpoint_path), monitor="val_loss", save_best_only=True,
+        save_weights_only=True,
     )
     # Report actual epochs for long runs; stdout stays reserved for the final
     # JSON result.
@@ -1918,39 +2369,46 @@ def train(
             flush=True,
         )
     )
-    history = model.fit(
+    history = training_model.fit(
         training_data,
         epochs=epochs,
-        validation_data=(features[validation_mask], targets[validation_mask]),
+        validation_data=(features[validation_mask, :FEATURE_ROWS], targets[validation_mask]),
         verbose=0,
-        callbacks=[early, progress],
+        callbacks=[early, checkpoint, progress],
     )
     # Keras restores best_weights only when its patience actually stops the
     # fit.  A bounded run can finish first, so export the observed best epoch.
     if early.best_weights is None:
         _fail("training_best_weights_unavailable")
-    model.set_weights(early.best_weights)
+    training_model.set_weights(early.best_weights)
     float_validation = _evaluate_float(
-        model, features[validation_mask], targets[validation_mask], np, class_labels
+        model, features[validation_mask, :FEATURE_ROWS], targets[validation_mask], np, class_labels
     )
-    converter = tf.lite.TFLiteConverter.from_keras_model(model)
+    stream_equivalence = _streaming_equivalence(
+        streaming_models, features[np.where(train_mask)[0][0]], np
+    ) if streaming_models else None
+    converter = tf.lite.TFLiteConverter.from_keras_model(streaming_models[1] if streaming_models else model)
     converter.optimizations = [tf.lite.Optimize.DEFAULT]
-    converter.representative_dataset = lambda: (
+    converter.representative_dataset = (lambda: _streaming_representative(
+        streaming_models, features, np.where(train_mask)[0], np
+    )) if streaming_models else lambda: (
         [features[index : index + 1]] for index in np.where(train_mask)[0]
     )
     converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
     converter.inference_input_type = tf.int8
     converter.inference_output_type = tf.int8
-    candidate = converter.convert()
+    candidate, _ = _embed_tflite_frontend(converter.convert(), report["frontend"])
     if not 1 <= len(candidate) <= 65536:
         _fail("model_export_size_invalid")
-    output.mkdir(mode=0o700)
     model_path = output / "model_int8.tflite"
     model_path.write_bytes(candidate)
     interpreter = tf.lite.Interpreter(model_path=str(model_path))
     interpreter.allocate_tensors()
-    actual_input_shape = interpreter.get_input_details()[0]["shape"].tolist()
-    actual_output_shape = interpreter.get_output_details()[0]["shape"].tolist()
+    stream_contract = _streaming_contract(interpreter, np) if streaming_models else None
+    exported_input = stream_contract["frame"] if stream_contract else interpreter.get_input_details()[0]
+    exported_output = stream_contract["score"] if stream_contract else interpreter.get_output_details()[0]
+    actual_input_shape = exported_input["shape"].tolist()
+    actual_output_shape = exported_output["shape"].tolist()
     actual_operators = sorted(
         {
             detail["op_name"]
@@ -1967,9 +2425,9 @@ def train(
         "SOFTMAX",
     ]
     if (
-        actual_input_shape != [1, FEATURE_ROWS, 40, 1]
+        actual_input_shape != [1, 1 if streaming_models else FEATURE_ROWS, 40, 1]
         or actual_output_shape != [1, len(class_labels)]
-        or actual_operators != expected_operators
+        or (not streaming_models and actual_operators != expected_operators)
     ):
         _fail("model_export_incompatible")
     # Test stays frozen until a separately bound ``kws evaluate --split test``.
@@ -1977,19 +2435,26 @@ def train(
         "float_validation": float_validation,
         "validation": _evaluate_int8(
             interpreter,
-            features[validation_mask],
+            features[validation_mask, :FEATURE_ROWS],
             targets[validation_mask],
             np,
             class_labels,
         ),
     }
-    in_q = interpreter.get_input_details()[0]["quantization"]
-    out_q = interpreter.get_output_details()[0]["quantization"]
+    in_q = exported_input["quantization"]
+    out_q = exported_output["quantization"]
     metadata = {
         **report,
         "wake_label": wake_label,
         "wake_phrase": wake_phrase,
         "audio_seconds": 3,
+        "manifest_frontend": manifest_frontend,
+        "frontend_warmup": {
+            "milliseconds": frontend_warmup_ms,
+            "training_windows": warmup_count,
+            "prefix_pcm_sha256": sorted(warmup_hashes),
+            "policy": "alternate cold/synthetic train-negative history; validation/test isolated clips cold; streaming sessions continuous",
+        },
         "input_pipeline": "source_preserving_tf_data_one_prefetched_batch",
         "architecture": f"{architecture}-conv{channels}-10x{frequency_kernel}-s2xf{frequency_stride}-dw3x{depthwise_frequency}-s2-dw3x{depthwise_frequency}-s2-dw9x{depthwise_frequency}-dw9x{depthwise_frequency}-pw{channels}-bn-relu-global-pool19x{frequency_positions}-flatten-dense3",
         "architecture_family": architecture,
@@ -2015,6 +2480,7 @@ def train(
         "epochs": epochs,
         "epochs_completed": len(history.history["loss"]),
         "best_validation_epoch": early.best_epoch + 1,
+        "checkpoint_sha256": _sha256(checkpoint_path),
         "best_validation_loss": float(history.history["val_loss"][early.best_epoch]),
         "batch_size": batch_size,
         "training_recipe": {
@@ -2136,6 +2602,35 @@ def train(
         },
         "metrics": metrics,
     }
+    if stream_contract:
+        metadata.update({
+            "architecture": f"causal-ds-tcn-{channels}-k9-d1-2-4-8-16-last-frame-dense3",
+            "initial_frequency_kernel": 40,
+            "initial_frequency_stride": 40,
+            "depthwise_blocks": [{"kernel": [9, 1], "strides": [1, 1], "dilation": [d // 8, 1]} for d in STREAM_DELAYS],
+            "theoretical_receptive_field_feature_frames": 1 + sum(STREAM_DELAYS),
+            "theoretical_receptive_field_ms": 20 * (1 + sum(STREAM_DELAYS)),
+            "receptive_field_pcm_span_ms": 30 + 20 * sum(STREAM_DELAYS),
+            "theoretical_convolution_mac_per_inference": 40 * channels + 5 * (9 * channels + channels * channels) + channels * 3,
+            "streaming_contract": _streaming_contract_report(stream_contract),
+            "model_training_context_ms": 3000 + frontend_warmup_ms,
+            "full_sequence_vs_step_max_abs_error": stream_equivalence,
+            "comparison_scope": "changes architecture, effective context and history policy; not a structure-only B/C ablation",
+            "duration_coverage_limit": "original labeled clips are 3 seconds; no evidence for phrases exceeding that window; no new positive truncation",
+            "model_training_history": "all train windows prepend audited train-negative PCM; synthetic concatenation, not same-recording past; full target retained; validation/test clips cold",
+        })
+        metadata["frontend_warmup"]["policy"] = metadata["model_training_history"]
+        metadata["training_recipe"]["base"] = "causal full-sequence training, shared-weight one-row export"
+        metadata["training_recipe"]["batch_normalization_momentum"] = None
+        metadata["training_recipe"]["negative_frame_supervision"] = {
+            "enabled": supervised_negative_frames,
+            "loss_weight": streaming_negative_frame_loss_weight,
+            "negative_labels": list(BASE_LABELS),
+            "supervised_rows": FEATURE_ROWS,
+            "scope": "last 149 source-clip frames only; synthetic preceding history excluded",
+            "positive_policy": "final-frame class loss only; no inferred phrase-end labels",
+            "limitation": "added supervision does not establish long-background coverage or acceptance",
+        }
     (output / "metadata.json").write_text(
         json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
@@ -2166,11 +2661,17 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             room_augmentation=args.room_augmentation,
             positive_end_window_ms=args.positive_end_window_ms,
             tempo_augmentation=args.tempo_augmentation,
+            frontend=args.frontend,
+            frontend_warmup_ms=args.frontend_warmup_ms,
+            streaming_negative_frame_loss_weight=args.streaming_negative_frame_loss_weight,
         )
     if args.kws_command == "evaluate":
         return evaluate(
-            args.manifest, args.model, args.output, args.frozen_policy, args.split
+            args.manifest, args.model, args.output, args.frozen_policy, args.split,
+            frontend=args.frontend,
         )
     if args.kws_command == "package":
         return package(args.model, args.metadata, args.output)
+    if args.kws_command == "bind-frontend":
+        return bind_frontend(args.model, args.metadata, args.output)
     raise KwsError("command_invalid")

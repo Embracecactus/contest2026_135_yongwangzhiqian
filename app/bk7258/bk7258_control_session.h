@@ -86,7 +86,7 @@ enum bkcontrol_command_e
 /* SRT1 request / SRS1 public receipt; no user configuration is returned. */
 #define BKCONTROL_CONFIG_RESET_TRANSFER 9u
 #define BKCONTROL_CONFIG_CAPABILITIES 0x7fffu
-#define BKCONTROL_CONFIG_RECORD_MAX (136u + 65536u)
+#define BKCONTROL_CONFIG_RECORD_MAX (140u + 65536u) /* WKM2 显式前端字段 */
 struct bkcontrol_device_info_s
 {
   uint32_t major;

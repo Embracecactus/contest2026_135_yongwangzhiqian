@@ -9,6 +9,8 @@ struct bkcloud_models_s;
  * playback, conversation, history, worker or recovery owner lives here. */
 int bkagent_cloud_register(void);
 int bkagent_cloud_activate_llm(void);
+/* Explicitly configured real-time ASR only; never changes the user's backend. */
+int bkagent_cloud_prepare_asr(const char *name);
 int bkagent_cloud_clear(void);
 /* Public MCP1 model names from the installed protected configuration. */
 int bkagent_cloud_models_get(struct bkcloud_models_s *models);

@@ -18,11 +18,23 @@ enum score_mode_e
   SCORE_NAN
 };
 
+#define WARMUP_HOPS (BKVOICE_KWS_SAMPLES / BKVOICE_KWS_HOP)
+#define FIRST_WAKE (WARMUP_HOPS + 2 * BKVOICE_KWS_INFER_HOPS - 1)
+#define RELEASE_END (FIRST_WAKE + 1 + BKVOICE_KWS_INFER_HOPS)
+#define SECOND_WAKE (RELEASE_END + 3 * BKVOICE_KWS_INFER_HOPS - 1)
+
 struct infer_context_s
 {
   enum score_mode_e mode;
   unsigned int calls;
+  unsigned int resets;
 };
+
+static void fake_reset(void *context)
+{
+  struct infer_context_s *state = context;
+  state->resets++;
+}
 
 static int fake_infer(void *context, const float *features, float scores[3])
 {
@@ -95,7 +107,7 @@ int main(void)
   struct infer_context_s state;
   float offline[BKVOICE_KWS_FEATURES];
   /* The gating/cooldown sequence intentionally continues past warmup. */
-  int16_t pcm[150 * BKVOICE_KWS_HOP];
+  int16_t pcm[(SECOND_WAKE + 2) * BKVOICE_KWS_HOP];
   float score = 0.0f;
 
   for (unsigned int i = 0; i < sizeof(pcm) / sizeof(pcm[0]); i++)
@@ -124,49 +136,50 @@ int main(void)
   FrontendFreeStateContents(&direct);
   initialize(&kws, &state);
 
-  /* Two seconds is the exact warmup: no inference through 1980 ms. */
-  for (unsigned int frame = 0; frame < 99; frame++)
+  /* Use the production context and cadence, not the retired 2 s policy. */
+  assert(WARMUP_HOPS % BKVOICE_KWS_INFER_HOPS == 0);
+  for (unsigned int frame = 0; frame < WARMUP_HOPS - 1; frame++)
     {
       assert(feed_one(&kws, pcm, frame, &score) == 0);
     }
 
   assert(state.calls == 0);
-  assert(feed_one(&kws, pcm, 99, &score) == 0);
+  assert(feed_one(&kws, pcm, WARMUP_HOPS - 1, &score) == 0);
   assert(state.calls == 1);
   for (unsigned int i = 0; i < BKVOICE_KWS_FEATURES; i++)
     {
       assert(fabsf(kws.features[i] - offline[i]) < 0.00005f);
     }
 
-  /* Inference occurs every 100 ms, and three high scores gate the wake. */
-  for (unsigned int frame = 100; frame < 109; frame++)
+  /* Three scheduled high scores gate the wake. */
+  for (unsigned int frame = WARMUP_HOPS; frame < FIRST_WAKE; frame++)
     {
       assert(feed_one(&kws, pcm, frame, &score) == 0);
     }
 
-  assert(feed_one(&kws, pcm, 109, &score) == 1);
+  assert(feed_one(&kws, pcm, FIRST_WAKE, &score) == 1);
   assert(fabsf(score - 0.9f) < 0.00001f);
   assert(!kws.armed);
   state.mode = SCORE_LOW;
-  for (unsigned int frame = 110; frame < 115; frame++)
+  for (unsigned int frame = FIRST_WAKE + 1; frame < RELEASE_END; frame++)
     {
       assert(feed_one(&kws, pcm, frame, &score) == 0);
     }
 
   assert(kws.armed);
   state.mode = SCORE_HIGH;
-  for (unsigned int frame = 115; frame < 129; frame++)
+  for (unsigned int frame = RELEASE_END; frame < SECOND_WAKE; frame++)
     {
       assert(feed_one(&kws, pcm, frame, &score) == 0);
     }
 
-  assert(feed_one(&kws, pcm, 129, &score) == 1);
+  assert(feed_one(&kws, pcm, SECOND_WAKE, &score) == 1);
 
   bkvoice_kws_pause(&kws);
   assert(kws.pending == 0 && kws.rows == 0 && kws.hops == 0 && kws.hits == 0);
   assert(kws.timestamp_valid);
   assert(feed_one(&kws, pcm, 0, &score) == -ESTALE);
-  assert(feed_one(&kws, pcm, 130, &score) == 0);
+  assert(feed_one(&kws, pcm, SECOND_WAKE + 1, &score) == 0);
   assert(kws.pending == BKVOICE_KWS_HOP && kws.rows == 0);
 
   bkvoice_kws_uninitialize(&kws);
@@ -183,24 +196,87 @@ int main(void)
   bkvoice_kws_uninitialize(&kws);
   initialize(&kws, &state);
   state.mode = SCORE_ERROR;
-  for (unsigned int frame = 0; frame < 99; frame++)
+  for (unsigned int frame = 0; frame < WARMUP_HOPS - 1; frame++)
     {
       assert(feed_one(&kws, pcm, frame, &score) == 0);
     }
 
-  assert(feed_one(&kws, pcm, 99, &score) == -EIO);
+  assert(feed_one(&kws, pcm, WARMUP_HOPS - 1, &score) == -EIO);
   assert(kws.pending == 0 && kws.rows == 0 && kws.timestamp_valid);
 
   bkvoice_kws_uninitialize(&kws);
   initialize(&kws, &state);
   state.mode = SCORE_NAN;
-  for (unsigned int frame = 0; frame < 99; frame++)
+  for (unsigned int frame = 0; frame < WARMUP_HOPS - 1; frame++)
     {
       assert(feed_one(&kws, pcm, frame, &score) == 0);
     }
 
-  assert(feed_one(&kws, pcm, 99, &score) == -EPROTO);
+  assert(feed_one(&kws, pcm, WARMUP_HOPS - 1, &score) == -EPROTO);
   assert(kws.pending == 0 && kws.rows == 0 && kws.timestamp_valid);
+  bkvoice_kws_uninitialize(&kws);
+
+  /* V2 batch training and hop-by-hop runtime must produce identical rows.
+   * Pausing must reset adaptive state, not just the feature window.
+   */
+
+  {
+    struct bkvoice_kws_policy_s policy;
+    bkvoice_kws_default_policy(&policy);
+    memset(&state, 0, sizeof(state));
+    state.mode = SCORE_LOW;
+    assert(bkvoice_kws_features_version(pcm, BKVOICE_KWS_SAMPLES, offline,
+             BKVOICE_KWS_FEATURES, 2, 0) == 0);
+    assert(bkvoice_kws_initialize_version(&kws, &policy, fake_infer,
+             &state, 2) == 0);
+    for (unsigned int frame = 0; frame < WARMUP_HOPS; frame++)
+      {
+        assert(feed_one(&kws, pcm, frame, &score) == 0);
+      }
+
+    assert(state.calls == 1);
+    assert(memcmp(kws.features, offline, sizeof(offline)) == 0);
+    bkvoice_kws_pause(&kws);
+    assert(kws.frontend.warmed == 0);
+    for (unsigned int frame = 0; frame < WARMUP_HOPS; frame++)
+      {
+        assert(bkvoice_kws_feed(&kws, pcm + frame * BKVOICE_KWS_HOP,
+                 BKVOICE_KWS_HOP, (WARMUP_HOPS + frame + 1) * 20,
+                 &score) == 0);
+      }
+
+    assert(state.calls == 2);
+    assert(memcmp(kws.features, offline, sizeof(offline)) == 0);
+    bkvoice_kws_uninitialize(&kws);
+  }
+
+  /* Incremental mode consumes each new frontend row exactly once, without
+   * waiting for a 3-second window; reset and genuine gaps clear model state.
+   */
+  initialize(&kws, &state);
+  state.mode = SCORE_LOW;
+  assert(bkvoice_kws_features(pcm, BKVOICE_KWS_SAMPLES, offline,
+                            BKVOICE_KWS_FEATURES) == 0);
+  assert(bkvoice_kws_set_stream(&kws, fake_infer, fake_reset) == 0);
+  assert(state.resets == 1);
+  for (unsigned int frame = 0; frame < WARMUP_HOPS; frame++)
+    {
+      assert(feed_one(&kws, pcm, frame, &score) == 0);
+      assert(state.calls == frame);
+      assert(kws.rows <= 1);
+      if (frame > 0)
+        assert(memcmp(kws.features, offline + (frame - 1) * BKVOICE_KWS_BINS,
+                      BKVOICE_KWS_BINS * sizeof(float)) == 0);
+    }
+  bkvoice_kws_pause(&kws);
+  assert(state.resets == 2 && !kws.stream_ready);
+  assert(bkvoice_kws_feed(&kws, pcm, BKVOICE_KWS_HOP, 3020, &score) == 0);
+  assert(state.calls == WARMUP_HOPS - 1);
+  assert(bkvoice_kws_feed(&kws, pcm + BKVOICE_KWS_HOP,
+                         BKVOICE_KWS_HOP, 3040, &score) == 0);
+  assert(state.calls == WARMUP_HOPS);
+  assert(bkvoice_kws_feed(&kws, pcm, BKVOICE_KWS_HOP, 5000, &score) == 0);
+  assert(state.resets == 3 && !kws.stream_ready);
   bkvoice_kws_uninitialize(&kws);
   return 0;
 }

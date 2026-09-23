@@ -1,3 +1,387 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+#ifdef TEST_AGENT_CAPTURE
+/* The actual Agent capture owner, with a socket-backed Media peer. */
+#include <assert.h>
+#include <errno.h>
+#include <pthread.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
+
+#define CONFIG_AI_AGENT_AUDIO_CAPTURE_GAIN 1
+int media_recorder_get_socket(void *handle);
+int media_recorder_reset(void *handle);
+#include "voice/audio_capture.c"
+
+static int peer_sockets[2];
+static int peer_handle;
+static unsigned int opens;
+static unsigned int closes;
+static unsigned int starts;
+static unsigned int route_on;
+static unsigned int route_off;
+
+void *media_recorder_open(const char *params)
+{
+  assert(strcmp(params, MEDIA_SOURCE_MIC) == 0);
+  assert(socketpair(AF_UNIX, SOCK_STREAM, 0, peer_sockets) == 0);
+  opens++;
+  return &peer_handle;
+}
+
+int media_recorder_prepare(void *handle, const char *url, const char *options)
+{
+  assert(handle == &peer_handle && url == NULL);
+  assert(strcmp(options, "format=s16le:sample_rate=16000:ch_layout=mono") == 0);
+  return 0;
+}
+
+int media_recorder_start(void *handle)
+{
+  assert(handle == &peer_handle);
+  starts++;
+  return 0;
+}
+
+int media_recorder_get_socket(void *handle)
+{
+  assert(handle == &peer_handle);
+  return peer_sockets[0];
+}
+
+ssize_t media_recorder_read_data(void *handle, void *data, size_t len)
+{
+  assert(handle == &peer_handle);
+  ssize_t n = recv(peer_sockets[0], data, len, 0);
+  return n < 0 ? -errno : n;
+}
+
+int media_recorder_stop(void *handle)
+{
+  assert(handle == &peer_handle);
+  return 0;
+}
+
+int media_recorder_reset(void *handle)
+{
+  assert(handle == &peer_handle);
+  return 0;
+}
+
+int media_recorder_close(void *handle)
+{
+  assert(handle == &peer_handle);
+  assert(close(peer_sockets[0]) == 0);
+  assert(close(peer_sockets[1]) == 0);
+  closes++;
+  return 0;
+}
+
+static int capture_route(int active)
+{
+  if (active) route_on++;
+  else route_off++;
+  return 0;
+}
+
+static void peer_samples(unsigned int first, unsigned int count)
+{
+  int16_t pcm[320];
+  while (count)
+    {
+      unsigned int n = count > 320 ? 320 : count;
+      for (unsigned int i = 0; i < n; i++)
+        pcm[i] = (first + i) % 30000;
+      size_t done = 0;
+      while (done < n * sizeof(int16_t))
+        {
+          ssize_t sent = send(peer_sockets[1], (char *)pcm + done,
+                               n * sizeof(int16_t) - done, 0);
+          assert(sent > 0);
+          done += sent;
+        }
+      first += n;
+      count -= n;
+    }
+}
+
+static void check_samples(const int16_t *pcm, unsigned int first,
+                          unsigned int count)
+{
+  for (unsigned int i = 0; i < count; i++)
+    assert(pcm[i] == (int16_t)((first + i) % 30000));
+}
+
+static void local_samples(audio_capture_t *cap, unsigned int first,
+                          unsigned int count)
+{
+  int16_t pcm[320];
+  unsigned int done = 0;
+  while (done < count)
+    {
+      uint64_t sample = UINT64_MAX;
+      int n = audio_capture_read_local(cap, pcm, sizeof(pcm), &sample);
+      if (n == -EAGAIN) continue;
+      assert(n > 0 && n % 2 == 0);
+      assert(sample == first + done);
+      check_samples(pcm, first + done, n / 2);
+      done += n / 2;
+    }
+  assert(done == count);
+}
+
+static void test_single_open_handoff_and_cancel(void)
+{
+  audio_capture_t *local = audio_capture_open_local(NULL, 16000, 1, 16);
+  assert(local && audio_capture_start(local) == 0);
+  assert(audio_capture_open(NULL, 16000, 1, 16) == NULL && errno == EBUSY);
+  assert(audio_capture_cleanup(100) == -EBUSY);
+  assert(closes == 0);
+  peer_samples(0, 9600);
+  local_samples(local, 0, 9600);
+  /* Consumed history older than 400 ms must already be erased. */
+  pthread_mutex_lock(&local->lock);
+  for (unsigned int i = 0; i < 6400; i++) assert(local->ring[i] == 0);
+  pthread_mutex_unlock(&local->lock);
+  assert(audio_capture_handoff(local) == 0);
+  audio_capture_stats_t stats;
+  assert(audio_capture_get_stats(local, &stats) == 0);
+  assert(stats.first_sample == 0 && stats.end_sample == 9600);
+  assert(stats.samples == 9600 && stats.stream_error == 0);
+  peer_samples(9600, 1600);
+  audio_capture_t *turn = audio_capture_open(NULL, 16000, 1, 16);
+  assert(turn == local && audio_capture_start(turn) == 0);
+  assert(opens == 1 && starts == 1 && closes == 0);
+  unsigned int done = 0;
+  int16_t pcm[320];
+  while (done < 8000)
+    {
+      int n = audio_capture_read(turn, pcm, sizeof(pcm));
+      if (n == -EAGAIN) continue;
+      assert(n > 0);
+      check_samples(pcm, 3200 + done, n / 2);
+      done += n / 2;
+    }
+  assert(done == 8000);
+  assert(audio_capture_abort(turn) == 0);
+  assert(audio_capture_read(turn, pcm, sizeof(pcm)) == -ECANCELED);
+  assert(audio_capture_close(turn) == 0);
+  assert(closes == 1 && route_on == 1 && route_off == 1);
+}
+
+static void test_overload_and_next_turn(void)
+{
+  audio_capture_t *local = audio_capture_open_local(NULL, 16000, 1, 16);
+  assert(local && audio_capture_start(local) == 0);
+  peer_samples(0, 6400);
+  local_samples(local, 0, 6400);
+  assert(audio_capture_handoff(local) == 0);
+  peer_samples(6400, 30000);
+  int error = 0;
+  for (unsigned int i = 0; i < 2000 && !error; i++)
+    {
+      pthread_mutex_lock(&local->lock);
+      error = local->stream_error;
+      pthread_mutex_unlock(&local->lock);
+      if (!error) usleep(1000);
+    }
+  assert(error == -EOVERFLOW);
+  audio_capture_stats_t stats;
+  assert(audio_capture_get_stats(local, &stats) == 0);
+  assert(stats.stream_error == -EOVERFLOW && stats.samples >= 6400);
+  assert(audio_capture_open(NULL, 16000, 1, 16) == NULL);
+  assert(errno == EOVERFLOW);
+  assert(audio_capture_cleanup(100) == 0);
+  assert(opens == 2 && closes == 2);
+
+  local = audio_capture_open_local(NULL, 16000, 1, 16);
+  assert(local && audio_capture_start(local) == 0);
+  /* A byte-stream transport may split even a single PCM sample. */
+  const uint8_t split[] = { 0, 0, 1, 0 };
+  assert(send(peer_sockets[1], split, 3, 0) == 3);
+  local_samples(local, 0, 1);
+  assert(send(peer_sockets[1], split + 3, 1, 0) == 1);
+  peer_samples(2, 318);
+  local_samples(local, 1, 319);
+  for (unsigned int first = 320; first < 38720; first += 320)
+    {
+      peer_samples(first, 320);
+      local_samples(local, first, 320);
+    }
+  assert(audio_capture_handoff(local) == 0);
+  audio_capture_t *turn = audio_capture_open(NULL, 16000, 1, 16);
+  assert(turn == local);
+  int16_t pcm[320];
+  for (unsigned int first = 32320; first < 38720;)
+    {
+      int n = audio_capture_read(turn, pcm, sizeof(pcm));
+      assert(n > 0);
+      check_samples(pcm, first, n / 2);
+      first += n / 2;
+    }
+  assert(audio_capture_close(local) == 0);
+  assert(opens == 3 && closes == 3 && route_on == 3 && route_off == 3);
+}
+
+static void test_bounded_pcm_stats_and_reset(void)
+{
+  audio_capture_t *local = audio_capture_open_local(NULL, 16000, 1, 16);
+  assert(local && audio_capture_start(local) == 0);
+  int16_t sent[320], received[320];
+  for (unsigned int i = 0; i < 320; i++)
+    sent[i] = i < 80 ? 0 : i < 160 ? 1000 :
+              i < 240 ? -1000 : 32767;
+  assert(send(peer_sockets[1], sent, sizeof(sent), 0) == sizeof(sent));
+  for (;;)
+    {
+      int n = audio_capture_read_local(local, received, sizeof(received), NULL);
+      if (n == -EAGAIN) continue;
+      assert(n == sizeof(received));
+      assert(memcmp(sent, received, sizeof(sent)) == 0);
+      break;
+    }
+  audio_capture_stats_t stats;
+  assert(audio_capture_get_stats(local, &stats) == 0);
+  assert(stats.first_sample == 0 && stats.end_sample == 320);
+  assert(stats.samples == 320 && stats.peak == 32767);
+  assert(stats.dc == 8191 && stats.clipped_permyriad == 2500);
+  assert(stats.rms > 16000 && stats.rms < 17000);
+  assert(stats.stream_error == 0);
+  usleep(50000);
+  memset(sent, 0, sizeof(sent));
+  assert(send(peer_sockets[1], sent, sizeof(sent), 0) == sizeof(sent));
+  for (;;)
+    {
+      int n = audio_capture_read_local(local, received, sizeof(received), NULL);
+      if (n == -EAGAIN) continue;
+      assert(n == sizeof(received));
+      assert(memcmp(sent, received, sizeof(sent)) == 0);
+      break;
+    }
+  assert(audio_capture_get_stats(local, &stats) == 0);
+  assert(stats.end_sample == 640 && stats.samples == 640);
+  assert(stats.max_receive_interval_ms >= 40);
+  assert(stats.clipped_permyriad == 1250);
+  pthread_mutex_lock(&local->lock);
+  for (unsigned int i = 0; i < CAP_STATS_SECONDS; i++)
+    if (local->stats[i].samples)
+      local->stats[i].second -= CAP_STATS_SECONDS;
+  pthread_mutex_unlock(&local->lock);
+  assert(audio_capture_get_stats(local, &stats) == 0);
+  assert(stats.samples == 0); /* Expired PCM aggregates are excluded. */
+  assert(audio_capture_handoff(local) == 0);
+  assert(audio_capture_close(local) == 0);
+
+  local = audio_capture_open_local(NULL, 16000, 1, 16);
+  assert(local && audio_capture_start(local) == 0);
+  assert(audio_capture_get_stats(local, &stats) == 0);
+  assert(stats.samples == 0 && stats.stream_error == 0);
+  assert(audio_capture_close(local) == 0);
+}
+
+static void test_ack_discard_same_recorder(void)
+{
+  audio_capture_t *local = audio_capture_open_local(NULL, 16000, 1, 16);
+  assert(local && audio_capture_start(local) == 0);
+  peer_samples(0, 320);
+  local_samples(local, 0, 320);
+  assert(audio_capture_handoff_at(local, 320) == 0);
+  audio_capture_t *turn = audio_capture_open(NULL, 16000, 1, 16);
+  assert(turn == local && audio_capture_start(turn) == 0);
+  uint64_t marker = UINT64_MAX, first = UINT64_MAX;
+  assert(audio_capture_get_handoff_sample(turn, &marker) == 0);
+  assert(marker == 320 && opens == 6 && closes == 5);
+  int16_t pcm[320];
+  int n = audio_capture_read_at(turn, pcm, sizeof(pcm), &first);
+  assert(n == sizeof(pcm) && first == 0);
+  check_samples(pcm, 0, 320);
+
+  /* The playback peer's own acoustic PCM is deliberately never delivered. */
+  assert(audio_capture_set_discard(turn, 1) == 0);
+  peer_samples(320, 3200);
+  for (int i = 0; i < 1000; i++)
+    {
+      pthread_mutex_lock(&turn->lock);
+      uint64_t written = turn->written;
+      pthread_mutex_unlock(&turn->lock);
+      if (written >= (320 + 3200) * sizeof(int16_t)) break;
+      usleep(1000);
+    }
+  pthread_mutex_lock(&turn->lock);
+  assert(turn->written == turn->consumed);
+  assert(turn->written >= (320 + 3200) * sizeof(int16_t));
+  pthread_mutex_unlock(&turn->lock);
+  assert(audio_capture_read_at(turn, pcm, sizeof(pcm), &first) == -EAGAIN);
+  const uint8_t split_self_sample = 0x55;
+  assert(send(peer_sockets[1], &split_self_sample, 1, 0) == 1);
+  int pending = -1;
+  for (int i = 0; i < 100; i++)
+    {
+      assert(ioctl(peer_sockets[0], FIONREAD, &pending) == 0);
+      if (pending == 0) break;
+      usleep(1000);
+    }
+  assert(pending == 0); /* Producer owns the first byte of a split sample. */
+  assert(audio_capture_set_discard(turn, 0) == 0);
+  assert(send(peer_sockets[1], &split_self_sample, 1, 0) == 1);
+  for (int i = 0; i < 100; i++)
+    {
+      pthread_mutex_lock(&turn->lock);
+      uint64_t written = turn->written;
+      pthread_mutex_unlock(&turn->lock);
+      if (written >= 3521 * sizeof(int16_t)) break;
+      usleep(1000);
+    }
+  peer_samples(3521, 320);
+  for (;;)
+    {
+      n = audio_capture_read_at(turn, pcm, sizeof(pcm), &first);
+      if (n == -EAGAIN) continue;
+      assert(n == sizeof(pcm) && first == 3521);
+      check_samples(pcm, 3521, 320);
+      break;
+    }
+  assert(audio_capture_abort(turn) == 0);
+  assert(audio_capture_close(turn) == 0);
+  local = audio_capture_open_local(NULL, 16000, 1, 16);
+  assert(local && audio_capture_start(local) == 0);
+  assert(audio_capture_close(local) == 0);
+}
+
+static void test_ack_cancel_while_discarding(void)
+{
+  audio_capture_t *local = audio_capture_open_local(NULL, 16000, 1, 16);
+  assert(local && audio_capture_start(local) == 0);
+  peer_samples(0, 320);
+  local_samples(local, 0, 320);
+  assert(audio_capture_handoff_at(local, 320) == 0);
+  audio_capture_t *turn = audio_capture_open(NULL, 16000, 1, 16);
+  assert(turn == local && audio_capture_set_discard(turn, 1) == 0);
+  peer_samples(320, 320);
+  assert(audio_capture_abort(turn) == 0);
+  assert(audio_capture_set_discard(turn, 0) == -ECANCELED);
+  assert(audio_capture_close(turn) == 0);
+  local = audio_capture_open_local(NULL, 16000, 1, 16);
+  assert(local && audio_capture_start(local) == 0);
+  assert(audio_capture_close(local) == 0);
+}
+
+int main(void)
+{
+  assert(audio_capture_set_route(capture_route) == 0);
+  test_single_open_handoff_and_cancel();
+  test_overload_and_next_turn();
+  test_bounded_pcm_stats_and_reset();
+  test_ack_discard_same_recorder();
+  test_ack_cancel_while_discarding();
+  assert(opens == 9 && closes == 9 && route_on == 9 && route_off == 9);
+  puts("BK7258_AGENT_CAPTURE_HOST_PASS opens=9 closes=9 stats=bounded handoff=400ms discard=same-recorder cancel-recover");
+  return 0;
+}
+#else
 /****************************************************************************
  * tests/host/bk7258/test_bk7258_agent_media_recorder.c
  *
@@ -410,3 +794,4 @@ int main(void)
   puts("BK7258_MEDIA_RECORDER_HOST_PASS");
   return 0;
 }
+#endif

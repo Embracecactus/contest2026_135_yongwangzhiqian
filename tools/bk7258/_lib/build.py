@@ -1361,6 +1361,11 @@ def _source_provenance(
         dependencies[name] = _source_tree_state(
             actual, ["."], changed_only=True, git_repository=reference
         )
+    if _enabled(_dotconfig(ap.root / "defconfig"), "CONFIG_EXAMPLES_AI_AGENT_VELA"):
+        agent = _directory(workspace / "packages/ai_agent", "AI Agent source")
+        dependencies["ai_agent"] = _source_tree_state(
+            agent, ["."], changed_only=True
+        )
     return {
         **state,
         "scope": scopes,
@@ -1531,8 +1536,11 @@ def validate_provenance(value: object) -> dict[str, object]:
     profiles = _manifest_mapping(row["profiles"], {"cp", "ap"}, "profiles")
     for path in [*row["scope"], *profiles.values()]:
         _manifest_relative_path(path, "provenance path")
+    dependency_names = {"nuttx", "apps"}
+    if isinstance(row["dependencies"], dict) and "ai_agent" in row["dependencies"]:
+        dependency_names.add("ai_agent")
     dependencies = _manifest_mapping(
-        row["dependencies"], {"nuttx", "apps"}, "source dependencies"
+        row["dependencies"], dependency_names, "source dependencies"
     )
     for name, value in dependencies.items():
         dependency = _manifest_mapping(

@@ -1,4 +1,218 @@
 /* SPDX-License-Identifier: Apache-2.0 */
+#ifdef TEST_AGENT_FINAL_STREAM
+#include "llm/llm_stream.h"
+#include "llm/llm_proxy.h"
+#include "infra/http_proxy.h"
+#include "infra/vela_tls.h"
+#include <assert.h>
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+static char spoken[256];
+static size_t spoken_size;
+static int reject_delta;
+/* No network is used: both built-in routes must remain unreachable. */
+bool http_proxy_is_enabled(void) { return false; }
+proxy_conn_t *proxy_conn_open(const char *host, int port, int timeout)
+{ (void)host; (void)port; (void)timeout; abort(); }
+int proxy_conn_write(proxy_conn_t *c, const char *p, int n)
+{ (void)c; (void)p; (void)n; abort(); }
+int proxy_conn_read(proxy_conn_t *c, char *p, int n, int timeout)
+{ (void)c; (void)p; (void)n; (void)timeout; abort(); }
+void proxy_conn_close(proxy_conn_t *c) { (void)c; abort(); }
+int vela_https_post_json(const char *host, const char *port, const char *path,
+    const vela_header_t *headers, const char *body, char *out, size_t cap)
+{ (void)host; (void)port; (void)path; (void)headers; (void)body;
+  (void)out; (void)cap; abort(); }
+int vela_http_post_json(const char *host, const char *port, const char *path,
+    const vela_header_t *headers, const char *body, char *out, size_t cap)
+{ return vela_https_post_json(host, port, path, headers, body, out, cap); }
+
+static const char *plan_finish, *plan_calls;
+static int plan_transport(const char *request, char *response, size_t capacity,
+    size_t *length, int *status, void *context,
+    int (*check)(void *), void *request_context)
+{
+  (void)context;
+  assert(strstr(request, "\"messages\""));
+  if (check && check(request_context)) return -ECANCELED;
+  int n = snprintf(response, capacity,
+      "{\"choices\":[{\"finish_reason\":\"%s\",\"message\":{"
+      "\"content\":\"draft\"%s}}]}", plan_finish, plan_calls);
+  assert(n > 0 && (size_t)n < capacity);
+  *length = (size_t)n; *status = 200;
+  return 0;
+}
+
+static void test_plan_phase(void)
+{
+  assert(llm_set_transport("fixture", "fixture", plan_transport, NULL, NULL) == 0);
+  cJSON *messages = cJSON_CreateArray();
+  assert(messages);
+  llm_response_t response;
+  const char *invalid[] = { "length", "content_filter", "stop", "tool_calls" };
+  plan_calls = "";
+  for (size_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); i++) {
+    plan_finish = invalid[i];
+    assert(llm_chat_plan_checked("system", messages, "[]", &response,
+        NULL, NULL) == -EPROTO);
+    assert(!response.text && !response.call_count);
+    llm_response_free(&response);
+  }
+  plan_finish = "stop";
+  assert(llm_chat_tools_checked("system", messages, NULL, &response,
+      NULL, NULL) == 0);
+  assert(!strcmp(response.text, "draft"));
+  llm_response_free(&response);
+  plan_finish = "end_turn"; /* Legacy synchronous provider compatibility. */
+  assert(llm_chat_tools_checked("system", messages, NULL, &response,
+      NULL, NULL) == 0);
+  llm_response_free(&response);
+  plan_finish = "tool_calls";
+  plan_calls = ",\"tool_calls\":[{\"id\":\"one\",\"type\":\"function\","
+      "\"function\":{\"name\":\"get_weather\",\"arguments\":\"{}\"}}]";
+  assert(llm_chat_plan_checked("system", messages, "[]", &response,
+      NULL, NULL) == 0);
+  assert(response.tool_phase_complete && response.call_count == 1 &&
+      !strcmp(response.calls[0].name, "get_weather"));
+  llm_response_free(&response);
+  plan_calls = ",\"tool_calls\":[{\"id\":\"final\",\"type\":\"function\","
+      "\"function\":{\"name\":\"agent_finalize\",\"arguments\":\"{}\"}}]";
+  assert(llm_chat_plan_checked("system", messages, "[]", &response,
+      NULL, NULL) == 0);
+  assert(response.tool_phase_complete && response.call_count == 1 &&
+      !strcmp(response.calls[0].name, "agent_finalize"));
+  llm_response_free(&response);
+  cJSON_Delete(messages);
+  assert(llm_clear_transport() == 0);
+}
+static int body_delta(void *context, const char *text, size_t length)
+{
+  (void)context;
+  if (reject_delta) return -ECANCELED;
+  assert(length < sizeof(spoken) - spoken_size);
+  memcpy(spoken + spoken_size, text, length);
+  spoken_size += length;
+  spoken[spoken_size] = 0;
+  return 0;
+}
+
+static llm_final_stream_t *fresh(size_t limit)
+{
+  spoken_size = 0;
+  spoken[0] = 0;
+  reject_delta = 0;
+  llm_final_stream_t *p = llm_final_stream_new(body_delta, NULL, limit);
+  assert(p);
+  return p;
+}
+
+int main(void)
+{
+  test_plan_phase();
+  const char first[] = "data: {\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"reasoning_content\":\"NEVER_SPEAK\"}}]}\r\n\r\n"
+    "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"你好。\"}}]}\n\n";
+  const char tail[] = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"再见\"},\"finish_reason\":\"stop\"}]}\n\n"
+    "data: {\"choices\":[],\"usage\":{\"total_tokens\":3}}\n\ndata: [DONE]\n\n";
+  for (size_t chunk = 1; chunk <= strlen(first); chunk++)
+    {
+      llm_final_stream_t *p = fresh(255);
+      for (size_t at = 0; at < strlen(first); at += chunk)
+        {
+          size_t n = strlen(first) - at;
+          if (n > chunk) n = chunk;
+          assert(llm_final_stream_feed(p, first + at, n) == 0);
+        }
+      assert(!strcmp(spoken, "你好。")); /* Delivered before stop/DONE. */
+      char *text = NULL;
+      assert(llm_final_stream_finish(p, &text) == -EPROTO && !text);
+      assert(llm_final_stream_feed(p, tail, strlen(tail)) == 0);
+      assert(llm_final_stream_finish(p, &text) == 0);
+      assert(!strcmp(text, "你好。再见") && !strcmp(text, spoken));
+      free(text);
+      llm_final_stream_free(p);
+    }
+  const char *bad[] = {
+    "data: [DONE]\n\n",
+    "data: {\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[]}}]}\n\n",
+    "data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"length\"}]}\n\n",
+    "data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"content_filter\"}]}\n\n",
+    "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"x\\u0000y\"}}]}\n\n",
+    "data: {\"choices\":[{\"index\":1,\"delta\":{\"content\":\"x\"}}]}\n\n",
+    "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"\xc0\xaf\"}}]}\n\n"
+  };
+  for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++)
+    {
+      llm_final_stream_t *p = fresh(255);
+      assert(llm_final_stream_feed(p, bad[i], strlen(bad[i])) < 0);
+      assert(!spoken_size);
+      char *text = NULL;
+      assert(llm_final_stream_finish(p, &text) < 0 && !text);
+      llm_final_stream_free(p);
+    }
+  llm_final_stream_t *p = fresh(255);
+  reject_delta = 1;
+  assert(llm_final_stream_feed(p, first, strlen(first)) == -ECANCELED);
+  assert(llm_final_stream_feed(p, tail, strlen(tail)) == -ECANCELED);
+  llm_final_stream_free(p);
+  p = fresh(2);
+  assert(llm_final_stream_feed(p, first, strlen(first)) == -E2BIG);
+  llm_final_stream_free(p);
+  p = fresh(255);
+  char oversized[16385];
+  memset(oversized, 'x', sizeof(oversized));
+  assert(llm_final_stream_feed(p, oversized, sizeof(oversized)) == -E2BIG);
+  llm_final_stream_free(p);
+  puts("final-body SSE: planning rejects length/filter/draft, ordinary sync and tool/finalize retained, fragmented UTF-8, early delta, reasoning/tool exclusion, EOF, bounds and cancellation PASS");
+  return 0;
+}
+#elif defined(TEST_AGENT_ENDPOINT)
+#include "voice/voice_endpoint.h"
+#include <assert.h>
+#include <stdio.h>
+#include <string.h>
+
+int main(void)
+{
+  /* Source-independent synthetic signal tests validate timing, not CER. */
+  static int16_t pcm[48000];
+  for (unsigned int i = 0; i < 48000; i++)
+    {
+      int speech = (i >= 3200 && i < 16000) || (i >= 25600 && i < 30400);
+      pcm[i] = (i & 1 ? 1 : -1) * (speech ? 80 : 8);
+    }
+  uint64_t reference = 0;
+  for (size_t chunk = 1; chunk <= 1024; chunk *= 2)
+    {
+      voice_endpoint_t state;
+      assert(!voice_endpoint_init(&state, 16000, 900));
+      int ret = 0;
+      for (size_t off = 0; off < 48000 && ret != 2; off += chunk)
+        {
+          size_t n = 48000 - off;
+          if (n > chunk) n = chunk;
+          ret = voice_endpoint_feed(&state, pcm + off, n);
+          assert(ret >= 0);
+          if (off < 30400) assert(ret != 2); /* 600 ms middle pause retained. */
+        }
+      assert(ret == 2);
+      assert(state.samples == 44800); /* Exactly 900 ms after final speech. */
+      if (!reference) reference = state.samples;
+      assert(reference == state.samples);
+    }
+  voice_endpoint_t state;
+  assert(!voice_endpoint_init(&state, 16000, 900));
+  for (size_t i = 0; i < 48000; i++) pcm[i] = 1000; /* DC is not speech. */
+  assert(voice_endpoint_feed(&state, pcm, 48000) == 0);
+  assert(!state.started);
+  assert(voice_endpoint_init(&state, 16000, 200) < 0);
+  assert(voice_endpoint_init(&state, 0, 900) < 0);
+  puts("sample-clock endpoint: fragment invariance, quiet speech, middle pause, DC, bounded tail PASS (not CER)");
+  return 0;
+}
+#else
 #include "bk7258_cloud_request.h"
 #include <assert.h>
 #include <errno.h>
@@ -140,3 +354,4 @@ int main(int argc, char **argv)
   free(pcm);
   return 0;
 }
+#endif

@@ -244,11 +244,14 @@ class BuildWorkspaceTest(unittest.TestCase):
             "pair",
             "ap",
         )
+        ap.root.mkdir(parents=True)
+        (ap.root / "defconfig").write_text("", encoding="utf-8")
         source = self.repository / "chips/bk7258/input.c"
         source.write_text("int value = 1;\n")
         subprocess.run(["git", "init", "-q", str(self.repository)], check=True)
         subprocess.run(
-            ["git", "-C", str(self.repository), "add", "chips/bk7258/input.c"],
+            ["git", "-C", str(self.repository), "add", "chips/bk7258/input.c",
+             "boards/bk7258/aidk_ai_toy/configs/openvela_ap/defconfig"],
             check=True,
         )
         subprocess.run(
@@ -272,6 +275,8 @@ class BuildWorkspaceTest(unittest.TestCase):
             )
         original = build_domain._source_provenance(self.repository, cp, ap, "shaniu")
         self.assertFalse(original["dirty"])
+        self.assertEqual(set(original["dependencies"]), {"nuttx", "apps"})
+        self.assertEqual(build_domain.validate_provenance(original), original)
         copied = self.root / "copied-source"
         copied_source = copied / "chips/bk7258/input.c"
         copied_source.parent.mkdir(parents=True)
@@ -313,6 +318,49 @@ class BuildWorkspaceTest(unittest.TestCase):
             original["dependencies"]["nuttx"], changed["dependencies"]["nuttx"]
         )
         self.assertEqual(build_domain.validate_provenance(changed), changed)
+
+        agent = self.workspace / "packages/ai_agent"
+        agent.mkdir(parents=True)
+        agent_source = agent / "agent.c"
+        agent_source.write_text("int agent = 1;\n", encoding="utf-8")
+        subprocess.run(["git", "init", "-q", str(agent)], check=True)
+        subprocess.run(["git", "-C", str(agent), "add", "agent.c"], check=True)
+        subprocess.run(
+            ["git", "-C", str(agent), "-c", "user.name=Fixture",
+             "-c", "user.email=fixture@example.invalid", "commit", "-qm", "agent"],
+            check=True,
+        )
+        self.assertNotIn(
+            "ai_agent",
+            build_domain._source_provenance(
+                self.repository, cp, ap, "shaniu"
+            )["dependencies"],
+        )
+        (ap.root / "defconfig").write_text(
+            "CONFIG_EXAMPLES_AI_AGENT_VELA=y\n", encoding="utf-8"
+        )
+        with_agent = build_domain._source_provenance(
+            self.repository, cp, ap, "shaniu"
+        )
+        agent_state = with_agent["dependencies"]["ai_agent"]
+        self.assertEqual(
+            agent_state["source_commit"],
+            subprocess.check_output(["git", "-C", str(agent), "rev-parse", "HEAD"])
+            .decode().strip(),
+        )
+        self.assertFalse(agent_state["dirty"])
+        self.assertEqual(agent_state["input_count"], 0)
+        self.assertEqual(build_domain.validate_provenance(with_agent), with_agent)
+        agent_source.write_text("int agent = 2;\n", encoding="utf-8")
+        modified = build_domain._source_provenance(
+            self.repository, cp, ap, "shaniu"
+        )["dependencies"]["ai_agent"]
+        self.assertTrue(modified["dirty"])
+        self.assertEqual(modified["input_count"], 1)
+        self.assertNotEqual(agent_state["input_tree_sha256"], modified["input_tree_sha256"])
+        agent.rename(self.root / "absent-agent")
+        with self.assertRaisesRegex(build_domain.BuildError, "AI Agent source"):
+            build_domain._source_provenance(self.repository, cp, ap, "shaniu")
 
     def test_missing_signing_identity_never_starts_a_tool(self) -> None:
         with mock.patch.object(trust_domain, "_run") as runner:

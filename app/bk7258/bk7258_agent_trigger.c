@@ -3,10 +3,9 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * TFLM model backend for the official Media Trigger contract.
- * Reuses this repository's validated tensor/frontend adapter and frozen
- * score policy. It has no recorder, VAD, conversation or product owner.
- * Media serializes load/detect/unload on its trigger worker.
+ * Product wake policy over the Agent's single Media capture owner.
+ * The local reader runs detection; product lifecycle joins it before model
+ * replacement. A wake hands the same PCM stream to the Agent conversation.
  ****************************************************************************/
 
 /****************************************************************************
@@ -21,11 +20,11 @@
 #include "bk7258_control_session.h"
 
 #include <nuttx/config.h>
-#include <media_trigger.h>
-#include <media_trigger_model.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdatomic.h>
+#include <pthread.h>
+#include <sched.h>
 #include <sys/stat.h>
 #include <time.h>
 #include <stdint.h>
@@ -36,6 +35,7 @@
 #include <unistd.h>
 #include <mbedtls/sha256.h>
 #include "voice/audio_playback.h"
+#include "voice/audio_capture.h"
 #include "voice/voice_channel.h"
 
 /****************************************************************************
@@ -57,7 +57,7 @@ struct bkvoice_trigger_model_s
   void *arena;
   struct bkvoice_kws_model_s *model;
   struct bkvoice_kws_s kws;
-  hotword_detection_callback_t callback;
+  void (*callback)(void *priv, int event, int result, const char *extra);
   void *callback_priv;
   uint8_t frame[BKVOICE_TRIGGER_BYTES];
   size_t frame_used;
@@ -75,6 +75,7 @@ struct bkvoice_trigger_model_s
 static struct bkvoice_trigger_model_s *g_trigger;
 static atomic_bool g_model_stream_reset_pending;
 static atomic_uint g_wake_threshold_percent = 60;
+static void trigger_model_unload(void *opaque);
 
 /****************************************************************************
  * Public Functions
@@ -94,7 +95,8 @@ int bk7258_agent_trigger_threshold_set(unsigned int percent)
 
 static void trigger_error(struct bkvoice_trigger_model_s *context, int error)
 {
-  hotword_detection_callback_t callback = NULL;
+  void (*callback)(void *priv, int event, int result,
+                   const char *extra) = NULL;
   void *priv = NULL;
 
   if (g_trigger == context && !context->error_reported)
@@ -110,32 +112,8 @@ static void trigger_error(struct bkvoice_trigger_model_s *context, int error)
     }
 }
 
-void media_trigger_model_get_properties(void *properties, size_t *size)
-{
-  static const char value[] = "bk7258-kws";
-  size_t bytes = sizeof(value);
-
-  if (size == NULL)
-    {
-      return;
-    }
-
-  if (properties != NULL && *size != 0)
-    {
-      size_t copy = bytes < *size ? bytes : *size;
-      memcpy(properties, value, copy);
-      if (copy == *size)
-        {
-          ((char *)properties)[copy - 1] = '\0';
-        }
-    }
-
-  *size = bytes;
-}
-
-void *media_trigger_model_load(const void *data, size_t size,
-                               hotword_detection_callback_t callback,
-                               void *priv)
+static void *trigger_model_load(const void *data, size_t size,
+  void (*callback)(void *, int, int, const char *), void *priv)
 {
   struct bkvoice_trigger_model_s *context;
   struct bkvoice_kws_model_spec_s spec;
@@ -192,7 +170,13 @@ void *media_trigger_model_load(const void *data, size_t size,
   memset(&spec, 0, sizeof(spec));
   spec.data = context->model_bytes;
   spec.bytes = context->model_size;
-  spec.frontend = BKVOICE_KWS_FRONTEND_ID;
+  spec.frontend = bkvoice_wake_package_frontend_id(
+    package.frontend_version);
+  if (!spec.frontend)
+    {
+      ret = -EBADMSG;
+      goto fail;
+    }
   spec.labels[0] = "silence";
   spec.labels[1] = "unknown";
   spec.labels[2] = package.label;
@@ -207,14 +191,20 @@ void *media_trigger_model_load(const void *data, size_t size,
   context->model_open = true;
   bkvoice_kws_default_policy(&policy);
   policy.threshold = bk7258_agent_trigger_threshold_get() / 100.0f;
-  ret = bkvoice_kws_initialize(&context->kws, &policy,
-                               bkvoice_kws_model_infer, context->model);
+  ret = bkvoice_kws_initialize_version(&context->kws, &policy,
+    bkvoice_kws_model_infer, context->model, package.frontend_version);
   if (ret < 0)
     {
       goto fail;
     }
 
   context->kws_initialized = true;
+  if (bkvoice_kws_model_is_streaming(context->model))
+    {
+      ret = bkvoice_kws_set_stream(&context->kws, bkvoice_kws_model_step,
+                                   bkvoice_kws_model_reset);
+      if (ret < 0) goto fail;
+    }
   context->callback = callback;
   context->next_frame_ms = 0;
   context->callback_priv = priv;
@@ -224,7 +214,7 @@ void *media_trigger_model_load(const void *data, size_t size,
 
 fail:
   syslog(LOG_ERR, "BKVOICE trigger model load ret=%d\n", ret);
-  media_trigger_model_unload(context);
+  trigger_model_unload(context);
   return NULL;
 }
 
@@ -239,7 +229,7 @@ static int trigger_model_reset(void *opaque)
       return -EINVAL;
     }
 
-  /* Called serially by the Media worker; a new audio stream must not
+  /* Called serially by the detection worker; a new audio stream must not
    * inherit the previous window or trigger latch. The TFLM arena, model
    * and front-end allocations are kept, and the score threshold and
    * consecutive-frame policy are unchanged.
@@ -257,22 +247,26 @@ static int trigger_model_reset(void *opaque)
    * still come entirely from the normal MIC detection path.
    */
 
-  ret = bkvoice_kws_frontend_frame(&context->kws.frontend,
+  if (!bkvoice_kws_model_is_streaming(context->model))
+    {
+      ret = bkvoice_kws_frontend_frame(&context->kws.frontend,
                                    context->kws.pcm,
                                    context->kws.features);
-  if (ret < 0)
-    {
-      return ret;
+      if (ret < 0)
+        {
+          return ret;
+        }
+
+      for (unsigned int row = 1; row < BKVOICE_KWS_ROWS; row++)
+        {
+          memcpy(context->kws.features + row * BKVOICE_KWS_BINS,
+                 context->kws.features, BKVOICE_KWS_BINS * sizeof(float));
+        }
+
+      context->kws.rows = BKVOICE_KWS_ROWS;
+      context->kws.pending = BKVOICE_KWS_WINDOW - BKVOICE_KWS_HOP;
     }
 
-  for (unsigned int row = 1; row < BKVOICE_KWS_ROWS; row++)
-    {
-      memcpy(context->kws.features + row * BKVOICE_KWS_BINS,
-             context->kws.features, BKVOICE_KWS_BINS * sizeof(float));
-    }
-
-  context->kws.rows = BKVOICE_KWS_ROWS;
-  context->kws.pending = BKVOICE_KWS_WINDOW - BKVOICE_KWS_HOP;
   context->kws.last_ms = 0;
   context->kws.triggered_ms = 0;
   context->kws.timestamp_valid = false;
@@ -286,28 +280,8 @@ static int trigger_model_reset(void *opaque)
   return 0;
 }
 
-void media_trigger_model_get_options(void *context, char *options,
-                                     size_t size)
-{
-  if (context == NULL || options == NULL || size == 0)
-    {
-      return;
-    }
-
-  (void)snprintf(options, size,
-                 "format=s16le:sample_rate=16000:ch_layout=mono");
-}
-
-void media_trigger_model_get_buffer_size(void *context, size_t *size)
-{
-  if (size != NULL)
-    {
-      *size = context != NULL ? BKVOICE_TRIGGER_BYTES : 0;
-    }
-}
-
-bool media_trigger_model_detect_hotword(void *opaque, const char *buffer,
-                                        size_t size)
+static bool trigger_model_detect(void *opaque, const char *buffer,
+                                  size_t size)
 {
   struct bkvoice_trigger_model_s *context = opaque;
   bool detected = false;
@@ -324,7 +298,7 @@ bool media_trigger_model_detect_hotword(void *opaque, const char *buffer,
     }
 
   /* The control thread only marks the new stream; features, latch and
-   * framing state stay owned exclusively by the Media worker. The next
+   * framing state stay owned exclusively by the detection worker. The next
    * start is
    * requested only after an existing stop has returned, so a window being
    * inferred is never cleaned up concurrently.
@@ -345,8 +319,8 @@ bool media_trigger_model_detect_hotword(void *opaque, const char *buffer,
       return false;
     }
 
-  /* The control thread only publishes the threshold; the Media worker owns
-   * detection-state updates and does not rebuild the capture.
+  /* The control thread only publishes the threshold; the detection worker
+   * owns detection-state updates and does not rebuild the capture.
    */
 
   float threshold = bk7258_agent_trigger_threshold_get() / 100.0f;
@@ -418,7 +392,7 @@ bool media_trigger_model_detect_hotword(void *opaque, const char *buffer,
   return detected;
 }
 
-void media_trigger_model_unload(void *opaque)
+static void trigger_model_unload(void *opaque)
 {
   struct bkvoice_trigger_model_s *context = opaque;
 
@@ -451,19 +425,8 @@ void media_trigger_model_unload(void *opaque)
   free(context);
 }
 
-int media_trigger_model_get_poll_fd(void *context)
-{
-  (void)context;
-  return -1;
-}
-
-int media_trigger_model_poll_available(void *context)
-{
-  return context == NULL ? -EINVAL : -ENOSYS;
-}
-
 /* Serialized by the product worker. Callback threads only publish a wake
- * for the currently armed Media handle; no conversational state lives here.
+ * for the currently armed model; no conversational state lives here.
  */
 
 static struct
@@ -471,14 +434,18 @@ static struct
   void *handle;
   bool loaded;
   bool recognizing;
-  bool policy_active;
-  bool capture_format_known;
+  pthread_t reader;
+  bool reader_valid;
+  audio_capture_t *capture;
+  atomic_bool reader_stop;
   bool selection_known;
   bool uncertain;
   uint64_t revision;
   atomic_uint generation;
   atomic_bool accepting;
   atomic_bool turn_pending;
+  atomic_bool reply_pending;
+  atomic_bool reply_abort;
   atomic_int callback_error;
   struct bkvoice_wake_package_descriptor_s active;
   struct bkvoice_wake_package_descriptor_s previous;
@@ -490,6 +457,14 @@ static struct
   int error;
 } g_agent_trigger;
 
+/* Product configuration and event workers share this lifecycle boundary.
+ * Detection never takes it: stop joins detection before freeing its model.
+ */
+
+static pthread_mutex_t g_trigger_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t g_reply_lock = PTHREAD_MUTEX_INITIALIZER;
+static audio_playback_t *g_reply_player;
+
 extern void bk7258_agent_product_wake(void);
 
 static void wire_u32(uint8_t *p, uint32_t n)
@@ -500,12 +475,18 @@ static void wire_u32(uint8_t *p, uint32_t n)
   p[3] = n;
 }
 
-static void wire_descriptor(uint8_t *p,
+/* WKS2 descriptors are always 140 bytes, even for a WKM1/v1 model.
+ * This status envelope is distinct from the installable WKM1/WKM2 asset. */
+static int wire_descriptor(uint8_t *p,
   const struct bkvoice_wake_package_descriptor_s *d, size_t size)
 {
-  memset(p, 0, BKVOICE_WAKE_PACKAGE_HEADER);
-  if (!d->model_path[0] || !size) return;
-  memcpy(p, "WKM1", 4);
+  memset(p, 0, BKVOICE_WAKE_PACKAGE_HEADER_V2);
+  if (!d->model_path[0] || !size)
+    return !d->model_path[0] && !size && !d->frontend_version ?
+      0 : -EBADMSG;
+  if (!bkvoice_wake_package_frontend_id(d->frontend_version))
+    return -EBADMSG;
+  memcpy(p, "WKM2", 4);
   wire_u32(p + 4, size);
   for (size_t i = 0; i < 32; i++)
     {
@@ -516,6 +497,8 @@ static void wire_descriptor(uint8_t *p,
 
   memcpy(p + 40, d->label, sizeof(d->label));
   memcpy(p + 72, d->phrase, sizeof(d->phrase));
+  wire_u32(p + BKVOICE_WAKE_PACKAGE_HEADER, d->frontend_version);
+  return 0;
 }
 
 static size_t model_file_size(
@@ -541,64 +524,94 @@ static void trigger_event(void *cookie, int event, int result,
   bk7258_agent_product_wake();
 }
 
+static void *trigger_read(void *arg)
+{
+  uint8_t pcm[BKVOICE_TRIGGER_BYTES];
+  uint64_t expected = 0;
+  void *cookie = arg;
+
+  while (!atomic_load(&g_agent_trigger.reader_stop))
+    {
+      uint64_t first = 0;
+      int ret = audio_capture_read_local(g_agent_trigger.capture, pcm,
+                                         sizeof(pcm), &first);
+      if (ret == -EAGAIN || ret == -EINTR) continue;
+      if (atomic_load(&g_agent_trigger.reader_stop)) break;
+      if (ret <= 0 || first != expected)
+        {
+          trigger_event(cookie, 1, ret < 0 ? ret : -EPIPE, NULL);
+          break;
+        }
+
+      expected += ret / sizeof(int16_t);
+      if (trigger_model_detect(g_agent_trigger.handle,
+                                (const char *)pcm, ret))
+        {
+          ret = audio_capture_handoff_at(g_agent_trigger.capture, expected);
+          trigger_event(cookie, ret < 0 ? 1 : 0, ret, NULL);
+          break;
+        }
+    }
+
+  memset(pcm, 0, sizeof(pcm));
+  return NULL;
+}
+
+static int trigger_join(void)
+{
+  atomic_store(&g_agent_trigger.reader_stop, true);
+  if (g_agent_trigger.reader_valid)
+    {
+      int ret = pthread_join(g_agent_trigger.reader, NULL);
+      if (ret) return -ret;
+      g_agent_trigger.reader_valid = false;
+    }
+
+  g_agent_trigger.recognizing = false;
+  return 0;
+}
+
 static int trigger_pause(void)
 {
   atomic_store(&g_agent_trigger.accepting, false);
-  /* Let the Trigger finish its recorder stop/close before the Hotword route
-   * is removed. If the route were removed first, the hotword callback racing
-   * with stop would close a recorder that is still in recv; pcm0c would then
-   * only see COMPLETE and enter a repeated open/close loop.
-   */
-
-  if (g_agent_trigger.recognizing)
+  int ret = trigger_join();
+  if (ret < 0) return ret;
+  if (g_agent_trigger.capture)
     {
-      int ret = media_trigger_stop_recognition(g_agent_trigger.handle);
+      ret = audio_capture_close(g_agent_trigger.capture);
       if (ret < 0) return ret;
-      g_agent_trigger.recognizing = false;
-    }
-
-  if (g_agent_trigger.policy_active)
-    {
-      int ret = bkvoice_media_source_set_active(MEDIA_SOURCE_HOTWORD, false);
-      if (ret < 0) return ret;
-      g_agent_trigger.policy_active = false;
+      g_agent_trigger.capture = NULL;
     }
 
   return 0;
 }
 
-int bk7258_agent_trigger_stop(void)
+static int trigger_stop_locked(void)
 {
+  atomic_store(&g_agent_trigger.reply_pending, false);
   int ret = trigger_pause();
   if (ret < 0) return ret;
   atomic_store(&g_agent_trigger.turn_pending, false);
   if (g_agent_trigger.loaded)
     {
-      ret = media_trigger_unload_sound_model(g_agent_trigger.handle);
-      if (ret < 0) return ret;
+      trigger_model_unload(g_agent_trigger.handle);
       g_agent_trigger.loaded = false;
       g_agent_trigger.active_size = 0;
-    }
-
-  if (g_agent_trigger.handle)
-    {
-      ret = media_trigger_close(g_agent_trigger.handle);
-      if (ret < 0) return ret;
       g_agent_trigger.handle = NULL;
     }
 
   return 0;
 }
 
-bool bk7258_agent_trigger_armed(void)
+static bool trigger_armed_locked(void)
 {
   return g_agent_trigger.handle && g_agent_trigger.loaded &&
-         g_agent_trigger.recognizing && g_agent_trigger.policy_active &&
+         g_agent_trigger.recognizing && g_agent_trigger.capture &&
          !g_agent_trigger.uncertain &&
          atomic_load(&g_agent_trigger.accepting);
 }
 
-int bk7258_agent_trigger_rearm(void)
+static int trigger_rearm_locked(void)
 {
   int cleanup;
   int ret;
@@ -611,8 +624,7 @@ int bk7258_agent_trigger_rearm(void)
 
   if (g_agent_trigger.recognizing)
     {
-      return g_agent_trigger.policy_active &&
-             atomic_load(&g_agent_trigger.accepting) ? 0 : -EBUSY;
+      return atomic_load(&g_agent_trigger.accepting) ? 0 : -EBUSY;
     }
 
   cleanup = audio_playback_cleanup(100);
@@ -621,34 +633,47 @@ int bk7258_agent_trigger_rearm(void)
       return cleanup;
     }
 
-  /* On a cold start the Trigger recorder establishes the format first
-   * and the route is applied afterwards; once the 16 kHz format exists,
-   * the route is restored first to drain the previous stop/complete
-   * before a new recorder is started.
-   */
+  atomic_store(&g_agent_trigger.reply_pending, false);
 
-  ret = g_agent_trigger.capture_format_known ?
-    bkvoice_media_source_set_active(MEDIA_SOURCE_HOTWORD, true) :
-    bkvoice_media_source_stage_active(MEDIA_SOURCE_HOTWORD);
+  if (g_agent_trigger.capture)
+    {
+      ret = trigger_pause();
+      if (ret) return ret;
+    }
+
+  g_agent_trigger.capture = audio_capture_open_local(NULL,
+    BKVOICE_TRIGGER_RATE, 1, 16);
+  ret = g_agent_trigger.capture ? 0 : -(errno ? errno : EIO);
+  if (!ret) ret = audio_capture_start(g_agent_trigger.capture);
   if (!ret)
     {
-      g_agent_trigger.policy_active = true;
-      ret = media_trigger_start_recognition(g_agent_trigger.handle);
-      if (!ret)
+      atomic_store(&g_agent_trigger.reader_stop, false);
+      atomic_store(&g_agent_trigger.callback_error, 0);
+      atomic_store(&g_agent_trigger.accepting, true);
+      atomic_store(&g_model_stream_reset_pending, true);
+      unsigned int generation = atomic_load(&g_agent_trigger.generation);
+      pthread_attr_t attr;
+      struct sched_param param =
         {
-          g_agent_trigger.recognizing = true;
-          if (!g_agent_trigger.capture_format_known)
-            {
-              g_agent_trigger.capture_format_known = true;
-              ret = bkvoice_media_source_apply_active();
-            }
+          .sched_priority = 80
+        };
+
+      int created = pthread_attr_init(&attr);
+      if (!created)
+        {
+          created = pthread_attr_setstacksize(&attr, 16384);
+          if (!created) created = pthread_attr_setschedparam(&attr, &param);
+          if (!created)
+            created = pthread_create(&g_agent_trigger.reader, &attr,
+              trigger_read, (void *)(uintptr_t)generation);
+          pthread_attr_destroy(&attr);
         }
 
+      ret = created ? -created : 0;
       if (!ret)
         {
-          atomic_store(&g_agent_trigger.callback_error, 0);
-          atomic_store(&g_agent_trigger.accepting, true);
-          atomic_store(&g_model_stream_reset_pending, true);
+          g_agent_trigger.reader_valid = true;
+          g_agent_trigger.recognizing = true;
         }
     }
 
@@ -659,7 +684,7 @@ int bk7258_agent_trigger_rearm(void)
     }
 
   syslog(ret ? LOG_WARNING : LOG_INFO,
-         "BKVOICE official Trigger rearm ret=%d\n", ret);
+         "BKVOICE single capture rearm ret=%d\n", ret);
   return ret;
 }
 
@@ -667,26 +692,34 @@ static int trigger_open_model(
   const struct bkvoice_wake_package_descriptor_s *selected, bool arm)
 {
   size_t size = model_file_size(selected);
+  size_t header = bkvoice_wake_package_header_size(
+    selected->frontend_version);
   size_t used = 0;
   uint8_t *record;
 
-  if (!size)
+  if (!size || !header)
     {
       return -EBADMSG;
     }
 
-  record = malloc(BKVOICE_WAKE_PACKAGE_HEADER + size);
+  record = malloc(header + size);
   if (!record)
     {
       return -ENOMEM;
     }
 
-  wire_descriptor(record, selected, size);
+  int encoded = bkvoice_wake_package_encode_header(record, header,
+    selected, size);
+  if (encoded != (int)header)
+    {
+      free(record);
+      return encoded < 0 ? encoded : -EBADMSG;
+    }
   int fd = open(selected->model_path, O_RDONLY | O_NOFOLLOW);
   int ret = fd < 0 ? -errno : 0;
   while (!ret && used < size)
     {
-      ssize_t n = read(fd, record + BKVOICE_WAKE_PACKAGE_HEADER + used,
+      ssize_t n = read(fd, record + header + used,
                        size - used);
       if (n < 0 && errno == EINTR)
         {
@@ -704,7 +737,7 @@ static int trigger_open_model(
 
   if (fd >= 0 && close(fd) < 0 && !ret) ret = -errno;
   uint8_t hash[32];
-  if (!ret && (mbedtls_sha256(record + BKVOICE_WAKE_PACKAGE_HEADER, size,
+  if (!ret && (mbedtls_sha256(record + header, size,
                               hash, 0) ||
                memcmp(hash, record + 8, 32)))
     {
@@ -713,41 +746,34 @@ static int trigger_open_model(
 
   if (!ret)
     {
-      g_agent_trigger.handle = media_trigger_open("default");
-      if (!g_agent_trigger.handle) ret = -ENODEV;
-    }
-
-  if (!ret)
-    {
       unsigned int generation =
         atomic_fetch_add(&g_agent_trigger.generation, 1) + 1;
-      ret = media_trigger_set_event_callback(
-        g_agent_trigger.handle, (void *)(uintptr_t)generation,
-        trigger_event);
+      g_agent_trigger.handle = trigger_model_load(record,
+        header + size, trigger_event,
+        (void *)(uintptr_t)generation);
+      if (!g_agent_trigger.handle) ret = -EINVAL;
     }
 
-  if (!ret)
-    ret = media_trigger_load_sound_model(g_agent_trigger.handle, record,
-                                         BKVOICE_WAKE_PACKAGE_HEADER + size);
-  memset(record, 0, BKVOICE_WAKE_PACKAGE_HEADER + size);
+  memset(record, 0, header + size);
   free(record);
   if (!ret)
     {
       g_agent_trigger.loaded = true;
       g_agent_trigger.active = *selected;
       g_agent_trigger.active_size = size;
-      if (arm) ret = bk7258_agent_trigger_rearm();
+      if (arm) ret = trigger_rearm_locked();
     }
 
   if (ret)
     {
-      (void)bk7258_agent_trigger_stop();
+      (void)trigger_stop_locked();
       return ret;
     }
 
   syslog(LOG_INFO,
-         "BKVOICE official Trigger active label=%s sha256=%s bytes=%zu\n",
-         selected->label, selected->sha256_hex, size);
+         "BKVOICE local wake active label=%s frontend=%lu sha256=%s bytes=%zu\n",
+         selected->label, (unsigned long)selected->frontend_version,
+         selected->sha256_hex, size);
   return 0;
 }
 
@@ -775,6 +801,7 @@ static int trigger_load_selected(bool arm)
                BKVOICE_KWS_LABEL);
       snprintf(selected.phrase, sizeof(selected.phrase), "%s",
                "你好，openvela");
+      selected.frontend_version = 1;
       syslog(LOG_INFO,
              "BKVOICE model selection=builtin "
              "reason=no-persistent-selection\n");
@@ -794,7 +821,7 @@ static int trigger_load_selected(bool arm)
   return ret;
 }
 
-int bk7258_agent_trigger_prepare(void)
+static int trigger_prepare_locked(void)
 {
   if (g_agent_trigger.handle && g_agent_trigger.loaded)
     {
@@ -804,11 +831,11 @@ int bk7258_agent_trigger_prepare(void)
   return trigger_load_selected(false);
 }
 
-int bk7258_agent_trigger_start(void)
+static int trigger_start_locked(void)
 {
   if (g_agent_trigger.handle && g_agent_trigger.loaded)
     {
-      return bk7258_agent_trigger_rearm();
+      return trigger_rearm_locked();
     }
 
   return trigger_load_selected(true);
@@ -820,10 +847,13 @@ int bk7258_agent_trigger_start(void)
 
 bool bk7258_agent_trigger_model_pending(void)
 {
-  return g_agent_trigger.pending_record != NULL;
+  pthread_mutex_lock(&g_trigger_lock);
+  bool pending = g_agent_trigger.pending_record != NULL;
+  pthread_mutex_unlock(&g_trigger_lock);
+  return pending;
 }
 
-int bk7258_agent_trigger_model_step(bool arm)
+static int trigger_model_step_locked(bool arm)
 {
   struct bkvoice_wake_package_s spec;
   struct bkvoice_wake_package_descriptor_s old = g_agent_trigger.active;
@@ -837,12 +867,12 @@ int bk7258_agent_trigger_model_step(bool arm)
     }
 
   if (g_agent_trigger.handle && g_agent_trigger.recognizing &&
-      !bk7258_agent_trigger_armed())
+      !trigger_armed_locked())
     {
       return -EBUSY;
     }
 
-  ret = bk7258_agent_trigger_stop();
+  ret = trigger_stop_locked();
   if (!ret && g_agent_trigger.pending_kind == BKCONTROL_CONFIG_WAKE_MODEL)
     {
       ret = bkvoice_wake_package_decode(g_agent_trigger.pending_record,
@@ -866,11 +896,11 @@ int bk7258_agent_trigger_model_step(bool arm)
       g_agent_trigger.revision++;
       g_agent_trigger.previous = old;
       g_agent_trigger.previous_size = model_file_size(&old);
-      if (arm) ret = bk7258_agent_trigger_rearm();
+      if (arm) ret = trigger_rearm_locked();
     }
   else
     {
-      int stopped = bk7258_agent_trigger_stop();
+      int stopped = trigger_stop_locked();
       if (ret == -EINPROGRESS)
         {
           /* Do not overwrite an uncertain CAS publication or advertise
@@ -902,7 +932,7 @@ int bk7258_agent_trigger_model_step(bool arm)
   return ret;
 }
 
-int bk7258_agent_trigger_control(void *context,
+static int trigger_control_locked(void *context,
   enum bkcontrol_command_e command, uint32_t kind, uint32_t offset,
   const uint8_t *record, size_t size, struct bkcontrol_status_s *status)
 {
@@ -915,9 +945,9 @@ int bk7258_agent_trigger_control(void *context,
 
   if (command == BKCONTROL_CONFIG_READ)
     {
-      uint8_t wire[12 + 2 * BKVOICE_WAKE_PACKAGE_HEADER] =
+      uint8_t wire[12 + 2 * BKVOICE_WAKE_PACKAGE_HEADER_V2] =
         {
-          'W', 'K', 'S', '1'
+          'W', 'K', 'S', '2'
         };
 
       size_t count;
@@ -935,11 +965,14 @@ int bk7258_agent_trigger_control(void *context,
 
       wire_u32(wire + 4, g_agent_trigger.pending_record != NULL);
       wire_u32(wire + 8, (uint32_t)g_agent_trigger.error);
-      wire_descriptor(wire + 12, &g_agent_trigger.active,
-                      g_agent_trigger.active_size);
-      wire_descriptor(wire + 12 + BKVOICE_WAKE_PACKAGE_HEADER,
-                      &g_agent_trigger.previous,
-                      g_agent_trigger.previous_size);
+      if (wire_descriptor(wire + 12, &g_agent_trigger.active,
+                          g_agent_trigger.active_size) < 0 ||
+          wire_descriptor(wire + 12 + BKVOICE_WAKE_PACKAGE_HEADER_V2,
+                          &g_agent_trigger.previous,
+                          g_agent_trigger.previous_size) < 0)
+        {
+          return -EBADMSG;
+        }
       status->config_total = sizeof(wire);
       memset(status->config_chunk, 0, sizeof(status->config_chunk));
       count = sizeof(wire) - offset;
@@ -967,7 +1000,7 @@ int bk7258_agent_trigger_control(void *context,
       return -EINPROGRESS;
     }
 
-  if ((g_agent_trigger.recognizing && !bk7258_agent_trigger_armed()) ||
+  if ((g_agent_trigger.recognizing && !trigger_armed_locked()) ||
       g_agent_trigger.pending_record)
     {
       return -EBUSY;
@@ -1025,14 +1058,18 @@ int bk7258_agent_trigger_control(void *context,
  * Agent's drain and release contract and starts no ASR turn.
  */
 
-static int trigger_reply(void)
+int bk7258_agent_trigger_reply(void)
 {
   audio_playback_t *player;
   uint8_t pcm[640];
   ssize_t size;
   int closed;
   int ret;
-  int fd = open(CONFIG_MEDIA_SERVER_CONFIG_PATH "/wake_reply.pcm", O_RDONLY);
+  int fd;
+
+  if (!atomic_exchange(&g_agent_trigger.reply_pending, false)) return -ENOENT;
+  if (atomic_load(&g_agent_trigger.reply_abort)) return -ECANCELED;
+  fd = open(CONFIG_MEDIA_SERVER_CONFIG_PATH "/wake_reply.pcm", O_RDONLY);
 
   if (fd < 0)
     {
@@ -1041,8 +1078,17 @@ static int trigger_reply(void)
 
   player = audio_playback_open(NULL, 16000, 1, 16);
   ret = player ? 0 : -(errno ? errno : EIO);
+  pthread_mutex_lock(&g_reply_lock);
+  if (atomic_load(&g_agent_trigger.reply_abort)) ret = -ECANCELED;
+  if (ret >= 0) g_reply_player = player;
+  pthread_mutex_unlock(&g_reply_lock);
   while (player && ret >= 0)
     {
+      if (atomic_load(&g_agent_trigger.reply_abort))
+        {
+          ret = -ECANCELED;
+          break;
+        }
       size = read(fd, pcm, sizeof(pcm));
       if (size < 0 && errno == EINTR)
         {
@@ -1072,11 +1118,29 @@ static int trigger_reply(void)
     }
 
   close(fd);
-  closed = audio_playback_close(player);
+  pthread_mutex_lock(&g_reply_lock);
+  g_reply_player = NULL;
+  pthread_mutex_unlock(&g_reply_lock);
+  closed = player ? audio_playback_close(player) : 0;
+  if (atomic_load(&g_agent_trigger.reply_abort)) ret = -ECANCELED;
   return closed < 0 ? closed : ret;
 }
 
-int bk7258_agent_trigger_process(void)
+void bk7258_agent_trigger_reply_discard(void)
+{
+  atomic_store(&g_agent_trigger.reply_pending, false);
+}
+
+void bk7258_agent_trigger_reply_cancel(void)
+{
+  atomic_store(&g_agent_trigger.reply_pending, false);
+  atomic_store(&g_agent_trigger.reply_abort, true);
+  pthread_mutex_lock(&g_reply_lock);
+  if (g_reply_player) audio_playback_stop(g_reply_player);
+  pthread_mutex_unlock(&g_reply_lock);
+}
+
+static int trigger_process_locked(void)
 {
   int callback_error;
   int ret;
@@ -1086,31 +1150,116 @@ int bk7258_agent_trigger_process(void)
       return 0;
     }
 
-  ret = trigger_pause();
+  /* Joining detection leaves the recorder and its pending samples alive.
+   * The Agent claims this exact capture after its bounded ASR preparation.
+   */
+
+  atomic_store(&g_agent_trigger.accepting, false);
+  ret = trigger_join();
   callback_error = atomic_exchange(&g_agent_trigger.callback_error, 0);
   if (!ret && callback_error) ret = callback_error;
   if (!ret)
     {
-      int reply = trigger_reply();
-      syslog(reply ? LOG_WARNING : LOG_INFO,
-             "BKVOICE wake reply result=%d\n", reply);
-      /* A missing prompt or a failed playback does not cancel the
-       * interaction, but the player must first be confirmed released.
+      /* Ownership transfers even if Agent startup fails and releases it.
+       * No local pointer may outlive that release. Cleanup also covers a
+       * connection failure before the Agent claims the pending recorder.
+       * The acknowledgement is deferred until this turn's capture closes,
+       * since there is no AEC reference for simultaneous speech and reply.
        */
 
-      ret = audio_playback_cleanup(100);
+      g_agent_trigger.capture = NULL;
+      atomic_store(&g_agent_trigger.reply_abort, false);
+      atomic_store(&g_agent_trigger.reply_pending, true);
+      ret = voice_channel_start_auto_wake();
+      if (ret < 0)
+        {
+          atomic_store(&g_agent_trigger.reply_pending, false);
+          int cleanup = audio_capture_cleanup(100);
+          if (cleanup < 0) ret = cleanup;
+        }
+    }
+  else
+    {
+      int cleanup = trigger_pause();
+      if (cleanup < 0) ret = cleanup;
     }
 
-  if (!ret) ret = voice_channel_start_auto();
   if (ret < 0)
     {
-      syslog(LOG_WARNING, "BKVOICE official Trigger turn start failed=%d\n",
+      syslog(LOG_WARNING, "BKVOICE local wake turn start failed=%d\n",
              ret);
       if (!callback_error)
         {
-          (void)bk7258_agent_trigger_rearm();
+          (void)trigger_rearm_locked();
         }
     }
 
+  return ret;
+}
+
+int bk7258_agent_trigger_prepare(void)
+{
+  pthread_mutex_lock(&g_trigger_lock);
+  int ret = trigger_prepare_locked();
+  pthread_mutex_unlock(&g_trigger_lock);
+  return ret;
+}
+
+int bk7258_agent_trigger_start(void)
+{
+  pthread_mutex_lock(&g_trigger_lock);
+  int ret = trigger_start_locked();
+  pthread_mutex_unlock(&g_trigger_lock);
+  return ret;
+}
+
+int bk7258_agent_trigger_stop(void)
+{
+  pthread_mutex_lock(&g_trigger_lock);
+  int ret = trigger_stop_locked();
+  pthread_mutex_unlock(&g_trigger_lock);
+  return ret;
+}
+
+int bk7258_agent_trigger_rearm(void)
+{
+  pthread_mutex_lock(&g_trigger_lock);
+  int ret = trigger_rearm_locked();
+  pthread_mutex_unlock(&g_trigger_lock);
+  return ret;
+}
+
+bool bk7258_agent_trigger_armed(void)
+{
+  pthread_mutex_lock(&g_trigger_lock);
+  bool armed = trigger_armed_locked();
+  pthread_mutex_unlock(&g_trigger_lock);
+  return armed;
+}
+
+int bk7258_agent_trigger_process(void)
+{
+  pthread_mutex_lock(&g_trigger_lock);
+  int ret = trigger_process_locked();
+  pthread_mutex_unlock(&g_trigger_lock);
+  return ret;
+}
+
+int bk7258_agent_trigger_model_step(bool arm)
+{
+  pthread_mutex_lock(&g_trigger_lock);
+  int ret = trigger_model_step_locked(arm);
+  pthread_mutex_unlock(&g_trigger_lock);
+  return ret;
+}
+
+int bk7258_agent_trigger_control(void *context,
+  enum bkcontrol_command_e command, uint32_t kind, uint32_t offset,
+  const uint8_t *record, size_t size, struct bkcontrol_status_s *status)
+{
+  pthread_mutex_lock(&g_trigger_lock);
+  int ret = trigger_control_locked(context, command, kind, offset,
+                                    record, size, status);
+  pthread_mutex_unlock(&g_trigger_lock);
   return ret;
 }

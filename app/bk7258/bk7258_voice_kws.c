@@ -21,15 +21,34 @@ void bkvoice_kws_default_policy(struct bkvoice_kws_policy_s *policy)
 
 void bkvoice_kws_pause(struct bkvoice_kws_s *kws)
 {
+  bkvoice_kws_frontend_reset(&kws->frontend);
   memset(kws->features, 0, sizeof(kws->features));
   memset(kws->pcm, 0, sizeof(kws->pcm));
   kws->pending = 0;
   kws->rows = 0;
   kws->hops = 0;
   kws->hits = 0;
+  kws->stream_ready = false;
+  memset(kws->stream_scores, 0, sizeof(kws->stream_scores));
+  if (kws->reset != NULL) kws->reset(kws->context);
   /* Retain both the monotonic timestamp and trigger/release latch across
    * pauses. A new boot/clock epoch requires explicit reinitialization.
    */
+}
+
+int bkvoice_kws_set_stream(struct bkvoice_kws_s *kws,
+                           bkvoice_kws_infer_t step,
+                           bkvoice_kws_reset_t reset)
+{
+  if (kws == NULL || kws->infer == NULL || step == NULL || reset == NULL)
+    {
+      return -EINVAL;
+    }
+
+  kws->step = step;
+  kws->reset = reset;
+  bkvoice_kws_pause(kws);
+  return 0;
 }
 
 void bkvoice_kws_uninitialize(struct bkvoice_kws_s *kws)
@@ -45,6 +64,14 @@ int bkvoice_kws_initialize(struct bkvoice_kws_s *kws,
                            const struct bkvoice_kws_policy_s *policy,
                            bkvoice_kws_infer_t infer, void *context)
 {
+  return bkvoice_kws_initialize_version(kws, policy, infer, context, 1);
+}
+
+int bkvoice_kws_initialize_version(struct bkvoice_kws_s *kws,
+                                   const struct bkvoice_kws_policy_s *policy,
+                                   bkvoice_kws_infer_t infer, void *context,
+                                   int frontend_version)
+{
   if (kws == NULL || policy == NULL || infer == NULL ||
       !isfinite(policy->threshold) || !isfinite(policy->release_threshold) ||
       policy->threshold <= 0.0f || policy->threshold > 1.0f ||
@@ -58,7 +85,8 @@ int bkvoice_kws_initialize(struct bkvoice_kws_s *kws,
 
   memset(kws, 0, sizeof(*kws));
   {
-    int ret = bkvoice_kws_frontend_init(&kws->frontend);
+    int ret = bkvoice_kws_frontend_init_version(&kws->frontend,
+                                                frontend_version);
     if (ret < 0)
       {
         return ret;
@@ -117,7 +145,11 @@ int bkvoice_kws_feed(struct bkvoice_kws_s *kws, const int16_t *pcm,
       consumed += take;
       if (kws->pending == BKVOICE_KWS_WINDOW)
         {
-          if (kws->rows == BKVOICE_KWS_ROWS)
+          if (kws->step != NULL)
+            {
+              kws->rows = 1;
+            }
+          else if (kws->rows == BKVOICE_KWS_ROWS)
             {
               memmove(kws->features, kws->features + BKVOICE_KWS_BINS,
                       sizeof(float) * (BKVOICE_KWS_FEATURES -
@@ -135,6 +167,18 @@ int bkvoice_kws_feed(struct bkvoice_kws_s *kws, const int16_t *pcm,
               bkvoice_kws_pause(kws);
               return ret;
             }
+          if (kws->step != NULL)
+            {
+              ret = kws->step(kws->context, kws->features,
+                              kws->stream_scores);
+              if (ret < 0)
+                {
+                  bkvoice_kws_pause(kws);
+                  return ret;
+                }
+
+              kws->stream_ready = true;
+            }
           memmove(kws->pcm, kws->pcm + BKVOICE_KWS_HOP,
                   (BKVOICE_KWS_WINDOW - BKVOICE_KWS_HOP) * sizeof(*pcm));
           kws->pending = BKVOICE_KWS_WINDOW - BKVOICE_KWS_HOP;
@@ -142,14 +186,23 @@ int bkvoice_kws_feed(struct bkvoice_kws_s *kws, const int16_t *pcm,
     }
 
   kws->hops++;
-  if (kws->rows < BKVOICE_KWS_ROWS ||
+  if ((kws->step != NULL ? !kws->stream_ready :
+       kws->rows < BKVOICE_KWS_ROWS) ||
       kws->hops % BKVOICE_KWS_INFER_HOPS != 0)
     {
       return 0;
     }
 
   kws->hops = 0;
-  ret = kws->infer(kws->context, kws->features, scores);
+  if (kws->step != NULL)
+    {
+      memcpy(scores, kws->stream_scores, sizeof(scores));
+      ret = 0;
+    }
+  else
+    {
+      ret = kws->infer(kws->context, kws->features, scores);
+    }
   if (ret < 0)
     {
       bkvoice_kws_pause(kws);

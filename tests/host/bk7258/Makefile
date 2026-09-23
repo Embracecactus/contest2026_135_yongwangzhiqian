@@ -499,6 +499,16 @@ voice-media-recorder: $(VOICE_MEDIA_RECORDER_TARGET)
 run-voice-media-recorder: voice-media-recorder
 	./$(VOICE_MEDIA_RECORDER_TARGET)
 
+$(BUILD)/test_bk7258_agent_capture: test_bk7258_agent_media_recorder.c \
+	$(OPENVELA_ROOT)/packages/ai_agent/src/voice/audio_capture.c \
+	$(OPENVELA_ROOT)/packages/ai_agent/include/voice/audio_capture.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread -DTEST_AGENT_CAPTURE $< \
+		-I $(MOCKS) -I $(OPENVELA_ROOT)/packages/ai_agent/include \
+		-I $(OPENVELA_ROOT)/packages/ai_agent/src -o $@
+
+run-agent-capture: $(BUILD)/test_bk7258_agent_capture
+	./$(BUILD)/test_bk7258_agent_capture
+
 $(BUILD)/test_bk7258_agent_media_player: test_bk7258_agent_media_player.c \
 	$(VOICE_PACK_ROOT)/bk7258_agent_media_player.c \
 	$(MOCKS)/nuttx/audio/audio.h $(MOCKS)/nuttx/mutex.h | $(BUILD)
@@ -510,16 +520,39 @@ run-voice-media-player: $(BUILD)/test_bk7258_agent_media_player
 	./$(BUILD)/test_bk7258_agent_media_player
 
 $(BUILD)/test_agent_tts_queue: test_bk7258_agent_media_player.c \
-	$(OPENVELA_ROOT)/packages/ai_agent/src/voice/voice_channel.c | $(BUILD)
+	$(OPENVELA_ROOT)/packages/ai_agent/src/voice/voice_channel.c \
+	$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_stream.c \
+	$(OPENVELA_ROOT)/packages/ai_agent/src/core/message_bus.c | $(BUILD)
 	$(CC) $(CFLAGS) -DTEST_AGENT_TTS_QUEUE -DOK=0 -DERROR=-1 \
 		-ffunction-sections -fdata-sections -Wl,--gc-sections \
 		-I $(MOCKS) -I $(OPENVELA_ROOT)/packages/ai_agent/include \
 		-I $(OPENVELA_ROOT)/packages/ai_agent/src \
-		-I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON $< -o $@
+		-I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON $< \
+		$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_stream.c \
+		$(OPENVELA_ROOT)/packages/ai_agent/src/core/message_bus.c \
+		$(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c -o $@
 
 .PHONY: run-agent-tts-queue
 run-agent-tts-queue: $(BUILD)/test_agent_tts_queue
 	./$(BUILD)/test_agent_tts_queue
+
+$(BUILD)/test_agent_funasr: test_bk7258_agent_media_player.c \
+	$(OPENVELA_ROOT)/packages/ai_agent/src/voice/funasr_asr.c | $(BUILD)
+	$(CC) $(CFLAGS) -DTEST_AGENT_FUNASR \
+		-I $(MOCKS) \
+		-I $(OPENVELA_ROOT)/packages/ai_agent/include \
+		-I $(OPENVELA_ROOT)/packages/ai_agent/src \
+		-I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON \
+		-I $(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/include \
+		$< $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c \
+		-lssl -lcrypto -o $@
+
+.PHONY: run-agent-funasr
+run-agent-funasr: $(BUILD)/test_agent_funasr
+	./$(BUILD)/test_agent_funasr
+
+# Optional real loopback probe after building: build/test_agent_funasr
+# --live localhost PORT /asr CA_PEM PCM_S16LE_16K_MONO
 
 $(VISION_RECORD_TARGET): test_bk7258_vision_record.c \
 	$(VOICE_PACK_ROOT)/bk7258_vision_record.c \
@@ -1547,6 +1580,69 @@ run-voice-kws: $(VOICE_KWS_TARGET)
 	./$(VOICE_KWS_TARGET)
 	python3 -m pytest -q test_bk7258_voice_kws.py test_bk7258_voice_kws_frontend.py
 
+# Native upstream TFLM probe; isolated from the board's AP/CP build outputs.
+# Generate probe.tflite/features.f32/scores.f32 with the existing Python KWS
+# test and BKVOICE_STREAM_PROBE_DIR before running this target.
+VOICE_STREAM_BUILD ?= $(OPENVELA_ROOT)/out/streaming-kws-host
+VOICE_STREAM_KERNELS := conv conv_common depthwise_conv depthwise_conv_common \
+	pooling pooling_common fully_connected fully_connected_common reshape \
+	reshape_common softmax softmax_common concatenation strided_slice \
+	strided_slice_common quantize quantize_common kernel_util
+VOICE_STREAM_DIRS := tensorflow/lite/c tensorflow/lite/core/c tensorflow/lite/schema \
+	tensorflow/lite/core/api tensorflow/lite/kernels \
+	tensorflow/lite/kernels/internal tensorflow/lite/kernels/internal/reference \
+	tensorflow/lite/kernels/internal/optimized tensorflow/lite/micro \
+	tensorflow/lite/micro/arena_allocator tensorflow/lite/micro/memory_planner \
+	tensorflow/lite/micro/tflite_bridge
+VOICE_STREAM_SOURCES := $(foreach d,$(VOICE_STREAM_DIRS),$(wildcard $(TFLM_ROOT)/$(d)/*.cc))
+VOICE_STREAM_SOURCES := $(filter-out %test.cc %test_common.cc %test_helpers.cc \
+	%test_helper_custom_ops.cc %mock_micro_graph.cc %fake_micro_context.cc,$(VOICE_STREAM_SOURCES))
+VOICE_STREAM_SOURCES += $(addprefix $(TFLM_ROOT)/tensorflow/lite/micro/kernels/,$(addsuffix .cc,$(VOICE_STREAM_KERNELS)))
+VOICE_STREAM_OBJECTS := $(patsubst $(TFLM_ROOT)/%.cc,$(VOICE_STREAM_BUILD)/obj/%.o,$(VOICE_STREAM_SOURCES))
+VOICE_STREAM_FLAGS := -std=c++17 -O2 -fno-exceptions -fno-rtti -DTF_LITE_STATIC_MEMORY \
+	-DTF_LITE_DISABLE_X86_NEON -DTFLITE_WITH_STABLE_ABI=0 \
+	-DTFLITE_USE_OPAQUE_DELEGATE=0 -DTFLITE_SINGLE_ROUNDING=0 \
+	-I$(VOICE_PACK_ROOT) -I$(TFLM_ROOT) \
+	-I$(OPENVELA_ROOT)/apps/math/gemmlowp/gemmlowp \
+	-I$(OPENVELA_ROOT)/apps/math/ruy/ruy \
+	-I$(OPENVELA_ROOT)/apps/system/flatbuffers/flatbuffers/include
+VOICE_STREAM_PACKAGE_FLAGS := -I$(MOCKS) -I$(VOICE_PACK_ROOT) -I$(TFLM_ROOT) \
+	-I$(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/include \
+	-DBKVOICE_WAKE_PACKAGE_ROOT='"/proc/self/cwd/wake-models"' \
+	-DCONFIG_BK7258_VOICE_KWS_ARENA_BYTES=524288
+VOICE_STREAM_PACKAGE_OBJECTS := $(addprefix $(VOICE_STREAM_BUILD)/, \
+	wake_package.o provision_store.o sha256.o platform_util.o constant_time.o)
+
+$(VOICE_STREAM_BUILD)/wake_package.o: $(VOICE_PACK_ROOT)/bk7258_voice_wake_package.c \
+	$(VOICE_PACK_ROOT)/bk7258_voice_wake_package.h
+	@mkdir -p $(dir $@)
+	$(CC) -std=c11 -O2 -pthread $(VOICE_STREAM_PACKAGE_FLAGS) -c $< -o $@
+
+$(VOICE_STREAM_BUILD)/provision_store.o: $(VOICE_PACK_ROOT)/bk7258_provision_store.c
+	@mkdir -p $(dir $@)
+	$(CC) -std=c11 -O2 $(VOICE_STREAM_PACKAGE_FLAGS) -c $< -o $@
+
+$(VOICE_STREAM_BUILD)/%.o: $(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/library/%.c
+	@mkdir -p $(dir $@)
+	$(CC) -std=c11 -O2 -ffunction-sections -fdata-sections $(VOICE_STREAM_PACKAGE_FLAGS) -c $< -o $@
+
+$(VOICE_STREAM_BUILD)/obj/%.o: $(TFLM_ROOT)/%.cc
+	@mkdir -p $(dir $@)
+	$(CXX) $(VOICE_STREAM_FLAGS) -c $< -o $@
+
+$(VOICE_STREAM_BUILD)/test_model: test_bk7258_voice_kws_model.cc \
+	$(VOICE_PACK_ROOT)/bk7258_voice_kws_model.cc \
+	$(VOICE_PACK_ROOT)/bk7258_voice_kws_model.h $(VOICE_STREAM_OBJECTS) \
+	$(VOICE_STREAM_PACKAGE_OBJECTS)
+	$(CXX) $(VOICE_STREAM_FLAGS) $(VOICE_STREAM_PACKAGE_FLAGS) $< \
+	    $(VOICE_PACK_ROOT)/bk7258_voice_kws_model.cc \
+	    $(VOICE_STREAM_OBJECTS) $(VOICE_STREAM_PACKAGE_OBJECTS) -Wl,--gc-sections -pthread -lm -o $@
+
+.PHONY: run-voice-kws-stream-model
+run-voice-kws-stream-model: $(VOICE_STREAM_BUILD)/test_model
+	$< $(VOICE_STREAM_BUILD)/probe.tflite $(VOICE_STREAM_BUILD)/features.f32 \
+	    $(VOICE_STREAM_BUILD)/scores.f32
+
 .PHONY: run-preferences
 $(BUILD)/test_bk7258_preferences_storage: test_bk7258_preferences_storage.c \
 	$(VOICE_PACK_ROOT)/bk7258_preferences_storage.c \
@@ -1631,6 +1727,36 @@ run-cloud-config: $(BUILD)/test_bk7258_cloud_config
 
 run-cloud-request:
 	python3 test_bk7258_cloud_request.py
+
+$(BUILD)/test_agent_final_stream: test_bk7258_cloud_request.c \
+	$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_stream.c \
+	$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_proxy.c \
+	$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_parse.c \
+	$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_stream.h | $(BUILD)
+	$(CC) $(CFLAGS) -Werror -Wno-error=stringop-truncation \
+		-DTEST_AGENT_FINAL_STREAM -DOK=0 -DERROR=-1 \
+		-ffunction-sections -fdata-sections -Wl,--gc-sections \
+		-I $(MOCKS) -I $(OPENVELA_ROOT)/packages/ai_agent/include \
+		-I $(OPENVELA_ROOT)/packages/ai_agent/src \
+		-I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON $< \
+		$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_stream.c \
+		$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_proxy.c \
+		$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_parse.c \
+		$(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c -o $@
+
+$(BUILD)/test_agent_endpoint: test_bk7258_cloud_request.c \
+	$(OPENVELA_ROOT)/packages/ai_agent/src/voice/voice_endpoint.c \
+	$(OPENVELA_ROOT)/packages/ai_agent/include/voice/voice_endpoint.h | $(BUILD)
+	$(CC) $(CFLAGS) -Werror -DTEST_AGENT_ENDPOINT \
+		-I $(OPENVELA_ROOT)/packages/ai_agent/include $< \
+		$(OPENVELA_ROOT)/packages/ai_agent/src/voice/voice_endpoint.c -o $@
+
+.PHONY: run-agent-final-stream run-agent-endpoint
+run-agent-final-stream: $(BUILD)/test_agent_final_stream
+	./$(BUILD)/test_agent_final_stream
+
+run-agent-endpoint: $(BUILD)/test_agent_endpoint
+	./$(BUILD)/test_agent_endpoint
 
 .PHONY: run-cloud-http
 run-cloud-http:

@@ -192,6 +192,23 @@ void bk7258_agent_product_wake(void)
 static void bk7258_agent_voice_event(int event, int result)
 {
   unsigned int flags = 0;
+  if (event == VOICE_CHANNEL_EVENT_WAKE_ACK_REQUEST)
+    {
+      /* The Agent reader is paused; its producer still drains and erases
+       * microphone PCM until this synchronous playback has drained. */
+      voice_channel_wake_ack_result(bk7258_agent_trigger_reply());
+      return;
+    }
+  if (event == VOICE_CHANNEL_EVENT_WAKE_ACK_SKIP)
+    {
+      bk7258_agent_trigger_reply_discard();
+      return;
+    }
+  if (event == VOICE_CHANNEL_EVENT_WAKE_ACK_CANCEL)
+    {
+      bk7258_agent_trigger_reply_cancel();
+      return;
+    }
   if (event == VOICE_CHANNEL_EVENT_INITIALIZED)
     {
       atomic_store(&g_voice_initialized, result == 0);
@@ -204,6 +221,7 @@ static void bk7258_agent_voice_event(int event, int result)
     }
   else if (event == VOICE_CHANNEL_EVENT_TURN_COMPLETE)
     {
+      bk7258_agent_trigger_reply_discard();
       atomic_store(&g_voice_event_result, result);
       flags = 2;
     }
@@ -1659,7 +1677,7 @@ static int product_load_cloud_models(const void *trust, size_t trust_size,
                                      tts, sizeof(tts));
       if (!ret) (void)claw_config_get(AGENT_CFG_KEY_TTS_LOCATION,
                                      location, sizeof(location));
-      if (!ret && asr[0] && strcmp(asr, backend))
+      if (!ret && asr[0] && strcmp(asr, backend) && strcmp(asr, "funasr"))
         {
           ret = -EPERM;
         }
@@ -1691,6 +1709,11 @@ static int product_load_cloud_models(const void *trust, size_t trust_size,
       else if (!ret)
         {
           ret = -EINVAL;
+        }
+
+      if (!ret)
+        {
+          ret = bkagent_cloud_prepare_asr(asr);
         }
 
       if (!ret)

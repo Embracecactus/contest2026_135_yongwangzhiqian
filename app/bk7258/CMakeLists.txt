@@ -89,10 +89,8 @@ if(CONFIG_BK7258_APP_AGENT)
     target_sources(apps PRIVATE bk7258_voice_kws_frontend.c
                                 bk7258_voice_kws_model.cc
                                 ${BKVOICE_FRONTEND_SOURCES})
-    if(CONFIG_MEDIA_TRIGGER)
-      target_sources(apps PRIVATE bk7258_voice_kws.c bk7258_agent_trigger.c
-                                  bk7258_voice_wake_package.c)
-    endif()
+    target_sources(apps PRIVATE bk7258_voice_kws.c bk7258_agent_trigger.c
+                                bk7258_voice_wake_package.c)
     target_include_directories(apps PRIVATE ${BKVOICE_TFLM}
         ${NUTTX_APPS_DIR}/math/kissfft/kissfft)
     # TfLiteTensor layout and kernel selection must match the runtime library.

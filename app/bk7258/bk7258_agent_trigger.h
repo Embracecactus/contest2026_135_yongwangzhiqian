@@ -3,11 +3,11 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Cross-module contract for the Media Trigger model backend. The product
+ * Cross-module contract for the local wake policy. The product
  * coordinator (bk7258_agent_product.c) drives the wake lifecycle through
  * exactly these entry points; the implementation lives in
- * bk7258_agent_trigger.c and serializes load/detect/unload on its own
- * worker. No other module may call into the trigger.
+ * bk7258_agent_trigger.c and joins detection before model load/unload.
+ * The Agent capture owner supplies both wake PCM and the admitted turn.
  ****************************************************************************/
 
 #ifndef __APP_BK7258_BK7258_AGENT_TRIGGER_H
@@ -33,8 +33,13 @@ int bk7258_agent_trigger_prepare(void);
 int bk7258_agent_trigger_start(void);
 int bk7258_agent_trigger_stop(void);
 int bk7258_agent_trigger_process(void);
+/* Called synchronously while Agent's reader is paused and Media input is
+ * discarded; playback must drain before the same recorder resumes. */
+int bk7258_agent_trigger_reply(void);
+void bk7258_agent_trigger_reply_discard(void);
+void bk7258_agent_trigger_reply_cancel(void);
 
-/* Media Trigger model transaction state. */
+/* Local wake model transaction state. */
 
 bool bk7258_agent_trigger_model_pending(void);
 int bk7258_agent_trigger_model_step(bool arm);

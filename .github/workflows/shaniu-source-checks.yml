@@ -33,7 +33,7 @@ jobs:
       - name: Install the manifest client
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y repo
+          sudo apt-get install --no-install-recommends -y repo libssl-dev
 
       - name: Create a clean manifest-pinned workspace
         id: source
@@ -160,7 +160,8 @@ jobs:
           SHANIU_ANDROID_INTEROP=1 make -C tests/host/bk7258 run-product-keys run-provision
           make -C tests/host/bk7258 run-cloud-config run-cloud-request \
             run-cloud-http test-control-session test-control-pair \
-            run-agent-tts-queue run-voice-media-player
+            run-agent-tts-queue run-voice-media-player run-agent-capture \
+            run-agent-funasr run-agent-final-stream run-agent-endpoint
 
       - name: Stage public delivery evidence without the development private key
         shell: bash
