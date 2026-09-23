@@ -87,6 +87,7 @@ class BuildWorkspaceTest(unittest.TestCase):
                 "sys_hal_gpio_state_switch",
                 "__wrap_arch_deep_sleep",
                 "bk7258_pm_soft_off_wfi_reset",
+                "bk7258_hardfault_handler",
             )
             nm_rows = "\n".join(
                 f"{name} T {0x28010000 + 4 * index:08x} 4"
@@ -112,20 +113,23 @@ class BuildWorkspaceTest(unittest.TestCase):
                 report = json.loads((root / "cp-memory-report.json").read_text())
                 self.assertIn("__wrap_arch_deep_sleep", report["symbols"])
                 self.assertIn("bk7258_pm_soft_off_wfi_reset", report["symbols"])
-                with mock.patch.object(
-                    build_domain.subprocess,
-                    "run",
-                    return_value=SimpleNamespace(
-                        stdout="\n".join(nm_rows.splitlines()[:-1])
-                    ),
-                ):
-                    with self.assertRaisesRegex(
-                        build_domain.BuildError,
-                        "bk7258_pm_soft_off_wfi_reset",
+                self.assertIn("bk7258_hardfault_handler", report["symbols"])
+                for missing in copied[-2:]:
+                    with mock.patch.object(
+                        build_domain.subprocess,
+                        "run",
+                        return_value=SimpleNamespace(
+                            stdout="\n".join(
+                                row for row in nm_rows.splitlines()
+                                if row.split()[0] != missing
+                            )
+                        ),
                     ):
-                        build_domain._cp_memory_report(
-                            role, SimpleNamespace(binary_dir=root)
-                        )
+                        with self.assertRaisesRegex(build_domain.BuildError,
+                                                    missing):
+                            build_domain._cp_memory_report(
+                                role, SimpleNamespace(binary_dir=root)
+                            )
 
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory(prefix="bk7258-workspace-")

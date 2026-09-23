@@ -46,6 +46,7 @@ extern void __real_arch_deep_sleep(void);
 
 extern void pm_hardware_init(void);
 extern void bk_misc_set_reset_reason(uint32_t type);
+extern volatile uint32_t g_bk7258_cp_sleep_stage;
 
 static struct work_s g_soft_off_work;
 static bool g_soft_off_ready;
@@ -112,9 +113,11 @@ BK7258_PM_SRAM_CODE void __wrap_arch_deep_sleep(void)
 
   setprimask(1);
   setbasepri(0);
+  g_bk7258_cp_sleep_stage = 4;
   __asm volatile ("dsb sy; isb sy" ::: "memory");
   __asm volatile ("wfi" ::: "memory");
   __asm volatile ("isb sy" ::: "memory");
+  g_bk7258_cp_sleep_stage = 5;
   bk7258_pm_soft_off_wfi_reset();
 }
 
@@ -194,6 +197,7 @@ void bk7258_pm_soft_off_boot(const struct bk7258_gpio_config_s *config)
 
   g_soft_off_ready = config != NULL && config->power_button_enabled &&
                      config->power_button_gpio <= 15;
+  g_bk7258_cp_sleep_stage = 0;
   if (bk7258_reset_cause_read(&reason) < 0 ||
       reason.source != BK7258_RESET_SOURCE_FORCE_DEEPSLEEP)
     {
@@ -227,12 +231,14 @@ void bk7258_pm_soft_off_boot(const struct bk7258_gpio_config_s *config)
    * so this must never be called from a running product-key callback.
    */
 
+  g_bk7258_cp_sleep_stage = 1;
   pm_hardware_init();
   ret = bk_gpio_ana_register_wakeup_source(config->power_button_gpio,
     config->power_button_active_low ? GPIO_INT_TYPE_LOW_LEVEL :
                                       GPIO_INT_TYPE_HIGH_LEVEL);
   if (ret == BK_OK)
     {
+      g_bk7258_cp_sleep_stage = 2;
       ret = bk_pm_sleep_mode_set(BK7258_SDK_PM_SUPER_DEEP_SLEEP);
     }
 
@@ -242,7 +248,9 @@ void bk7258_pm_soft_off_boot(const struct bk7258_gpio_config_s *config)
              config->power_button_gpio);
       up_mdelay(20);
       __atomic_store_n(&g_soft_off_wfi_armed, true, __ATOMIC_RELEASE);
+      g_bk7258_cp_sleep_stage = 3;
       bk_pm_enter_sleep();
+      g_bk7258_cp_sleep_stage = 6;
     }
 
   /* SDK entry may abort on a pending interrupt or a power-domain vote.

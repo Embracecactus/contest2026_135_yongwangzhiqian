@@ -169,7 +169,7 @@
 
 #define BK7258_CP_FAULT_STATE_OFFSET     0x00000100u
 #define BK7258_CP_FAULT_STATE_MAGIC      0x544c4643u /* "CFLT" */
-#define BK7258_CP_FAULT_STATE_VERSION    1u
+#define BK7258_CP_FAULT_STATE_VERSION    2u
 
 /* Physical CPU2 shared state.  N8-A uses it for the freestanding probe;
  * N8-B1 preserves the ABI while publishing the NuttX secondary-bootstrap
@@ -805,6 +805,24 @@ struct bk7258_cp_fault_state_s
   uint32_t stacked_lr;
   uint32_t stacked_pc;
   uint32_t stacked_xpsr;
+  /* Raw exception-entry registers, before any C prologue or watchdog MMIO.
+   * reserved is 1 for entry-only capture, 2 after the basic frame was read.
+   */
+
+  uint32_t entry_msp;
+  uint32_t entry_psp;
+  uint32_t entry_control;
+  uint32_t entry_primask;
+  uint32_t entry_basepri;
+  uint32_t entry_faultmask;
+  uint32_t entry_vtor;
+  uint32_t entry_fpccr;
+  /* CP boot-only soft-off breadcrumb: 0 not entering, 1 hardware setup,
+   * 2 wake configured, 3 SDK entry, 4 WFI boundary, 5 WFI returned,
+   * 6 SDK entry returned. Diagnostic only; never authorizes a transition.
+   */
+
+  uint32_t sleep_stage;
 };
 
 struct bk7258_cpu2_probe_state_s

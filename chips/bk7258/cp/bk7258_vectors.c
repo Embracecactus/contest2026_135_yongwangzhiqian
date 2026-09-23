@@ -233,6 +233,13 @@ extern void __start(void);
  */
 
 void bk7258_hardfault_handler(void);
+static void bk7258_bootfault_handler(void);
+
+/* Live breadcrumb is separate from the retained fault snapshot. Startup
+ * clears this word, not the stage captured by the previous exception.
+ */
+
+volatile uint32_t g_bk7258_cp_sleep_stage;
 
 /****************************************************************************
  * Private Functions
@@ -450,7 +457,7 @@ static bool bk7258_fault_frame_readable(uintptr_t address, uint32_t cfsr)
 
 static void __attribute__((noinline, noreturn, used))
 bk7258_fault_handler(uint32_t *stack, uint32_t exc_return,
-                     uint32_t exception)
+                     uint32_t exception, uint32_t entry_captured)
 {
   volatile struct bk7258_ap_boot_state_s *state = bk7258_ap_boot_state();
   volatile struct bk7258_cp_fault_state_s *fault = bk7258_cp_fault_state();
@@ -469,6 +476,23 @@ bk7258_fault_handler(uint32_t *stack, uint32_t exc_return,
   uint32_t mmfar;
   uint32_t bfar;
   bool frame_valid;
+
+  if (entry_captured == 0)
+    {
+      /* The Flash vector remains usable before the SRAM copy exists.
+       * Do not present registers from an older runtime fault as this entry.
+       */
+
+      fault->entry_msp       = BK7258_FAULT_INVALID_VALUE;
+      fault->entry_psp       = BK7258_FAULT_INVALID_VALUE;
+      fault->entry_control   = BK7258_FAULT_INVALID_VALUE;
+      fault->entry_primask   = BK7258_FAULT_INVALID_VALUE;
+      fault->entry_basepri   = BK7258_FAULT_INVALID_VALUE;
+      fault->entry_faultmask = BK7258_FAULT_INVALID_VALUE;
+      fault->entry_vtor      = BK7258_FAULT_INVALID_VALUE;
+      fault->entry_fpccr     = BK7258_FAULT_INVALID_VALUE;
+      fault->sleep_stage     = 0;
+    }
 
   bk7258_fault_stop_watchdogs();
 
@@ -502,7 +526,7 @@ bk7258_fault_handler(uint32_t *stack, uint32_t exc_return,
   fault->generation    = state->magic == BK7258_AP_BOOT_STATE_MAGIC ?
                          state->generation : 0;
   fault->exception     = exception;
-  fault->reserved      = 0;
+  fault->reserved      = frame_valid ? 2u : 1u;
   fault->exc_return    = exc_return;
   fault->stack_pointer = (uint32_t)(uintptr_t)stack;
   fault->hfsr          = hfsr;
@@ -543,6 +567,19 @@ bk7258_fault_handler(uint32_t *stack, uint32_t exc_return,
   bk7258_fault_putfield('R', stacked_r12);
   bk7258_fault_putc('\r');
   bk7258_fault_putc('\n');
+  bk7258_fault_putc('H');
+  bk7258_fault_putc('X');
+  bk7258_fault_putfield('M', fault->entry_msp);
+  bk7258_fault_putfield('S', fault->entry_psp);
+  bk7258_fault_putfield('C', fault->entry_control);
+  bk7258_fault_putfield('P', fault->entry_primask);
+  bk7258_fault_putfield('B', fault->entry_basepri);
+  bk7258_fault_putfield('F', fault->entry_faultmask);
+  bk7258_fault_putfield('V', fault->entry_vtor);
+  bk7258_fault_putfield('L', fault->entry_fpccr);
+  bk7258_fault_putfield('D', fault->sleep_stage);
+  bk7258_fault_putc('\r');
+  bk7258_fault_putc('\n');
 
   if (exception == BK7258_EXC_NMI)
     {
@@ -580,7 +617,19 @@ bk7258_fault_handler(uint32_t *stack, uint32_t exc_return,
     }
 }
 
-void __attribute__((naked, noreturn, used))
+/* Keep the first capture stackless and independent of XIP. The existing C
+ * diagnostic/reset path still requires working Flash; an entry-only record
+ * remains distinguishable if that path cannot execute. Never interpret its
+ * stale stacked registers as a newly captured exception frame.
+ */
+
+static_assert(offsetof(struct bk7258_cp_fault_state_s, entry_msp) == 80,
+              "fault entry assembly offsets changed");
+static_assert(sizeof(struct bk7258_cp_fault_state_s) == 116,
+              "fault entry assembly size changed");
+
+void __attribute__((naked, noreturn, used,
+                    section(".bk7258_fault_entry")))
 bk7258_hardfault_handler(void)
 {
   __asm volatile
@@ -591,6 +640,72 @@ bk7258_hardfault_handler(void)
       "mrsne r0, psp\n"
       "mov r1, lr\n"
       "mrs r2, ipsr\n"
+      "ldr r3, =%c0\n"
+      "movs r12, #0\n"
+      "str r12, [r3, #0]\n"
+      "str r12, [r3, #12]\n"
+      "str r2, [r3, #16]\n"
+      "str r1, [r3, #24]\n"
+      "str r0, [r3, #28]\n"
+      "mrs r12, msp\n"
+      "str r12, [r3, #80]\n"
+      "mrs r12, psp\n"
+      "str r12, [r3, #84]\n"
+      "mrs r12, control\n"
+      "str r12, [r3, #88]\n"
+      "mrs r12, primask\n"
+      "str r12, [r3, #92]\n"
+      "mrs r12, basepri\n"
+      "str r12, [r3, #96]\n"
+      "mrs r12, faultmask\n"
+      "str r12, [r3, #100]\n"
+      "ldr r12, =0xe000ed08\n"
+      "ldr r12, [r12]\n"
+      "str r12, [r3, #104]\n"
+      "ldr r12, =0xe000ef34\n"
+      "ldr r12, [r12]\n"
+      "str r12, [r3, #108]\n"
+      "ldr r12, =g_bk7258_cp_sleep_stage\n"
+      "ldr r12, [r12]\n"
+      "str r12, [r3, #112]\n"
+      "ldr r12, =0xe000ed2c\n"
+      "ldr r12, [r12]\n"
+      "str r12, [r3, #32]\n"
+      "ldr r12, =0xe000ed28\n"
+      "ldr r12, [r12]\n"
+      "str r12, [r3, #36]\n"
+      "movs r12, #1\n"
+      "str r12, [r3, #20]\n"
+      "movs r12, #%c1\n"
+      "str r12, [r3, #4]\n"
+      "movs r12, #116\n"
+      "str r12, [r3, #8]\n"
+      "dmb sy\n"
+      "ldr r12, =%c2\n"
+      "str r12, [r3, #0]\n"
+      "dsb sy\n"
+      "movs r3, #1\n"
+      "b bk7258_fault_handler\n"
+      ".ltorg\n"
+      :
+      : "i" (BK7258_SHARED_RAM_BASE + BK7258_CP_FAULT_STATE_OFFSET),
+        "i" (BK7258_CP_FAULT_STATE_VERSION),
+        "i" (BK7258_CP_FAULT_STATE_MAGIC)
+    );
+}
+
+static void __attribute__((naked, noreturn, used))
+bk7258_bootfault_handler(void)
+{
+  __asm volatile
+    (
+      "tst lr, #4\n"
+      "ite eq\n"
+      "mrseq r0, msp\n"
+      "mrsne r0, psp\n"
+      "mov r1, lr\n"
+      "mrs r2, ipsr\n"
+      "movs r3, #0\n"
       "b bk7258_fault_handler\n"
     );
 }
@@ -627,8 +742,8 @@ const void *const _vectors[80] =
    *   UART console when one exists, then
    *   park.  NMI ([2]) uses the same path so escalated faults are observable.
    */
-  [2]  = &bk7258_hardfault_handler,
-  [3]  = &bk7258_hardfault_handler,
+  [2]  = &bk7258_bootfault_handler,
+  [3]  = &bk7258_bootfault_handler,
 
   /* [4..14] remaining system exceptions -> exception_common
    *   4=MemManage 5=BusFault 6=UsageFault 7=SecureFault 8..10=Reserved

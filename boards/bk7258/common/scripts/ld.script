@@ -271,6 +271,9 @@ SECTIONS
     .data : ALIGN(4)
     {
         _sdata = ABSOLUTE(.);
+        /* Stackless CP fault entry records registers before touching XIP. */
+
+        KEEP(*(.bk7258_fault_entry))
 #ifdef CONFIG_BK7258_PM_SOFT_OFF
         /* Only the pinned SDK's post-clock-off closure belongs in SRAM.
          * The archive combines deep sleep and low voltage in one indivisible

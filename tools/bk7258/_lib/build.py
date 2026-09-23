@@ -1060,7 +1060,7 @@ def _cp_memory_report(role: RoleBuild, toolchain: Toolchain) -> None:
             "sys_hal_enable_spi_latch", "sys_hal_disable_spi_latch",
             "sys_hal_power_on_and_select_rosc", "sys_hal_disable_hf_clock",
             "sys_hal_gpio_state_switch", "__wrap_arch_deep_sleep",
-            "bk7258_pm_soft_off_wfi_reset",
+            "bk7258_pm_soft_off_wfi_reset", "bk7258_hardfault_handler",
         ):
             # Static SDK register helpers have same-named copies in other
             # objects. Require exactly one copied implementation, not a
