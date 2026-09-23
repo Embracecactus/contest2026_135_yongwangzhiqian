@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-/* Host validation with an operator-selected synthetic candidate model only. */
+/* Host validation of synthetic contracts or explicitly selected candidate weights. */
 
 #include "bk7258_voice_kws_model.h"
 #include "tensorflow/lite/schema/schema_generated.h"
@@ -193,8 +193,72 @@ static struct bkvoice_kws_model_spec_s spec_for(const unsigned char *data,
   return spec;
 }
 
+/* Exercise actual trained, frontend-bound weights without rewriting their
+ * metadata for the synthetic package corruption checks below.  The supplied
+ * features and desktop scores share one continuous inference/reset boundary.
+ * This checks native TFLM compatibility, not board timing or wake accuracy.
+ */
+static int check_candidate(const char *frontend, const char *model_path,
+                           const char *feature_path, const char *score_path)
+{
+  alignas(16) unsigned char arena[512 * 1024];
+  auto bytes = read_model(model_path);
+  auto raw_features = read_model(feature_path);
+  auto raw_scores = read_model(score_path);
+  assert(!bytes.empty() && !raw_features.empty() && !raw_scores.empty());
+  auto spec = spec_for(bytes.data(), bytes.size());
+  spec.frontend = frontend;
+  bkvoice_kws_model_s *model = nullptr;
+  assert(bkvoice_kws_model_open(&spec, arena, sizeof(arena), &model) == 0);
+  bool streaming = bkvoice_kws_model_is_streaming(model);
+  size_t stride = streaming ? 40 : BKVOICE_KWS_FEATURES;
+  assert(raw_features.size() % (stride * sizeof(float)) == 0);
+  size_t count = raw_features.size() / (stride * sizeof(float));
+  assert(raw_scores.size() == count * BKVOICE_KWS_CLASSES * sizeof(float));
+  std::vector<float> features(raw_features.size() / sizeof(float));
+  std::vector<float> expected(raw_scores.size() / sizeof(float));
+  std::vector<float> first(expected.size());
+  std::memcpy(features.data(), raw_features.data(), raw_features.size());
+  std::memcpy(expected.data(), raw_scores.data(), raw_scores.size());
+  float max_error = 0;
+  for (unsigned int pass = 0; pass < 2; pass++)
+    {
+      bkvoice_kws_model_reset(model);
+      for (size_t row = 0; row < count; row++)
+        {
+          float scores[BKVOICE_KWS_CLASSES];
+          const float *input = features.data() + row * stride;
+          int ret = streaming ? bkvoice_kws_model_step(model, input, scores) :
+                                bkvoice_kws_model_infer(model, input, scores);
+          assert(ret == 0);
+          for (size_t i = 0; i < BKVOICE_KWS_CLASSES; i++)
+            {
+              size_t index = row * BKVOICE_KWS_CLASSES + i;
+              assert(std::isfinite(scores[i]) && std::isfinite(expected[index]));
+              float error = std::fabs(scores[i] - expected[index]);
+              if (error > max_error) max_error = error;
+              if (error > 2.0f / 256)
+                std::fprintf(stderr, "candidate mismatch pass=%u input=%zu class=%zu "
+                             "actual=%g expected=%g error=%g\n",
+                             pass, row, i, scores[i], expected[index], error);
+              assert(error <= 2.0f / 256);
+              if (pass == 0) first[index] = scores[i];
+              else assert(scores[i] == first[index]);
+            }
+        }
+    }
+  std::printf("candidate streaming=%d inputs=%zu arena_used=%zu "
+              "max_tflite_score_error=%g reset=exact scope=native-host\n",
+              streaming, count, bkvoice_kws_model_arena_used(model), max_error);
+  bkvoice_kws_model_close(model);
+  return 0;
+}
+
 int main(int argc, char **argv)
 {
+  if (argc == 6 && std::strcmp(argv[1], "--candidate") == 0)
+    return check_candidate(argv[2], argv[3], argv[4], argv[5]);
+
   alignas(16) unsigned char arena[512 * 1024];
   alignas(16) unsigned char small_arena[16];
   float features[BKVOICE_KWS_FEATURES] = {};

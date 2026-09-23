@@ -101,11 +101,23 @@ def add_arguments(
     train.add_argument("--frontend", choices=tuple(FRONTEND_VERSIONS))
     train.add_argument(
         "--frontend-warmup-ms", type=int, default=0,
-        help="train-only synthetic preceding background (0..3000, 20 ms aligned); alternate cold starts",
+        help="train history (0..3000, 20 ms aligned); continuous negatives require adjacent same-source history, other windows use synthetic history",
     )
     train.add_argument(
         "--streaming-negative-frame-loss-weight", type=float, default=0.0,
         help="streaming-tcn only: penalize wake scores at source-clip frames of known negatives; 0 keeps last-frame-only training",
+    )
+    train.add_argument(
+        "--streaming-positive-frame-loss-weight", type=float, default=0.0,
+        help="streaming-tcn only: supervise frames after complete source PCM; ambiguous timing stays final-frame-only",
+    )
+    train.add_argument(
+        "--streaming-positive-max-ms", type=int, default=3000,
+        help="3000..5000 ms, 20 ms aligned; longer complete tempo sources require streaming positive frame supervision",
+    )
+    train.add_argument(
+        "--continuous-negative-source-weight", type=float, default=5.0,
+        help="total training weight per continuous unknown source, divided among its windows (0..1000, exclusive zero)",
     )
     train.add_argument(
         "--tempo-augmentation",
@@ -238,7 +250,10 @@ def _safe_audio(root: Path, value: Any) -> Path:
     return resolved
 
 
-def _wav_pcm16(path: Path, *, exact_samples: int | None = None) -> bytes:
+def _wav_pcm16(
+    path: Path, *, exact_samples: int | None = None,
+    start_sample: int = 0, window_samples: int | None = None,
+) -> bytes:
     try:
         with wave.open(str(path), "rb") as audio:
             if (
@@ -247,12 +262,20 @@ def _wav_pcm16(path: Path, *, exact_samples: int | None = None) -> bytes:
                 or audio.getsampwidth() != 2
                 or audio.getcomptype() != "NONE"
                 or (exact_samples is not None and audio.getnframes() != exact_samples)
+                or start_sample < 0
+                or (window_samples is not None and (
+                    window_samples <= 0
+                    or start_sample + window_samples > audio.getnframes()
+                ))
             ):
                 _fail("audio_format_invalid")
-            frames = audio.readframes(audio.getnframes())
+            if start_sample:
+                audio.setpos(start_sample)
+            count = window_samples if window_samples is not None else audio.getnframes()
+            frames = audio.readframes(count)
     except (OSError, EOFError, wave.Error) as error:
         raise KwsError("audio_format_invalid") from error
-    if not frames or len(frames) % 2:
+    if not frames or len(frames) != count * 2:
         _fail("audio_format_invalid")
     return frames
 
@@ -290,6 +313,7 @@ def _validate(
     speaker_splits: dict[str, set[str]] = {}
     source_splits: dict[str, set[str]] = {}
     hash_splits: dict[str, set[str]] = {}
+    source_hash_splits: dict[str, set[str]] = {}
     counts: Counter[tuple[str, str]] = Counter()
     for entry in document["entries"]:
         if not isinstance(entry, dict):
@@ -320,15 +344,26 @@ def _validate(
         actual = _sha256(audio)
         if actual != declared:
             _fail("entry_hash_mismatch")
-        pcm = _pcm16(audio)
+        offset_ms = entry.get("window_offset_ms")
+        continuous = "window_offset_ms" in entry
+        if continuous:
+            if (split != "train" or label not in BASE_LABELS
+                    or type(offset_ms) is not int or offset_ms < 20
+                    or offset_ms % 20):
+                _fail("continuous_window_invalid")
+            pcm = _wav_pcm16(
+                audio, start_sample=offset_ms * 16, window_samples=SAMPLES
+            )
+        else:
+            pcm = _pcm16(audio)
         if label == wake_label and not any(pcm):
             _fail("positive_audio_silent")
         speaker_splits.setdefault(speaker, set()).add(split)
         source_splits.setdefault(source_id, set()).add(split)
         hash_splits.setdefault(hashlib.sha256(pcm).hexdigest(), set()).add(split)
+        source_hash_splits.setdefault(actual, set()).add(split)
         counts[(split, label)] += 1
-        records.append(
-            {
+        record = {
                 "path": audio,
                 "split": split,
                 "label": label,
@@ -342,7 +377,9 @@ def _validate(
                     source_id.rsplit(":", 1)[-1] if ":" in source_id else label,
                 ),
             }
-        )
+        if continuous:
+            record["window_offset_ms"] = offset_ms
+        records.append(record)
     if not records:
         _fail("dataset_empty")
     if any(len(value) > 1 for value in speaker_splits.values()):
@@ -354,13 +391,16 @@ def _validate(
         _fail("source_cross_split")
     if any(len(value) > 1 for value in hash_splits.values()):
         _fail("audio_cross_split")
+    if any(len(value) > 1 for value in source_hash_splits.values()):
+        _fail("source_audio_cross_split")
     if any(counts[(split, label)] == 0 for split in SPLITS for label in labels):
         _fail("class_or_split_missing")
     identity = [
         {
             key: record[key]
             for key in ("split", "label", "speaker", "source_id", "sha256")
-        }
+        } | ({"window_offset_ms": record["window_offset_ms"]}
+             if "window_offset_ms" in record else {})
         for record in records
     ]
     encoded = json.dumps(
@@ -550,9 +590,55 @@ def _record_pcm(record: dict[str, Any]) -> bytes:
         if not callable(factory):
             _fail("training_augmentation_invalid")
         pcm = factory()
-    if not isinstance(pcm, bytes) or len(pcm) != SAMPLES * 2:
+    samples = record.get("pcm_samples", SAMPLES)
+    if (type(samples) is not int or not SAMPLES <= samples <= 80000
+            or samples % 320 or not isinstance(pcm, bytes) or len(pcm) != samples * 2
+            or (samples != SAMPLES and (record["split"] != "train" or "tempo_factor" not in record))):
         _fail("training_augmentation_invalid")
     return pcm
+
+
+def _continuous_history(record: dict[str, Any], warmup_ms: int) -> bytes:
+    # Continuous negatives retain adjacent same-source history, never spliced history.
+    offset = record["window_offset_ms"]
+    if warmup_ms <= 0 or warmup_ms % 20 or offset < warmup_ms:
+        _fail("continuous_history_invalid")
+    return _wav_pcm16(record["path"], start_sample=(offset - warmup_ms) * 16,
+                      window_samples=warmup_ms * 16)
+
+
+def _assign_frontend_history(records, backgrounds, warmup_ms, seed, streaming):
+    """Assign train-only history without dataset-position-dependent streaming seeds."""
+    prefixes = [_record_pcm(r)[:warmup_ms * 32] for r in backgrounds
+                if r["split"] == "train" and r["label"] in BASE_LABELS]
+    if not prefixes:
+        _fail("frontend_warmup_background_missing")
+    if streaming:
+        prefixes.sort(key=lambda pcm: hashlib.sha256(pcm).digest())
+    hashes = set()
+    assignments = []
+    for index, record in enumerate(records):
+        if record["split"] != "train":
+            continue
+        identity = json.dumps([seed, record["source_id"], record["label"],
+                               hashlib.sha256(_record_pcm(record)).hexdigest()],
+                              ensure_ascii=True, separators=(",", ":")).encode()
+        if "window_offset_ms" in record:
+            prefix = record["frontend_warmup_pcm"]
+        else:
+            # Preserve legacy cold/warm alternation. Only streaming training
+            # adopts v2 content-addressed assignments; old results stay v1.
+            if not streaming and index % 2 == 0:
+                continue
+            key = identity if streaming else f"{seed}:{index}:{record['source_id']}".encode()
+            digest = hashlib.sha256(key).digest()
+            prefix = prefixes[int.from_bytes(digest[:8], "big") % len(prefixes)]
+            record["frontend_warmup_pcm"] = prefix
+        prefix_hash = hashlib.sha256(prefix).hexdigest()
+        hashes.add(prefix_hash)
+        assignments.append(hashlib.sha256(identity + prefix_hash.encode()).hexdigest())
+    return len(assignments), sorted(hashes), hashlib.sha256(
+        "\n".join(sorted(assignments)).encode()).hexdigest()
 
 
 def _features(
@@ -571,7 +657,10 @@ def _features(
                                for r in records):
         _fail("frontend_warmup_invalid")
     extra_rows = max((len(r.get("frontend_warmup_pcm", b"")) // 640 for r in records), default=0) if include_history else 0
-    shape = (len(records), FEATURE_ROWS + extra_rows, 40, 1)
+    source_rows = [1 + (r.get("pcm_samples", SAMPLES) - 480) // 320 for r in records]
+    if not include_history and any(rows != FEATURE_ROWS for rows in source_rows):
+        _fail("long_source_requires_streaming")
+    shape = (len(records), max(source_rows, default=FEATURE_ROWS) + extra_rows, 40, 1)
     streaming_library = _kws_library() if include_history else None
     output = (
         numpy.lib.format.open_memmap(path, mode="w+", dtype=numpy.float32, shape=shape)
@@ -582,9 +671,9 @@ def _features(
         prefix = record.get("frontend_warmup_pcm", b"")
         if not isinstance(prefix, bytes) or len(prefix) % 640 or len(prefix) > 320000:
             _fail("frontend_warmup_invalid")
-        samples = SAMPLES + len(prefix) // 2
+        samples = record.get("pcm_samples", SAMPLES) + len(prefix) // 2
         pcm = (ctypes.c_int16 * samples).from_buffer_copy(prefix + _record_pcm(record))
-        rows = FEATURE_ROWS + len(prefix) // 640 if include_history else FEATURE_ROWS
+        rows = source_rows[index] + len(prefix) // 640 if include_history else FEATURE_ROWS
         feature = (ctypes.c_float * (rows * 40))()
         ret = streaming_library.bkvoice_kws_host_features_stream(
             pcm, samples, feature, rows * 40, FRONTEND_VERSIONS[frontend]
@@ -599,8 +688,8 @@ def _features(
             _fail("frontend_feature_failed")
         output[index, :rows] = numpy.ctypeslib.as_array(feature).reshape(rows, 40, 1)
         if rows < shape[1]:
-            # Validation/test remain genuine cold clips; this unused memmap
-            # suffix is never passed to training, calibration or evaluation.
+            # Valid lengths mask this storage padding in sequence losses;
+            # calibration and clip evaluation receive only real rows.
             output[index, rows:] = 0
     if path is not None:
         output.flush()
@@ -695,6 +784,21 @@ def _evaluate_int8(
     }
 
 
+def _inference_contract(tf: Any) -> dict[str, Any]:
+    return {"engine": "tensorflow-lite", "version": tf.__version__,
+            "resolver": "BUILTIN_REF", "num_threads": 1}
+
+
+def _evaluation_interpreter(tf: Any, **model: Any) -> Any:
+    # XNNPACK rounding differences can accumulate through quantized recurrent
+    # states. Use explicit reference kernels, verified against native TFLM,
+    # rather than letting the desktop installation choose a delegate.
+    return tf.lite.Interpreter(
+        **model, num_threads=1,
+        experimental_op_resolver_type=tf.lite.experimental.OpResolverType.BUILTIN_REF,
+    )
+
+
 def _speech_span(pcm: bytes) -> tuple[int, int]:
     """Return the 20 ms-aligned voiced span of one consented positive clip."""
     frames = [pcm[index * 640 : (index + 1) * 640] for index in range(SAMPLES // 320)]
@@ -709,10 +813,28 @@ def _speech_span(pcm: bytes) -> tuple[int, int]:
     return active[0] * 320, min(SAMPLES, (active[-1] + 1) * 320)
 
 
+def _complete_pcm_span(pcm: bytes) -> tuple[int, int]:
+    """Conservative full-waveform support, not an acoustic word-end label.
+
+    Never use an energy gate here: quiet consonants and quantized tails are
+    part of the labeled source. Noise can extend support to the clip end;
+    that simply leaves no earlier positive supervision.
+    """
+    values = memoryview(pcm).cast("h")
+    first = next((i for i, value in enumerate(values) if value), None)
+    if first is None:
+        _fail("positive_audio_silent")
+    last = next(i for i in range(len(values) - 1, first - 1, -1) if values[i])
+    return first, last + 1
+
+
 def _derived_record(
     record: dict[str, Any], pcm: bytes | Callable[[], bytes], label: str, kind: str
 ) -> dict[str, Any]:
     derived = dict(record)
+    # A crop/transform must explicitly prove that it preserved this support.
+    # Incomplete-target negatives must never inherit a positive time label.
+    derived.pop("complete_pcm_span", None)
     derived.update({"label": label, "augmentation": kind})
     if callable(pcm):
         # Do not copy a 96 KiB rolling window for every augmentation.  The
@@ -759,11 +881,13 @@ def _training_derivatives(
     partial phrase variants remain unknown rather than delayed wakes.
     """
     train = [record for record in records if record["split"] == "train"]
-    positives = [record for record in train if record["label"] == wake_label]
+    positives = [record for record in train if record["label"] == wake_label
+                 and record.get("pcm_samples", SAMPLES) == SAMPLES]
     backgrounds = [
-        record for record in train if record["label"] in ("unknown", "silence")
+        record for record in train
+        if record["label"] in BASE_LABELS and "window_offset_ms" not in record
     ]
-    unknowns = [record for record in train if record["label"] == "unknown"]
+    unknowns = [record for record in backgrounds if record["label"] == "unknown"]
     if onset_hard_negatives < 0 or onset_hard_negatives > len(unknowns):
         _fail("onset_hard_negatives_invalid")
     if unknown_shift_step_ms not in (100, 200, 400, 800):
@@ -774,7 +898,7 @@ def _training_derivatives(
         or positive_end_window_ms % 100 != 0
     ):
         _fail("positive_end_window_invalid")
-    if not positives or not backgrounds or not unknowns:
+    if not positives:
         _fail("training_augmentation_invalid")
     derived: list[dict[str, Any]] = []
     for index, positive in enumerate(positives):
@@ -799,7 +923,7 @@ def _training_derivatives(
         first = minimum
         last = maximum
         for shift in range(first, last + 1, 1600):
-            if shift == 0:
+            if shift == 0 or not backgrounds:
                 continue
             background = backgrounds[(index * 5 + shift // 1600) % len(backgrounds)]
             def rolling(positive=positive, background=background, shift=shift):
@@ -809,11 +933,13 @@ def _training_derivatives(
                 cut = -shift
                 return source[cut * 2 :] + fill[: cut * 2]
             pcm = rolling if lazy else rolling()
-            derived.append(
-                _derived_record(
-                    positive, pcm, wake_label, "complete_target_sliding_window"
-                )
+            shifted = _derived_record(
+                positive, pcm, wake_label, "complete_target_sliding_window"
             )
+            support = positive.get("complete_pcm_span")
+            if support is not None and 0 <= support[0] + shift < support[1] + shift <= SAMPLES:
+                shifted["complete_pcm_span"] = (support[0] + shift, support[1] + shift)
+            derived.append(shifted)
         # Prefix, suffix and middle portions are deliberately incomplete.
         length = len(speech) // 2
         partials = (
@@ -822,6 +948,8 @@ def _training_derivatives(
             speech[(length * 3 // 10) * 2 : (length * 7 // 10) * 2],
         )
         for partial_index, partial in enumerate(partials):
+            if not unknowns:
+                break
             background = unknowns[
                 (index * len(partials) + partial_index) % len(unknowns)
             ]
@@ -846,7 +974,7 @@ def _training_derivatives(
     # the memory added by the expanded corpus. The default still covers the
     # original every-100 ms positions and every setting keeps the full
     # +/-1.6 s endpoints.
-    zeros = bytes(len(_record_pcm(unknowns[0])))
+    zeros = bytes(SAMPLES * 2)
     for unknown in unknowns:
         for shift in range(-25600, 25601, unknown_shift_step_ms * 16):
             if shift == 0:
@@ -1059,7 +1187,7 @@ def package(model: Path, metadata_path: Path, output: Path) -> dict[str, Any]:
         import tensorflow as tf
     except ImportError as error:
         raise KwsError("training_dependencies_unavailable") from error
-    interpreter = tf.lite.Interpreter(model_path=str(model))
+    interpreter = _evaluation_interpreter(tf, model_path=str(model))
     interpreter.allocate_tensors()
     binding = _tflite_frontend(raw)
     if (binding is None and frontend != FRONTEND) or (binding is not None and binding != frontend):
@@ -1156,6 +1284,8 @@ def _session_digest(sessions: Iterable[dict[str, Any]]) -> str:
                 for segment in session["segments"]
             ],
             "events": session["events"],
+            **({"evaluation_group": session["evaluation_group"]}
+               if "evaluation_group" in session else {}),
         }
         for session in sessions
     ]
@@ -1216,6 +1346,12 @@ def _validate_sessions(
         recording_kind = raw.get("recording_kind")
         if recording_kind not in ("real", "synthetic"):
             _fail("streaming_session_kind_invalid")
+        group = raw.get("evaluation_group")
+        if group is not None and (
+            not isinstance(group, str)
+            or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,63}", group)
+        ):
+            _fail("session_evaluation_group_invalid")
         source_splits.setdefault(source_id, set()).add(split)
         speaker_splits.setdefault(speaker, set()).add(split)
         timeline_start = _integer_ms(
@@ -1302,6 +1438,7 @@ def _validate_sessions(
                 "split": split,
                 "source_id": source_id,
                 "recording_kind": recording_kind,
+                **({"evaluation_group": group} if group is not None else {}),
                 "segments": segments,
                 "events": events,
                 "session_end_ms": session_end,
@@ -1462,31 +1599,73 @@ def _streaming_models(tf: Any, channels: int) -> tuple[Any, Any, Any, Any]:
     )
 
 
-def _streaming_negative_frame_loss(tf: Any, weight: float) -> Callable[[Any, Any], Any]:
-    """Add source-clip negative supervision without inventing positive timing."""
+def _streaming_negative_frame_loss(
+    tf: Any, weight: float, positive_weight: float = 0.0,
+) -> Callable[[Any, Any], Any]:
+    """Supervise source-clip frames; mask ambiguous prefixes and warmup."""
     def loss(labels: Any, sequence: Any) -> Any:
-        labels = tf.reshape(tf.cast(labels, tf.int32), (-1,))
-        last = sequence[:, -1, 0, :]
+        if positive_weight:
+            packed = tf.reshape(tf.cast(labels, tf.int32), (-1, 4))
+            labels, complete = packed[:, 0], packed[:, 1]
+            source_rows, valid_rows = packed[:, 2], packed[:, 3]
+            last = tf.gather_nd(sequence[:, :, 0, :],
+                                tf.stack((tf.range(tf.shape(packed)[0]), valid_rows - 1), axis=1))
+        else:
+            labels = tf.reshape(tf.cast(labels, tf.int32), (-1,))
+            last = sequence[:, -1, 0, :]
         final_loss = tf.keras.losses.sparse_categorical_crossentropy(labels, last)
         # The leading history can be from another recording. Only the final
         # FEATURE_ROWS belong to this labeled three-second source clip.
-        wake = sequence[:, -FEATURE_ROWS:, 0, 2]
+        wake = (tf.gather(sequence[:, :, 0, 2],
+                          valid_rows[:, None] - FEATURE_ROWS + tf.range(FEATURE_ROWS)[None, :],
+                          batch_dims=1)
+                if positive_weight else sequence[:, -FEATURE_ROWS:, 0, 2])
         negative_loss = -tf.math.log1p(-tf.clip_by_value(wake, 0.0, 1.0 - 1e-7))
         negative_loss = tf.reduce_mean(negative_loss, axis=1)
-        return final_loss + weight * tf.where(labels == 2, 0.0, negative_loss)
+        result = final_loss + weight * tf.where(labels == 2, 0.0, negative_loss)
+        if positive_weight:
+            # Production uses 480-sample frames every 320 samples. Do not
+            # repeat the final-frame term or label any pre-completion frame.
+            positions = tf.range(tf.shape(sequence)[1])[None, :]
+            starts = (valid_rows - source_rows)[:, None]
+            ends = 480 + (positions - starts) * 320
+            mask = ((labels[:, None] == 2) & (positions >= starts)
+                    & (positions < valid_rows[:, None] - 1) & (ends >= complete[:, None]))
+            positive_loss = -tf.math.log(tf.clip_by_value(sequence[:, :, 0, 2], 1e-7, 1.0))
+            mask = tf.cast(mask, positive_loss.dtype)
+            positive_loss = tf.math.divide_no_nan(
+                tf.reduce_sum(positive_loss * mask, axis=1), tf.reduce_sum(mask, axis=1)
+            )
+            # Preserve each source/class loss mass: redistribute positive
+            # supervision in time instead of increasing its weight over
+            # ordinary speech and background negatives.
+            result = tf.where(
+                tf.reduce_sum(mask, axis=1) > 0,
+                (result + positive_weight * positive_loss) / (1.0 + positive_weight),
+                result,
+            )
+        return result
 
     return loss
 
 
-def _streaming_last_frame_accuracy(tf: Any) -> Callable[[Any, Any], Any]:
+def _streaming_last_frame_accuracy(tf: Any, packed_labels: bool = False) -> Callable[[Any, Any], Any]:
     def accuracy(labels: Any, sequence: Any) -> Any:
-        labels = tf.reshape(tf.cast(labels, tf.int32), (-1,))
-        return tf.keras.metrics.sparse_categorical_accuracy(labels, sequence[:, -1, 0, :])
+        if packed_labels:
+            packed = tf.reshape(tf.cast(labels, tf.int32), (-1, 4))
+            labels = packed[:, 0]
+            last = tf.gather_nd(sequence[:, :, 0, :],
+                                tf.stack((tf.range(tf.shape(packed)[0]), packed[:, 3] - 1), axis=1))
+        else:
+            labels = tf.reshape(tf.cast(labels, tf.int32), (-1,))
+            last = sequence[:, -1, 0, :]
+        return tf.keras.metrics.sparse_categorical_accuracy(labels, last)
 
     return accuracy
 
 
-def _streaming_representative(models: Any, features: Any, indices: Any, numpy: Any):
+def _streaming_representative(models: Any, features: Any, indices: Any, numpy: Any,
+                              valid_rows: Any = None):
     """Train-only actual activation histories, including real zero-state starts."""
     probe = models[2]
     chosen = numpy.asarray(indices)
@@ -1495,6 +1674,8 @@ def _streaming_representative(models: Any, features: Any, indices: Any, numpy: A
     chosen = chosen[numpy.linspace(0, len(chosen) - 1, min(len(chosen), 128), dtype=int)]
     for index in chosen:
         sequence = features[index : index + 1]
+        if valid_rows is not None:
+            sequence = sequence[:, :valid_rows[index]]
         activations = [x.numpy() for x in probe(sequence, training=False)]
         positions = sorted({*range(0, sequence.shape[1], 15), sequence.shape[1] - 1})
         for position in positions:
@@ -1657,6 +1838,82 @@ def _write_new_json(path: Path, value: dict[str, Any]) -> None:
     )
 
 
+def _stream_outcomes(sessions, events):
+    """Keep strict event windows and expose misses instead of only detections.
+
+    Groups describe predeclared diagnostic conditions, not independent people.
+    FAR uses negative-only sessions; outside-window events in positive sessions
+    remain explicit errors and are not silently reclassified as late successes.
+    Event windows are not word-end annotations, so no acoustic latency is inferred.
+    """
+    by_id = {session["session_id"]: session for session in sessions}
+    counts = {key: [0] * len(value["events"]) for key, value in by_id.items()}
+    outside = Counter()
+    detected = Counter()
+    details = []
+    for session_id, start_ms, end_ms, score in events:
+        session = by_id[session_id]
+        overlap = next((index for index, interval in enumerate(session["events"])
+                        if _overlaps(start_ms, end_ms, interval)), None)
+        detected[session_id] += 1
+        if overlap is None:
+            outside[session_id] += 1
+        else:
+            counts[session_id][overlap] += 1
+        details.append({"session_id": session_id, "start_ms": start_ms,
+                        "end_ms": end_ms, "wake_score": score,
+                        "type": "background" if overlap is None else "expected"})
+    outcomes = []
+    groups = {}
+    sources = {}
+    fields = ("expected_wakes", "missed_wakes", "repeated_wakes",
+              "background_false_positives", "wake_events", "listening_ms",
+              "paused_ms", "gap_ms", "background_only_listening_ms",
+              "background_only_false_positives")
+    for session_id, session in by_id.items():
+        durations = Counter()
+        for segment in session["segments"]:
+            durations[segment["kind"]] += segment["end_ms"] - segment["start_ms"]
+        group = session.get("evaluation_group", "unclassified")
+        negative = not session["events"]
+        outcome = {
+            "session_id": session_id, "evaluation_group": group,
+            "recording_kind": session["recording_kind"],
+            "expected_wakes": len(session["events"]),
+            "missed_wakes": sum(count == 0 for count in counts[session_id]),
+            "repeated_wakes": sum(max(0, count - 1) for count in counts[session_id]),
+            "background_false_positives": outside[session_id],
+            "wake_events": detected[session_id],
+            "listening_ms": durations["audio"], "paused_ms": durations["pause"],
+            "gap_ms": durations["gap"],
+            "background_only_listening_ms": durations["audio"] if negative else 0,
+            "background_only_false_positives": outside[session_id] if negative else 0,
+        }
+        outcomes.append(outcome)
+        aggregate = groups.setdefault(group, Counter())
+        aggregate.update({field: outcome[field] for field in fields})
+        aggregate["sessions"] += 1
+        sources.setdefault(group, set()).add(session["source_id"])
+    for group, aggregate in groups.items():
+        aggregate["source_groups"] = len(sources[group])
+        expected = aggregate["expected_wakes"]
+        aggregate["strict_recall"] = (
+            (expected - aggregate["missed_wakes"]) / expected if expected else None
+        )
+        duration = aggregate["background_only_listening_ms"]
+        aggregate["background_only_false_wakes_per_hour"] = (
+            aggregate["background_only_false_positives"] * 3600000 / duration
+            if duration else None
+        )
+    return {
+        **{field: sum(item[field] for item in outcomes) for field in fields},
+        "sessions": len(sessions), "events": details, "session_outcomes": outcomes,
+        "groups": {group: dict(value) for group, value in sorted(groups.items())},
+        "group_scope": "shared-source diagnostic conditions; not independent speakers",
+        "word_end_latency": "unavailable_without_verified_word_end_annotations",
+    }
+
+
 def evaluate(
     manifest: Path, model: Path, output: Path, frozen_policy: Path, split_name: str,
     frontend: str | None = None,
@@ -1694,7 +1951,7 @@ def evaluate(
         import tensorflow as tf
     except ImportError as error:
         raise KwsError("training_dependencies_unavailable") from error
-    interpreter = tf.lite.Interpreter(model_path=str(model))
+    interpreter = _evaluation_interpreter(tf, model_path=str(model))
     interpreter.allocate_tensors()
     streaming = metadata.get("architecture_family") == STREAM_ARCHITECTURE
     contract = _streaming_contract(interpreter, np) if streaming else None
@@ -1731,6 +1988,7 @@ def evaluate(
         "model_sha256": _sha256(model),
         "model_metadata_sha256": _sha256(metadata_path),
         "model_training_dataset_sha256": metadata.get("dataset_sha256"),
+        "inference_contract": _inference_contract(tf),
         "evaluation_manifest_sha256": manifest_sha,
         "validation_session_sha256": _session_digest(
             session for session in sessions if session["split"] == "validation"
@@ -1753,6 +2011,7 @@ def evaluate(
             raise KwsError("frozen_policy_unavailable") from error
         if (
             not isinstance(supplied, dict)
+            or supplied.get("inference_contract") != binding["inference_contract"]
             or any(
                 supplied.get(key) != value
                 for key, value in binding.items()
@@ -1780,10 +2039,6 @@ def evaluate(
         ) and predicted == class_labels.index(wake_label):
             slice_errors[f"unknown_false_positive:{record['category']}"] += 1
     events: list[tuple[str, int, int, float]] = []
-    expected: list[tuple[str, list[int]]] = []
-    listening_ms = 0
-    paused_ms = 0
-    gap_ms = 0
     callback_error: list[Exception] = []
     incremental = _StreamingInt8(interpreter, np) if streaming else None
 
@@ -1818,16 +2073,11 @@ def evaluate(
         if not host:
             _fail("kws_bridge_initialize_failed")
         try:
-            expected.extend(
-                (session["session_id"], event) for event in session["events"]
-            )
             for segment in session["segments"]:
                 if segment["kind"] == "pause":
-                    paused_ms += segment["end_ms"] - segment["start_ms"]
                     library.bkvoice_kws_host_pause(host)
                     continue
                 if segment["kind"] == "gap":
-                    gap_ms += segment["end_ms"] - segment["start_ms"]
                     # Do not reset here: the product detects the real
                     # timestamp discontinuity on the next 20 ms frame.
                     continue
@@ -1835,7 +2085,6 @@ def evaluate(
                     segment["pcm"]
                 )
                 frames = len(pcm) // 320
-                listening_ms += frames * 20
                 for frame in range(frames):
                     score = ctypes.c_float()
                     end_ms = segment["start_ms"] + (frame + 1) * 20
@@ -1862,57 +2111,13 @@ def evaluate(
             library.bkvoice_kws_host_destroy(host)
     if callback_error:
         _fail("tflite_callback_failed")
-    matched = [0] * len(expected)
-    background_false_positives = 0
-    event_details = []
-    for session_id, start_ms, end_ms, score in events:
-        overlaps = [
-            index
-            for index, (expected_id, interval) in enumerate(expected)
-            if expected_id == session_id and _overlaps(start_ms, end_ms, interval)
-        ]
-        if not overlaps:
-            background_false_positives += 1
-            event_details.append(
-                {
-                    "session_id": session_id,
-                    "start_ms": start_ms,
-                    "end_ms": end_ms,
-                    "wake_score": score,
-                    "type": "background",
-                }
-            )
-        else:
-            matched[overlaps[0]] += 1
-            event_details.append(
-                {
-                    "session_id": session_id,
-                    "start_ms": start_ms,
-                    "end_ms": end_ms,
-                    "wake_score": score,
-                    "type": "expected",
-                }
-            )
-    misses = sum(count == 0 for count in matched)
-    repeats = sum(max(0, count - 1) for count in matched)
     result = {
         "schema": "bkvoice-kws-stream-evaluation-v1",
         "status": "candidate",
         "split": split_name,
         "slice_metrics": slices,
         "slice_error_categories": dict(sorted(slice_errors.items())),
-        "stream_metrics": {
-            "expected_wakes": len(expected),
-            "missed_wakes": misses,
-            "repeated_wakes": repeats,
-            "background_false_positives": background_false_positives,
-            "wake_events": len(events),
-            "listening_ms": listening_ms,
-            "paused_ms": paused_ms,
-            "gap_ms": gap_ms,
-            "sessions": len(chosen_sessions),
-            "events": event_details,
-        },
+        "stream_metrics": _stream_outcomes(chosen_sessions, events),
         "policy": policy,
         "model_sha256": _sha256(model),
         "model_metadata_sha256": _sha256(metadata_path),
@@ -1931,6 +2136,7 @@ def evaluate(
         "runtime": {
             "policy_source": "bkvoice_kws_default_policy",
             "inference": "python_tflite_callback_not_tflm_board_equivalence",
+            **_inference_contract(tf),
         },
         "wake_label": wake_label,
         "wake_phrase": wake_phrase,
@@ -1955,7 +2161,7 @@ def evaluate(
     return result
 
 
-def _tempo_copies(records, wake_label):
+def _tempo_copies(records, wake_label, max_ms=3000):
     """Keep original lineage and never crop a slowed complete wake phrase."""
     copies = []
     counts = Counter()
@@ -1996,20 +2202,52 @@ def _tempo_copies(records, wake_label):
             output = result.stdout
             if not output or len(output) % 2:
                 _fail("tempo_pcm_invalid")
-            if len(output) > SAMPLES * 2:
+            if len(output) > max_ms * 32:
                 counts[f"overlong:{tempo}"] += 1
                 continue
+            samples = SAMPLES if len(output) <= SAMPLES * 2 else max_ms * 16
             # Window derivation below supplies rolling offsets and negatives.
-            copies.append(
-                _derived_record(
+            variant = {**_derived_record(
                     record,
-                    output.ljust(SAMPLES * 2, b"\0"),
+                    output.ljust(samples * 2, b"\0"),
                     wake_label,
                     f"tempo:{tempo}",
-                )
-            )
+                ), "tempo_factor": tempo}
+            if samples > SAMPLES:
+                variant["pcm_samples"] = samples
+                counts[f"long_accepted:{tempo}"] += 1
+            support = record.get("complete_pcm_span")
+            if (support is not None and max(0, start - 1600) <= support[0]
+                    and support[1] <= min(SAMPLES, end + 1600)):
+                # FFmpeg output length is authoritative, not input / tempo.
+                # Keep the entire transformed tail as a conservative bound.
+                variant["complete_pcm_span"] = (0, len(output) // 2)
+            copies.append(variant)
             counts[f"accepted:{tempo}"] += 1
     return copies, dict(counts)
+
+
+def _augmentation_base_weights(records, amplitude_copies, np):
+    """Preserve pre-tempo source/class mass, including partial-target negatives.
+
+    Tempo lineage survives later window derivation; otherwise the additional
+    partials silently outweigh their untransformed source. Positive and ordinary
+    unknown source balancing is subsequently applied by the existing trainer.
+    """
+    def key(record):
+        kind = record.get("augmentation")
+        if "tempo_factor" in record and kind and kind.startswith("tempo:"):
+            kind = None
+        return record["source_id"], record["label"], kind
+
+    all_counts = Counter(key(r) for r in records if r["split"] == "train")
+    base_counts = Counter(key(r) for r in records
+                          if r["split"] == "train" and "tempo_factor" not in r)
+    return np.asarray([
+        base_counts[key(r)] / all_counts[key(r)] / amplitude_copies
+        if r["split"] == "train" else 1.0 / amplitude_copies
+        for r in records
+    ], dtype=np.float32)
 
 
 def train(
@@ -2031,6 +2269,9 @@ def train(
     frontend: str | None = None,
     frontend_warmup_ms: int = 0,
     streaming_negative_frame_loss_weight: float = 0.0,
+    streaming_positive_frame_loss_weight: float = 0.0,
+    streaming_positive_max_ms: int = 3000,
+    continuous_negative_source_weight: float = 5.0,
 ) -> dict[str, Any]:
     """Train and export a full-INT8 candidate; imports ML packages only here."""
     streaming = architecture == STREAM_ARCHITECTURE
@@ -2054,6 +2295,17 @@ def train(
         or not math.isfinite(streaming_negative_frame_loss_weight)
         or streaming_negative_frame_loss_weight < 0
         or (not streaming and streaming_negative_frame_loss_weight != 0)
+        or not math.isfinite(streaming_positive_frame_loss_weight)
+        or streaming_positive_frame_loss_weight < 0
+        or (not streaming and streaming_positive_frame_loss_weight != 0)
+        or type(streaming_positive_max_ms) is not int
+        or not 3000 <= streaming_positive_max_ms <= 5000
+        or streaming_positive_max_ms % 20
+        or (streaming_positive_max_ms != 3000 and (
+            not streaming or streaming_positive_frame_loss_weight <= 0
+            or not tempo_augmentation or positive_end_window_ms != 0))
+        or not math.isfinite(continuous_negative_source_weight)
+        or not 0 < continuous_negative_source_weight <= 1000
     ):
         _fail("training_arguments_invalid")
     if unknown_shift_step_ms not in (100, 200, 400, 800):
@@ -2065,10 +2317,17 @@ def train(
     ):
         _fail("positive_end_window_invalid")
     records, report, wake_contract = _validate(manifest)
+    for record in records:
+        if "window_offset_ms" in record:
+            record["frontend_warmup_pcm"] = _continuous_history(record, frontend_warmup_ms)
     manifest_frontend = report["frontend"]
     if frontend is not None:
         report["frontend"] = frontend
     wake_label, wake_phrase, class_labels = wake_contract
+    if streaming_positive_frame_loss_weight:
+        for record in records:
+            if record["split"] == "train" and record["label"] == wake_label:
+                record["complete_pcm_span"] = _complete_pcm_span(record["pcm"])
     document = _read_manifest(manifest)
     if "sessions" in document:
         _validate_sessions(document, manifest, records)
@@ -2087,7 +2346,7 @@ def train(
         pass
     tempo_counts = {}
     if tempo_augmentation:
-        tempo_records, tempo_counts = _tempo_copies(records, wake_label)
+        tempo_records, tempo_counts = _tempo_copies(records, wake_label, streaming_positive_max_ms)
         records = [*records, *tempo_records]
     positive_end_window_samples = positive_end_window_ms * 16
     original_train_positive_excluded = 0
@@ -2118,7 +2377,7 @@ def train(
     source_windows: Counter[str] = Counter()
     quiet_records: list[dict[str, Any]] = []
     for record in train_records:
-        if record["split"] != "train":
+        if record["split"] != "train" or "window_offset_ms" in record:
             continue
         pcm_gain_counts[1.0] += 1
         if not pcm_gains:
@@ -2140,7 +2399,7 @@ def train(
     room_records: list[dict[str, Any]] = []
     if room_augmentation:
         for record in train_records:
-            if record["split"] != "train":
+            if record["split"] != "train" or "window_offset_ms" in record:
                 continue
             # Keep the source, split and full/partial-word label fixed. These
             # are synthetic acoustic variations, not measured room responses.
@@ -2164,29 +2423,26 @@ def train(
                 filtered *= rng.uniform(0.3, 1.0)
                 filtered += rng.normal(0, rng.uniform(3, 15), len(filtered))
                 return np.clip(np.rint(filtered), -32768, 32767).astype("<i2").tobytes()
-            room_records.append(_pcm_variant(record, room))
+            variant = _pcm_variant(record, room)
+            if "complete_pcm_span" in variant:
+                start, end = variant["complete_pcm_span"]
+                # Maximum reflection plus the symmetric FIR support. Noise
+                # added afterwards must not be mistaken for a new word end.
+                variant["complete_pcm_span"] = (max(0, start - 31), min(record.get("pcm_samples", SAMPLES), end + 2880 + 31))
+            room_records.append(variant)
         train_records.extend(room_records)
         amplitude_copies *= 2
     feature_cache = tempfile.TemporaryDirectory(prefix="bkvoice-kws-features-")
     warmup_count = 0
-    warmup_hashes: set[str] = set()
+    warmup_hashes = []
+    warmup_assignment_sha256 = None
     if frontend_warmup_ms:
         # Synthetic history is drawn only from already-audited training
         # negatives. It is not claimed to precede the source recording.
         # Legacy alternates cold starts. Streaming exposes the complete
         # synthetic history to the model; validation/test clips remain cold.
-        backgrounds = [r for r in records if r["split"] == "train"
-                       and r["label"] in BASE_LABELS]
-        prefixes = [_record_pcm(r)[:frontend_warmup_ms * 32] for r in backgrounds]
-        for index, record in enumerate(train_records):
-            if record["split"] != "train" or (not streaming and index % 2 == 0):
-                continue
-            digest = hashlib.sha256(
-                f"{seed}:{index}:{record['source_id']}".encode()).digest()
-            prefix = prefixes[int.from_bytes(digest[:8], "big") % len(prefixes)]
-            record["frontend_warmup_pcm"] = prefix
-            warmup_hashes.add(hashlib.sha256(prefix).hexdigest())
-            warmup_count += 1
+        warmup_count, warmup_hashes, warmup_assignment_sha256 = _assign_frontend_history(
+            train_records, records, frontend_warmup_ms, seed, streaming)
     features = _features(
         train_records, np, path=Path(feature_cache.name) / "train.npy",
         frontend=report["frontend"],
@@ -2196,6 +2452,18 @@ def train(
         [class_labels.index(record["label"]) for record in train_records],
         dtype=np.int32,
     )
+    fit_targets = targets
+    source_rows = np.asarray([1 + (record.get("pcm_samples", SAMPLES) - 480) // 320
+                              for record in train_records], dtype=np.int32)
+    valid_rows = source_rows + np.asarray([len(record.get("frontend_warmup_pcm", b"")) // 640
+                                          for record in train_records], dtype=np.int32)
+    completion_samples = np.asarray([
+        record.get("complete_pcm_span", (0, record.get("pcm_samples", SAMPLES)))[1]
+        if record["split"] == "train" else SAMPLES
+        for record in train_records
+    ], dtype=np.int32)
+    if streaming_positive_frame_loss_weight:
+        fit_targets = np.column_stack((targets, completion_samples, source_rows, valid_rows))
     split = np.asarray([record["split"] for record in train_records])
     train_mask = split == "train"
     validation_mask = split == "validation"
@@ -2210,14 +2478,16 @@ def train(
         _fail("training_positive_source_weight_invalid")
     # Extra amplitude coverage must not silently increase the class or
     # source weight relative to ordinary speech and background negatives.
-    source_weight_total = float(positive_total) / amplitude_copies
+    source_weight_total = sum(
+        1 for record in train_records
+        if record["split"] == "train" and record["label"] == wake_label
+        and "tempo_factor" not in record
+    ) / amplitude_copies
     positive_weights = {
         source_id: source_weight_total / (source_count * count)
         for source_id, count in positive_by_source.items()
     }
-    sample_weights = np.full(
-        len(train_records), 1.0 / amplitude_copies, dtype=np.float32
-    )
+    sample_weights = _augmentation_base_weights(train_records, amplitude_copies, np)
     ordinary_unknown_by_source = Counter(
         record["source_id"]
         for record in train_records
@@ -2242,9 +2512,16 @@ def train(
         previous = ordinary_unknown_categories.setdefault(source_id, category)
         if previous != category:
             _fail("training_unknown_source_category_invalid")
+    continuous_unknown_sources = {
+        record["source_id"] for record in train_records
+        if record["split"] == "train" and record["label"] == "unknown"
+        and "window_offset_ms" in record
+    }
     ordinary_unknown_source_totals = {
         source_id: (
-            source_weight_total / source_count if category == "near_homophone" else 5.0
+            continuous_negative_source_weight if source_id in continuous_unknown_sources
+            else source_weight_total / source_count if category == "near_homophone"
+            else 5.0
         )
         for source_id, category in ordinary_unknown_categories.items()
     }
@@ -2273,13 +2550,13 @@ def train(
         # Avoid a full advanced-index copy and another complete TensorFlow
         # tensor of the same features. Only one batch is prefetched.
         for index in shuffle_rng.permutation(train_indices):
-            yield features[index], targets[index], sample_weights[index]
+            yield features[index], fit_targets[index], sample_weights[index]
 
     training_data = tf.data.Dataset.from_generator(
         training_rows,
         output_signature=(
             tf.TensorSpec((features.shape[1], 40, 1), tf.float32),
-            tf.TensorSpec((), tf.int32),
+            tf.TensorSpec((4,) if streaming_positive_frame_loss_weight else (), tf.int32),
             tf.TensorSpec((), tf.float32),
         ),
     )
@@ -2337,12 +2614,15 @@ def train(
         ]
     )
     supervised_negative_frames = streaming and streaming_negative_frame_loss_weight > 0
-    training_model = streaming_models[3] if supervised_negative_frames else model
+    supervised_positive_frames = streaming and streaming_positive_frame_loss_weight > 0
+    supervised_frames = supervised_negative_frames or supervised_positive_frames
+    training_model = streaming_models[3] if supervised_frames else model
     training_model.compile(
         optimizer="adam",
-        loss=(_streaming_negative_frame_loss(tf, streaming_negative_frame_loss_weight)
-              if supervised_negative_frames else "sparse_categorical_crossentropy"),
-        metrics=([_streaming_last_frame_accuracy(tf)] if supervised_negative_frames
+        loss=(_streaming_negative_frame_loss(tf, streaming_negative_frame_loss_weight,
+                                            streaming_positive_frame_loss_weight)
+              if supervised_frames else "sparse_categorical_crossentropy"),
+        metrics=([_streaming_last_frame_accuracy(tf, supervised_positive_frames)] if supervised_frames
                  else ["accuracy"]),
     )
     early = tf.keras.callbacks.EarlyStopping(
@@ -2372,7 +2652,7 @@ def train(
     history = training_model.fit(
         training_data,
         epochs=epochs,
-        validation_data=(features[validation_mask, :FEATURE_ROWS], targets[validation_mask]),
+        validation_data=(features[validation_mask, :FEATURE_ROWS], fit_targets[validation_mask]),
         verbose=0,
         callbacks=[early, checkpoint, progress],
     )
@@ -2385,12 +2665,12 @@ def train(
         model, features[validation_mask, :FEATURE_ROWS], targets[validation_mask], np, class_labels
     )
     stream_equivalence = _streaming_equivalence(
-        streaming_models, features[np.where(train_mask)[0][0]], np
+        streaming_models, features[np.where(train_mask)[0][0], :valid_rows[np.where(train_mask)[0][0]]], np
     ) if streaming_models else None
     converter = tf.lite.TFLiteConverter.from_keras_model(streaming_models[1] if streaming_models else model)
     converter.optimizations = [tf.lite.Optimize.DEFAULT]
     converter.representative_dataset = (lambda: _streaming_representative(
-        streaming_models, features, np.where(train_mask)[0], np
+        streaming_models, features, np.where(train_mask)[0], np, valid_rows
     )) if streaming_models else lambda: (
         [features[index : index + 1]] for index in np.where(train_mask)[0]
     )
@@ -2402,7 +2682,7 @@ def train(
         _fail("model_export_size_invalid")
     model_path = output / "model_int8.tflite"
     model_path.write_bytes(candidate)
-    interpreter = tf.lite.Interpreter(model_path=str(model_path))
+    interpreter = _evaluation_interpreter(tf, model_path=str(model_path))
     interpreter.allocate_tensors()
     stream_contract = _streaming_contract(interpreter, np) if streaming_models else None
     exported_input = stream_contract["frame"] if stream_contract else interpreter.get_input_details()[0]
@@ -2445,15 +2725,22 @@ def train(
     out_q = exported_output["quantization"]
     metadata = {
         **report,
+        "inference_contract": _inference_contract(tf),
         "wake_label": wake_label,
         "wake_phrase": wake_phrase,
         "audio_seconds": 3,
+        "audio_seconds_scope": "base manifest clips; extended complete tempo sources are train-only",
+        "training_source_max_seconds": streaming_positive_max_ms / 1000,
         "manifest_frontend": manifest_frontend,
         "frontend_warmup": {
             "milliseconds": frontend_warmup_ms,
             "training_windows": warmup_count,
+            "same_source_continuous_windows": sum(
+                "window_offset_ms" in record for record in train_records),
             "prefix_pcm_sha256": sorted(warmup_hashes),
-            "policy": "alternate cold/synthetic train-negative history; validation/test isolated clips cold; streaming sessions continuous",
+            "assignment_version": "source-label-pcm-sha256-v2" if streaming else "seed-index-source-v1",
+            "assignment_sha256": warmup_assignment_sha256,
+            "policy": "continuous negative windows use adjacent same-source history; other train windows use synthetic history; validation/test isolated clips cold; streaming sessions continuous",
         },
         "input_pipeline": "source_preserving_tf_data_one_prefetched_batch",
         "architecture": f"{architecture}-conv{channels}-10x{frequency_kernel}-s2xf{frequency_stride}-dw3x{depthwise_frequency}-s2-dw3x{depthwise_frequency}-s2-dw9x{depthwise_frequency}-dw9x{depthwise_frequency}-pw{channels}-bn-relu-global-pool19x{frequency_positions}-flatten-dense3",
@@ -2488,7 +2775,9 @@ def train(
                 "enabled": tempo_augmentation,
                 "rates": [0.75, 1.25, 1.5],
                 "counts": tempo_counts,
+                "maximum_source_ms": streaming_positive_max_ms,
                 "method": "ffmpeg atempo; 100ms speech margins; no overlong cropping",
+                "weight_policy": "retain untransformed source/class total mass; balance partial-target derivatives by original source and class",
                 "lineage": "original source and speaker retained; train only",
             },
             "base": "trigger442 archived v30",
@@ -2550,6 +2839,13 @@ def train(
                 "source_total_weight_by_category": {
                     "near_homophone": source_weight_total / source_count,
                     "other_unknown": 5.0,
+                },
+                "continuous_source_override": {
+                    "per_source_total_weight": continuous_negative_source_weight,
+                    "source_count": len(continuous_unknown_sources),
+                    "total_weight": sum(ordinary_unknown_source_totals[source]
+                                        for source in continuous_unknown_sources),
+                    "rule": "window_offset_ms unknown sources; divide fixed source weight among all eligible source windows",
                 },
                 "weight_min": min(ordinary_unknown_weights.values()),
                 "weight_max": max(ordinary_unknown_weights.values()),
@@ -2613,11 +2909,11 @@ def train(
             "receptive_field_pcm_span_ms": 30 + 20 * sum(STREAM_DELAYS),
             "theoretical_convolution_mac_per_inference": 40 * channels + 5 * (9 * channels + channels * channels) + channels * 3,
             "streaming_contract": _streaming_contract_report(stream_contract),
-            "model_training_context_ms": 3000 + frontend_warmup_ms,
+            "model_training_context_ms": streaming_positive_max_ms + frontend_warmup_ms,
             "full_sequence_vs_step_max_abs_error": stream_equivalence,
             "comparison_scope": "changes architecture, effective context and history policy; not a structure-only B/C ablation",
-            "duration_coverage_limit": "original labeled clips are 3 seconds; no evidence for phrases exceeding that window; no new positive truncation",
-            "model_training_history": "all train windows prepend audited train-negative PCM; synthetic concatenation, not same-recording past; full target retained; validation/test clips cold",
+            "duration_coverage_limit": "original clips are 3 seconds; complete tempo copies may use the configured longer bound, without truncation; not independent natural slow-speech evidence",
+            "model_training_history": "continuous negative windows prepend adjacent same-recording PCM; other train windows prepend synthetic audited train-negative PCM; full target retained; validation/test clips cold",
         })
         metadata["frontend_warmup"]["policy"] = metadata["model_training_history"]
         metadata["training_recipe"]["base"] = "causal full-sequence training, shared-weight one-row export"
@@ -2628,8 +2924,20 @@ def train(
             "negative_labels": list(BASE_LABELS),
             "supervised_rows": FEATURE_ROWS,
             "scope": "last 149 source-clip frames only; synthetic preceding history excluded",
-            "positive_policy": "final-frame class loss only; no inferred phrase-end labels",
+            "positive_policy": "see positive_frame_supervision; no inferred acoustic word-end labels",
             "limitation": "added supervision does not establish long-background coverage or acceptance",
+        }
+        eligible = train_mask & (targets == 2) & (completion_samples <= 480 + 320 * (source_rows - 2))
+        metadata["training_recipe"]["positive_frame_supervision"] = {
+            "enabled": supervised_positive_frames,
+            "loss_weight": streaming_positive_frame_loss_weight,
+            "eligible_train_windows": int(np.sum(eligible)) if supervised_positive_frames else 0,
+            "eligible_train_source_groups": len({train_records[i]["source_id"] for i in np.flatnonzero(eligible)}) if supervised_positive_frames else 0,
+            "boundary": "last nonzero sample of complete original PCM, before gain/noise; shifts require entire support; tempo requires intact crop and uses actual output length; room adds maximum filter/reflection support",
+            "scope": "after conservative source completion, excluding final frame and warmup; frame mean convex-averaged with final loss preserving source/class mass; ambiguous timing keeps original final loss",
+            "validation": "unchanged final-frame and known-negative objective; no positive time labels or test tuning",
+            "storage_padding": "per-record source and total valid rows; no loss or representative calibration on padded feature suffix",
+            "limitation": "waveform support is not verified acoustic word end; original complete-phrase labels remain dataset inputs",
         }
     (output / "metadata.json").write_text(
         json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -2664,6 +2972,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             frontend=args.frontend,
             frontend_warmup_ms=args.frontend_warmup_ms,
             streaming_negative_frame_loss_weight=args.streaming_negative_frame_loss_weight,
+            streaming_positive_frame_loss_weight=args.streaming_positive_frame_loss_weight,
+            streaming_positive_max_ms=args.streaming_positive_max_ms,
+            continuous_negative_source_weight=args.continuous_negative_source_weight,
         )
     if args.kws_command == "evaluate":
         return evaluate(

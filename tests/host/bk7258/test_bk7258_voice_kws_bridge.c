@@ -13,7 +13,7 @@ int bkvoice_kws_host_features_stream(const int16_t *pcm, size_t samples,
 {
   struct bkvoice_kws_frontend_s frontend;
   if (pcm == NULL || features == NULL || samples < BKVOICE_KWS_WINDOW ||
-      samples > 6u * BKVOICE_KWS_RATE || samples % BKVOICE_KWS_HOP != 0 ||
+      samples > 8u * BKVOICE_KWS_RATE || samples % BKVOICE_KWS_HOP != 0 ||
       count != (1 + (samples - BKVOICE_KWS_WINDOW) / BKVOICE_KWS_HOP) *
                BKVOICE_KWS_BINS)
     {
