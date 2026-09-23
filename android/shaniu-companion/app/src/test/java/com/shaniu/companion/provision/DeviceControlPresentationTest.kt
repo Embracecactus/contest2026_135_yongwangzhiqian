@@ -29,6 +29,7 @@ class DeviceControlPresentationTest {
             connection = DeviceControlSession.Connection.CONNECTED, authenticated = true,
             snapshot = snapshot, snapshotFresh = true, readPending = true))
         assertTrue(read.enabled)
+        assertTrue(read.reason.contains("可调节"))
         val writing = DeviceControlPresentation.volume(DeviceControlSession.State(
             connection = DeviceControlSession.Connection.CONNECTED, authenticated = true,
             snapshot = snapshot, snapshotFresh = true, writePending = true))
@@ -38,6 +39,8 @@ class DeviceControlPresentationTest {
             snapshot = snapshot, snapshotFresh = true))
         assertTrue(ready.enabled)
         assertTrue(ready.reason.contains("65"))
+        assertTrue(ready.reason.contains("可调节"))
+        assertFalse(ready.reason.contains("不可"))
         val unknown = DeviceControlPresentation.volume(DeviceControlSession.State(
             authenticated = true, snapshotFresh = true, snapshot = snapshot.copy(volume = null)))
         assertFalse(unknown.enabled)

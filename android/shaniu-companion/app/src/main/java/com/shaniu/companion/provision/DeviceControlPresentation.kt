@@ -16,7 +16,7 @@ internal object DeviceControlPresentation {
             !state.snapshotFresh -> Control(false, state.error ?: "正在读取设备音量")
             snapshot?.busy == true -> Control(false, "正在收音或播报，结束后可调整")
             snapshot?.volume == null -> Control(false, "设备音量暂不可用，正在重新读取")
-            else -> Control(true, "${snapshot.volume}% · 收音或播报时暂不可调整")
+            else -> Control(true, "${snapshot.volume}% · 可调节")
         }
     }
 }
