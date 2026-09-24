@@ -737,3 +737,20 @@ the setter. No new thread or allocation. Target runtime/stack measurements,
 LittleFS failure behavior, App unknown-state presentation and NFC remain open.
 Evidence: `acceptance/s24-20260924.json`, `acceptance/s24-models-evidence-20260924.json`,
 local logs `out/shaniu-s24/`. Historical results remain unchanged.
+
+### S25 — configuration save admission (2026-09-25)
+
+The native editor previously enabled save while the public SCS1 state was pending
+or uncertain. The emulator regression observed that failure before the production
+change. Saving now also checks unresolved public state and the existing local
+receipt; reconciliation remains available. No protocol/authentication changes.
+
+`settings_unknown_probe=1` on the existing `ControlKeyInstrumentation` exercises
+real editor Views with explicitly synthetic snapshots. It is emulator-only,
+uses a unique receipt namespace and cleans that namespace. This is UI evidence,
+not authenticated transport or physical persistence acceptance. It covers all
+five public states, a pending local receipt, read availability and disabled
+admission. The original contract runner reports 124 PASS; this additional UI
+case is counted separately. See `acceptance/s25-20260925.json` and
+`acceptance/s25-app-evidence-20260925.json` for exact hashes and Red/Green output.
+APK builds and Android unit tests passed; no phone install or board write occurred.

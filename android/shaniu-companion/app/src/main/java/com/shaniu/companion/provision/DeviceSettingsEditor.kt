@@ -411,13 +411,16 @@ internal class DeviceSettingsEditor(
         setOnClickListener { action() }
     }
     private fun note(text: String) { message.text = text; lastMessage = text }
+    private fun saveBlocked(): Boolean = current?.state in listOf(1, 4) ||
+        preferences.contains("$deviceId.operation")
     private fun editable(enabled: Boolean) {
+        val canSave = enabled && current != null && !saveBlocked()
         listOf<View>(scanWifi, network, password, replacePassword, saveWifi, url, key, dialect, asr, chat, tts, saveCloud).forEach { it.isEnabled = enabled }
-        saveWifi.isEnabled = enabled && current != null
+        saveWifi.isEnabled = canSave
         scanWifi.isEnabled = enabled && !scanUnsupported
-        saveCloud.isEnabled = enabled && current != null
+        saveCloud.isEnabled = canSave
         saveAction.apply {
-            isEnabled = enabled && current != null
+            isEnabled = canSave
             text = if (phase in setOf(Phase.BEGIN, Phase.APPEND, Phase.APPLY, Phase.VERIFY, Phase.RESOLVING)) "保存中…"
                 else if (cloudPage) "保存本项配置" else "保存 Wi-Fi"
         }
@@ -563,7 +566,7 @@ internal class DeviceSettingsEditor(
             preferences.edit().remove("$deviceId.operation").remove("$deviceId.revision").commit()
             note("已保存并回读确认 · 配置版本 ${state.revision}。联网结果见下方状态，保存成功不等于云服务可用。")
             android.widget.Toast.makeText(activity, "配置已保存并回读确认", android.widget.Toast.LENGTH_LONG).show()
-        } else if (pending != null && state.operation == pending && state.state in listOf(1, 4)) {
+        } else if (state.state in listOf(1, 4)) {
             note("该次保存结果仍待确认，请重新读取；不要重复提交")
         } else {
             if (pending != null && (state.operation != pending || state.state == 3))
@@ -580,7 +583,7 @@ internal class DeviceSettingsEditor(
     private fun save(cloud: Boolean) {
         val state = current ?: return
         if (!live() || phase != Phase.IDLE) return
-        if (preferences.contains("$deviceId.operation")) { note("上次保存尚未确认，请先重新读取"); return }
+        if (saveBlocked()) { note("保存结果尚未确认，请先重新读取"); return }
         val op = DeviceSettings.operation()
         val pass = if (!cloud && (replacePassword.isChecked || password.length() != 0)) CharArray(password.length()) { password.text[it] } else null
         val api = CharArray(key.length()) { key.text[it] }

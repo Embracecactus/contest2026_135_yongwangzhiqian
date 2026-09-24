@@ -32,6 +32,51 @@ import java.util.concurrent.atomic.AtomicReference
  * mutation. Reflection keeps fixture injection out of the production APK API.
  */
 internal object DeviceUiAcceptance {
+    /** UI-01: real editor controls; synthetic public snapshots, no BLE evidence. */
+    fun runSettingsUnknown(instrumentation: Instrumentation) {
+        check(android.os.Build.FINGERPRINT.contains("generic") || android.os.Build.MODEL.contains("sdk"))
+        val activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
+        val deviceId = "ui-settings-" + UUID.randomUUID()
+        val preferences = activity.getSharedPreferences("shaniu-settings-receipts", Context.MODE_PRIVATE)
+        try {
+            onUi(instrumentation) {
+                val session = MainActivity::class.java.getDeclaredMethod("getDirectSession")
+                    .apply { isAccessible = true }.invoke(activity) as DeviceControlSession
+                DeviceControlSession::class.java.getDeclaredField("state").apply { isAccessible = true }
+                    .set(session, DeviceControlSession.State(connection = DeviceControlSession.Connection.CONNECTED,
+                        authenticated = true, snapshotFresh = true))
+                val editor = DeviceSettingsEditor(activity, session, deviceId, 32, true) { }
+                fun field(name: String) = DeviceSettingsEditor::class.java.getDeclaredField(name).apply { isAccessible = true }
+                val editable = DeviceSettingsEditor::class.java.getDeclaredMethod("editable", Boolean::class.javaPrimitiveType)
+                    .apply { isAccessible = true }
+                val sample = DeviceSettings.Public(0, 7, "0".repeat(32), 0,
+                    true, true, true, true, 443, 1, "fixture", "api.example.invalid", "/v1", "asr", "chat", "tts")
+                try {
+                    for (status in listOf(0, 1, 4, 2, 3)) {
+                        field("current").set(editor, sample.copy(state = status))
+                        editable.invoke(editor, true)
+                        for (name in listOf("saveAction", "saveCloud", "saveWifi")) {
+                            check((field(name).get(editor) as View).isEnabled == (status !in listOf(1, 4))) {
+                                "UI-01.settings-unknown: $name state=$status enabled incorrectly"
+                            }
+                        }
+                        check((field("reload").get(editor) as View).isEnabled) { "Recovery read disabled" }
+                    }
+                    preferences.edit().putString("$deviceId.operation", "ab".repeat(16)).commit()
+                    editable.invoke(editor, true)
+                    check(!(field("saveAction").get(editor) as View).isEnabled) { "Pending receipt allowed save" }
+                    preferences.edit().remove("$deviceId.operation").commit()
+                    editable.invoke(editor, false)
+                    check(!(field("saveAction").get(editor) as View).isEnabled)
+                } finally { editor.close() }
+            }
+        } finally {
+            preferences.edit().remove("$deviceId.operation").remove("$deviceId.revision").commit()
+            onUi(instrumentation) { activity.finish() }
+        }
+    }
+
     /** UI-02 focus draft navigation. Synthetic admission only; no transport. */
     fun runFocusDraft(instrumentation: Instrumentation) {
         check(android.os.Build.FINGERPRINT.contains("generic") || android.os.Build.MODEL.contains("sdk")) {
