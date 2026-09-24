@@ -95,7 +95,9 @@
     "NET-03.owner-invalid-sequence",
     "NET-03.owner-legacy",
     "LIFE-02.power-final-close-drains",
-    "LIFE-01.owner-integration"
+    "LIFE-01.owner-integration",
+    "LIFE-02.power-failure-display",
+    "DISP-01.power-pixels"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -194,6 +196,8 @@
     "NET-03.owner-invalid-sequence",
     "NET-03.owner-legacy",
     "LIFE-02.power-final-close-drains",
-    "LIFE-01.owner-integration"
+    "LIFE-01.owner-integration",
+    "LIFE-02.power-failure-display",
+    "DISP-01.power-pixels"
   ]
 }

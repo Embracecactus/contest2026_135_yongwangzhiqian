@@ -47,7 +47,8 @@ static uint64_t now;
 static void bkvoice_keys_take(int *steps, bool *power)
 { *steps = 0; *power = key_power; key_power = false; }
 static bool bkvoice_keys_power_held(void) { return false; }
-static int bk7258_display_power(int mode) { (void)mode; return 0; }
+static int display_phase;
+static int bk7258_display_power(int mode) { display_phase = mode; return 0; }
 static bool voice_channel_is_idle(void) { return true; }
 static void voice_channel_cancel(void) { cancel_calls++; }
 static int voice_channel_recover(void) { return 0; }
@@ -145,6 +146,20 @@ int main(int argc, char **argv)
       return 0;
     }
 #endif
+  if (!strcmp(argv[1], "failure-display"))
+    {
+      storage_error = -EIO;
+      assert(product_keys_step(0));
+      assert(display_phase == 3 && cp_calls == 0);
+      assert(product_keys_step(100));
+      assert(display_phase == 3 && reopens == 0);
+      storage_error = 0;
+      key_power = true;
+      assert(product_keys_step(200));
+      assert(display_phase == 2 && cp_calls == 1);
+      puts("CONTRACT_PASS");
+      return 0;
+    }
   if (!strcmp(argv[1], "final-close-drains"))
     {
       transport_error = -EAGAIN;

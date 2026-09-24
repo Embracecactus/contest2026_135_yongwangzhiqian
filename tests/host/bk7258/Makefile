@@ -1842,3 +1842,7 @@ $(BUILD)/test_shaniu_power_owner: test_shaniu_power_contract.c $(BUILD)/shaniu_o
     $(OWNER_CONTRACT_SOURCES) $(OWNER_CONTRACT_HEADERS) $(VOICE_PACK_ROOT)/bk7258_agent_product_power.inc | $(BUILD)
 	$(CC) $(OWNER_CONTRACT_FLAGS) -DTEST_REAL_OWNER $< $(BUILD)/shaniu_owner_peer.o \
 	    $(OWNER_CONTRACT_SOURCES) -o $@
+
+$(BUILD)/test_shaniu_power_pixels: test_shaniu_power_pixels.c \
+    $(VOICE_PACK_ROOT)/bk7258_display_power_pixels.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) $< -o $@

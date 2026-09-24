@@ -39,7 +39,8 @@ struct bkdisplay_service_status_s
 
 /* 107-char native QR or NULL; never exported in public status/RPC. */
 int bk7258_display_onboarding(const char *qr);
-/* 0 normal, 1 long-hold/release hint, 2 saving/shutdown in progress. */
+/* 0 normal, 1 long-hold/release hint, 2 saving/shutdown in progress,
+ * 3 shutdown failed (resources remain stopped; explicit retry required). */
 int bk7258_display_power(unsigned int phase);
 /* Nonblocking notification; only the display worker touches framebuffer. */
 void bk7258_display_speaking(bool active);

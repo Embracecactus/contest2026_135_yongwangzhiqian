@@ -15,6 +15,7 @@
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
 
 #include "bk7258_display_rpc.h"
+#include "bk7258_display_power_pixels.h"
 #include "bk7258_display_service.h"
 #include "bk7258_media_volume.h"
 
@@ -610,14 +611,8 @@ static int bkdisplay_builtin_locked(struct bkdisplay_service_s *service,
       for (int y = 0; y < BKDISPLAY_CANVAS_HEIGHT; y++)
         for (int x = 0; x < BKDISPLAY_CANVAS_WIDTH; x++)
           {
-            int dx = x - cx, dy = y - cy;
-            int rr = dx * dx + dy * dy;
-            bool lit = service->power_overlay ?
-                ((rr >= 28 * 28 && rr <= 34 * 34 && (dy > -23 || dx < -13 || dx > 13)) ||
-                 (dx >= -3 && dx <= 3 && dy >= -39 && dy <= -7)) :
-                (rr < 39 * 39 && rr > 17 * 17);
-            if (lit) pixels[y * BKDISPLAY_CANVAS_WIDTH + x] =
-                service->power_overlay == 2 ? 0xfd20 : 0x07ff;
+            pixels[y * BKDISPLAY_CANVAS_WIDTH + x] =
+                bkdisplay_power_pixel(service->power_overlay, x - cx, y - cy);
           }
     }
   if (!ret) ret = bkdisplay_framebuffer_write(BKDISPLAY_FB0, pixels);
@@ -657,7 +652,7 @@ int bk7258_display_onboarding(const char *qr)
 
 int bk7258_display_power(unsigned int phase)
 {
-  if (phase > 2) return -EINVAL;
+  if (phase > 3) return -EINVAL;
   struct bkdisplay_service_s *service = &g_bkdisplay_service;
   int ret = nxmutex_lock(&service->lock);
   if (ret) return ret;

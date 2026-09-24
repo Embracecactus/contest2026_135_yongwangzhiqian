@@ -398,6 +398,7 @@ def main():
         "test_shaniu_volume_transition",
         "test_bk7258_agent_capture",
         "test_shaniu_power_contract",
+        "test_shaniu_power_pixels",
         "test_shaniu_control_quiesce",
         "test_shaniu_owner",
         "test_shaniu_power_owner",
@@ -433,6 +434,14 @@ def main():
             [HERE / "build/test_shaniu_key_contract", variant],
             binaries["test_shaniu_key_contract"],
         )
+    add(
+        suite,
+        "DISP-01.power-pixels",
+        "DISP-01",
+        "L1",
+        [HERE / "build/test_shaniu_power_pixels"],
+        binaries["test_shaniu_power_pixels"],
+    )
     for variant in (
         "normal",
         "admission-failure",
@@ -446,6 +455,7 @@ def main():
         "admission-drains",
         "failed-drains",
         "final-close-drains",
+        "failure-display",
     ):
         add(
             suite,

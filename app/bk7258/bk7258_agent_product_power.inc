@@ -25,6 +25,7 @@ static void product_power_fail(int error)
   g_shutdown_requested = false;
   g_power_pending = false;
   g_product_error = error;
+  (void)bk7258_display_power(3);
 }
 
 static void product_power_drain(void)
