@@ -168,8 +168,9 @@ static struct bkdisplay_service_s g_bkdisplay_service =
   },
 };
 
-static int bkdisplay_render_locked(struct bkdisplay_service_s *service,
+static int bkdisplay_render_pixels_locked(struct bkdisplay_service_s *service,
                                     const char *expression);
+#include "bk7258_display_render_identity.inc"
 #include "bk7258_display_intent.inc"
 #include "bk7258_display_snapshot.inc"
 
@@ -458,7 +459,7 @@ static unsigned int bkdisplay_animate_locked(struct bkdisplay_service_s *service
   return delay_us[step];
 }
 
-static int bkdisplay_render_locked(struct bkdisplay_service_s *service,
+static int bkdisplay_render_pixels_locked(struct bkdisplay_service_s *service,
                                    const char *expression)
 {
   struct bkdisplay_store_selection_s selection;
@@ -584,6 +585,8 @@ out:
 static int bkdisplay_builtin_locked(struct bkdisplay_service_s *service,
                                     bool fallback)
 {
+  int identity_ret = bkdisplay_identity_advance();
+  if (identity_ret < 0) return identity_ret;
   uint16_t *pixels = calloc(BKDISPLAY_CANVAS_PIXELS, sizeof(*pixels));
   if (!pixels) return -ENOMEM;
   int ret = 0;
@@ -863,30 +866,43 @@ int bk7258_display_set_expression(const char *expression)
   return ret;
 }
 
-int bk7258_display_replace_expression(const char *expected,
+int bk7258_display_set_expression_owned(const char *expression,
+                                         uint64_t *identity)
+{
+  struct bkdisplay_service_s *service = &g_bkdisplay_service;
+  if (identity == NULL) return -EINVAL;
+  *identity = 0;
+  if (expression == NULL || *expression == '\0') return -EINVAL;
+  int ret = nxmutex_lock(&service->lock);
+  if (ret < 0) return ret;
+  if (bkdisplay_intent_pending()) ret = -EAGAIN;
+  else if (g_bkdisplay_expression_identity == UINT64_MAX) ret = -EOVERFLOW;
+  else
+    {
+      ret = bkdisplay_render_locked(service, expression);
+      *identity = g_bkdisplay_expression_identity;
+    }
+  bkdisplay_unlock(service);
+  return ret;
+}
+
+int bk7258_display_replace_expression(uint64_t *identity,
                                       const char *replacement)
 {
   struct bkdisplay_service_s *service = &g_bkdisplay_service;
-  int ret;
-
-  if (expected == NULL || *expected == '\0' ||
-      replacement == NULL || *replacement == '\0')
+  if (identity == NULL || *identity == 0 ||
+      replacement == NULL || *replacement == '\0') return -EINVAL;
+  int ret = nxmutex_lock(&service->lock);
+  if (ret < 0) return ret;
+  if (bkdisplay_intent_pending() ||
+      *identity != g_bkdisplay_expression_identity) ret = -ESTALE;
+  else if (g_bkdisplay_expression_identity == UINT64_MAX) ret = -EOVERFLOW;
+  else
     {
-      return -EINVAL;
+      ret = bkdisplay_render_locked(service, replacement);
+      *identity = g_bkdisplay_expression_identity;
     }
-
-  ret = nxmutex_lock(&service->lock);
-  if (ret >= 0)
-    {
-      if (!bkdisplay_intent_pending() &&
-          strcmp(service->status.expression, expected) == 0)
-        {
-          ret = bkdisplay_render_locked(service, replacement);
-        }
-      else ret = -EAGAIN;
-      bkdisplay_unlock(service);
-    }
-
+  bkdisplay_unlock(service);
   return ret;
 }
 
@@ -903,6 +919,9 @@ int bk7258_display_show_mapping_test(void)
     {
       return ret;
     }
+
+  ret = bkdisplay_identity_advance();
+  if (ret < 0) { bkdisplay_unlock(service); return ret; }
 
   /* Calibration is meaningful only after the normal resource-backed frame
    * has reached both displays.  Keep this diagnostic independent of the

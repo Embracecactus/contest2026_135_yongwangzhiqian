@@ -1885,3 +1885,13 @@ $(BUILD)/test_shaniu_models_durability: test_shaniu_models_durability.c $(VOICE_
 	    $(VOICE_PACK_ROOT)/bk7258_cloud_config.c $(VOICE_PACK_ROOT)/bk7258_provision_store.c \
 	    -Wl,--gc-sections -Wl,--wrap=mkdir -Wl,--wrap=bkprov_store_open -Wl,--wrap=fsync \
 	    -Wl,--wrap=lstat -Wl,--wrap=bkprov_store_check_filesystem $(VOICE_OTA_MBEDCRYPTO) -o $@
+
+# Extract exact production command bodies; never maintain a test copy of their
+# state/replace logic. Rendering and NuttX synchronization stay at the boundary.
+$(BUILD)/test_shaniu_expression_ownership: test_shaniu_expression_ownership.c $(VOICE_PACK_ROOT)/bk7258_display_render_identity.inc $(VOICE_PACK_ROOT)/bk7258_display_service.c $(VOICE_PACK_ROOT)/bk7258_display_intent.inc $(VOICE_PACK_ROOT)/bk7258_vision_feedback.c | $(BUILD)
+	python3 -c 'from pathlib import Path; s=Path("$(VOICE_PACK_ROOT)/bk7258_display_service.c").read_text(); a=s.index("int bk7258_display_set_expression("); b=s.index("int bk7258_display_show_mapping_test(",a); Path("$(BUILD)/display-commands.inc").write_text(s[a:b])'
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(MOCKS) -I $(VOICE_PACK_ROOT) -I $(BUILD) $< $(VOICE_PACK_ROOT)/bk7258_vision_feedback.c -o $@
+
+.PHONY: run-expression-ownership
+run-expression-ownership: $(BUILD)/test_shaniu_expression_ownership
+	./$(BUILD)/test_shaniu_expression_ownership

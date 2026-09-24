@@ -7,6 +7,7 @@
 #include "bk7258_vision_feedback.h"
 
 #include <stddef.h>
+#include <errno.h>
 
 void bkvision_feedback_initialize(
   struct bkvision_feedback_s *feedback,
@@ -15,7 +16,8 @@ void bkvision_feedback_initialize(
   if (feedback != NULL)
     {
       feedback->ops = ops;
-      feedback->rendered_expression = NULL;
+      feedback->identity = 0;
+      feedback->rendered = false;
     }
 }
 
@@ -27,10 +29,9 @@ void bkvision_feedback_snapshot_begin(struct bkvision_feedback_s *feedback)
       return;
     }
 
-  if (feedback->ops->set_expression(feedback->ops->arg, "thinking") >= 0)
-    {
-      feedback->rendered_expression = "thinking";
-    }
+  feedback->identity = 0;
+  feedback->rendered = feedback->ops->set_expression(feedback->ops->arg, "thinking",
+                                                       &feedback->identity) >= 0;
 }
 
 void bkvision_feedback_snapshot_finish(struct bkvision_feedback_s *feedback,
@@ -44,29 +45,22 @@ void bkvision_feedback_snapshot_finish(struct bkvision_feedback_s *feedback,
       return;
     }
 
+  if (feedback->identity == 0 || feedback->ops->replace_expression == NULL)
+    return;
   result_expression = capture_succeeded ? "happy" : "error";
-  if (feedback->ops->set_expression(feedback->ops->arg,
-                                    result_expression) >= 0)
+  int ret = feedback->ops->replace_expression(feedback->ops->arg,
+                                               &feedback->identity,
+                                               result_expression);
+  if (ret == -ESTALE || ret == -EOVERFLOW)
     {
-      feedback->rendered_expression = result_expression;
-    }
-
-  if (feedback->rendered_expression == NULL)
-    {
+      feedback->identity = 0;
       return;
     }
-
+  if (ret >= 0) feedback->rendered = true;
+  if (!feedback->rendered) { feedback->identity = 0; return; }
   if (feedback->ops->wait_ms != NULL)
-    {
-      feedback->ops->wait_ms(feedback->ops->arg,
-                             BKVISION_FEEDBACK_HOLD_MS);
-    }
-
-  if (feedback->ops->replace_expression != NULL)
-    {
-      (void)feedback->ops->replace_expression(
-        feedback->ops->arg, feedback->rendered_expression, "neutral");
-    }
-
-  feedback->rendered_expression = NULL;
+    feedback->ops->wait_ms(feedback->ops->arg, BKVISION_FEEDBACK_HOLD_MS);
+  (void)feedback->ops->replace_expression(feedback->ops->arg,
+                                          &feedback->identity, "neutral");
+  feedback->identity = 0;
 }

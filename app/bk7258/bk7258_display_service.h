@@ -84,7 +84,13 @@ int bk7258_display_expression_status(struct bkdisplay_expression_request_s *stat
 int bk7258_display_cancel_expression(uint32_t id);
 
 int bk7258_display_set_expression(const char *expression);
-int bk7258_display_replace_expression(const char *expected,
+/* Atomic acquisition/conditional update under the rendering mutex. A nonzero
+ * identity owns the attempted render even on I/O failure. Zero means no lease.
+ * New renders/overlays invalidate older leases; animation does not. Replacement
+ * updates the token after its attempt and rejects stale or pending new intents.
+ * IDs do not wrap. Tokens are volatile and are not persistence receipts. */
+int bk7258_display_set_expression_owned(const char *expression, uint64_t *identity);
+int bk7258_display_replace_expression(uint64_t *identity,
                                       const char *replacement);
 int bk7258_display_show_mapping_test(void);
 int bk7258_display_install(const char *filename);

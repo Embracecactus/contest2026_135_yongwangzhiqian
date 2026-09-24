@@ -771,3 +771,28 @@ scenarios (one newly added); these are not folded into the original 63 IDs or
 56 product designs. Official incremental build, layers and manifest verification
 passed. No autonomous gesture recognition or physical sensor acceptance is claimed.
 See `acceptance/s26-20260925.json` and `acceptance/s26-motion-evidence-20260925.json`.
+
+### S27 — expression operation identity (2026-09-25)
+
+`run-expression-ownership` reproduces the old same-name replacement bug using
+production vision feedback, exact display command bodies extracted at build,
+and the production async intent module. Only pixel rendering and OS locks are
+substituted. A newer explicit `happy` during the old feedback hold was replaced
+by `neutral`; the new identity check retains it and also prevents an old capture
+result from overwriting a newer selection. Normal restoration still passes.
+
+The new wrapper assigns non-reused identities to render attempts under the
+existing mutex. Conditional updates atomically check/update that identity;
+queued requests block old replacements. Failed renders may retry while still
+owned. The vision service uses this API. Existing vision fixtures were updated
+for the conditional result transition (one additional replace call) and token
+comparison; expected user behavior and 800 ms hold were not loosened. The
+byte-identical original Red test is archived inside the evidence JSON.
+
+Strict collection now has 125 PASS, retaining all original 63 IDs. A separately
+counted isolated mutation removing identity mismatch rejection fails, and the
+unchanged production rerun passes. Target incremental build/layers/manifest and
+runner checks pass. No new allocation/thread/wait is introduced. This does not
+complete trial TTL, general scene arbitration, physical pixel/DMA or latency
+acceptance. See `acceptance/s27-20260925.json` and
+`acceptance/s27-display-evidence-20260925.json`.

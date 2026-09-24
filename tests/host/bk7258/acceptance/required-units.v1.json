@@ -124,7 +124,8 @@
     "NET-02.display-snapshot",
     "DISP-01.expression-intent",
     "DISP-01.expression-cancel",
-    "CFG-02.models-unknown"
+    "CFG-02.models-unknown",
+    "RES-02.expression-ownership"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -252,6 +253,7 @@
     "NET-02.display-snapshot",
     "DISP-01.expression-intent",
     "DISP-01.expression-cancel",
-    "CFG-02.models-unknown"
+    "CFG-02.models-unknown",
+    "RES-02.expression-ownership"
   ]
 }
