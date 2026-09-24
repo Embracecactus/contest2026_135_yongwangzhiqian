@@ -49,6 +49,14 @@ int bkcontrol_session_set_ota_handler(struct bkcontrol_session_s *s, bkcontrol_o
 int bkcontrol_session_set_config_handler(struct bkcontrol_session_s *s, bkcontrol_config_t config)
 { if (!s || !s->open || s->authenticated) return -EINVAL; s->config = config; return 0; }
 
+int bkcontrol_session_quiesce(struct bkcontrol_session_s *s)
+{
+  if (s == NULL || !s->open) return -ENOTCONN;
+  if (!s->authenticated) return -EACCES;
+  s->quiescing = true;
+  return 0;
+}
+
 static void clear_record(struct bkcontrol_session_s *s)
 {
   wipe(s->config_record, sizeof(s->config_record));
@@ -93,6 +101,11 @@ int bkcontrol_session_packet(struct bkcontrol_session_s *s, const uint8_t *p,
                   (argument >> 16) != BKCONTROL_CONFIG_RESET_TRANSFER)
                 goto fail;
             }
+          if (s->quiescing && command == BKCONTROL_CONFIG_READ &&
+              (argument >> 16) != BKCONTROL_CONFIG_CAPABILITIES &&
+              (argument >> 16) != BKCONTROL_CONFIG_SETTINGS &&
+              (argument >> 16) != BKCONTROL_CONFIG_RESET_TRANSFER)
+            { ret = -EBUSY; goto config_done; }
           if (s->config == NULL) { ret = -ENOTSUP; goto config_done; }
           if (command == BKCONTROL_CONFIG_READ)
             {
@@ -123,7 +136,8 @@ int bkcontrol_session_packet(struct bkcontrol_session_s *s, const uint8_t *p,
               argument = get32(p + 20);
               if (kind == 0 || kind > 0xffffu || argument == 0 ||
                   argument > BKCONTROL_CONFIG_RECORD_MAX) goto fail;
-              if (s->ota_total != 0) { ret = -EBUSY; goto config_done; }
+              if (s->quiescing || s->ota_total != 0)
+                { ret = -EBUSY; goto config_done; }
               /* The callback validates supported kind/size before accepting
                * any bytes. It must not mutate persistent state on BEGIN. */
               ret = s->config(s->context, (enum bkcontrol_command_e)command,
@@ -142,6 +156,7 @@ int bkcontrol_session_packet(struct bkcontrol_session_s *s, const uint8_t *p,
                 { ret = -EBUSY; goto config_done; }
               if (s->ota_received > s->ota_total ||
                   payload > s->ota_total - s->ota_received) goto fail;
+              if (s->quiescing) { ret = -EBUSY; goto config_done; }
               memcpy(s->config_record + s->ota_received, p + 16, payload);
               s->ota_received += payload;
               /* ACK only the accepted bytes. A full product STATUS here
@@ -156,6 +171,7 @@ int bkcontrol_session_packet(struct bkcontrol_session_s *s, const uint8_t *p,
                 { ret = -EBUSY; goto config_done; }
               if (s->ota_received != s->ota_total)
                 { ret = -ENODATA; goto config_done; }
+              if (s->quiescing) { ret = -EBUSY; goto config_done; }
               ret = s->config(s->context, (enum bkcontrol_command_e)command,
                   s->record_kind & 0xffffu, 0,
                   s->config_record, s->ota_total,
@@ -184,7 +200,8 @@ config_done:
               argument = get32(p+16);
               if (argument < 44 || argument > sizeof(s->ota_record)) goto fail;
               if (s->ota == NULL) { ret = -ENOTSUP; goto ota_done; }
-              if (s->ota_total != 0) { ret = -EBUSY; goto ota_done; }
+              if (s->quiescing || s->ota_total != 0)
+                { ret = -EBUSY; goto ota_done; }
               s->ota_total = argument; s->ota_received = 0; s->record_kind = 1; ret = 0;
             }
           else if (command == BKCONTROL_OTA_APPEND)
@@ -193,12 +210,14 @@ config_done:
               if (payload == 0 || payload > 32 || s->ota_total == 0 ||
                   s->ota_received > s->ota_total ||
                   payload > s->ota_total-s->ota_received) goto fail;
+              if (s->quiescing) { ret = -EBUSY; goto ota_done; }
               memcpy(s->ota_record+s->ota_received, p+16, payload); s->ota_received += payload; ret = 0;
             }
           else if (command == BKCONTROL_OTA_START)
             {
               if (s->record_kind != 1) { ret = -EBUSY; goto ota_done; }
               if (payload != 0 || s->ota == NULL || s->ota_total == 0 || s->ota_received != s->ota_total) goto fail;
+              if (s->quiescing) { ret = -EBUSY; goto ota_done; }
               ret = s->ota(s->context, (enum bkcontrol_command_e)command, s->ota_record, s->ota_total, &status);
               if (!ret) clear_record(s);
             }
@@ -222,7 +241,9 @@ ota_done:  if (ret > 0) ret = -EIO;
           if (argument > (command == BKCONTROL_VOLUME ? 100u : command == BKCONTROL_PERSONA ? 4u : 1u)) goto fail;
         }
       else if (payload != 0) goto fail;
-      ret = s->execute(s->context, (enum bkcontrol_command_e)command, argument, &status);
+      ret = s->quiescing && command != BKCONTROL_STATUS &&
+            command != BKCONTROL_INFO && command != BKCONTROL_CANCEL ? -EBUSY :
+            s->execute(s->context, (enum bkcontrol_command_e)command, argument, &status);
       if (ret > 0) ret = -EIO;
       if (ret < 0)
         status_unknown(&status);

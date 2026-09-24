@@ -191,3 +191,18 @@ S1 新增执行 ID：K2-03.release-rollback、K2-03.combination，及 OTA 的
 cancellationRequestWaitsForRemoteConfirmation、acceptedTerminalCannotBecomeCanceledFromLateAckOrClose、
 localCloseIgnoresLateAckWithoutClaimingRemoteCancellation。原 63 ID 全部保留。
 CLOSED 只表示本地对象释放，不是远端安装/取消结果；ACCEPTED 仍只表示 START 已受理。
+
+## S7 停止接收新业务的 SDC1 内部入口
+
+新增 `bkcontrol_session_quiesce(session)`，须与 packet 处理串行、已完成认证；
+关闭会话返回 ENOTCONN，未认证 EACCES，不消耗线协议序号。它是单向门禁，
+恢复写入需要新认证会话，不新增线协议 opcode、字段或身份来源。
+允许 STATUS/INFO、CANCEL、OTA_STATUS/OTA_CANCEL、CONFIG_CANCEL，以及
+CONFIG_READ 的 CAPABILITIES/SETTINGS/RESET_TRANSFER；其余新业务返回 EBUSY。
+参数/帧/序号的既有合法性检查不能被门禁绕过。保留的取消确认仍不等于物理退出。
+配置/OTA 已暂存数据可取消，门禁后不能继续 APPEND/APPLY/START。
+
+生产绑定目标：owner 保留已有认证只读会话、禁止新认领/变更，排空阶段驱动
+该会话；最终电源转换前再关闭传输，不以客户端持续查询延长退出。恢复出厂
+继续使用完整权限撤销路径。S7 尚未完成这一 owner/电源调用绑定；不能以协议
+单测证明设备关机时手机查询已可用，也不能以它关闭 LIFE-01/NET-03。

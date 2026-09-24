@@ -398,6 +398,7 @@ def main():
         "test_shaniu_volume_transition",
         "test_bk7258_agent_capture",
         "test_shaniu_power_contract",
+        "test_shaniu_control_quiesce",
         "test_agent_tts_queue",
         "test_bk7258_product_keys",
         "test_bk7258_usbmode_lease",
@@ -450,6 +451,15 @@ def main():
             "L1",
             [HERE / "build/test_shaniu_power_contract", variant],
             binaries["test_shaniu_power_contract"],
+        )
+    for variant in ("queries", "staging", "config-staging", "ota-commit", "invalid"):
+        add(
+            suite,
+            "NET-03.quiesce-" + variant,
+            "NET-03",
+            "L1",
+            [HERE / "build/test_shaniu_control_quiesce", variant],
+            binaries["test_shaniu_control_quiesce"],
         )
     for variant in ("close-failure", "route-failure"):
         add(

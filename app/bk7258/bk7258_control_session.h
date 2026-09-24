@@ -148,6 +148,7 @@ struct bkcontrol_session_s
   uint32_t record_kind;
   bool open;
   bool authenticated;
+  bool quiescing;
 };
 /* Zero initialize before first use. TLS lifetime/timeout belongs to transport.
  * Negative packet return is terminal: close transport, never continue parsing.
@@ -160,5 +161,11 @@ int bkcontrol_session_set_ota_handler(struct bkcontrol_session_s *, bkcontrol_ot
 int bkcontrol_session_set_config_handler(struct bkcontrol_session_s *, bkcontrol_config_t);
 int bkcontrol_session_packet(struct bkcontrol_session_s *, const uint8_t *,
                              size_t, uint8_t[BKCONTROL_RESPONSE_SIZE]);
+/* Serialized with packet processing. Authenticated, one-way admission gate:
+ * keep STATUS/INFO, explicit cancellation and bounded settings/reset receipt
+ * reads; reject new mutations with EBUSY. Authentication and frame validation
+ * remain mandatory. A fresh session is required to resume ordinary writes.
+ */
+int bkcontrol_session_quiesce(struct bkcontrol_session_s *);
 void bkcontrol_session_close(struct bkcontrol_session_s *);
 #endif

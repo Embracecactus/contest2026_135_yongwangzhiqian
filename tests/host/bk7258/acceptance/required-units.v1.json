@@ -84,7 +84,12 @@
     "LIFE-02.power-trigger-failure",
     "LIFE-02.power-unpublished-trigger",
     "LIFE-02.power-admission-drains",
-    "LIFE-02.power-failed-drains"
+    "LIFE-02.power-failed-drains",
+    "NET-03.quiesce-queries",
+    "NET-03.quiesce-staging",
+    "NET-03.quiesce-config-staging",
+    "NET-03.quiesce-ota-commit",
+    "NET-03.quiesce-invalid"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -172,6 +177,11 @@
     "LIFE-02.power-trigger-failure",
     "LIFE-02.power-unpublished-trigger",
     "LIFE-02.power-admission-drains",
-    "LIFE-02.power-failed-drains"
+    "LIFE-02.power-failed-drains",
+    "NET-03.quiesce-queries",
+    "NET-03.quiesce-staging",
+    "NET-03.quiesce-config-staging",
+    "NET-03.quiesce-ota-commit",
+    "NET-03.quiesce-invalid"
   ]
 }

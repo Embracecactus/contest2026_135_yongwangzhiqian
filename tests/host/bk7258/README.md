@@ -336,3 +336,17 @@ AIDK AP 产品对象编译通过，未完整链接、签名或部署。没有新
 报告 acceptance/s6-20260924.json；原始日志及修复前输入哈希 out/shaniu-s6/。
 S4/S5 历史报告不改写。额外查读确认音量查询仅调用 policy get，本轮没有为
 未经证实的“查询启动采集”假设引入缓存或改变音量行为。
+
+### S7 停止接收新写入的协议能力（2026-09-24）
+
+先写独立 SDC1 字节 peer，再增加 session_quiesce；新接口原先不存在，编译
+缺口记 BLOCKED_INTERFACE，不算业务 Red。5 个 NET-03.quiesce-* 覆盖查询、
+OTA/config 暂存与提交门禁、认证前拒绝、非法值和旧序号；真实 parser/状态机
+生产源码参与编译，外部业务执行为计数观察器。接口/允许命令见 contracts.md。
+
+当前 89 PASS（原 63 + 累计新增 26），原两项变异/恢复仍通过，运行器 12 PASS。
+另外原 C control_session 套件通过；隔离删除普通写入门禁的可编译变异被检出，
+恢复后通过，两次不加入 89。AIDK AP control_session / provision_owner 对象
+编译通过，无完整链接/实板结果。仅增加一个会话布尔量，无线程/分配/等待。
+报告 acceptance/s7-20260924.json，日志 out/shaniu-s7/。默认会话行为保持；
+**尚未接入生产 owner 的两阶段退出，设备关机查询仍不能据此称已实现。**
