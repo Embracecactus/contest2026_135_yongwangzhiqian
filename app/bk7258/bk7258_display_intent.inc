@@ -50,6 +50,25 @@ int bk7258_display_expression_status(struct bkdisplay_expression_request_s *stat
   return 0;
 }
 
+int bk7258_display_cancel_expression(uint32_t id)
+{
+  int ret = 0;
+  if (id == 0) return -EINVAL;
+  irqstate_t flags = spin_lock_irqsave(&g_bkdisplay_intent_lock);
+  if (id != g_bkdisplay_intent.id) ret = -ESTALE;
+  else if (g_bkdisplay_intent.state == BKDISPLAY_EXPRESSION_PENDING)
+    {
+      g_bkdisplay_intent.state = BKDISPLAY_EXPRESSION_CANCELED;
+      g_bkdisplay_intent.error = -ECANCELED;
+    }
+  else if (g_bkdisplay_intent.state == BKDISPLAY_EXPRESSION_RUNNING)
+    ret = -EBUSY;
+  else if (g_bkdisplay_intent.state != BKDISPLAY_EXPRESSION_CANCELED)
+    ret = -EALREADY;
+  spin_unlock_irqrestore(&g_bkdisplay_intent_lock, flags);
+  return ret;
+}
+
 int bk7258_display_request_expression(const char *expression, uint32_t *id)
 {
   static const char *const allowed[] = {

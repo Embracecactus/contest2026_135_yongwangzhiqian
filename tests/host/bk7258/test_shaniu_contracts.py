@@ -415,6 +415,7 @@ def main():
         "test_shaniu_focus_render",
         "test_shaniu_display_snapshot",
         "test_shaniu_display_intent",
+        "test_shaniu_expression_cancel",
         "test_shaniu_focus_wire",
         "test_agent_tts_queue",
         "test_bk7258_product_keys",
@@ -514,6 +515,14 @@ def main():
         "L1",
         [HERE / "build/test_shaniu_display_intent"],
         binaries["test_shaniu_display_intent"],
+    )
+    add(
+        suite,
+        "DISP-01.expression-cancel",
+        "DISP-01",
+        "L1",
+        [HERE / "build/test_shaniu_expression_cancel"],
+        binaries["test_shaniu_expression_cancel"],
     )
     for variant in ("normal", "retry", "start-cleanup", "close-error"):
         add(

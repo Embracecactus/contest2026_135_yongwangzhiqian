@@ -358,6 +358,12 @@ static int product_apply_persona(int requested)
   return ret;
 }
 
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+#include "bk7258_agent_display_control.inc"
+#else
+#define product_cancel voice_channel_cancel
+#endif
+
 static int product_control(void *context, enum bkcontrol_command_e command,
                             uint32_t value,
                             struct bkcontrol_status_s *status)
@@ -403,7 +409,7 @@ static int product_control(void *context, enum bkcontrol_command_e command,
         return -ENOTSUP;
 #endif
       case BKCONTROL_STATUS: break;
-      case BKCONTROL_CANCEL: ret = voice_channel_cancel(); break;
+      case BKCONTROL_CANCEL: ret = product_cancel(); break;
       case BKCONTROL_CLEAR_HISTORY:
         if (!voice_channel_is_idle())
         {
@@ -764,7 +770,7 @@ static int product_tool_execute(const char *name, const char *input,
                     {
                       /* Reserve output space before accepting a side effect. */
                       ret = capacity < 128 ? -ENOSPC :
-                        bk7258_display_request_expression(expressions[i], &eye_request_id);
+                        product_expression_request(expressions[i], &eye_request_id, check, context);
                       break;
                     }
                 }

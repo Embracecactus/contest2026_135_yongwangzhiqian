@@ -77,6 +77,11 @@ struct bkdisplay_expression_request_s
 };
 int bk7258_display_request_expression(const char *expression, uint32_t *id);
 int bk7258_display_expression_status(struct bkdisplay_expression_request_s *status);
+/* Exact-ID cancellation only. Pending -> canceled; same canceled ID is
+ * idempotent. Running returns EBUSY; completed/failed returns EALREADY;
+ * a different/latest ID returns ESTALE. No render callback is interrupted.
+ */
+int bk7258_display_cancel_expression(uint32_t id);
 
 int bk7258_display_set_expression(const char *expression);
 int bk7258_display_replace_expression(const char *expected,

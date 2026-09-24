@@ -672,3 +672,37 @@ before alignment; no new thread/heap allocation. Real CPU/IRQ/stack high-water a
 end-to-end speech latency are unmeasured. No board/phone operation occurred.
 Evidence: `acceptance/s22-20260924.json`, `acceptance/s22-expression-evidence-20260924.json`,
 local raw logs `out/shaniu-s22/`. No historical report was replaced.
+
+### S23 — cancel only the expression owned by the request (2026-09-24)
+
+`DISP-01.expression-cancel` compiles the real intent state machine and the real
+product request/cancel adapter. Only voice cancellation and rendering boundaries
+are substituted. The new exact-ID API follows these semantics:
+
+- Pending -> CANCELED; repeated cancellation of that canceled ID is idempotent.
+- Running -> EBUSY; completed/failed -> EALREADY; an ID different from the latest
+  -> ESTALE. No active rendering callback is aborted or declared safely stopped.
+- Explicit authenticated BKCONTROL_CANCEL snapshots the ID before calling voice
+  cancellation; it cannot cancel a newer intent created during that call.
+- The eyes tool checks its original cancellation callback before and after
+  enqueue. A crossing cancellation withdraws only its own still-pending ID.
+  Callback/context are never retained by the asynchronous worker.
+- When voice is already idle but a queued expression is canceled, the control
+  operation succeeds. Voice cancellation success still means accepted, not
+  proof that a running render exited. Its actual expression result stays visible.
+
+The initial missing adapter/API was BLOCKED_INTERFACE, not a prior product Red.
+A first harness build rejected an unused included helper under Werror; an actual
+pending-state assertion was added, keeping the compiler gate intact.
+
+**123 PASS**, all previous IDs retained; 12 runner-gate tests and full incremental
+CP/AP build plus manifest verification pass. The two original mutants still
+fail and restore. Two additional temporary-include mutants (cancel latest after
+blocking, omit post-enqueue guard) also compile, reach their assertions and fail;
+restoration passes. Additional mutations are counted separately from product cases.
+
+No untagged TURN_COMPLETE event is used to cancel the latest intent: that event
+has no request ID. Request expiry, other internal cancellation paths, complete
+transport/Agent integration and real framebuffer/DMA behavior remain open.
+No board/phone operation occurred. Evidence: `acceptance/s23-20260924.json`,
+`acceptance/s23-cancel-evidence-20260924.json`, local raw logs `out/shaniu-s23/`.
