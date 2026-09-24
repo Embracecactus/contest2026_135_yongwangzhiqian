@@ -24,6 +24,9 @@ static atomic_bool g_probe_running;
 static bool key_power = true;
 static int owner_error, storage_error, cp_error, cp_status = 1;
 static unsigned int cp_calls, storage_stops, reopens, cancel_calls;
+static unsigned int trigger_stops;
+static int trigger_error;
+static bool trigger_closed;
 static bool leased, owner_closed, storage_closed, vision_closed, haptic_closed;
 static uint64_t now;
 static void bkvoice_keys_take(int *steps, bool *power)
@@ -61,11 +64,18 @@ int bk7258_media_volume_acquire(enum bk7258_media_volume_owner_e owner)
 { assert(owner == BK7258_MEDIA_VOLUME_POWER); if (leased) return -EBUSY; leased = true; return 0; }
 int bk7258_media_volume_release(enum bk7258_media_volume_owner_e owner)
 { assert(owner == BK7258_MEDIA_VOLUME_POWER && leased); leased = false; return 0; }
-static int bk7258_agent_trigger_stop(void) { return 0; }
+static int bk7258_agent_trigger_stop(void)
+{
+  trigger_stops++;
+  if (trigger_error) return trigger_error;
+  trigger_closed = true;
+  return 0;
+}
 static void sync(void) {}
 static int bk7258_pm_soft_off_request(void)
 {
   assert(owner_closed && storage_closed && vision_closed && haptic_closed && leased);
+  assert(trigger_closed);
   cp_calls++;
   return cp_error;
 }
@@ -79,28 +89,37 @@ static int bkvoice_volume_store_set(unsigned int volume) { (void)volume; return 
 int main(int argc, char **argv)
 {
   assert(argc == 2);
-  bool owner_fail = !strcmp(argv[1], "admission-failure");
-  bool storage_fail = !strcmp(argv[1], "partial-failure");
+  bool unpublished = !strcmp(argv[1], "unpublished-trigger");
+  if (unpublished) g_trigger_started = false;
+  bool trigger_fail = !strcmp(argv[1], "trigger-failure");
+  bool owner_fail = !strcmp(argv[1], "admission-failure") || !strcmp(argv[1], "admission-stops-trigger");
+  bool storage_fail = !strcmp(argv[1], "partial-failure") || !strcmp(argv[1], "storage-stops-trigger");
   bool cp_decline = !strcmp(argv[1], "cp-declined");
   bool cp_unknown = !strcmp(argv[1], "cp-unknown");
-  assert(owner_fail || storage_fail || cp_decline || cp_unknown || !strcmp(argv[1], "normal"));
+  assert(unpublished || trigger_fail || owner_fail || storage_fail || cp_decline || cp_unknown || !strcmp(argv[1], "normal"));
+  trigger_error = trigger_fail ? -EIO : 0;
   owner_error = owner_fail ? -EIO : 0;
   storage_error = storage_fail ? -EIO : 0;
   cp_error = cp_decline || cp_unknown ? -ETIMEDOUT : 0;
   cp_status = cp_decline ? 0 : cp_unknown ? -ETIMEDOUT : 1;
   assert(product_keys_step(now));
   assert(reopens == 0 && cancel_calls == 1);
-  if (owner_fail || storage_fail) assert(cp_calls == 0);
+  if (strstr(argv[1], "stops-trigger") || trigger_fail)
+    {
+      assert(trigger_stops == 1);
+      assert(trigger_closed == !trigger_fail);
+    }
+  if (owner_fail || storage_fail || trigger_fail) assert(cp_calls == 0);
   else assert(cp_calls == 1);
   if (owner_fail) assert(storage_stops == 0);
   now = 1000;
   assert(product_keys_step(now));
   assert(reopens == 0);
-  if (owner_fail || storage_fail || cp_decline)
+  if (owner_fail || storage_fail || cp_decline || trigger_fail)
     {
       assert(g_product_error < 0);
       /* A fresh shutdown intent may retry; ordinary polls may not reopen. */
-      owner_error = storage_error = cp_error = 0;
+      owner_error = storage_error = cp_error = trigger_error = 0;
       cp_status = 1;
       key_power = true;
       assert(product_keys_step(++now));

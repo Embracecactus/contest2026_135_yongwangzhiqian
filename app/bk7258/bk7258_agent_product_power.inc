@@ -9,6 +9,7 @@ static bool g_shutdown_failed;
 static uint64_t g_shutdown_deadline;
 static bool g_power_volume_owned;
 static bool g_power_storage_stopped;
+static bool g_power_trigger_stopped;
 static bool g_power_vision_quiesced;
 static bool g_power_haptic_quiesced;
 static uint64_t g_power_query_at;
@@ -78,14 +79,6 @@ static int product_power_request(void)
     }
 
   g_power_storage_stopped = true;
-  ret = g_trigger_started ? bk7258_agent_trigger_stop() : 0;
-  if (ret < 0)
-    {
-      goto failed;
-    }
-
-  g_trigger_started = false;
-  atomic_store(&g_trigger_prepare_pending, true);
   sync();
   ret = bk7258_pm_soft_off_request();
   if (ret < 0)
@@ -190,16 +183,32 @@ static bool product_keys_step(uint64_t now)
       /* Commit workers and Wi-Fi lease cleanup must continue while admission
        * is closed. A successful cancel is not a completed shutdown.
        */
-      ret = bkprov_owner_quiesce(true);
-      if (ret < 0)
+      int admission = bkprov_owner_quiesce(true);
+      /* Independent shutdown participants must still run after an admission
+       * failure. A start flag is not proof that failed startup owns nothing.
+       * Retain the stop acknowledgement only after the owner reports success.
+       */
+      int trigger = 0;
+      if (!g_power_trigger_stopped)
         {
-          product_power_fail(ret);
+          trigger = bk7258_agent_trigger_stop();
+          if (trigger == 0)
+            {
+              g_power_trigger_stopped = true;
+              g_trigger_started = false;
+              atomic_store(&g_trigger_prepare_pending, true);
+            }
+        }
+
+      if (atomic_load(&g_voice_initialized)) (void)voice_channel_recover();
+      if (admission < 0 || trigger < 0)
+        {
+          product_power_fail(admission < 0 ? admission : trigger);
           return true;
         }
       (void)bkprov_network_cancel();
       bkprov_network_step();
       bkprov_config_step();
-      if (atomic_load(&g_voice_initialized)) (void)voice_channel_recover();
       ret = product_power_request();
       if (g_power_pending)
         {

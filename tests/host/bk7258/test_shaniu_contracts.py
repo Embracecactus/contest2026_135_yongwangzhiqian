@@ -436,6 +436,10 @@ def main():
         "partial-failure",
         "cp-declined",
         "cp-unknown",
+        "admission-stops-trigger",
+        "storage-stops-trigger",
+        "trigger-failure",
+        "unpublished-trigger",
     ):
         add(
             suite,
