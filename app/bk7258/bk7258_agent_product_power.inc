@@ -51,7 +51,7 @@ static int product_power_request(void)
    */
 
   if ((atomic_load(&g_voice_initialized) && !voice_channel_is_idle()) ||
-      atomic_load(&g_probe_running) || bkprov_owner_busy() ||
+      atomic_load(&g_probe_running) ||
       bkprov_network_busy() || bkprov_config_busy() ||
       bkprov_scan_busy() ||
       bkagent_ota_busy() || bk7258_agent_trigger_model_pending())
@@ -94,6 +94,11 @@ static int product_power_request(void)
     }
 
   g_power_storage_stopped = true;
+  /* Reads remain available while preparing. Close the transport only after
+   * resource exits, so query traffic cannot hold up the final CP request.
+   */
+  ret = bkprov_owner_quiesce(true);
+  if (ret < 0) return ret;
   sync();
   ret = bk7258_pm_soft_off_request();
   if (ret < 0)
@@ -150,7 +155,7 @@ static bool product_keys_step(uint64_t now)
 
   if (g_shutdown_failed && !power)
     {
-      (void)bkprov_owner_quiesce(true);
+      (void)bkprov_owner_prepare_stop(now);
       product_power_drain();
       return true;
     }
@@ -200,7 +205,7 @@ static bool product_keys_step(uint64_t now)
       /* Commit workers and Wi-Fi lease cleanup must continue while admission
        * is closed. A successful cancel is not a completed shutdown.
        */
-      int admission = bkprov_owner_quiesce(true);
+      int admission = bkprov_owner_prepare_stop(now);
       /* Independent shutdown participants must still run after an admission
        * failure. A start flag is not proof that failed startup owns nothing.
        * Retain the stop acknowledgement only after the owner reports success.

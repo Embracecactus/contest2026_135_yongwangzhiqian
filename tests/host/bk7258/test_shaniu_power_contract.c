@@ -10,6 +10,14 @@
 #include <string.h>
 #include <syslog.h>
 #include "bk7258_media_volume.h"
+#ifdef TEST_REAL_OWNER
+#include "bk7258_provision_owner.h"
+void test_owner_open(void);
+bool test_owner_window(void);
+unsigned int test_owner_executed(void);
+void test_owner_write(void);
+int test_owner_reply(void);
+#endif
 #define CONFIG_BK7258_PRODUCT_KEYS 1
 #define CONFIG_BK7258_PM_SOFT_OFF 1
 #define CONFIG_BK7258_VISION_SERVICE 1
@@ -27,9 +35,14 @@ static unsigned int cp_calls, storage_stops, reopens, cancel_calls;
 static unsigned int trigger_stops;
 static int trigger_error;
 static bool trigger_closed;
+static bool transport_closed;
+static int transport_error;
 static unsigned int config_steps;
 static bool drain_owner;
-static bool leased, owner_closed, storage_closed, vision_closed, haptic_closed;
+static bool leased, storage_closed, vision_closed, haptic_closed;
+#ifndef TEST_REAL_OWNER
+static bool owner_closed;
+#endif
 static uint64_t now;
 static void bkvoice_keys_take(int *steps, bool *power)
 { *steps = 0; *power = key_power; key_power = false; }
@@ -38,21 +51,33 @@ static int bk7258_display_power(int mode) { (void)mode; return 0; }
 static bool voice_channel_is_idle(void) { return true; }
 static void voice_channel_cancel(void) { cancel_calls++; }
 static int voice_channel_recover(void) { return 0; }
-static bool bkprov_owner_busy(void) { return false; }
 static bool bkprov_network_busy(void) { return false; }
 static bool bkprov_config_busy(void) { return false; }
+#ifndef TEST_REAL_OWNER
 static bool bkprov_scan_busy(void) { return false; }
+#endif
 static bool bkagent_ota_busy(void) { return false; }
 static bool bk7258_agent_trigger_model_pending(void) { return false; }
 static void bkprov_bootstrap_cancel(void) {}
 static bool bkprov_bootstrap_busy(void) { return false; }
-static int bkprov_owner_quiesce(bool stop)
+#ifndef TEST_REAL_OWNER
+int bkprov_owner_prepare_stop(uint64_t tick)
 {
+  (void)tick;
+  bool stop = true;
   if (!stop) { reopens++; owner_closed = false; return 0; }
   if (owner_error) return owner_error;
   owner_closed = true;
   return 0;
 }
+static int bkprov_owner_quiesce(bool stop)
+{
+  assert(stop && storage_closed && trigger_closed && vision_closed && haptic_closed);
+  if (transport_error) return transport_error;
+  transport_closed = true;
+  return 0;
+}
+#endif
 static int bkprov_network_cancel(void) { return 0; }
 static void bkprov_network_step(void) {}
 static void bkprov_config_step(void)
@@ -80,8 +105,12 @@ static int bk7258_agent_trigger_stop(void)
 static void sync(void) {}
 static int bk7258_pm_soft_off_request(void)
 {
-  assert(owner_closed && storage_closed && vision_closed && haptic_closed && leased);
-  assert(trigger_closed);
+  assert(storage_closed && vision_closed && haptic_closed && leased && trigger_closed);
+#ifdef TEST_REAL_OWNER
+  assert(!bkprov_owner_busy() && !test_owner_window());
+#else
+  assert(owner_closed && transport_closed);
+#endif
   cp_calls++;
   return cp_error;
 }
@@ -95,6 +124,38 @@ static int bkvoice_volume_store_set(unsigned int volume) { (void)volume; return 
 int main(int argc, char **argv)
 {
   assert(argc == 2);
+#ifdef TEST_REAL_OWNER
+  if (!strcmp(argv[1], "owner-integration"))
+    {
+      test_owner_open();
+      storage_error = -EIO;
+      assert(product_keys_step(100));
+      assert(test_owner_window() && cp_calls == 0);
+      unsigned int before = test_owner_executed();
+      assert(product_keys_step(200));
+      assert(test_owner_executed() == before + 1);
+      test_owner_write();
+      assert(product_keys_step(300));
+      assert(test_owner_reply() == -EBUSY && test_owner_executed() == before + 1);
+      storage_error = 0;
+      key_power = true;
+      assert(product_keys_step(400));
+      assert(cp_calls == 1 && !test_owner_window() && reopens == 0);
+      puts("CONTRACT_PASS");
+      return 0;
+    }
+#endif
+  if (!strcmp(argv[1], "final-close-drains"))
+    {
+      transport_error = -EAGAIN;
+      assert(product_keys_step(0));
+      assert(cp_calls == 0 && storage_closed && !transport_closed);
+      transport_error = 0;
+      assert(product_keys_step(100));
+      assert(cp_calls == 1 && transport_closed && reopens == 0);
+      puts("CONTRACT_PASS");
+      return 0;
+    }
   if (!strcmp(argv[1], "admission-drains"))
     {
       owner_error = -EAGAIN;

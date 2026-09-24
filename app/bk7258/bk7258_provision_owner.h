@@ -32,6 +32,12 @@ int bkprov_owner_control_config(bkcontrol_config_t config);
 int bkprov_owner_error(void);
 /* Gate new sessions and drain existing transports without changing ownership. */
 int bkprov_owner_quiesce(bool enabled);
+/* Power preparation: retain only an existing authenticated read/cancel
+ * session and drive it once. Identity replacement still uses busy/quiesce.
+ * Final power conversion must call quiesce(true); preparation never reopens
+ * a transport after that final close has begun.
+ */
+int bkprov_owner_prepare_stop(uint64_t now_ms);
 /* Feed the current owner-service snapshot. While idle, a bound identity,
  * writable claim operations, and a storage snapshot proven absent make the
  * initial claim discoverable without button, link, or epoch input. The legacy

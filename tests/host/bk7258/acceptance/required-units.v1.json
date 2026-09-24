@@ -89,7 +89,13 @@
     "NET-03.quiesce-staging",
     "NET-03.quiesce-config-staging",
     "NET-03.quiesce-ota-commit",
-    "NET-03.quiesce-invalid"
+    "NET-03.quiesce-invalid",
+    "NET-03.owner-queries",
+    "NET-03.owner-unauthenticated",
+    "NET-03.owner-invalid-sequence",
+    "NET-03.owner-legacy",
+    "LIFE-02.power-final-close-drains",
+    "LIFE-01.owner-integration"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -182,6 +188,12 @@
     "NET-03.quiesce-staging",
     "NET-03.quiesce-config-staging",
     "NET-03.quiesce-ota-commit",
-    "NET-03.quiesce-invalid"
+    "NET-03.quiesce-invalid",
+    "NET-03.owner-queries",
+    "NET-03.owner-unauthenticated",
+    "NET-03.owner-invalid-sequence",
+    "NET-03.owner-legacy",
+    "LIFE-02.power-final-close-drains",
+    "LIFE-01.owner-integration"
   ]
 }

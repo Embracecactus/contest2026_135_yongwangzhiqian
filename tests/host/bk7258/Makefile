@@ -1827,3 +1827,18 @@ $(BUILD)/test_shaniu_control_quiesce: test_shaniu_control_quiesce.c \
     $(VOICE_PACK_ROOT)/bk7258_control_session.c $(VOICE_PACK_ROOT)/bk7258_control_session.h | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) $< \
 	    $(VOICE_PACK_ROOT)/bk7258_control_session.c -o $@
+
+OWNER_CONTRACT_FLAGS := -std=c11 -Wall -Wextra -Werror \
+    -I $(MOCKS) -I $(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/include -I $(VOICE_PACK_ROOT)
+OWNER_CONTRACT_SOURCES := $(VOICE_PACK_ROOT)/bk7258_provision_owner.c \
+    $(VOICE_PACK_ROOT)/bk7258_control_session.c $(VOICE_PACK_ROOT)/bk7258_provision_scan.c
+OWNER_CONTRACT_HEADERS := $(VOICE_PACK_ROOT)/bk7258_provision_owner.h \
+    $(VOICE_PACK_ROOT)/bk7258_control_session.h
+$(BUILD)/test_shaniu_owner: test_provision_owner.c $(OWNER_CONTRACT_SOURCES) $(OWNER_CONTRACT_HEADERS) | $(BUILD)
+	$(CC) $(OWNER_CONTRACT_FLAGS) $< $(OWNER_CONTRACT_SOURCES) -o $@
+$(BUILD)/shaniu_owner_peer.o: test_provision_owner.c $(OWNER_CONTRACT_HEADERS) | $(BUILD)
+	$(CC) $(OWNER_CONTRACT_FLAGS) -DTEST_OWNER_LIBRARY -c $< -o $@
+$(BUILD)/test_shaniu_power_owner: test_shaniu_power_contract.c $(BUILD)/shaniu_owner_peer.o \
+    $(OWNER_CONTRACT_SOURCES) $(OWNER_CONTRACT_HEADERS) $(VOICE_PACK_ROOT)/bk7258_agent_product_power.inc | $(BUILD)
+	$(CC) $(OWNER_CONTRACT_FLAGS) -DTEST_REAL_OWNER $< $(BUILD)/shaniu_owner_peer.o \
+	    $(OWNER_CONTRACT_SOURCES) -o $@

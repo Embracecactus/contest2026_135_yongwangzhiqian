@@ -46,6 +46,7 @@ static struct
   int (*window_handler)(bool open, unsigned char secret[32], void *context);
   void *window_context;
   bool quiescing;
+  bool draining;
 } g_owner;
 
 static uint64_t owner_now(void *unused)
@@ -219,13 +220,39 @@ static int owner_receipt(const uint8_t transaction[16])
 int bkprov_owner_quiesce(bool enabled)
 {
   g_owner.quiescing = enabled;
-  if (!enabled) return 0;
+  if (!enabled)
+    {
+      /* The session admission gate is one-way: resuming needs fresh AUTH. */
+      if (g_owner.draining && g_owner.control != NULL) close_window(0);
+      g_owner.draining = false;
+      return 0;
+    }
   g_owner.recovery_requested = false;
   if (g_owner.pair != NULL || g_owner.control != NULL)
     close_window(-ECANCELED);
   bkprov_scan_drain();
   (void)bkprov_gatt_poll();
   return bkprov_owner_busy() ? -EAGAIN : 0;
+}
+
+int bkprov_owner_prepare_stop(uint64_t now_ms)
+{
+  if (g_owner.quiescing) return bkprov_owner_quiesce(true);
+  g_owner.draining = true;
+  g_owner.recovery_requested = false;
+  g_owner.down = false;
+  if (g_owner.pair != NULL ||
+      (g_owner.control != NULL && !g_owner.control->session.authenticated))
+    close_window(-ECANCELED);
+  if (g_owner.control != NULL)
+    {
+      int ret = bkcontrol_session_quiesce(&g_owner.control->session);
+      if (ret < 0) { close_window(ret); return ret; }
+    }
+  (void)bkprov_owner_step(now_ms, 0, false, false, true);
+  /* A live read-only peer does not own a write or postpone final shutdown. */
+  return bkprov_scan_busy() ||
+         (g_owner.control == NULL && !bkprov_gatt_idle()) ? -EAGAIN : 0;
 }
 
 static int open_window(bool recovery)
@@ -301,9 +328,9 @@ bool bkprov_owner_step(uint64_t now, uint32_t epoch, bool link,
       /* An eight-second physical hold can still request receipt recovery.
        * Ordinary presses remain PTT input and do not disconnect the phone.
        */
-      if (pressed && !g_owner.down)
+      if (!g_owner.draining && pressed && !g_owner.down)
         { g_owner.down = true; g_owner.hold = now; }
-      if (!pressed && g_owner.down)
+      if (!g_owner.draining && !pressed && g_owner.down)
         {
           bool recovery = now - g_owner.hold >= RECOVERY_HOLD_MS;
           g_owner.down = false;
@@ -358,6 +385,7 @@ bool bkprov_owner_step(uint64_t now, uint32_t epoch, bool link,
     }
   if (!was_active)
     {
+      if (g_owner.draining) return false;
       if (!bkprov_gatt_idle())
         {
           g_owner.armed = false;

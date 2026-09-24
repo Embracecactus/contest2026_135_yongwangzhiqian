@@ -399,6 +399,8 @@ def main():
         "test_bk7258_agent_capture",
         "test_shaniu_power_contract",
         "test_shaniu_control_quiesce",
+        "test_shaniu_owner",
+        "test_shaniu_power_owner",
         "test_agent_tts_queue",
         "test_bk7258_product_keys",
         "test_bk7258_usbmode_lease",
@@ -443,6 +445,7 @@ def main():
         "unpublished-trigger",
         "admission-drains",
         "failed-drains",
+        "final-close-drains",
     ):
         add(
             suite,
@@ -461,6 +464,32 @@ def main():
             [HERE / "build/test_shaniu_control_quiesce", variant],
             binaries["test_shaniu_control_quiesce"],
         )
+    for variant in ("queries", "unauthenticated", "invalid-sequence"):
+        add(
+            suite,
+            "NET-03.owner-" + variant,
+            "NET-03",
+            "L2",
+            [HERE / "build/test_shaniu_owner", variant],
+            binaries["test_shaniu_owner"],
+        )
+    add(
+        suite,
+        "NET-03.owner-legacy",
+        "NET-03",
+        "L1",
+        [HERE / "build/test_shaniu_owner"],
+        binaries["test_shaniu_owner"],
+        marker=False,
+    )
+    add(
+        suite,
+        "LIFE-01.owner-integration",
+        "LIFE-01",
+        "L2",
+        [HERE / "build/test_shaniu_power_owner", "owner-integration"],
+        binaries["test_shaniu_power_owner"],
+    )
     for variant in ("close-failure", "route-failure"):
         add(
             suite,
@@ -679,6 +708,7 @@ def main():
     for p in [
         GOLDEN,
         HERE / "Makefile",
+        HERE / "test_provision_owner.c",
         HERE / "test_bk7258_agent_media_player.c",
         HERE / "test_bk7258_cloud_http.py",
         *ROOT.glob(

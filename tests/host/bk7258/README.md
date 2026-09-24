@@ -350,3 +350,24 @@ OTA/config 暂存与提交门禁、认证前拒绝、非法值和旧序号；真
 编译通过，无完整链接/实板结果。仅增加一个会话布尔量，无线程/分配/等待。
 报告 acceptance/s7-20260924.json，日志 out/shaniu-s7/。默认会话行为保持；
 **尚未接入生产 owner 的两阶段退出，设备关机查询仍不能据此称已实现。**
+
+### S8 owner 与电源生产链路接入（2026-09-24）
+
+新增 owner_prepare_stop 并实际接入产品电源循环，最后资源退出后仍调用原完整
+quiesce。新增 API 的前置编译缺口为 BLOCKED_INTERFACE；已有最终关闭顺序的
+反例在改业务前断言失败，修复后通过。主机联动编译真实 product power、owner、
+control_session、scan；只替换 TLS/GATT 及外部资源。认证通过真实 AUTH 报文，
+查询/写入通过真实 parser，不把 session.authenticated 直接设置成成功。
+
+新增 6 单元：owner 查询/未认证/非法序号、既有 owner 整套回归、最终传输关闭
+排空、协调器+owner+parser 联动。存储失败时查询仍可推进，写入 EBUSY，明确
+重试后退出资源→关闭传输→请求 CP；持续查询不阻止最后关闭。旧身份/恢复出厂
+关闭接口保持，未接入未定恢复手势。
+
+完整集合 95 PASS（原 63 + 累计新增 32），原两变异/恢复通过，门禁自测 12 PASS。
+另跑既有 test_provision_tls.py 的 1 个集成单元通过（真实 mbedTLS 分片/关闭），
+不把它称新电源路径的真实 BLE 测试。AIDK AP product/owner 对象编译通过。
+新增一个 owner draining 标志，无新线程/分配/轮询；原会话处理随既有循环执行。
+相关延迟/内存高水位、真实设备退出和物理恢复未测。
+报告 acceptance/s8-20260924.json，日志 out/shaniu-s8/；新联动的首次编译有
+scan_busy 测试替身声明冲突，移除替身、链接真实 scan 后通过，未算业务 Red。
