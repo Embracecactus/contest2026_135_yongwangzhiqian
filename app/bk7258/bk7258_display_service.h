@@ -63,6 +63,8 @@ int bk7258_display_activate(const char *filename);
 int bk7258_display_import(const void *data, size_t size);
 /* Reset the persisted user selection but retain installed packs. */
 int bk7258_display_reset_selection(void);
+/* Last completed service update; no render-lock wait, storage or hardware I/O.
+ * In-progress rendering is not reported as a completed frame. */
 int bk7258_display_get_status(struct bkdisplay_service_status_s *status);
 
 #endif /* __APP_BK7258_BK7258_DISPLAY_SERVICE_H */

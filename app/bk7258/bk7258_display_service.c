@@ -168,6 +168,8 @@ static struct bkdisplay_service_s g_bkdisplay_service =
   },
 };
 
+#include "bk7258_display_snapshot.inc"
+
 static int bkdisplay_service_errno(void)
 {
   return errno > 0 ? -errno : -EIO;
@@ -654,7 +656,7 @@ int bk7258_display_onboarding(const char *qr)
         }
       if (ret && qr) memset(service->claim_qr, 0, sizeof(service->claim_qr));
     }
-  nxmutex_unlock(&service->lock);
+  bkdisplay_unlock(service);
   return ret;
 }
 
@@ -670,7 +672,7 @@ int bk7258_display_power(unsigned int phase)
       service->overlay_dirty = true;
       service->status.state = BKDISPLAY_SERVICE_WAITING_ASSET;
     }
-  nxmutex_unlock(&service->lock);
+  bkdisplay_unlock(service);
   return 0;
 }
 
@@ -759,7 +761,7 @@ static int bkdisplay_worker(int argc, char *argv[])
               next = now + (ret ? 2000 : 2600);
             }
         }
-      nxmutex_unlock(&service->lock);
+      bkdisplay_unlock(service);
       (void)nxsig_usleep(BKDISPLAY_DEVICE_POLL_US);
     }
 }
@@ -783,7 +785,7 @@ int bk7258_display_service_start(void)
 
   if (service->started)
     {
-      nxmutex_unlock(&service->lock);
+      bkdisplay_unlock(service);
       return 0;
     }
 
@@ -819,7 +821,7 @@ int bk7258_display_service_start(void)
         }
     }
 
-  nxmutex_unlock(&service->lock);
+  bkdisplay_unlock(service);
   return ret;
 }
 
@@ -837,7 +839,7 @@ int bk7258_display_set_expression(const char *expression)
   if (ret >= 0)
     {
       ret = bkdisplay_render_locked(service, expression);
-      nxmutex_unlock(&service->lock);
+      bkdisplay_unlock(service);
     }
 
   return ret;
@@ -860,7 +862,7 @@ int bk7258_display_replace_expression(const char *expected,
     {
       ret = strcmp(service->status.expression, expected) == 0 ?
             bkdisplay_render_locked(service, replacement) : -EAGAIN;
-      nxmutex_unlock(&service->lock);
+      bkdisplay_unlock(service);
     }
 
   return ret;
@@ -945,7 +947,7 @@ failed:
 
 out:
   free(pixels);
-  nxmutex_unlock(&service->lock);
+  bkdisplay_unlock(service);
   return ret;
 }
 
@@ -985,7 +987,7 @@ static int bkdisplay_update_pack(const char *filename, bool install)
       bkdisplay_status_error(service, ret);
     }
 
-  nxmutex_unlock(&service->lock);
+  bkdisplay_unlock(service);
   return ret;
 }
 
@@ -1028,7 +1030,7 @@ int bk7258_display_import(const void *data, size_t size)
       ret = bkdisplay_render_locked(service, "neutral");
     }
 
-  nxmutex_unlock(&service->lock);
+  bkdisplay_unlock(service);
   /* After a start failure caused by a missing pack, a successful import
    * reuses the same display worker.
    */
@@ -1056,28 +1058,9 @@ int bk7258_display_reset_selection(void)
       if (render_ret < 0) bkdisplay_status_error(service, render_ret);
     }
   if (ret < 0) bkdisplay_status_error(service, ret);
-  nxmutex_unlock(&service->lock);
+  bkdisplay_unlock(service);
   return ret;
 }
 
-int bk7258_display_get_status(struct bkdisplay_service_status_s *status)
-{
-  struct bkdisplay_service_s *service = &g_bkdisplay_service;
-  int ret;
-
-  if (status == NULL)
-    {
-      return -EINVAL;
-    }
-
-  ret = nxmutex_lock(&service->lock);
-  if (ret >= 0)
-    {
-      *status = service->status;
-      nxmutex_unlock(&service->lock);
-    }
-
-  return ret;
-}
 
 #endif /* CONFIG_BK7258_DISPLAY_SERVICE */

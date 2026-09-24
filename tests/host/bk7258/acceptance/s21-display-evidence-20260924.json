@@ -1,0 +1,82 @@
+{
+  "scope": "S21 NET-02/DISP-01 snapshot reads while renderer I/O is held",
+  "parent": "579afbc6448c5e48dab1de04f949012c839af283",
+  "red": "query waited for renderer I/O lock\n",
+  "green": "CONTRACT_PASS\n",
+  "test_boundary": "Production status getter/publisher with pthread-based mutex/IRQ shims; reader runs while render owner is held. 1000ms is a harness deadlock watchdog, not a frozen product latency SLA. No framebuffer/SD/DMA emulation claims.",
+  "source_hashes": {
+    "app/bk7258/bk7258_display_service.c": "88b4525a8ca21dc3052302bb3a338bee9139acfe243571030cba36519a9dc1d8",
+    "app/bk7258/bk7258_display_service.h": "7b672d84a6d3c8b3c5fb5b80a8e5a96f27d860e13a80a8740288d9ec8609e7bd",
+    "app/bk7258/bk7258_display_snapshot.inc": "bebf356ab8cf11a644d09ded3e6fa8e77014a75b687325ad7a1b2bb8d8eccf7a",
+    "tests/host/bk7258/test_shaniu_display_snapshot.c": "e1b7eacd59e6eb8a74d801c7f3fc043726db014c7e6a71b79c922cd4cc85127c"
+  },
+  "target_build": {
+    "exit": 0,
+    "source_dirty": true,
+    "input_tree_sha256": "5d40baee4b6aab9696756c895a77088ec8a4700991028fd405304c78e2c668a6",
+    "inputs": {
+      "ap": {
+        "kind": "raw-build",
+        "path": "roles/mcuboot/ap/bk7258-role-c3282628a929d75f/cmake/nuttx.bin",
+        "sha256": "c8c26339f57678d2d563fa1e71c6cbb32dec5bc7bcc42ca95ad0239b301e676f",
+        "size": 1683936
+      },
+      "bl2": {
+        "kind": "raw-build",
+        "path": "releases/mcuboot/bl2/bl2.bin",
+        "sha256": "ffb36cdb89174bec06d12c817d2e97165f7d53e22d59b4e45ef63b66ed29e901",
+        "size": 13620
+      },
+      "boot": {
+        "kind": "raw-build",
+        "path": "releases/mcuboot/bl1/bl.bin",
+        "sha256": "d6d6789436a3c760f4a985d094129e2cfd789bdd9d2f2f3e2d577c20d7810443",
+        "size": 65376
+      },
+      "cp": {
+        "kind": "raw-build",
+        "path": "roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.bin",
+        "sha256": "ea3ae3010d527baa5a14fa97d58cd9f081b64b783d65408187b3bd1161041bc9",
+        "size": 1115240
+      }
+    },
+    "trust": {
+      "bl1_public_fingerprint": "93709b494c3ba758ee144bd9ed5d12ca97726a13dc88e336d4c19e9329c44364",
+      "mcuboot_public_fingerprint": "7163228f3221da6e81fcf5e9c6f13ae6c4afbd1e3b91b7669783a37d2f12fbc0"
+    },
+    "rollback_floor": 661,
+    "manifest_sha256": "5af964d2c7e3ec4b56704a8096b0482ec34e7c01b7a2e373f0465cf80ed7d2dc",
+    "verify": "bk7258 verify build-manifest: PASS boot=mcuboot board=aidk_ai_toy layout=bk7258-510173147382a879 source=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json\n"
+  },
+  "target_symbols": [
+    "02163c14 00000048 T bk7258_display_get_status",
+    "02163400 0000006c t bkdisplay_unlock.constprop.0",
+    "280699d4 0000006c b g_bkdisplay_snapshot",
+    "28000460 00000004 b g_bkdisplay_snapshot_lock"
+  ],
+  "resource_budget": {
+    "additional_static_bytes": 112,
+    "new_threads": 0,
+    "new_heap_allocations": 0,
+    "IRQ_locked_copy_bytes": 108,
+    "CPU_p95_ISR_duration_stack_high_water": "NOT_MEASURED"
+  },
+  "counts": {
+    "PASS": 121,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "gate_tests": 12,
+  "limitations": [
+    "Only display status query is fixed; other query paths and explicit synchronous render/install calls remain separate work",
+    "Snapshot is the most recent completed service update, not an in-progress render acknowledgment",
+    "No physical display/SD concurrency, BLE performance or shutdown acceptance",
+    "No signed release packaging or deployment"
+  ],
+  "logs": {
+    "contracts.log": "fdc31519cc0f6083d6d5f1d6c668a4a0f4ef4cdb69457afa60c6f8a23c91c87c",
+    "build-target.log": "e7d7571b7f59e712d42307f459141af80604e741bfcba13bfd37f1d60f9522c4",
+    "runner-gate.log": "c0cb98a70693b463069afba413d352f8fdc8540f469b9f3860e3385ec8c426dd"
+  }
+}

@@ -413,6 +413,7 @@ def main():
         "test_shaniu_focus",
         "test_shaniu_focus_pixels",
         "test_shaniu_focus_render",
+        "test_shaniu_display_snapshot",
         "test_shaniu_focus_wire",
         "test_agent_tts_queue",
         "test_bk7258_product_keys",
@@ -497,6 +498,14 @@ def main():
             [HERE / "build/test_bk7258_agent_media_player", variant],
             binaries["test_bk7258_agent_media_player"],
         )
+    add(
+        suite,
+        "NET-02.display-snapshot",
+        "NET-02",
+        "L1",
+        [HERE / "build/test_shaniu_display_snapshot"],
+        binaries["test_shaniu_display_snapshot"],
+    )
     for variant in ("normal", "retry", "start-cleanup", "close-error"):
         add(
             suite,

@@ -600,3 +600,33 @@ Boundary: the NuttX close contract is source-reviewed and hashed, not executed
 inside a real kernel by this test. USB/blockdriver are external substitutes;
 actual hardware, DMA, blockdriver durability after errors and filesystem mount
 unification remain open. This is not full MSC-01 acceptance.
+
+### S21 — display queries do not wait for renderer I/O (2026-09-24)
+
+`NET-02.display-snapshot` compiles the production getter/publisher extracted
+without behavior changes first. The initial getter waited for the render mutex
+while the renderer was deliberately held, reproducing the query blockage.
+The fixed getter copies the last completed service update through a separate
+short spinlock. All display-service unlock paths publish the coherent status;
+no mount/decode/framebuffer work occurs inside that snapshot lock. In-progress
+pack/frame state is not exposed as a completed update. Public EYE1 layout and
+render sequence semantics are unchanged.
+
+The test observes the prior pack/sequence while rendering remains held, then the
+new coherent status after publication. Its 1000ms harness watchdog detects the
+blocked dependency, not a promised device latency threshold. The renderer does
+not release its lock until the query observation finishes. External pthread/IRQ
+shims replace NuttX primitives; the queried production function is not mocked.
+
+**121 PASS** in the frozen host collection, with all prior IDs retained; two
+original mutations still detected/restored and 12 runner-gate tests pass.
+CP/AP/BL1/BL2 incremental build and manifest rehash pass. Target ELF reports
+108 bytes for the snapshot plus a 4-byte lock, no added heap/thread. CPU, IRQ
+hold duration, stack watermark and real SD/DMA contention remain unmeasured.
+Explicit render/install operations still have their existing synchronous path;
+this slice does not claim full DISP-01/NET-02 or asynchronous installation.
+
+See `acceptance/s21-20260924.json`, `acceptance/s21-display-evidence-20260924.json`
+and local `out/shaniu-s21/` for the Red, fresh Green, sources and artifact hashes.
+New `.inc` source hash is explicitly included because it was untracked at build
+time. No signed package, phone update, serial access or board operation occurred.
