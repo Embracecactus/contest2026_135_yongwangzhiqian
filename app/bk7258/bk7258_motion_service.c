@@ -183,7 +183,10 @@ int bk7258_motion_service_sample(struct bkmotion_rpc_response_s *sample)
   };
   if (!sample) return -EINVAL;
   if (!__atomic_load_n(&g_bkmotion_server.initialized, __ATOMIC_ACQUIRE))
-    return -ENODEV;
+    {
+      bkmotion_rpc_make_response(sample, &request, -ENODEV);
+      return -ENODEV;
+    }
   /* Local Agent and CP requests share this single sampling owner and mutex;
    * no second collection service is created.
    */

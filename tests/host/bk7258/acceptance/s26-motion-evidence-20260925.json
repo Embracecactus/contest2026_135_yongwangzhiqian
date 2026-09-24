@@ -1,0 +1,49 @@
+{
+  "slice": "S26",
+  "date": "2026-09-25",
+  "parent": "2f56e712bfb72758f4209a24fb4950bb182612b0",
+  "requirement": "MOT-01: failed current acquisition must not retain a previous valid sample.",
+  "case": "MOT-01.local-owner-unavailable",
+  "interface": "bk7258_motion_service_sample; real production service/core and client compiled by existing sensor RPC harness",
+  "external_substitutes": "NuttX locks/semaphores/RPMsg and sensor fd I/O; service state machine is production code",
+  "sequence": [
+    "successful local worker sample",
+    "owner unavailable",
+    "same response object sampled again",
+    "error response sanitized; no driver open",
+    "NULL rejected",
+    "owner restored; sample valid again"
+  ],
+  "initial_fixture_error": "First attempt violated external fake driver requirement in_worker; this is SETUP_ERROR, not business Red. Corrected context explicitly models Agent worker, not RPMsg callback.",
+  "red": "sample.rpc_status == -ENODEV failed; original output still held successful sample",
+  "green": "BKMOTION_RPC_HOST_PASS cases=20; BK7258_MOTION_CORE_TEST_PASS",
+  "counts": {
+    "strict_contract_pass": 124,
+    "strict_contract_fail": 0,
+    "additional_rpc_scenarios": 20,
+    "new_rpc_scenarios": 1
+  },
+  "build": "Official incremental CP/AP/boot build, layer validation and build manifest verification passed. No signing/deployment performed.",
+  "limits": [
+    "No autonomous motion recognizer, periodic sampling policy or gesture thresholds implemented.",
+    "No board sensor/motion accuracy or CPU/p95 measurement.",
+    "No added allocation, thread, I/O, or protocol layout change; error path fills existing 64-byte response."
+  ],
+  "hashes": {
+    "app/bk7258/bk7258_motion_service.c": "a9dc9e9613875c2212d6837f71e426c2565a4fb1ba8ed435f54b177dd504764e",
+    "tests/host/bk7258/test_bk7258_motion_rpc.c": "8c45229074cb961b7aae25d1f4e717d4bd8c5ab4c92d33e00feec9416f689b5c",
+    "tests/host/bk7258/bk7258_sensor_rpc_test.h": "1b5767fd41941b0e0891eba3ac2fdcf94c16a264bd757864064aa9594c8064d4",
+    "out/shaniu-s26/red.log": "122f9e58e04450e2f438f4de3e516231b510c6efad340bd626d2971c530676e9",
+    "out/shaniu-s26/red-local.log": "9a3fdbebea17d1ec3dc3cd6e83c3c7ef83949c3b0163ac2ab6501f30e7ad5393",
+    "out/shaniu-s26/green.log": "09ce5a624e806ffa48a514cbf5374ec26333c7afbf91940fcdd395cf48cbdcfa",
+    "out/shaniu-s26/build.log": "9474b8384df138ca4f9036196ac21d84fb3e4c4a1d9df08d3ddfffab033da4cc",
+    "out/shaniu-s26/layers.log": "cab5506d4a62929feaece7a1324c950ff7577663e0c3752c16f06517206d2c9e",
+    "out/shaniu-s26/manifest.log": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac",
+    "out/shaniu-s26/contracts.log": "a6ca3c37b97d532d1befd35bb699ec9ffb1dc5ebd06ac3c554e2b8bfee11334b"
+  },
+  "logs": {
+    "red": "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\nmkdir -p build/sensor-rpc-include/nuttx/ build/sensor-rpc-include/nuttx/rpmsg/ build/sensor-rpc-include/nuttx/sensors/\ntouch build/sensor-rpc-include/.ready\ncc -std=c11 -Wall -Wextra -Werror -Wno-unused-function \\\n\t-fsanitize=undefined -fno-sanitize-recover=all \\\n\t-I build/sensor-rpc-include -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_bk7258_motion_rpc.c -o build/test_bk7258_motion_rpc\n./build/test_bk7258_motion_rpc\ntest_bk7258_motion_rpc: bk7258_sensor_rpc_test.h:151: mock_open: Assertion `in_worker && !callback_depth && !fd_live' failed.\nmake: *** [Makefile:404: run-motion-rpc] Aborted (core dumped)\nmake: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\n",
+    "red-local": "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\ncc -std=c11 -Wall -Wextra -Werror -Wno-unused-function \\\n\t-fsanitize=undefined -fno-sanitize-recover=all \\\n\t-I build/sensor-rpc-include -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_bk7258_motion_rpc.c -o build/test_bk7258_motion_rpc\n./build/test_bk7258_motion_rpc\ntest_bk7258_motion_rpc: test_bk7258_motion_rpc.c:348: test_local_sample_unavailable: Assertion `sample.rpc_status == -ENODEV' failed.\nmake: *** [Makefile:404: run-motion-rpc] Aborted (core dumped)\nmake: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\n",
+    "green": "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\ncc -std=c11 -Wall -Wextra -Werror -Wno-unused-function \\\n\t-fsanitize=undefined -fno-sanitize-recover=all \\\n\t-I build/sensor-rpc-include -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_bk7258_motion_rpc.c -o build/test_bk7258_motion_rpc\n./build/test_bk7258_motion_rpc\nBKMOTION_RPC_HOST_PASS cases=20\n./build/test_bk7258_motion_core\nBK7258_MOTION_CORE_TEST_PASS\nmake: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\n"
+  }
+}

@@ -754,3 +754,20 @@ admission. The original contract runner reports 124 PASS; this additional UI
 case is counted separately. See `acceptance/s25-20260925.json` and
 `acceptance/s25-app-evidence-20260925.json` for exact hashes and Red/Green output.
 APK builds and Android unit tests passed; no phone install or board write occurred.
+
+### S26 — local motion failure output (2026-09-25)
+
+`make -C tests/host/bk7258 run-motion-rpc run-motion-core` now also exercises
+`bk7258_motion_service_sample` with a previously successful response while its
+owner is unavailable. The response must carry ENODEV and clear sample validity,
+time and axes, without touching the driver. Restored ownership can sample again.
+The existing harness compiles production service/core/client code, replacing
+only NuttX/platform and sensor I/O. Its first new fixture invocation lacked the
+worker-context marker and was corrected as SETUP_ERROR, before recording the
+actual old-production assertion failure. Both logs are retained in the evidence.
+
+The strict contract run remains 124 PASS. The additional RPC target reports 20
+scenarios (one newly added); these are not folded into the original 63 IDs or
+56 product designs. Official incremental build, layers and manifest verification
+passed. No autonomous gesture recognition or physical sensor acceptance is claimed.
+See `acceptance/s26-20260925.json` and `acceptance/s26-motion-evidence-20260925.json`.

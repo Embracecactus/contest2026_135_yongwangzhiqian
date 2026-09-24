@@ -331,6 +331,35 @@ static void test_errors_close(void)
   assert(last_wire.operation_status == -EIO && closes == 1);
   passes++;
 }
+/* MOT-01: local callers must receive a sanitized error, not a retained
+ * successful sample, when the owner has not initialized. */
+static void test_local_sample_unavailable(void)
+{
+  struct bkmotion_rpc_response_s sample;
+  reset_case();
+  in_worker = true; /* Agent worker context, outside RPMsg callback. */
+  assert(bk7258_motion_service_sample(&sample) == 0);
+  in_worker = false;
+  assert(bkmotion_rpc_response_valid(&sample));
+  assert(sample.flags == BKMOTION_FLAG_SAMPLE_VALID);
+  int before = opens;
+  g_bkmotion_server.initialized = false;
+  assert(bk7258_motion_service_sample(&sample) == -ENODEV);
+  assert(sample.rpc_status == -ENODEV);
+  assert(sample.operation_status == -ENODEV);
+  assert(sample.flags == 0 && sample.timestamp_us == 0);
+  assert(sample.x_mms2 == 0 && sample.y_mms2 == 0 && sample.z_mms2 == 0);
+  assert(sample.sensor_status == 0 && bkmotion_rpc_response_valid(&sample));
+  assert(opens == before && !fd_live);
+  assert(bk7258_motion_service_sample(NULL) == -EINVAL);
+  g_bkmotion_server.initialized = true;
+  in_worker = true; /* Agent worker context, outside RPMsg callback. */
+  assert(bk7258_motion_service_sample(&sample) == 0);
+  in_worker = false;
+  assert(sample.flags == BKMOTION_FLAG_SAMPLE_VALID && opens == before + 1);
+  passes++;
+}
+
 int main(void)
 {
   assert(bkmotion_rpc_client_initialize() == 0);
@@ -343,6 +372,7 @@ int main(void)
   test_old_worker_and_tokens();
   test_errors_close();
   test_namespace_rebind();
+  test_local_sample_unavailable();
   printf("BKMOTION_RPC_HOST_PASS cases=%u\n", passes);
   return 0;
 }
