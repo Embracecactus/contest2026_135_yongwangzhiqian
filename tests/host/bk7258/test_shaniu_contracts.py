@@ -397,6 +397,7 @@ def main():
         "test_shaniu_volume_contract",
         "test_shaniu_volume_transition",
         "test_bk7258_agent_capture",
+        "test_shaniu_power_contract",
         "test_agent_tts_queue",
         "test_bk7258_product_keys",
         "test_bk7258_usbmode_lease",
@@ -428,6 +429,21 @@ def main():
             "L1",
             [HERE / "build/test_shaniu_key_contract", variant],
             binaries["test_shaniu_key_contract"],
+        )
+    for variant in (
+        "normal",
+        "admission-failure",
+        "partial-failure",
+        "cp-declined",
+        "cp-unknown",
+    ):
+        add(
+            suite,
+            "LIFE-02.power-" + variant,
+            "LIFE-02",
+            "L1",
+            [HERE / "build/test_shaniu_power_contract", variant],
+            binaries["test_shaniu_power_contract"],
         )
     for variant in ("close-failure", "route-failure"):
         add(

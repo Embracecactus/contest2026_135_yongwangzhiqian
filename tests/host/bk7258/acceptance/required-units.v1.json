@@ -73,7 +73,12 @@
     "MSC-01.releasing",
     "MSC-01.retry",
     "LIFE-02.capture-close-failure",
-    "LIFE-02.capture-route-failure"
+    "LIFE-02.capture-route-failure",
+    "LIFE-02.power-normal",
+    "LIFE-02.power-admission-failure",
+    "LIFE-02.power-partial-failure",
+    "LIFE-02.power-cp-declined",
+    "LIFE-02.power-cp-unknown"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -150,6 +155,11 @@
     "MSC-01.releasing",
     "MSC-01.retry",
     "LIFE-02.capture-close-failure",
-    "LIFE-02.capture-route-failure"
+    "LIFE-02.capture-route-failure",
+    "LIFE-02.power-normal",
+    "LIFE-02.power-admission-failure",
+    "LIFE-02.power-partial-failure",
+    "LIFE-02.power-cp-declined",
+    "LIFE-02.power-cp-unknown"
   ]
 }

@@ -1818,3 +1818,7 @@ $(BUILD)/test_shaniu_volume_transition: test_shaniu_volume_transition.c \
 	    -include $(CHIP_ROOT)/include/bk7258_usbmode.h \
 	    -include $(MOCKS)/bk7258_usbmode_lease.h \
 	    $< $(VOICE_PACK_ROOT)/bk7258_media_volume.c -o $@
+
+$(BUILD)/test_shaniu_power_contract: test_shaniu_power_contract.c \
+    $(VOICE_PACK_ROOT)/bk7258_agent_product_power.inc | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) $< -o $@

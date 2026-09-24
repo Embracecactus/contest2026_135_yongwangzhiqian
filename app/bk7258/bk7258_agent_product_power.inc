@@ -5,6 +5,7 @@
 #if defined(CONFIG_BK7258_PRODUCT_KEYS) && defined(CONFIG_BK7258_PM_SOFT_OFF)
 static bool g_power_pending;
 static bool g_shutdown_requested;
+static bool g_shutdown_failed;
 static uint64_t g_shutdown_deadline;
 static bool g_power_volume_owned;
 static bool g_power_storage_stopped;
@@ -14,65 +15,15 @@ static uint64_t g_power_query_at;
 #endif
 
 #ifdef CONFIG_BK7258_PM_SOFT_OFF
-static int product_power_restore(void)
+static void product_power_fail(int error)
 {
-  int ret;
-  if (g_power_storage_stopped)
-    {
-      ret = bkprov_storage_start("/cpdata/shaniu");
-      if (ret < 0)
-        {
-          return ret;
-        }
-
-      g_power_storage_stopped = false;
-    }
-
-  if (g_power_volume_owned)
-    {
-      ret = bk7258_media_volume_release(BK7258_MEDIA_VOLUME_POWER);
-      if (ret < 0)
-        {
-          return ret;
-        }
-
-      g_power_volume_owned = false;
-    }
-
-#ifdef CONFIG_BK7258_VISION_SERVICE
-  if (g_power_vision_quiesced)
-    {
-      ret = bk7258_vision_quiesce(false);
-      if (ret < 0)
-        {
-          return ret;
-        }
-
-      g_power_vision_quiesced = false;
-    }
-
-#endif
-#ifdef CONFIG_BK7258_HAPTIC_SERVICE
-  if (g_power_haptic_quiesced)
-    {
-      ret = bkhaptic_service_quiesce(false);
-      if (ret < 0)
-        {
-          return ret;
-        }
-
-      g_power_haptic_quiesced = false;
-    }
-
-#endif
-  (void)bkprov_owner_quiesce(false);
-#ifdef CONFIG_BK7258_DISPLAY_SERVICE
-  (void)bk7258_display_power(0);
-#endif
-#ifdef CONFIG_BK7258_PROVISION_NATIVE
-  (void)bkprov_bootstrap_start();
-#endif
-  return 0;
+  /* Retain user intent and completed resource exits. Ordinary polling and
+   * late events cannot silently resume operation after a failed shutdown.
+   */
+  g_shutdown_failed = true;
+  g_shutdown_requested = false;
+  g_power_pending = false;
+  g_product_error = error;
 }
 
 static int product_power_request(void)
@@ -96,42 +47,41 @@ static int product_power_request(void)
   bkprov_bootstrap_cancel();
   if (bkprov_bootstrap_busy()) return -EBUSY;
 #endif
-  ret = bk7258_media_volume_acquire(BK7258_MEDIA_VOLUME_POWER);
-  if (ret < 0)
+  if (!g_power_volume_owned)
     {
-      return ret;
+      ret = bk7258_media_volume_acquire(BK7258_MEDIA_VOLUME_POWER);
+      if (ret < 0) return ret;
+      g_power_volume_owned = true;
     }
-
-  g_power_volume_owned = true;
 #ifdef CONFIG_BK7258_VISION_SERVICE
-  ret = bk7258_vision_quiesce(true);
+  ret = g_power_vision_quiesced ? 0 : bk7258_vision_quiesce(true);
   if (ret < 0)
     {
-      goto restore;
+      goto failed;
     }
 
   g_power_vision_quiesced = true;
 #endif
 #ifdef CONFIG_BK7258_HAPTIC_SERVICE
-  ret = bkhaptic_service_quiesce(true);
+  ret = g_power_haptic_quiesced ? 0 : bkhaptic_service_quiesce(true);
   if (ret < 0)
     {
-      goto restore;
+      goto failed;
     }
 
   g_power_haptic_quiesced = true;
 #endif
-  ret = bkprov_storage_stop();
+  ret = g_power_storage_stopped ? 0 : bkprov_storage_stop();
   if (ret < 0)
     {
-      goto restore;
+      goto failed;
     }
 
   g_power_storage_stopped = true;
-  ret = bk7258_agent_trigger_stop();
+  ret = g_trigger_started ? bk7258_agent_trigger_stop() : 0;
   if (ret < 0)
     {
-      goto restore;
+      goto failed;
     }
 
   g_trigger_started = false;
@@ -147,7 +97,7 @@ static int product_power_request(void)
       int pending = bk7258_pm_soft_off_status();
       if (pending == 0)
         {
-          goto restore;
+          goto failed;
         }
     }
 
@@ -155,16 +105,8 @@ static int product_power_request(void)
   g_power_query_at = bkvoice_config_now_ms(NULL) + 500;
   return ret;
 
-restore:
-{
-  int cleanup = product_power_restore();
-  if (cleanup < 0)
-    {
-      g_power_pending = true;
-      g_power_query_at = bkvoice_config_now_ms(NULL) + 500;
-      return cleanup;
-    }
-}
+failed:
+  product_power_fail(ret);
 
   return ret;
 }
@@ -178,7 +120,7 @@ static bool product_keys_step(uint64_t now)
   bool power;
   bkvoice_keys_take(&steps, &power);
 #if defined(CONFIG_BK7258_PM_SOFT_OFF) && defined(CONFIG_BK7258_DISPLAY_SERVICE)
-  if (!g_power_pending && !g_shutdown_requested)
+  if (!g_power_pending && !g_shutdown_requested && !g_shutdown_failed)
     (void)bk7258_display_power(bkvoice_keys_power_held() ? 1 : 0);
 #endif
 #ifdef CONFIG_BK7258_PM_SOFT_OFF
@@ -190,25 +132,25 @@ static bool product_keys_step(uint64_t now)
           g_power_query_at = now + 500;
           if (ret == 0)
             {
-              ret = product_power_restore();
-              if (!ret)
-                {
-                  g_power_pending = false;
-                }
-
-              syslog(LOG_WARNING, "BKKEYS power canceled restore=%d\n", ret);
+              product_power_fail(-ECANCELED);
+              syslog(LOG_WARNING, "BKKEYS power not accepted; intent retained\n");
             }
         }
 
-      return g_power_pending;
+      return g_power_pending || g_shutdown_failed;
     }
 
+  if (g_shutdown_failed && !power)
+    {
+      return true;
+    }
 #else
   (void)now;
 #endif
   if (power)
     {
 #ifdef CONFIG_BK7258_PM_SOFT_OFF
+      g_shutdown_failed = false;
       g_shutdown_requested = true;
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
       (void)bk7258_display_power(2);
@@ -248,7 +190,12 @@ static bool product_keys_step(uint64_t now)
       /* Commit workers and Wi-Fi lease cleanup must continue while admission
        * is closed. A successful cancel is not a completed shutdown.
        */
-      (void)bkprov_owner_quiesce(true);
+      ret = bkprov_owner_quiesce(true);
+      if (ret < 0)
+        {
+          product_power_fail(ret);
+          return true;
+        }
       (void)bkprov_network_cancel();
       bkprov_network_step();
       bkprov_config_step();
@@ -262,15 +209,12 @@ static bool product_keys_step(uint64_t now)
                now >= g_shutdown_deadline)
         {
           if (ret == -EBUSY || ret == -EAGAIN) ret = -ETIMEDOUT;
-          int restored = product_power_restore();
-          g_shutdown_requested = false;
-          g_product_error = restored ? restored : ret;
-          syslog(LOG_ERR, "BKKEYS shutdown failed=%d restore=%d\n",
-                 ret, restored);
+          product_power_fail(ret);
+          syslog(LOG_ERR, "BKKEYS shutdown failed=%d; intent retained\n", ret);
         }
     }
 
-  return g_power_pending || g_shutdown_requested;
+  return g_power_pending || g_shutdown_requested || g_shutdown_failed;
 #else
   return false;
 #endif

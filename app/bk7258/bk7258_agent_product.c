@@ -2178,9 +2178,9 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
 #ifdef CONFIG_BK7258_PRODUCT_KEYS
       if (product_keys_step(now))
         {
-          /* A shutdown may fail and restore normal operation. Retain the
-           * actual completion events until its outcome is known, rather
-           * than losing a durable configuration or a canceled voice turn.
+          /* Retain completion events while shutdown is pending or failed.
+           * A failure keeps admission closed until an explicit retry; a
+           * durable configuration or canceled voice result is not discarded.
            */
           atomic_fetch_or(&g_product_events, events);
           continue;
