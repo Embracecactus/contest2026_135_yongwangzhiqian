@@ -2,6 +2,55 @@
 #include <errno.h>
 #include "bk7258_product_keys.h"
 
+/* A release edge must not depend on receiving a periodic held sample at
+ * exactly the qualification boundary. This is a product contract, not a
+ * physical power-off test.
+ */
+
+static void test_release_boundary_without_held_heartbeat(void)
+{
+  struct bkvoice_product_keys_s keys = {0};
+  bool requested = false;
+
+  bkvoice_product_keys_step(&keys, 9, 0, 1, &requested);
+  bkvoice_product_keys_step(&keys, 9, BKVOICE_PRODUCT_KEY_POWER, 100,
+                            &requested);
+  bkvoice_product_keys_step(&keys, 9, 0, 3099, &requested);
+  assert(!requested);
+  bkvoice_product_keys_step(&keys, 9, BKVOICE_PRODUCT_KEY_POWER, 4000,
+                            &requested);
+  bkvoice_product_keys_step(&keys, 9, 0, 7000, &requested);
+  assert(requested);
+  bkvoice_product_keys_step(&keys, 9, 0, 7001, &requested);
+  assert(!requested);
+}
+
+static void test_power_is_one_shot_and_volume_cannot_qualify_it(void)
+{
+  struct bkvoice_product_keys_s keys = {0};
+  bool requested = false;
+
+  bkvoice_product_keys_step(&keys, 7, 0, 1, &requested);
+  bkvoice_product_keys_step(&keys, 7, BKVOICE_PRODUCT_KEY_VOLUME_DOWN,
+                            100, &requested);
+  bkvoice_product_keys_step(&keys, 7, BKVOICE_PRODUCT_KEY_VOLUME_DOWN,
+                            6100, &requested);
+  bkvoice_product_keys_step(&keys, 7, 0, 6101, &requested);
+  assert(!requested);
+  bkvoice_product_keys_step(&keys, 7, BKVOICE_PRODUCT_KEY_POWER, 7000,
+                            &requested);
+  bkvoice_product_keys_step(&keys, 7, BKVOICE_PRODUCT_KEY_POWER, 9999,
+                            &requested);
+  assert(!requested && !keys.power_request_latched);
+  bkvoice_product_keys_step(&keys, 7, BKVOICE_PRODUCT_KEY_POWER, 10000,
+                            &requested);
+  assert(!requested && keys.power_request_latched);
+  bkvoice_product_keys_step(&keys, 7, 0, 10001, &requested);
+  assert(requested);
+  bkvoice_product_keys_step(&keys, 7, 0, 10002, &requested);
+  assert(!requested);
+}
+
 int main(void)
 {
   struct bkvoice_product_keys_s keys = {0};
@@ -83,5 +132,7 @@ int main(void)
   bkvoice_product_keys_step(&keys, 3, 0, 51, &power_requested);
   assert(!power_requested);
 
+  test_power_is_one_shot_and_volume_cannot_qualify_it();
+  test_release_boundary_without_held_heartbeat();
   return 0;
 }

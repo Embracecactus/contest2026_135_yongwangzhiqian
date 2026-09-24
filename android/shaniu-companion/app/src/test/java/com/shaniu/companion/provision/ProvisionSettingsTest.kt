@@ -107,4 +107,68 @@ class ProvisionSettingsTest {
             ProvisionSettings.inputError("lab", "x".repeat(64).toCharArray()))
         assertNull(ProvisionSettings.inputError("lab", CharArray(0)))
     }
+    private fun publicSettings() = DeviceSettings.Public(0, 17, "0".repeat(32), 0,
+        true, true, true, true, 443, 2, "old-network", "cloud.example", "/v1", "asr", "chat", "tts")
+
+    @Test fun wifiOnlyPatchPreservesCloudAndBindsExpectedRevision() {
+        val current = publicSettings()
+        val operation = ByteArray(16) { 7 }
+        val password = "new-test-password".toCharArray()
+        val bytes = DeviceSettings.patch(current, operation, "new-network", password)
+        val wire = ByteBuffer.wrap(bytes)
+        assertEquals(0x53435031, wire.int)
+        val op = ByteArray(16).also { wire.get(it) }
+        assertArrayEquals(operation, op)
+        assertEquals(17L, wire.long)
+        assertEquals(1 or 8, wire.int) // No cloud, key-replacement or clear bit.
+        wire.long
+        assertEquals(11, wire.short.toInt())
+        assertEquals(password.size, wire.short.toInt())
+        assertEquals(0, wire.short.toInt())
+        assertEquals(0, wire.short.toInt())
+        assertEquals(0, wire.int)
+        assertEquals(52 + 11 + password.size, bytes.size)
+        assertArrayEquals("new-test-password".toCharArray(), password)
+        assertEquals(publicSettings(), current)
+        bytes.fill(0); password.fill('\u0000')
+    }
+
+    @Test fun keepReplaceAndClearRemainDifferentPatchOperations() {
+        val current = publicSettings()
+        val operation = ByteArray(16) { 3 }
+        val cloud = CloudSettings.encode("https://cloud.example/v1", CharArray(0),
+            CloudSettings.Dialect.MIMO, "asr", "chat", "tts", allowMissingKey = true)
+        val keep = DeviceSettings.patch(current, operation, cloud = cloud)
+        val replace = DeviceSettings.patch(current, operation, cloud = cloud, replaceKey = true)
+        val clear = DeviceSettings.patch(current, operation, clearCloud = true)
+        assertEquals(2, ByteBuffer.wrap(keep).getInt(28))
+        assertEquals(2 or 4, ByteBuffer.wrap(replace).getInt(28))
+        assertEquals(16, ByteBuffer.wrap(clear).getInt(28))
+        for (bytes in listOf(keep, replace)) {
+            val wire = ByteBuffer.wrap(bytes)
+            assertEquals(0, wire.getShort(40).toInt())
+            assertEquals(0, wire.getShort(42).toInt())
+            assertEquals(cloud.size, wire.getShort(44).toInt())
+            assertEquals(17L, wire.getLong(20))
+        }
+        assertEquals(52, clear.size)
+        assertThrows(IllegalArgumentException::class.java) {
+            DeviceSettings.patch(current, operation, clearCloud = true, cloud = cloud)
+        }
+        listOf(keep, replace, clear, cloud).forEach { it.fill(0) }
+    }
+
+    @Test fun revisionExhaustionAndEmptyOperationCannotProducePatch() {
+        val current = publicSettings()
+        assertThrows(IllegalArgumentException::class.java) {
+            DeviceSettings.patch(current.copy(revision = Long.MAX_VALUE), ByteArray(16) { 1 }, clearCloud = true)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            DeviceSettings.patch(current, ByteArray(16), clearCloud = true)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            DeviceSettings.patch(current, ByteArray(16) { 1 })
+        }
+    }
+
 }

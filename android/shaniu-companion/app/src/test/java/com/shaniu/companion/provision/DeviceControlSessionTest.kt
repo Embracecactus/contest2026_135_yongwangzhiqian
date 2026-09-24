@@ -212,4 +212,53 @@ class DeviceControlSessionTest {
         assertEquals(1, f.peers.size)
         assertEquals(DeviceControlSession.Connection.SUSPENDED, f.session.current().connection)
     }
+    @Test fun configCancelWaitsForInFlightAckAndPreventsOtherWriters() {
+        val f = Fixture(); f.connect()
+        assertTrue(f.session.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN, byteArrayOf(1)))
+        assertFalse(f.session.request(DeviceControlProtocol.Command.VOLUME, 60))
+        assertFalse(f.session.requestOta(DeviceControlProtocol.Command.OTA_BEGIN, byteArrayOf(1)))
+        assertTrue(f.session.cancelConfigTransaction())
+        assertEquals(listOf(DeviceControlProtocol.Command.CONFIG_BEGIN), f.peer.sent.map { it.command })
+        f.peer.reply(DeviceControlProtocol.Command.CONFIG_BEGIN, status)
+        assertEquals(DeviceControlProtocol.Command.CONFIG_CANCEL, f.peer.sent.last().command)
+        assertFalse(f.session.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN, byteArrayOf(2)))
+        f.peer.reply(DeviceControlProtocol.Command.CONFIG_CANCEL, status)
+        assertTrue(f.session.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN, byteArrayOf(3)))
+        assertEquals(1, f.peer.sent.count { it.command == DeviceControlProtocol.Command.CONFIG_CANCEL })
+        f.session.disconnect()
+    }
+
+    @Test fun failedConfigAckDoesNotReleaseStagingUntilExplicitCancel() {
+        val f = Fixture(); f.connect()
+        assertTrue(f.session.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN, byteArrayOf(1)))
+        f.peer.reply(DeviceControlProtocol.Command.CONFIG_BEGIN, failure)
+        assertTrue(f.session.current().authenticated)
+        assertFalse(f.session.requestOta(DeviceControlProtocol.Command.OTA_BEGIN, byteArrayOf(2)))
+        assertFalse(f.session.request(DeviceControlProtocol.Command.PERSONA, 1))
+        assertTrue(f.session.cancelConfigTransaction())
+        f.peer.reply(DeviceControlProtocol.Command.CONFIG_CANCEL, status)
+        assertTrue(f.session.request(DeviceControlProtocol.Command.PERSONA, 1))
+        f.session.disconnect()
+    }
+
+    @Test fun identityReleaseRejectsLateConfigResultAndDoesNotReplayIt() {
+        val f = Fixture(); f.connect()
+        val old = f.peer
+        val results = mutableListOf<DeviceControlProtocol.Command>()
+        val observer = f.session.observeResults { command, _ -> results += command }
+        assertTrue(f.session.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN, byteArrayOf(1)))
+        f.session.releaseIdentity()
+        old.reply(DeviceControlProtocol.Command.CONFIG_BEGIN, status)
+        old.sent.last().accepted(false)
+        f.clock.advance(60_000)
+        assertTrue(results.isEmpty())
+        assertFalse(f.session.current().authenticated)
+        assertNull(f.session.current().snapshot)
+        assertEquals(1, f.peers.size)
+        f.session.connect(f.factory)
+        f.peer.reply(DeviceControlProtocol.Command.STATUS, status)
+        assertTrue(f.peer.sent.none { it.command == DeviceControlProtocol.Command.CONFIG_BEGIN })
+        observer.cancel(); f.session.disconnect()
+    }
+
 }

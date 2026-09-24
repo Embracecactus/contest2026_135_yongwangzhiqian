@@ -146,4 +146,23 @@ class OtaControlUploadTest {
         assertTrue(sent.size == 1)
         assertNull(upload.error)
     }
+    @Test fun lateAcknowledgementCannotOverwriteCanceledTerminalState() {
+        val sent = mutableListOf<Sent>()
+        val upload = OtaControlUpload(record(44)) { command, bytes ->
+            sent += Sent(command, bytes.copyOf()); true
+        }
+        assertTrue(upload.start())
+        upload.cancel()
+        upload.response(DeviceControlProtocol.Command.OTA_BEGIN, ack())
+        assertEquals(DeviceControlProtocol.Command.OTA_CANCEL, sent.last().command)
+        upload.response(DeviceControlProtocol.Command.OTA_CANCEL, ack())
+        assertEquals(OtaControlUpload.State.CANCELED, upload.state)
+        val count = sent.size
+        // Duplicate or delayed transport delivery cannot change a terminal result.
+        upload.response(DeviceControlProtocol.Command.OTA_BEGIN, ack())
+        assertEquals(OtaControlUpload.State.CANCELED, upload.state)
+        assertEquals(count, sent.size)
+        assertEquals(0, upload.totalBytes)
+    }
+
 }

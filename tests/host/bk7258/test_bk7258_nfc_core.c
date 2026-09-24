@@ -192,8 +192,38 @@ static void test_hce_dispatch(void)
   assert(response.present == 0 && fixture.close_calls == 3);
 }
 
+static void test_failed_sample_does_not_reuse_previous_result(void)
+{
+  struct fixture_s fixture = {0};
+  struct bknfc_rpc_request_s request = make_request();
+  struct bknfc_rpc_response_s response;
+
+  fixture.read_result = 1;
+  assert(bknfc_rpc_handle_request(&request, &response, &g_ops,
+                                    &fixture) == 0);
+  request.session++;
+  request.sequence++;
+  fixture.read_result = -EIO;
+  assert(bknfc_rpc_handle_request(&request, &response, &g_ops,
+                                    &fixture) == -EIO);
+  assert(response.session == request.session &&
+         response.sequence == request.sequence);
+  assert(response.present == 0);
+  assert(bknfc_rpc_response_valid(&response));
+  assert(fixture.open_calls == 2 && fixture.close_calls == 2);
+
+  /* A malformed query must not open hardware or sample a sensor. */
+
+  request.sequence = 0;
+  assert(bknfc_rpc_handle_request(&request, &response, &g_ops,
+                                    &fixture) < 0);
+  assert(fixture.open_calls == 2 && fixture.read_calls == 2 &&
+         fixture.close_calls == 2);
+}
+
 int main(void)
 {
+  test_failed_sample_does_not_reuse_previous_result();
   test_hce_dispatch();
   test_result(1, 1);
   test_result(0, 1);
