@@ -21,6 +21,17 @@
 /* Inject only the external durability syscall, never the storage worker. */
 static atomic_int sync_fault;
 static atomic_int sync_failures;
+int __real_rename(const char *from, const char *to);
+int __wrap_rename(const char *from, const char *to)
+{
+  if (atomic_load(&sync_fault) == 3)
+    {
+      atomic_fetch_add(&sync_failures, 1);
+      errno = EIO;
+      return -1;
+    }
+  return __real_rename(from, to);
+}
 int __real_fsync(int fd);
 int __wrap_fsync(int fd)
 {
@@ -131,6 +142,28 @@ int main(int argc, char **argv)
     .cloud_size = n, .control_key = owner, .deferred = true};
   assert(bkprov_settings_encode(&original, old, sizeof(old), &size) == 0);
   assert(bkprov_storage_start(argv[2]) == 0);
+  if (!strncmp(argv[1], "restart-", 8))
+    {
+      bool newer = !strcmp(argv[1], "restart-new");
+      assert(newer || !strcmp(argv[1], "restart-old"));
+      assert(wait_loaded(saved, &size, &revision) == 0);
+      assert(revision == (newer ? 2u : 1u));
+      struct bkprov_settings_s recovered;
+      struct bkcloud_config_s retained;
+      assert(bkprov_settings_decode(&recovered, saved, size) == 0);
+      assert(!strcmp(recovered.ssid, newer ? "network-B" : "network-A"));
+      assert(!memcmp(recovered.control_key, owner, 32));
+      assert(recovered.ca_size == cert_size && !memcmp(recovered.ca, cert, cert_size));
+      assert(bkcloud_config_decode(&retained, recovered.cloud, recovered.cloud_size) == 0);
+      request(&retained, 0, false);
+      struct bkcontrol_status_s status = {0};
+      assert(!bkprov_config_busy());
+      assert(bkprov_config_control(BKCONTROL_CONFIG_READ, 0, NULL, 0, &status) == 0);
+      assert(status.config_chunk[7] == 2); /* Public stored state. */
+      assert(bkprov_storage_stop() == 0);
+      puts("CONTRACT_PASS");
+      return 0;
+    }
   size_t ignored;
   assert(wait_loaded(saved, &ignored, &revision) == -ENOENT);
   assert(wait_commit(0, tx, old, size) == 0);
@@ -169,11 +202,12 @@ int main(int argc, char **argv)
         }
     }
   struct bkcontrol_status_s status = {0};
-  bool sync_case = strstr(argv[1], "sync-") != NULL;
+  bool rename_failure = !strcmp(argv[1], "rename-unknown");
+  bool sync_case = strstr(argv[1], "sync-") != NULL || rename_failure;
   if (sync_case)
     {
-      bool uncertain = !strcmp(argv[1], "directory-sync-unknown");
-      atomic_store(&sync_fault, uncertain ? 2 : 1);
+      bool uncertain = !strcmp(argv[1], "directory-sync-unknown") || rename_failure;
+      atomic_store(&sync_fault, rename_failure ? 3 : uncertain ? 2 : 1);
       assert(bkprov_config_control(BKCONTROL_CONFIG_APPLY, 0, patch, patch_size, &status) == 0);
       /* The real worker publishes a receipt; poll its public completion. */
       int outcome = -EAGAIN;

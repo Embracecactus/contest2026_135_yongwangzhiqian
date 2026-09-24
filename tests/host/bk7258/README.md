@@ -409,3 +409,18 @@ out/shaniu-s9/contracts/ 及失败说明；有效报告为 acceptance/s9-2026092
 LittleFS 的持久化契约分开，不由主机注入宣称掉电通过。当前设备只读基线见
 s10-evidence-20260924.json：Mi10 已在线，App仍为42/0.7.12；COM9经端口API及PnP
 可见，但尚未打开/确认板身份。未安装App或刷写。
+
+### S11 未知发布后的新进程恢复（2026-09-24）
+
+遵守 storage.h 的既有恢复边界：同一次启动的 refresh/stop 不抹掉未知，
+仅新进程重新加载。新增 STORE-02.restart-before-publish / restart-after-publish：
+真实配置/存储进程分别在 rename 前、目录 fsync 处注入外部失败，退出后另起
+全新进程，读取同一临时目录。前者读旧 revision1/network-A，后者读新
+revision2/network-B，均保持 owner/CA/测试 Key，并能通过 SCS1 查询为已存储。
+没有通过写入或私有标志构造恢复态；接收端核验真实 HTTP writer 的测试凭据。
+
+102 PASS（原63 + 累计新增39），原两变异及恢复通过，门禁12 PASS。生产、依赖
+未改；报告 acceptance/s11-20260924.json，日志 out/shaniu-s11/。两个用例基线
+即绿，不制造产品 Red。测试中的进程终止不清宿主机页缓存，不是掉电模拟，
+不证明目标 LittleFS/DMA/真实重启后的持久性。S10提到的恢复缺口已补主机
+新进程证据，目标板及用户可见恢复仍待验；不为消除未知擅自启用自动重启。

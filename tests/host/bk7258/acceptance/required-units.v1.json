@@ -100,7 +100,9 @@
     "DISP-01.power-pixels",
     "STORE-02.file-sync-failure",
     "STORE-02.file-sync-retry",
-    "STORE-02.directory-sync-unknown"
+    "STORE-02.directory-sync-unknown",
+    "STORE-02.restart-before-publish",
+    "STORE-02.restart-after-publish"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -204,6 +206,8 @@
     "DISP-01.power-pixels",
     "STORE-02.file-sync-failure",
     "STORE-02.file-sync-retry",
-    "STORE-02.directory-sync-unknown"
+    "STORE-02.directory-sync-unknown",
+    "STORE-02.restart-before-publish",
+    "STORE-02.restart-after-publish"
   ]
 }

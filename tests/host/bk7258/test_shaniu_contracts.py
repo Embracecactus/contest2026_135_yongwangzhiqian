@@ -168,7 +168,7 @@ def config_build(temp, config_source):
     snippet = (
         "from pathlib import Path; from test_bk7258_cloud_http import build_http_fixture; "
         "import sys; build_http_fixture(Path(sys.argv[1]), Path(sys.argv[2]), "
-        "[Path(p) for p in sys.argv[3:]], ['-Wl,--wrap=fsync'])"
+        "[Path(p) for p in sys.argv[3:]], ['-Wl,--wrap=fsync', '-Wl,--wrap=rename'])"
     )
     return [
         sys.executable,
@@ -607,6 +607,23 @@ def main():
                     config_temp / "test",
                     variant,
                     temp / ("private-" + variant),
+                    cert,
+                    GOLDEN,
+                ],
+                ready and cert_ready,
+            )
+        for phase in ("before-publish", "after-publish"):
+            add(
+                suite,
+                "STORE-02.restart-" + phase,
+                "STORE-02",
+                "L2",
+                [
+                    sys.executable,
+                    HERE / "test_shaniu_config_restart.py",
+                    config_temp / "test",
+                    phase,
+                    temp / ("restart-" + phase),
                     cert,
                     GOLDEN,
                 ],
