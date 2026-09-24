@@ -71,7 +71,9 @@
     "ota.OtaControlUploadTest.localCloseIgnoresLateAckWithoutClaimingRemoteCancellation",
     "MSC-01.acquiring",
     "MSC-01.releasing",
-    "MSC-01.retry"
+    "MSC-01.retry",
+    "LIFE-02.capture-close-failure",
+    "LIFE-02.capture-route-failure"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -146,6 +148,8 @@
     "ota.OtaControlUploadTest.localCloseIgnoresLateAckWithoutClaimingRemoteCancellation",
     "MSC-01.acquiring",
     "MSC-01.releasing",
-    "MSC-01.retry"
+    "MSC-01.retry",
+    "LIFE-02.capture-close-failure",
+    "LIFE-02.capture-route-failure"
   ]
 }

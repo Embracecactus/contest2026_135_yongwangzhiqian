@@ -33,6 +33,8 @@ static atomic_int format_queued;
 static int start_mode;
 static bool require_warm_route;
 static bool warm_prepared;
+static int close_error;
+static int route_error;
 
 int media_recorder_set_event_callback(void *handle, void *cookie,
                                       media_event_callback callback)
@@ -110,6 +112,7 @@ int media_recorder_reset(void *handle)
 int media_recorder_close(void *handle)
 {
   assert(handle == &peer_handle);
+  if (close_error) return close_error;
   if (start_thread_valid)
     {
       assert(pthread_join(start_thread, NULL) == 0);
@@ -128,7 +131,12 @@ static int capture_route(int active)
       assert(atomic_load(&format_queued) && start_mode == 0);
       route_on++;
     }
-  else { route_off++; warm_prepared = false; }
+  else
+    {
+      if (route_error) return route_error;
+      route_off++;
+      warm_prepared = false;
+    }
   return 0;
 }
 
@@ -447,9 +455,46 @@ static void test_start_failure_keeps_hardware_off(void)
   assert(audio_capture_close(cap) == 0);
 }
 
-int main(void)
+static void test_failed_release_keeps_owner(bool fail_route)
+{
+  audio_capture_t *cap = audio_capture_open_local(NULL, 16000, 1, 16);
+  assert(cap && audio_capture_start(cap) == 0);
+  assert(audio_capture_abort(cap) == 0);
+  if (fail_route) route_error = -EIO;
+  else close_error = -EIO;
+  /* Caller-selected retry budget, not a product shutdown latency target. */
+  assert(audio_capture_cleanup(1) == -EIO);
+  assert(audio_capture_open_local(NULL, 16000, 1, 16) == NULL);
+  assert(opens == 1 && closes == (fail_route ? 1u : 0u));
+  assert(route_on == 1 && route_off == 0);
+  int16_t pcm[320];
+  uint64_t sample = 0;
+  assert(audio_capture_read_local(cap, pcm, sizeof(pcm), &sample) == -ECANCELED);
+  close_error = 0;
+  route_error = 0;
+  assert(audio_capture_cleanup(100) == 0);
+  assert(closes == 1 && route_off == 1);
+  assert(audio_capture_cleanup(100) == 0);
+  assert(closes == 1 && route_off == 1);
+  cap = audio_capture_open_local(NULL, 16000, 1, 16);
+  assert(cap && audio_capture_start(cap) == 0);
+  peer_samples(0, 320);
+  local_samples(cap, 0, 320);
+  assert(audio_capture_close(cap) == 0);
+  assert(opens == 2 && closes == 2 && route_on == 2 && route_off == 2);
+}
+
+int main(int argc, char **argv)
 {
   assert(audio_capture_set_route(capture_route) == 0);
+  if (argc == 2)
+    {
+      assert(!strcmp(argv[1], "close-failure") || !strcmp(argv[1], "route-failure"));
+      test_failed_release_keeps_owner(!strcmp(argv[1], "route-failure"));
+      puts("CONTRACT_PASS");
+      return 0;
+    }
+  assert(argc == 1);
   test_single_open_handoff_and_cancel();
   test_overload_and_next_turn();
   test_bounded_pcm_stats_and_reset();

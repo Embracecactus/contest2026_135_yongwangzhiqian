@@ -259,3 +259,23 @@ MSC-01.retry 原本通过。修复为原子保留转换占位，租约取得后�
 报告 acceptance/s2-20260924.json；原始日志 out/shaniu-s2/。
 这是外部调用边界的确定性交错，非真实线程调度、文件系统句柄/DMA 或实板证明；
 未宣称整个 MSC-01 或退出/卷架构完成，未改变硬件配置或依赖版本。
+
+### S3 真实 Agent 采集退出证据（2026-09-24）
+
+新增 LIFE-02.capture-close-failure / capture-route-failure，直接编译固定 Agent
+的 voice/audio_capture.c，复用 socket Media 对端。注入 Media close 或路由释放
+失败后，cleanup 必须返回错误、新 open 必须拒绝、不得提前释放路由；恢复后
+cleanup 仅完成一次，新的采集可取得独立期望 PCM。这两项基线即绿，未修改
+生产代码或 Agent manifest。旧 Dolphin 独立 recorder 不充当傻妞生产路径证据。
+1ms 为测试调用传入的重试预算，不是冻结整机关机退出期限。
+
+完整选择集 73 PASS = 原 63 + 累计新增 10；原 2 项变异/恢复继续通过。
+另用 `python3 tests/host/bk7258/test_shaniu_capture_release.py` 在临时目录分别
+忽略真实 close / route-release 错误，两个可编译变异均在指定 cleanup 断言被
+检出，恢复后两次通过；这 4 次不加入 73 的分母。既有 capture 套件独立复跑通过。
+新增脚本与运行器使用 black 24.10.0 格式检查，git diff --check 通过。
+
+报告 acceptance/s3-20260924.json 记录真实生产源码/头文件及夹具哈希；原始日志
+out/shaniu-s3/。这些证据不覆盖真实 Media dispatcher、DMA/IRQ、整机电源协调器
+或实板 LIFE-02；不能声称该父需求已完成。下一切片须把产品电源协调器的
+部分退出/恢复失败接入生产路径测试，不能用采集模块局部通过替代。

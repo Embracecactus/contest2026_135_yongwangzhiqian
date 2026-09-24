@@ -23,7 +23,12 @@ import xml.etree.ElementTree as ET
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
-OUT = Path(os.environ.get("SHANIU_CONTRACT_OUT", str(ROOT / "out" / ("shaniu-contract-" + time.strftime("%Y%m%d-%H%M%S")))) )
+OUT = Path(
+    os.environ.get(
+        "SHANIU_CONTRACT_OUT",
+        str(ROOT / "out" / ("shaniu-contract-" + time.strftime("%Y%m%d-%H%M%S"))),
+    )
+)
 BASE = "272b3b2f366cf9ac9ae510757ac4288f0c68d3a0"
 GOLDEN = ROOT / "android/shaniu-companion/app/src/test/resources/shaniu/scp1-wifi.hex"
 RESULTS = []
@@ -41,10 +46,12 @@ def collection_errors(results, required):
     errors += ["missing: " + item for item in required if counts[item] == 0]
     errors += ["duplicate: " + item for item, n in counts.items() if n > 1]
     errors += ["unexpected: " + item for item in counts if item not in required]
-    errors += ["not PASS: " + r["id"] + ": " + r["status"]
-               for r in results if r["status"] != "PASS"]
+    errors += [
+        "not PASS: " + r["id"] + ": " + r["status"]
+        for r in results
+        if r["status"] != "PASS"
+    ]
     return errors
-
 
 
 def digest(path):
@@ -292,15 +299,26 @@ def run_jvm():
             if int(document.get("tests", len(nodes))) != len(nodes):
                 raise ValueError("inconsistent test count")
             for node in nodes:
-                if not node.get("name") or node.get("classname") != "com.shaniu.companion." + name:
+                if (
+                    not node.get("name")
+                    or node.get("classname") != "com.shaniu.companion." + name
+                ):
                     raise ValueError("missing method or wrong class identity")
                 duration = float(node.get("time", 0))
                 if not 0 <= duration < float("inf"):
                     raise ValueError("invalid duration")
         except (ET.ParseError, ValueError, OSError) as error:
-            RESULTS.append(dict(id=name, parent="OTA-01" if name.startswith("ota") else "CFG-03",
-                                layer="L2", status="SETUP_ERROR", seconds=0,
-                                evidence=xml.name, reason=str(error)))
+            RESULTS.append(
+                dict(
+                    id=name,
+                    parent="OTA-01" if name.startswith("ota") else "CFG-03",
+                    layer="L2",
+                    status="SETUP_ERROR",
+                    seconds=0,
+                    evidence=xml.name,
+                    reason=str(error),
+                )
+            )
             continue
         for node in nodes:
             failure = node.find("failure")
@@ -360,7 +378,11 @@ def run_jvm():
             evidence="jvm.log",
         )
     )
-    selected = [item for item in REQUIRED if any(item.startswith(name + ".") for name in classes)]
+    selected = [
+        item
+        for item in REQUIRED
+        if any(item.startswith(name + ".") for name in classes)
+    ]
     return code or (1 if collection_errors(RESULTS[first_result:], selected) else 0)
 
 
@@ -374,6 +396,7 @@ def main():
         "test_shaniu_key_contract",
         "test_shaniu_volume_contract",
         "test_shaniu_volume_transition",
+        "test_bk7258_agent_capture",
         "test_agent_tts_queue",
         "test_bk7258_product_keys",
         "test_bk7258_usbmode_lease",
@@ -392,7 +415,12 @@ def main():
         "combination",
         "volume",
     ):
-        parent = "K2-03" if variant in ("epoch", "rollback", "release-rollback", "combination", "volume") else "K2-01"
+        parent = (
+            "K2-03"
+            if variant
+            in ("epoch", "rollback", "release-rollback", "combination", "volume")
+            else "K2-01"
+        )
         add(
             suite,
             parent + "." + variant,
@@ -401,10 +429,24 @@ def main():
             [HERE / "build/test_shaniu_key_contract", variant],
             binaries["test_shaniu_key_contract"],
         )
+    for variant in ("close-failure", "route-failure"):
+        add(
+            suite,
+            "LIFE-02.capture-" + variant,
+            "LIFE-02",
+            "L2",
+            [HERE / "build/test_bk7258_agent_capture", variant],
+            binaries["test_bk7258_agent_capture"],
+        )
     for variant in ("acquiring", "releasing", "retry"):
-        add(suite, "MSC-01." + variant, "MSC-01", "L1",
+        add(
+            suite,
+            "MSC-01." + variant,
+            "MSC-01",
+            "L1",
             [HERE / "build/test_shaniu_volume_transition", variant],
-            binaries["test_shaniu_volume_transition"])
+            binaries["test_shaniu_volume_transition"],
+        )
     for variant in ("unmount-failure", "local-busy", "wrong-owner", "handoff"):
         add(
             suite,
@@ -557,15 +599,31 @@ def main():
                 outstanding_layers=spec["layers"],
                 evidence_by_layer={
                     layer: dict(
-                        status=("BLOCKED_DEVICE" if layer == "L3" else
-                                "PARTIAL" if any(r["parent"] == spec["id"] and r["layer"] == layer for r in RESULTS)
-                                else "NOT_RUN"),
-                        collected=[r["id"] for r in RESULTS if r["parent"] == spec["id"] and r["layer"] == layer],
+                        status=(
+                            "BLOCKED_DEVICE"
+                            if layer == "L3"
+                            else (
+                                "PARTIAL"
+                                if any(
+                                    r["parent"] == spec["id"] and r["layer"] == layer
+                                    for r in RESULTS
+                                )
+                                else "NOT_RUN"
+                            )
+                        ),
+                        collected=[
+                            r["id"]
+                            for r in RESULTS
+                            if r["parent"] == spec["id"] and r["layer"] == layer
+                        ],
                         gap="Composite coverage remains outstanding; see binding and contract",
-                    ) for layer in spec["layers"]
+                    )
+                    for layer in spec["layers"]
                 },
-                interface=dict(status="PARTIAL_BINDING" if executed else "REQUIRES_BINDING_REVIEW",
-                               gap=spec["binding"]),
+                interface=dict(
+                    status="PARTIAL_BINDING" if executed else "REQUIRES_BINDING_REVIEW",
+                    gap=spec["binding"],
+                ),
                 binding=spec["binding"],
                 remaining="See contracts.md binding and per-case scope; composite is not complete",
             )
@@ -620,15 +678,36 @@ def main():
             ).stderr.splitlines()[0],
         ),
         inputs=inputs,
+        capture_inputs={
+            str(p.relative_to(ROOT.parent)): digest(p)
+            for p in (
+                ROOT.parent / "packages/ai_agent/src/voice/audio_capture.c",
+                ROOT.parent / "packages/ai_agent/include/voice/audio_capture.h",
+                HERE / "test_bk7258_agent_media_recorder.c",
+            )
+        },
         public_ca_sha256=cert_hash,
         counts=counts,
         execution_groups={
-            group: dict(collected=len(items), counts={status: sum(r["status"] == status for r in items)
-                                                     for status in counts})
+            group: dict(
+                collected=len(items),
+                counts={
+                    status: sum(r["status"] == status for r in items)
+                    for status in counts
+                },
+            )
             for group, items in {
-                "original_63_including_restores": [r for r in RESULTS if r["id"] in SELECTION.get("baseline_ids", REQUIRED)],
-                "added": [r for r in RESULTS if r["id"] in SELECTION.get("added_ids", [])],
-                "restores_also_in_original_63": [r for r in RESULTS if r["id"].endswith(".restored")],
+                "original_63_including_restores": [
+                    r
+                    for r in RESULTS
+                    if r["id"] in SELECTION.get("baseline_ids", REQUIRED)
+                ],
+                "added": [
+                    r for r in RESULTS if r["id"] in SELECTION.get("added_ids", [])
+                ],
+                "restores_also_in_original_63": [
+                    r for r in RESULTS if r["id"].endswith(".restored")
+                ],
             }.items()
         },
         collection_errors=collection_errors(RESULTS, REQUIRED),
