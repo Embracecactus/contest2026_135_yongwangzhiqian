@@ -219,6 +219,7 @@ class MainActivity : Activity() {
     private var wakeSensitivityError: String? = null
     private var wakeSensitivityCanceling = false
     private enum class ConfigFlow { SETTINGS, NONE, CAPABILITIES, CLOUD, WAKE, RESPONSE, SENSITIVITY, EYES }
+    private var focusEditor: com.shaniu.companion.provision.FocusTimerController? = null
     private var settingsEditor: com.shaniu.companion.provision.DeviceSettingsEditor? = null
     private var factoryReset: com.shaniu.companion.provision.FactoryResetController? = null
     private var configFlow = ConfigFlow.NONE
@@ -753,7 +754,7 @@ class MainActivity : Activity() {
         foreground && directSession.requestPayload(command, payload)
 
     private fun configAvailable(): Boolean = foreground && directSession.current().authenticated &&
-        directSnapshot?.publicConfigSupported == true && configFlow == ConfigFlow.NONE && !directPending &&
+        directSnapshot?.publicConfigSupported == true && configFlow == ConfigFlow.NONE && focusEditor == null && !directPending &&
         otaUpload == null && !otaVerificationPending && otaStatus?.state !in 1L..2L
 
     private fun requestConfigCapabilities() {
@@ -2183,6 +2184,8 @@ class MainActivity : Activity() {
         }
         refreshSelection()
         content.addView(expressions, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
+        page.sectionTitle("专注与陪伴")
+        page.settingsRow("专注计时", "由设备计时，手机可随时回读", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "spark") { showFocusTimer() }
         page.sectionTitle("声音与唤醒")
         val currentWake = wakeStatus.takeIf { wakeStatusGeneration == directSession.current().generation && directSession.current().authenticated }
         page.settingsRow(currentWake?.active?.let(::wakeModelSummary) ?: "当前唤醒词", if (currentWake == null) "连接后回读设备当前模型" else "设备当前唤醒模型", iconName = "mic") { showWakeSheet() }
@@ -2294,6 +2297,47 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun showFocusTimer() {
+        if (!configAvailable() || settingsEditor != null || factoryReset != null) return
+        showCompanionSheet("专注计时", "把这一段时间，留给眼前的事。", onClosed = {
+            focusEditor?.close(); focusEditor = null
+        }) { body, _ ->
+            val page = CompanionPage(this, body)
+            val status = TextView(this).apply { textSize = 16f; setTextColor(design.accent) }
+            body.addView(status)
+            val minutes = EditText(this).apply {
+                hint = "专注分钟数"; setText("25")
+                inputType = android.text.InputType.TYPE_CLASS_NUMBER
+                contentDescription = "专注分钟数"; setTextColor(design.ink)
+            }
+            body.addView(minutes, LinearLayout.LayoutParams(-1, -2))
+            val controls = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            body.addView(controls)
+            page.notice("设备执行计时。关闭此页不会取消已开始的计时；重启恢复和设备完成提示尚未提供。")
+            focusEditor = com.shaniu.companion.provision.FocusTimerController(directSession, changed = { state ->
+                val value = state.snapshot
+                val label = when (value?.state) {
+                    0 -> "尚未开始"; 1 -> "专注中"; 2 -> "已暂停"; 3 -> "计时已结束"; 4 -> "已取消"; else -> "尚未确认"
+                }
+                status.text = label + (value?.let { " · 上次回读剩余 ${it.remainingMs / 1000} 秒" } ?: "") + "\n" + state.message
+                controls.removeAllViews()
+                val actions = CompanionPage(this, controls)
+                val ready = !state.busy && directSession.current().authenticated
+                actions.primaryButton("读取设备计时", ready) { focusEditor?.refresh() }
+                actions.primaryButton("开始专注", ready && value?.state in listOf(0, 3, 4)) {
+                    val count = minutes.text.toString().toLongOrNull()
+                    if (count == null || count <= 0 || count > Long.MAX_VALUE / 60000) minutes.error = "请输入有效分钟数"
+                    else focusEditor?.act(1, count * 60000)
+                }
+                actions.primaryButton(if (value?.state == 2) "继续" else "暂停", ready && value?.state in 1..2) {
+                    focusEditor?.act(if (value?.state == 2) 3 else 2)
+                }
+                actions.primaryButton("取消计时", ready && value?.state in 1..2) { focusEditor?.act(4) }
+            })
+            focusEditor?.refresh()
+        }
+    }
+
     private fun dismissCompanionSheet() {
         val previous = companionSheet
         companionSheet = null; refreshCompanionSheet = null
@@ -2301,6 +2345,7 @@ class MainActivity : Activity() {
     }
 
     private fun showCompanionSheet(title: String, subtitle: String, done: Boolean = true,
+                                   onClosed: () -> Unit = {},
                                    populate: (LinearLayout, android.app.Dialog) -> Unit) {
         dismissCompanionSheet()
         val dialog = android.app.Dialog(this)
@@ -2337,6 +2382,7 @@ class MainActivity : Activity() {
             setDimAmount(0.32f)
         }
         dialog.setOnDismissListener {
+            onClosed()
             if (companionSheet === dialog) { companionSheet = null; refreshCompanionSheet = null }
         }
         dialog.show()

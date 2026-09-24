@@ -112,7 +112,12 @@
     "TIMER-01.clock",
     "TIMER-01.replay",
     "TIMER-01.invalid",
-    "TIMER-01.wire"
+    "TIMER-01.wire",
+    "provision.FocusTimerControllerTest.acceptedStartWaitsForDeviceReadback",
+    "provision.FocusTimerControllerTest.changedRevisionCannotProduceMixedSnapshot",
+    "provision.FocusTimerControllerTest.disconnectAndLateAckNeverReplayMutation",
+    "provision.FocusTimerControllerTest.unsupportedDeviceDoesNotStartLocalTimer",
+    "provision.FocusTimerControllerTest.rejectedBeginCannotCancelAnotherEditorsTransaction"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -228,6 +233,11 @@
     "TIMER-01.clock",
     "TIMER-01.replay",
     "TIMER-01.invalid",
-    "TIMER-01.wire"
+    "TIMER-01.wire",
+    "provision.FocusTimerControllerTest.acceptedStartWaitsForDeviceReadback",
+    "provision.FocusTimerControllerTest.changedRevisionCannotProduceMixedSnapshot",
+    "provision.FocusTimerControllerTest.disconnectAndLateAckNeverReplayMutation",
+    "provision.FocusTimerControllerTest.unsupportedDeviceDoesNotStartLocalTimer",
+    "provision.FocusTimerControllerTest.rejectedBeginCannotCancelAnotherEditorsTransaction"
   ]
 }

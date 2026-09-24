@@ -261,6 +261,7 @@ def run_jvm():
     classes = [
         "provision.DeviceControlSessionTest",
         "provision.ProvisionSettingsTest",
+        "provision.FocusTimerControllerTest",
         "ota.OtaControlUploadTest",
         "ota.OtaSessionContractTest",
     ]
@@ -349,19 +350,23 @@ def run_jvm():
                 "identityReleaseRejectsLateConfigResultAndDoesNotReplayIt": "UI-03",
             }
             parent = (
-                "OTA-01"
-                if name.startswith("ota")
+                "TIMER-01"
+                if "FocusTimer" in name
                 else (
-                    "CFG-03"
-                    if "Settings" in name
-                    else session_parents.get(node.attrib["name"], "NET-02")
+                    "OTA-01"
+                    if name.startswith("ota")
+                    else (
+                        "CFG-03"
+                        if "Settings" in name
+                        else session_parents.get(node.attrib["name"], "NET-02")
+                    )
                 )
             )
             RESULTS.append(
                 dict(
                     id=name + "." + node.attrib["name"],
                     parent=parent,
-                    layer="L2" if "Session" in name else "L1",
+                    layer="L2" if "Session" in name or "FocusTimer" in name else "L1",
                     status=status,
                     seconds=float(node.get("time", 0)),
                     evidence=xml.name,
