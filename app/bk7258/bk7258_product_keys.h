@@ -74,8 +74,12 @@ static inline uint32_t bkvoice_product_keys_step(
 
   if (mask == 0)
     {
-      if (keys->power_request_latched &&
-          keys->mask == BKVOICE_PRODUCT_KEY_POWER &&
+      /* 可信同会话的消抖边沿可直接判定时长，不依赖 held 心跳。
+       * 先检查时钟方向，避免回退或无符号下溢产生关机意图。
+       */
+      if (keys->mask == BKVOICE_PRODUCT_KEY_POWER &&
+          now_ms >= keys->power_since_ms &&
+          now_ms - keys->power_since_ms >= 3000u &&
           power_requested != NULL)
         {
           *power_requested = true;

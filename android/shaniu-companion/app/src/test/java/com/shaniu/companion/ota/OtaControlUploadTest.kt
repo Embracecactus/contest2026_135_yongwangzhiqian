@@ -142,7 +142,8 @@ class OtaControlUploadTest {
         }
         upload.start()
         upload.close()
-        assertEquals(OtaControlUpload.State.CANCELED, upload.state)
+        // Local disposal is not a remote cancellation acknowledgement.
+        assertFalse(upload.state == OtaControlUpload.State.CANCELED)
         assertTrue(sent.size == 1)
         assertNull(upload.error)
     }
@@ -163,6 +164,57 @@ class OtaControlUploadTest {
         assertEquals(OtaControlUpload.State.CANCELED, upload.state)
         assertEquals(count, sent.size)
         assertEquals(0, upload.totalBytes)
+    }
+
+
+    @Test fun cancellationRequestWaitsForRemoteConfirmation() {
+        val sent = mutableListOf<DeviceControlProtocol.Command>()
+        val upload = OtaControlUpload(record(44)) { command, _ -> sent += command; true }
+        upload.start()
+        upload.cancel()
+        assertEquals(OtaControlUpload.State.WAITING, upload.state)
+        assertEquals(1, sent.size)
+        upload.response(DeviceControlProtocol.Command.OTA_BEGIN, ack())
+        assertEquals(OtaControlUpload.State.WAITING, upload.state)
+        assertEquals(DeviceControlProtocol.Command.OTA_CANCEL, sent.last())
+        upload.response(DeviceControlProtocol.Command.OTA_CANCEL, ack(-114))
+        assertEquals(OtaControlUpload.State.FAILED, upload.state)
+        assertEquals(-114, upload.error)
+        val count = sent.size
+        upload.response(DeviceControlProtocol.Command.OTA_BEGIN, ack())
+        assertEquals(-114, upload.error)
+        assertEquals(count, sent.size)
+    }
+
+    @Test fun acceptedTerminalCannotBecomeCanceledFromLateAckOrClose() {
+        val sent = mutableListOf<DeviceControlProtocol.Command>()
+        val upload = OtaControlUpload(record(44)) { command, _ -> sent += command; true }
+        upload.start()
+        upload.response(DeviceControlProtocol.Command.OTA_BEGIN, ack())
+        upload.response(DeviceControlProtocol.Command.OTA_APPEND, ack())
+        upload.response(DeviceControlProtocol.Command.OTA_APPEND, ack())
+        upload.response(DeviceControlProtocol.Command.OTA_START, ack())
+        assertEquals(OtaControlUpload.State.ACCEPTED, upload.state)
+        val count = sent.size
+        upload.cancel()
+        upload.response(DeviceControlProtocol.Command.OTA_BEGIN, ack())
+        upload.close()
+        assertEquals(OtaControlUpload.State.ACCEPTED, upload.state)
+        assertEquals(count, sent.size)
+    }
+
+    @Test fun localCloseIgnoresLateAckWithoutClaimingRemoteCancellation() {
+        val sent = mutableListOf<DeviceControlProtocol.Command>()
+        val upload = OtaControlUpload(record(44)) { command, _ -> sent += command; true }
+        upload.start()
+        upload.close()
+        val terminal = upload.state
+        assertFalse(terminal == OtaControlUpload.State.CANCELED)
+        upload.response(DeviceControlProtocol.Command.OTA_BEGIN, ack())
+        assertEquals(terminal, upload.state)
+        assertEquals(1, sent.size)
+        assertEquals(0, upload.totalBytes)
+        assertFalse(upload.start())
     }
 
 }

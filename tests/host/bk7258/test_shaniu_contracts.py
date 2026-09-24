@@ -28,7 +28,8 @@ BASE = "272b3b2f366cf9ac9ae510757ac4288f0c68d3a0"
 GOLDEN = ROOT / "android/shaniu-companion/app/src/test/resources/shaniu/scp1-wifi.hex"
 RESULTS = []
 BUILDS = []
-REQUIRED = json.loads((HERE / "acceptance/required-units.v1.json").read_text())["ids"]
+SELECTION = json.loads((HERE / "acceptance/required-units.v1.json").read_text())
+REQUIRED = SELECTION["ids"]
 
 
 def collection_errors(results, required):
@@ -386,9 +387,11 @@ def main():
         "held",
         "epoch",
         "rollback",
+        "release-rollback",
+        "combination",
         "volume",
     ):
-        parent = "K2-03" if variant in ("epoch", "rollback", "volume") else "K2-01"
+        parent = "K2-03" if variant in ("epoch", "rollback", "release-rollback", "combination", "volume") else "K2-01"
         add(
             suite,
             parent + "." + variant,
@@ -574,6 +577,7 @@ def main():
             for p in [
                 HERE / "acceptance/cases.v1.json",
                 HERE / "acceptance/data-manifest.v1.json",
+                HERE / "acceptance/required-units.v1.json",
             ]
         }
     )
@@ -613,6 +617,15 @@ def main():
         inputs=inputs,
         public_ca_sha256=cert_hash,
         counts=counts,
+        execution_groups={
+            group: dict(collected=len(items), counts={status: sum(r["status"] == status for r in items)
+                                                     for status in counts})
+            for group, items in {
+                "original_63_including_restores": [r for r in RESULTS if r["id"] in SELECTION.get("baseline_ids", REQUIRED)],
+                "added": [r for r in RESULTS if r["id"] in SELECTION.get("added_ids", [])],
+                "restores_also_in_original_63": [r for r in RESULTS if r["id"].endswith(".restored")],
+            }.items()
+        },
         collection_errors=collection_errors(RESULTS, REQUIRED),
         selected_execution_ids=REQUIRED,
         collected=RESULTS,

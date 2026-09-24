@@ -175,3 +175,19 @@ webclient/netlib/header文件无差异且另列哈希，保留未动。此自审
 另保存在 `out/shaniu-contract-v2/attempt-1/`，没有删除旧失败记录。提交SHA在交付消息及
 提交后本地 `out/shaniu-contract-v2/submission.json` 中绑定本测试输入；不把尚未产生的SHA
 写成已完成。源码/manifest/原资源未修改，未刷板、安装、恢复出厂或操作当前设备。
+
+
+## 2026-09-24 S1 合同纠错记录
+
+影响执行 ID：`ota.OtaControlUploadTest.closeCancelsWithoutSending`。
+旧规则：本地 close 后断言 CANCELED。新规则：本地 close 不得声称远端已确认取消，
+不发送请求，并释放本地记录；已确认终态保持。需求依据：用户放行第 3 条明确
+“本地 close 不等于远端已取消”。源码 close 未发取消指令、旧测试 sent.size==1
+共同证明旧期望失效。保留原 ID、e3ecd6b8 历史通过和 S1 修复前失败证据，
+不是删断言或接受错误终态。增加独立迟到回执/无重发/不能重启测试。
+审阅依据为本轮用户已明确的外部语义，未改动远端协议。
+
+S1 新增执行 ID：K2-03.release-rollback、K2-03.combination，及 OTA 的
+cancellationRequestWaitsForRemoteConfirmation、acceptedTerminalCannotBecomeCanceledFromLateAckOrClose、
+localCloseIgnoresLateAckWithoutClaimingRemoteCancellation。原 63 ID 全部保留。
+CLOSED 只表示本地对象释放，不是远端安装/取消结果；ACCEPTED 仍只表示 START 已受理。

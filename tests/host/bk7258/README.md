@@ -227,3 +227,21 @@ S0 业务源码不变，完整复跑仍是 63 个：59 PASS、4 FAIL_ASSERTION�
 两个隔离变异均检出，恢复复验通过；新报告在 out/shaniu-s0/contracts/results.json。
 门禁检查 XML 新鲜度、解析/身份、非零收集、必需 ID、重复、跳过、error 和非 PASS；
 Gradle 退出 0 不能覆盖上述失败。此提交没有修复业务或执行设备操作。
+
+### S1 K2 / OTA 终态（2026-09-24）
+
+完整选择集为原 63 ID + 5 新 ID，共 68。先跑新增边界及纠正后的 close 期望，
+生产未改时得到 58 PASS / 10 FAIL_ASSERTION / 0 SETUP_ERROR；修复后 68 PASS。
+原 63 中四条原 Red 转绿，原 ID 全部重新收集；其中 closeCancelsWithoutSending
+的错误期望纠正详见 contracts.md，历史报告不变。两个恢复复验属于原 63，
+不是额外重复计算；两项变异独立记录为 DETECTED。门禁自测另计 12 PASS。
+
+K2 在可信同会话消抖释放边沿核验实际 3000ms 时长，不要求 held 消息；
+组合键、会话更换、时钟回退和重复释放有回归。OTA 已终结对象忽略迟到回执，
+本地关闭用 CLOSED 区分；取消未确认仍 WAITING，远端拒绝保留其错误。
+未更改 SDC1 协议：另跑 DeviceControlProtocolTest 的 14 个认证/序号/非法帧等
+回归均通过。`:app:assembleDebug --offline` 成功，未安装 APK。
+报告：acceptance/s1-before-20260924.json、s1-after-20260924.json；
+原始日志分别在 out/shaniu-s1/before、after、protocol.log、assemble-debug.log。
+这只证明主机生产模块/既有协议路径及 Android 构建，不证明板端关机、深睡、
+HardFault 根因、远端安装完成或全部 56 项产品需求通过。

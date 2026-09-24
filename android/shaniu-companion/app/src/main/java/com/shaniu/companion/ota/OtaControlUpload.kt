@@ -16,7 +16,9 @@ internal class OtaControlUpload(
         WAITING,
         ACCEPTED,
         FAILED,
-        CANCELED
+        CANCELED,
+        // 本地释放不是远端取消确认；远端结果仍需由 Session/状态查询取得。
+        CLOSED
     }
 
     private var ownedRecord = record.copyOf().also {
@@ -33,9 +35,9 @@ internal class OtaControlUpload(
     var error: Int? = null
         private set
     /** Aggregate source-record progress only; no record bytes or endpoint data. */
-    val totalBytes: Int get() = if (state in setOf(State.FAILED, State.CANCELED)) 0 else ownedRecord.size
-    val uploadedBytes: Int get() = if (state in setOf(State.FAILED, State.CANCELED)) 0 else uploaded
-    val appendCount: Int get() = if (state in setOf(State.FAILED, State.CANCELED)) 0 else appendedChunks
+    val totalBytes: Int get() = if (state in setOf(State.FAILED, State.CANCELED, State.CLOSED)) 0 else ownedRecord.size
+    val uploadedBytes: Int get() = if (state in setOf(State.FAILED, State.CANCELED, State.CLOSED)) 0 else uploaded
+    val appendCount: Int get() = if (state in setOf(State.FAILED, State.CANCELED, State.CLOSED)) 0 else appendedChunks
 
     fun start(): Boolean {
         if (state != State.READY) return false
@@ -50,6 +52,8 @@ internal class OtaControlUpload(
 
     fun response(command: DeviceControlProtocol.Command,
                  snapshot: DeviceControlProtocol.Snapshot) {
+        // 已终结的对象不再接受旧回执，也不能重发或覆盖原始结果。
+        if (state in setOf(State.ACCEPTED, State.FAILED, State.CANCELED, State.CLOSED)) return
         if (state != State.WAITING || command != pending) {
             fail(ERR_EPROTO)
             return
@@ -83,8 +87,10 @@ internal class OtaControlUpload(
         pending = null
         pendingCount = 0
         cancelRequested = false
-        state = State.CANCELED
-        error = null
+        if (state == State.READY || state == State.WAITING) {
+            state = State.CLOSED
+            error = null
+        }
         wipeRecord()
     }
 

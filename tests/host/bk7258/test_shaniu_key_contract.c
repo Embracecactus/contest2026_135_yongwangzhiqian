@@ -22,7 +22,7 @@ int main(int argc, char **argv)
 {
   assert(argc == 2);
   edge(1, 0, 1, false);
-  if (!strncmp(argv[1], "release-", 8))
+  if (!strncmp(argv[1], "release-", 8) && strcmp(argv[1], "release-rollback"))
     {
       unsigned long duration = strtoul(argv[1] + 8, NULL, 10);
       assert(duration >= 2999 && duration <= 3001);
@@ -57,6 +57,25 @@ int main(int argc, char **argv)
       edge(1, BKVOICE_PRODUCT_KEY_POWER, 4000, false);
       edge(1, 0, 4001, false);
       assert(intents == 0);
+    }
+  else if (!strcmp(argv[1], "release-rollback"))
+    {
+      edge(1, BKVOICE_PRODUCT_KEY_POWER, 5000, false);
+      edge(1, BKVOICE_PRODUCT_KEY_POWER, 8000, false);
+      edge(1, 0, 4000, false);
+      edge(1, 0, 9000, false);
+      assert(intents == 0);
+    }
+  else if (!strcmp(argv[1], "combination"))
+    {
+      edge(1, BKVOICE_PRODUCT_KEY_POWER, 100, false);
+      edge(1, BKVOICE_PRODUCT_KEY_POWER, 3100, false);
+      edge(1, BKVOICE_PRODUCT_KEY_POWER | BKVOICE_PRODUCT_KEY_VOLUME_UP, 3200, false);
+      edge(1, 0, 4000, false);
+      edge(1, BKVOICE_PRODUCT_KEY_POWER, 5000, false);
+      edge(1, 0, 8000, true);
+      edge(1, 0, 8001, false);
+      assert(intents == 1);
     }
   else if (!strcmp(argv[1], "volume"))
     {

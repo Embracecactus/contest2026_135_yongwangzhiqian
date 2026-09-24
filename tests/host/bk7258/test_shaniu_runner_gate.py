@@ -16,8 +16,7 @@ import xml.etree.ElementTree as ET
 
 import test_shaniu_contracts as runner
 
-BASELINE = json.loads((runner.HERE / "acceptance/baseline-20260924.json").read_text())
-JVM_IDS = [r["id"] for r in BASELINE["collected"] if r["id"].startswith(("ota.", "provision."))]
+JVM_IDS = [ident for ident in runner.REQUIRED if ident.startswith(("ota.", "provision."))]
 
 
 class JunitGateTest(unittest.TestCase):
