@@ -440,6 +440,8 @@ def main():
         "storage-stops-trigger",
         "trigger-failure",
         "unpublished-trigger",
+        "admission-drains",
+        "failed-drains",
     ):
         add(
             suite,

@@ -27,6 +27,8 @@ static unsigned int cp_calls, storage_stops, reopens, cancel_calls;
 static unsigned int trigger_stops;
 static int trigger_error;
 static bool trigger_closed;
+static unsigned int config_steps;
+static bool drain_owner;
 static bool leased, owner_closed, storage_closed, vision_closed, haptic_closed;
 static uint64_t now;
 static void bkvoice_keys_take(int *steps, bool *power)
@@ -53,7 +55,11 @@ static int bkprov_owner_quiesce(bool stop)
 }
 static int bkprov_network_cancel(void) { return 0; }
 static void bkprov_network_step(void) {}
-static void bkprov_config_step(void) {}
+static void bkprov_config_step(void)
+{
+  config_steps++;
+  if (drain_owner && config_steps >= 2) owner_error = 0;
+}
 static int bk7258_vision_quiesce(bool stop)
 { vision_closed = stop; if (!stop) reopens++; return 0; }
 static int bkhaptic_service_quiesce(bool stop)
@@ -89,6 +95,29 @@ static int bkvoice_volume_store_set(unsigned int volume) { (void)volume; return 
 int main(int argc, char **argv)
 {
   assert(argc == 2);
+  if (!strcmp(argv[1], "admission-drains"))
+    {
+      owner_error = -EAGAIN;
+      drain_owner = true;
+      assert(product_keys_step(0));
+      assert(cp_calls == 0 && trigger_closed);
+      assert(config_steps == 1);
+      assert(product_keys_step(100));
+      assert(product_keys_step(200));
+      assert(cp_calls == 1 && cancel_calls == 1 && reopens == 0);
+      puts("CONTRACT_PASS");
+      return 0;
+    }
+  if (!strcmp(argv[1], "failed-drains"))
+    {
+      owner_error = -EIO;
+      assert(product_keys_step(0));
+      unsigned int before = config_steps;
+      assert(product_keys_step(100));
+      assert(config_steps > before && cp_calls == 0 && reopens == 0);
+      puts("CONTRACT_PASS");
+      return 0;
+    }
   bool unpublished = !strcmp(argv[1], "unpublished-trigger");
   if (unpublished) g_trigger_started = false;
   bool trigger_fail = !strcmp(argv[1], "trigger-failure");

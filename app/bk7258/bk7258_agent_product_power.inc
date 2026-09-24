@@ -27,6 +27,21 @@ static void product_power_fail(int error)
   g_product_error = error;
 }
 
+static void product_power_drain(void)
+{
+  /* Keep already-admitted work and cancellation progressing without opening
+   * new admission. Once storage has stopped there can be no pending commit.
+   */
+  if (!g_power_storage_stopped)
+    {
+      (void)bkprov_network_cancel();
+      bkprov_network_step();
+      bkprov_config_step();
+    }
+
+  if (atomic_load(&g_voice_initialized)) (void)voice_channel_recover();
+}
+
 static int product_power_request(void)
 {
   int ret;
@@ -135,6 +150,8 @@ static bool product_keys_step(uint64_t now)
 
   if (g_shutdown_failed && !power)
     {
+      (void)bkprov_owner_quiesce(true);
+      product_power_drain();
       return true;
     }
 #else
@@ -200,15 +217,26 @@ static bool product_keys_step(uint64_t now)
             }
         }
 
-      if (atomic_load(&g_voice_initialized)) (void)voice_channel_recover();
+      product_power_drain();
       if (admission < 0 || trigger < 0)
         {
-          product_power_fail(admission < 0 ? admission : trigger);
+          int error = admission < 0 ? admission : trigger;
+          /* Quiescing is a handshake: EAGAIN/EBUSY is incomplete, not a
+           * permanent failure. A permanent participant error takes priority.
+           */
+          if (trigger < 0 && trigger != -EAGAIN && trigger != -EBUSY)
+            error = trigger;
+          if (error == -EAGAIN || error == -EBUSY)
+            {
+              if (now >= g_shutdown_deadline)
+                product_power_fail(-ETIMEDOUT);
+            }
+          else
+            {
+              product_power_fail(error);
+            }
           return true;
         }
-      (void)bkprov_network_cancel();
-      bkprov_network_step();
-      bkprov_config_step();
       ret = product_power_request();
       if (g_power_pending)
         {

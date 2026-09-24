@@ -82,7 +82,9 @@
     "LIFE-02.power-admission-stops-trigger",
     "LIFE-02.power-storage-stops-trigger",
     "LIFE-02.power-trigger-failure",
-    "LIFE-02.power-unpublished-trigger"
+    "LIFE-02.power-unpublished-trigger",
+    "LIFE-02.power-admission-drains",
+    "LIFE-02.power-failed-drains"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -168,6 +170,8 @@
     "LIFE-02.power-admission-stops-trigger",
     "LIFE-02.power-storage-stops-trigger",
     "LIFE-02.power-trigger-failure",
-    "LIFE-02.power-unpublished-trigger"
+    "LIFE-02.power-unpublished-trigger",
+    "LIFE-02.power-admission-drains",
+    "LIFE-02.power-failed-drains"
   ]
 }
