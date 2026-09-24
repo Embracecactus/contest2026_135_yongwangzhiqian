@@ -212,3 +212,18 @@ cd android/shaniu-companion
 
 本轮出口：测试代码和待接口/实板测试规格可供审阅，已保留两个真实失败。
 下一步需用户确认后再处理实现缺口与安排现场验证。
+
+### S0 实施放行后的运行器门禁（2026-09-24）
+
+历史 e3ecd6b8 和 baseline-20260924.json 保持不变。运行器默认使用新的时间戳目录；
+可用 SHANIU_CONTRACT_OUT 指定独立目录。required-units.v1.json 固定本轮必须收集的
+63 个执行 ID，不包含未来尚未接线的 56 项父规格。父规格另列 interface 和
+各层 evidence_by_layer；PARTIAL 表示仅有部分绑定，不代表该层验收完成。
+
+运行器自测：`python3 tests/host/bk7258/test_shaniu_runner_gate.py`。
+修复前 9 个测试中 1 通过、7 断言失败、1 损坏 XML 异常；修复后包括总门禁的
+12 个测试全部通过。原始证据：out/shaniu-s0/gate-before.log、gate-after.log。
+S0 业务源码不变，完整复跑仍是 63 个：59 PASS、4 FAIL_ASSERTION，退出 1。
+两个隔离变异均检出，恢复复验通过；新报告在 out/shaniu-s0/contracts/results.json。
+门禁检查 XML 新鲜度、解析/身份、非零收集、必需 ID、重复、跳过、error 和非 PASS；
+Gradle 退出 0 不能覆盖上述失败。此提交没有修复业务或执行设备操作。

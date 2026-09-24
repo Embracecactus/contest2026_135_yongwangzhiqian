@@ -7,6 +7,8 @@ collected executable case, and never manufactures a PASS for missing bindings.
 All mutable production experiments live in TemporaryDirectory, never the repo.
 """
 import hashlib
+from collections import Counter
+import os
 import json
 from pathlib import Path
 import platform
@@ -21,11 +23,27 @@ import xml.etree.ElementTree as ET
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
-OUT = ROOT / "out/shaniu-contract-v2"
+OUT = Path(os.environ.get("SHANIU_CONTRACT_OUT", str(ROOT / "out" / ("shaniu-contract-" + time.strftime("%Y%m%d-%H%M%S")))) )
 BASE = "272b3b2f366cf9ac9ae510757ac4288f0c68d3a0"
 GOLDEN = ROOT / "android/shaniu-companion/app/src/test/resources/shaniu/scp1-wifi.hex"
 RESULTS = []
 BUILDS = []
+REQUIRED = json.loads((HERE / "acceptance/required-units.v1.json").read_text())["ids"]
+
+
+def collection_errors(results, required):
+    """Validate only the selected executable contract, not future specifications."""
+    counts = Counter(r["id"] for r in results)
+    errors = []
+    if not required or len(set(required)) != len(required):
+        errors.append("empty or duplicate required execution set")
+    errors += ["missing: " + item for item in required if counts[item] == 0]
+    errors += ["duplicate: " + item for item, n in counts.items() if n > 1]
+    errors += ["unexpected: " + item for item in counts if item not in required]
+    errors += ["not PASS: " + r["id"] + ": " + r["status"]
+               for r in results if r["status"] != "PASS"]
+    return errors
+
 
 
 def digest(path):
@@ -245,6 +263,7 @@ def run_jvm():
     start = time.time()
     code, seconds = command(args, "jvm.log", cwd=app, timeout=180)
     collected = 0
+    first_result = len(RESULTS)
     for name in classes:
         xml = (
             app
@@ -264,7 +283,25 @@ def run_jvm():
             )
             continue
         shutil.copyfile(xml, OUT / xml.name)
-        for node in ET.parse(xml).getroot().findall("testcase"):
+        try:
+            document = ET.parse(xml).getroot()
+            nodes = document.findall("testcase")
+            if document.tag != "testsuite" or not nodes:
+                raise ValueError("empty or invalid test suite")
+            if int(document.get("tests", len(nodes))) != len(nodes):
+                raise ValueError("inconsistent test count")
+            for node in nodes:
+                if not node.get("name") or node.get("classname") != "com.shaniu.companion." + name:
+                    raise ValueError("missing method or wrong class identity")
+                duration = float(node.get("time", 0))
+                if not 0 <= duration < float("inf"):
+                    raise ValueError("invalid duration")
+        except (ET.ParseError, ValueError, OSError) as error:
+            RESULTS.append(dict(id=name, parent="OTA-01" if name.startswith("ota") else "CFG-03",
+                                layer="L2", status="SETUP_ERROR", seconds=0,
+                                evidence=xml.name, reason=str(error)))
+            continue
+        for node in nodes:
             failure = node.find("failure")
             status = "PASS"
             if failure is not None:
@@ -276,6 +313,8 @@ def run_jvm():
                 )
             if node.find("skipped") is not None:
                 status = "NOT_RUN"
+            if node.find("error") is not None:
+                status = "SETUP_ERROR"
             session_parents = {
                 "tabsSubscribeTwentyTimesWithoutOpeningAnotherConnection": "UI-02",
                 "writeWaitsBehindReadAndRequiresQuantizedReadback": "NET-03",
@@ -320,7 +359,8 @@ def run_jvm():
             evidence="jvm.log",
         )
     )
-    return code
+    selected = [item for item in REQUIRED if any(item.startswith(name + ".") for name in classes)]
+    return code or (1 if collection_errors(RESULTS[first_result:], selected) else 0)
 
 
 def main():
@@ -507,6 +547,17 @@ def main():
                 status=status,
                 collected=executed,
                 outstanding_layers=spec["layers"],
+                evidence_by_layer={
+                    layer: dict(
+                        status=("BLOCKED_DEVICE" if layer == "L3" else
+                                "PARTIAL" if any(r["parent"] == spec["id"] and r["layer"] == layer for r in RESULTS)
+                                else "NOT_RUN"),
+                        collected=[r["id"] for r in RESULTS if r["parent"] == spec["id"] and r["layer"] == layer],
+                        gap="Composite coverage remains outstanding; see binding and contract",
+                    ) for layer in spec["layers"]
+                },
+                interface=dict(status="PARTIAL_BINDING" if executed else "REQUIRES_BINDING_REVIEW",
+                               gap=spec["binding"]),
                 binding=spec["binding"],
                 remaining="See contracts.md binding and per-case scope; composite is not complete",
             )
@@ -562,6 +613,8 @@ def main():
         inputs=inputs,
         public_ca_sha256=cert_hash,
         counts=counts,
+        collection_errors=collection_errors(RESULTS, REQUIRED),
+        selected_execution_ids=REQUIRED,
         collected=RESULTS,
         cases=cases,
         builds=BUILDS,
@@ -575,10 +628,12 @@ def main():
         0
         if (
             result.wasSuccessful()
+            and not collection_errors(RESULTS, REQUIRED)
             and jvm_code == 0
             and before == after
             and restore_result is not None
             and restore_result.wasSuccessful()
+            and len(mutation_results) == 2
             and all(m["status"] == "DETECTED" for m in mutation_results)
         )
         else 1
