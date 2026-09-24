@@ -49,6 +49,8 @@ int bk7258_preferences_with_storage(int (*operation)(void *), void *context)
 }
 
 #ifdef CONFIG_BK7258_PROVISION_GATT
+static bool g_cloud_models_uncertain;
+
 static int bk7258_preferences_cloud_models_open(struct bkprov_store_s *store)
 {
   if (mkdir(BK7258_CLOUD_MODELS_ROOT, 0700) < 0 && errno != EEXIST)
@@ -63,8 +65,14 @@ int bk7258_preferences_cloud_models_get(struct bkcloud_models_s *models)
   size_t size; uint64_t revision;
   int ret;
   if (!models) return -EINVAL;
+  memset(models, 0, sizeof(*models));
   ret = nxmutex_lock(&g_preferences_lock);
   if (ret < 0) return ret;
+  if (g_cloud_models_uncertain)
+    {
+      nxmutex_unlock(&g_preferences_lock);
+      return -EINPROGRESS;
+    }
   ret = bk7258_preferences_cloud_models_open(&store);
   if (!ret) ret = bkprov_store_load(&store, record, sizeof(record), &size,
                                     &revision, NULL);
@@ -78,12 +86,16 @@ int bk7258_preferences_cloud_models_set(const struct bkcloud_models_s *models)
 {
   struct bkprov_store_s store;
   uint8_t record[BKCLOUD_MODELS_RECORD_MAX], transaction[16] = {'M', 'C', 'P', '1'};
-  uint8_t confirmed[BKCLOUD_MODELS_RECORD_MAX], confirmed_transaction[16];
   size_t size; uint64_t revision;
   int ret;
   if (!models) return -EINVAL;
   ret = nxmutex_lock(&g_preferences_lock);
   if (ret < 0) return ret;
+  if (g_cloud_models_uncertain)
+    {
+      nxmutex_unlock(&g_preferences_lock);
+      return -EINPROGRESS;
+    }
   ret = bk7258_preferences_cloud_models_open(&store);
   if (!ret) ret = bkprov_store_load(&store, record, sizeof(record), &size,
                                     &revision, NULL);
@@ -96,26 +108,33 @@ int bk7258_preferences_cloud_models_set(const struct bkcloud_models_s *models)
       uint64_t next = revision + 1u;
       for (int i = 11; i >= 4; i--) { transaction[i] = next; next >>= 8; }
       ret = bkprov_store_commit(&store, revision, transaction, record, size);
-      if (ret == -EINPROGRESS)
-        {
-          size_t confirmed_size = 0;
-          uint64_t confirmed_revision = 0;
-          int loaded = bkprov_store_load(&store, confirmed, sizeof(confirmed),
-            &confirmed_size, &confirmed_revision, confirmed_transaction);
-          if (!loaded && confirmed_revision == revision + 1u &&
-              confirmed_size == size &&
-              memcmp(confirmed_transaction, transaction, sizeof(transaction)) == 0 &&
-              memcmp(confirmed, record, size) == 0)
-            ret = 0;
-        }
+      /* Reading the just-renamed bytes cannot establish a failed durability
+       * barrier. Preserve uncertainty until a fresh process or completed reset.
+       */
+      if (ret == -EINPROGRESS) g_cloud_models_uncertain = true;
     }
-  memset(confirmed, 0, sizeof(confirmed));
-  memset(confirmed_transaction, 0, sizeof(confirmed_transaction));
   memset(record, 0, sizeof(record)); memset(transaction, 0, sizeof(transaction));
   nxmutex_unlock(&g_preferences_lock);
   return ret;
 }
+int bk7258_preferences_cloud_models_reset_complete(void)
+{
+  struct stat info;
+  int ret = nxmutex_lock(&g_preferences_lock);
+  if (ret < 0) return ret;
+  ret = bkprov_store_check_filesystem("/cpdata/shaniu");
+  if (!ret)
+    {
+      if (lstat(BK7258_CLOUD_MODELS_ROOT, &info) == 0) ret = -EBUSY;
+      else if (errno != ENOENT) ret = -errno;
+      else g_cloud_models_uncertain = false;
+    }
+  nxmutex_unlock(&g_preferences_lock);
+  return ret;
+}
+
 #else
+int bk7258_preferences_cloud_models_reset_complete(void) { return 0; }
 int bk7258_preferences_cloud_models_get(struct bkcloud_models_s *models)
 { (void)models; return -ENOTSUP; }
 int bk7258_preferences_cloud_models_set(const struct bkcloud_models_s *models)

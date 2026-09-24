@@ -1,0 +1,87 @@
+{
+  "scope": "S24 public cloud model selection durability, same-process uncertainty and reset/reopen boundaries",
+  "parent": "74628088bb50315626da11041d8f9b6fbbc8429e",
+  "red": "directory sync failed; setter result=0 (expected -115)\ntest_shaniu_models_durability: test_shaniu_models_durability.c:47: main: Assertion `ret == -EINPROGRESS' failed.\n",
+  "green": "directory sync failed; setter result=-115 (expected -115)\nFRESH_PROCESS_VALID_RECORD\nCONTRACT_PASS\n",
+  "source_hashes": {
+    "app/bk7258/bk7258_preferences.c": "573ad65b979fe0911efdc2c40ddc749d7fbcdd82f587bf1dfb572b3881a19104",
+    "app/bk7258/bk7258_preferences.h": "2190577f08219fe412993d230b85359dd986e3575cd6ec6c65e784db0a47386d",
+    "app/bk7258/bk7258_agent_product.c": "c8cb8cf521d62ccb412f60e395b6e0c1a27ce908efdb9d368348c0f8b274734a",
+    "tests/host/bk7258/test_shaniu_models_durability.c": "641f357069ec43c8423d15f9697212ea4a1a49af10e38c64a6f6b31c18e78521"
+  },
+  "production_paths": [
+    "bk7258_preferences_cloud_models_get/set/reset_complete",
+    "bkcloud_models_encode/decode",
+    "bkprov_store_open/load/commit with actual mbedTLS hashing and POSIX files"
+  ],
+  "external_boundaries": [
+    "Map only the fixed product model directory to a unique temporary directory",
+    "Inject directory fsync failure; normal file data and commit paths are real",
+    "Inject filesystem unavailability only for reset-completion check",
+    "Mutex uses pthread; fresh-process branch uses exec, not a reset static variable"
+  ],
+  "counts": {
+    "PASS": 124,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "target_build": {
+    "exit": 0,
+    "dirty": true,
+    "tree_sha256": "49b52e9a1d3b189cf4ac6aa8270be6cc77c474eb511fd6cde289dd854688702d",
+    "inputs": {
+      "ap": {
+        "kind": "raw-build",
+        "path": "roles/mcuboot/ap/bk7258-role-c3282628a929d75f/cmake/nuttx.bin",
+        "sha256": "41b8d90ea13e1734a65c1e29059cf270173ecd8f66844f3888537b0796d3ebe9",
+        "size": 1685744
+      },
+      "bl2": {
+        "kind": "raw-build",
+        "path": "releases/mcuboot/bl2/bl2.bin",
+        "sha256": "ffb36cdb89174bec06d12c817d2e97165f7d53e22d59b4e45ef63b66ed29e901",
+        "size": 13620
+      },
+      "boot": {
+        "kind": "raw-build",
+        "path": "releases/mcuboot/bl1/bl.bin",
+        "sha256": "d6d6789436a3c760f4a985d094129e2cfd789bdd9d2f2f3e2d577c20d7810443",
+        "size": 65376
+      },
+      "cp": {
+        "kind": "raw-build",
+        "path": "roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.bin",
+        "sha256": "ea3ae3010d527baa5a14fa97d58cd9f081b64b783d65408187b3bd1161041bc9",
+        "size": 1115240
+      }
+    },
+    "trust": {
+      "bl1_public_fingerprint": "93709b494c3ba758ee144bd9ed5d12ca97726a13dc88e336d4c19e9329c44364",
+      "mcuboot_public_fingerprint": "7163228f3221da6e81fcf5e9c6f13ae6c4afbd1e3b91b7669783a37d2f12fbc0"
+    },
+    "rollback_floor": 661,
+    "manifest_sha256": "31ff99e63b1a2ed44733e6d9a5d2366ca75cd244099c58c4925e132b2578d944",
+    "verification": "bk7258 verify build-manifest: PASS boot=mcuboot board=aidk_ai_toy layout=bk7258-510173147382a879 source=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json\n"
+  },
+  "resource_budget": {
+    "new_threads": 0,
+    "new_heap_allocations": 0,
+    "new_uncertainty_flag": 1,
+    "removed_confirmation_stack_bytes": 409,
+    "target_CPU_IRQ_stack": "NOT_MEASURED"
+  },
+  "limitations": [
+    "POSIX process restart does not demonstrate physical power-loss durability",
+    "Target LittleFS synchronous rename differs from host directory fsync; target error/uncertain paths and physical reset remain untested",
+    "Formal reset caller is linked; host removes only synthetic records to exercise completion preconditions, not real factory reset",
+    "NFC binding and scene delivery are still unimplemented; this fixes the existing store contract before reusing it",
+    "App-specific model-save unknown-state presentation is not verified by this slice",
+    "No phone installation, flash or device data change"
+  ],
+  "logs": {
+    "contracts.log": "cd2263a700f393f648d41e46ba7ec49df01a6266030686a4021e7b6ab61f4514",
+    "runner-gate.log": "c0cb98a70693b463069afba413d352f8fdc8540f469b9f3860e3385ec8c426dd",
+    "build-target.log": "9de65bbb61a2ec6133a94b1a07648f5dc7f84270e5dbe31dd3a16b3368e66739"
+  }
+}

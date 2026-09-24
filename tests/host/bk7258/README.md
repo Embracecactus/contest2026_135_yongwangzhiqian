@@ -706,3 +706,34 @@ has no request ID. Request expiry, other internal cancellation paths, complete
 transport/Agent integration and real framebuffer/DMA behavior remain open.
 No board/phone operation occurred. Evidence: `acceptance/s23-20260924.json`,
 `acceptance/s23-cancel-evidence-20260924.json`, local raw logs `out/shaniu-s23/`.
+
+### S24 — model readback cannot replace a failed durability barrier (2026-09-24)
+
+While preparing the future scene-binding store, source review found an existing
+MCP1 preference bug: after SCF1 commit returned EINPROGRESS, matching bytes on an
+immediate read changed the setter result to success. The new
+`CFG-02.models-unknown` test links actual preferences, model codec, SCF1 store,
+mbedTLS hashing and POSIX files. It redirects only the fixed model directory to
+its own temporary directory and injects the external directory fsync failure.
+The original code returned **0 instead of -EINPROGRESS**; that Red is preserved.
+
+The setter now retains uncertainty. Public reads clear their output and report
+EINPROGRESS; further writes cannot overwrite it in that process. The lower store
+can still expose valid new bytes, explicitly not treated as durable confirmation.
+A fresh exec loads the valid record while the original process remains uncertain.
+This is process recovery evidence, not physical power-loss proof.
+
+After the existing reset worker durably removes user-record trees, the product
+calls a new completion hook. It checks internal filesystem availability and that
+the model directory is absent before clearing the uncertainty latch. Tests reject
+both a still-present tree and an unavailable filesystem, then permit fresh use
+after synthetic cleanup. Actual factory-reset sequencing is linked but not
+executed by this host test; no real device files were removed.
+
+**124 PASS**, all prior IDs retained, plus 12 runner-gate checks; both original
+mutations remain detected/restored. CP/AP incremental build and manifest rehash
+pass. One boolean is added; 409 bytes of confirmation buffers are removed from
+the setter. No new thread or allocation. Target runtime/stack measurements,
+LittleFS failure behavior, App unknown-state presentation and NFC remain open.
+Evidence: `acceptance/s24-20260924.json`, `acceptance/s24-models-evidence-20260924.json`,
+local logs `out/shaniu-s24/`. Historical results remain unchanged.

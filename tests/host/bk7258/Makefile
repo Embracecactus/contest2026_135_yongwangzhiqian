@@ -1877,3 +1877,11 @@ $(BUILD)/test_shaniu_display_intent: test_shaniu_display_intent.c $(VOICE_PACK_R
 
 $(BUILD)/test_shaniu_expression_cancel: test_shaniu_expression_cancel.c $(VOICE_PACK_ROOT)/bk7258_display_intent.inc $(VOICE_PACK_ROOT)/bk7258_agent_display_control.inc $(VOICE_PACK_ROOT)/bk7258_display_service.h | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(MOCKS) -I $(VOICE_PACK_ROOT) $< -o $@
+
+$(BUILD)/test_shaniu_models_durability: test_shaniu_models_durability.c $(VOICE_PACK_ROOT)/bk7258_preferences.c $(VOICE_PACK_ROOT)/bk7258_cloud_config.c $(VOICE_PACK_ROOT)/bk7258_provision_store.c $(VOICE_OTA_MBEDCRYPTO) | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread -ffunction-sections -fdata-sections -DCONFIG_BK7258_PROVISION_GATT \
+	    -I $(MOCKS) -I $(VOICE_PACK_ROOT) -I $(OPENVELA_ROOT)/external/unqlite/unqlite \
+	    -I $(VOICE_OTA_MBEDTLS_SOURCE)/include $< $(VOICE_PACK_ROOT)/bk7258_preferences.c \
+	    $(VOICE_PACK_ROOT)/bk7258_cloud_config.c $(VOICE_PACK_ROOT)/bk7258_provision_store.c \
+	    -Wl,--gc-sections -Wl,--wrap=mkdir -Wl,--wrap=bkprov_store_open -Wl,--wrap=fsync \
+	    -Wl,--wrap=lstat -Wl,--wrap=bkprov_store_check_filesystem $(VOICE_OTA_MBEDCRYPTO) -o $@

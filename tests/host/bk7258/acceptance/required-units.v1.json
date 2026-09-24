@@ -123,7 +123,8 @@
     "MSC-01.backend-stop-close-error",
     "NET-02.display-snapshot",
     "DISP-01.expression-intent",
-    "DISP-01.expression-cancel"
+    "DISP-01.expression-cancel",
+    "CFG-02.models-unknown"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -250,6 +251,7 @@
     "MSC-01.backend-stop-close-error",
     "NET-02.display-snapshot",
     "DISP-01.expression-intent",
-    "DISP-01.expression-cancel"
+    "DISP-01.expression-cancel",
+    "CFG-02.models-unknown"
   ]
 }

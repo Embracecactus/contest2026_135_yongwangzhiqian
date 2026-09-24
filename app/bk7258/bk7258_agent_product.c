@@ -1925,6 +1925,10 @@ static int product_reset_step(void)
   /* A successful worker changes reset_pending() to zero before this code
    * runs again. FINISHING deliberately owns that handoff. */
   if (pending == 1) return -EAGAIN;
+#ifdef CONFIG_BK7258_PREFERENCES
+  ret = bk7258_preferences_cloud_models_reset_complete();
+  if (ret < 0) return ret;
+#endif
   ret = bkprov_owner_unbind();
   if (ret < 0) return ret;
   ret = bkprov_network_unbind();

@@ -416,6 +416,7 @@ def main():
         "test_shaniu_display_snapshot",
         "test_shaniu_display_intent",
         "test_shaniu_expression_cancel",
+        "test_shaniu_models_durability",
         "test_shaniu_focus_wire",
         "test_agent_tts_queue",
         "test_bk7258_product_keys",
@@ -523,6 +524,14 @@ def main():
         "L1",
         [HERE / "build/test_shaniu_expression_cancel"],
         binaries["test_shaniu_expression_cancel"],
+    )
+    add(
+        suite,
+        "CFG-02.models-unknown",
+        "CFG-02",
+        "L2",
+        [HERE / "build/test_shaniu_models_durability"],
+        binaries["test_shaniu_models_durability"],
     )
     for variant in ("normal", "retry", "start-cleanup", "close-error"):
         add(
