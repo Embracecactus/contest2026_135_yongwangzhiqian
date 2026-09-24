@@ -1,0 +1,15 @@
+{
+  "id": "MSC-01.retain-consumed-inode",
+  "status": "DETECTED",
+  "compile_exit": 0,
+  "execution_exit": -6,
+  "assertion": "inode == &device && !reference_released",
+  "log": "mutant-stop: tests/host/bk7258/test_shaniu_msc_stop.c:45: close_blockdriver: Assertion `inode == &device && !reference_released' failed.\n",
+  "original_sha256": "79b28ef8113e564362ed94f12351ff750c0fe69489835d0dc3bdb82fae3528ba",
+  "mutant_sha256": "d5be0f097297f7be364f49736f67e45587bba166c4e5c777fd3e828efcdc92c2",
+  "restored_exit": 0,
+  "production_modified": false,
+  "kernel_contract_source": "nuttx/fs/driver/fs_closeblockdriver.c",
+  "kernel_contract_sha256": "24d707112909e4408ff6e1210b1aec27c56d7804aea6fc5b540b2b116eee04a2",
+  "boundary": "USB and blockdriver are external substitutes; actual MSC initialize/uninitialize are compiled; kernel close contract was source-reviewed, not kernel-executed"
+}

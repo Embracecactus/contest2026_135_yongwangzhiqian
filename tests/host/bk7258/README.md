@@ -576,3 +576,27 @@ Existing apps/nuttx dependency modifications were retained and identified by the
 build provenance. No clean build, signed release package, current-board trust
 verification, deployment or physical test occurred. Do not flash these raw
 outputs as if they were an approved factory package.
+
+### S20 — block close error consumes its inode (2026-09-24)
+
+`MSC-01.backend-stop-close-error` compiles the real MSC initialize/stop helpers.
+The external blockdriver fixture now models the current NuttX contract:
+`fs/driver/fs_closeblockdriver.c` calls `inode_release()` even if a valid block
+driver's close operation returns an error. The test checks error propagation,
+no repeated close/deinitialization of that consumed reference, and a subsequent
+explicit fresh open/close. **Production already passes; no product change.**
+Retaining the inode on every error would introduce a dangling reference here,
+unlike the earlier USB-deinitialize failure, which must retain live storage.
+
+The expanded frozen set reports **120 PASS**, including all prior 119 IDs.
+The runner's 12 gate tests also pass. The two existing mutations remain detected.
+A separate temporary-include mutation retains the consumed pointer; it compiles,
+reaches the repeated close and fails the reference-lifetime assertion. The original
+case passes afterward. This extra mutation/restoration is reported separately,
+not added to product pass counts. See `acceptance/s20-20260924.json` and
+`acceptance/s20-inode-mutation-20260924.json`; raw logs are `out/shaniu-s20/`.
+
+Boundary: the NuttX close contract is source-reviewed and hashed, not executed
+inside a real kernel by this test. USB/blockdriver are external substitutes;
+actual hardware, DMA, blockdriver durability after errors and filesystem mount
+unification remain open. This is not full MSC-01 acceptance.

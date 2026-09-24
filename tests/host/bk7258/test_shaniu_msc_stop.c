@@ -22,7 +22,8 @@ static struct geometry g_bk7258_usbmsc_geometry;
 static bool s_msc_storage_init = true;
 static int thread_op;
 static int g_bk7258_usbmsc_worker_lock, g_bk7258_usbmsc_lock;
-static int driver_error, closes, deinitializes, disconnected;
+static int driver_error, close_error, closes, deinitializes, disconnected;
+static bool reference_released;
 static int nxmutex_lock(int *lock) { assert(!*lock); *lock=1; return 0; }
 static int nxmutex_unlock(int *lock) { assert(*lock); *lock=0; return 0; }
 static irqstate_t enter_critical_section(void) { return 0; }
@@ -37,7 +38,15 @@ static int usbd_deinitialize(void)
 }
 static void usbd_set_status(int status) { assert(status == 0); }
 static int close_blockdriver(struct inode *inode)
-{ assert(inode == &device); closes++; return 0; }
+{
+  /* NuttX fs_closeblockdriver.c releases a valid inode even when the
+   * underlying block close returns an error. Model that boundary explicitly.
+   */
+  assert(inode == &device && !reference_released);
+  reference_released = true;
+  closes++;
+  return close_error;
+}
 static int start_error, opens;
 struct usbd_interface { int dummy; };
 static struct usbd_interface gs_intf0;
@@ -46,7 +55,7 @@ static int geometry(struct inode *inode, struct geometry *g)
 { assert(inode == &device); *g = (struct geometry){true, 1024, 512}; return 0; }
 static struct block_operations ops = {geometry, &device, &device};
 static int open_blockdriver(const char *path, int flags, struct inode **inode)
-{ assert(path && flags == 0); opens++; device.u.i_bops = &ops; *inode = &device; return 0; }
+{ assert(path && flags == 0); opens++; reference_released = false; device.u.i_bops = &ops; *inode = &device; return 0; }
 static void usbd_desc_register(char *desc) { (void)desc; }
 static struct usbd_interface *usbd_msc_init_intf(struct usbd_interface *i, int a, int b)
 { (void)a; (void)b; return i; }
@@ -57,6 +66,21 @@ static int usbd_initialize(void) { return start_error; }
 int main(int argc, char **argv)
 {
   assert(argc == 2);
+  if (!strcmp(argv[1], "close-error"))
+    {
+      close_error = -EIO;
+      assert(bk7258_usbmsc_uninitialize() == -EIO);
+      assert(closes == 1 && reference_released);
+      assert(!g_bk7258_usbmsc_worker_lock && !g_bk7258_usbmsc_lock);
+      int calls = deinitializes;
+      assert(bk7258_usbmsc_uninitialize() == -ENODEV);
+      assert(closes == 1 && deinitializes == calls);
+      close_error = 0;
+      assert(bk7258_usbmsc_initialize("/dev/test") == 0 && opens == 1);
+      assert(bk7258_usbmsc_uninitialize() == 0 && closes == 2);
+      puts("CONTRACT_PASS");
+      return 0;
+    }
   if (!strcmp(argv[1], "start-cleanup"))
     {
       s_msc_storage_init = false;

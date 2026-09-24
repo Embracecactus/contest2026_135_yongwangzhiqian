@@ -497,7 +497,7 @@ def main():
             [HERE / "build/test_bk7258_agent_media_player", variant],
             binaries["test_bk7258_agent_media_player"],
         )
-    for variant in ("normal", "retry", "start-cleanup"):
+    for variant in ("normal", "retry", "start-cleanup", "close-error"):
         add(
             suite,
             "MSC-01.backend-stop-" + variant,
