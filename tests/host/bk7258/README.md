@@ -551,3 +551,28 @@ hashes and the original Red are in `acceptance/s18-evidence-20260924.json`.
 An initial fixture cleanup assertion ran before Android delivered onDismiss;
 its separate failure is preserved, and the same assertion now runs after UI idle.
 Raw build/install logs remain under `out/shaniu-s18/`.
+
+### S19 — linked firmware and fresh regression (2026-09-24)
+
+At source `413a9c97786d2340887f85f1f9dafadcf6d6c759`, the maintained
+`bk7258.py build` entry completed an incremental CP/AP/BL1/BL2 build using
+the prior development public keys and unchanged rollback floor 661. The
+build-manifest verifier rehashed the resulting artifacts successfully.
+AP ELF contains `bkfocus_control`, `bkfocus_step`, `bkfocus_cancel`,
+`bkfocus_visual` and `bk7258_display_focus`; this closes the earlier
+object-only link evidence gap. The AP raw image is 1,684,232 bytes.
+
+The frozen collection reran with **119 PASS, 0 assertion/setup failures and
+0 NOT_RUN**; the original 63 IDs remain included. Two isolated mutations were
+detected and restored. See `acceptance/s19-20260924.json` for individual cases
+and `acceptance/s19-build-evidence-20260924.json` for artifact hashes and exact
+scope. This does not convert 56 parent specifications into completed acceptance.
+
+Raw logs/manifest are in `out/shaniu-s19/`. An initial direct CMake invocation
+failed because it omitted the SDK environment supplied by the maintained entry;
+a relative manifest path also resolved against the workspace, so verification
+was repeated with an absolute path. Both setup mistakes are preserved separately.
+Existing apps/nuttx dependency modifications were retained and identified by the
+build provenance. No clean build, signed release package, current-board trust
+verification, deployment or physical test occurred. Do not flash these raw
+outputs as if they were an approved factory package.

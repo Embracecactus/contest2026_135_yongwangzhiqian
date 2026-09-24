@@ -1,0 +1,135 @@
+{
+  "scope": "S19 official incremental CP/AP/BL1/BL2 build and frozen host regression; no signing, packaging or hardware operation",
+  "source_commit": "413a9c97786d2340887f85f1f9dafadcf6d6c759",
+  "boot": "mcuboot",
+  "rollback_floor": 661,
+  "trust": {
+    "bl1_public_fingerprint": "93709b494c3ba758ee144bd9ed5d12ca97726a13dc88e336d4c19e9329c44364",
+    "mcuboot_public_fingerprint": "7163228f3221da6e81fcf5e9c6f13ae6c4afbd1e3b91b7669783a37d2f12fbc0"
+  },
+  "trust_changed": false,
+  "inputs": {
+    "ap": {
+      "kind": "raw-build",
+      "path": "roles/mcuboot/ap/bk7258-role-c3282628a929d75f/cmake/nuttx.bin",
+      "sha256": "9abd020b672eb6c59ad9af5ec5cb4e7ed0cc5965b87148142a6d231b9ffd4bd2",
+      "size": 1684232
+    },
+    "bl2": {
+      "kind": "raw-build",
+      "path": "releases/mcuboot/bl2/bl2.bin",
+      "sha256": "ffb36cdb89174bec06d12c817d2e97165f7d53e22d59b4e45ef63b66ed29e901",
+      "size": 13620
+    },
+    "boot": {
+      "kind": "raw-build",
+      "path": "releases/mcuboot/bl1/bl.bin",
+      "sha256": "d6d6789436a3c760f4a985d094129e2cfd789bdd9d2f2f3e2d577c20d7810443",
+      "size": 65376
+    },
+    "cp": {
+      "kind": "raw-build",
+      "path": "roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.bin",
+      "sha256": "ea3ae3010d527baa5a14fa97d58cd9f081b64b783d65408187b3bd1161041bc9",
+      "size": 1115240
+    }
+  },
+  "elfs": {
+    "ap": {
+      "kind": "elf",
+      "path": "roles/mcuboot/ap/bk7258-role-c3282628a929d75f/cmake/nuttx",
+      "sha256": "07de91071e528d8c0c35cdc34cefa56f49f2925d3bc291cbe47335eca6a3aeb6",
+      "size": 6694860
+    },
+    "bl1": {
+      "kind": "elf",
+      "path": "releases/mcuboot/bl1/bl.elf",
+      "sha256": "39fb2051ed3a83ad08f41dcdc50d3ec9d6332a4232e9c6b8f9acf719fc2cdc87",
+      "size": 236724
+    },
+    "bl2": {
+      "kind": "elf",
+      "path": "releases/mcuboot/bl2/bl2.elf",
+      "sha256": "6246b367960053e00dda587170f189837e991e36fc1426838b8d8a01a1695847",
+      "size": 272476
+    },
+    "cp": {
+      "kind": "elf",
+      "path": "roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx",
+      "sha256": "96e162814742cc24202c773de3bf06554b0ae65737869fd7ba68bc61bb0d04c3",
+      "size": 11959520
+    }
+  },
+  "dependencies": {
+    "ai_agent": {
+      "dirty": false,
+      "input_count": 0,
+      "input_tree_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_commit": "62a304ea69c4076f0f3ef7955a9af69a5ed35277"
+    },
+    "apps": {
+      "dirty": true,
+      "input_count": 33,
+      "input_tree_sha256": "e841e3a0e74fc5d78211802015ddb4ae7c7f6cef2a529c80bc0bf7af9b18a344",
+      "source_commit": "550cd3ba60a03f8ebf9ac7b72f6eed6aea3bedbe"
+    },
+    "nuttx": {
+      "dirty": true,
+      "input_count": 447,
+      "input_tree_sha256": "a71a6ba92af092490c60b8cfb18e86657874ea60fb8c4224da146deaa3a944a4",
+      "source_commit": "76354c637858ecb0aa4601629327acb6f44a26bb"
+    }
+  },
+  "source_tree_sha256": "86f52da07d59d6095aa19951dce4cbe3af44313663d758a32d8ffa63b4098da3",
+  "build_manifest_sha256": "76b5ea35935a575c30c28308844643ec9632f5d7e5a458f638f76401ad9ad0f2",
+  "linked_symbols": [
+    "02163ba0 T bk7258_display_focus",
+    "02159dc8 T bkfocus_cancel",
+    "02159e04 T bkfocus_control",
+    "02159d70 T bkfocus_step",
+    "02159ce4 T bkfocus_visual"
+  ],
+  "build_command": "python3 tools/bk7258/bk7258.py build --board aidk_ai_toy --boot mcuboot --bl1-public-key <existing-development-public>/bl1-public.pem --mcuboot-public-key <existing-development-public>/mcuboot-public.pem --openssl /usr/bin/openssl --rollback-floor 661 --jobs 4",
+  "build_exit": 0,
+  "manifest_verification": "bk7258 verify build-manifest: PASS boot=mcuboot board=aidk_ai_toy layout=bk7258-510173147382a879 source=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json\n",
+  "host_counts": {
+    "PASS": 119,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "mutations": [
+    {
+      "id": "MSC-01.early-release",
+      "status": "DETECTED"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud",
+      "status": "DETECTED"
+    }
+  ],
+  "limitations": [
+    "Incremental build, not clean third-party reproduction",
+    "Existing apps/nuttx dirty dependencies retained and identified, not reset",
+    "Development trust matches prior build; current board trust/firmware remains unverified",
+    "Raw binaries are not a signed release package or a board-safe factory image",
+    "No phone installation, serial access, firmware write or physical acceptance"
+  ],
+  "setup_errors": [
+    {
+      "step": "direct cmake --build",
+      "reason": "missing BK7258_SDK_DIR; use maintained build entry",
+      "log_sha256": "361ccfafe83214e6890059097a466f024d773908f32bdfb5e7826830b604cbd5"
+    },
+    {
+      "step": "relative manifest path verification",
+      "reason": "CLI resolves against workspace; rerun used absolute manifest path",
+      "log_sha256": "5dbd8a9ca1ddd9939a5647fe49ed41fdf12f8f077e719a3b107320530d74e54f"
+    }
+  ],
+  "logs": {
+    "official-build.log": "bbd2118b0b83869356644637a3f71aa430bfb0b18585b6868e02235e1946b519",
+    "contracts.log": "008d9f83bbde371d0e9ce91994889df5849c6c77b03b0d5f52c5b436e6c159c0",
+    "manifest-verify.log": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac"
+  }
+}
