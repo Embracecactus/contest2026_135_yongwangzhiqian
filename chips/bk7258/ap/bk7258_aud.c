@@ -2574,6 +2574,7 @@ static int bk7258_aud_pause(struct audio_lowerhalf_s *dev)
 #endif
 {
   struct bk7258_aud_dev_s *priv = (struct bk7258_aud_dev_s *)dev;
+  bool failed = false;
   int ret = OK;
 
 #ifdef CONFIG_AUDIO_MULTI_SESSION
@@ -2600,18 +2601,49 @@ static int bk7258_aud_pause(struct audio_lowerhalf_s *dev)
     }
   else if (priv->state == BK7258_AUD_STATE_RUNNING)
     {
-      ret = bk7258_aud_result(bk_aud_dac_stop());
+      /* 网络欠载会长时间暂停。先静音并关闭功放，不能把停止更新的
+       * DAC 模拟输出继续接到喇叭；保留 DMA/ring 位置供恢复使用。
+       */
+
+      ret = bk7258_aud_result(bk_aud_dac_mute());
+      if (ret == OK)
+        {
+          ret = bk7258_aud_set_pa(priv, false);
+        }
+
+      if (ret == OK)
+        {
+          ret = bk7258_aud_result(bk_aud_dac_stop());
+        }
+
       if (ret == OK)
         {
           priv->dac_started = false;
           priv->diag.dac_stop_count++;
           bk7258_aud_set_state(priv, BK7258_AUD_STATE_PAUSED);
         }
+      else
+        {
+          /* 不能把只完成了静音/关功放的半暂停状态留成 RUNNING。
+           * 锁外走现有 STOP 回收队列和 worker，向上报告真实错误。
+           */
+
+          failed = true;
+          bk7258_aud_set_state(priv, BK7258_AUD_STATE_FAULT);
+        }
     }
 
   bk7258_aud_record_error(priv, ret);
   nxmutex_unlock(&priv->lock);
   nxmutex_unlock(&priv->worker_lock);
+  if (failed)
+    {
+      if (bk7258_aud_stop_internal(priv) == OK)
+        {
+          bk7258_aud_notify_error(priv, ret);
+        }
+    }
+
   return ret;
 }
 
@@ -2622,6 +2654,7 @@ static int bk7258_aud_resume(struct audio_lowerhalf_s *dev)
 #endif
 {
   struct bk7258_aud_dev_s *priv = (struct bk7258_aud_dev_s *)dev;
+  bool failed = false;
   bk_err_t error;
   int ret = OK;
 
@@ -2648,12 +2681,6 @@ static int bk7258_aud_resume(struct audio_lowerhalf_s *dev)
       error = bk_aud_dac_set_gain(priv->dig_gain);
       if (error == BK_OK)
         {
-          error = priv->muted || priv->dig_gain == 0 ?
-                    bk_aud_dac_mute() : bk_aud_dac_unmute();
-        }
-
-      if (error == BK_OK)
-        {
           error = bk_aud_dac_start();
         }
 
@@ -2662,13 +2689,41 @@ static int bk7258_aud_resume(struct audio_lowerhalf_s *dev)
         {
           priv->dac_started = true;
           priv->diag.dac_start_count++;
-          bk7258_aud_set_state(priv, BK7258_AUD_STATE_RUNNING);
+          /* 与正常 START 一样，在 DAC 稳定后开启功放并恢复用户音量。
+           * 此前一直保持静音，不改变用户的 mute 设置。
+           */
+
+          nxsig_usleep(priv->board_config->speaker_on_delay_ms * 1000u);
+          ret = bk7258_aud_set_pa(priv, true);
+          if (ret == OK && !priv->muted && priv->dig_gain != 0)
+            {
+              ret = bk7258_aud_result(bk_aud_dac_unmute());
+            }
+
+          if (ret == OK)
+            {
+              bk7258_aud_set_state(priv, BK7258_AUD_STATE_RUNNING);
+            }
+        }
+
+      if (ret < 0)
+        {
+          failed = true;
+          bk7258_aud_set_state(priv, BK7258_AUD_STATE_FAULT);
         }
     }
 
   bk7258_aud_record_error(priv, ret);
   nxmutex_unlock(&priv->lock);
   nxmutex_unlock(&priv->worker_lock);
+  if (failed)
+    {
+      if (bk7258_aud_stop_internal(priv) == OK)
+        {
+          bk7258_aud_notify_error(priv, ret);
+        }
+    }
+
   return ret;
 }
 #endif

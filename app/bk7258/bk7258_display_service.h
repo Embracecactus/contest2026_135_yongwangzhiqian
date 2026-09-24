@@ -41,6 +41,8 @@ struct bkdisplay_service_status_s
 int bk7258_display_onboarding(const char *qr);
 /* 0 normal, 1 long-hold/release hint, 2 saving/shutdown in progress. */
 int bk7258_display_power(unsigned int phase);
+/* Nonblocking notification; only the display worker touches framebuffer. */
+void bk7258_display_speaking(bool active);
 int bk7258_display_service_prepare(void);
 int bk7258_display_service_start(void);
 

@@ -21,6 +21,12 @@
 #include <syslog.h>
 #include <mbedtls/platform_util.h>
 
+/* A silent TTS connection must release the turn before its total deadline.
+ * These limits measure TLS response bytes, not synthesized PCM or playback.
+ */
+#define TTS_FIRST_READ_TIMEOUT_MS 15000u
+#define TTS_IDLE_READ_TIMEOUT_MS  10000u
+
 /* Immutable selected trust/config with a locked TLS session cache.
  * Reference counts include the configuration owner and each active backend.
  * Active TLS contexts and sockets are never shared between backends. */
@@ -46,6 +52,7 @@ struct cloud_backend_s
   mbedtls_x509_time session_from;
   mbedtls_x509_time session_to;
   bool session_offered;
+  bool response_received;
   atomic_bool canceled;
 };
 
@@ -272,6 +279,7 @@ static int backend_prepare(struct cloud_backend_s *backend, uint8_t dialect)
 static int request_prepare(struct cloud_backend_s *backend)
 {
   if (!backend->settings) return -ENOKEY;
+  backend->response_received = false;
   atomic_store(&backend->canceled, false);
   return bkvoice_config_trusted_time(&backend->settings->trust);
 }
@@ -319,7 +327,20 @@ static ssize_t cloud_recv(void *context, uint8_t *data, size_t size,
 {
   struct cloud_backend_s *backend = context;
   if (atomic_load(&backend->canceled)) return -ECANCELED;
-  return bkvoice_tls_ops()->recv(&backend->tls, data, size, deadline);
+  if (backend == &g_tts)
+    {
+      uint64_t idle = bkvoice_config_now_ms(NULL) +
+        (backend->response_received ? TTS_IDLE_READ_TIMEOUT_MS :
+                                      TTS_FIRST_READ_TIMEOUT_MS);
+      if (idle < deadline) deadline = idle;
+    }
+
+  ssize_t ret = bkvoice_tls_ops()->recv(&backend->tls, data, size, deadline);
+  if (ret > 0) backend->response_received = true;
+  if (ret == -ETIMEDOUT && backend == &g_tts)
+    syslog(LOG_WARNING, "AGENT TTS receive timeout phase=%s\n",
+           backend->response_received ? "response-idle" : "first-response");
+  return ret;
 }
 
 static int cloud_close(void *context)

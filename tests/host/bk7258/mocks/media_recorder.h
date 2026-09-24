@@ -6,6 +6,10 @@
 #include <sys/types.h>
 
 #define MEDIA_SOURCE_MIC "mic"
+#define MEDIA_EVENT_STARTED 2
+typedef void (*media_event_callback)(void *, int, int, const char *);
+int media_recorder_set_event_callback(void *handle, void *cookie,
+                                      media_event_callback callback);
 
 void *media_recorder_open(const char *params);
 int media_recorder_prepare(void *handle, const char *url,

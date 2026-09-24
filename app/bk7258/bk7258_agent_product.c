@@ -192,6 +192,14 @@ void bk7258_agent_product_wake(void)
 static void bk7258_agent_voice_event(int event, int result)
 {
   unsigned int flags = 0;
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+  if (event == VOICE_CHANNEL_EVENT_OUTPUT_STARTED ||
+      event == VOICE_CHANNEL_EVENT_OUTPUT_FINISHED)
+    {
+      bk7258_display_speaking(event == VOICE_CHANNEL_EVENT_OUTPUT_STARTED);
+      return;
+    }
+#endif
   if (event == VOICE_CHANNEL_EVENT_WAKE_ACK_REQUEST)
     {
       /* The Agent reader is paused; its producer still drains and erases
@@ -799,9 +807,9 @@ static char *product_tools(void)
     "milliseconds). Every repeat request needs a fresh tool call; never "
     "claim another action based on an earlier success. "
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
-    "Use action eyes with expression to show an emotion when requested "
-    "or helpful in conversation; local display handles blinking, never "
-    "call per frame. "
+    "Use action eyes only when the user explicitly asks to change the "
+    "eye expression. Do not call it to decorate an ordinary answer or joke; "
+    "local display handles blinking and the speaking state automatically. "
 #endif
     "Report errors honestly.\","
     "\"input_schema\":{\"type\":\"object\",\"properties\":{"
@@ -2168,9 +2176,24 @@ static const struct bkprov_voice_ops_s g_provision_voice =
   product_clear, product_load_cloud
 };
 
+static bool g_capture_route_negotiated;
+
+static int product_capture_prepare(unsigned int rate, unsigned int channels,
+                                   unsigned int bits)
+{
+  /* The product graph and all its capture consumers share this fixed format.
+   * Never warm-start a new/unnegotiated format using a previous route. */
+  if (rate != 16000 || channels != 1 || bits != 16) return -ENOTSUP;
+  if (!g_capture_route_negotiated) return 0;
+  int ret = bkvoice_media_source_prepare_warm(MEDIA_SOURCE_MIC);
+  return ret < 0 ? ret : 1;
+}
+
 static int product_capture_route(int active)
 {
-  return bkvoice_media_source_set_active(MEDIA_SOURCE_MIC, active != 0);
+  int ret = bkvoice_media_source_set_active(MEDIA_SOURCE_MIC, active != 0);
+  if (!ret && active) g_capture_route_negotiated = true;
+  return ret;
 }
 
 /* One bounded, zeroized workspace for protected storage reads. Parsed
@@ -2636,6 +2659,21 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
               g_product_error = ret;
               syslog(LOG_WARNING,
                      "BKVOICE configuration unavailable result=%d\n", ret);
+              /* 同步启动失败尚未创建网络 trial，不会产生 busy->idle。
+               * 对暂态错误沿用退避，不能靠用户重填 Key 才重新激活。
+               * 存储、配置格式和认证错误仍由原有恢复入口处理。
+               */
+
+              if (!storage_waiting &&
+                  (ret == -EAGAIN || ret == -ENOMEM || ret == -EIO ||
+                   ret == -ENETDOWN || ret == -ENETUNREACH ||
+                   ret == -EHOSTUNREACH || ret == -ETIMEDOUT ||
+                   ret == -ECONNRESET))
+                {
+                  network_retry_at = now + network_backoff;
+                  if (network_backoff < 60000) network_backoff *= 2;
+                  if (network_backoff > 60000) network_backoff = 60000;
+                }
             }
 
           network_was_busy = bkprov_network_busy();
@@ -3081,6 +3119,9 @@ int bk7258_agent_product_prepare(void)
     {
       return ret;
     }
+
+  ret = audio_capture_set_route_prepare(product_capture_prepare);
+  if (ret != 0) return ret;
 
   if (sem_init(&g_product_wake, 0, 0) < 0)
     {

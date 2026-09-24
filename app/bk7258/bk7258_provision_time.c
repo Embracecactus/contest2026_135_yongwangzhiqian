@@ -84,7 +84,18 @@ int bkprov_time_start(void)
 int bkprov_time_owner_utc(uint64_t utc)
 {
   if (utc < 1704067200 || utc > 4133980799ULL) return -ERANGE;
+  struct timespec wall = { .tv_sec = (time_t)utc, .tv_nsec = 0 };
   pthread_mutex_lock(&g_lock);
+  /* TLS checks the system clock, not the owner-time cache. Apply time only
+   * after the authenticated transaction commits, including Wi-Fi-only
+   * first use where no voice configuration will initialize CLOCK_REALTIME.
+   */
+  if (clock_settime(CLOCK_REALTIME, &wall) < 0)
+    {
+      int ret = -errno;
+      pthread_mutex_unlock(&g_lock);
+      return ret;
+    }
   g_owner_utc = utc;
   g_owner_monotonic = monotonic_seconds();
   pthread_mutex_unlock(&g_lock);

@@ -20,8 +20,10 @@
 #include <syslog.h>
 
 #include <nuttx/fs/fs.h>
+#include <nuttx/irq.h>
 #include <nuttx/mutex.h>
 #include <nuttx/signal.h>
+#include <nuttx/spinlock.h>
 
 #include <arch/chip/bk7258_usbmsc.h>
 
@@ -92,9 +94,16 @@ static usb_osal_thread_t msc_thread = NULL;
 static volatile uint32_t current_byte_read;
 #endif
 
-static uint32_t s_msc_storage_init;
+static bool s_msc_storage_init;
 static struct inode *g_bk7258_usbmsc_inode;
 static struct geometry g_bk7258_usbmsc_geometry;
+/* Lock order is worker -> block. The worker lock covers both block I/O and
+ * its USB completion, so teardown cannot deinitialize endpoints between
+ * the two. Endpoint callbacks never take either sleeping mutex. Their short
+ * NuttX critical sections also serialize admission with the inactive flag;
+ * the SDK's usb_osal critical-section hooks are no-ops in this bundle.
+ */
+static mutex_t g_bk7258_usbmsc_worker_lock = NXMUTEX_INITIALIZER;
 static mutex_t g_bk7258_usbmsc_lock = NXMUTEX_INITIALIZER;
 
 #define MSC_IN_EP  0x81
@@ -170,6 +179,15 @@ static void usbd_msc_reset(void)
 
 static int msc_storage_class_interface_request_handler(struct usb_setup_packet *setup, uint8_t **data, uint32_t *len)
 {
+    irqstate_t flags = enter_critical_section();
+    int ret = 0;
+
+    if (!s_msc_storage_init)
+    {
+        leave_critical_section(flags);
+        return -ENODEV;
+    }
+
     USB_LOG_VBS("MSC Class request: "
                 "bRequest 0x%02x\r\n",
                 setup->bRequest);
@@ -188,14 +206,24 @@ static int msc_storage_class_interface_request_handler(struct usb_setup_packet *
 
         default:
             USB_LOG_DBG("Unhandled MSC Class bRequest 0x%02x\r\n", setup->bRequest);
-            return -1;
+            ret = -1;
+            break;
     }
 
-    return 0;
+    leave_critical_section(flags);
+    return ret;
 }
 
 void msc_storage_notify_handler(uint8_t event, void *arg)
 {
+    irqstate_t flags = enter_critical_section();
+
+    if (!s_msc_storage_init)
+    {
+        leave_critical_section(flags);
+        return;
+    }
+
     switch (event)
     {
         case USBD_EVENT_ERROR:
@@ -221,6 +249,7 @@ void msc_storage_notify_handler(uint8_t event, void *arg)
         default:
             break;
     }
+    leave_critical_section(flags);
 }
 
 static void usbd_msc_bot_abort(void)
@@ -824,10 +853,10 @@ static bool SCSI_processRead(void)
 #ifdef CONFIG_USBDEV_MSC_THREAD
 static void usbd_msc_thread_memory_read_done(void)
 {
-    size_t flags;
+    irqstate_t flags;
     uint32_t transfer_len;
 
-    flags = usb_osal_enter_critical_section();
+    flags = enter_critical_section();
 
     transfer_len = MIN(usbd_msc_cfg.nsectors * usbd_msc_cfg.scsi_blk_size, CONFIG_USBDEV_MSC_BLOCK_SIZE);
 
@@ -842,7 +871,7 @@ static void usbd_msc_thread_memory_read_done(void)
     {
         usbd_msc_cfg.stage = MSC_SEND_CSW;
     }
-    usb_osal_leave_critical_section(flags);
+    leave_critical_section(flags);
 }
 #endif
 
@@ -885,10 +914,10 @@ static bool SCSI_processWrite(uint32_t nbytes)
 #ifdef CONFIG_USBDEV_MSC_THREAD
 static void usbd_msc_thread_memory_write_done(void)
 {
-    size_t flags;
+    irqstate_t flags;
     uint32_t data_len = 0;
 
-    flags = usb_osal_enter_critical_section();
+    flags = enter_critical_section();
 
     usbd_msc_cfg.start_sector += (current_byte_read / usbd_msc_cfg.scsi_blk_size);
     usbd_msc_cfg.nsectors -= (current_byte_read / usbd_msc_cfg.scsi_blk_size);
@@ -904,7 +933,7 @@ static void usbd_msc_thread_memory_write_done(void)
         usbd_ep_start_read(mass_ep_data[MSD_OUT_EP_IDX].ep_addr, usbd_msc_cfg.block_buffer, data_len);
     }
 
-    usb_osal_leave_critical_section(flags);
+    leave_critical_section(flags);
 }
 #endif
 
@@ -1005,6 +1034,14 @@ static bool SCSI_CBWDecode(uint32_t nbytes)
 
 void mass_storage_bulk_out(uint8_t ep, uint32_t nbytes)
 {
+    irqstate_t flags = enter_critical_section();
+
+    if (!s_msc_storage_init)
+    {
+        leave_critical_section(flags);
+        return;
+    }
+
     switch (usbd_msc_cfg.stage)
     {
         case MSC_READ_CBW:
@@ -1012,6 +1049,7 @@ void mass_storage_bulk_out(uint8_t ep, uint32_t nbytes)
             {
                 USB_LOG_ERR("Command:0x%02x decode err\r\n", usbd_msc_cfg.cbw.CB[0]);
                 usbd_msc_bot_abort();
+                leave_critical_section(flags);
                 return;
             }
             break;
@@ -1032,10 +1070,19 @@ void mass_storage_bulk_out(uint8_t ep, uint32_t nbytes)
         default:
             break;
     }
+    leave_critical_section(flags);
 }
 
 void mass_storage_bulk_in(uint8_t ep, uint32_t nbytes)
 {
+    irqstate_t flags = enter_critical_section();
+
+    if (!s_msc_storage_init)
+    {
+        leave_critical_section(flags);
+        return;
+    }
+
     switch (usbd_msc_cfg.stage)
     {
         case MSC_DATA_IN:
@@ -1046,6 +1093,7 @@ void mass_storage_bulk_in(uint8_t ep, uint32_t nbytes)
                     if (SCSI_processRead() == false)
                     {
                         usbd_msc_send_csw(CSW_STATUS_CMD_FAILED); /* send fail status to host,and the host will retry*/
+                        leave_critical_section(flags);
                         return;
                     }
                     break;
@@ -1068,12 +1116,15 @@ void mass_storage_bulk_in(uint8_t ep, uint32_t nbytes)
         default:
             break;
     }
+    leave_critical_section(flags);
 }
 
 #ifdef CONFIG_USBDEV_MSC_THREAD
 static void usbd_msc_thread(void *argument)
 {
     uint32_t data_len = 0;
+    uint8_t operation;
+    irqstate_t flags;
 
     (void)argument;
 
@@ -1085,17 +1136,38 @@ static void usbd_msc_thread(void *argument)
             continue;
         }
 
-        switch (thread_op)
+        if (nxmutex_lock(&g_bk7258_usbmsc_worker_lock) < 0)
+        {
+            continue;
+        }
+
+        /* Consume the one outstanding BOT operation exactly once. A wake
+         * left over from an earlier USB mode is harmless after init clears
+         * thread_op, even if the next mode has already queued new work.
+         */
+        flags = enter_critical_section();
+        operation = thread_op;
+        thread_op = 0;
+        leave_critical_section(flags);
+        if (!s_msc_storage_init)
+        {
+            nxmutex_unlock(&g_bk7258_usbmsc_worker_lock);
+            continue;
+        }
+
+        switch (operation)
         {
             case MSC_THREAD_OP_READ_MEM:
                 data_len = MIN(usbd_msc_cfg.nsectors * usbd_msc_cfg.scsi_blk_size, CONFIG_USBDEV_MSC_BLOCK_SIZE);
                 if (usbd_msc_sector_read(usbd_msc_cfg.start_sector, usbd_msc_cfg.block_buffer, data_len) != 0)
                 {
+                    flags = enter_critical_section();
                     SCSI_SetSenseData(SCSI_KCQHE_UREINRESERVEDAREA);
                     if (s_msc_storage_init)
                     {
                         usbd_msc_send_csw(CSW_STATUS_CMD_FAILED);
                     }
+                    leave_critical_section(flags);
                     break;
                 }
                 if (s_msc_storage_init)
@@ -1107,11 +1179,13 @@ static void usbd_msc_thread(void *argument)
                 data_len = current_byte_read;
                 if (usbd_msc_sector_write(usbd_msc_cfg.start_sector, usbd_msc_cfg.block_buffer, data_len) != 0)
                 {
+                    flags = enter_critical_section();
                     SCSI_SetSenseData(SCSI_KCQHE_WRITEFAULT);
                     if (s_msc_storage_init)
                     {
                         usbd_msc_send_csw(CSW_STATUS_CMD_FAILED);
                     }
+                    leave_critical_section(flags);
                     break;
                 }
                 if (s_msc_storage_init)
@@ -1128,6 +1202,7 @@ static void usbd_msc_thread(void *argument)
             default:
                 break;
         }
+        nxmutex_unlock(&g_bk7258_usbmsc_worker_lock);
     }
 }
 #endif
@@ -1296,6 +1371,7 @@ int bk7258_usbmsc_initialize(const char *blockdev)
     struct usbd_interface *intf;
     struct inode *inode = NULL;
     struct geometry geometry;
+    irqstate_t flags;
     int ret;
 
     if (blockdev == NULL || blockdev[0] == '\0')
@@ -1303,11 +1379,18 @@ int bk7258_usbmsc_initialize(const char *blockdev)
         return -EINVAL;
     }
 
+    ret = nxmutex_lock(&g_bk7258_usbmsc_worker_lock);
+    if (ret < 0)
+    {
+        return ret;
+    }
+
     ret = nxmutex_lock(&g_bk7258_usbmsc_lock);
     if (ret < 0)
     {
         syslog(LOG_ERR, "BK7258 USBMSC START stage=lock-fail ret=%d\n",
                ret);
+        nxmutex_unlock(&g_bk7258_usbmsc_worker_lock);
         return ret;
     }
 
@@ -1315,6 +1398,7 @@ int bk7258_usbmsc_initialize(const char *blockdev)
     if (s_msc_storage_init)
     {
         nxmutex_unlock(&g_bk7258_usbmsc_lock);
+        nxmutex_unlock(&g_bk7258_usbmsc_worker_lock);
         return -EBUSY;
     }
 
@@ -1325,6 +1409,7 @@ int bk7258_usbmsc_initialize(const char *blockdev)
                "BK7258 USBMSC START stage=block-open-fail dev=%s ret=%d\n",
                blockdev, ret);
         nxmutex_unlock(&g_bk7258_usbmsc_lock);
+        nxmutex_unlock(&g_bk7258_usbmsc_worker_lock);
         return ret;
     }
 
@@ -1356,7 +1441,10 @@ int bk7258_usbmsc_initialize(const char *blockdev)
 
     g_bk7258_usbmsc_inode = inode;
     memcpy(&g_bk7258_usbmsc_geometry, &geometry, sizeof(geometry));
+    flags = enter_critical_section();
+    thread_op = 0;
     s_msc_storage_init = 1;
+    leave_critical_section(flags);
 
     memset(&gs_intf0, 0, sizeof(gs_intf0));
     memset(mass_ep_data, 0, sizeof(mass_ep_data));
@@ -1385,10 +1473,14 @@ int bk7258_usbmsc_initialize(const char *blockdev)
            blockdev, (unsigned long)geometry.geo_nsectors,
            (unsigned int)geometry.geo_sectorsize);
     nxmutex_unlock(&g_bk7258_usbmsc_lock);
+    nxmutex_unlock(&g_bk7258_usbmsc_worker_lock);
     return OK;
 
 errout_with_state:
+    flags = enter_critical_section();
     s_msc_storage_init = 0;
+    thread_op = 0;
+    leave_critical_section(flags);
     g_bk7258_usbmsc_inode = NULL;
     memset(&g_bk7258_usbmsc_geometry, 0,
            sizeof(g_bk7258_usbmsc_geometry));
@@ -1396,28 +1488,44 @@ errout_with_state:
 errout_with_inode:
     (void)close_blockdriver(inode);
     nxmutex_unlock(&g_bk7258_usbmsc_lock);
+    nxmutex_unlock(&g_bk7258_usbmsc_worker_lock);
     return ret;
 }
 
 int bk7258_usbmsc_uninitialize(void)
 {
     struct inode *inode;
+    irqstate_t flags;
     int close_ret;
     int ret;
+
+    ret = nxmutex_lock(&g_bk7258_usbmsc_worker_lock);
+    if (ret < 0)
+    {
+        return ret;
+    }
 
     ret = nxmutex_lock(&g_bk7258_usbmsc_lock);
     if (ret < 0)
     {
+        nxmutex_unlock(&g_bk7258_usbmsc_worker_lock);
         return ret;
     }
 
     if (!s_msc_storage_init || g_bk7258_usbmsc_inode == NULL)
     {
         nxmutex_unlock(&g_bk7258_usbmsc_lock);
+        nxmutex_unlock(&g_bk7258_usbmsc_worker_lock);
         return -ENODEV;
     }
 
+    /* Close callback admission before detaching. No sleeping block or USB
+     * teardown operation runs with interrupts held off.
+     */
+    flags = enter_critical_section();
     s_msc_storage_init = 0;
+    thread_op = 0;
+    leave_critical_section(flags);
     bk7258_usbmsc_soft_disconnect();
     ret = usbd_deinitialize();
     inode = g_bk7258_usbmsc_inode;
@@ -1428,6 +1536,7 @@ int bk7258_usbmsc_uninitialize(void)
     close_ret = close_blockdriver(inode);
 
     nxmutex_unlock(&g_bk7258_usbmsc_lock);
+    nxmutex_unlock(&g_bk7258_usbmsc_worker_lock);
     return ret < 0 ? ret : close_ret;
 }
 

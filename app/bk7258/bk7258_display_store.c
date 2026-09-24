@@ -33,7 +33,8 @@
 #define BKDISPLAY_STORE_STAGING    BKDISPLAY_STORE_BASE "/staging"
 #define BKDISPLAY_STORE_ACTIVE     BKDISPLAY_STORE_BASE "/active.json"
 #define BKDISPLAY_STORE_ACTIVE_TMP BKDISPLAY_STORE_BASE "/.active.json.tmp"
-#define BKDISPLAY_STORE_LEGACY_BASE   "SHANIU/DISPLAY"
+#define BKDISPLAY_STORE_LEGACY_ROOT   "SHANIU"
+#define BKDISPLAY_STORE_LEGACY_BASE   BKDISPLAY_STORE_LEGACY_ROOT "/DISPLAY"
 #define BKDISPLAY_STORE_LEGACY_PACKS  BKDISPLAY_STORE_LEGACY_BASE "/PACKS"
 #define BKDISPLAY_STORE_LEGACY_ACTIVE BKDISPLAY_STORE_LEGACY_BASE "/active.json"
 #define BKDISPLAY_ACTIVE_PREFIX    \
@@ -125,13 +126,19 @@ static bool bkdisplay_store_filename(const char *filename)
 
 static int bkdisplay_store_validate(const char *path, const char *filename,
                                     struct bkdisplay_store_selection_s *result,
-                                    bool fallback)
+                                    bool fallback,
+                                    struct bkdisplay_pack_s **result_pack)
 {
   struct bkdisplay_pack_info_s info;
   struct bkdisplay_pack_s *pack = NULL;
   char expected[BKDISPLAY_STORE_FILENAME_SIZE];
   int written;
   int ret;
+
+  if (result_pack != NULL)
+    {
+      *result_pack = NULL;
+    }
 
   ret = bkdisplay_pack_open(path, &pack, &info);
   if (ret < 0)
@@ -153,6 +160,12 @@ static int bkdisplay_store_validate(const char *path, const char *filename,
       snprintf(result->path, sizeof(result->path), "%s", path);
       result->fallback = fallback;
       result->info = info;
+    }
+
+  if (ret == 0 && result_pack != NULL)
+    {
+      *result_pack = pack;
+      pack = NULL;
     }
 
   bkdisplay_pack_close(pack);
@@ -189,12 +202,11 @@ static int bkdisplay_store_write_all(int fd, const void *buffer, size_t size)
   return 0;
 }
 
-/* Commit a directory-entry change (rename or unlink) to the medium.  The
- * pack data is fsynced before the rename, but the renamed entry itself only
- * becomes durable once the containing directory is synced: an abrupt reset
- * between the two used to leave a pack that validated at install time and
- * then failed with EIO on the next boot.  Unsupported directory sync is
- * reported, not fatal.
+/* Request directory synchronization where the filesystem supports it.
+ * Native NuttX FAT already writes directory changes during rename/unlink;
+ * its directory fsync path can return success without a device flush.
+ * This best-effort call is not evidence of power-loss durability and must
+ * not be used to explain an earlier EIO without storage-level evidence.
  */
 
 static void bkdisplay_store_sync_directory(const char *path)
@@ -365,7 +377,7 @@ static int bkdisplay_store_candidate(
       return -ENAMETOOLONG;
     }
 
-  return bkdisplay_store_validate(path, filename, selection, true);
+  return bkdisplay_store_validate(path, filename, selection, true, NULL);
 }
 
 static int bkdisplay_store_scan(
@@ -402,7 +414,8 @@ static int bkdisplay_store_scan(
 
 static int bkdisplay_store_resolve_layout(
   const char *root, const char *active_relative, const char *packs_relative,
-  struct bkdisplay_store_selection_s *selection, bool *fallback_result)
+  struct bkdisplay_store_selection_s *selection, bool *fallback_result,
+  struct bkdisplay_pack_s **result_pack)
 {
   char active[BKDISPLAY_PACK_PATH_SIZE];
   char pack[BKDISPLAY_PACK_PATH_SIZE];
@@ -416,6 +429,10 @@ static int bkdisplay_store_resolve_layout(
     }
 
   *fallback_result = false;
+  if (result_pack != NULL)
+    {
+      *result_pack = NULL;
+    }
 
   ret = bkdisplay_store_path(active, sizeof(active), root,
                              active_relative);
@@ -456,7 +473,8 @@ static int bkdisplay_store_resolve_layout(
       return -ENAMETOOLONG;
     }
 
-  ret = bkdisplay_store_validate(active, filename, selection, fallback);
+  ret = bkdisplay_store_validate(active, filename, selection, fallback,
+                                 result_pack);
   if (ret == 0 || ret == -ENOENT)
     {
       return ret;
@@ -480,6 +498,11 @@ static int bkdisplay_store_resolve_layout(
         bkdisplay_store_candidate(pack, BKDISPLAY_STORE_DEFAULT_PACK,
                                   selection) == 0)
       {
+        if (result_pack != NULL)
+          {
+            ret = bkdisplay_pack_open(selection->path, result_pack, NULL);
+            if (ret < 0) return ret;
+          }
         *fallback_result = true;
         BKDISPLAY_STORE_DIAG(
           "BKDISPLAY STORE stage=fallback path=%s reason=default\n",
@@ -489,6 +512,11 @@ static int bkdisplay_store_resolve_layout(
 
     if (bkdisplay_store_scan(pack, filename, selection) == 0)
       {
+        if (result_pack != NULL)
+          {
+            ret = bkdisplay_pack_open(selection->path, result_pack, NULL);
+            if (ret < 0) return ret;
+          }
         *fallback_result = true;
         BKDISPLAY_STORE_DIAG(
           "BKDISPLAY STORE stage=fallback path=%s reason=scan\n",
@@ -500,16 +528,32 @@ static int bkdisplay_store_resolve_layout(
   }
 }
 
-int bkdisplay_store_resolve(const char *root,
-                            struct bkdisplay_store_selection_s *selection)
+int bkdisplay_store_resolve_open(const char *root,
+                                 struct bkdisplay_store_selection_s *selection,
+                                 struct bkdisplay_pack_s **pack)
 {
+  static const char *const legacy_dirs[] =
+    {
+      BKDISPLAY_STORE_LEGACY_ROOT,
+      BKDISPLAY_STORE_LEGACY_BASE
+    };
+  char legacy[BKDISPLAY_PACK_PATH_SIZE];
+  struct stat statbuf;
   bool canonical_fallback;
   bool legacy_fallback;
+  size_t i;
   int ret;
+
+  if (pack == NULL)
+    {
+      return -EINVAL;
+    }
+
+  *pack = NULL;
 
   ret = bkdisplay_store_resolve_layout(root, BKDISPLAY_STORE_ACTIVE,
                                        BKDISPLAY_STORE_PACKS, selection,
-                                       &canonical_fallback);
+                                       &canonical_fallback, pack);
   if (ret != -ENOENT || !canonical_fallback)
     {
       return ret;
@@ -524,9 +568,33 @@ int bkdisplay_store_resolve(const char *root,
    * malformed or explicitly selected canonical content.
    */
 
+  /* Check each optional ancestor before opening the legacy marker. FAT can
+   * report ENOTDIR for an absent intermediate directory. A missing legacy
+   * tree means no installed resource; a file in its place remains an error.
+   */
+
+  for (i = 0; i < sizeof(legacy_dirs) / sizeof(legacy_dirs[0]); i++)
+    {
+      ret = bkdisplay_store_path(legacy, sizeof(legacy), root, legacy_dirs[i]);
+      if (ret < 0)
+        {
+          return ret;
+        }
+
+      if (stat(legacy, &statbuf) < 0)
+        {
+          return bkdisplay_store_errno();
+        }
+
+      if (!S_ISDIR(statbuf.st_mode))
+        {
+          return -ENOTDIR;
+        }
+    }
+
   ret = bkdisplay_store_resolve_layout(root, BKDISPLAY_STORE_LEGACY_ACTIVE,
                                        BKDISPLAY_STORE_LEGACY_PACKS,
-                                       selection, &legacy_fallback);
+                                       selection, &legacy_fallback, pack);
   if (ret == 0)
     {
       BKDISPLAY_STORE_DIAG(
@@ -534,6 +602,16 @@ int bkdisplay_store_resolve(const char *root,
         selection->path, legacy_fallback ? 1u : 0u);
     }
 
+  return ret;
+}
+
+int bkdisplay_store_resolve(const char *root,
+                            struct bkdisplay_store_selection_s *selection)
+{
+  struct bkdisplay_pack_s *pack = NULL;
+  int ret = bkdisplay_store_resolve_open(root, selection, &pack);
+
+  bkdisplay_pack_close(pack);
   return ret;
 }
 
@@ -574,7 +652,7 @@ int bkdisplay_store_activate(const char *root, const char *filename,
       return -ENAMETOOLONG;
     }
 
-  ret = bkdisplay_store_validate(path, filename, &selected, false);
+  ret = bkdisplay_store_validate(path, filename, &selected, false, NULL);
   if (ret < 0)
     {
       return ret;
@@ -693,7 +771,7 @@ int bkdisplay_store_install(const char *root, const char *filename,
       return -ENAMETOOLONG;
     }
 
-  ret = bkdisplay_store_validate(staging, filename, NULL, false);
+  ret = bkdisplay_store_validate(staging, filename, NULL, false, NULL);
   if (ret < 0)
     {
       return ret;

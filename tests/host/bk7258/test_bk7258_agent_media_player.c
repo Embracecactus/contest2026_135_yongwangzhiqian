@@ -916,6 +916,8 @@ static void test_preconnect_cancel(int automatic)
     assert(voice_channel_is_idle());
 }
 
+static atomic_int test_next_sentence_started;
+
 audio_playback_t* audio_playback_open(const char* path, unsigned int rate,
     unsigned int channels, unsigned int bits)
 {
@@ -929,6 +931,11 @@ audio_playback_t* audio_playback_open(const char* path, unsigned int rate,
 int audio_playback_write(audio_playback_t* pb, const void* bytes, size_t size)
 {
     assert(pb && size && size % 2 == 0);
+    if (test_mode == 7) {
+        for (int i = 0; i < 2000 &&
+            !atomic_load(&test_next_sentence_started); i++) usleep(1000);
+        assert(atomic_load(&test_next_sentence_started));
+    }
     if (test_mode == 2) return -EIO;
     if (test_mode == 3) {
         atomic_store(&s_voice.tts_abort, 1);
@@ -969,6 +976,8 @@ int voice_tts_speak_stream_checked(const char* text, voice_tts_chunk_cb cb,
         snprintf(test_spoken[test_synth_calls], sizeof(test_spoken[0]),
             "%s", text);
         test_synth_calls++;
+        if (test_mode == 7 && test_synth_calls == 2)
+            atomic_store(&test_next_sentence_started, 1);
     }
     unsigned char chunk[1021]; /* 故意在 PCM 半帧处分块。 */
     size_t total = test_mode == 1 ? 200001 :
@@ -989,6 +998,7 @@ int voice_tts_speak_stream_checked(const char* text, voice_tts_chunk_cb cb,
 static uint64_t test_reply_prepare(int mode)
 {
     test_mode = mode;
+    atomic_store(&test_next_sentence_started, 0);
     test_written = test_opens = 0;
     test_drains = test_closes = test_stops = test_synth_calls = 0;
     memset(test_spoken, 0, sizeof(test_spoken));
@@ -1154,6 +1164,16 @@ static void test_sse_pipeline(void)
 
 static void test_reply_pipeline(void)
 {
+    uint64_t overlap_id = test_reply_prepare(7);
+    const char overlap[] = "第一句话已经完整。第二句话也完整。";
+    assert(voice_channel_reply_stream(overlap_id, AGENT_REPLY_BEGIN, NULL, 0) == 0);
+    assert(voice_channel_reply_stream(overlap_id, AGENT_REPLY_DELTA,
+        overlap, sizeof(overlap) - 1) == 0);
+    assert(voice_channel_reply_stream(overlap_id, AGENT_REPLY_END, NULL, 0) == 0);
+    assert(test_synth_calls == 2 && test_written == 16384);
+    assert(test_opens == 1 && test_closes == 1 && test_drains == 1);
+    voice_request_complete(overlap_id, 0);
+
     uint64_t id = test_reply_prepare(5);
     const char first[] = "你好，这是第一句。";
     assert(voice_channel_reply_stream(id, AGENT_REPLY_BEGIN, NULL, 0) == 0);
@@ -1179,7 +1199,8 @@ static void test_reply_pipeline(void)
     assert(voice_channel_reply_stream(id, AGENT_REPLY_DELTA,
         first, sizeof(first) - 1) == 0);
     assert(voice_channel_reply_stream(id, AGENT_REPLY_END, NULL, 0) == -EIO);
-    assert(test_opens == 1 && test_closes == 1);
+    /* Producer failure may precede the first Media write. */
+    assert(test_opens <= 1 && test_closes == 1);
     voice_request_complete(id, -EIO);
     assert(voice_channel_is_idle());
 

@@ -1,5 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #ifdef TEST_AGENT_CAPTURE
+#define _GNU_SOURCE
+#define CAP_START_TIMEOUT_MS 100u
 /* The actual Agent capture owner, with a socket-backed Media peer. */
 #include <assert.h>
 #include <errno.h>
@@ -23,12 +25,40 @@ static unsigned int closes;
 static unsigned int starts;
 static unsigned int route_on;
 static unsigned int route_off;
+static media_event_callback start_callback;
+static void *start_cookie;
+static pthread_t start_thread;
+static bool start_thread_valid;
+static atomic_int format_queued;
+static int start_mode;
+static bool require_warm_route;
+static bool warm_prepared;
+
+int media_recorder_set_event_callback(void *handle, void *cookie,
+                                      media_event_callback callback)
+{
+  assert(handle == &peer_handle);
+  start_cookie = cookie;
+  start_callback = callback;
+  return 0;
+}
+
+static void *peer_started(void *unused)
+{
+  (void)unused;
+  usleep(10000);
+  atomic_store(&format_queued, 1);
+  start_callback(start_cookie, MEDIA_EVENT_STARTED,
+                 start_mode == 1 ? -EINVAL : 0, NULL);
+  return NULL;
+}
 
 void *media_recorder_open(const char *params)
 {
   assert(strcmp(params, MEDIA_SOURCE_MIC) == 0);
   assert(socketpair(AF_UNIX, SOCK_STREAM, 0, peer_sockets) == 0);
   opens++;
+  atomic_store(&format_queued, 0);
   return &peer_handle;
 }
 
@@ -42,7 +72,13 @@ int media_recorder_prepare(void *handle, const char *url, const char *options)
 int media_recorder_start(void *handle)
 {
   assert(handle == &peer_handle);
+  assert(!require_warm_route || warm_prepared);
   starts++;
+  if (start_mode != 2)
+    {
+      assert(pthread_create(&start_thread, NULL, peer_started, NULL) == 0);
+      start_thread_valid = true;
+    }
   return 0;
 }
 
@@ -74,6 +110,11 @@ int media_recorder_reset(void *handle)
 int media_recorder_close(void *handle)
 {
   assert(handle == &peer_handle);
+  if (start_thread_valid)
+    {
+      assert(pthread_join(start_thread, NULL) == 0);
+      start_thread_valid = false;
+    }
   assert(close(peer_sockets[0]) == 0);
   assert(close(peer_sockets[1]) == 0);
   closes++;
@@ -82,9 +123,23 @@ int media_recorder_close(void *handle)
 
 static int capture_route(int active)
 {
-  if (active) route_on++;
-  else route_off++;
+  if (active)
+    {
+      assert(atomic_load(&format_queued) && start_mode == 0);
+      route_on++;
+    }
+  else { route_off++; warm_prepared = false; }
   return 0;
+}
+
+static int prepare_warm_route(unsigned int rate, unsigned int channels,
+                              unsigned int bits)
+{
+  assert(rate == 16000 && channels == 1 && bits == 16);
+  assert(!atomic_load(&format_queued));
+  warm_prepared = true;
+  route_on++;
+  return 1;
 }
 
 static void peer_samples(unsigned int first, unsigned int count)
@@ -369,6 +424,29 @@ static void test_ack_cancel_while_discarding(void)
   assert(audio_capture_close(local) == 0);
 }
 
+static void test_start_failure_keeps_hardware_off(void)
+{
+  unsigned int before = route_on;
+  for (int mode = 1; mode <= 2; mode++)
+    {
+      start_mode = mode;
+      audio_capture_t *cap = audio_capture_open_local(NULL, 16000, 1, 16);
+      assert(cap);
+      assert(audio_capture_start(cap) == (mode == 1 ? -EINVAL : -ETIMEDOUT));
+      assert(route_on == before);
+      /* A delayed event cannot activate hardware or make retry safe. */
+      start_callback(start_cookie, MEDIA_EVENT_STARTED, 0, NULL);
+      assert(audio_capture_start(cap) == -EALREADY);
+      assert(route_on == before);
+      assert(audio_capture_close(cap) == 0);
+    }
+  start_mode = 0;
+  audio_capture_t *cap = audio_capture_open_local(NULL, 16000, 1, 16);
+  assert(cap && audio_capture_start(cap) == 0);
+  assert(route_on == before + 1);
+  assert(audio_capture_close(cap) == 0);
+}
+
 int main(void)
 {
   assert(audio_capture_set_route(capture_route) == 0);
@@ -378,7 +456,25 @@ int main(void)
   test_ack_discard_same_recorder();
   test_ack_cancel_while_discarding();
   assert(opens == 9 && closes == 9 && route_on == 9 && route_off == 9);
-  puts("BK7258_AGENT_CAPTURE_HOST_PASS opens=9 closes=9 stats=bounded handoff=400ms discard=same-recorder cancel-recover");
+  test_start_failure_keeps_hardware_off();
+  assert(opens == 12 && closes == 12 && route_on == 10 && route_off == 10);
+  assert(audio_capture_set_route_prepare(prepare_warm_route) == 0);
+  require_warm_route = true;
+  for (int mode = 0; mode <= 2; mode++)
+    {
+      start_mode = mode;
+      audio_capture_t *cap = audio_capture_open_local(NULL, 16000, 1, 16);
+      assert(cap);
+      assert(audio_capture_set_route_prepare(NULL) == -EBUSY);
+      assert(audio_capture_start(cap) ==
+             (mode == 0 ? 0 : mode == 1 ? -EINVAL : -ETIMEDOUT));
+      assert(warm_prepared);
+      assert(audio_capture_close(cap) == 0);
+      assert(!warm_prepared);
+    }
+  assert(opens == 15 && closes == 15 && route_on == 13 && route_off == 13);
+  assert(audio_capture_set_route_prepare(NULL) == 0);
+  puts("BK7258_AGENT_CAPTURE_HOST_PASS opens=15 closes=15 cold=event-gated warm=before-link error-and-timeout=route-released handoff=400ms cancel-recover");
   return 0;
 }
 #else

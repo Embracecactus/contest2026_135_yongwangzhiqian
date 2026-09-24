@@ -27,6 +27,11 @@ struct bkdisplay_store_selection_s
 /* The root is a mounted FAT volume, not /dev/mmcsd0 itself. */
 
 int bkdisplay_store_ensure(const char *root);
+/* Resolves and returns one fully validated pack.  The caller owns the pack
+ * and must close it before releasing the mounted volume lease. */
+int bkdisplay_store_resolve_open(const char *root,
+                                 struct bkdisplay_store_selection_s *selection,
+                                 struct bkdisplay_pack_s **pack);
 int bkdisplay_store_resolve(const char *root,
                             struct bkdisplay_store_selection_s *selection);
 int bkdisplay_store_activate(const char *root, const char *filename,

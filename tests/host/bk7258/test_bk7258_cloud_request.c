@@ -52,7 +52,7 @@ static void test_plan_phase(void)
   cJSON *messages = cJSON_CreateArray();
   assert(messages);
   llm_response_t response;
-  const char *invalid[] = { "length", "content_filter", "stop", "tool_calls" };
+  const char *invalid[] = { "length", "content_filter", "unknown", "tool_calls" };
   plan_calls = "";
   for (size_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); i++) {
     plan_finish = invalid[i];
@@ -62,6 +62,25 @@ static void test_plan_phase(void)
     llm_response_free(&response);
   }
   plan_finish = "stop";
+  const char *no_tools[] = { "", ",\"tool_calls\":null",
+      ",\"tool_calls\":[]" };
+  for (size_t i = 0; i < sizeof(no_tools) / sizeof(no_tools[0]); i++) {
+    plan_calls = no_tools[i];
+    assert(llm_chat_plan_checked("system", messages, "[]", &response,
+        NULL, NULL) == 0);
+    assert(response.tool_phase_complete && !response.tool_use &&
+        !response.call_count && !response.text && !response.reasoning_content);
+    llm_response_free(&response);
+  }
+  const char *ambiguous[] = { ",\"tool_calls\":[{}]",
+      ",\"tool_calls\":{}", ",\"function_call\":{}" };
+  for (size_t i = 0; i < sizeof(ambiguous) / sizeof(ambiguous[0]); i++) {
+    plan_calls = ambiguous[i];
+    assert(llm_chat_plan_checked("system", messages, "[]", &response,
+        NULL, NULL) == -EPROTO);
+    llm_response_free(&response);
+  }
+  plan_calls = "";
   assert(llm_chat_tools_checked("system", messages, NULL, &response,
       NULL, NULL) == 0);
   assert(!strcmp(response.text, "draft"));
@@ -112,6 +131,19 @@ static llm_final_stream_t *fresh(size_t limit)
 int main(void)
 {
   test_plan_phase();
+  /* MiMo's documented SSE shape includes null optional delta fields. */
+  const char nullable[] =
+    "data: {\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":null,\"reasoning_content\":null}}]}\n\n"
+    "data: {\"choices\":[{\"index\":0,\"delta\":{\"role\":null,\"content\":\"你好。\",\"tool_calls\":null,\"function_call\":null}}]}\n\n"
+    "data: {\"choices\":[{\"index\":0,\"delta\":{\"role\":null,\"content\":null,\"tool_calls\":null},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n";
+  llm_final_stream_t *nullable_parser = fresh(255);
+  for (size_t i = 0; i < strlen(nullable); i++)
+    assert(llm_final_stream_feed(nullable_parser, nullable + i, 1) == 0);
+  char *nullable_text = NULL;
+  assert(llm_final_stream_finish(nullable_parser, &nullable_text) == 0);
+  assert(!strcmp(nullable_text, "你好。") && !strcmp(spoken, nullable_text));
+  free(nullable_text);
+  llm_final_stream_free(nullable_parser);
   const char first[] = "data: {\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"reasoning_content\":\"NEVER_SPEAK\"}}]}\r\n\r\n"
     "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"你好。\"}}]}\n\n";
   const char tail[] = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"再见\"},\"finish_reason\":\"stop\"}]}\n\n"
@@ -165,7 +197,7 @@ int main(void)
   memset(oversized, 'x', sizeof(oversized));
   assert(llm_final_stream_feed(p, oversized, sizeof(oversized)) == -E2BIG);
   llm_final_stream_free(p);
-  puts("final-body SSE: planning rejects length/filter/draft, ordinary sync and tool/finalize retained, fragmented UTF-8, early delta, reasoning/tool exclusion, EOF, bounds and cancellation PASS");
+  puts("final-body SSE: planning stop discards draft, rejects truncated/ambiguous tools, sync and tool/finalize retained, fragmented UTF-8, early delta, reasoning/tool exclusion, EOF, bounds and cancellation PASS");
   return 0;
 }
 #elif defined(TEST_AGENT_ENDPOINT)

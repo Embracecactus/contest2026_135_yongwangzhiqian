@@ -21,6 +21,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdbool.h>
+#include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -66,11 +67,20 @@ struct bkdisplay_service_s
   uint8_t diagnostic_stage;
   int diagnostic_error;
   uint16_t *frames[5];
+  uint16_t *speaking_frame;
+  bool speaking_painted;
   unsigned int animation_step;
   char claim_qr[108];
   unsigned int power_overlay;
   bool overlay_dirty;
 };
+
+static atomic_bool g_speaking;
+
+void bk7258_display_speaking(bool active)
+{
+  atomic_store(&g_speaking, active);
+}
 
 enum bkdisplay_diagnostic_stage_e
 {
@@ -370,6 +380,21 @@ static void bkdisplay_cache_frames(struct bkdisplay_service_s *service,
     }
 
   service->animation_step = 0;
+  /* One optional 51,200-byte frame, bounded independently of pack size.
+   * Prepare with the pack lease, never in the audio callback. */
+  free(service->speaking_frame);
+  service->speaking_frame = malloc(BKDISPLAY_CANVAS_PIXELS * sizeof(*base));
+  if (service->speaking_frame &&
+      bkdisplay_pack_render(pack, "speaking", BKDISPLAY_SIDE_UNMAPPED,
+                            service->speaking_frame,
+                            BKDISPLAY_CANVAS_PIXELS) < 0)
+    {
+      free(service->speaking_frame);
+      service->speaking_frame = NULL;
+    }
+  service->speaking_painted = false;
+  if (!service->speaking_frame)
+    syslog(LOG_WARNING, "BKDISPLAY speaking frame unavailable\n");
 }
 
 static unsigned int bkdisplay_animate_locked(struct bkdisplay_service_s *service)
@@ -456,12 +481,8 @@ static int bkdisplay_render_locked(struct bkdisplay_service_s *service,
   if (ret == 0)
     {
       stage = BKDISPLAY_DIAG_STORE_RESOLVE;
-      ret = bkdisplay_store_resolve(BKDISPLAY_MOUNTPOINT, &selection);
-    }
-  if (ret == 0)
-    {
-      stage = BKDISPLAY_DIAG_PACK_OPEN;
-      ret = bkdisplay_pack_open(selection.path, &pack, NULL);
+      ret = bkdisplay_store_resolve_open(BKDISPLAY_MOUNTPOINT, &selection,
+                                         &pack);
     }
 
   if (ret == 0)
@@ -673,6 +694,7 @@ static int bkdisplay_worker(int argc, char *argv[])
         service->status.state = BKDISPLAY_SERVICE_WAITING_DEVICES;
       else if (service->claim_qr[0] || service->power_overlay || service->overlay_dirty)
         {
+          service->speaking_painted = false;
           if (service->overlay_dirty)
             {
               ret = bkdisplay_builtin_locked(service, false);
@@ -680,6 +702,29 @@ static int bkdisplay_worker(int argc, char *argv[])
               else service->status.last_error = ret;
             }
           next = now;
+        }
+      else if (service->status.state == BKDISPLAY_SERVICE_READY &&
+               service->speaking_frame &&
+               (atomic_load(&g_speaking) || service->speaking_painted))
+        {
+          bool active = atomic_load(&g_speaking);
+          if (active != service->speaking_painted)
+            {
+              uint16_t *frame = active ? service->speaking_frame :
+                                        service->frames[0];
+              ret = frame ? bkdisplay_framebuffer_write(BKDISPLAY_FB0, frame) :
+                            -ENODATA;
+              if (!ret) ret = bkdisplay_framebuffer_write(BKDISPLAY_FB1, frame);
+              if (!ret)
+                {
+                  service->speaking_painted = active;
+                  service->status.render_sequence++;
+                  syslog(LOG_INFO, "BKDISPLAY voice speaking=%d rendered=1\n",
+                         active);
+                }
+              else service->status.last_error = ret;
+            }
+          next = now + 100;
         }
       else if (now >= next)
         {
