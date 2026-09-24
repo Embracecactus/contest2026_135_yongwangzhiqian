@@ -1862,3 +1862,9 @@ $(BUILD)/test_shaniu_focus: test_shaniu_focus.c $(VOICE_PACK_ROOT)/bk7258_focus.
 
 $(BUILD)/test_shaniu_focus_wire: test_shaniu_focus_wire.c $(VOICE_PACK_ROOT)/bk7258_focus.c $(VOICE_PACK_ROOT)/bk7258_control_session.c $(VOICE_PACK_ROOT)/bk7258_focus.h | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) $(filter %.c,$^) -o $@
+
+$(BUILD)/test_shaniu_focus_pixels: test_shaniu_focus_pixels.c $(VOICE_PACK_ROOT)/bk7258_focus_pixels.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) $< -o $@
+
+$(BUILD)/test_shaniu_focus_render: test_shaniu_focus_render.c $(VOICE_PACK_ROOT)/bk7258_focus_pixels.h $(VOICE_PACK_ROOT)/bk7258_display_focus.inc | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) $< -o $@

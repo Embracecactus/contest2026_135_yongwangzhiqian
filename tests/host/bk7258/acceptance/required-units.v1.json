@@ -117,7 +117,9 @@
     "provision.FocusTimerControllerTest.changedRevisionCannotProduceMixedSnapshot",
     "provision.FocusTimerControllerTest.disconnectAndLateAckNeverReplayMutation",
     "provision.FocusTimerControllerTest.unsupportedDeviceDoesNotStartLocalTimer",
-    "provision.FocusTimerControllerTest.rejectedBeginCannotCancelAnotherEditorsTransaction"
+    "provision.FocusTimerControllerTest.rejectedBeginCannotCancelAnotherEditorsTransaction",
+    "TIMER-01.pixels",
+    "TIMER-01.render"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -238,6 +240,8 @@
     "provision.FocusTimerControllerTest.changedRevisionCannotProduceMixedSnapshot",
     "provision.FocusTimerControllerTest.disconnectAndLateAckNeverReplayMutation",
     "provision.FocusTimerControllerTest.unsupportedDeviceDoesNotStartLocalTimer",
-    "provision.FocusTimerControllerTest.rejectedBeginCannotCancelAnotherEditorsTransaction"
+    "provision.FocusTimerControllerTest.rejectedBeginCannotCancelAnotherEditorsTransaction",
+    "TIMER-01.pixels",
+    "TIMER-01.render"
   ]
 }

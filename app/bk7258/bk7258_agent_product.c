@@ -2164,6 +2164,9 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
               /* Do this before TURN_COMPLETE or preference recovery can
                * revive an owner that SRV1 has already revoked. */
               bkfocus_cancel();
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+              bk7258_display_focus(0);
+#endif
               voice_action = VOICE_ACTION_NONE;
               voice_interaction_active = false;
               preferences_pending = false;
@@ -2187,6 +2190,9 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
       if (product_keys_step(now))
         {
           bkfocus_cancel();
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+          bk7258_display_focus(0);
+#endif
           /* Retain completion events while shutdown is pending or failed.
            * A failure keeps admission closed until an explicit retry; a
            * durable configuration or canceled voice result is not discarded.
@@ -2197,6 +2203,10 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
 
 #endif
       (void)bkfocus_step(now);
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+      bk7258_display_focus(atomic_load(&g_voice_initialized) && !voice_channel_is_idle() ?
+                          0 : bkfocus_visual(now));
+#endif
       if (now >= voice_cleanup_at)
         {
           int cleanup = voice_channel_recover();

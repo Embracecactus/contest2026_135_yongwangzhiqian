@@ -16,6 +16,7 @@
 
 #include "bk7258_display_rpc.h"
 #include "bk7258_display_power_pixels.h"
+#include "bk7258_focus_pixels.h"
 #include "bk7258_display_service.h"
 #include "bk7258_media_volume.h"
 
@@ -74,9 +75,16 @@ struct bkdisplay_service_s
   char claim_qr[108];
   unsigned int power_overlay;
   bool overlay_dirty;
+  unsigned focus_painted;
 };
 
 static atomic_bool g_speaking;
+static atomic_uint g_focus_visual;
+void bk7258_display_focus(unsigned visual)
+{
+  if (visual && ((visual >> 8) < 1 || (visual >> 8) > 3 || (visual & 255) > 32)) return;
+  atomic_store(&g_focus_visual, visual);
+}
 
 void bk7258_display_speaking(bool active)
 {
@@ -673,6 +681,8 @@ static uint64_t bkdisplay_now_ms(void)
          (uint64_t)now.tv_sec * 1000 + now.tv_nsec / 1000000 : 0;
 }
 
+#include "bk7258_display_focus.inc"
+
 static int bkdisplay_worker(int argc, char *argv[])
 {
   struct bkdisplay_service_s *service = &g_bkdisplay_service;
@@ -683,6 +693,8 @@ static int bkdisplay_worker(int argc, char *argv[])
       int ret = nxmutex_lock(&service->lock);
       if (ret < 0) return ret;
       uint64_t now = bkdisplay_now_ms();
+      unsigned focus = atomic_load(&g_focus_visual);
+      if (atomic_load(&g_speaking)) service->focus_painted = 0;
       service->devices_ready = bkdisplay_service_node(BKDISPLAY_FB0, false) &&
                                bkdisplay_service_node(BKDISPLAY_FB1, false);
       if (!service->devices_ready)
@@ -690,6 +702,7 @@ static int bkdisplay_worker(int argc, char *argv[])
       else if (service->claim_qr[0] || service->power_overlay || service->overlay_dirty)
         {
           service->speaking_painted = false;
+          service->focus_painted = 0;
           if (service->overlay_dirty)
             {
               ret = bkdisplay_builtin_locked(service, false);
@@ -698,11 +711,17 @@ static int bkdisplay_worker(int argc, char *argv[])
             }
           next = now;
         }
+      else if (!atomic_load(&g_speaking) && (focus || service->focus_painted))
+        {
+          (void)bkdisplay_focus_present_locked(service, focus);
+          next = now;
+        }
       else if (service->status.state == BKDISPLAY_SERVICE_READY &&
                service->speaking_frame &&
                (atomic_load(&g_speaking) || service->speaking_painted))
         {
           bool active = atomic_load(&g_speaking);
+          service->focus_painted = 0;
           if (active != service->speaking_painted)
             {
               uint16_t *frame = active ? service->speaking_frame :

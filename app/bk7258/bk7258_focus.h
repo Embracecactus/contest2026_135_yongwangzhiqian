@@ -15,4 +15,6 @@ int bkfocus_control(enum bkcontrol_command_e command, uint32_t offset,
                     struct bkcontrol_status_s *status, uint64_t now);
 int bkfocus_step(uint64_t now);
 void bkfocus_cancel(void);
+/* Compact read-only display intent: state in high byte, progress 0..32 low. */
+unsigned bkfocus_visual(uint64_t now);
 #endif

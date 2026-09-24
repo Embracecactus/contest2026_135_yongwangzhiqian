@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #include "bk7258_focus.h"
+#include "bk7258_focus_pixels.h"
 #include <errno.h>
 #include <string.h>
 
@@ -20,6 +21,11 @@ static uint64_t remaining(uint64_t now)
   if (now < g_focus.last_time) now = g_focus.last_time;
   return g_focus.state == 1 ? (now < g_focus.deadline ? g_focus.deadline - now : 0) :
          g_focus.state == 2 ? g_focus.remaining : 0;
+}
+unsigned bkfocus_visual(uint64_t now)
+{
+  if (g_focus.state < 1 || g_focus.state > 3) return 0;
+  return (g_focus.state << 8) | bkfocus_segments(g_focus.duration, remaining(now));
 }
 int bkfocus_step(uint64_t now)
 {

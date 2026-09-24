@@ -36,13 +36,16 @@ int main(int argc,char **argv)
  if(!strcmp(argv[1],"clock"))
  {
   assert(snapshot(1,50000,11000)==1);
+  assert(bkfocus_visual(11000)==((1u<<8)|5));
   assert(command(2,1,2,0,11000)==0);
   assert(snapshot(2,50000,16000)==2);
+  assert(bkfocus_visual(16000)==((2u<<8)|5));
   assert(command(3,2,3,0,16000)==0);
   assert(bkfocus_step(65999)==0);
   assert(bkfocus_step(66000)==1);
   assert(bkfocus_step(66000)==0 && bkfocus_step(99000)==0);
   assert(snapshot(3,0,99000)==4);
+  assert(bkfocus_visual(99000)==((3u<<8)|32));
  }
  else if(!strcmp(argv[1],"replay"))
  {
@@ -67,6 +70,7 @@ int main(int argc,char **argv)
   assert(snapshot(4,0,2000)==2);
   assert(command(1,2,3,60000,2000)==0);
   bkfocus_cancel();
+  assert(bkfocus_visual(100000)==0);
   assert(bkfocus_step(100000)==0);
   assert(snapshot(4,0,100000)==4);
  }

@@ -44,6 +44,8 @@ int bk7258_display_onboarding(const char *qr);
 int bk7258_display_power(unsigned int phase);
 /* Nonblocking notification; only the display worker touches framebuffer. */
 void bk7258_display_speaking(bool active);
+/* Atomic visual intent only; the existing display worker owns all I/O. */
+void bk7258_display_focus(unsigned visual);
 int bk7258_display_service_prepare(void);
 int bk7258_display_service_start(void);
 
