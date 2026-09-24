@@ -245,3 +245,17 @@ K2 在可信同会话消抖释放边沿核验实际 3000ms 时长，不要求 he
 原始日志分别在 out/shaniu-s1/before、after、protocol.log、assemble-debug.log。
 这只证明主机生产模块/既有协议路径及 Android 构建，不证明板端关机、深睡、
 HardFault 根因、远端安装完成或全部 56 项产品需求通过。
+
+### S2 卷租约转换子切片（2026-09-24）
+
+先加入真实 media_volume 模块、外部 USB 租约回调上的确定性交错测试：
+MSC-01.acquiring 和 MSC-01.releasing 均在底层重复/过早释放观察器断言失败，
+MSC-01.retry 原本通过。修复为原子保留转换占位，租约取得后才发布 owner，
+释放期间拒绝再次释放，失败恢复可重试 owner。占位复用原 int，不新增线程、
+缓冲或等待；真实 CPU/阻塞/栈及设备资源测量仍未执行。
+
+完整集合 71 PASS = 原 63 + 累计新增 8；2 恢复已包含于原 63，2 个变异单独检出。
+另外既有 run-media-volume / run-usbmode-lease 通过、运行器自测 12 PASS。
+报告 acceptance/s2-20260924.json；原始日志 out/shaniu-s2/。
+这是外部调用边界的确定性交错，非真实线程调度、文件系统句柄/DMA 或实板证明；
+未宣称整个 MSC-01 或退出/卷架构完成，未改变硬件配置或依赖版本。

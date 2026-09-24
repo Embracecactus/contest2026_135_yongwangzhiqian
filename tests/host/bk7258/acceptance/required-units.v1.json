@@ -68,7 +68,10 @@
     "K2-03.combination",
     "ota.OtaControlUploadTest.cancellationRequestWaitsForRemoteConfirmation",
     "ota.OtaControlUploadTest.acceptedTerminalCannotBecomeCanceledFromLateAckOrClose",
-    "ota.OtaControlUploadTest.localCloseIgnoresLateAckWithoutClaimingRemoteCancellation"
+    "ota.OtaControlUploadTest.localCloseIgnoresLateAckWithoutClaimingRemoteCancellation",
+    "MSC-01.acquiring",
+    "MSC-01.releasing",
+    "MSC-01.retry"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -140,6 +143,9 @@
     "K2-03.combination",
     "ota.OtaControlUploadTest.cancellationRequestWaitsForRemoteConfirmation",
     "ota.OtaControlUploadTest.acceptedTerminalCannotBecomeCanceledFromLateAckOrClose",
-    "ota.OtaControlUploadTest.localCloseIgnoresLateAckWithoutClaimingRemoteCancellation"
+    "ota.OtaControlUploadTest.localCloseIgnoresLateAckWithoutClaimingRemoteCancellation",
+    "MSC-01.acquiring",
+    "MSC-01.releasing",
+    "MSC-01.retry"
   ]
 }

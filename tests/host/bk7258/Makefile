@@ -1810,3 +1810,11 @@ $(BUILD)/test_shaniu_volume_contract: test_shaniu_volume_contract.c $(VOICE_PACK
 .PHONY: run-shaniu-contracts
 run-shaniu-contracts:
 	python3 test_shaniu_contracts.py
+
+$(BUILD)/test_shaniu_volume_transition: test_shaniu_volume_transition.c \
+    $(VOICE_PACK_ROOT)/bk7258_media_volume.c $(VOICE_PACK_ROOT)/bk7258_media_volume.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -DCONFIG_BK7258_USBMODE \
+	    -I $(MOCKS) -I $(CHIP_ROOT)/include -I $(VOICE_PACK_ROOT) \
+	    -include $(CHIP_ROOT)/include/bk7258_usbmode.h \
+	    -include $(MOCKS)/bk7258_usbmode_lease.h \
+	    $< $(VOICE_PACK_ROOT)/bk7258_media_volume.c -o $@

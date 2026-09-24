@@ -373,6 +373,7 @@ def main():
     for target in (
         "test_shaniu_key_contract",
         "test_shaniu_volume_contract",
+        "test_shaniu_volume_transition",
         "test_agent_tts_queue",
         "test_bk7258_product_keys",
         "test_bk7258_usbmode_lease",
@@ -400,6 +401,10 @@ def main():
             [HERE / "build/test_shaniu_key_contract", variant],
             binaries["test_shaniu_key_contract"],
         )
+    for variant in ("acquiring", "releasing", "retry"):
+        add(suite, "MSC-01." + variant, "MSC-01", "L1",
+            [HERE / "build/test_shaniu_volume_transition", variant],
+            binaries["test_shaniu_volume_transition"])
     for variant in ("unmount-failure", "local-busy", "wrong-owner", "handoff"):
         add(
             suite,
