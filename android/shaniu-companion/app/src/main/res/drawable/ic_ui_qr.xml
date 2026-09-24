@@ -1,0 +1,9 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Paths from the supplied Shaniu V2 design handoff. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:pathData="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5" android:fillColor="#00000000" android:strokeColor="#FF000000" android:strokeWidth="1.7" android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path android:pathData="M7.0,7.0H10.0Q10.0,7.0 10.0,7.0V10.0Q10.0,10.0 10.0,10.0H7.0Q7.0,10.0 7.0,10.0V7.0Q7.0,7.0 7.0,7.0Z" android:fillColor="#00000000" android:strokeColor="#FF000000" android:strokeWidth="1.7" android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path android:pathData="M14.0,7.0H17.0Q17.0,7.0 17.0,7.0V10.0Q17.0,10.0 17.0,10.0H14.0Q14.0,10.0 14.0,10.0V7.0Q14.0,7.0 14.0,7.0Z" android:fillColor="#00000000" android:strokeColor="#FF000000" android:strokeWidth="1.7" android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path android:pathData="M7.0,14.0H10.0Q10.0,14.0 10.0,14.0V17.0Q10.0,17.0 10.0,17.0H7.0Q7.0,17.0 7.0,17.0V14.0Q7.0,14.0 7.0,14.0Z" android:fillColor="#00000000" android:strokeColor="#FF000000" android:strokeWidth="1.7" android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path android:pathData="M14 14h3v3h-3z" android:fillColor="#00000000" android:strokeColor="#FF000000" android:strokeWidth="1.7" android:strokeLineCap="round" android:strokeLineJoin="round" />
+</vector>

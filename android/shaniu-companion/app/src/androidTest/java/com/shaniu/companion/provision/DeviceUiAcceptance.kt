@@ -109,6 +109,8 @@ internal object DeviceUiAcceptance {
             scene(0, DeviceControlSession.State(connection = DeviceControlSession.Connection.CONNECTED,
                 authenticated = true, snapshot = base, snapshotFresh = true))
             capture("connected-offline")
+            scene(0, session.current().copy(snapshot = base.copy(wifiReady = true)))
+            capture("connected-online")
             onUi(instrumentation) {
                 field("directDiscoveryVisible").set(activity, true)
                 field("directScanFinished").set(activity, true)
@@ -185,12 +187,99 @@ internal object DeviceUiAcceptance {
             scene(0)
             capture("discovery-unbound-candidates")
             check(!session.current().authenticated)
-            onUi(instrumentation) { field("provisionedDeviceId").set(activity, "ui-synthetic-device") }
+            onUi(instrumentation) {
+                MainActivity::class.java.getDeclaredMethod("dismissDirectDiscovery").apply { isAccessible = true }.invoke(activity)
+                field("provisionedDeviceId").set(activity, "ui-synthetic-device")
+            }
             scene(2, session.current().copy(connection = DeviceControlSession.Connection.CONNECTED,
                 authenticated = true, snapshotFresh = true))
             capture("customization")
-            scene(3)
-            capture("privacy")
+            val previewGeneration = session.current().generation
+            onUi(instrumentation) {
+                val happy = checkNotNull(findView(activity.window.decorView) {
+                    it.contentDescription?.toString()?.startsWith("开心，仅预览") == true
+                })
+                check(happy.performClick() && happy.isSelected)
+                check(session.current().generation == previewGeneration)
+            }
+            capture("customization-happy")
+            fun showSheet(method: String): android.app.Dialog {
+                onUi(instrumentation) {
+                    MainActivity::class.java.getDeclaredMethod(method).apply { isAccessible = true }.invoke(activity)
+                }
+                return field("companionSheet").get(activity) as android.app.Dialog
+            }
+            fun dismissSheet(dialog: android.app.Dialog) {
+                onUi(instrumentation) { dialog.dismiss() }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    check(field("companionSheet").get(activity) == null)
+                    check(field("refreshCompanionSheet").get(activity) == null)
+                }
+            }
+            val wakeSheet = showSheet("showWakeSheet")
+            capture("wake-sheet") { wakeSheet.window!!.decorView }
+            dismissSheet(wakeSheet)
+            scene(5)
+            val privacySheet = showSheet("showPrivacySheet")
+            capture("privacy") { privacySheet.window!!.decorView }
+            onUi(instrumentation) {
+                stateField.set(session, session.current().copy(snapshotFresh = false))
+                render.invoke(activity)
+                val memory = checkNotNull(findView(privacySheet.window!!.decorView) {
+                    it.contentDescription?.toString()?.startsWith("对话记忆，") == true
+                })
+                check(!memory.isEnabled) { "privacy sheet retained a stale mutation control" }
+                stateField.set(session, session.current().copy(snapshotFresh = true))
+                render.invoke(activity)
+            }
+            dismissSheet(privacySheet)
+            val resetSheet = showSheet("confirmFactoryReset")
+            capture("reset-consent") { resetSheet.window!!.decorView }
+            onUi(instrumentation) {
+                val submit = checkNotNull(findView(resetSheet.window!!.decorView) { it is TextView && it.text.toString() == "恢复出厂" })
+                val consent = checkNotNull(findView(resetSheet.window!!.decorView) { it is android.widget.CheckBox }) as android.widget.CheckBox
+                check(!submit.isEnabled)
+                consent.isChecked = true
+                check(submit.isEnabled)
+                consent.isChecked = false
+                check(!submit.isEnabled)
+                check(field("factoryReset").get(activity) == null) { "opening consent started a reset transaction" }
+            }
+            onUi(instrumentation) {
+                (checkNotNull(findView(resetSheet.window!!.decorView) { it is ScrollView }) as ScrollView).fullScroll(View.FOCUS_DOWN)
+            }
+            capture("reset-consent-footer") { resetSheet.window!!.decorView }
+            onUi(instrumentation) {
+                val submit = checkNotNull(findView(resetSheet.window!!.decorView) { it is TextView && it.text.toString() == "恢复出厂" })
+                val visible = Rect()
+                check(submit.getGlobalVisibleRect(visible) && visible.height() == submit.height) { "reset consent action is not reachable by scrolling" }
+                check(!submit.isEnabled && field("factoryReset").get(activity) == null)
+            }
+            dismissSheet(resetSheet)
+            scene(4)
+            capture("update-idle")
+            onUi(instrumentation) {
+                val resources = checkNotNull(findView(activity.window.decorView) {
+                    it is TextView && it.text.toString() == "资源更新" && it.isClickable
+                })
+                check(resources.performClick())
+            }
+            capture("update-resources")
+            onUi(instrumentation) {
+                val eyes = checkNotNull(findView(activity.window.decorView) {
+                    it.contentDescription?.toString()?.startsWith("眼睛资源，") == true
+                })
+                check(eyes.performClick())
+                MainActivity::class.java.getDeclaredMethod("navigateBack").apply { isAccessible = true }.invoke(activity)
+                check(findView(activity.window.decorView) {
+                    it is TextView && it.text.toString() == "资源更新" && it.isSelected
+                } != null) { "resource detail returned to the wrong navigation tab" }
+                val firmware = checkNotNull(findView(activity.window.decorView) {
+                    it is TextView && it.text.toString() == "固件更新" && it.isClickable
+                })
+                check(firmware.performClick())
+            }
             onUi(instrumentation) {
                 field("otaStatusGeneration").set(activity, session.current().generation)
                 field("otaStatus").set(activity, DeviceControlProtocol.OtaStatus(2, 1, 35, 100, -115))
@@ -217,6 +306,9 @@ internal object DeviceUiAcceptance {
             check(session.current().generation == generation)
             check((observers.get(session) as Set<*>).size == count)
             capture("settings")
+            scene(6)
+            capture("services")
+            scene(5)
             onUi(instrumentation) {
                 activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
             }
@@ -232,6 +324,66 @@ internal object DeviceUiAcceptance {
             }
             Thread.sleep(1000)
             instrumentation.waitForIdleSync()
+            // Exercise the production embedded path: tab switching and status
+            // refresh must retain drafts, and leaving must release its owner.
+            scene(6, session.current().copy(authenticated = true, snapshotFresh = true))
+            lateinit var embedded: DeviceSettingsEditor
+            val sampleCloud = DeviceSettings.Public(0, 7, "0".repeat(32), 0,
+                true, true, true, true, 443, 0, "演示网络", "api.example.invalid", "/v1",
+                "mimo-v2.5-asr", "mimo-v2.6-flash", "mimo-v2.5-tts")
+            onUi(instrumentation) {
+                MainActivity::class.java.getDeclaredMethod("openDeviceSettings", Boolean::class.javaPrimitiveType, String::class.java)
+                    .apply { isAccessible = true }.invoke(activity, true, null)
+                embedded = field("settingsEditor").get(activity) as DeviceSettingsEditor
+                DeviceSettingsEditor::class.java.getDeclaredField("current").apply { isAccessible = true }.set(embedded, sampleCloud)
+                DeviceSettingsEditor::class.java.getDeclaredMethod("populate", DeviceSettings.Public::class.java)
+                    .apply { isAccessible = true }.invoke(embedded, sampleCloud)
+                DeviceSettingsEditor::class.java.getDeclaredMethod("editable", Boolean::class.javaPrimitiveType)
+                    .apply { isAccessible = true }.invoke(embedded, true)
+            }
+            capture("cloud-inline-chat")
+            onUi(instrumentation) {
+                val chat = DeviceSettingsEditor::class.java.getDeclaredField("chat").apply { isAccessible = true }.get(embedded) as EditText
+                chat.setText("draft-chat-model")
+                check(findView(activity.window.decorView) { it is TextView && it.text.toString() == "听懂你" }!!.performClick())
+                render.invoke(activity)
+                check(chat.text.toString() == "draft-chat-model") { "status refresh lost model draft" }
+                check(findView(activity.window.decorView) { it is TextView && it.text.toString() == "听懂你" }!!.isSelected)
+            }
+            capture("cloud-inline-asr")
+            onUi(instrumentation) {
+                check(findView(activity.window.decorView) { it is TextView && it.text.toString() == "说给你听" }!!.performClick())
+            }
+            capture("cloud-inline-tts")
+            onUi(instrumentation) {
+                check(findView(activity.window.decorView) { it is TextView && it.text.toString() == "对话" }!!.performClick())
+                val chat = DeviceSettingsEditor::class.java.getDeclaredField("chat").apply { isAccessible = true }.get(embedded) as EditText
+                check(chat.text.toString() == "draft-chat-model") { "tab switch lost model draft" }
+                chat.requestFocus(); chat.setSelection(chat.length())
+                activity.getSystemService(InputMethodManager::class.java).showSoftInput(chat, InputMethodManager.SHOW_IMPLICIT)
+            }
+            Thread.sleep(600)
+            instrumentation.waitForIdleSync()
+            capture("cloud-inline-keyboard")
+            onUi(instrumentation) {
+                val decor = activity.window.decorView
+                check(decor.rootWindowInsets.isVisible(WindowInsets.Type.ime())) { "embedded IME missing" }
+                val save = DeviceSettingsEditor::class.java.getDeclaredField("saveAction").apply { isAccessible = true }.get(embedded) as View
+                val visible = Rect()
+                check(save.getGlobalVisibleRect(visible) && visible.height() == save.height) { "embedded save clipped by keyboard" }
+                val chat = DeviceSettingsEditor::class.java.getDeclaredField("chat").apply { isAccessible = true }.get(embedded) as EditText
+                check(chat.getGlobalVisibleRect(visible) && visible.height() == chat.height) { "embedded focused input clipped" }
+            }
+            onUi(instrumentation) {
+                activity.getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(activity.window.decorView.windowToken, 0)
+                MainActivity::class.java.getDeclaredMethod("selectTab", Int::class.javaPrimitiveType)
+                    .apply { isAccessible = true }.invoke(activity, 5)
+                render.invoke(activity)
+                check(field("settingsEditor").get(activity) == null) { "navigation retained cloud transaction owner" }
+                check((observers.get(session) as Set<*>).size == count) { "embedded editor observer leaked" }
+                check(!activity.window.attributes.flags.and(android.view.WindowManager.LayoutParams.FLAG_SECURE).equals(
+                    android.view.WindowManager.LayoutParams.FLAG_SECURE))
+            }
             for (cloud in listOf(false, true)) {
                 lateinit var editor: DeviceSettingsEditor
                 lateinit var dialog: android.app.Dialog
@@ -259,6 +411,12 @@ internal object DeviceUiAcceptance {
                     val input = DeviceSettingsEditor::class.java.getDeclaredField(if (cloud) "url" else "network")
                         .apply { isAccessible = true }.get(editor) as EditText
                     onUi(instrumentation) {
+                            if (cloud) {
+                                val reveal = checkNotNull(findView(dialog.window!!.decorView) {
+                                    it is TextView && it.text.toString() == "高级设置 · 服务连接与凭据"
+                                })
+                                check(reveal.performClick())
+                            }
                             input.requestFocus(); input.setSelection(input.length())
                             activity.getSystemService(InputMethodManager::class.java).showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
                     }
@@ -1170,15 +1328,15 @@ internal object DeviceUiAcceptance {
                 set("currentTab", 3)
                 set("directSnapshot", base)
                 render.invoke(activity)
-                check(row("跨重启记忆").isEnabled && row("删除已保存的记忆").isEnabled)
+                check(row("对话记忆").isEnabled && row("删除已保存的记忆").isEnabled)
                 check(text("已关闭 · 不读取或新增保存"))
                 set("directSnapshot", base.copy(busy = true, memoryEnabled = null, memoryPending = true))
                 render.invoke(activity)
-                check(!row("跨重启记忆").isEnabled && !row("删除已保存的记忆").isEnabled)
+                check(!row("对话记忆").isEnabled && !row("删除已保存的记忆").isEnabled)
                 check(!row("清空近期对话").isEnabled)
                 set("directSnapshot", base.copy(memoryEnabled = null, memoryFailed = true))
                 render.invoke(activity)
-                check(!row("跨重启记忆").isEnabled && !row("删除已保存的记忆").isEnabled)
+                check(!row("对话记忆").isEnabled && !row("删除已保存的记忆").isEnabled)
 
                 /* Enter through the actual overview-page row, not the
                  * settings-page duplicate. No connection or OTA command is
@@ -1188,13 +1346,13 @@ internal object DeviceUiAcceptance {
                 render.invoke(activity)
                 row("固件更新").performClick()
                 check(text("固件更新"))
-                check(text("版本不可用"))
-                check(!button("从手机开始升级").isEnabled)
+                check(text("待真实设备回读"))
+                check(!button("开始固件更新").isEnabled)
 
                 /* An OTA-capability-free STATUS is old firmware. */
                 set("directSnapshot", base.copy(otaSupported = false))
                 render.invoke(activity)
-                check(!button("从手机开始升级").isEnabled)
+                check(!button("开始固件更新").isEnabled)
 
                 /* Use only a unique, test-owned expected record. Calling the
                  * real confirmation method must reject a mismatched INFO. */

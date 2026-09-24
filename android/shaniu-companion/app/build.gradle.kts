@@ -13,8 +13,8 @@ android {
         applicationId = "com.shaniu.companion"
         minSdk = 29
         targetSdk = 35
-        versionCode = 40
-        versionName = "0.7.10-shaniu-companion"
+        versionCode = 44
+        versionName = "0.7.14-shaniu-canva-ui"
         buildConfigField("boolean", "LEGACY_SERVICE_DEMO", "false")
         testInstrumentationRunner = "com.shaniu.companion.provision.ControlKeyInstrumentation"
     }

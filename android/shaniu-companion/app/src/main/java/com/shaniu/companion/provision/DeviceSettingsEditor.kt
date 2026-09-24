@@ -21,11 +21,16 @@ internal class DeviceSettingsEditor(
     private val deviceId: String,
     private val appendMax: Int,
     private val cloudPage: Boolean = false,
+    private val modelFocus: String? = null,
+    private val embeddedHost: LinearLayout? = null,
+    private val navigateBack: (() -> Unit)? = null,
     private val finished: (String) -> Unit,
 ) : AutoCloseable {
     private enum class Phase { IDLE, READING, SCANNING, RESOLVING, BEGIN, APPEND, APPLY, VERIFY, CLOSING }
     private val handler = Handler(Looper.getMainLooper())
     private val preferences = activity.getSharedPreferences("shaniu-settings-receipts", Activity.MODE_PRIVATE)
+    private val previousSoftInputMode = activity.window.attributes.softInputMode
+    private val secureFlagWasSet = activity.window.attributes.flags and android.view.WindowManager.LayoutParams.FLAG_SECURE != 0
     private val design = com.shaniu.companion.CompanionDesign(activity)
     private fun dp(value: Int) = (value * activity.resources.displayMetrics.density).toInt()
     private val box = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(16), dp(24), dp(16)) }
@@ -65,9 +70,9 @@ internal class DeviceSettingsEditor(
         adapter = ArrayAdapter(activity, android.R.layout.simple_spinner_dropdown_item, listOf("MiMo", "Chat Completions 音频"))
         box.addView(this)
     }
-    private val asr = modelField("语音识别模型")
-    private val chat = modelField("对话模型")
-    private val tts = modelField("语音合成模型")
+    private val asr = modelField("听懂你 · 语音识别模型 ID")
+    private val chat = modelField("对话 · 回答模型 ID")
+    private val tts = modelField("说给你听 · 语音合成模型 ID")
     private val saveCloud = button("仅保存云服务和模型") { save(true) }
     private val reload = button("重新读取设备配置") { read(false) }
     private val saveAction = actionButton(if (cloudPage) "保存云配置" else "保存 Wi-Fi") { save(cloudPage) }
@@ -103,6 +108,13 @@ internal class DeviceSettingsEditor(
     private var contentDecor: View? = null
     private var contentLayoutListener: View.OnLayoutChangeListener? = null
     private var contentWindowSignature = Int.MIN_VALUE
+    private val serviceDetails = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+    private var serviceDetailsToggle: com.google.android.material.button.MaterialButton? = null
+
+    private val modelOptions = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+    private val modelTabs = mutableListOf<TextView>()
+    private var selectedModel = modelFocus ?: "chat"
+    private lateinit var modelSummary: TextView
 
     init {
         // Submission belongs to the editor's fixed footer, never the scrolling form.
@@ -111,13 +123,14 @@ internal class DeviceSettingsEditor(
         listOf<View>(scanWifi, network, password, replacePassword, saveWifi).forEach { (fieldContainers[it] ?: it).visibility = if (cloudPage) View.GONE else View.VISIBLE }
         listOf<View>(url, key, dialect, asr, chat, tts, saveCloud).forEach { (fieldContainers[it] ?: it).visibility = if (cloudPage) View.VISIBLE else View.GONE }
         saveWifi.visibility = View.GONE; saveCloud.visibility = View.GONE
-        editorContent.addView(TextView(activity).apply {
-            text = if (cloudPage) "云服务与模型" else "Wi-Fi 网络"
-            textSize = 22f
-            setTextColor(design.ink)
-            setPadding(dp(24), dp(20), dp(24), dp(12))
-            isAccessibilityHeading = true
-        })
+        if (cloudPage) {
+            buildCloudForm()
+        } else {
+            editorContent.addView(TextView(activity).apply {
+                text = "连接网络"; textSize = 22f; setTextColor(design.ink)
+                setPadding(dp(24), dp(20), dp(24), dp(12)); isAccessibilityHeading = true
+            })
+        }
         editorContent.addView(formScroll)
         editorContent.addView(footer)
         resultSubscription = session.observeResults(::received)
@@ -139,7 +152,21 @@ internal class DeviceSettingsEditor(
         }
         // 长表单采用单一显式布局，不让 AlertDialog 的 custom panel
         // 再次测量/裁切固定页脚；认证、事务与安全窗口语义保持不变。
-        dialog = Dialog(activity).also {
+        if (embeddedHost != null) {
+            editorContent.setBackgroundColor(design.background)
+            embeddedHost.addView(editorContent, LinearLayout.LayoutParams(-1, -1))
+            activity.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+            activity.window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+            formScroll.addOnLayoutChangeListener { _, _, top, _, bottom, _, oldTop, _, oldBottom ->
+                if (bottom - top != oldBottom - oldTop) formScroll.post {
+                    // IME resize happens after focus; expose the field again in
+                    // the newly measured viewport without recreating its draft.
+                    (box.findFocus() as? EditText)?.let { input ->
+                        input.requestRectangleOnScreen(android.graphics.Rect(0, 0, input.width, input.height), true)
+                    }
+                }
+            }
+        } else dialog = Dialog(activity).also {
                 it.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
                 it.setContentView(editorContent)
                 it.window?.setBackgroundDrawable(design.shape(design.surface, dp(24).toFloat()))
@@ -157,6 +184,156 @@ internal class DeviceSettingsEditor(
                 }
             }
         read(false)
+    }
+
+    private fun buildCloudForm() {
+        // Reparent the original inputs: one draft and one transaction across tabs.
+        box.removeAllViews()
+        box.setPadding(dp(24), dp(8), dp(24), dp(16))
+        val page = com.shaniu.companion.CompanionPage(activity, box)
+        page.pageTitle("云服务与模型", "听、想、说，分别选择适合的服务。") {
+            navigateBack?.invoke() ?: close()
+        }
+        val tabs = LinearLayout(activity).apply {
+            setPadding(dp(4), dp(4), dp(4), dp(4))
+            background = design.shape(design.divider, dp(14).toFloat())
+        }
+        listOf("chat" to "对话", "asr" to "听懂你", "tts" to "说给你听").forEach { (name, label) ->
+            val tab = TextView(activity).apply {
+                text = label; tag = name; textSize = 14f
+                gravity = android.view.Gravity.CENTER; minHeight = dp(48)
+                setPadding(dp(4), dp(8), dp(4), dp(8))
+                isClickable = true; isFocusable = true
+                setOnClickListener { selectedModel = name; updateModelTab() }
+            }
+            modelTabs.add(tab)
+            tabs.addView(tab, LinearLayout.LayoutParams(0, -2, 1f))
+        }
+        box.addView(tabs, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(20) })
+        modelSummary = TextView(activity).apply {
+            textSize = 14f; setTextColor(design.accent)
+            setPadding(dp(18), dp(16), dp(18), dp(16))
+            compoundDrawablePadding = dp(14)
+            background = design.shape(design.selected, dp(20).toFloat())
+        }
+        box.addView(modelSummary, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(16) })
+        val card = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(18), dp(18), dp(18))
+            background = design.shape(design.surface, dp(24).toFloat())
+        }
+        card.addView(TextView(activity).apply {
+            text = "服务提供方"; textSize = 14f; setTextColor(design.ink)
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+        })
+        dialect.adapter = object : ArrayAdapter<String>(activity, android.R.layout.simple_spinner_dropdown_item,
+            listOf("MiMo", "Chat Completions 音频")) {
+            override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View =
+                (super.getView(position, convertView, parent) as TextView).apply {
+                    textSize = 16f; setTextColor(design.ink)
+                    typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+                }
+        }
+        dialect.apply {
+            minimumHeight = dp(52); setPadding(dp(8), 0, dp(32), 0)
+            background = design.shape(design.background, dp(14).toFloat()).apply { setStroke(dp(1), design.divider) }
+        }
+        val provider = FrameLayout(activity).apply {
+            addView(dialect, FrameLayout.LayoutParams(-1, -2))
+            addView(ImageView(activity).apply {
+                setImageDrawable(com.shaniu.companion.CompanionIcons.drawable(activity, "chevron", design.ink))
+                rotation = 90f; importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }, FrameLayout.LayoutParams(dp(20), dp(20), android.view.Gravity.END or android.view.Gravity.CENTER_VERTICAL)
+                .apply { marginEnd = dp(12) })
+        }
+        card.addView(provider, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        listOf(chat, asr, tts, key).forEach { input ->
+            val group = fieldContainers.getValue(input) as LinearLayout
+            (group.getChildAt(0) as TextView).apply {
+                text = if (input === key) "API Key" else "模型 ID"
+                setTextColor(design.ink); typeface = android.graphics.Typeface.DEFAULT_BOLD
+            }
+            input.typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+            input.setHintTextColor(design.muted)
+            input.minHeight = dp(52)
+            val container = group.getChildAt(1) as com.google.android.material.textfield.TextInputLayout
+            container.boxBackgroundColor = design.background
+            container.boxStrokeWidth = dp(1)
+            container.boxStrokeWidthFocused = dp(1)
+            container.setBoxStrokeColorStateList(android.content.res.ColorStateList(
+                arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf()),
+                intArrayOf(design.accent, design.divider)))
+            container.setBoxCornerRadii(dp(14).toFloat(), dp(14).toFloat(), dp(14).toFloat(), dp(14).toFloat())
+            input.hint = if (input === key) "留空保留已有密钥" else "读取设备后显示"
+            card.addView(group)
+        }
+        card.addView(TextView(activity).apply {
+            text = "留空保留已有密钥。三项模型共用服务连接；保存会提交所有标签中的修改。更换主机需重新核对认证。"
+            textSize = 12f; setTextColor(design.muted); setPadding(0, dp(4), 0, 0)
+        })
+        box.addView(card, LinearLayout.LayoutParams(-1, -2))
+        box.addView(modelOptions, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
+        serviceDetails.addView(fieldContainers.getValue(url))
+        serviceDetails.visibility = View.GONE
+        button("高级设置 · 服务连接与凭据") {
+            val expanded = serviceDetails.visibility != View.VISIBLE
+            serviceDetails.visibility = if (expanded) View.VISIBLE else View.GONE
+            serviceDetailsToggle?.text = if (expanded) "收起服务连接与凭据" else "高级设置 · 服务连接与凭据"
+        }.also {
+            serviceDetailsToggle = it
+            it.backgroundTintList = android.content.res.ColorStateList.valueOf(android.graphics.Color.TRANSPARENT)
+            it.setTextColor(design.accent); it.insetTop = 0; it.insetBottom = 0
+            it.elevation = 0f; it.stateListAnimator = null
+        }
+        box.addView(serviceDetails)
+        box.addView(message, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
+        box.addView(connectionStatus)
+        box.addView(reload)
+        saveAction.text = "保存本项配置"
+        saveAction.contentDescription = "保存云服务与模型配置"
+        saveAction.minHeight = dp(56)
+        saveAction.cornerRadius = dp(20)
+        saveAction.insetTop = 0; saveAction.insetBottom = 0
+        saveAction.setTextColor(design.onAccent)
+        saveAction.backgroundTintList = android.content.res.ColorStateList.valueOf(design.accent)
+        if (embeddedHost != null) closeAction.visibility = View.GONE
+        footer.setBackgroundColor(design.background)
+        updateModelTab()
+    }
+
+    private fun updateModelTab() {
+        modelTabs.forEach { tab ->
+            val selected = tab.tag == selectedModel
+            tab.isSelected = selected
+            tab.setTextColor(if (selected) design.ink else design.muted)
+            tab.background = android.graphics.drawable.RippleDrawable(
+                android.content.res.ColorStateList.valueOf(design.selected),
+                design.shape(if (selected) design.surface else android.graphics.Color.TRANSPARENT, dp(10).toFloat()), null)
+        }
+        listOf("chat" to chat, "asr" to asr, "tts" to tts).forEach { (name, input) ->
+            fieldContainers.getValue(input).visibility = if (name == selectedModel) View.VISIBLE else View.GONE
+        }
+        val (icon, summary) = when (selectedModel) {
+            "asr" -> "mic" to "语音识别\n让傻妞听懂你说的话"
+            "tts" -> "speaker" to "语音合成\n选择说给你听的声音"
+            else -> "cloud" to "对话模型\n让傻妞怎样思考和回答"
+        }
+        modelOptions.removeAllViews()
+        val options = com.shaniu.companion.CompanionPage(activity, modelOptions)
+        when (selectedModel) {
+            "asr" -> options.settingsRow("识别模式", "当前固件未提供整段 / 流式切换", enabled = false, iconName = "mic") { }
+            "tts" -> {
+                options.settingsRow("默认声音", "当前固件未提供独立音色选择", enabled = false, iconName = "speaker") { }
+                options.settingsRow("唤醒应答", "当前固件未提供独立应答设置", enabled = false, iconName = "mic") { }
+            }
+            else -> options.settingsRow("回答模式", "快速对话或深度思考 · 在声音与回答中设置", iconName = "spark") {
+                android.app.AlertDialog.Builder(activity).setTitle("回答模式")
+                    .setMessage("先保存当前模型配置，再前往设置 → 帮助与诊断 → 声音与回答，读取并修改设备的回答模式。")
+                    .setPositiveButton("知道了", null).show()
+            }
+        }
+        modelSummary.text = summary
+        modelSummary.setCompoundDrawablesWithIntrinsicBounds(
+            com.shaniu.companion.CompanionIcons.drawable(activity, icon, design.accent), null, null, null)
     }
 
     /** Give the dialog, rather than its wrap-content custom panel, the visible
@@ -242,7 +419,7 @@ internal class DeviceSettingsEditor(
         saveAction.apply {
             isEnabled = enabled && current != null
             text = if (phase in setOf(Phase.BEGIN, Phase.APPEND, Phase.APPLY, Phase.VERIFY, Phase.RESOLVING)) "保存中…"
-                else if (cloudPage) "保存云配置" else "保存 Wi-Fi"
+                else if (cloudPage) "保存本项配置" else "保存 Wi-Fi"
         }
         reload.isEnabled = enabled || phase == Phase.IDLE
     }
@@ -486,6 +663,11 @@ internal class DeviceSettingsEditor(
         readBytes?.fill(0); payload?.fill(0); operation?.fill(0)
         password.text.clear(); key.text.clear()
         dialog?.let { if (it.isShowing) it.dismiss() }; dialog = null
+        if (embeddedHost != null) activity.getSystemService(android.view.inputmethod.InputMethodManager::class.java)
+            .hideSoftInputFromWindow(editorContent.windowToken, 0)
+        embeddedHost?.removeView(editorContent)
+        if (embeddedHost != null) activity.window.setSoftInputMode(previousSoftInputMode)
+        if (embeddedHost != null && !secureFlagWasSet) activity.window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
         finished(if (applied) "保存结果待回读；未自动重发操作" else lastMessage)
     }
 }
