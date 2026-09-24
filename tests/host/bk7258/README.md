@@ -456,3 +456,18 @@ CDC先清理再重试，对残留MSC返回忙（显式set可清理再转换）�
 原始日志 out/shaniu-s13/。后端start/stop及模式管理均为生产源码，驱动/块设备
 及锁为主机边界替身，不证明真实DMA/端点退出。无新增线程/缓冲或超时；只增加
 一个待清理后端枚举。close_blockdriver异常及完整卷交接仍有缺口。未刷板。
+
+### S14 Media EOF 的实际PCM账本（2026-09-24）
+
+新增 AUD-03.media-tail / media-cancel-next。复用既有真实 Media 适配器主机
+夹具，在已准备会话中调用公开 write_data/close_socket/close，IOCTL边界记录
+实际 ENQUEUEBUFFER 的样本及 FINAL。两段2+4字节输入在EOF前仍缓冲，EOF恰好
+提交6字节一次；重复EOF/结束后写入不再次提交。取消等待完成后不发完成回调，
+新对象提交另一组样本，账本不混旧样本。使用真实播放器/EOF线程，不另写状态机。
+
+夹具仍直接准备播放器对象，未通过真实设备 open/prepare；不宣称完整Media驱动
+集成。108 PASS（原63+累计新增45），原两变异/恢复保留；额外隔离“丢弃尾部”
+变异被新断言检出，恢复通过，单列 s14-mutation-20260924.json，不计入108。
+既有 run-voice-media-player 通过，门禁12 PASS。生产及依赖未改；报告
+s14-20260924.json，日志 out/shaniu-s14/。数字sink提交不是声学完成，真实
+DMA、DAC/PA、网络断流以及全链路取消仍需后续验证。

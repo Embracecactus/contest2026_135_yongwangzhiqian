@@ -1,0 +1,16 @@
+[
+  {
+    "id": "AUD-03.discard-tail",
+    "status": "DETECTED",
+    "exit": -6,
+    "evidence": "test: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_bk7258_agent_media_player.c:1492: pcm_contract: Assertion `sink_bytes == 6 && !memcmp(sink_pcm, expected, 6)' failed.\n",
+    "source_sha256": "9579718793d51ac66ed519a9cc7fc0641968ed8d18e7a8b8376726a51977f692"
+  },
+  {
+    "id": "AUD-03.restored",
+    "status": "PASS",
+    "exit": 0,
+    "evidence": "CONTRACT_PASS\n",
+    "source_sha256": "0c8a6f44ed5740fd7599c920366c192fe725c0975464feec10bc3b92c04bcd0c"
+  }
+]

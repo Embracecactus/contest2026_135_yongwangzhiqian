@@ -404,6 +404,7 @@ def main():
         "test_shaniu_control_quiesce",
         "test_shaniu_owner",
         "test_shaniu_power_owner",
+        "test_bk7258_agent_media_player",
         "test_agent_tts_queue",
         "test_bk7258_product_keys",
         "test_bk7258_usbmode_lease",
@@ -452,6 +453,15 @@ def main():
         [HERE / "build/test_shaniu_usb_cleanup"],
         binaries["test_shaniu_usb_cleanup"],
     )
+    for variant in ("tail", "cancel-next"):
+        add(
+            suite,
+            "AUD-03.media-" + variant,
+            "AUD-03",
+            "L1",
+            [HERE / "build/test_bk7258_agent_media_player", variant],
+            binaries["test_bk7258_agent_media_player"],
+        )
     for variant in ("normal", "retry", "start-cleanup"):
         add(
             suite,

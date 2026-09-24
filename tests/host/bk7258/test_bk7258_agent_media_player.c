@@ -1365,6 +1365,10 @@ static atomic_int completed;
 static atomic_int callbacks;
 static atomic_int closed;
 static int freed_buffers;
+static bool observe_pcm;
+static uint8_t sink_pcm[32];
+static size_t sink_bytes;
+static atomic_int final_blocks;
 static sem_t callback_entered;
 static sem_t callback_release;
 
@@ -1383,6 +1387,18 @@ static int test_ioctl(int fd, unsigned long request, ...)
     }
   if (request == AUDIOIOC_ENQUEUEBUFFER)
     {
+      if (observe_pcm)
+        {
+          va_list args;
+          va_start(args, request);
+          struct audio_buf_desc_s *desc = (void *)(uintptr_t)va_arg(args, unsigned long);
+          va_end(args);
+          struct ap_buffer_s *apb = desc->u.buffer;
+          assert(sink_bytes + apb->nbytes <= sizeof(sink_pcm));
+          memcpy(sink_pcm + sink_bytes, apb->samp, apb->nbytes);
+          sink_bytes += apb->nbytes;
+          if (apb->flags & AUDIO_APB_FINAL) atomic_fetch_add(&final_blocks, 1);
+        }
       atomic_store(&queued, 1);
     }
   return 0;
@@ -1444,8 +1460,65 @@ static void *close_player(void *arg)
   return NULL;
 }
 
-int main(void)
+static void record_complete(void *cookie, int event, int result, const char *extra)
 {
+  (void)cookie; (void)extra;
+  assert(event == MEDIA_EVENT_COMPLETED && result == 0);
+  atomic_fetch_add(&callbacks, 1);
+}
+
+static void pcm_contract(bool cancel)
+{
+  const uint8_t first[] = {1, 2, 3, 4, 5, 6};
+  const uint8_t second[] = {21, 22, 23, 24, 25, 26};
+  uint8_t backing[8] = {0};
+  struct ap_buffer_s apb = {.samp = backing, .nmaxbytes = sizeof(backing)};
+  observe_pcm = true;
+  for (int round = 0; round < (cancel ? 2 : 1); round++)
+    {
+      const uint8_t *expected = round ? second : first;
+      sink_bytes = 0;
+      atomic_store(&final_blocks, 0);
+      struct bk7258_agent_player_s *p = fixture(&apb);
+      p->input_channels = 1;
+      p->input_frame_bytes = 2;
+      p->current_bytes = 0;
+      p->callback = record_complete;
+      assert(media_player_write_data(p, expected, 2) == 2);
+      assert(media_player_write_data(p, expected + 2, 4) == 4);
+      assert(sink_bytes == 0); /* Tail is buffered until EOF. */
+      media_player_close_socket(p);
+      wait_queued();
+      assert(sink_bytes == 6 && !memcmp(sink_pcm, expected, 6));
+      assert(atomic_load(&final_blocks) == 1);
+      media_player_close_socket(p); /* Duplicate EOF is idempotent. */
+      assert(media_player_write_data(p, first, 2) < 0);
+      assert(atomic_load(&final_blocks) == 1);
+      if (cancel && round == 0)
+        {
+          assert(media_player_close(p, 0) == 0);
+          assert(atomic_load(&callbacks) == 0);
+        }
+      else
+        {
+          atomic_store(&completed, 1);
+          for (int i = 0; i < 1000 && !atomic_load(&callbacks); i++) usleep(1000);
+          assert(atomic_load(&callbacks) == 1);
+          assert(media_player_close(p, 0) == 0);
+        }
+    }
+  puts("CONTRACT_PASS");
+}
+
+int main(int argc, char **argv)
+{
+  if (argc == 2)
+    {
+      assert(!strcmp(argv[1], "tail") || !strcmp(argv[1], "cancel-next"));
+      pcm_contract(!strcmp(argv[1], "cancel-next"));
+      return 0;
+    }
+  assert(argc == 1);
   uint8_t pcm[2] = {1, 2};
   struct ap_buffer_s apb = {.samp = pcm, .nmaxbytes = sizeof(pcm)};
   struct bk7258_agent_player_s *p;

@@ -106,7 +106,9 @@
     "MSC-01.backend-stop-normal",
     "MSC-01.backend-stop-retry",
     "MSC-01.backend-stop-start-cleanup",
-    "MSC-01.failed-start-handoff"
+    "MSC-01.failed-start-handoff",
+    "AUD-03.media-tail",
+    "AUD-03.media-cancel-next"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -216,6 +218,8 @@
     "MSC-01.backend-stop-normal",
     "MSC-01.backend-stop-retry",
     "MSC-01.backend-stop-start-cleanup",
-    "MSC-01.failed-start-handoff"
+    "MSC-01.failed-start-handoff",
+    "AUD-03.media-tail",
+    "AUD-03.media-cancel-next"
   ]
 }
