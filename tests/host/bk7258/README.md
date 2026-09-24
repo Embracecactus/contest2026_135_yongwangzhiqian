@@ -521,3 +521,33 @@ display/focus对象通过，未全量链接。报告s17-20260924.json及s17-evid
 out/shaniu-s17/focus.png从生产像素函数生成且已查看，不是实板截图。渲染临时
 画布51200字节，复用线程且仅状态/进度变化时更新；目标耗时、峰值内存、实际
 屏幕优先级和显示确认仍待验。不把119或累计新增56等同56项需求全部通过。
+
+### S18 — focus draft navigation and Activity recreation (2026-09-24)
+
+`UI-02.focus-draft` now exercises the actual MainActivity focus sheet on the
+emulator. Synthetic authentication is only a UI admission fixture: no transport
+exists, and start/pause/cancel must stay disabled without a device readback.
+The original second opening lost a changed 47-minute input (reset to 25).
+MainActivity now retains the non-secret minute draft across sheet navigation
+and saved-instance restoration, without restoring or replaying a device command.
+The obsolete notice is updated for S17's visual completion indication.
+
+One emulator case passes 20 navigation rounds and one actual Activity recreation;
+five existing FocusTimerController JVM cases pass. APK and instrumentation builds
+pass. This is **not** physical BLE acceptance or the full UI-02 matrix. No phone
+installation or board operation occurred. The prior 119-unit S17 report remains
+historical and was not rerun for this UI-only edit.
+
+Reproduce after building/installing both debug APKs **on an emulator only**:
+
+```sh
+adb -s emulator-5554 shell am instrument -w -e focus_draft_probe 1 \
+  com.shaniu.companion.test/com.shaniu.companion.provision.ControlKeyInstrumentation
+```
+
+Require the returned `PASS:` report; ADB process exit alone is insufficient.
+The fixture rejects non-emulator targets. Evidence, per-JVM-case times, APK/source
+hashes and the original Red are in `acceptance/s18-evidence-20260924.json`.
+An initial fixture cleanup assertion ran before Android delivered onDismiss;
+its separate failure is preserved, and the same assertion now runs after UI idle.
+Raw build/install logs remain under `out/shaniu-s18/`.

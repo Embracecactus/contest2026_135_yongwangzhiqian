@@ -219,6 +219,7 @@ class MainActivity : Activity() {
     private var wakeSensitivityError: String? = null
     private var wakeSensitivityCanceling = false
     private enum class ConfigFlow { SETTINGS, NONE, CAPABILITIES, CLOUD, WAKE, RESPONSE, SENSITIVITY, EYES }
+    private var focusMinutesDraft = "25"
     private var focusEditor: com.shaniu.companion.provision.FocusTimerController? = null
     private var settingsEditor: com.shaniu.companion.provision.DeviceSettingsEditor? = null
     private var factoryReset: com.shaniu.companion.provision.FactoryResetController? = null
@@ -270,6 +271,7 @@ class MainActivity : Activity() {
         window.decorView.systemUiVisibility = if (design.dark) 0 else
             View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
         currentTab = savedInstanceState?.getInt("navigation", TAB_OVERVIEW) ?: TAB_OVERVIEW
+        focusMinutesDraft = savedInstanceState?.getString("focus_minutes_draft") ?: "25"
         expressionPreview = savedInstanceState?.getInt("expression_preview", 0) ?: 0
         updateResources = savedInstanceState?.getBoolean("update_resources", false) ?: false
         resourcesBackTab = savedInstanceState?.getInt("resources_back_tab", TAB_PERSONALITY) ?: TAB_PERSONALITY
@@ -2306,14 +2308,21 @@ class MainActivity : Activity() {
             val status = TextView(this).apply { textSize = 16f; setTextColor(design.accent) }
             body.addView(status)
             val minutes = EditText(this).apply {
-                hint = "专注分钟数"; setText("25")
+                hint = "专注分钟数"; setText(focusMinutesDraft)
+                addTextChangedListener(object : android.text.TextWatcher {
+                    override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                    override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                        focusMinutesDraft = s?.toString().orEmpty()
+                    }
+                    override fun afterTextChanged(s: android.text.Editable?) = Unit
+                })
                 inputType = android.text.InputType.TYPE_CLASS_NUMBER
                 contentDescription = "专注分钟数"; setTextColor(design.ink)
             }
             body.addView(minutes, LinearLayout.LayoutParams(-1, -2))
             val controls = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
             body.addView(controls)
-            page.notice("设备执行计时。关闭此页不会取消已开始的计时；重启恢复和设备完成提示尚未提供。")
+            page.notice("设备执行计时。关闭此页不会取消已开始的计时；支持此功能的固件会显示进度和完成图标；暂不提供重启恢复或声音提醒。")
             focusEditor = com.shaniu.companion.provision.FocusTimerController(directSession, changed = { state ->
                 val value = state.snapshot
                 val label = when (value?.state) {
@@ -4008,6 +4017,7 @@ class MainActivity : Activity() {
     private val MUTED get() = design.muted
 
     override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString("focus_minutes_draft", focusMinutesDraft)
         outState.putInt("navigation", currentTab)
         outState.putInt("expression_preview", expressionPreview)
         outState.putBoolean("update_resources", updateResources)
