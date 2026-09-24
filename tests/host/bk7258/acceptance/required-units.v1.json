@@ -97,7 +97,10 @@
     "LIFE-02.power-final-close-drains",
     "LIFE-01.owner-integration",
     "LIFE-02.power-failure-display",
-    "DISP-01.power-pixels"
+    "DISP-01.power-pixels",
+    "STORE-02.file-sync-failure",
+    "STORE-02.file-sync-retry",
+    "STORE-02.directory-sync-unknown"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -198,6 +201,9 @@
     "LIFE-02.power-final-close-drains",
     "LIFE-01.owner-integration",
     "LIFE-02.power-failure-display",
-    "DISP-01.power-pixels"
+    "DISP-01.power-pixels",
+    "STORE-02.file-sync-failure",
+    "STORE-02.file-sync-retry",
+    "STORE-02.directory-sync-unknown"
   ]
 }

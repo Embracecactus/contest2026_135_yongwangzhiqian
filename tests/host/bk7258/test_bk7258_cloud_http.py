@@ -11,7 +11,7 @@ APPS = ROOT.parent / "apps"
 MBEDTLS = APPS / "crypto/mbedtls/mbedtls"
 
 
-def build_http_fixture(temp, test_source=None, extra_sources=()):
+def build_http_fixture(temp, test_source=None, extra_sources=(), link_flags=()):
     """Shared host build only; never replaces config or HTTP product logic."""
     if test_source is None:
         test_source = ROOT / "tests/host/bk7258/test_bk7258_cloud_http.c"
@@ -86,6 +86,7 @@ def build_http_fixture(temp, test_source=None, extra_sources=()):
             str(build / "library"),
             "-lmbedx509",
             "-lmbedcrypto",
+            *link_flags,
             "-o",
             str(executable),
         ],

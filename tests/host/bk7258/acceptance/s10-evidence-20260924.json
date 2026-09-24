@@ -1,0 +1,32 @@
+{
+  "test_correction": {
+    "ids": [
+      "STORE-02.file-sync-failure",
+      "STORE-02.file-sync-retry"
+    ],
+    "old": "Expect receipt to return -EIO",
+    "new": "Receipt unknown; public SCS1 state FAILED and error -EIO; old saved record preserved",
+    "basis": "receipt reports publication identity, config READ reports operation result; product outcome expectation unchanged",
+    "old_failures": [
+      "[\"/tmp/shaniu-contract-fsr7ffxc/config/test\", \"file-sync-failure\", \"/tmp/shaniu-contract-fsr7ffxc/private-file-sync-failure\", \"/tmp/shaniu-contract-fsr7ffxc/public-ca.der\", \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/resources/shaniu/scp1-wifi.hex\"]\ntest: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_config_contract.c:196: main: Assertion `outcome == -EIO && !bkprov_config_busy()' failed.\n",
+      "[\"/tmp/shaniu-contract-fsr7ffxc/config/test\", \"file-sync-retry\", \"/tmp/shaniu-contract-fsr7ffxc/private-file-sync-retry\", \"/tmp/shaniu-contract-fsr7ffxc/public-ca.der\", \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/resources/shaniu/scp1-wifi.hex\"]\ntest: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_config_contract.c:196: main: Assertion `outcome == -EIO && !bkprov_config_busy()' failed.\n"
+    ]
+  },
+  "device_read_only": {
+    "phone": "59d707dc Mi_10",
+    "installed_version_code": 42,
+    "installed_version_name": "0.7.12-shaniu-ui-v2",
+    "serial_port_names": [
+      "COM9"
+    ],
+    "pnp": "USB-SERIAL CH340 (COM9)",
+    "win32_serial_port_count": 0,
+    "board_identity": "awaiting confirmation; no serial open",
+    "actions": "read-only enumeration and dumpsys package; no install/flash/reset"
+  },
+  "limitations": [
+    "TLS I/O peer only; no real network switch",
+    "POSIX fsync fault injection is not LittleFS power-loss proof",
+    "Directory-sync unknown recovery is not implemented or accepted by these tests"
+  ]
+}

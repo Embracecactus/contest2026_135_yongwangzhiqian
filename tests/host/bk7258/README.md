@@ -389,3 +389,23 @@ out/shaniu-s9/contracts/ 及失败说明；有效报告为 acceptance/s9-2026092
 
 只读 Windows 枚举为零串口，ADB 仅 emulator-5554，未列历史 Mi 10。未打开串口、
 刷写或安装。无新增线程/分配/等待，复用原显示缓冲；CPU/实际显示延迟仍待测。
+
+### S10 配置持久化故障跨层回归（2026-09-24）
+
+新增 STORE-02.file-sync-failure / file-sync-retry / directory-sync-unknown，
+编译真实配置合并、存储 worker/store、解码与 HTTP writer，仅包装外部 fsync。
+文件同步失败时公开 SCS1 报 FAILED/-EIO，存储重开仍为旧版本/owner/Key；
+明确新操作重试只提交到 revision 2，HTTP peer 核验保留测试 Key。目录同步
+失败不报持久成功，同挂载读回/refresh 不解除未知，也不接受重复 APPLY。
+
+首次两个测试误把 receipt 当操作错误接口，预期 -EIO；源码合同表明 receipt
+只回答持久事务身份，因此应未知，具体 -EIO 从 SCS1 读取。修正测试观察器，
+生产未改；原失败存档 s10-oracle-error-20260924.json，不称产品 Red。
+校正后 100 PASS（原63 + 新增累计37）；原两变异/恢复保留。额外忽略 fsync
+错误的隔离变异及恢复单列 s10-mutation-20260924.json，不加入100分母。
+运行器12 PASS。没有修改生产、依赖或阈值，没有新构建/实板成绩。
+
+目录同步失败后的可靠恢复仍未完成，本例只验证不误报成功；POSIX 与目标
+LittleFS 的持久化契约分开，不由主机注入宣称掉电通过。当前设备只读基线见
+s10-evidence-20260924.json：Mi10 已在线，App仍为42/0.7.12；COM9经端口API及PnP
+可见，但尚未打开/确认板身份。未安装App或刷写。

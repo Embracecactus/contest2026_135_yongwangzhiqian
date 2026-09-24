@@ -14,6 +14,28 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <stdatomic.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+/* Inject only the external durability syscall, never the storage worker. */
+static atomic_int sync_fault;
+static atomic_int sync_failures;
+int __real_fsync(int fd);
+int __wrap_fsync(int fd)
+{
+  struct stat st;
+  assert(fstat(fd, &st) == 0);
+  int fault = atomic_load(&sync_fault);
+  if ((fault == 1 && S_ISREG(st.st_mode)) ||
+      (fault == 2 && S_ISDIR(st.st_mode)))
+    {
+      atomic_fetch_add(&sync_failures, 1);
+      errno = EIO;
+      return -1;
+    }
+  return __real_fsync(fd);
+}
 
 static void put16(uint8_t *p, size_t n) { p[0] = n >> 8; p[1] = n; }
 static void put64(uint8_t *p, uint64_t n)
@@ -147,6 +169,65 @@ int main(int argc, char **argv)
         }
     }
   struct bkcontrol_status_s status = {0};
+  bool sync_case = strstr(argv[1], "sync-") != NULL;
+  if (sync_case)
+    {
+      bool uncertain = !strcmp(argv[1], "directory-sync-unknown");
+      atomic_store(&sync_fault, uncertain ? 2 : 1);
+      assert(bkprov_config_control(BKCONTROL_CONFIG_APPLY, 0, patch, patch_size, &status) == 0);
+      /* The real worker publishes a receipt; poll its public completion. */
+      int outcome = -EAGAIN;
+      for (int i = 0; i < 3000 && outcome == -EAGAIN; i++)
+        { outcome = bkprov_storage_receipt(patch + 4); tick(); }
+      assert(atomic_load(&sync_failures) == 1);
+      for (int i = 0; i < 20; i++) bkprov_config_step();
+      atomic_store(&sync_fault, 0);
+      if (uncertain)
+        {
+          assert(outcome == -EINPROGRESS);
+          assert(bkprov_config_busy());
+          assert(bkprov_config_control(BKCONTROL_CONFIG_READ, 0, NULL, 0, &status) == -EINPROGRESS);
+          assert(bkprov_storage_refresh() == -EINPROGRESS);
+          assert(bkprov_config_control(BKCONTROL_CONFIG_APPLY, 0, patch, patch_size, &status) == -EBUSY);
+          /* Failure remains unknown; same-mount readback is not durability. */
+          puts("CONTRACT_PASS");
+          return 0;
+        }
+      assert(outcome == -EINPROGRESS && !bkprov_config_busy());
+      assert(bkprov_config_control(BKCONTROL_CONFIG_READ, 0, NULL, 0, &status) == 0);
+      assert(status.config_chunk[7] == 3); /* Public SCS1 EDIT_FAILED. */
+      assert(bkprov_config_control(BKCONTROL_CONFIG_READ, 32, NULL, 0, &status) == 0);
+      uint32_t failure = ((uint32_t)status.config_chunk[0] << 24) |
+                         ((uint32_t)status.config_chunk[1] << 16) |
+                         ((uint32_t)status.config_chunk[2] << 8) | status.config_chunk[3];
+      assert((int32_t)failure == -EIO);
+      assert(wait_loaded(saved, &size, &revision) == 0 && revision == 1);
+      assert(size > 0 && !memcmp(saved, old, size));
+      assert(bkprov_storage_stop() == 0);
+      assert(bkprov_storage_start(argv[2]) == 0);
+      assert(wait_loaded(saved, &size, &revision) == 0 && revision == 1);
+      assert(!memcmp(saved, old, size));
+      if (!strcmp(argv[1], "file-sync-retry"))
+        {
+          patch[4] = 3; /* Explicit new operation, same saved revision. */
+          assert(bkprov_config_control(BKCONTROL_CONFIG_APPLY, 0, patch, patch_size, &status) == 0);
+          for (int i = 0; i < 3000 && bkprov_config_busy(); i++)
+            { bkprov_config_step(); tick(); }
+          assert(!bkprov_config_busy());
+          assert(wait_loaded(saved, &size, &revision) == 0 && revision == 2);
+        }
+      struct bkprov_settings_s recovered;
+      struct bkcloud_config_s retained;
+      assert(bkprov_settings_decode(&recovered, saved, size) == 0);
+      assert(!strcmp(recovered.ssid, revision == 1 ? "network-A" : "network-B"));
+      assert(!memcmp(recovered.control_key, owner, 32));
+      assert(bkcloud_config_decode(&retained, recovered.cloud, recovered.cloud_size) == 0);
+      request(&retained, 0, false);
+      bkcloud_config_clear(&retained);
+      assert(bkprov_storage_stop() == 0);
+      puts("CONTRACT_PASS");
+      return 0;
+    }
   if (!strcmp(argv[1], "stale"))
     {
       put64(patch + 20, 0);

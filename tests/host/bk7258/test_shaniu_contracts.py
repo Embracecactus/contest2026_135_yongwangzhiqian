@@ -168,7 +168,7 @@ def config_build(temp, config_source):
     snippet = (
         "from pathlib import Path; from test_bk7258_cloud_http import build_http_fixture; "
         "import sys; build_http_fixture(Path(sys.argv[1]), Path(sys.argv[2]), "
-        "[Path(p) for p in sys.argv[3:]])"
+        "[Path(p) for p in sys.argv[3:]], ['-Wl,--wrap=fsync'])"
     )
     return [
         sys.executable,
@@ -583,6 +583,9 @@ def main():
         )
         for variant in (
             "wifi-reopen",
+            "file-sync-failure",
+            "file-sync-retry",
+            "directory-sync-unknown",
             "stale",
             "conflict",
             "keep-key",
@@ -590,7 +593,11 @@ def main():
             "clear-cloud",
             "cross-host-retain",
         ):
-            parent = "CFG-01" if variant == "wifi-reopen" else "CFG-03"
+            parent = (
+                "STORE-02"
+                if "sync-" in variant
+                else "CFG-01" if variant == "wifi-reopen" else "CFG-03"
+            )
             add(
                 suite,
                 parent + "." + variant,
