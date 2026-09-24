@@ -1856,3 +1856,9 @@ $(BUILD)/test_shaniu_usb_cleanup: test_shaniu_usb_cleanup.c $(CHIP_ROOT)/ap/bk72
 		-DCONFIG_BK7258_USBMODE_BLOCKDEV=\"/dev/mmcsd0\" -DCONFIG_BK7258_USBMODE_REENUM_DELAY_MS=1 \
 		-I $(MOCKS) -I $(CHIP_ROOT)/include -I $(VOICE_PACK_ROOT) \
 		$^ mocks/mock_nuttx_ap.c -o $@
+
+$(BUILD)/test_shaniu_focus: test_shaniu_focus.c $(VOICE_PACK_ROOT)/bk7258_focus.c $(VOICE_PACK_ROOT)/bk7258_focus.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) $(filter %.c,$^) -o $@
+
+$(BUILD)/test_shaniu_focus_wire: test_shaniu_focus_wire.c $(VOICE_PACK_ROOT)/bk7258_focus.c $(VOICE_PACK_ROOT)/bk7258_control_session.c $(VOICE_PACK_ROOT)/bk7258_focus.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) $(filter %.c,$^) -o $@

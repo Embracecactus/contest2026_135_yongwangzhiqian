@@ -78,6 +78,7 @@
 #endif
 #include "bk7258_provision_claim.h"
 #include "bk7258_provision_settings.h"
+#include "bk7258_focus.h"
 #include "bk7258_provision_config.h"
 #include "bk7258_provision_storage.h"
 #include "bk7258_provision_time.h"
@@ -1220,6 +1221,12 @@ static int product_config(void *context, enum bkcontrol_command_e command,
       return -EBUSY;
     }
 
+  if (kind == BKCONTROL_CONFIG_FOCUS)
+    {
+      return bkfocus_control(command, offset, record, size, status,
+                             bkvoice_config_now_ms(NULL));
+    }
+
   if (kind == BKCONTROL_CONFIG_SETTINGS)
     {
       return bkprov_config_control(command, offset, record, size, status);
@@ -2156,6 +2163,7 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
             {
               /* Do this before TURN_COMPLETE or preference recovery can
                * revive an owner that SRV1 has already revoked. */
+              bkfocus_cancel();
               voice_action = VOICE_ACTION_NONE;
               voice_interaction_active = false;
               preferences_pending = false;
@@ -2178,6 +2186,7 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
 #ifdef CONFIG_BK7258_PRODUCT_KEYS
       if (product_keys_step(now))
         {
+          bkfocus_cancel();
           /* Retain completion events while shutdown is pending or failed.
            * A failure keeps admission closed until an explicit retry; a
            * durable configuration or canceled voice result is not discarded.
@@ -2187,6 +2196,7 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
         }
 
 #endif
+      (void)bkfocus_step(now);
       if (now >= voice_cleanup_at)
         {
           int cleanup = voice_channel_recover();

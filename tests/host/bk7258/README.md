@@ -471,3 +471,20 @@ CDC先清理再重试，对残留MSC返回忙（显式set可清理再转换）�
 既有 run-voice-media-player 通过，门禁12 PASS。生产及依赖未改；报告
 s14-20260924.json，日志 out/shaniu-s14/。数字sink提交不是声学完成，真实
 DMA、DAC/PA、网络断流以及全链路取消仍需后续验证。
+
+### S15 专注计时首个生产入口（2026-09-24）
+
+先写输入/输出合同及clock/replay/invalid用例；接口初始未实现的链接错误记
+BLOCKED_INTERFACE，不算业务Red。新增无I/O计时服务，接入产品循环、认证config
+kind10、关机/重置取消。暂停后剩余50秒，恢复只运行剩余时长；版本与最后操作
+保证重试不重开，旧请求不覆盖新状态。真实SDC1+服务的wire用例使用外部路由
+callback；AP产品编译确认接线，但不声称完整owner运行链在主机已执行。
+
+112 PASS（原63+累计新增49），原两变异/恢复保留，门禁12 PASS；额外“恢复重置
+完整时长”变异检出及恢复单列。AP product/control/focus对象通过，未完整链接。
+主机静态状态88字节，无堆分配、新线程、每tick写盘；CPU/板端栈仍未测。
+报告 s15-20260924.json、s15-evidence-20260924.json，日志 out/shaniu-s15/。
+
+App页面、进度环/完成提示、NFC和TIMER-02跨重启策略仍未完成；未刷板。查询
+到completed不等于提醒已呈现。新协议细节及层级缺口见contracts.md，历史56项
+草案不改写。本片不宣称N2完整交付。

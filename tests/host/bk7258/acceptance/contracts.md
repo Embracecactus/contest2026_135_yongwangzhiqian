@@ -218,3 +218,34 @@ CONFIG_READ 的 CAPABILITIES/SETTINGS/RESET_TRANSFER；其余新业务返回 EBU
 进入最终关闭后的 CP 拒绝/故障仍保留停止意图；本阶段不承诺重新打开 BLE。
 新的物理关机意图可重试，关机后的物理恢复仍需实板验证。故障本地显示和 App
 更明确的生命周期展示尚未完成，不能用查询协议接入替代这些体验验收。
+
+
+## N2 focus timer initial binding (S15)
+
+A single volatile timer is owned by the serialized product loop. SDC1 config
+kind 10 carries FOC1, exactly 32 bytes: magic, BE32 action (1 start/2 pause/
+3 resume/4 cancel), BE64 expected revision, nonzero BE64 operation identifier,
+BE64 duration milliseconds (positive for start; zero for other actions).
+A successful command increments revision. Exact retry of the most recent
+successful request is accepted without repeating its effect; old revisions
+return ESTALE. Active start returns EBUSY; invalid transitions/zero start are
+EINVAL; arithmetic/revision exhaustion is EOVERFLOW. Backward clock input is
+EAGAIN. Pause at/past deadline returns EAGAIN until the owner tick completes.
+
+READ returns FOS1 (32 bytes): magic, BE32 state (0 idle/1 running/2 paused/
+3 completed/4 canceled), BE64 revision, BE64 remaining ms, BE64 duration ms.
+READ is side-effect free. Because two 16-byte reads may cross a state change,
+clients must re-read revision and retry a snapshot if it changed. Remaining
+may naturally decrease between reads while running. BEGIN stages only; it
+never starts a timer. Session quiesce permits READ and rejects new writes.
+No new wire opcode, authentication exception or sequence exception is added.
+Unsupported kind on old firmware remains an error, not a fake capability.
+
+The owner calls step using its existing monotonic clock; elapsed wall time
+is not consulted. Completion changes state once. Power preparation and reset
+cancel an active timer without reminding or restarting it. The module has no
+heap, threads, cloud calls or persistence. This initial binding does not
+freeze TIMER-02: cross-reboot policy is pending user input; no device deployment
+or UI promise depends on the volatile prototype. A completion state is not
+a rendered ring, sound or delivered notification. App/NFC/visual/audio binding
+and resource measurements remain required before N2 acceptance.

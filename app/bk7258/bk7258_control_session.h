@@ -85,6 +85,8 @@ enum bkcontrol_command_e
 #define BKCONTROL_CONFIG_WIFI_SCAN 8u
 /* SRT1 request / SRS1 public receipt; no user configuration is returned. */
 #define BKCONTROL_CONFIG_RESET_TRANSFER 9u
+/* FOC1/FOS1 volatile focus timer; see bk7258_focus.h. */
+#define BKCONTROL_CONFIG_FOCUS 10u
 #define BKCONTROL_CONFIG_CAPABILITIES 0x7fffu
 #define BKCONTROL_CONFIG_RECORD_MAX (140u + 65536u) /* WKM2 显式前端字段 */
 struct bkcontrol_device_info_s

@@ -108,7 +108,11 @@
     "MSC-01.backend-stop-start-cleanup",
     "MSC-01.failed-start-handoff",
     "AUD-03.media-tail",
-    "AUD-03.media-cancel-next"
+    "AUD-03.media-cancel-next",
+    "TIMER-01.clock",
+    "TIMER-01.replay",
+    "TIMER-01.invalid",
+    "TIMER-01.wire"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -220,6 +224,10 @@
     "MSC-01.backend-stop-start-cleanup",
     "MSC-01.failed-start-handoff",
     "AUD-03.media-tail",
-    "AUD-03.media-cancel-next"
+    "AUD-03.media-cancel-next",
+    "TIMER-01.clock",
+    "TIMER-01.replay",
+    "TIMER-01.invalid",
+    "TIMER-01.wire"
   ]
 }

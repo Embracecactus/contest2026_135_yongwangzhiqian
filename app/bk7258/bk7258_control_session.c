@@ -104,7 +104,8 @@ int bkcontrol_session_packet(struct bkcontrol_session_s *s, const uint8_t *p,
           if (s->quiescing && command == BKCONTROL_CONFIG_READ &&
               (argument >> 16) != BKCONTROL_CONFIG_CAPABILITIES &&
               (argument >> 16) != BKCONTROL_CONFIG_SETTINGS &&
-              (argument >> 16) != BKCONTROL_CONFIG_RESET_TRANSFER)
+              (argument >> 16) != BKCONTROL_CONFIG_RESET_TRANSFER &&
+              (argument >> 16) != BKCONTROL_CONFIG_FOCUS)
             { ret = -EBUSY; goto config_done; }
           if (s->config == NULL) { ret = -ENOTSUP; goto config_done; }
           if (command == BKCONTROL_CONFIG_READ)

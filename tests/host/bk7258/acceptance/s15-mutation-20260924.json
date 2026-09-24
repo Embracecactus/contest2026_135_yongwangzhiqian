@@ -1,0 +1,14 @@
+[
+  {
+    "id": "resume-restarts-duration",
+    "status": "DETECTED",
+    "exit": -6,
+    "evidence": "test: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_focus.c:43: main: Assertion `bkfocus_step(66000)==1' failed.\n"
+  },
+  {
+    "id": "restored",
+    "status": "PASS",
+    "exit": 0,
+    "evidence": "CONTRACT_PASS\n"
+  }
+]

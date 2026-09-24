@@ -405,6 +405,8 @@ def main():
         "test_shaniu_owner",
         "test_shaniu_power_owner",
         "test_bk7258_agent_media_player",
+        "test_shaniu_focus",
+        "test_shaniu_focus_wire",
         "test_agent_tts_queue",
         "test_bk7258_product_keys",
         "test_bk7258_usbmode_lease",
@@ -452,6 +454,23 @@ def main():
         "L1",
         [HERE / "build/test_shaniu_usb_cleanup"],
         binaries["test_shaniu_usb_cleanup"],
+    )
+    for variant in ("clock", "replay", "invalid"):
+        add(
+            suite,
+            "TIMER-01." + variant,
+            "TIMER-01",
+            "L1",
+            [HERE / "build/test_shaniu_focus", variant],
+            binaries["test_shaniu_focus"],
+        )
+    add(
+        suite,
+        "TIMER-01.wire",
+        "TIMER-01",
+        "L2",
+        [HERE / "build/test_shaniu_focus_wire"],
+        binaries["test_shaniu_focus_wire"],
     )
     for variant in ("tail", "cancel-next"):
         add(
