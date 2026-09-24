@@ -1847,5 +1847,12 @@ $(BUILD)/test_shaniu_power_pixels: test_shaniu_power_pixels.c \
     $(VOICE_PACK_ROOT)/bk7258_display_power_pixels.h | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) $< -o $@
 
-$(BUILD)/test_shaniu_msc_stop: test_shaniu_msc_stop.c $(CHIP_ROOT)/ap/bk7258_usbmsc_stop.inc | $(BUILD)
+$(BUILD)/test_shaniu_msc_stop: test_shaniu_msc_stop.c $(CHIP_ROOT)/ap/bk7258_usbmsc_start.inc $(CHIP_ROOT)/ap/bk7258_usbmsc_stop.inc | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -I $(CHIP_ROOT)/ap $< -o $@
+
+$(BUILD)/test_shaniu_usb_cleanup: test_shaniu_usb_cleanup.c $(CHIP_ROOT)/ap/bk7258_usbmode.c | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread -DCONFIG_BK7258_USBMODE -DCONFIG_BK7258_AP_CORE \
+		-DCONFIG_BK7258_USBCDC -DCONFIG_BK7258_USBMSC -DCONFIG_BK7258_OTA_SOURCE_FILE \
+		-DCONFIG_BK7258_USBMODE_BLOCKDEV=\"/dev/mmcsd0\" -DCONFIG_BK7258_USBMODE_REENUM_DELAY_MS=1 \
+		-I $(MOCKS) -I $(CHIP_ROOT)/include -I $(VOICE_PACK_ROOT) \
+		$^ mocks/mock_nuttx_ap.c -o $@

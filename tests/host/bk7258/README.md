@@ -440,3 +440,19 @@ usbd_deinitialize=-EIO 时不得 close_blockdriver，旧生产逻辑实际触发
 新增无线程、缓冲、等待或阈值，失败只延长必要 inode 持有。启动失败清理、
 close_blockdriver 错误、真实DMA/端点退出及全量文件句柄交接未由这两个用例
 证明。外部卷 vfat/fatfs 消费者差异仍存在，不在本片擅自更换文件系统。
+
+### S13 MSC 启动失败清理与模式隔离（2026-09-24）
+
+真实 initialize 原样提取 start.inc。先测试控制器启动失败+反初始化失败，
+原代码仍释放 inode；真实 mode_set 在该情况下立即启动 CDC 的第二反例也
+失败。修复后启动失败保留资源供显式退出；mode 层清理失败目标前不回滚其他
+后端，阻止本地块设备租约。失败的回滚也保留待清理后端。初始化入口对残留
+CDC先清理再重试，对残留MSC返回忙（显式set可清理再转换）。
+
+第一轮105 PASS/1 FAIL：旧 MSC-02.legacy-suite要求CDC回滚失败后 initialize
+可重试，新门禁过宽破坏该行为。保留旧断言、修正生产后，106 PASS（原63+
+累计新增43），原两变异/恢复通过，门禁12 PASS。AP MSC/mode 对象编译通过。
+报告 s13-20260924.json；两条原Red和中间回归见 s13-evidence-20260924.json，
+原始日志 out/shaniu-s13/。后端start/stop及模式管理均为生产源码，驱动/块设备
+及锁为主机边界替身，不证明真实DMA/端点退出。无新增线程/缓冲或超时；只增加
+一个待清理后端枚举。close_blockdriver异常及完整卷交接仍有缺口。未刷板。

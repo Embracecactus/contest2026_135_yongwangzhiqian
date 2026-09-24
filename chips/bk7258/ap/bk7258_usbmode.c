@@ -24,6 +24,8 @@
 static mutex_t g_bk7258_usbmode_lock = NXMUTEX_INITIALIZER;
 static enum bk7258_usbmode_e g_bk7258_usbmode = BK7258_USBMODE_NONE;
 static unsigned int g_bk7258_blockdev_leases;
+/* Failed class startup may retain endpoints/storage until teardown succeeds. */
+static enum bk7258_usbmode_e g_bk7258_usbmode_cleanup;
 
 const char *bk7258_usbmode_name(enum bk7258_usbmode_e mode)
 {
@@ -76,6 +78,22 @@ int bk7258_usbmode_initialize(void)
       return ret;
     }
 
+  if (g_bk7258_usbmode_cleanup == BK7258_USBMODE_CDC)
+    {
+      ret = bk7258_usbmode_stop(BK7258_USBMODE_CDC);
+      if (ret < 0 && ret != -ENODEV)
+        {
+          nxmutex_unlock(&g_bk7258_usbmode_lock);
+          return ret;
+        }
+      g_bk7258_usbmode_cleanup = BK7258_USBMODE_NONE;
+    }
+  else if (g_bk7258_usbmode_cleanup != BK7258_USBMODE_NONE)
+    {
+      nxmutex_unlock(&g_bk7258_usbmode_lock);
+      return -EBUSY;
+    }
+
   if (g_bk7258_usbmode != BK7258_USBMODE_NONE)
     {
       nxmutex_unlock(&g_bk7258_usbmode_lock);
@@ -86,6 +104,10 @@ int bk7258_usbmode_initialize(void)
   if (ret >= 0)
     {
       g_bk7258_usbmode = BK7258_USBMODE_CDC;
+    }
+  else
+    {
+      g_bk7258_usbmode_cleanup = BK7258_USBMODE_CDC;
     }
 
   nxmutex_unlock(&g_bk7258_usbmode_lock);
@@ -107,6 +129,17 @@ int bk7258_usbmode_set(enum bk7258_usbmode_e mode)
   if (ret < 0)
     {
       return ret;
+    }
+
+  if (g_bk7258_usbmode_cleanup != BK7258_USBMODE_NONE)
+    {
+      ret = bk7258_usbmode_stop(g_bk7258_usbmode_cleanup);
+      if (ret < 0 && ret != -ENODEV)
+        {
+          nxmutex_unlock(&g_bk7258_usbmode_lock);
+          return ret;
+        }
+      g_bk7258_usbmode_cleanup = BK7258_USBMODE_NONE;
     }
 
   previous = g_bk7258_usbmode;
@@ -148,6 +181,14 @@ int bk7258_usbmode_set(enum bk7258_usbmode_e mode)
   syslog(LOG_ERR,
          "BK7258 USBMODE TRANSITION stage=start-fail from=%s to=%s ret=%d\n",
          bk7258_usbmode_name(previous), bk7258_usbmode_name(mode), ret);
+  rollback = bk7258_usbmode_stop(mode);
+  if (rollback < 0 && rollback != -ENODEV)
+    {
+      g_bk7258_usbmode_cleanup = mode;
+      nxmutex_unlock(&g_bk7258_usbmode_lock);
+      return ret;
+    }
+
   if (previous != BK7258_USBMODE_NONE)
     {
       (void)nxsig_usleep(CONFIG_BK7258_USBMODE_REENUM_DELAY_MS * 1000u);
@@ -158,6 +199,7 @@ int bk7258_usbmode_set(enum bk7258_usbmode_e mode)
         }
       else
         {
+          g_bk7258_usbmode_cleanup = previous;
           syslog(LOG_ERR, "BK7258 USBMODE: rollback %s failed: %d\n",
                  bk7258_usbmode_name(previous), rollback);
         }
@@ -191,7 +233,8 @@ int bk7258_usbmode_blockdev_acquire(void)
       return ret;
     }
 
-  if (g_bk7258_usbmode == BK7258_USBMODE_MSC)
+  if (g_bk7258_usbmode == BK7258_USBMODE_MSC ||
+      g_bk7258_usbmode_cleanup != BK7258_USBMODE_NONE)
     {
       nxmutex_unlock(&g_bk7258_usbmode_lock);
       return -EBUSY;

@@ -400,6 +400,7 @@ def main():
         "test_shaniu_power_contract",
         "test_shaniu_power_pixels",
         "test_shaniu_msc_stop",
+        "test_shaniu_usb_cleanup",
         "test_shaniu_control_quiesce",
         "test_shaniu_owner",
         "test_shaniu_power_owner",
@@ -443,7 +444,15 @@ def main():
         [HERE / "build/test_shaniu_power_pixels"],
         binaries["test_shaniu_power_pixels"],
     )
-    for variant in ("normal", "retry"):
+    add(
+        suite,
+        "MSC-01.failed-start-handoff",
+        "MSC-01",
+        "L1",
+        [HERE / "build/test_shaniu_usb_cleanup"],
+        binaries["test_shaniu_usb_cleanup"],
+    )
+    for variant in ("normal", "retry", "start-cleanup"):
         add(
             suite,
             "MSC-01.backend-stop-" + variant,
