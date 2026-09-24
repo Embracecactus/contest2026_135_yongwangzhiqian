@@ -630,3 +630,45 @@ See `acceptance/s21-20260924.json`, `acceptance/s21-display-evidence-20260924.js
 and local `out/shaniu-s21/` for the Red, fresh Green, sources and artifact hashes.
 New `.inc` source hash is explicitly included because it was untracked at build
 time. No signed package, phone update, serial access or board operation occurred.
+
+### S22 — Agent eye expressions use the display worker (2026-09-24)
+
+`DISP-01.expression-intent` was written before the new interface existed;
+its initial missing source is **BLOCKED_INTERFACE**, not FAIL_ASSERTION.
+The production single-slot state machine is now linked into the existing display
+worker. The Agent's `device_control(action=eyes)` submits an intent and returns
+`state=accepted`, `request_id` and `rendered=false`; it no longer performs
+mount/decode/render synchronously inside that tool call. `device_status` adds
+`eye_request` with the latest ID, state and error. Acceptance is not completion.
+
+Contract for this expression-specific interface:
+
+- Only the existing nine allowed expressions are accepted; no persistent default
+  is changed. Null/unknown inputs fail before admission.
+- One pending/running request; another returns EBUSY without replacing it.
+  Boot-scoped IDs monotonically increase and exhaustion returns EOVERFLOW.
+- The existing worker marks RUNNING, releases the short intent lock, renders,
+  then publishes DONE/FAILED. DONE means renderer/driver submission success,
+  not independently observed photons. Missing framebuffer devices fail once.
+- Power/claim overlays reject requests and cancel pending ones. They do not
+  rewrite a completed result. New explicit synchronous expressions supersede
+  an older pending intent; conditional vision restoration yields to a new intent.
+- Only the latest result is retained; compare its ID. This is not a general
+  install-job history. Request expiry and voice-turn cancellation binding remain
+  open; do not claim full asynchronous lifecycle acceptance from this slice.
+
+The host test compiles the actual intent code with external render/IRQ shims;
+it checks no rendering on acceptance, RUNNING queryability during rendering,
+rejection while occupied, one completion, error/absent-device paths, overlay
+cancellation, supersession and ID exhaustion. Caller/worker wiring is target-linked,
+not a full executed Agent/worker integration test. The legacy vision/RPC synchronous
+APIs are retained and still need their own slow-path treatment.
+
+**122 PASS**, original IDs retained; 12 runner-gate tests pass. Two original
+mutations remain detected/restored; an additional isolated accepted-as-completed
+mutation is detected and restored separately. Complete CP/AP incremental linking
+and build-manifest verification pass. Named static intent storage is 39 bytes
+before alignment; no new thread/heap allocation. Real CPU/IRQ/stack high-water and
+end-to-end speech latency are unmeasured. No board/phone operation occurred.
+Evidence: `acceptance/s22-20260924.json`, `acceptance/s22-expression-evidence-20260924.json`,
+local raw logs `out/shaniu-s22/`. No historical report was replaced.

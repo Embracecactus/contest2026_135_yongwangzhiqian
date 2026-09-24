@@ -1871,3 +1871,6 @@ $(BUILD)/test_shaniu_focus_render: test_shaniu_focus_render.c $(VOICE_PACK_ROOT)
 
 $(BUILD)/test_shaniu_display_snapshot: test_shaniu_display_snapshot.c $(VOICE_PACK_ROOT)/bk7258_display_snapshot.inc $(VOICE_PACK_ROOT)/bk7258_display_service.h | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(MOCKS) -I $(VOICE_PACK_ROOT) $< -o $@
+
+$(BUILD)/test_shaniu_display_intent: test_shaniu_display_intent.c $(VOICE_PACK_ROOT)/bk7258_display_intent.inc $(VOICE_PACK_ROOT)/bk7258_display_service.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(MOCKS) -I $(VOICE_PACK_ROOT) $< -o $@

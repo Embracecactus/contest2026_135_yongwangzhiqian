@@ -540,6 +540,9 @@ static char *product_tools(void)
     "Use action eyes only when the user explicitly asks to change the "
     "eye expression. Do not call it to decorate an ordinary answer or joke; "
     "local display handles blinking and the speaking state automatically. "
+    "Eyes returns accepted plus request_id, not completed. Never claim the "
+    "expression is visible from acceptance; device_status exposes the latest "
+    "eye_request with its ID and state. Do not repeatedly poll in one answer. "
 #endif
     "Report errors honestly.\","
     "\"input_schema\":{\"type\":\"object\",\"properties\":{"
@@ -621,6 +624,19 @@ static int product_tool_execute(const char *name, const char *input,
       const char *mood =
       bk7258_preferences_persona_name(atomic_load(&g_active_persona));
       unsigned int volume;
+      char eye_request[144] = "";
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+      struct bkdisplay_expression_request_s eye;
+      if (bk7258_display_expression_status(&eye) == 0)
+        {
+          static const char *const states[] = {
+            "idle", "pending", "running", "completed", "failed", "canceled"
+          };
+          snprintf(eye_request, sizeof(eye_request),
+            ",\"eye_request\":{\"id\":%lu,\"state\":\"%s\",\"error\":%d}",
+            (unsigned long)eye.id, states[eye.state], eye.error);
+        }
+#endif
 #ifdef CONFIG_BK7258_HEALTH_SERVICE
       struct bk7258_health_service_snapshot_s health;
       if (!bk7258_health_service_snapshot(&health))
@@ -663,8 +679,8 @@ static int product_tool_execute(const char *name, const char *input,
       written = snprintf(output, capacity,
         "{\"battery_mv\":%s,\"battery_state\":\"%s\","
         "\"battery_percent\":null,\"battery_source\":\"periodic_cache\","
-        "\"volume_percent\":%s,\"mood\":\"%s\"}",
-        voltage, state, level, mood ? mood : "unknown");
+        "\"volume_percent\":%s,\"mood\":\"%s\"%s}",
+        voltage, state, level, mood ? mood : "unknown", eye_request);
     }
 #ifdef CONFIG_BK7258_MOTION_SERVICE
   else if (!strcmp(name, "device_motion"))
@@ -695,6 +711,9 @@ static int product_tool_execute(const char *name, const char *input,
       cJSON *value = cJSON_GetObjectItemCaseSensitive(args, "value");
       cJSON *mood = cJSON_GetObjectItemCaseSensitive(args, "mood");
       unsigned int observed = 0;
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+      uint32_t eye_request_id = 0;
+#endif
     if (bkagent_ota_busy())
       {
         ret = -EBUSY;
@@ -743,7 +762,9 @@ static int product_tool_execute(const char *name, const char *input,
                 {
                   if (!strcmp(expression->valuestring, expressions[i]))
                     {
-                      ret = bk7258_display_set_expression(expressions[i]);
+                      /* Reserve output space before accepting a side effect. */
+                      ret = capacity < 128 ? -ENOSPC :
+                        bk7258_display_request_expression(expressions[i], &eye_request_id);
                       break;
                     }
                 }
@@ -778,6 +799,15 @@ static int product_tool_execute(const char *name, const char *input,
           goto out;
         }
 
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+      if (eye_request_id)
+        {
+          written = snprintf(output, capacity,
+            "{\"ok\":true,\"action\":\"eyes\",\"state\":\"accepted\","
+            "\"request_id\":%lu,\"rendered\":false}", (unsigned long)eye_request_id);
+        }
+      else
+#endif
       if (!strcmp(action->valuestring, "volume"))
         {
           written = snprintf(output, capacity,

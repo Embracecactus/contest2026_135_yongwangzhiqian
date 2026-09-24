@@ -54,6 +54,30 @@ int bk7258_display_service_start(void);
  * activates it.  Neither call owns a network protocol.
  */
 
+/* Bounded asynchronous expression intent. One pending/running request;
+ * -EBUSY when occupied or blocked by a power/claim overlay. IDs never wrap.
+ * Acceptance does not mean rendered. Only the latest request/result is kept;
+ * callers must compare IDs, not attribute a newer result to an older request.
+ * These requests never change the persistent default selection.
+ */
+enum bkdisplay_expression_request_state_e
+{
+  BKDISPLAY_EXPRESSION_IDLE = 0,
+  BKDISPLAY_EXPRESSION_PENDING,
+  BKDISPLAY_EXPRESSION_RUNNING,
+  BKDISPLAY_EXPRESSION_DONE,
+  BKDISPLAY_EXPRESSION_FAILED,
+  BKDISPLAY_EXPRESSION_CANCELED
+};
+struct bkdisplay_expression_request_s
+{
+  uint32_t id;
+  enum bkdisplay_expression_request_state_e state;
+  int error;
+};
+int bk7258_display_request_expression(const char *expression, uint32_t *id);
+int bk7258_display_expression_status(struct bkdisplay_expression_request_s *status);
+
 int bk7258_display_set_expression(const char *expression);
 int bk7258_display_replace_expression(const char *expected,
                                       const char *replacement);

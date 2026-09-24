@@ -121,7 +121,8 @@
     "TIMER-01.pixels",
     "TIMER-01.render",
     "MSC-01.backend-stop-close-error",
-    "NET-02.display-snapshot"
+    "NET-02.display-snapshot",
+    "DISP-01.expression-intent"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -246,6 +247,7 @@
     "TIMER-01.pixels",
     "TIMER-01.render",
     "MSC-01.backend-stop-close-error",
-    "NET-02.display-snapshot"
+    "NET-02.display-snapshot",
+    "DISP-01.expression-intent"
   ]
 }
