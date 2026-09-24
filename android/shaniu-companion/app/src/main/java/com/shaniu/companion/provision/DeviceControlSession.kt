@@ -88,6 +88,15 @@ internal class DeviceControlSession(
         if (user) userClosed = true
         closeTransport(if (user) Connection.DISCONNECTED else Connection.SUSPENDED)
     }
+    /** 认领可能更换身份：结束旧重连入口和缓存，但不删除持久凭据。 */
+    fun releaseIdentity() {
+        userClosed = true
+        factory = null
+        closeTransport(Connection.DISCONNECTED)
+        infoNeeded = false
+        reconnectAttempts = 0
+        publish(State(generation = state.generation))
+    }
     fun setForeground(value: Boolean) {
         foreground = value
         grace?.cancel(); grace = null

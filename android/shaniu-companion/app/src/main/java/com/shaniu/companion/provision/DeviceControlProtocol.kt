@@ -38,6 +38,8 @@ internal class DeviceControlProtocol(
     private var used = 0
     private var sequence = 0
     private var pending: Command? = null
+    private var pendingBeginKind = 0
+    private var configKind = 0
     private var deadline = 0L
     private var lastNow = nowMs()
     var authenticated = false
@@ -111,11 +113,17 @@ internal class DeviceControlProtocol(
 
     private fun transmit(command: Command, payload: ByteArray) {
         if (command == Command.CONFIG_READ) pendingReadKind = ByteBuffer.wrap(payload).int ushr 16
+        if (command == Command.CONFIG_BEGIN) pendingBeginKind = ByteBuffer.wrap(payload).int
         check(sequence < Int.MAX_VALUE)
         val frame = ByteBuffer.allocate(16 + payload.size).putInt(0x53444331)
             .putInt(command.wire).putInt(sequence).putInt(payload.size).put(payload).array()
         pending = command
-        lastNow = nowMs(); deadline = lastNow + 10_000
+        // Eye APPLY replies after its bounded HTTPS fetch AND SD installation.
+        // Give that operation a separate response budget, without extending
+        // AUTH, fragment writes, ordinary settings or the control idle lease.
+        val responseBudget = if (command == Command.CONFIG_APPLY && configKind == 5)
+            30_000L else 10_000L
+        lastNow = nowMs(); deadline = lastNow + responseBudget
         try { send(frame) } catch (_: Exception) {
             close(); throw IllegalStateException("Control request could not be sent")
         } finally { frame.fill(0) }
@@ -211,6 +219,15 @@ internal class DeviceControlProtocol(
     }
 
     private fun complete(command: Command, snapshot: Snapshot) {
+        if (command == Command.CONFIG_BEGIN) {
+            if (snapshot.error == 0) configKind = pendingBeginKind
+            pendingBeginKind = 0
+        } else if ((command == Command.CONFIG_CANCEL && snapshot.error == 0) ||
+                   (command == Command.CONFIG_APPLY && snapshot.error != -61)) {
+            // ENODATA means the board retained an incomplete staging record;
+            // every fully staged APPLY consumes it, including rejected installs.
+            configKind = 0
+        }
         input.fill(0); used = 0; pending = null; sequence++
         result(command, snapshot)
     }
@@ -230,6 +247,7 @@ internal class DeviceControlProtocol(
 
     override fun close() {
         secret.fill(0); input.fill(0); used = 0; pending = null
+        pendingBeginKind = 0; configKind = 0
         authenticated = false; closed = true
     }
 }

@@ -374,6 +374,7 @@ class MainActivity : Activity() {
             WAKE_MODEL_REQUEST -> data?.data?.let(::selectWakeModel)
             EYE_PACK_REQUEST -> data?.data?.let(::selectEyePack)
             PROVISION_REQUEST -> {
+                directSession.releaseIdentity()
                 val deviceId = ProvisionBootstrap.validDeviceId(
                     data?.getStringExtra(ProvisionActivity.EXTRA_PROVISIONED_DEVICE_ID),
                 ) ?: return
@@ -1729,6 +1730,9 @@ class MainActivity : Activity() {
 
     private fun renderDirectCompanion() {
         val bound = provisionedDeviceId.isNotBlank()
+        // Discovery belongs to the shared session, not the tab that started it.
+        // Keep candidates selectable from every connection entry and tab.
+        renderDirectDiscoveryCard()
         when (currentTab) {
             TAB_OVERVIEW, TAB_INTERACTION -> {
                 content.addView(TextView(this).apply {
@@ -1747,7 +1751,6 @@ class MainActivity : Activity() {
                     ViewGroup.LayoutParams.MATCH_PARENT, dp(portraitHeight)).apply { bottomMargin = dp(12) })
                 if (bound) {
                     addCard(if (directSession.current().authenticated) "已连接傻妞" else "已保存认领结果", directStatus())
-                    renderDirectDiscoveryCard()
                     val state = directSession.current()
                     val volume = DeviceControlPresentation.volume(state)
                     settingsRow("音量", volume.reason, enabled = volume.enabled) { editDirectVolume() }
@@ -1767,7 +1770,6 @@ class MainActivity : Activity() {
                     addCard("你的设备，由你掌握", "认领无需互联网或云账号。\n认领后，再设置 Wi-Fi 和语音服务。")
                     primaryButton("添加傻妞 · 扫码连接", !busy) { startProvisioning() }
                     actionButton(if (directConnecting) "正在查找附近设备…" else "查找附近的傻妞", !busy && !directConnecting) { scanDirect() }
-                    renderDirectDiscoveryCard()
                     content.addView(TextView(this).apply {
                         text = "蓝牙用于连接 · 相机用于扫码"
                         textSize = 11f; gravity = Gravity.CENTER; setTextColor(MUTED)
@@ -3204,9 +3206,10 @@ class MainActivity : Activity() {
     private fun isCurrent(epoch: Long): Boolean = !destroyed && epoch == connectionEpoch
 
     private fun startProvisioning(developerMode: Boolean = false) {
-        // The provisioning transaction uses the same GATT service. Release
-        // daily control before handing ownership to that Activity.
-        directSession.disconnect(user = false)
+        // 认领可能更换身份，不能在返回前台时复用旧身份的重连工厂。
+        // 保留持久凭据；返回后由用户选择设备，按最新认领结果重新认证。
+        closeDirect()
+        directSession.releaseIdentity()
         startActivityForResult(
             Intent(this, ProvisionActivity::class.java)
                 .putExtra("developer_mode", developerMode),

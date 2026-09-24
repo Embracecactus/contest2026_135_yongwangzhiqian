@@ -184,6 +184,27 @@ class DeviceControlSessionTest {
         f.session.disconnect(); f.session.setForeground(false); f.clock.advance(30_000); f.session.setForeground(true)
         assertEquals(2, f.peers.size)
     }
+    @Test fun claimHandoffDropsOldIdentityRetryAndCachedStatus() {
+        val f = Fixture(); f.connect()
+        val old = f.peer
+        old.events.closed("disconnected")
+        f.session.releaseIdentity()
+        assertNull(f.session.current().snapshot)
+        assertNull(f.session.current().firmwareInfo)
+        assertEquals(0L, f.session.current().updatedAt)
+        f.session.setForeground(false); f.clock.advance(30_000)
+        f.session.setForeground(true); f.clock.advance(130_000)
+        old.reply(DeviceControlProtocol.Command.STATUS, status.copy(volume = 99))
+        old.events.closed("late")
+        assertEquals(1, f.peers.size)
+        assertFalse(f.session.current().authenticated)
+        assertNull(f.session.current().snapshot)
+        f.session.connect(f.factory)
+        f.peer.reply(DeviceControlProtocol.Command.STATUS, status.copy(volume = 40))
+        assertEquals(2, f.peers.size)
+        assertTrue(f.session.current().authenticated)
+        assertEquals(40, f.session.current().snapshot?.volume)
+    }
     @Test fun graceDisconnectCannotReopenAnExplicitlyClosedSession() {
         val f = Fixture(); f.connect()
         f.session.disconnect()

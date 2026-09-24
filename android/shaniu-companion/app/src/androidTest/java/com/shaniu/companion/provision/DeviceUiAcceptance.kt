@@ -153,6 +153,27 @@ internal object DeviceUiAcceptance {
             setDiscoveryCandidates("傻妞客厅" to "02:00:00:00:00:11")
             scene(0, session.current().copy(connection = DeviceControlSession.Connection.DISCONNECTED, error = null))
             capture("discovery-one-candidate")
+            // Every connection entry must expose the same candidate without
+            // starting another scan or manufacturing an authenticated state.
+            val discoveryEpoch = field("directEpoch").getLong(activity)
+            val discoveryGeneration = session.current().generation
+            for (tab in listOf(5, 2, 4, 0)) {
+                scene(tab)
+                onUi(instrumentation) {
+                    check(findView(activity.window.decorView) {
+                        it is TextView && it.text.toString().startsWith("傻妞客厅 · 00:11\n")
+                    } != null) { "candidate missing from tab $tab" }
+                    check(findView(activity.window.decorView) {
+                        it.contentDescription?.toString() == "傻妞客厅，未验证设备，身份以安全认领验证为准" &&
+                            it.isEnabled && it.isClickable
+                    } != null) { "candidate not selectable from tab $tab" }
+                    check(field("directEpoch").getLong(activity) == discoveryEpoch)
+                    check(session.current().generation == discoveryGeneration && !session.current().authenticated)
+                    check(field("directScanner").get(activity) == null)
+                }
+            }
+            scene(5)
+            capture("settings-discovery-one-candidate")
             setDiscoveryCandidates(
                 "傻妞客厅" to "02:00:00:00:00:11",
                 "傻妞书房" to "02:00:00:00:00:12",
