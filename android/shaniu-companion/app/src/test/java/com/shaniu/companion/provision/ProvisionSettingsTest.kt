@@ -107,6 +107,21 @@ class ProvisionSettingsTest {
             ProvisionSettings.inputError("lab", "x".repeat(64).toCharArray()))
         assertNull(ProvisionSettings.inputError("lab", CharArray(0)))
     }
+    @Test fun CFG_03_wifiPatchMatchesIndependentGolden() {
+        val hex = javaClass.getResourceAsStream("/shaniu/scp1-wifi.hex")!!.bufferedReader().use { it.readText().trim() }
+        val expected = hex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+        val before = System.currentTimeMillis() / 1000
+        val actual = DeviceSettings.patch(publicSettings().copy(revision = 1, ssid = "network-A"),
+            ByteArray(16).also { it[0] = 2 }, "network-B", "password-B".toCharArray())
+        val after = System.currentTimeMillis() / 1000
+        // Only UTC is supplied by the external wall clock; validate then normalize
+        // that field, preserving every other byte of the independent vector.
+        assertTrue(ByteBuffer.wrap(actual).getLong(32) in before..after)
+        expected.copyInto(actual, 32, 32, 40)
+        assertArrayEquals(expected, actual)
+        actual.fill(0)
+    }
+
     private fun publicSettings() = DeviceSettings.Public(0, 17, "0".repeat(32), 0,
         true, true, true, true, 443, 2, "old-network", "cloud.example", "/v1", "asr", "chat", "tts")
 

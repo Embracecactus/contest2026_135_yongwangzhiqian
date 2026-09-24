@@ -31,3 +31,13 @@ SDK 版本来源由仓库根目录 `contest2026_135_yongwangzhiqian.xml`
 `tests/host/bk7258/build/` 下的临时源码、分区头、目标文件和可执行文件由测试入口生成且不
 纳入 Git；它们继承其输入源码或生成器的许可证。新增或替换 mock 时，应在评审中重新
 确认来源，不能仅因位于本目录而机械沿用许可证。
+
+## 2026-09-24 v2 测试增量
+
+`test_shaniu_key_contract.c`、`test_shaniu_volume_contract.c`、
+`test_shaniu_config_contract.c` 与 `test_shaniu_contracts.py` 为按用户 v2 契约编写的
+本仓测试，采用 Apache-2.0；需求目录和正反向场景来自用户提供的56项附录。
+SCP1 golden 为依据本仓公开协议头独立构造的测试数据，不由产品编码器导出；
+PCM为确定性数值序列，无真人音频。CA仅在运行时读取manifest记录的mbedTLS公共测试证书，
+不复制/生成或使用设备私钥。外部代码仍在原仓编译，许可证不改变；实际来源提交与哈希见
+[acceptance/data-manifest.v1.json](acceptance/data-manifest.v1.json)。

@@ -1,0 +1,5 @@
+ac45928494cf0f3be56d0b0e203be782499ebfbae8b82c582d22cf124e573208  android/shaniu-companion/app/src/test/resources/shaniu/scp1-wifi.hex
+10aa524f2dfc7434b8215989b5f9f1f411f502e4c5018f66233dffe34ef8bb43  tests/host/bk7258/acceptance/cases.v1.json
+96dae625d3b14412366e841583a56d182a0b94d89b939b2c40efce823b858125  tests/host/bk7258/test_shaniu_config_contract.c
+707042850083c6cd89195e14516215940eaca17fc95197a53242e2ab3dea446e  tests/host/bk7258/test_bk7258_agent_media_player.c
+b9b77eabdfa7a0d01e7949778e4c2852f387e4cdc163420c3967d46fac6aeb94  ../apps/crypto/mbedtls/mbedtls/tests/data_files/test-ca.crt

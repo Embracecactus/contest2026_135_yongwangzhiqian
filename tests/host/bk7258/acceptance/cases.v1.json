@@ -1,0 +1,2439 @@
+{
+  "schema_version": 1,
+  "scope": "56项设计，非56项自动化通过；用户2026-09-24附录的结构化压缩，边界以contracts.md为补充",
+  "production_baseline": "272b3b2f366cf9ac9ae510757ac4288f0c68d3a0",
+  "agent_revision": "62a304ea69c4076f0f3ef7955a9af69a5ed35277",
+  "cases": [
+    {
+      "id": "K2-01",
+      "version": 1,
+      "requirements": [
+        "Q01"
+      ],
+      "source": "USER-20260924-CASES-V1:K2-01",
+      "priority": "P0",
+      "layers": [
+        "L1",
+        "L3"
+      ],
+      "given": "同一有效会话已消抖边沿；T_off=3000ms，未进入恢复确认",
+      "when": "2999/3000/3001ms释放；3000ms无held消息；重复释放",
+      "then": "短按0次；达阈值仅释放时1次；重复释放0次",
+      "forbidden": "不得依赖held心跳；不得按住未松就关闭",
+      "observer": "意图次数与输入时刻",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "不得依赖held心跳；不得按住未松就关闭",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "keys",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "K2-01.positive",
+          "kind": "design-only",
+          "given": "同一有效会话已消抖边沿；T_off=3000ms，未进入恢复确认",
+          "when": "同会话3000ms无held后释放并重复释放",
+          "then": "短按0次；达阈值仅释放时1次；重复释放0次",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "K2-01.negative",
+          "kind": "design-only",
+          "given": "同一有效会话已消抖边沿；T_off=3000ms，未进入恢复确认",
+          "when": "2999ms释放；按住不松",
+          "then": "拒绝/取消/恢复必须同时满足：短按0次；达阈值仅释放时1次；重复释放0次；禁止：不得依赖held心跳；不得按住未松就关闭",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "K2-02",
+      "version": 1,
+      "requirements": [
+        "Q01",
+        "Q07"
+      ],
+      "source": "USER-20260924-CASES-V1:K2-02",
+      "priority": "P0",
+      "layers": [
+        "L1",
+        "L3"
+      ],
+      "given": "T_reset/确认手势/T_confirm待冻结；K1/K3仅音量",
+      "when": "进入恢复确认后取消、超时、独立正式确认",
+      "then": "进入确认撤销关机候选；取消/超时零擦除零补关机；确认仅一次重置",
+      "forbidden": "同次按压关机又重置；臆定5秒",
+      "observer": "业务意图和持久副作用计数",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "同次按压关机又重置；臆定5秒",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "power",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "K2-02.positive",
+          "kind": "design-only",
+          "given": "T_reset/确认手势/T_confirm待冻结；K1/K3仅音量",
+          "when": "独立一次长按进入确认并明确确认",
+          "then": "进入确认撤销关机候选；取消/超时零擦除零补关机；确认仅一次重置",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "K2-02.negative",
+          "kind": "design-only",
+          "given": "T_reset/确认手势/T_confirm待冻结；K1/K3仅音量",
+          "when": "进入确认后取消或T_confirm超时",
+          "then": "拒绝/取消/恢复必须同时满足：进入确认撤销关机候选；取消/超时零擦除零补关机；确认仅一次重置；禁止：同次按压关机又重置；臆定5秒",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "K2-03",
+      "version": 1,
+      "requirements": [
+        "Q01"
+      ],
+      "source": "USER-20260924-CASES-V1:K2-03",
+      "priority": "P0",
+      "layers": [
+        "L1"
+      ],
+      "given": "新会话必须重新有效按压，时钟倒退不得产生资格",
+      "when": "带按下重连、旧释放、倒退、K1/K3长按",
+      "then": "旧资格不继承；新会话先释放再按；音量无电源意图",
+      "forbidden": "把缺口一律视为连续；时间下溢误擦除",
+      "observer": "公开意图与边沿可信性",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "把缺口一律视为连续；时间下溢误擦除",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "keys",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "K2-03.positive",
+          "kind": "design-only",
+          "given": "新会话必须重新有效按压，时钟倒退不得产生资格",
+          "when": "新会话先全释放再有效按压",
+          "then": "旧资格不继承；新会话先释放再按；音量无电源意图",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "K2-03.negative",
+          "kind": "design-only",
+          "given": "新会话必须重新有效按压，时钟倒退不得产生资格",
+          "when": "旧资格跨epoch、时间倒退、K1/K3长按",
+          "then": "拒绝/取消/恢复必须同时满足：旧资格不继承；新会话先释放再按；音量无电源意图；禁止：把缺口一律视为连续；时间下溢误擦除",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "LIFE-01",
+      "version": 1,
+      "requirements": [
+        "Q01",
+        "Q04"
+      ],
+      "source": "USER-20260924-CASES-V1:LIFE-01",
+      "priority": "P0",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "采集/播放存在在途引用及DMA",
+      "when": "关机同时状态查询、新对话、迟到rearm",
+      "then": "新业务拒绝；查询/清理可行；必要使用者退出后电源转换；旧rearm无效",
+      "forbidden": "busy=false或日志代替退出；查询无限阻止关机",
+      "observer": "引用、DMA和电源事件必要先后关系",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "busy=false或日志代替退出；查询无限阻止关机",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "power",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "LIFE-01.positive",
+          "kind": "design-only",
+          "given": "采集/播放存在在途引用及DMA",
+          "when": "全部参与者确认引用和DMA退出后转换",
+          "then": "新业务拒绝；查询/清理可行；必要使用者退出后电源转换；旧rearm无效",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "LIFE-01.negative",
+          "kind": "design-only",
+          "given": "采集/播放存在在途引用及DMA",
+          "when": "持续查询、新任务和迟到rearm与关机交错",
+          "then": "拒绝/取消/恢复必须同时满足：新业务拒绝；查询/清理可行；必要使用者退出后电源转换；旧rearm无效；禁止：busy=false或日志代替退出；查询无限阻止关机",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "LIFE-02",
+      "version": 1,
+      "requirements": [
+        "Q01"
+      ],
+      "source": "USER-20260924-CASES-V1:LIFE-02",
+      "priority": "P0",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "退出期限T_quiesce待冻结，资源可拒绝/超时",
+      "when": "单参与者不能退出、部分硬件已经停用",
+      "then": "超时不算安全完成；明确失败；恢复须证明资源可用",
+      "forbidden": "仅改状态变量恢复；无限等待",
+      "observer": "虚拟时钟与退出记录",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "仅改状态变量恢复；无限等待",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "power",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "LIFE-02.positive",
+          "kind": "design-only",
+          "given": "退出期限T_quiesce待冻结，资源可拒绝/超时",
+          "when": "全部参与者在冻结期限内真实退出",
+          "then": "超时不算安全完成；明确失败；恢复须证明资源可用",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "LIFE-02.negative",
+          "kind": "design-only",
+          "given": "退出期限T_quiesce待冻结，资源可拒绝/超时",
+          "when": "一个拒绝/超时，其他硬件部分已停",
+          "then": "拒绝/取消/恢复必须同时满足：超时不算安全完成；明确失败；恢复须证明资源可用；禁止：仅改状态变量恢复；无限等待",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "PWR-01",
+      "version": 1,
+      "requirements": [
+        "Q01"
+      ],
+      "source": "USER-20260924-CASES-V1:PWR-01",
+      "priority": "P0",
+      "layers": [
+        "L3"
+      ],
+      "given": "匹配固件/ELF、USB或电池、可恢复",
+      "when": "关机观察后按既有方式重新开机",
+      "then": "停止普通监听/对话，恢复配置；解释reboot-to-sleep过程",
+      "forbidden": "黑屏等于断电；Bootloader等于故障",
+      "observer": "复位原因、睡眠/启动、行为；无电流测量则UNKNOWN",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "黑屏等于断电；Bootloader等于故障",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "power",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "PWR-01.positive",
+          "kind": "design-only",
+          "given": "匹配固件/ELF、USB或电池、可恢复",
+          "when": "USB/电池分别关机并按约定重新开机",
+          "then": "停止普通监听/对话，恢复配置；解释reboot-to-sleep过程",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "PWR-01.negative",
+          "kind": "design-only",
+          "given": "匹配固件/ELF、USB或电池、可恢复",
+          "when": "关机状态插USB或送普通事件，不得自动恢复",
+          "then": "拒绝/取消/恢复必须同时满足：停止普通监听/对话，恢复配置；解释reboot-to-sleep过程；禁止：黑屏等于断电；Bootloader等于故障",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "FAULT-01",
+      "version": 1,
+      "requirements": [
+        "Q01"
+      ],
+      "source": "USER-20260924-CASES-V1:FAULT-01",
+      "priority": "P0",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "658原记录和ELF锁定，与K2另列",
+      "when": "可复现资源/回调交错，保存首有效异常",
+      "then": "匹配CPU/任务/产物；原刺激与混合回归；不可复现如实记录",
+      "forbidden": "旧ELF解新地址；诊断存在即根因；所有重启叫Fault",
+      "observer": "原始上下文和反例",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "旧ELF解新地址；诊断存在即根因；所有重启叫Fault",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "power",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "FAULT-01.positive",
+          "kind": "design-only",
+          "given": "658原记录和ELF锁定，与K2另列",
+          "when": "已知刺激产生匹配ELF的首有效异常",
+          "then": "匹配CPU/任务/产物；原刺激与混合回归；不可复现如实记录",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "FAULT-01.negative",
+          "kind": "design-only",
+          "given": "658原记录和ELF锁定，与K2另列",
+          "when": "ELF或CPU身份不匹配时拒绝归因",
+          "then": "拒绝/取消/恢复必须同时满足：匹配CPU/任务/产物；原刺激与混合回归；不可复现如实记录；禁止：旧ELF解新地址；诊断存在即根因；所有重启叫Fault",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "RST-01",
+      "version": 1,
+      "requirements": [
+        "Q07"
+      ],
+      "source": "USER-20260924-CASES-V1:RST-01",
+      "priority": "P0",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "可丢弃配置；保留硬件/TLS/信任计数清单",
+      "when": "未认证、取消、明确授权重置后新认领",
+      "then": "拒绝/取消零破坏；旧凭据失效、新认领可用、保留项不变",
+      "forbidden": "删App数据冒充重置；自动格式化SD",
+      "observer": "认证挑战和保留项回读",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "删App数据冒充重置；自动格式化SD",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "reset",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "RST-01.positive",
+          "kind": "design-only",
+          "given": "可丢弃配置；保留硬件/TLS/信任计数清单",
+          "when": "授权并物理确认后新owner认领",
+          "then": "拒绝/取消零破坏；旧凭据失效、新认领可用、保留项不变",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "RST-01.negative",
+          "kind": "design-only",
+          "given": "可丢弃配置；保留硬件/TLS/信任计数清单",
+          "when": "未认证/取消不能产生持久破坏",
+          "then": "拒绝/取消/恢复必须同时满足：拒绝/取消零破坏；旧凭据失效、新认领可用、保留项不变；禁止：删App数据冒充重置；自动格式化SD",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "RST-02",
+      "version": 1,
+      "requirements": [
+        "Q07"
+      ],
+      "source": "USER-20260924-CASES-V1:RST-02",
+      "priority": "P0",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "持久重置回执可观测且不只依赖旧权限",
+      "when": "未发送/拒绝/提交未知/丢ACK/清理失败逐点中断",
+      "then": "拒绝可结束；未知可查无重复擦除；重启不恢复旧权限",
+      "forbidden": "永久pending锁死；删除pending假成功；双owner",
+      "observer": "持久介质与实际协议",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "永久pending锁死；删除pending假成功；双owner",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "reset",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "RST-02.positive",
+          "kind": "design-only",
+          "given": "持久重置回执可观测且不只依赖旧权限",
+          "when": "明确完成后重启可回读完成回执",
+          "then": "拒绝可结束；未知可查无重复擦除；重启不恢复旧权限",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "RST-02.negative",
+          "kind": "design-only",
+          "given": "持久重置回执可观测且不只依赖旧权限",
+          "when": "提交未知/丢ACK/清理失败各阶段中断",
+          "then": "拒绝/取消/恢复必须同时满足：拒绝可结束；未知可查无重复擦除；重启不恢复旧权限；禁止：永久pending锁死；删除pending假成功；双owner",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "CFG-01",
+      "version": 1,
+      "requirements": [
+        "Q08"
+      ],
+      "source": "USER-20260924-CASES-V1:CFG-01",
+      "priority": "P0",
+      "layers": [
+        "L1",
+        "L2",
+        "L3"
+      ],
+      "given": "测试owner、Wi-Fi A、端点S/Key K已存",
+      "when": "只改B；联网失败、恢复、重启、实际请求",
+      "then": "端点/模型/Key/owner保持；不重填Key；真实请求仍用K",
+      "forbidden": "只查补丁标志充当持久化；导真实Key",
+      "observer": "重开存储与端点内存比对",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "只查补丁标志充当持久化；导真实Key",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "config",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "CFG-01.positive",
+          "kind": "design-only",
+          "given": "测试owner、Wi-Fi A、端点S/Key K已存",
+          "when": "Wi-Fi A变B后重开且继续使用原K请求S",
+          "then": "端点/模型/Key/owner保持；不重填Key；真实请求仍用K",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "CFG-01.negative",
+          "kind": "design-only",
+          "given": "测试owner、Wi-Fi A、端点S/Key K已存",
+          "when": "联网失败后不得清Key/owner或回滚用户选择",
+          "then": "拒绝/取消/恢复必须同时满足：端点/模型/Key/owner保持；不重填Key；真实请求仍用K；禁止：只查补丁标志充当持久化；导真实Key",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "CFG-02",
+      "version": 1,
+      "requirements": [
+        "Q08"
+      ],
+      "source": "USER-20260924-CASES-V1:CFG-02",
+      "priority": "P0",
+      "layers": [
+        "L2"
+      ],
+      "given": "A/B不同revision，完成可调度",
+      "when": "A保存未应用时B保存，再A迟到成功/失败",
+      "then": "B仍最新，保存和应用分离，旧结果不覆盖",
+      "forbidden": "旧失败写入新版；重放写操作",
+      "observer": "持久快照与独立版本序列",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "旧失败写入新版；重放写操作",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "config",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "CFG-02.positive",
+          "kind": "design-only",
+          "given": "A/B不同revision，完成可调度",
+          "when": "A后B正常保存，B应用成功",
+          "then": "B仍最新，保存和应用分离，旧结果不覆盖",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "CFG-02.negative",
+          "kind": "design-only",
+          "given": "A/B不同revision，完成可调度",
+          "when": "A迟到成功/失败不得改写B",
+          "then": "拒绝/取消/恢复必须同时满足：B仍最新，保存和应用分离，旧结果不覆盖；禁止：旧失败写入新版；重放写操作",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "CFG-03",
+      "version": 1,
+      "requirements": [
+        "Q08"
+      ],
+      "source": "USER-20260924-CASES-V1:CFG-03",
+      "priority": "P0",
+      "layers": [
+        "L1",
+        "L2"
+      ],
+      "given": "保留/设置/清空、revision/operation公开契约",
+      "when": "三操作、空/过期ID、耗尽revision、冲突、ASR独立端点",
+      "then": "拒冲突，其他服务不变，跨端点不借旧Key/CA，保存不等连接",
+      "forbidden": "生产编码器生成唯一oracle；页签假独立端点",
+      "observer": "协议golden与真实保存/应用",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "生产编码器生成唯一oracle；页签假独立端点",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "config",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "CFG-03.positive",
+          "kind": "design-only",
+          "given": "保留/设置/清空、revision/operation公开契约",
+          "when": "同端点保留/替换Key及明确清空分别提交",
+          "then": "拒冲突，其他服务不变，跨端点不借旧Key/CA，保存不等连接",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "CFG-03.negative",
+          "kind": "design-only",
+          "given": "保留/设置/清空、revision/operation公开契约",
+          "when": "冲突、旧revision、空ID、跨端点借旧Key拒绝",
+          "then": "拒绝/取消/恢复必须同时满足：拒冲突，其他服务不变，跨端点不借旧Key/CA，保存不等连接；禁止：生产编码器生成唯一oracle；页签假独立端点",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "STORE-01",
+      "version": 1,
+      "requirements": [
+        "Q08"
+      ],
+      "source": "USER-20260924-CASES-V1:STORE-01",
+      "priority": "P0",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "关键配置已保存，可恢复故障介质",
+      "when": "SD不可用/只读/目录损坏/数据库IO错误启动换网",
+      "then": "身份配置不空；原错误域保留；管理按能力可用",
+      "forbidden": "IOERR当ENOENT；自动格式化；重刷掩盖SD损坏",
+      "observer": "I/O、独立回读、介质摘要",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "IOERR当ENOENT；自动格式化；重刷掩盖SD损坏",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "store",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "STORE-01.positive",
+          "kind": "design-only",
+          "given": "关键配置已保存，可恢复故障介质",
+          "when": "外部SD正常时读取已存配置",
+          "then": "身份配置不空；原错误域保留；管理按能力可用",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "STORE-01.negative",
+          "kind": "design-only",
+          "given": "关键配置已保存，可恢复故障介质",
+          "when": "SD只读/损坏/不可用或IOERR不能当空配置",
+          "then": "拒绝/取消/恢复必须同时满足：身份配置不空；原错误域保留；管理按能力可用；禁止：IOERR当ENOENT；自动格式化；重刷掩盖SD损坏",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "STORE-02",
+      "version": 1,
+      "requirements": [
+        "Q08"
+      ],
+      "source": "USER-20260924-CASES-V1:STORE-02",
+      "priority": "P0",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "durable语义与持久边界明确",
+      "when": "写入/同步/激活前后故障",
+      "then": "重新打开得到旧/新有效或明确恢复态；不混合",
+      "forbidden": "rename成功当掉电安全；仅成功mock",
+      "observer": "真实存储重开与独立故障序列",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "rename成功当掉电安全；仅成功mock",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "store",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "STORE-02.positive",
+          "kind": "design-only",
+          "given": "durable语义与持久边界明确",
+          "when": "持久提交并重开读取完整新配置",
+          "then": "重新打开得到旧/新有效或明确恢复态；不混合",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "STORE-02.negative",
+          "kind": "design-only",
+          "given": "durable语义与持久边界明确",
+          "when": "各写入/fsync/激活边界失败后无混合态",
+          "then": "拒绝/取消/恢复必须同时满足：重新打开得到旧/新有效或明确恢复态；不混合；禁止：rename成功当掉电安全；仅成功mock",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "MSC-01",
+      "version": 1,
+      "requirements": [
+        "Q08",
+        "Q10"
+      ],
+      "source": "USER-20260924-CASES-V1:MSC-01",
+      "priority": "P0",
+      "layers": [
+        "L1",
+        "L2",
+        "L3"
+      ],
+      "given": "本地文件/数据库/DMA占用，导出卷明确",
+      "when": "关闭/排空/卸载故障和正常交接",
+      "then": "无本地/主机双写；失败不导出；成功独占；恢复旧句柄/缓存失效",
+      "forbidden": "stop成功等于卷卸载；刷整片等于SD恢复",
+      "observer": "块I/O、挂载/句柄、端点事件",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "stop成功等于卷卸载；刷整片等于SD恢复",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "volume",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "MSC-01.positive",
+          "kind": "design-only",
+          "given": "本地文件/数据库/DMA占用，导出卷明确",
+          "when": "真实本地卸载后才允许主机导出，释放后恢复",
+          "then": "无本地/主机双写；失败不导出；成功独占；恢复旧句柄/缓存失效",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "MSC-01.negative",
+          "kind": "design-only",
+          "given": "本地文件/数据库/DMA占用，导出卷明确",
+          "when": "本地占用或卸载失败不得导出",
+          "then": "拒绝/取消/恢复必须同时满足：无本地/主机双写；失败不导出；成功独占；恢复旧句柄/缓存失效；禁止：stop成功等于卷卸载；刷整片等于SD恢复",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "MSC-02",
+      "version": 1,
+      "requirements": [
+        "Q08",
+        "Q10"
+      ],
+      "source": "USER-20260924-CASES-V1:MSC-02",
+      "priority": "P1",
+      "layers": [
+        "L1",
+        "L3"
+      ],
+      "given": "CDC/MSC及租约建立",
+      "when": "重复模式/查询/stop失败/start失败/回滚失败",
+      "then": "无多余枚举；模式/租约准确；拒冲突",
+      "forbidden": "把维护切换当日常需求；未知报成功",
+      "observer": "模式测试和独立枚举",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "把维护切换当日常需求；未知报成功",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "volume",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "MSC-02.positive",
+          "kind": "design-only",
+          "given": "CDC/MSC及租约建立",
+          "when": "当前模式重复和只读查询幂等",
+          "then": "无多余枚举；模式/租约准确；拒冲突",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "MSC-02.negative",
+          "kind": "design-only",
+          "given": "CDC/MSC及租约建立",
+          "when": "stop/start/回滚失败分别保留准确所有权",
+          "then": "拒绝/取消/恢复必须同时满足：无多余枚举；模式/租约准确；拒冲突；禁止：把维护切换当日常需求；未知报成功",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "AUD-01",
+      "version": 1,
+      "requirements": [
+        "Q04"
+      ],
+      "source": "USER-20260924-CASES-V1:AUD-01",
+      "priority": "P0",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "固定PCM，帧与供给包络先冻结",
+      "when": "合法TCP/SSE/Base64/PCM不同切分及有界抖动",
+      "then": "样本完整有序无串请求；等待有界；包络内连续",
+      "forbidden": "替代播放器；采样率改标签冒充重采样",
+      "observer": "独立PCM字节与真实sink",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "替代播放器；采样率改标签冒充重采样",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "audio",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "AUD-01.positive",
+          "kind": "design-only",
+          "given": "固定PCM，帧与供给包络先冻结",
+          "when": "固定PCM/SSE合法分包变化保持同样内容",
+          "then": "样本完整有序无串请求；等待有界；包络内连续",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "AUD-01.negative",
+          "kind": "design-only",
+          "given": "固定PCM，帧与供给包络先冻结",
+          "when": "非法帧/跨请求尾块不得进入当前sink",
+          "then": "拒绝/取消/恢复必须同时满足：样本完整有序无串请求；等待有界；包络内连续；禁止：替代播放器；采样率改标签冒充重采样",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "AUD-02",
+      "version": 1,
+      "requirements": [
+        "Q04"
+      ],
+      "source": "USER-20260924-CASES-V1:AUD-02",
+      "priority": "P0",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "队列容量和恢复期限先冻结",
+      "when": "停供0.2/1/5s；只有心跳；恢复/永不恢复",
+      "then": "支持空档连续；超缓存有界缓冲/终止；心跳不无限续命",
+      "forbidden": "无界缓存；填静音/删内容/隐藏xrun",
+      "observer": "接收、有效PCM、消费三时钟",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "无界缓存；填静音/删内容/隐藏xrun",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "audio",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "AUD-02.positive",
+          "kind": "design-only",
+          "given": "队列容量和恢复期限先冻结",
+          "when": "支持包络内暂停恢复且内容无丢重",
+          "then": "支持空档连续；超缓存有界缓冲/终止；心跳不无限续命",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "AUD-02.negative",
+          "kind": "design-only",
+          "given": "队列容量和恢复期限先冻结",
+          "when": "超缓存停供和只有心跳永不恢复必须有界终止",
+          "then": "拒绝/取消/恢复必须同时满足：支持空档连续；超缓存有界缓冲/终止；心跳不无限续命；禁止：无界缓存；填静音/删内容/隐藏xrun",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "AUD-03",
+      "version": 1,
+      "requirements": [
+        "Q04"
+      ],
+      "source": "USER-20260924-CASES-V1:AUD-03",
+      "priority": "P0",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "PCM尾部/EOF/drain/取消/关闭可交错",
+      "when": "源EOF队列未空；取消后旧PCM/EOF；立即新轮",
+      "then": "尾部完整；终态唯一；不resume旧任务；引用结束再释放",
+      "forbidden": "EOF丢尾；closed日志当退出；过滤错误",
+      "observer": "sink账本、回调、Media事件和内存检查",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "EOF丢尾；closed日志当退出；过滤错误",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "audio",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "AUD-03.positive",
+          "kind": "design-only",
+          "given": "PCM尾部/EOF/drain/取消/关闭可交错",
+          "when": "源先EOF仍完整drain尾部一次",
+          "then": "尾部完整；终态唯一；不resume旧任务；引用结束再释放",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "AUD-03.negative",
+          "kind": "design-only",
+          "given": "PCM尾部/EOF/drain/取消/关闭可交错",
+          "when": "取消后迟到PCM/EOF不得污染立即开始的新轮",
+          "then": "拒绝/取消/恢复必须同时满足：尾部完整；终态唯一；不resume旧任务；引用结束再释放；禁止：EOF丢尾；closed日志当退出；过滤错误",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "AUD-04",
+      "version": 1,
+      "requirements": [
+        "Q04"
+      ],
+      "source": "USER-20260924-CASES-V1:AUD-04",
+      "priority": "P0",
+      "layers": [
+        "L3"
+      ],
+      "given": "同PCM/音量/供电/声学摆位",
+      "when": "本地播/只收/边收边播加BLE显示负载",
+      "then": "分数字链路与DAC/PA；无新增削顶/突变/吱响，按证据归因",
+      "forbidden": "无仪器报SNR；凭印象定硬件根因",
+      "observer": "PCM波形与有限录音",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "无仪器报SNR；凭印象定硬件根因",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "audio",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "AUD-04.positive",
+          "kind": "design-only",
+          "given": "同PCM/音量/供电/声学摆位",
+          "when": "固定PCM在三条路径和同条件下比对",
+          "then": "分数字链路与DAC/PA；无新增削顶/突变/吱响，按证据归因",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "AUD-04.negative",
+          "kind": "design-only",
+          "given": "同PCM/音量/供电/声学摆位",
+          "when": "加入BLE/显示负载检查突变和噪声而非主观归因",
+          "then": "拒绝/取消/恢复必须同时满足：分数字链路与DAC/PA；无新增削顶/突变/吱响，按证据归因；禁止：无仪器报SNR；凭印象定硬件根因",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "CAP-01",
+      "version": 1,
+      "requirements": [
+        "Q02",
+        "Q06"
+      ],
+      "source": "USER-20260924-CASES-V1:CAP-01",
+      "priority": "P0",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "唯一采集，原模型/前端/我在锁定",
+      "when": "唤醒紧接问题/仅唤醒/应答时说话/取消再说",
+      "then": "半双工契约明确；承诺首字不丢；前滚不重；我在不作命令；下一轮可用",
+      "forbidden": "重复开麦；无AEC声称全双工；换模型",
+      "observer": "样本索引、ASR输入、声学分层",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "重复开麦；无AEC声称全双工；换模型",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "audio",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "CAP-01.positive",
+          "kind": "design-only",
+          "given": "唯一采集，原模型/前端/我在锁定",
+          "when": "唤醒紧接问题保留承诺的首字/前滚",
+          "then": "半双工契约明确；承诺首字不丢；前滚不重；我在不作命令；下一轮可用",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "CAP-01.negative",
+          "kind": "design-only",
+          "given": "唯一采集，原模型/前端/我在锁定",
+          "when": "只有唤醒、应答残音、取消后旧采样不得误输入",
+          "then": "拒绝/取消/恢复必须同时满足：半双工契约明确；承诺首字不丢；前滚不重；我在不作命令；下一轮可用；禁止：重复开麦；无AEC声称全双工；换模型",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "ASR-01",
+      "version": 1,
+      "requirements": [
+        "Q02"
+      ],
+      "source": "USER-20260924-CASES-V1:ASR-01",
+      "priority": "P1",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "ASR能力与凭据、可控实时音频",
+      "when": "未结束上行、partial/final乱序、段与轮结束、取消断链",
+      "then": "实时后端有提前上行；段final非整轮；旧结果不串话；批处理如实",
+      "forbidden": "stream字段即流式；短文件拼接；缩VAD丢尾",
+      "observer": "服务端收包时间与文本",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "stream字段即流式；短文件拼接；缩VAD丢尾",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "agent",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "ASR-01.positive",
+          "kind": "design-only",
+          "given": "ASR能力与凭据、可控实时音频",
+          "when": "实时后端在整轮结束前有实际上行",
+          "then": "实时后端有提前上行；段final非整轮；旧结果不串话；批处理如实",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "ASR-01.negative",
+          "kind": "design-only",
+          "given": "ASR能力与凭据、可控实时音频",
+          "when": "partial/final乱序、段final、取消/断链",
+          "then": "拒绝/取消/恢复必须同时满足：实时后端有提前上行；段final非整轮；旧结果不串话；批处理如实；禁止：stream字段即流式；短文件拼接；缩VAD丢尾",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "AGENT-01",
+      "version": 1,
+      "requirements": [
+        "Q02"
+      ],
+      "source": "USER-20260924-CASES-V1:AGENT-01",
+      "priority": "P1",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "合法完整无工具终答与工具能力",
+      "when": "请求结束查额外调用/历史；终答流首句TTS",
+      "then": "完整无工具正文复用；流式首句早于终答结束；规划计入耗时",
+      "forbidden": "禁tools刷速度；未接callback；同步拆句称流式",
+      "observer": "请求账本、TTS、历史一次",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "禁tools刷速度；未接callback；同步拆句称流式",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "agent",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "AGENT-01.positive",
+          "kind": "design-only",
+          "given": "合法完整无工具终答与工具能力",
+          "when": "合法完整无工具正文复用且历史一次",
+          "then": "完整无工具正文复用；流式首句早于终答结束；规划计入耗时",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "AGENT-01.negative",
+          "kind": "design-only",
+          "given": "合法完整无工具终答与工具能力",
+          "when": "额外规划调用不能从总延迟剔除；流失败不提交历史",
+          "then": "拒绝/取消/恢复必须同时满足：完整无工具正文复用；流式首句早于终答结束；规划计入耗时；禁止：禁tools刷速度；未接callback；同步拆句称流式",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "AGENT-02",
+      "version": 1,
+      "requirements": [
+        "Q03"
+      ],
+      "source": "USER-20260924-CASES-V1:AGENT-02",
+      "priority": "P0",
+      "layers": [
+        "L2"
+      ],
+      "given": "真实工具副作用可计数；合法混合批次",
+      "when": "工具/finalize混合、重复缺失ID、迟到tool_calls/结果",
+      "then": "无效批次副作用前拒；合法结果无丢重；只播合法终答；旧结果不覆盖",
+      "forbidden": "吞-71；未完成先播完成；复制模型逻辑作oracle",
+      "observer": "工具账本/schema/TTS/历史",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "吞-71；未完成先播完成；复制模型逻辑作oracle",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "agent",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "AGENT-02.positive",
+          "kind": "design-only",
+          "given": "真实工具副作用可计数；合法混合批次",
+          "when": "合法真实工具混合批次保留全部对应结果",
+          "then": "无效批次副作用前拒；合法结果无丢重；只播合法终答；旧结果不覆盖",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "AGENT-02.negative",
+          "kind": "design-only",
+          "given": "真实工具副作用可计数；合法混合批次",
+          "when": "重复/缺ID、文字后tool_calls无效批次先拒副作用",
+          "then": "拒绝/取消/恢复必须同时满足：无效批次副作用前拒；合法结果无丢重；只播合法终答；旧结果不覆盖；禁止：吞-71；未完成先播完成；复制模型逻辑作oracle",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "AGENT-03",
+      "version": 1,
+      "requirements": [
+        "Q03"
+      ],
+      "source": "USER-20260924-CASES-V1:AGENT-03",
+      "priority": "P1",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "新鲜图像和请求ID，授权隐私范围",
+      "when": "视觉成功后LLM超时/取消，再普通问答；成功副作用反馈丢失",
+      "then": "准确失败/未知；不无限重拍；下一轮可用；不盲重试非幂等",
+      "forbidden": "一次成功销超时；旧图/音频入新轮",
+      "observer": "图像/回合ID、工具结果、下一轮",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "一次成功销超时；旧图/音频入新轮",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "agent",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "AGENT-03.positive",
+          "kind": "design-only",
+          "given": "新鲜图像和请求ID，授权隐私范围",
+          "when": "视觉后终答与下一轮普通问答均正常",
+          "then": "准确失败/未知；不无限重拍；下一轮可用；不盲重试非幂等",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "AGENT-03.negative",
+          "kind": "design-only",
+          "given": "新鲜图像和请求ID，授权隐私范围",
+          "when": "视觉成功后超时/取消或副作用成功但丢ACK",
+          "then": "拒绝/取消/恢复必须同时满足：准确失败/未知；不无限重拍；下一轮可用；不盲重试非幂等；禁止：一次成功销超时；旧图/音频入新轮",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "DISP-01",
+      "version": 1,
+      "requirements": [
+        "Q02",
+        "Q04"
+      ],
+      "source": "USER-20260924-CASES-V1:DISP-01",
+      "priority": "P1",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "内置表情可用，慢SD/解码可阻塞",
+      "when": "语音中请求表情/状态，资源慢7.5s",
+      "then": "受理与渲染分开；语音/短查询不阻塞；帧确认后报完成",
+      "forbidden": "只加超时；accepted=rendered；逐表情LLM",
+      "observer": "主路径耗时、帧、供给/取消延迟",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "只加超时；accepted=rendered；逐表情LLM",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "scene",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "DISP-01.positive",
+          "kind": "design-only",
+          "given": "内置表情可用，慢SD/解码可阻塞",
+          "when": "基础表情收到真实渲染确认后报应用完成",
+          "then": "受理与渲染分开；语音/短查询不阻塞；帧确认后报完成",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "DISP-01.negative",
+          "kind": "design-only",
+          "given": "内置表情可用，慢SD/解码可阻塞",
+          "when": "7.5秒资源慢路径不占语音回调/短查询",
+          "then": "拒绝/取消/恢复必须同时满足：受理与渲染分开；语音/短查询不阻塞；帧确认后报完成；禁止：只加超时；accepted=rendered；逐表情LLM",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "NET-01",
+      "version": 1,
+      "requirements": [
+        "Q08"
+      ],
+      "source": "USER-20260924-CASES-V1:NET-01",
+      "priority": "P0",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "合法绑定配置；宿主远程网络独立",
+      "when": "热点先/后开、恢复、错密码、DNS/TLS/401、重启",
+      "then": "owner/Key保持；单一有界重连；BLE可改网；保存/IP/TLS/认证分层",
+      "forbidden": "重填Key；401阻本地；改宿主远程通道",
+      "observer": "手机动作、设备状态、有效请求",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "重填Key；401阻本地；改宿主远程通道",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "config",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "NET-01.positive",
+          "kind": "design-only",
+          "given": "合法绑定配置；宿主远程网络独立",
+          "when": "热点恢复后单一路径连接并保留原配置",
+          "then": "owner/Key保持；单一有界重连；BLE可改网；保存/IP/TLS/认证分层",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "NET-01.negative",
+          "kind": "design-only",
+          "given": "合法绑定配置；宿主远程网络独立",
+          "when": "错密码/DNS/TLS/401不破坏owner与云配置",
+          "then": "拒绝/取消/恢复必须同时满足：owner/Key保持；单一有界重连；BLE可改网；保存/IP/TLS/认证分层；禁止：重填Key；401阻本地；改宿主远程通道",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "NET-02",
+      "version": 1,
+      "requirements": [
+        "Q08"
+      ],
+      "source": "USER-20260924-CASES-V1:NET-02",
+      "priority": "P1",
+      "layers": [
+        "L2"
+      ],
+      "given": "空闲/播放/准备停止；外部副作用观察",
+      "when": "重复查询、慢读、断开、丢通知、旧序号、重连",
+      "then": "无隐式扫描/挂盘/开麦/解码；慢客不阻；补快照；关键结果可查",
+      "forbidden": "只看日志；永久禁刷新或掉线检测",
+      "observer": "I/O计数、事件序号和虚拟时钟",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "只看日志；永久禁刷新或掉线检测",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "session",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "NET-02.positive",
+          "kind": "design-only",
+          "given": "空闲/播放/准备停止；外部副作用观察",
+          "when": "正常事件和重连补快照",
+          "then": "无隐式扫描/挂盘/开麦/解码；慢客不阻；补快照；关键结果可查",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "NET-02.negative",
+          "kind": "design-only",
+          "given": "空闲/播放/准备停止；外部副作用观察",
+          "when": "重复查询/慢读/丢通知/旧seq不触发隐式硬件任务",
+          "then": "拒绝/取消/恢复必须同时满足：无隐式扫描/挂盘/开麦/解码；慢客不阻；补快照；关键结果可查；禁止：只看日志；永久禁刷新或掉线检测",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "NET-03",
+      "version": 1,
+      "requirements": [
+        "Q08",
+        "Q10"
+      ],
+      "source": "USER-20260924-CASES-V1:NET-03",
+      "priority": "P0",
+      "layers": [
+        "L2"
+      ],
+      "given": "手机/USB独立授权，有限队列",
+      "when": "并发轻写、旧revision、安装中cancel/status、电源转换",
+      "then": "公开冲突/互斥；短控不饿死；旧写不盖新；隔离权限",
+      "forbidden": "复制Keystore；每端一配置；到达新等于授权",
+      "observer": "真实收发与持久任务结果",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "复制Keystore；每端一配置；到达新等于授权",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "session",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "NET-03.positive",
+          "kind": "design-only",
+          "given": "手机/USB独立授权，有限队列",
+          "when": "两端独立认证后按revision执行轻量操作",
+          "then": "公开冲突/互斥；短控不饿死；旧写不盖新；隔离权限",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "NET-03.negative",
+          "kind": "design-only",
+          "given": "手机/USB独立授权，有限队列",
+          "when": "旧revision并发写及大传输中cancel/status不得饿死",
+          "then": "拒绝/取消/恢复必须同时满足：公开冲突/互斥；短控不饿死；旧写不盖新；隔离权限；禁止：复制Keystore；每端一配置；到达新等于授权",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "NET-04",
+      "version": 1,
+      "requirements": [
+        "Q04",
+        "Q08"
+      ],
+      "source": "USER-20260924-CASES-V1:NET-04",
+      "priority": "P1",
+      "layers": [
+        "L3"
+      ],
+      "given": "同固件/音频/服务，记录BLE参数网络",
+      "when": "未连/连不轮询/正常轮询/扫描读取，对照本地与在线",
+      "then": "同口径等待/PCM空档/欠载；可重复归因，列覆盖不足",
+      "forbidden": "一次退后台即定根因；多变量同时变",
+      "observer": "成对时间线和异常计数",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "一次退后台即定根因；多变量同时变",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "session",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "NET-04.positive",
+          "kind": "design-only",
+          "given": "同固件/音频/服务，记录BLE参数网络",
+          "when": "固定条件下未连接与连接不轮询对照",
+          "then": "同口径等待/PCM空档/欠载；可重复归因，列覆盖不足",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "NET-04.negative",
+          "kind": "design-only",
+          "given": "同固件/音频/服务，记录BLE参数网络",
+          "when": "轮询/扫描读取负载同口径对照，不同时改其他变量",
+          "then": "拒绝/取消/恢复必须同时满足：同口径等待/PCM空档/欠载；可重复归因，列覆盖不足；禁止：一次退后台即定根因；多变量同时变",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "UI-01",
+      "version": 1,
+      "requirements": [
+        "Q09"
+      ],
+      "source": "USER-20260924-CASES-V1:UI-01",
+      "priority": "P1",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "原生Canva、合法绑定",
+      "when": "离线/连接/认证/过期/401/受理未完成",
+      "then": "本地按权限；未知非成功；断网非关机；危险写入需新鲜认证",
+      "forbidden": "synthetic=BLE证明；强开按钮；单busy",
+      "observer": "UI可访问性及实际协议副作用",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "synthetic=BLE证明；强开按钮；单busy",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "ui",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "UI-01.positive",
+          "kind": "design-only",
+          "given": "原生Canva、合法绑定",
+          "when": "新鲜认证且本地能力可用时提供真实操作",
+          "then": "本地按权限；未知非成功；断网非关机；危险写入需新鲜认证",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "UI-01.negative",
+          "kind": "design-only",
+          "given": "原生Canva、合法绑定",
+          "when": "离线/401/过期/已受理未完成不显示假成功",
+          "then": "拒绝/取消/恢复必须同时满足：本地按权限；未知非成功；断网非关机；危险写入需新鲜认证；禁止：synthetic=BLE证明；强开按钮；单busy",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "UI-02",
+      "version": 1,
+      "requirements": [
+        "Q08",
+        "Q09"
+      ],
+      "source": "USER-20260924-CASES-V1:UI-02",
+      "priority": "P1",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "草稿与在途操作",
+      "when": "20轮导航/后台重建/刷新/360与412dp/浅深/200%字体/键盘",
+      "then": "草稿保留、无重复连接订阅写；保存取消可达；秘密不落日志/普通草稿",
+      "forbidden": "反射设成功=连接；更新错误截图当基线",
+      "observer": "UI动作、会话计数、草稿和截图",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "反射设成功=连接；更新错误截图当基线",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "ui",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "UI-02.positive",
+          "kind": "design-only",
+          "given": "草稿与在途操作",
+          "when": "编辑草稿保存/取消可达",
+          "then": "草稿保留、无重复连接订阅写；保存取消可达；秘密不落日志/普通草稿",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "UI-02.negative",
+          "kind": "design-only",
+          "given": "草稿与在途操作",
+          "when": "20轮导航重建、200%字体和键盘不丢草稿/重复写",
+          "then": "拒绝/取消/恢复必须同时满足：草稿保留、无重复连接订阅写；保存取消可达；秘密不落日志/普通草稿；禁止：反射设成功=连接；更新错误截图当基线",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "UI-03",
+      "version": 1,
+      "requirements": [
+        "Q09"
+      ],
+      "source": "USER-20260924-CASES-V1:UI-03",
+      "priority": "P1",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "多候选、独立身份校验、旧绑定",
+      "when": "关发现卡重开、选A扫B、拒权限、旧owner重连",
+      "then": "候选非认证；不反复弹；身份错拒；不重复认领；取消无改动",
+      "forbidden": "RSSI/蓝牙名当信任；清绑定伪首次",
+      "observer": "身份检查和零写入",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "RSSI/蓝牙名当信任；清绑定伪首次",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "ui",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "UI-03.positive",
+          "kind": "design-only",
+          "given": "多候选、独立身份校验、旧绑定",
+          "when": "选A扫码A后认证，旧owner重连不重复认领",
+          "then": "候选非认证；不反复弹；身份错拒；不重复认领；取消无改动",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "UI-03.negative",
+          "kind": "design-only",
+          "given": "多候选、独立身份校验、旧绑定",
+          "when": "选A扫B/拒权限/关闭卡片不得变更设备",
+          "then": "拒绝/取消/恢复必须同时满足：候选非认证；不反复弹；身份错拒；不重复认领；取消无改动；禁止：RSSI/蓝牙名当信任；清绑定伪首次",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "UI-04",
+      "version": 1,
+      "requirements": [
+        "Q08",
+        "Q09"
+      ],
+      "source": "USER-20260924-CASES-V1:UI-04",
+      "priority": "P1",
+      "layers": [
+        "L3"
+      ],
+      "given": "实际签名版本已回读、绑定有效",
+      "when": "保数据覆盖安装、重连读配置",
+      "then": "身份/Key引用/绑定可用；不重扫；签名错明确失败",
+      "forbidden": "自动卸载清Keystore；安装0=功能成功",
+      "observer": "证书版本摘要、重新认证",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "自动卸载清Keystore；安装0=功能成功",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "ui",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "UI-04.positive",
+          "kind": "design-only",
+          "given": "实际签名版本已回读、绑定有效",
+          "when": "同签名保数据覆盖安装后重新认证",
+          "then": "身份/Key引用/绑定可用；不重扫；签名错明确失败",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "UI-04.negative",
+          "kind": "design-only",
+          "given": "实际签名版本已回读、绑定有效",
+          "when": "不兼容签名安装失败，不卸载清Keystore",
+          "then": "拒绝/取消/恢复必须同时满足：身份/Key引用/绑定可用；不重扫；签名错明确失败；禁止：自动卸载清Keystore；安装0=功能成功",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "OTA-01",
+      "version": 1,
+      "requirements": [
+        "Q10"
+      ],
+      "source": "USER-20260924-CASES-V1:OTA-01",
+      "priority": "P0",
+      "layers": [
+        "L1",
+        "L2"
+      ],
+      "given": "提交前取消得到有效协议确认",
+      "when": "迟到重复BEGIN和其他旧ACK",
+      "then": "保持CANCELED，不重发分片/安装，不复活缓冲",
+      "forbidden": "CANCELED改FAILED；取消请求当确认",
+      "observer": "对象状态/出站命令、真实Session路由",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "CANCELED改FAILED；取消请求当确认",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "ota",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "OTA-01.positive",
+          "kind": "design-only",
+          "given": "提交前取消得到有效协议确认",
+          "when": "取消确认到达后保持终态",
+          "then": "保持CANCELED，不重发分片/安装，不复活缓冲",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "OTA-01.negative",
+          "kind": "design-only",
+          "given": "提交前取消得到有效协议确认",
+          "when": "迟到/重复旧ACK不重开、不发APPEND/APPLY",
+          "then": "拒绝/取消/恢复必须同时满足：保持CANCELED，不重发分片/安装，不复活缓冲；禁止：CANCELED改FAILED；取消请求当确认",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "OTA-02",
+      "version": 1,
+      "requirements": [
+        "Q10"
+      ],
+      "source": "USER-20260924-CASES-V1:OTA-02",
+      "priority": "P0",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "目标签名布局计数及提交边界明确",
+      "when": "受理/传完/安装重启/丢ACK/回滚/提交后取消",
+      "then": "同设备版本计数确认后成功；未知可查；提交后不谎报取消",
+      "forbidden": "100%=成功；绕验签计数布局；串口冒充OTA",
+      "observer": "设备独立版本/确认和事务",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "100%=成功；绕验签计数布局；串口冒充OTA",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "ota",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "OTA-02.positive",
+          "kind": "design-only",
+          "given": "目标签名布局计数及提交边界明确",
+          "when": "传输后同设备新版本/计数/确认读回才完成",
+          "then": "同设备版本计数确认后成功；未知可查；提交后不谎报取消",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "OTA-02.negative",
+          "kind": "design-only",
+          "given": "目标签名布局计数及提交边界明确",
+          "when": "丢ACK、回滚、提交后取消不能把100%当成功",
+          "then": "拒绝/取消/恢复必须同时满足：同设备版本计数确认后成功；未知可查；提交后不谎报取消；禁止：100%=成功；绕验签计数布局；串口冒充OTA",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "RES-01",
+      "version": 1,
+      "requirements": [
+        "Q10",
+        "N2",
+        "N3"
+      ],
+      "source": "USER-20260924-CASES-V1:RES-01",
+      "priority": "P0",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "旧有效包可恢复，包/签名/前端固定",
+      "when": "合法/损坏/超长/错板前端/越界包，重片断线取消",
+      "then": "失败保留旧包，无越界，受理安装激活分开，可查",
+      "forbidden": "HTTP200/文件存在即激活；假BIN",
+      "observer": "独立包摘要、真实激活和存储差分",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "HTTP200/文件存在即激活；假BIN",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "resource",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "RES-01.positive",
+          "kind": "design-only",
+          "given": "旧有效包可恢复，包/签名/前端固定",
+          "when": "合法包校验安装后真实激活并回读",
+          "then": "失败保留旧包，无越界，受理安装激活分开，可查",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "RES-01.negative",
+          "kind": "design-only",
+          "given": "旧有效包可恢复，包/签名/前端固定",
+          "when": "损坏/超长/错板前端/越界包/断线保留旧包",
+          "then": "拒绝/取消/恢复必须同时满足：失败保留旧包，无越界，受理安装激活分开，可查；禁止：HTTP200/文件存在即激活；假BIN",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "RES-02",
+      "version": 1,
+      "requirements": [
+        "N2",
+        "Q10"
+      ],
+      "source": "USER-20260924-CASES-V1:RES-02",
+      "priority": "P1",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "默认D；TTL和恢复先冻结",
+      "when": "手机预览、试用A、设默认B、旧A超时/取消/断连",
+      "then": "预览零写；试用不改默认；默认B不被旧恢复覆盖",
+      "forbidden": "私有preview变量=渲染；每次预览写SD",
+      "observer": "持久默认、渲染序列、写计数",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "私有preview变量=渲染；每次预览写SD",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "scene",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "RES-02.positive",
+          "kind": "design-only",
+          "given": "默认D；TTL和恢复先冻结",
+          "when": "手机预览零写、设备试用不改默认、显式设B",
+          "then": "预览零写；试用不改默认；默认B不被旧恢复覆盖",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "RES-02.negative",
+          "kind": "design-only",
+          "given": "默认D；TTL和恢复先冻结",
+          "when": "旧A超时/取消/断连不能覆盖新默认B",
+          "then": "拒绝/取消/恢复必须同时满足：预览零写；试用不改默认；默认B不被旧恢复覆盖；禁止：私有preview变量=渲染；每次预览写SD",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "RES-03",
+      "version": 1,
+      "requirements": [
+        "N3",
+        "Q10"
+      ],
+      "source": "USER-20260924-CASES-V1:RES-03",
+      "priority": "P1",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "无手机/同网段依赖；独立授权原生USB",
+      "when": "合法包导入、查/取消/重连/激活",
+      "then": "无需MSC/同网段；统一安装服务；失败留旧包；短控可用",
+      "forbidden": "CH340冒充原生；MSC拷贝冒充协议",
+      "observer": "枚举、协议、无MSC、包/渲染回读",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "CH340冒充原生；MSC拷贝冒充协议",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "usb",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "RES-03.positive",
+          "kind": "design-only",
+          "given": "无手机/同网段依赖；独立授权原生USB",
+          "when": "无Wi-Fi/同网段依赖的授权USB导包激活",
+          "then": "无需MSC/同网段；统一安装服务；失败留旧包；短控可用",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "RES-03.negative",
+          "kind": "design-only",
+          "given": "无手机/同网段依赖；独立授权原生USB",
+          "when": "断线取消查询保留旧包且不转MSC",
+          "then": "拒绝/取消/恢复必须同时满足：无需MSC/同网段；统一安装服务；失败留旧包；短控可用；禁止：CH340冒充原生；MSC拷贝冒充协议",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "KWS-01",
+      "version": 1,
+      "requirements": [
+        "Q05",
+        "Q06"
+      ],
+      "source": "USER-20260924-CASES-V1:KWS-01",
+      "priority": "P0",
+      "layers": [
+        "L1",
+        "L3"
+      ],
+      "given": "用户原模型前端策略/我在哈希封存",
+      "when": "构建部署重启资源变更和正式默认reset",
+      "then": "实际选择对应原组合哈希，研究候选独立",
+      "forbidden": "回切=误唤醒通过；同名=生效",
+      "observer": "清单/运行身份和独立听音",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "回切=误唤醒通过；同名=生效",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "kws",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "KWS-01.positive",
+          "kind": "design-only",
+          "given": "用户原模型前端策略/我在哈希封存",
+          "when": "原模型前端策略/我在实际选择对应封存哈希",
+          "then": "实际选择对应原组合哈希，研究候选独立",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "KWS-01.negative",
+          "kind": "design-only",
+          "given": "用户原模型前端策略/我在哈希封存",
+          "when": "架构/资源变更或reset不能静默换研究组合",
+          "then": "拒绝/取消/恢复必须同时满足：实际选择对应原组合哈希，研究候选独立；禁止：回切=误唤醒通过；同名=生效",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "KWS-02",
+      "version": 1,
+      "requirements": [
+        "Q05"
+      ],
+      "source": "USER-20260924-CASES-V1:KWS-02",
+      "priority": "P1",
+      "layers": [
+        "L1",
+        "L3"
+      ],
+      "given": "来源说话人隔离，标签集阈值先冻结",
+      "when": "音量语速语调/近音音乐回声、重排分块",
+      "then": "固定分母命中/FAR/重复/延迟，量化前端一致，关键组不退",
+      "forbidden": "增强泄漏；gain=远场；16/18称90%；移动词尾窗",
+      "observer": "数据label阈值哈希、逐事件账本",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "增强泄漏；gain=远场；16/18称90%；移动词尾窗",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "kws",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "KWS-02.positive",
+          "kind": "design-only",
+          "given": "来源说话人隔离，标签集阈值先冻结",
+          "when": "独立真人/固定离线正例按组核验",
+          "then": "固定分母命中/FAR/重复/延迟，量化前端一致，关键组不退",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "KWS-02.negative",
+          "kind": "design-only",
+          "given": "来源说话人隔离，标签集阈值先冻结",
+          "when": "近音/音乐/回声、重排分块和来源泄漏检查",
+          "then": "拒绝/取消/恢复必须同时满足：固定分母命中/FAR/重复/延迟，量化前端一致，关键组不退；禁止：增强泄漏；gain=远场；16/18称90%；移动词尾窗",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "KWS-03",
+      "version": 1,
+      "requirements": [
+        "Q05",
+        "Q06"
+      ],
+      "source": "USER-20260924-CASES-V1:KWS-03",
+      "priority": "P0",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "采样时间轴与生命周期可注入",
+      "when": "暂停旧帧/调度晚到/真实缺帧/旧rearm/正常说话",
+      "then": "旧会话不触发；区分延迟与缺口；唯一采集；退出契约",
+      "forbidden": "降阈值掩状态；重初始化吞词称可监听",
+      "observer": "采样号到KWS跨层事件",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "降阈值掩状态；重初始化吞词称可监听",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "kws",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "KWS-03.positive",
+          "kind": "design-only",
+          "given": "采样时间轴与生命周期可注入",
+          "when": "正常新采样在当前会话产生一次唤醒",
+          "then": "旧会话不触发；区分延迟与缺口；唯一采集；退出契约",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "KWS-03.negative",
+          "kind": "design-only",
+          "given": "采样时间轴与生命周期可注入",
+          "when": "旧帧、调度迟到、真实缺口、旧rearm不得重复触发",
+          "then": "拒绝/取消/恢复必须同时满足：旧会话不触发；区分延迟与缺口；唯一采集；退出契约；禁止：降阈值掩状态；重初始化吞词称可监听",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "MOT-01",
+      "version": 1,
+      "requirements": [
+        "N1"
+      ],
+      "source": "USER-20260924-CASES-V1:MOT-01",
+      "priority": "P1",
+      "layers": [
+        "L1",
+        "L2"
+      ],
+      "given": "上一采样成功、当前错误",
+      "when": "读取失败/旧timestamp/非法请求",
+      "then": "错误无旧数据；非法无硬件访问；仅可信新样本入识别",
+      "forbidden": "复用旧加速度；注册=手势可用",
+      "observer": "独立输入输出和I/O计数",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "复用旧加速度；注册=手势可用",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "motion",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "MOT-01.positive",
+          "kind": "design-only",
+          "given": "上一采样成功、当前错误",
+          "when": "可信新采样输出当前有效值",
+          "then": "错误无旧数据；非法无硬件访问；仅可信新样本入识别",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "MOT-01.negative",
+          "kind": "design-only",
+          "given": "上一采样成功、当前错误",
+          "when": "读取失败/旧timestamp/非法请求不得复用旧采样",
+          "then": "拒绝/取消/恢复必须同时满足：错误无旧数据；非法无硬件访问；仅可信新样本入识别；禁止：复用旧加速度；注册=手势可用",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "MOT-02",
+      "version": 1,
+      "requirements": [
+        "N1"
+      ],
+      "source": "USER-20260924-CASES-V1:MOT-02",
+      "priority": "P1",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "唯一采样者，标注去重窗口冻结",
+      "when": "拿放倾斜/持续抖动/桌面喇叭电机振动/收音中事件",
+      "then": "有限正确表情；无owner网络电源/LLM副作用；无无界队列/音频退化",
+      "forbidden": "加速度承诺6DoF；动作直接关机",
+      "observer": "来源样本/事件/可见反馈与误触组",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "加速度承诺6DoF；动作直接关机",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "scene",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "MOT-02.positive",
+          "kind": "design-only",
+          "given": "唯一采样者，标注去重窗口冻结",
+          "when": "拿起放下倾斜产生有限正确表情",
+          "then": "有限正确表情；无owner网络电源/LLM副作用；无无界队列/音频退化",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "MOT-02.negative",
+          "kind": "design-only",
+          "given": "唯一采样者，标注去重窗口冻结",
+          "when": "持续抖动/桌面喇叭电机振动不得自激堆积",
+          "then": "拒绝/取消/恢复必须同时满足：有限正确表情；无owner网络电源/LLM副作用；无无界队列/音频退化；禁止：加速度承诺6DoF；动作直接关机",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "MOT-03",
+      "version": 1,
+      "requirements": [
+        "N1",
+        "Q04"
+      ],
+      "source": "USER-20260924-CASES-V1:MOT-03",
+      "priority": "P0",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "电机验证后才启用；脉冲/冷却参数冻结",
+      "when": "输出时收音/低电量/OTA提交/关机/重复",
+      "then": "禁止阶段停止或拒绝，有限无累计，未验证不启用",
+      "forbidden": "持续振动/错误高电平；噪声作语音手势",
+      "observer": "驱动输出和音频输入测量",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "持续振动/错误高电平；噪声作语音手势",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "scene",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "MOT-03.positive",
+          "kind": "design-only",
+          "given": "电机验证后才启用；脉冲/冷却参数冻结",
+          "when": "已验证硬件在允许阶段输出一个有限脉冲",
+          "then": "禁止阶段停止或拒绝，有限无累计，未验证不启用",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "MOT-03.negative",
+          "kind": "design-only",
+          "given": "电机验证后才启用；脉冲/冷却参数冻结",
+          "when": "收音/低电量/OTA提交/关机及重复触发及时拒绝停止",
+          "then": "拒绝/取消/恢复必须同时满足：禁止阶段停止或拒绝，有限无累计，未验证不启用；禁止：持续振动/错误高电平；噪声作语音手势",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "TIMER-01",
+      "version": 1,
+      "requirements": [
+        "N2"
+      ],
+      "source": "USER-20260924-CASES-V1:TIMER-01",
+      "priority": "P1",
+      "layers": [
+        "L2"
+      ],
+      "given": "60s倒计时，独立单调与墙钟",
+      "when": "运行10s暂停5s再续、墙钟跳、重复start、cancel、重复tick",
+      "then": "剩50s；再运行50s完成一次；墙钟无影响；cancel无提醒；离云可用",
+      "forbidden": "UTC计时；每tick写SD；每入口一计时器",
+      "observer": "数学时间oracle与通知计数",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "UTC计时；每tick写SD；每入口一计时器",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "scene",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "TIMER-01.positive",
+          "kind": "design-only",
+          "given": "60s倒计时，独立单调与墙钟",
+          "when": "60秒运行10秒暂停5秒，继续运行50秒完成一次",
+          "then": "剩50s；再运行50s完成一次；墙钟无影响；cancel无提醒；离云可用",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "TIMER-01.negative",
+          "kind": "design-only",
+          "given": "60s倒计时，独立单调与墙钟",
+          "when": "墙钟跳变、重复start/tick和取消不得重复提醒",
+          "then": "拒绝/取消/恢复必须同时满足：剩50s；再运行50s完成一次；墙钟无影响；cancel无提醒；离云可用；禁止：UTC计时；每tick写SD；每入口一计时器",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "TIMER-02",
+      "version": 1,
+      "requirements": [
+        "N2"
+      ],
+      "source": "USER-20260924-CASES-V1:TIMER-02",
+      "priority": "P1",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "跨重启策略待冻结，不承诺关机闹钟",
+      "when": "计时中重启/掉电/关机再进入",
+      "then": "按契约恢复/取消/未知；不谎称准时；普通事件不撤销关机",
+      "forbidden": "按易失RTC反推需求；未知装准确",
+      "observer": "持久记录和可观察倒计时",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "按易失RTC反推需求；未知装准确",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "scene",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "TIMER-02.positive",
+          "kind": "design-only",
+          "given": "跨重启策略待冻结，不承诺关机闹钟",
+          "when": "重启按预先批准策略恢复或取消",
+          "then": "按契约恢复/取消/未知；不谎称准时；普通事件不撤销关机",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "TIMER-02.negative",
+          "kind": "design-only",
+          "given": "跨重启策略待冻结，不承诺关机闹钟",
+          "when": "时间未知、断电/关机不谎称准时唤醒",
+          "then": "拒绝/取消/恢复必须同时满足：按契约恢复/取消/未知；不谎称准时；普通事件不撤销关机；禁止：按易失RTC反推需求；未知装准确",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "NFC-01",
+      "version": 1,
+      "requirements": [
+        "N2"
+      ],
+      "source": "USER-20260924-CASES-V1:NFC-01",
+      "priority": "P1",
+      "layers": [
+        "L1",
+        "L2",
+        "L3"
+      ],
+      "given": "上一读卡成功；兼容卡型明确",
+      "when": "失败/未知不兼容/同卡驻留/移开再放",
+      "then": "错误无present；驻留不重启；移开重进按契约；兼容性明确",
+      "forbidden": "UID=owner；非法请求访问硬件",
+      "observer": "输入及实际场景事件",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "UID=owner；非法请求访问硬件",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "nfc",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "NFC-01.positive",
+          "kind": "design-only",
+          "given": "上一读卡成功；兼容卡型明确",
+          "when": "兼容卡进入/移开/再进入按合同触发",
+          "then": "错误无present；驻留不重启；移开重进按契约；兼容性明确",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "NFC-01.negative",
+          "kind": "design-only",
+          "given": "上一读卡成功；兼容卡型明确",
+          "when": "驻留重复、错误/未知/不兼容卡不残留present或重启",
+          "then": "拒绝/取消/恢复必须同时满足：错误无present；驻留不重启；移开重进按契约；兼容性明确；禁止：UID=owner；非法请求访问硬件",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "NFC-02",
+      "version": 1,
+      "requirements": [
+        "N2",
+        "Q07"
+      ],
+      "source": "USER-20260924-CASES-V1:NFC-02",
+      "priority": "P0",
+      "layers": [
+        "L2"
+      ],
+      "given": "仅低风险绑定；App/语音同一规则",
+      "when": "复制UID、未知卡求重置/Key、双入口同时触发",
+      "then": "卡不授权/擦除/泄密；统一去重不抢语音；高风险正式确认",
+      "forbidden": "UID名单=认证；绕取消电源门禁",
+      "observer": "权限拒绝/零副作用/场景结果",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "UID名单=认证；绕取消电源门禁",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "scene",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "NFC-02.positive",
+          "kind": "design-only",
+          "given": "仅低风险绑定；App/语音同一规则",
+          "when": "已配置低风险卡/App/语音调用统一场景",
+          "then": "卡不授权/擦除/泄密；统一去重不抢语音；高风险正式确认",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "NFC-02.negative",
+          "kind": "design-only",
+          "given": "仅低风险绑定；App/语音同一规则",
+          "when": "复制UID/未知卡求重置/Key必须拒绝且零副作用",
+          "then": "拒绝/取消/恢复必须同时满足：卡不授权/擦除/泄密；统一去重不抢语音；高风险正式确认；禁止：UID名单=认证；绕取消电源门禁",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "USB-01",
+      "version": 1,
+      "requirements": [
+        "N3",
+        "Q10"
+      ],
+      "source": "USER-20260924-CASES-V1:USB-01",
+      "priority": "P0",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "原生CDC帧/身份权限独立Shell",
+      "when": "开端口/DTR/未知过期授权/恶意分包长度命令",
+      "then": "无意外复位/owner授予/Shell任意写；缓冲有界错误明确",
+      "forbidden": "浏览器选择=授权；序列号当秘密；日志控制混流",
+      "observer": "独立发送器、设备身份、命令观察",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "浏览器选择=授权；序列号当秘密；日志控制混流",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "usb",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "USB-01.positive",
+          "kind": "design-only",
+          "given": "原生CDC帧/身份权限独立Shell",
+          "when": "原生CDC合法分包在独立授权后调用轻量服务",
+          "then": "无意外复位/owner授予/Shell任意写；缓冲有界错误明确",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "USB-01.negative",
+          "kind": "design-only",
+          "given": "原生CDC帧/身份权限独立Shell",
+          "when": "DTR/开端口/未知过期授权/异常长度不复位越权",
+          "then": "拒绝/取消/恢复必须同时满足：无意外复位/owner授予/Shell任意写；缓冲有界错误明确；禁止：浏览器选择=授权；序列号当秘密；日志控制混流",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "USB-02",
+      "version": 1,
+      "requirements": [
+        "N3"
+      ],
+      "source": "USER-20260924-CASES-V1:USB-02",
+      "priority": "P1",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "期限低频事件和短控预算冻结",
+      "when": "慢读断重连、上传中cancel/status、拔线",
+      "then": "慢客不堵；短控预算内；查询幂等恢复；拔线独立",
+      "forbidden": "永久占控制；离线乱重放；网页关闭声称驻留",
+      "observer": "USB轨迹/高水位/独立状态语音",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "永久占控制；离线乱重放；网页关闭声称驻留",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "usb",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "USB-02.positive",
+          "kind": "design-only",
+          "given": "期限低频事件和短控预算冻结",
+          "when": "正常上传和拔线后设备独立使用",
+          "then": "慢客不堵；短控预算内；查询幂等恢复；拔线独立",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "USB-02.negative",
+          "kind": "design-only",
+          "given": "期限低频事件和短控预算冻结",
+          "when": "慢读断连期间短控可用，重连不盲重放",
+          "then": "拒绝/取消/恢复必须同时满足：慢客不堵；短控预算内；查询幂等恢复；拔线独立；禁止：永久占控制；离线乱重放；网页关闭声称驻留",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "PC-01",
+      "version": 1,
+      "requirements": [
+        "N3"
+      ],
+      "source": "USER-20260924-CASES-V1:PC-01",
+      "priority": "P1",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "白名单task/event ID/TTL/终态合同",
+      "when": "start/progress/success/failure/cancel重复乱序过期、终态后progress",
+      "then": "终态不倒退；去重限提示；语音忙延后合并；真实任务结果",
+      "forbidden": "模型猜成功；每进度云调用；默认上传全日志",
+      "observer": "发送记录、设备事件、提示/网络计数",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "模型猜成功；每进度云调用；默认上传全日志",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "scene",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "PC-01.positive",
+          "kind": "design-only",
+          "given": "白名单task/event ID/TTL/终态合同",
+          "when": "白名单真实任务start到最终结果提示一次",
+          "then": "终态不倒退；去重限提示；语音忙延后合并；真实任务结果",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "PC-01.negative",
+          "kind": "design-only",
+          "given": "白名单task/event ID/TTL/终态合同",
+          "when": "重复乱序过期及终态后progress不得覆盖终态",
+          "then": "拒绝/取消/恢复必须同时满足：终态不倒退；去重限提示；语音忙延后合并；真实任务结果；禁止：模型猜成功；每进度云调用；默认上传全日志",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "BOOT-01",
+      "version": 1,
+      "requirements": [
+        "Q01",
+        "Q10"
+      ],
+      "source": "USER-20260924-CASES-V1:BOOT-01",
+      "priority": "P0",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "正式签名，无网/无云/坏SD分组",
+      "when": "工厂首启/常规冷启、基础显示管理监听云资源",
+      "then": "本地不因云无限等；显示监听真实可用；无假ready",
+      "forbidden": "提前PASS；跳验签持久化；一次当p95",
+      "observer": "能力刺激与分段时间",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "提前PASS；跳验签持久化；一次当p95",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "delivery",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "BOOT-01.positive",
+          "kind": "design-only",
+          "given": "正式签名，无网/无云/坏SD分组",
+          "when": "首启/常规冷启本地能力分别实际可用",
+          "then": "本地不因云无限等；显示监听真实可用；无假ready",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "BOOT-01.negative",
+          "kind": "design-only",
+          "given": "正式签名，无网/无云/坏SD分组",
+          "when": "无云/无Wi-Fi/坏SD不无限阻塞本地管理",
+          "then": "拒绝/取消/恢复必须同时满足：本地不因云无限等；显示监听真实可用；无假ready；禁止：提前PASS；跳验签持久化；一次当p95",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "DEL-01",
+      "version": 1,
+      "requirements": [
+        "Q10"
+      ],
+      "source": "USER-20260924-CASES-V1:DEL-01",
+      "priority": "P0",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "干净工作区、无作者私钥/base、固定依赖",
+      "when": "本人合法身份首次/再次构建，独立下载验证",
+      "then": "身份可复用，源码manifest产物一致，同板数据验证",
+      "forbidden": "固定随机密钥求同字节；CI身份=旧板兼容；模拟BIN可刷",
+      "observer": "独立签名、工具链依赖产物清单",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "固定随机密钥求同字节；CI身份=旧板兼容；模拟BIN可刷",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "delivery",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "DEL-01.positive",
+          "kind": "design-only",
+          "given": "干净工作区、无作者私钥/base、固定依赖",
+          "when": "本人身份干净构建、独立下载验签、再次复用",
+          "then": "身份可复用，源码manifest产物一致，同板数据验证",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "DEL-01.negative",
+          "kind": "design-only",
+          "given": "干净工作区、无作者私钥/base、固定依赖",
+          "when": "缺作者旧私钥/base仍可执行合法流程；错身份不得声称兼容旧板",
+          "then": "拒绝/取消/恢复必须同时满足：身份可复用，源码manifest产物一致，同板数据验证；禁止：固定随机密钥求同字节；CI身份=旧板兼容；模拟BIN可刷",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "DEL-02",
+      "version": 1,
+      "requirements": [
+        "Q10"
+      ],
+      "source": "USER-20260924-CASES-V1:DEL-02",
+      "priority": "P0",
+      "layers": [
+        "L3"
+      ],
+      "given": "测试板、恢复方案及清理范围授权，匹配APK",
+      "when": "工厂全量首启→真屏幕扫码→离线认领→配置→对话",
+      "then": "无串口补身份/Key/格式化；普通回归不反复清空；SD独立",
+      "forbidden": "主机PASS替首次；预装owner绕认领；伪扫码",
+      "observer": "实际产物及完整用户路径",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "主机PASS替首次；预装owner绕认领；伪扫码",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "delivery",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "DEL-02.positive",
+          "kind": "design-only",
+          "given": "测试板、恢复方案及清理范围授权，匹配APK",
+          "when": "授权工厂首次部署到认领配置对话全路径",
+          "then": "无串口补身份/Key/格式化；普通回归不反复清空；SD独立",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "DEL-02.negative",
+          "kind": "design-only",
+          "given": "测试板、恢复方案及清理范围授权，匹配APK",
+          "when": "未完成物理动作或首启失败不能由主机PASS代替",
+          "then": "拒绝/取消/恢复必须同时满足：无串口补身份/Key/格式化；普通回归不反复清空；SD独立；禁止：主机PASS替首次；预装owner绕认领；伪扫码",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "CROSS-01",
+      "version": 1,
+      "requirements": [
+        "Q01",
+        "Q02",
+        "Q03",
+        "Q04",
+        "Q05",
+        "Q06",
+        "Q07",
+        "Q08",
+        "Q09",
+        "Q10",
+        "N1",
+        "N2",
+        "N3"
+      ],
+      "source": "USER-20260924-CASES-V1:CROSS-01",
+      "priority": "P0",
+      "layers": [
+        "L2",
+        "L3"
+      ],
+      "given": "关键单项通过；序列/seed/预算预冻结",
+      "when": "语音动作计时、USB取消、换网查询、忙时关机成对并发后24h",
+      "then": "无未解释Fault/复位/破坏；有界队列内存；终态不回跳/旧任务不复活",
+      "forbidden": "无N事件称稳定；有限零故障称绝对可靠",
+      "observer": "事件序列、失败分母、高水位和实际能力",
+      "oracle_basis": "用户提供同ID用例的独立Then/禁止规则；协议字节另依公开格式契约；不得由生产输出反推",
+      "risk": "无N事件称稳定；有限零故障称绝对可靠",
+      "parameters": "见 contracts.md 参数冻结表；未定参数不得从生产常量取值",
+      "fixtures": "fixtures.sha256及各执行结果中的inputs；L3实际资源待绑定",
+      "cleanup": "主机每例独立进程/临时目录；现场按contracts.md恢复规则，未授权不执行",
+      "binding": "cross",
+      "execution_status": "NOT_RUN",
+      "design_variants": [
+        {
+          "id": "CROSS-01.positive",
+          "kind": "design-only",
+          "given": "关键单项通过；序列/seed/预算预冻结",
+          "when": "已启用能力按冻结序列组合再24h观察",
+          "then": "无未解释Fault/复位/破坏；有界队列内存；终态不回跳/旧任务不复活",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "CROSS-01.negative",
+          "kind": "design-only",
+          "given": "关键单项通过；序列/seed/预算预冻结",
+          "when": "取消/掉线/忙资源交错不得旧任务复活/破坏数据",
+          "then": "拒绝/取消/恢复必须同时满足：无未解释Fault/复位/破坏；有界队列内存；终态不回跳/旧任务不复活；禁止：无N事件称稳定；有限零故障称绝对可靠",
+          "status": "NOT_RUN"
+        }
+      ]
+    }
+  ]
+}

@@ -1794,3 +1794,19 @@ $(BUILD)/test_control_pair: $(REPOSITORY_ROOT)/app/bk7258/bk7258_control_session
                            $(REPOSITORY_ROOT)/app/bk7258/bk7258_provision_tls.h
 	@mkdir -p $(BUILD)
 	$(CC) $(CFLAGS) -Werror -I$(REPOSITORY_ROOT)/app/bk7258 -I$(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/include $(filter %.c,$^) -o $@
+
+# Requirement-level host contracts; each case is a separate process so an
+# assertion cannot silently prevent later cases from being collected.
+$(BUILD)/test_shaniu_key_contract: test_shaniu_key_contract.c $(VOICE_PACK_ROOT)/bk7258_product_keys.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) $< -I $(VOICE_PACK_ROOT) -o $@
+
+$(BUILD)/test_shaniu_volume_contract: test_shaniu_volume_contract.c $(VOICE_PACK_ROOT)/bk7258_media_volume.c $(CHIP_ROOT)/ap/bk7258_usbmode.c | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread -DCONFIG_BK7258_USBMODE -DCONFIG_BK7258_AP_CORE \
+		-DCONFIG_BK7258_USBCDC -DCONFIG_BK7258_USBMSC -DCONFIG_BK7258_OTA_SOURCE_FILE \
+		-DCONFIG_BK7258_USBMODE_BLOCKDEV=\"/dev/mmcsd0\" -DCONFIG_BK7258_USBMODE_REENUM_DELAY_MS=1 \
+		-I $(MOCKS) -I $(CHIP_ROOT)/include -I $(VOICE_PACK_ROOT) \
+		$^ mocks/mock_nuttx_ap.c -o $@
+
+.PHONY: run-shaniu-contracts
+run-shaniu-contracts:
+	python3 test_shaniu_contracts.py

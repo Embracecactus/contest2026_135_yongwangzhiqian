@@ -69,6 +69,20 @@ CAN 收发器、RTC、存储介质或 12 小时稳定性。涉及硬件的状态
 测试源码的许可证范围、SDK/NuttX 接口替身和公开密钥夹具来源见
 [`PROVENANCE.md`](PROVENANCE.md)。
 
+## v2 需求契约与测试入口
+
+用户已取消旧版“不新增测试文件”限制。当前测试规格与审阅入口为
+[acceptance/contracts.md](acceptance/contracts.md)，56项原编号在
+[acceptance/cases.v1.json](acceptance/cases.v1.json)。执行：
+
+```bash
+make -C tests/host/bk7258 run-shaniu-contracts
+```
+
+该入口保持失败退出码，逐例输出到 `out/shaniu-contract-v2/`；不连设备、不安装、
+不修业务。未绑定接口/设备不计通过。下方为首轮提交272b3b2f的历史测试记录，
+其文件数量约束已由v2覆盖，结果不替代本轮基线。
+
 ## 2026-09-24 架构计划：测试先行审阅稿
 
 本节是用户实施计划的测试规格，不是新增实板验收报告。当前检查点为：先写测试、

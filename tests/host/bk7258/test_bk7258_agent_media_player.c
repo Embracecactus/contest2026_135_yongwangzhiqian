@@ -685,6 +685,8 @@ size_t strlcpy(char *, const char *, size_t);
 
 static atomic_int test_canceled;
 static int test_mode;
+static unsigned int test_fragment_seed;
+static unsigned int test_sse_seed;
 static size_t test_written;
 static unsigned int test_opens;
 static pthread_mutex_t test_connect_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -983,7 +985,12 @@ int voice_tts_speak_stream_checked(const char* text, voice_tts_chunk_cb cb,
     size_t total = test_mode == 1 ? 200001 :
         test_mode >= 5 ? 8192 : 200000;
     for (size_t pos = 0; pos < total;) {
-        size_t n = total - pos < sizeof(chunk) ? total - pos : sizeof(chunk);
+        size_t maximum = sizeof(chunk);
+        if (test_fragment_seed) {
+            test_fragment_seed = test_fragment_seed * 1664525u + 1013904223u;
+            maximum = 1u + test_fragment_seed % sizeof(chunk);
+        }
+        size_t n = total - pos < maximum ? total - pos : maximum;
         for (size_t i = 0; i < n; i++) chunk[i] = (unsigned char)((pos + i) % 251);
         cb(chunk, n, 0, context);
         if (atomic_load(&test_canceled)) return -ECANCELED;
@@ -1006,6 +1013,7 @@ static uint64_t test_reply_prepare(int mode)
     atomic_store(&test_canceled, 0);
     atomic_store(&s_voice.tts_abort, 0);
     pthread_mutex_lock(&s_voice.lock);
+    s_voice.initialized = 1; /* Fixture starts after capture initialization. */
     s_voice.state = VOICE_PROCESSING;
     s_voice.turn_active = 1;
     s_voice.canceled = 0;
@@ -1115,6 +1123,20 @@ static void test_body_commit(void)
     message_bus_destroy();
 }
 
+static void test_sse_feed(llm_final_stream_t *parser, const char *text, size_t length)
+{
+    for (size_t offset = 0; offset < length;) {
+        size_t count = 1;
+        if (test_sse_seed) {
+            test_sse_seed = test_sse_seed * 1664525u + 1013904223u;
+            count = 1 + test_sse_seed % 31;
+        }
+        if (count > length - offset) count = length - offset;
+        assert(llm_final_stream_feed(parser, text + offset, count) == 0);
+        offset += count;
+    }
+}
+
 static void test_sse_pipeline(void)
 {
     uint64_t id = test_reply_prepare(5);
@@ -1126,12 +1148,11 @@ static void test_sse_pipeline(void)
     llm_final_stream_t *parser = llm_final_stream_new(test_sse_delta, &id, 1024);
     assert(parser);
     const char first[] = "data: {\"choices\":[{\"index\":0,\"delta\":{\"reasoning_content\":\"DO_NOT_SPEAK\",\"content\":\"你好，这是第一句。\"}}]}\n\n";
-    for (size_t i = 0; i < sizeof(first) - 1; i++)
-        assert(llm_final_stream_feed(parser, first + i, 1) == 0);
+    test_sse_feed(parser, first, sizeof(first) - 1);
     test_wait_first_pcm();
     assert(test_drains == 0 && test_closes == 0);
     const char tail[] = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"这是尾句\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n";
-    assert(llm_final_stream_feed(parser, tail, sizeof(tail) - 1) == 0);
+    test_sse_feed(parser, tail, sizeof(tail) - 1);
     char *whole = NULL;
     assert(llm_final_stream_finish(parser, &whole) == 0);
     llm_final_stream_free(parser);
@@ -1236,8 +1257,45 @@ static void test_reply_pipeline(void)
     assert(voice_channel_is_idle());
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
+    if (argc == 2) {
+        if (!strncmp(argv[1], "pcm-", 4)) {
+            test_fragment_seed = (unsigned int)strtoul(argv[1] + 4, NULL, 10);
+            assert(test_fragment_seed != 0);
+            uint64_t id = test_reply_prepare(0);
+            assert(voice_channel_reply_stream(id, AGENT_REPLY_BEGIN, NULL, 0) == 0);
+            assert(voice_channel_reply_stream(id, AGENT_REPLY_DELTA, "fixture.", 8) == 0);
+            assert(voice_channel_reply_stream(id, AGENT_REPLY_END, NULL, 0) == 0);
+            assert(test_written == 200000 && test_drains == 1 && test_closes == 1);
+            voice_request_complete(id, 0);
+            assert(voice_channel_is_idle());
+        } else if (!strcmp(argv[1], "cancel-late")) {
+            uint64_t old = test_reply_prepare(5);
+            assert(voice_channel_reply_stream(old, AGENT_REPLY_BEGIN, NULL, 0) == 0);
+            assert(voice_channel_reply_stream(old, AGENT_REPLY_DELTA, "你好，这是第一句。", strlen("你好，这是第一句。")) == 0);
+            test_wait_first_pcm();
+            assert(voice_channel_cancel() == 0);
+            assert(voice_channel_reply_stream(old, AGENT_REPLY_ABORT, NULL, 0) == 0);
+            voice_request_complete(old, -ECANCELED);
+            uint64_t current = test_reply_prepare(5);
+            assert(voice_channel_reply_stream(current, AGENT_REPLY_BEGIN, NULL, 0) == 0);
+            assert(voice_channel_reply_stream(old, AGENT_REPLY_DELTA, "stale.", 6) < 0);
+            assert(voice_channel_reply_stream(old, AGENT_REPLY_END, NULL, 0) < 0);
+            assert(test_synth_calls == 0);
+            assert(voice_channel_reply_stream(current, AGENT_REPLY_DELTA, "这是新的回答。", strlen("这是新的回答。")) == 0);
+            assert(voice_channel_reply_stream(current, AGENT_REPLY_END, NULL, 0) == 0);
+            assert(test_synth_calls == 1 && !strcmp(test_spoken[0], "这是新的回答。"));
+            assert(test_drains == 1 && test_closes == 1);
+            voice_request_complete(current, 0);
+        } else if (!strncmp(argv[1], "sse-", 4)) {
+            test_sse_seed = (unsigned int)strtoul(argv[1] + 4, NULL, 10);
+            test_sse_pipeline();
+        } else return 2;
+        puts("CONTRACT_PASS");
+        return 0;
+    }
+    assert(argc == 1);
     test_wake_gate_case(0, 0);
     test_wake_gate_case(1, 0);
     test_wake_gate_case(0, 1);
