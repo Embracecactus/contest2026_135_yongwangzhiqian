@@ -102,7 +102,9 @@
     "STORE-02.file-sync-retry",
     "STORE-02.directory-sync-unknown",
     "STORE-02.restart-before-publish",
-    "STORE-02.restart-after-publish"
+    "STORE-02.restart-after-publish",
+    "MSC-01.backend-stop-normal",
+    "MSC-01.backend-stop-retry"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -208,6 +210,8 @@
     "STORE-02.file-sync-retry",
     "STORE-02.directory-sync-unknown",
     "STORE-02.restart-before-publish",
-    "STORE-02.restart-after-publish"
+    "STORE-02.restart-after-publish",
+    "MSC-01.backend-stop-normal",
+    "MSC-01.backend-stop-retry"
   ]
 }

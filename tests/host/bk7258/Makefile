@@ -1846,3 +1846,6 @@ $(BUILD)/test_shaniu_power_owner: test_shaniu_power_contract.c $(BUILD)/shaniu_o
 $(BUILD)/test_shaniu_power_pixels: test_shaniu_power_pixels.c \
     $(VOICE_PACK_ROOT)/bk7258_display_power_pixels.h | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) $< -o $@
+
+$(BUILD)/test_shaniu_msc_stop: test_shaniu_msc_stop.c $(CHIP_ROOT)/ap/bk7258_usbmsc_stop.inc | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -I $(CHIP_ROOT)/ap $< -o $@

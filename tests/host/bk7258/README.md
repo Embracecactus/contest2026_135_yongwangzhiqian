@@ -424,3 +424,19 @@ revision2/network-B，均保持 owner/CA/测试 Key，并能通过 SCS1 查询�
 即绿，不制造产品 Red。测试中的进程终止不清宿主机页缓存，不是掉电模拟，
 不证明目标 LittleFS/DMA/真实重启后的持久性。S10提到的恢复缺口已补主机
 新进程证据，目标板及用户可见恢复仍待验；不为消除未知擅自启用自动重启。
+
+### S12 MSC 后端退出失败保留（2026-09-24）
+
+真实 usbmsc_uninitialize 原样提取为同一 TU 包含的 stop.inc，主机也编译该
+函数，只替换锁/临界区、USB驱动和块设备边界。先写 backend-stop-retry：
+usbd_deinitialize=-EIO 时不得 close_blockdriver，旧生产逻辑实际触发失败。
+修复后关闭回调 admission，保留 inode，解锁并返回错误；显式重试成功后只关
+一次 inode。initialize 拒绝覆盖仍保留的实例。normal 用例保留正常退出及
+重复退出不再次释放的行为；未新建生产状态机或替代后端。
+
+104 PASS（原63 + 累计新增41），两项原变异/恢复通过，门禁12 PASS。MSC AP
+对象编译通过；没有完整链接/硬件结果。报告 s12-20260924.json，原失败、源码
+哈希及编译证据 s12-evidence-20260924.json；日志 out/shaniu-s12/。
+新增无线程、缓冲、等待或阈值，失败只延长必要 inode 持有。启动失败清理、
+close_blockdriver 错误、真实DMA/端点退出及全量文件句柄交接未由这两个用例
+证明。外部卷 vfat/fatfs 消费者差异仍存在，不在本片擅自更换文件系统。

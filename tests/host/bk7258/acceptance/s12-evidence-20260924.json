@@ -1,0 +1,21 @@
+{
+  "scope": "MSC backend stop failure and retry; no USB device used",
+  "red": "exit=-6\nmsc-stop: tests/host/bk7258/test_shaniu_msc_stop.c:40: main: Assertion `closes == 0' failed.\n",
+  "ap_object_build": {
+    "exit": 0,
+    "log": ""
+  },
+  "source_hashes": {
+    "chips/bk7258/ap/bk7258_usbmsc_stop.inc": "79b28ef8113e564362ed94f12351ff750c0fe69489835d0dc3bdb82fae3528ba",
+    "chips/bk7258/ap/bk7258_usbmsc.c": "77d3b4d575fd92089f0d82c796d78ff8ba82fc7f232ca3cae0028052889ca9a4",
+    "tests/host/bk7258/test_shaniu_msc_stop.c": "c95e717c1ca24c1099154ff6150e7b5541c6af9e2edca9b4280a5fc76d88bc4b"
+  },
+  "test_seam": "Original stop function extracted from production TU into included source; both host and AP use same implementation",
+  "not_verified": [
+    "Real USB endpoint or DMA completion",
+    "Actual filesystem handles/MSC write exclusivity",
+    "Initialization error cleanup",
+    "close_blockdriver error path",
+    "Firmware link or board execution"
+  ]
+}

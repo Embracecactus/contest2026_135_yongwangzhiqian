@@ -399,6 +399,7 @@ def main():
         "test_bk7258_agent_capture",
         "test_shaniu_power_contract",
         "test_shaniu_power_pixels",
+        "test_shaniu_msc_stop",
         "test_shaniu_control_quiesce",
         "test_shaniu_owner",
         "test_shaniu_power_owner",
@@ -442,6 +443,15 @@ def main():
         [HERE / "build/test_shaniu_power_pixels"],
         binaries["test_shaniu_power_pixels"],
     )
+    for variant in ("normal", "retry"):
+        add(
+            suite,
+            "MSC-01.backend-stop-" + variant,
+            "MSC-01",
+            "L1",
+            [HERE / "build/test_shaniu_msc_stop", variant],
+            binaries["test_shaniu_msc_stop"],
+        )
     for variant in (
         "normal",
         "admission-failure",
