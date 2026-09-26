@@ -308,7 +308,14 @@
     "MOT-02.candidate-gate-cooldown",
     "MOT-01.quiesce-queued-cycle",
     "MOT-01.quiesce-waiter-cycle",
-    "MOT-01.quiesce-publication-cycle"
+    "MOT-01.quiesce-publication-cycle",
+    "USB-02.rx-fast_reader",
+    "USB-02.rx-slow_reader",
+    "USB-02.rx-partial",
+    "USB-02.rx-upper_backpressure",
+    "USB-02.rx-arm_failure",
+    "USB-02.rx-reset",
+    "USB-02.rx-duplicate_callback"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -620,6 +627,13 @@
     "MOT-02.candidate-gate-cooldown",
     "MOT-01.quiesce-queued-cycle",
     "MOT-01.quiesce-waiter-cycle",
-    "MOT-01.quiesce-publication-cycle"
+    "MOT-01.quiesce-publication-cycle",
+    "USB-02.rx-fast_reader",
+    "USB-02.rx-slow_reader",
+    "USB-02.rx-partial",
+    "USB-02.rx-upper_backpressure",
+    "USB-02.rx-arm_failure",
+    "USB-02.rx-reset",
+    "USB-02.rx-duplicate_callback"
   ]
 }

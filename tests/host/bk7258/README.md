@@ -1763,3 +1763,59 @@ opened, installed, flashed or reset. Full-file nxstyle/Black checks still report
 pre-existing formatting issues and are not reported as passing gates.
 See `acceptance/s56-20260927.json` and
 `acceptance/s56-motion-admission-evidence-20260927.json`.
+
+### S57 — native CDC RX byte ownership and bounded backpressure (2026-09-27)
+
+The default serial CDC consumer previously armed every OUT transfer even when
+its lower ring was full. Investigation through the pinned NuttX serial upper
+half also found that receive returned1 instead of the character and placed the
+character in the status output; both layers shared the same receive array.
+
+The production path now reserves capacity for the entire256-byte USB transfer,
+rearms after consumption, retries an unsuccessful arm on RX enable, and ignores
+unarmed/wrong-endpoint callbacks. Reset/disconnect discards the lower RX ring.
+The serial upper half has its own256-byte array. receive returns the byte and
+zero status. rxavailable stops uart_recvchars before upper-buffer overflow;
+uart_read's existing RX-enable path resumes draining. No dependency on optional
+hardware flow-control Kconfig was added. The callback-based OTA consumer and
+CDC descriptors/maintenance recovery remain unchanged.
+
+Seven selected units exercise actual CDC functions/state and binding statements;
+fast-reader and upper-backpressure additionally execute the pinned real
+uart_recvchars function. USB endpoint/IRQ/notification and application reads are
+external peers. The actual serial-read syscall, interrupt concurrency and DCD
+hardware are not simulated successes. Sample bytes are independently generated
+as sequence-index modulo251 and compared byte-for-byte at the application or
+lower-half API boundary.
+
+Test correction is material: the first serial peer copied the product's wrong
+receive ABI. Its preliminary315PASS is INVALID as serial-chain evidence and
+retained under contracts-invalid-serial-peer. Replacing that peer with the real
+upper half produced seven assertion failures. A retry case then incorrectly
+read the already-drained lower ring; it now verifies the same four expected
+bytes at the application boundary. The initial misleading-indentation compile
+error and a report-hash path outside the team repo are SETUP_ERROR, not business
+Red; the external pinned source hash is recorded separately in slice evidence.
+No historical committed report was rewritten.
+
+Final315PASS = original63 +252added; this slice adds7, with two real-upper L2
+cases. Thirteen runner checks, two baseline mutations/restores and four new
+mutations/restores are separate. The four new mutants remove reservation,
+restore the wrong receive ABI, alias the upper/lower buffer, or ignore upper
+capacity; each compiles, fails an executed assertion and passes after restore.
+
+AIDK AP incremental build/manifest passes; CDC resident object is1504bytes on ARM.
+New storage is one256-byte array plus one pending flag (alignment applies), no
+new thread, heap, DMA allocation or polling. Transfer and copy bounds remain256;
+CPU/p95/critical-section timing and stack high-water are unmeasured. Existing
+full-file nxstyle issues remain; Black24.10.0 passes the new Python test.
+
+This is only the RX substrate of USB-02. TX ownership/start-error handling,
+independent PC authorization, framed protocol, upload/install/query/cancel,
+workbench and task events remain incomplete. Reset does not claim to flush the
+NuttX upper/application buffers or revoke a product session; the product protocol
+must own that lifetime. Real USB backpressure/re-enumeration and slow-host tests
+are NOT_RUN; no device was flashed, opened or reset. Other board profiles were
+not built; the callback OTA consumer uses a different data path.
+See `acceptance/s57-20260927.json` and
+`acceptance/s57-usbcdc-rx-evidence-20260927.json`.

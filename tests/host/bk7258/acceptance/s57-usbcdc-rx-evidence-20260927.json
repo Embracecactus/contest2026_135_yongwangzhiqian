@@ -1,0 +1,681 @@
+{
+  "slice": "S57",
+  "date": "2026-09-27",
+  "parent": "d29d3baa0b8f8c0bdf38d75dd7c773ff25fb1fea",
+  "counts": {
+    "PASS": 315,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 252,
+      "counts": {
+        "PASS": 252,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "new_cases": [
+    {
+      "id": "USB-02.rx-fast_reader",
+      "parent": "USB-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.3145638610003516,
+      "evidence": "USB-02.rx-fast_reader.log",
+      "evidence_sha256": "ad2f6f86a8ec08ede646f81541708ff391e69e096fdaae93598cb2ebb8a0d0d9"
+    },
+    {
+      "id": "USB-02.rx-slow_reader",
+      "parent": "USB-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.26444313302636147,
+      "evidence": "USB-02.rx-slow_reader.log",
+      "evidence_sha256": "96dc236ba30b3dee80f6b8339c82a31a6254f8e470d9b466676e9fe655dd64d3"
+    },
+    {
+      "id": "USB-02.rx-partial",
+      "parent": "USB-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.2643298519542441,
+      "evidence": "USB-02.rx-partial.log",
+      "evidence_sha256": "b9bd82f1c119df7c0bbead58b3b9f03892b870eb2805cdd16b6c467f82ec8861"
+    },
+    {
+      "id": "USB-02.rx-upper_backpressure",
+      "parent": "USB-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.2643197450088337,
+      "evidence": "USB-02.rx-upper_backpressure.log",
+      "evidence_sha256": "bc39dbd48d5348cbc62b0e96f1791693605c666deaaff2fd20706c806a3e8b1b"
+    },
+    {
+      "id": "USB-02.rx-arm_failure",
+      "parent": "USB-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.36452375998487696,
+      "evidence": "USB-02.rx-arm_failure.log",
+      "evidence_sha256": "826f001b5c1633cbb4b8de37fa936516bceefe67597eb15c53144999be5748b1"
+    },
+    {
+      "id": "USB-02.rx-reset",
+      "parent": "USB-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.2644091349793598,
+      "evidence": "USB-02.rx-reset.log",
+      "evidence_sha256": "4c4da16950e0e04e59414e09431507b1fd014ee1c2a9f760b076dbe5607a178b"
+    },
+    {
+      "id": "USB-02.rx-duplicate_callback",
+      "parent": "USB-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.2644093499984592,
+      "evidence": "USB-02.rx-duplicate_callback.log",
+      "evidence_sha256": "f8ee619586fb18e1d8052ea8b5953310574a9ed9136fd6b41109cba0a88467df"
+    }
+  ],
+  "baseline": {
+    "initial": [
+      {
+        "case": "slow_reader",
+        "exit": 1,
+        "status": "FAIL_ASSERTION"
+      },
+      {
+        "case": "partial",
+        "exit": 1,
+        "status": "FAIL_ASSERTION"
+      },
+      {
+        "case": "upper_backpressure",
+        "exit": 1,
+        "status": "SETUP_ERROR"
+      },
+      {
+        "case": "arm_failure",
+        "exit": 1,
+        "status": "FAIL_ASSERTION"
+      },
+      {
+        "case": "reset",
+        "exit": 1,
+        "status": "FAIL_ASSERTION"
+      },
+      {
+        "case": "duplicate_callback",
+        "exit": 1,
+        "status": "FAIL_ASSERTION"
+      }
+    ],
+    "invalid_serial_peer": "preliminary315 is INVALID serial-chain evidence; receive ABI was incorrectly modeled",
+    "real_upper_before": "7 FAIL_ASSERTION after using real uart_recvchars",
+    "retry_fixture_correction": "RX enable drains to actual upper ring; compare same4 expected bytes at application read boundary, not empty lower ring",
+    "report_setup_error": "External official source was passed to repository-relative hash writer; removed from that list and hashed independently here. Terminal exit1 retained."
+  },
+  "runner_gate": {
+    "tests": 13,
+    "status": "PASS"
+  },
+  "mutations": [
+    {
+      "id": "ignore-reservation",
+      "case": "slow_reader",
+      "status": "DETECTED",
+      "restore": "PASS",
+      "source_sha256": "04627cb1ef141dad797daa68b1dbc8f5a91a40aacafb4102b701b83eb0f4e126",
+      "mutant_sha256": "3052f2456ccb5d560dc5d4bb3cdd1d3c9aa950cd567c533361ca6b7bd420c60a"
+    },
+    {
+      "id": "wrong-receive-abi",
+      "case": "fast_reader",
+      "status": "DETECTED",
+      "restore": "PASS",
+      "source_sha256": "04627cb1ef141dad797daa68b1dbc8f5a91a40aacafb4102b701b83eb0f4e126",
+      "mutant_sha256": "e5bd0db73a377365e0fa19d526ba0d86ad003deef14f3e9475bfe86277b22abf"
+    },
+    {
+      "id": "alias-upper-rx",
+      "case": "upper_backpressure",
+      "status": "DETECTED",
+      "restore": "PASS",
+      "source_sha256": "04627cb1ef141dad797daa68b1dbc8f5a91a40aacafb4102b701b83eb0f4e126",
+      "mutant_sha256": "863c24c53a0707d5da441a54d0a7bccc7c7361bb91cffac89600418bcd2fabab"
+    },
+    {
+      "id": "ignore-upper-capacity",
+      "case": "upper_backpressure",
+      "status": "DETECTED",
+      "restore": "PASS",
+      "source_sha256": "04627cb1ef141dad797daa68b1dbc8f5a91a40aacafb4102b701b83eb0f4e126",
+      "mutant_sha256": "96c12e59c29eaf88a89c44693e881159eb77dc5be51c88a66392edcfd2609e48"
+    }
+  ],
+  "existing_mutations": [
+    {
+      "id": "MSC-01.early-release",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.0077285789884626865,
+      "source": "app/bk7258/bk7258_media_volume.c",
+      "original_sha256": "58ebb18ae63adccf21262253da18f153bbb7c680cc0b64719ca20e8a6d9681c8",
+      "mutant_sha256": "bf298373a95ac54d5587f93ece34a30a7f661a65a969c69db9e27c6570770c57",
+      "expected_assertion": "!mounted",
+      "evidence": "MSC-01.early-release.log"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.06400694599142298,
+      "source": "app/bk7258/bk7258_provision_config.c",
+      "original_sha256": "98f5100ca49ca44e45fe3e5da4bb2da0add7466f0e357a205ca8b1e307a5818e",
+      "mutant_sha256": "4c0c615b8ffc99247b0fd91bd934d3df0409a1180769cb939b2820f9e6f69427",
+      "expected_assertion": "bkcloud_config_decode",
+      "evidence": "CFG-01.wifi-clears-cloud.log"
+    }
+  ],
+  "inputs": {
+    "chips/bk7258/ap/bk7258_usbcdc.c": "04627cb1ef141dad797daa68b1dbc8f5a91a40aacafb4102b701b83eb0f4e126",
+    "goal-objective.md": "6bd8a61b11ada08c4b016140501847e0c85225e37213d51f13937de3f21cb782",
+    "tests/host/bk7258/README.md": "647ab2abf7fd831e1e40d9f12c8dea34898d1f63bc28c5a06f660bd2f49440b1",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "abda0d5a9a9c07b0599dda4143e02d4cd1633407378e19a846705929df9a8e25",
+    "tests/host/bk7258/test_shaniu_contracts.py": "3778a8e69511693ae0b6a89f45215aeef83962a4ff86426a1332f85bcb13eb65",
+    "tests/host/bk7258/test_shaniu_usbcdc_rx.py": "2a9830a2a1e87ea786478ceb6596d58cc08dd1a03df5d80fbf23c659cabc439f"
+  },
+  "external_inputs": {
+    "nuttx/drivers/serial/serial_io.c": "7dbf092897a4bea064ee4372b1ec56df693af0f8f75a080b90371c228a45aa51",
+    "nuttx/include/nuttx/serial/serial.h": "8a82d35d89fd9bef83e30c6e9b7f777b435372cd1fa1ecf9c89e9b1d028a3429",
+    "vendor/beken/bk_avdk_smp/ap/components/bk_usb/CherryUSB/port/beken_musb/usb_dc_beken_musb_mhdrc.c": "3f0b307132ec6f36a9be7148bbabdf818749ea1800ee6dd7c2fc785d29cd69d6"
+  },
+  "nuttx_commit": "76354c637858ecb0aa4601629327acb6f44a26bb",
+  "logs": {
+    "after-corrected.log": {
+      "sha256": "2b774a707a182caf56daeded056c640c69659b3f9f5943cc48eef758508f72f1",
+      "tail": [
+        ".......",
+        "----------------------------------------------------------------------",
+        "Ran 7 tests in 1.317s",
+        "",
+        "OK"
+      ]
+    },
+    "after.log": {
+      "sha256": "f90441586d1b4872b2a44f84079b016a7cca0e91ff0ff830bd659ef7b6c7417d",
+      "tail": [
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-Wno-unused-function', '-fsanitize=undefined', '-fno-sanitize-recover=all', '/tmp/cdc-rx-qy9x2_bd/case.c', '-o', '/tmp/cdc-rx-qy9x2_bd/case']' returned non-zero exit status 1.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 6 tests in 0.950s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "alias-upper-rx-restore.log": {
+      "sha256": "012565f143157fbdf204da8481bb60f815f3013838bcb9c6c0415d01709759cb",
+      "tail": [
+        ".",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.228s",
+        "",
+        "OK"
+      ]
+    },
+    "alias-upper-rx.log": {
+      "sha256": "646a70e3f193fd3e7040d66dd85da544c3447a80c143a8ac84265a0c4ea38d84",
+      "tail": [
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/cdc-rx-etpunxr4/case']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.228s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "arm_failure-before.log": {
+      "sha256": "dfc32a29b1be4d7e7b037624f2b9729c20d9f6287a84ccb5ae2c53ba91065be9",
+      "tail": [
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/cdc-rx-9t5fw57u/case']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.188s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "baseline-corrected.log": {
+      "sha256": "22e3611df530a509d8b56ee0723f6a9759ef66bcdae404c4798e9cd30151b6dc",
+      "tail": [
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/cdc-rx-vdi2cg1y/case']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 7 tests in 1.298s",
+        "",
+        "FAILED (errors=6)"
+      ]
+    },
+    "build-target-before-upper.log": {
+      "sha256": "241dd3327b986ed2d5608239139783cd550d4ae800dc9ea3481b4bd814149cdf",
+      "tail": [
+        "#### build completed successfully (1 seconds) ####",
+        "bk7258 layer gate: PASS sources=528 kconfig=253 legacy-exceptions=2",
+        "bk7258 build: PASS layout=bk7258-510173147382a879",
+        "bl1 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.map",
+        "bl2 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.map copy_size=13632",
+        "cp elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.map identity=bk7258-role-9a0b5b6e466d063f seed=41811cb113e14cd5ce35630f0a6d42f0d32f88a10c512bb971734bce9a28c016 config=dd503376e1b5436c9221274dc5a9ff86bf2e49660dfad4d306292e1113d82bed",
+        "ap elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.map identity=bk7258-role-5a3061a4da19ae9f seed=9507a2073a35e2970300a150395dc4d8c48458a68cb24412497ab54c714a7fec config=4e73b6c67a5176a8136b7c46a43c46329f7ef19e5ec74e626937d64bdeddfcee",
+        "build manifest=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    },
+    "build-target.log": {
+      "sha256": "52ec699cd2c32d6b619eb200de147265f1590c52dff2a7e22b1c4a937ddbf40b",
+      "tail": [
+        "#### build completed successfully (1 seconds) ####",
+        "bk7258 layer gate: PASS sources=528 kconfig=253 legacy-exceptions=2",
+        "bk7258 build: PASS layout=bk7258-510173147382a879",
+        "bl1 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.map",
+        "bl2 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.map copy_size=13632",
+        "cp elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.map identity=bk7258-role-9a0b5b6e466d063f seed=41811cb113e14cd5ce35630f0a6d42f0d32f88a10c512bb971734bce9a28c016 config=dd503376e1b5436c9221274dc5a9ff86bf2e49660dfad4d306292e1113d82bed",
+        "ap elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.map identity=bk7258-role-5a3061a4da19ae9f seed=9507a2073a35e2970300a150395dc4d8c48458a68cb24412497ab54c714a7fec config=4e73b6c67a5176a8136b7c46a43c46329f7ef19e5ec74e626937d64bdeddfcee",
+        "build manifest=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    },
+    "contracts-invalid-serial-peer.log": {
+      "sha256": "03c63c08fe9a845bdace975eaa47ef2b4acb3021c57e708fe34ebb2e041936ad",
+      "tail": [
+        "unittest.case.FunctionTestCase (run)",
+        "MSC-01.restored ... ok",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 2 tests in 0.066s",
+        "",
+        "OK",
+        "{\"PASS\": 315, \"FAIL_ASSERTION\": 0, \"SETUP_ERROR\": 0, \"NOT_RUN\": 0} production_unchanged= True"
+      ]
+    },
+    "contracts-report-setup-error.log": {
+      "sha256": "f9f698b2cd82a9912c082346b1977b6e0c4951bb261cbe0fd70b9990a4230c16",
+      "tail": [
+        "Traceback (most recent call last):",
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_contracts.py\", line 1312, in <module>",
+        "    sys.exit(main())",
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_contracts.py\", line 1230, in main",
+        "    inputs[str(p.relative_to(ROOT))] = digest(p)",
+        "  File \"/usr/lib/python3.10/pathlib.py\", line 818, in relative_to",
+        "    raise ValueError(\"{!r} is not in the subpath of {!r}\"",
+        "ValueError: '/home/lijian/project/open-vela/nuttx/drivers/serial/serial_io.c' is not in the subpath of '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian' OR one path is relative and the other is absolute."
+      ]
+    },
+    "contracts.log": {
+      "sha256": "8c44d72ca1dc1a9cf60eff2f1bc306ff5579e33c73dd518c400f8e458e27cd0e",
+      "tail": [
+        "unittest.case.FunctionTestCase (run)",
+        "MSC-01.restored ... ok",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 2 tests in 0.116s",
+        "",
+        "OK",
+        "{\"PASS\": 315, \"FAIL_ASSERTION\": 0, \"SETUP_ERROR\": 0, \"NOT_RUN\": 0} production_unchanged= True"
+      ]
+    },
+    "duplicate_callback-before.log": {
+      "sha256": "f50c27271826397fcf01a8fc5184de3b63a4827925856f00e9162bec53d101d0",
+      "tail": [
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/cdc-rx-tk5op6ty/case']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.188s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "ignore-reservation-restore.log": {
+      "sha256": "c59373e08dc2accd74cead3b429f88bdd05823b5b769bdd3eff6bb8733da0d7e",
+      "tail": [
+        ".",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.219s",
+        "",
+        "OK"
+      ]
+    },
+    "ignore-reservation.log": {
+      "sha256": "0c80a79507f743e371b2bfb0fb1855c445c187e3f60a47d0575e0e3ca33d02dd",
+      "tail": [
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/cdc-rx-mr63vlfr/case']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.229s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "ignore-upper-capacity-restore.log": {
+      "sha256": "e6f64ecc2c945f9d60130431ea10537c11d3aa95a51315e253448f5cb2339a5a",
+      "tail": [
+        ".",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.229s",
+        "",
+        "OK"
+      ]
+    },
+    "ignore-upper-capacity.log": {
+      "sha256": "f08dc8b872d1dd5e8631667d64d38086974b233f6e34f7eb91cc728fa7772fe5",
+      "tail": [
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/cdc-rx-zcc8nqqi/case']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.232s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "mutations-final.log": {
+      "sha256": "8c4668802ed9e28ff2bb3242bee152d2d9a5e6fdc7e200cf95d2f24ec2210205",
+      "tail": [
+        "[{'id': 'ignore-reservation', 'case': 'slow_reader', 'status': 'DETECTED', 'restore': 'PASS', 'source_sha256': '04627cb1ef141dad797daa68b1dbc8f5a91a40aacafb4102b701b83eb0f4e126', 'mutant_sha256': '3052f2456ccb5d560dc5d4bb3cdd1d3c9aa950cd567c533361ca6b7bd420c60a'}, {'id': 'wrong-receive-abi', 'case': 'fast_reader', 'status': 'DETECTED', 'restore': 'PASS', 'source_sha256': '04627cb1ef141dad797daa68b1dbc8f5a91a40aacafb4102b701b83eb0f4e126', 'mutant_sha256': 'e5bd0db73a377365e0fa19d526ba0d86ad003deef14f3e9475bfe86277b22abf'}, {'id': 'alias-upper-rx', 'case': 'upper_backpressure', 'status': 'DETECTED', 'restore': 'PASS', 'source_sha256': '04627cb1ef141dad797daa68b1dbc8f5a91a40aacafb4102b701b83eb0f4e126', 'mutant_sha256': '863c24c53a0707d5da441a54d0a7bccc7c7361bb91cffac89600418bcd2fabab'}, {'id': 'ignore-upper-capacity', 'case': 'upper_backpressure', 'status': 'DETECTED', 'restore': 'PASS', 'source_sha256': '04627cb1ef141dad797daa68b1dbc8f5a91a40aacafb4102b701b83eb0f4e126', 'mutant_sha256': '96c12e59c29eaf88a89c44693e881159eb77dc5be51c88a66392edcfd2609e48'}]"
+      ]
+    },
+    "mutations.log": {
+      "sha256": "3288b16649241f6a1fd971f5a94f83ad84f43b8369ab315f7690c469bf38fa56",
+      "tail": [
+        "Traceback (most recent call last):",
+        "  File \"/tmp/shaniu_s57_mutations.py\", line 7, in <module>",
+        "    p=Path(td)/'usbcdc.c';assert original.count(old)==1;mutant=original.replace(old,new);p.write_text(mutant)",
+        "AssertionError"
+      ]
+    },
+    "object-symbols.log": {
+      "sha256": "4ce7865d2468909fb47ac2643259abe86df7151e2b0b49762246287eeeda4869",
+      "tail": [
+        "00000000 000000e8 t bk7258_usbcdc_arm_rx",
+        "00000000 000000cc t bk7258_usbcdc_receive",
+        "00000000 000000c0 t bk7258_usbcdc_rxavailable",
+        "00000000 000005e0 d g_bk7258_usbcdc"
+      ]
+    },
+    "omit-consumer-rearm-restore.log": {
+      "sha256": "23166125ff044e6572b6cecd8a851692d9d2b1395f3fe1e71f0ba69a86ec0370",
+      "tail": [
+        ".",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.185s",
+        "",
+        "OK"
+      ]
+    },
+    "omit-consumer-rearm.log": {
+      "sha256": "063aec9b70c19bdfed5d6e915b29828a43a451dfda639624ef26e82e149dc4ce",
+      "tail": [
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/cdc-rx-mti5gnsy/case']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.188s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "partial-before.log": {
+      "sha256": "e42148fa27c73ec403641e8b92a5b30ac85875ad19d02b38e62c97f5e3bab57d",
+      "tail": [
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/cdc-rx-873w_obh/case']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.188s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "real-upper-after.log": {
+      "sha256": "64892d012da9ede3ecd371a5a9d8fa9e5c47e38c57577590a876f788670b688a",
+      "tail": [
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/cdc-rx-_d38p185/case']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 7 tests in 1.530s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "real-upper-before.log": {
+      "sha256": "7c0b024f7778ab92fbbe39d97c88c4dd68449b0e5b277a09eb9e47c1a5e4e9d9",
+      "tail": [
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/cdc-rx-hok4d6vn/case']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 7 tests in 1.615s",
+        "",
+        "FAILED (errors=7)"
+      ]
+    },
+    "real-upper-final.log": {
+      "sha256": "b985cffbb9791cdca7bccd782d89f1d3c60eada8ad7be814e5d8bafed32aa2b5",
+      "tail": [
+        ".......",
+        "----------------------------------------------------------------------",
+        "Ran 7 tests in 1.513s",
+        "",
+        "OK"
+      ]
+    },
+    "reset-before.log": {
+      "sha256": "4f8a167c69305e357ff7589de1b4a0eeb74279a207b804c47f95b4aa79daf2d9",
+      "tail": [
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/cdc-rx-tr2rfa3r/case']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.186s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "runner-gate.log": {
+      "sha256": "ee1db5279c9a044fc58a4198a02cacb2fa57db913251f82c638f925fa9b4cb77",
+      "tail": [
+        ".............",
+        "----------------------------------------------------------------------",
+        "Ran 13 tests in 0.033s",
+        "",
+        "OK"
+      ]
+    },
+    "slow_reader-before.log": {
+      "sha256": "6b2f8882a787bfdaeedc122363ef085e507ac605be2411a79f88d5344d4d6424",
+      "tail": [
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/cdc-rx-194san_h/case']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.272s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "style-c-baseline.log": {
+      "sha256": "5dd23182a38e24801634af48dc221ad66e85893bbf1a32e4f1925a6026527b31",
+      "tail": [
+        "/tmp/tmpotiwvple/bk7258_usbcdc.c:163:1: error: Missing blank line after comment",
+        "/tmp/tmpotiwvple/bk7258_usbcdc.c:167:1: error: Missing blank line after comment",
+        "/tmp/tmpotiwvple/bk7258_usbcdc.c:174:0: error: Mixed case identifier found",
+        "/tmp/tmpotiwvple/bk7258_usbcdc.c:297:5: error: Mixed case identifier found",
+        "/tmp/tmpotiwvple/bk7258_usbcdc.c:298:5: error: Mixed case identifier found",
+        "/tmp/tmpotiwvple/bk7258_usbcdc.c:299:5: error: Mixed case identifier found",
+        "/tmp/tmpotiwvple/bk7258_usbcdc.c:300:5: error: Mixed case identifier found",
+        "/tmp/tmpotiwvple/bk7258_usbcdc.c:738:1: error: \"Private/Public Functions\" not found! File will not be checked"
+      ]
+    },
+    "style-c-final.log": {
+      "sha256": "e9a4414ea5046914b870de9ea26fbde5ab03c3f880dfcaa351e1ba7881857724",
+      "tail": [
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_usbcdc.c:176:0: error: Mixed case identifier found",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_usbcdc.c:322:5: error: Mixed case identifier found",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_usbcdc.c:323:5: error: Mixed case identifier found",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_usbcdc.c:324:5: error: Mixed case identifier found",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_usbcdc.c:325:5: error: Mixed case identifier found",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_usbcdc.c:545:1: error: Missing blank line before comment found",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_usbcdc.c:545:78: error: Long line found",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_usbcdc.c:802:1: error: \"Private/Public Functions\" not found! File will not be checked"
+      ]
+    },
+    "style-c.log": {
+      "sha256": "185f824ccf83f944c7973e85224585804a3d2f44170f2de3efca8218237be6b7",
+      "tail": [
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_usbcdc.c:164:1: error: Missing blank line after comment",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_usbcdc.c:168:1: error: Missing blank line after comment",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_usbcdc.c:175:0: error: Mixed case identifier found",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_usbcdc.c:321:5: error: Mixed case identifier found",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_usbcdc.c:322:5: error: Mixed case identifier found",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_usbcdc.c:323:5: error: Mixed case identifier found",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_usbcdc.c:324:5: error: Mixed case identifier found",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_usbcdc.c:787:1: error: \"Private/Public Functions\" not found! File will not be checked"
+      ]
+    },
+    "style-python.log": {
+      "sha256": "1a56c7cd8457fd05d978cfbd139d7bfd86e86acaa9b57668e718ef8bccc0cf48",
+      "tail": [
+        "All done! ✨ 🍰 ✨",
+        "1 file would be left unchanged."
+      ]
+    },
+    "upper_backpressure-before.log": {
+      "sha256": "2d50b9ae1e9b69fba755628fddefe6e28e82c5aac6f4d998f3ac9e293f05e620",
+      "tail": [
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-Wno-unused-function', '-fsanitize=undefined', '-fno-sanitize-recover=all', '/tmp/cdc-rx-9tkwyfvp/case.c', '-o', '/tmp/cdc-rx-9tkwyfvp/case']' returned non-zero exit status 1.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.020s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "verify-manifest.log": {
+      "sha256": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac",
+      "tail": [
+        "bk7258 verify build-manifest: PASS boot=mcuboot board=aidk_ai_toy layout=bk7258-510173147382a879 source=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    },
+    "wrong-receive-abi-restore.log": {
+      "sha256": "f17a36550709167f2b82163c302def35a040d2bdef17d3099c1cf041bcfab099",
+      "tail": [
+        ".",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.220s",
+        "",
+        "OK"
+      ]
+    },
+    "wrong-receive-abi.log": {
+      "sha256": "aaf218459f59e9b570b25f255a974265e95aff09fa0b16337f9da5f8be061ed6",
+      "tail": [
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/cdc-rx-4hwpwg7a/case']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.225s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    }
+  },
+  "style": {
+    "nxstyle_current_exit": 1,
+    "nxstyle_baseline_exit": 1,
+    "black_new_test": "PASS",
+    "note": "Existing full-file style issues remain; no nxstyle PASS claim."
+  },
+  "layers": {
+    "L1": "Actual default CDC RX functions and state with USB/IRQ peers",
+    "L2": "Real uart_recvchars and real lower binding: byte equality and full upper ring. Serial read syscall and interrupt concurrency not executed",
+    "protocol": "BLOCKED_INTERFACE: PC authorization, product frames and common service wiring",
+    "target": "AIDK AP build/manifest PASS; other board profiles not built",
+    "L3": "NOT_RUN"
+  },
+  "budget": {
+    "ARM_CDC_object_bytes": 1504,
+    "new_array_bytes": 256,
+    "new_flags": 1,
+    "new_threads": 0,
+    "new_heap": 0,
+    "new_dma_allocation": 0,
+    "new_polling": 0,
+    "transfer_bound_bytes": 256,
+    "unmeasured": [
+      "CPU/p95",
+      "IRQ/critical-section timing",
+      "stack high water",
+      "real USB throughput"
+    ]
+  },
+  "remaining": [
+    "TX ring ownership and start failures",
+    "PC authorization and stable framed protocol",
+    "USB resource installer/workbench/event path",
+    "upper/application data and product session lifecycle on reconnect",
+    "physical USB flow-control and re-enumeration"
+  ],
+  "physical_actions": []
+}

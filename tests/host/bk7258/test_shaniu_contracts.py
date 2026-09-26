@@ -760,6 +760,14 @@ def main():
         add(suite, "NFC-01.deadline-" + variant, "NFC-01", "L1",
             [sys.executable, HERE / "test_mfrc522_deadline.py",
              "DeadlineTest.test_" + variant], marker=False)
+    for variant in (
+        "fast_reader", "slow_reader", "partial", "upper_backpressure",
+        "arm_failure", "reset", "duplicate_callback",
+    ):
+        add(suite, "USB-02.rx-" + variant, "USB-02",
+            "L2" if variant in ("fast_reader", "upper_backpressure") else "L1",
+            [sys.executable, HERE / "test_shaniu_usbcdc_rx.py",
+             "CdcRxTest.test_" + variant], marker=False)
     for variant in ("register", "inactive", "invalid", "not_ready", "partial",
                     "status_error", "data_error", "fresh"):
         add(suite, "MOT-01.sensor-" + variant, "MOT-01", "L1",
@@ -1207,6 +1215,8 @@ def main():
         HERE / "test_bk7258_agent_media_player.c",
         HERE / "test_bk7258_cloud_http.py",
         HERE / "test_sc7a20_sampling.py",
+        HERE / "test_shaniu_usbcdc_rx.py",
+        ROOT / "chips/bk7258/ap/bk7258_usbcdc.c",
         ROOT / "nuttx/drivers/sensors/sc7a20.c",
         ROOT / "nuttx/include/nuttx/sensors/sc7a20.h",
         *ROOT.glob(
