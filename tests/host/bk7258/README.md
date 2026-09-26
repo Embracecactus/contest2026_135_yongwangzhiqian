@@ -1369,3 +1369,35 @@ available. Automatic dwell/reentry/scene dispatch is NOT_IMPLEMENTED; actual car
 phone BLE, RF/audio coexistence and physical stop are NOT_RUN at L3. Actual UI memory,
 CPU and response percentiles are unmeasured; finite eight slots and stable View
 instances add no polling or persistent worker. This is not 56 requirements passed.
+
+
+## S47 — NFC observation to shared focus intent contract
+
+`bk7258_nfc_scene` consumes serial observations from one sensor owner. Generation
+is fixed for that lifecycle; positive sequence strictly increases without wrapping.
+UNKNOWN means no trustworthy presence conclusion and never rearms. Explicit ABSENT
+rearms; the first valid PRESENT consumes one opportunity even if unbound, storage
+uncertain, admission closed or mailbox busy. Further cards in that occupancy do not
+retry. Initialization is for a new owner lifetime, not a way to bypass this latch.
+The component stores no UID and reads only the existing binding cache. Only START
+is submitted to the real focus mailbox; accepted ID is not applied/completed state.
+The actual owner still resolves cancel/power and revision conflicts before applying.
+
+Seven independent processes use the production scene, bindings and real POSIX store,
+focus mailbox and timer. They cover dwell/reentry, unknown, stale generation/sequence,
+gates, busy, unknown/uncertain bindings and malformed input. A running timer is not
+restarted by a second card; the shared owner rejects START. No mock timer/scene is
+used. Two isolated source mutations (UNKNOWN rearms; stale ABSENT accepted) compile,
+fail the relevant assertions, and restore to PASS. Initial missing interface is
+BLOCKED_INTERFACE. First strict run's seven SETUP_ERROR entries are a missing test
+completion marker, not assertion failures; the marker correction changes no oracle.
+
+The AP build compiles this component under NFC + provisioning + Agent. **It has no
+worker caller yet**: current GET_PICC_UID errors do not establish absence. Reliable
+absence sampling, bounded scheduling/admission, binding load at autonomous startup,
+quiesce integration and actual card-to-focus flow remain NOT_IMPLEMENTED. L3 is
+NOT_RUN. No polling rate, debounce time or physical absence threshold was invented.
+A worker-owned state will cost sizeof(struct bknfc_scene_s) (24 bytes with the target
+ABI); no heap, DMA, resident thread, radio or SD I/O is added by this component.
+Actual hardware CPU/stack/p95 and RF coexistence remain unmeasured. This is an
+intermediate service slice, not autonomous NFC functionality or product acceptance.

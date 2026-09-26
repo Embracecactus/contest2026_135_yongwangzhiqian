@@ -1941,3 +1941,8 @@ $(BUILD)/test_shaniu_nfc_control: test_shaniu_nfc_control.c test_shaniu_nfc_jobs
 	  -I $(VOICE_PACK_ROOT) -I $(REPOSITORY_ROOT)/nuttx/include -I $(VOICE_OTA_MBEDTLS_SOURCE)/include \
 	  $< $(VOICE_PACK_ROOT)/bk7258_nfc_control.c $(VOICE_PACK_ROOT)/bk7258_control_session.c \
 	  $(VOICE_PACK_ROOT)/bk7258_nfc_bindings.c $(VOICE_PACK_ROOT)/bk7258_provision_store.c -Wl,--wrap=fsync $(VOICE_OTA_MBEDCRYPTO) -o $@
+
+$(BUILD)/test_shaniu_nfc_scene: test_shaniu_nfc_scene.c $(VOICE_PACK_ROOT)/bk7258_nfc_scene.c $(VOICE_PACK_ROOT)/bk7258_nfc_bindings.c $(VOICE_PACK_ROOT)/bk7258_nfc_core.c $(VOICE_PACK_ROOT)/bk7258_provision_store.c $(VOICE_PACK_ROOT)/bk7258_focus.c $(VOICE_PACK_ROOT)/bk7258_focus_intent.c $(VOICE_OTA_MBEDCRYPTO) | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(MOCKS) -I $(VOICE_PACK_ROOT) \
+	  -I $(VOICE_OTA_MBEDTLS_SOURCE)/include -I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON \
+	  $(filter %.c,$^) $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c $(VOICE_OTA_MBEDCRYPTO) -o $@

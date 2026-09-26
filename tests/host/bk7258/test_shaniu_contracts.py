@@ -433,6 +433,7 @@ def main():
         "test_shaniu_focus_intent",
         "test_shaniu_nfc_bindings",
         "test_shaniu_nfc_jobs",
+        "test_shaniu_nfc_scene",
         "test_shaniu_nfc_control",
         "test_shaniu_nfc_quiesce",
         "test_shaniu_focus_pixels",
@@ -713,6 +714,10 @@ def main():
             [HERE / "build/test_shaniu_power_contract", variant],
             binaries["test_shaniu_power_contract"],
         )
+    for variant in ("dwell", "unknown", "stale", "gate", "busy", "binding", "invalid"):
+        add(suite, "NFC-02.scene-" + variant, "NFC-02", "L2",
+            [HERE / "build/test_shaniu_nfc_scene", variant],
+            binaries["test_shaniu_nfc_scene"])
     for variant in ("voice", "gate", "revision", "cancel", "invalid"):
         add(
             suite,

@@ -226,7 +226,14 @@
     "provision.NfcBindingControllerTest.unsupportedFirmwareStaysReadOnly",
     "provision.NfcBindingControllerTest.rejectedBeginDoesNotCancelAnotherTransaction",
     "provision.NfcBindingControllerTest.closeNeverClaimsAcceptedDeviceJobCanceled",
-    "provision.NfcBindingControllerTest.supersedingJobCannotConfirmOwnOperation"
+    "provision.NfcBindingControllerTest.supersedingJobCannotConfirmOwnOperation",
+    "NFC-02.scene-dwell",
+    "NFC-02.scene-unknown",
+    "NFC-02.scene-stale",
+    "NFC-02.scene-gate",
+    "NFC-02.scene-busy",
+    "NFC-02.scene-binding",
+    "NFC-02.scene-invalid"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
