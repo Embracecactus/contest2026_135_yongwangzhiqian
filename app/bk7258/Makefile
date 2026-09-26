@@ -52,7 +52,7 @@ endif
 
 ifeq ($(CONFIG_BK7258_NFC_SERVICE),y)
 ifeq ($(CONFIG_BK7258_PROVISION_GATT),y)
-CSRCS += bk7258_nfc_bindings.c
+CSRCS += bk7258_nfc_bindings.c bk7258_nfc_control.c
 endif
 CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)/../vendor/beken/nuttx/include
 	CSRCS += bk7258_nfc_service.c bk7258_nfc_core.c

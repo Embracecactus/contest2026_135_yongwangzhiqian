@@ -1269,3 +1269,34 @@ monotonic operation-ID adapter, native UI, disconnect policy, ambient dwell/reen
 focus dispatch and full reset/storage concurrency. L3 NOT_RUN, no physical action.
 See `NFC_BINDING_JOBS_V1.md`, `acceptance/s43-20260927.json` and
 `s43-binding-jobs-evidence-20260927.json`.
+
+### S44 authenticated binding control (2026-09-27)
+
+Product config dispatch now routes kind12 to NCF1/NCS1, using the existing SDC1
+AUTH/sequence/framing/staging implementation. APPLY only accepts a copied worker
+job. READ is cache-only, including during quiescence and product OTA busy state.
+A targeted NCF1 action cancels a worker job; CONFIG_CANCEL still discards only
+staging. Accepted jobs survive transport close and are queried after reconnect.
+Explicit LOAD publishes a floor covering the last durable operation ID; clients
+must allocate above it, never wrap or resubmit blindly after a conflict.
+
+Eight L2 cases execute actual session parser, protocol adapter, NFC worker and
+POSIX store: auth, invalid records/offsets with independent golden read chunks,
+explicit cancel, disconnect/result query, quiesced read with writes blocked,
+durable operation floor, stale sequence and abandoned staging. The product-loop
+config callback itself is source/target-build verified; the host fixture directly
+routes the real parser callback to the real adapter. Physical BLE/TLS pairing is
+not proven. Missing interface was BLOCKED_INTERFACE. Quiesced read produced a
+real assertion Red before adding only this query to the allowlist. Original SDC1
+validation remains unchanged and its existing suites remain in the strict set.
+
+Strict217 PASS preserve original63. Target build/manifest pass; final AP retains
+bknfc_control plus job submit/cancel/status (now called from product config).
+Server object is1152 bytes (+8 floor). READ uses112-byte encoded snapshot plus
+job status/compiler frame; no new thread, timer, heap, DMA or periodic scan.
+Actual CPU/p95/stack high-water/lock and board I/O remain unmeasured. Shared OTA
+staging constraints are unchanged; general multi-resource OTA arbitration is not
+claimed solved here. Native UI, multi-page read consistency handling, ambient
+card dwell/reentry and focus dispatch remain software work. L3 NOT_RUN.
+See `acceptance/NFC_CONTROL_V1.md`, `acceptance/s44-20260927.json` and
+`s44-nfc-control-evidence-20260927.json`.

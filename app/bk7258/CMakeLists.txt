@@ -134,7 +134,7 @@ endif()
 
 if(CONFIG_BK7258_NFC_SERVICE)
   if(CONFIG_BK7258_PROVISION_GATT)
-    target_sources(apps PRIVATE bk7258_nfc_bindings.c)
+    target_sources(apps PRIVATE bk7258_nfc_bindings.c bk7258_nfc_control.c)
   endif()
   target_include_directories(apps PRIVATE
       ${NUTTX_DIR}/../vendor/beken/nuttx/include)

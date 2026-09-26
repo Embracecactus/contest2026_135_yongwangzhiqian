@@ -209,7 +209,15 @@
     "NFC-02.jobs-commit",
     "NFC-02.jobs-unknown",
     "NFC-02.jobs-remove",
-    "NFC-02.jobs-conflict"
+    "NFC-02.jobs-conflict",
+    "NFC-02.control-auth",
+    "NFC-02.control-invalid",
+    "NFC-02.control-cancel",
+    "NFC-02.control-disconnect",
+    "NFC-02.control-quiesce",
+    "NFC-02.control-floor",
+    "NFC-02.control-sequence",
+    "NFC-02.control-staging"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -422,6 +430,14 @@
     "NFC-02.jobs-commit",
     "NFC-02.jobs-unknown",
     "NFC-02.jobs-remove",
-    "NFC-02.jobs-conflict"
+    "NFC-02.jobs-conflict",
+    "NFC-02.control-auth",
+    "NFC-02.control-invalid",
+    "NFC-02.control-cancel",
+    "NFC-02.control-disconnect",
+    "NFC-02.control-quiesce",
+    "NFC-02.control-floor",
+    "NFC-02.control-sequence",
+    "NFC-02.control-staging"
   ]
 }

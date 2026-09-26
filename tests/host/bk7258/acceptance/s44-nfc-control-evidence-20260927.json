@@ -1,0 +1,300 @@
+{
+  "slice": "S44",
+  "date": "2026-09-27",
+  "parent": "d3e5f88e52d3cbbbd4fa86a820ef3a78b627c8bd",
+  "scope": "Authenticated SDC1 NFC binding adapter routed from product config; actual wire/session/worker/store host integration, no UI or physical BLE claim",
+  "counts": {
+    "PASS": 217,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 154,
+      "counts": {
+        "PASS": 154,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "existing_mutations": [
+    {
+      "id": "MSC-01.early-release",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.007814665033947676,
+      "source": "app/bk7258/bk7258_media_volume.c",
+      "original_sha256": "58ebb18ae63adccf21262253da18f153bbb7c680cc0b64719ca20e8a6d9681c8",
+      "mutant_sha256": "bf298373a95ac54d5587f93ece34a30a7f661a65a969c69db9e27c6570770c57",
+      "expected_assertion": "!mounted",
+      "evidence": "MSC-01.early-release.log"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.06409907800843939,
+      "source": "app/bk7258/bk7258_provision_config.c",
+      "original_sha256": "98f5100ca49ca44e45fe3e5da4bb2da0add7466f0e357a205ca8b1e307a5818e",
+      "mutant_sha256": "4c0c615b8ffc99247b0fd91bd934d3df0409a1180769cb939b2820f9e6f69427",
+      "expected_assertion": "bkcloud_config_decode",
+      "evidence": "CFG-01.wifi-clears-cloud.log"
+    }
+  ],
+  "additional_mutations": [
+    {
+      "name": "auth",
+      "mutant": true,
+      "compile_exit": 0,
+      "exit": -6,
+      "status": "DETECTED",
+      "source_sha256": "f1db36ae63007e47f498b03c779f23437e609b190ca057c359b0196d05f0d0b5",
+      "log": "mutation-auth-mutated.log"
+    },
+    {
+      "name": "auth",
+      "mutant": false,
+      "compile_exit": 0,
+      "exit": 0,
+      "status": "PASS",
+      "source_sha256": "92f47139b993fb11fdc18f0a33c058aea265c447662cbb18a7f21e651e302716",
+      "log": "mutation-auth-restored.log"
+    },
+    {
+      "name": "floor",
+      "mutant": true,
+      "compile_exit": 0,
+      "exit": -6,
+      "status": "DETECTED",
+      "source_sha256": "573a7a8932af81f0dd93229d8634d34f788689bf173700804daf9a3a8a5cd1ba",
+      "log": "mutation-floor-mutated.log"
+    },
+    {
+      "name": "floor",
+      "mutant": false,
+      "compile_exit": 0,
+      "exit": 0,
+      "status": "PASS",
+      "source_sha256": "c669af23c905fb6e32bdb5605ee45d8ec7d47a2070f4660369da29356140f473",
+      "log": "mutation-floor-restored.log"
+    }
+  ],
+  "test_first": {
+    "missing_interface": "BLOCKED_INTERFACE before new adapter/API",
+    "quiesced_read": "Actual session assertion FAIL before allowing only read of kind12",
+    "mutation_selector": "SETUP_ERROR: broad auth selector matched2; refined packet-specific selector then compiled mutations detected",
+    "floor": "Preexisting real POSIX binding transaction loaded by fresh service fixture; not physical reboot proof"
+  },
+  "checks": {
+    "strict": "217 PASS original63 retained",
+    "target_build": "PASS",
+    "manifest": "PASS",
+    "symbols": "0216aca4 00000084 T bk7258_nfc_job_cancel\n0216ad28 0000004c T bk7258_nfc_job_status\n0216ab04 000001a0 T bk7258_nfc_job_submit\n021699f0 000001f8 T bknfc_control\n28051a60 00000480 d g_bknfc_server\n",
+    "diff_check": "PASS"
+  },
+  "artifact_manifest_sha256": "f62976f25703c5b67c6848b91191d5f6385b1dc4f8ce875b124535820b646926",
+  "resources": {
+    "server_bytes": 1152,
+    "delta_bytes": 8,
+    "wire_read_buffer_bytes": 112,
+    "read_status": "plus one job status and compiler frame",
+    "new_threads_timers_heap_dma": 0,
+    "unmeasured": [
+      "CPU/p95",
+      "stack high-water",
+      "lock duration",
+      "board transport and filesystem"
+    ]
+  },
+  "gaps": {
+    "software": [
+      "native controller/UI",
+      "multi-chunk header consistency in client",
+      "ambient card dwell/reentry",
+      "focus dispatch",
+      "full OTA multi-resource arbitration"
+    ],
+    "integration": [
+      "host routes real session callback directly to adapter; product config route verified by source/build/ELF, not full product task host execution",
+      "TLS/BLE pairing and real phone pending"
+    ],
+    "L3": {
+      "status": "NOT_RUN",
+      "reason": "No flash, install, key/reset or physical card operation"
+    }
+  },
+  "hashes": {
+    "app/bk7258/CMakeLists.txt": "ed476e2570e8138bab79aa11fe47e6f4bcf900b9257a25133313ea31b5c359cf",
+    "app/bk7258/Makefile": "72792569970c80d43959904d40d7789f0ee9d498b9347a6b6b1b9efbc7bd45a1",
+    "app/bk7258/bk7258_agent_product.c": "a825066c61ed091586139ae095a054c5a80173216e4277bea2283a860be41323",
+    "app/bk7258/bk7258_control_session.c": "92f47139b993fb11fdc18f0a33c058aea265c447662cbb18a7f21e651e302716",
+    "app/bk7258/bk7258_control_session.h": "93f9e21274e9894067df5a3b59192b4dee2c4ec1b21b8f7e4bb90c30dd44b054",
+    "app/bk7258/bk7258_nfc_control.c": "1bc9719dc781c45e71d9d51ffc4e433c67757491e0cce1c9458375ddcf339c26",
+    "app/bk7258/bk7258_nfc_control.h": "817153cdaf14641e8069db30729319c220dd8331dac943dbd6abbea727128d6a",
+    "app/bk7258/bk7258_nfc_jobs.inc": "c669af23c905fb6e32bdb5605ee45d8ec7d47a2070f4660369da29356140f473",
+    "app/bk7258/bk7258_nfc_service.h": "ded97c1c4c082cc9a4deb388917555b61b65bd3e0f231fa5104773e2edb92dc8",
+    "goal-objective.md": "0c7bd53c0032263a24be995b0854d781490dee434bd13a8f2663f37557c3e371",
+    "tests/host/bk7258/Makefile": "b3d80fd944068033d11b48ead9120f88f0a740c7421ad41e03a60e543c02abac",
+    "tests/host/bk7258/README.md": "af1619d5b82816447eb58d668ff6de528ad0121c28da5e89f8584cf1a85cfcfd",
+    "tests/host/bk7258/acceptance/NFC_CONTROL_V1.md": "aa805207b6eb76e83bca007c3358d2293dab4dc3e5d292f4070447930377601c",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "25ee94b0b203e06b46b52a24a06b40d730152dd0b6975ec432c8e36d3d936939",
+    "tests/host/bk7258/test_shaniu_contracts.py": "43ad97c2d32758bf4c213d10a4c7041da01ffcf94422e0034541dfc7265b97e3",
+    "tests/host/bk7258/test_shaniu_nfc_control.c": "c88fa5ae34b4699a9e0b266a10fc6612cb3081cd2443e4726925c9fb4581f215",
+    "tests/host/bk7258/test_shaniu_nfc_jobs.c": "4f40bac114ed505bec06a3ae27973978c0a4753ac5c52b955f1a763b0c147ecb"
+  },
+  "logs": {
+    "cancel-initial.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "invalid-green.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "contracts.log": {
+      "sha256": "ec0c20e3f844f414c0ac05345b5976ee6ae197c7f6f98bbb611769185c3a7717",
+      "bytes": 11425
+    },
+    "cancel-green.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "mutation-auth-restored.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "mutation-floor-mutated.log": {
+      "sha256": "17ef5da61cb40fcc3c04a21bd93cfa9ae15de4a873fb9dd133e88030a5f385dc",
+      "bytes": 128
+    },
+    "symbols.log": {
+      "sha256": "a18c29cd342efb46e6f944896f6c637877c273fc5221c0d5a2a3afecaec9393b",
+      "bytes": 195
+    },
+    "quiesce-initial.log": {
+      "sha256": "f5591e06266cc1fe44de9bc56986d29dc352d3a0326537c7de582c0dcc7cb2d2",
+      "bytes": 124
+    },
+    "disconnect-green.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "staging.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "interface-missing.log": {
+      "sha256": "08a04ee21ec0f539a58524eed75ba2773f571cd532a4025c567cb639e7304b81",
+      "bytes": 1844
+    },
+    "mutation-setup-error.log": {
+      "sha256": "9bba9bcd71de2fee77f69a1d2b3f86a4c45120145a367f3fa8b8d67e52ac4ce0",
+      "bytes": 268
+    },
+    "quiesce-green.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "build.log": {
+      "sha256": "8f67fa7d6096117376a2b4acb48cffdcf083cb0a2750db32671147c16fff4f4d",
+      "bytes": 13836
+    },
+    "sequence.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "manifest.log": {
+      "sha256": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac",
+      "bytes": 236
+    },
+    "mutation-floor-restored.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "compile-green.log": {
+      "sha256": "dfdab024e07aec2e5f533be7182b8bae6c8ecaff86e015f298476fcd591edd60",
+      "bytes": 1091
+    },
+    "compile-extra.log": {
+      "sha256": "dfdab024e07aec2e5f533be7182b8bae6c8ecaff86e015f298476fcd591edd60",
+      "bytes": 1091
+    },
+    "auth-initial.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "compile.log": {
+      "sha256": "dc3c07feda3f34e08ff6958b06aa6516992a378900712dfe310f00966625d4da",
+      "bytes": 1994
+    },
+    "mutation-auth-mutated.log": {
+      "sha256": "3271ee3a9e4bb707418d851a62dc138ca5bfe8ed2cc81457bd00788ad72daabe",
+      "bytes": 121
+    },
+    "disconnect-initial.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "auth-green.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "floor.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "invalid-initial.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    }
+  },
+  "raw_evidence": {
+    "cancel-initial.log": "CONTRACT_PASS\n",
+    "invalid-green.log": "CONTRACT_PASS\n",
+    "contracts.log": "unittest.case.FunctionTestCase (run)\nK2-01.release-2999 ... ok\nunittest.case.FunctionTestCase (run)\nK2-01.release-3000 ... ok\nunittest.case.FunctionTestCase (run)\nK2-01.release-3001 ... ok\nunittest.case.FunctionTestCase (run)\nK2-01.held ... ok\nunittest.case.FunctionTestCase (run)\nK2-03.epoch ... ok\nunittest.case.FunctionTestCase (run)\nK2-03.rollback ... ok\nunittest.case.FunctionTestCase (run)\nK2-03.release-rollback ... ok\nunittest.case.FunctionTestCase (run)\nK2-03.combination ... ok\nunittest.case.FunctionTestCase (run)\nK2-03.volume ... ok\nunittest.case.FunctionTestCase (run)\nDISP-01.power-pixels ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.failed-start-handoff ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.pixels ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.render ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.rf-switch ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.rf-stuck ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.rf-registration ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.rf-registration-failure ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.rf-close ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.rf-open-cleanup ... ok\nunittest.case.FunctionTestCase (run)\nRST-02.nfc-busy ... ok\nunittest.case.FunctionTestCase (run)\nRST-02.nfc-failed ... ok\nunittest.case.FunctionTestCase (run)\nRST-02.nfc-owner_failure_still_closes_admission ... ok\nunittest.case.FunctionTestCase (run)\nRST-02.nfc-resume_failure ... ok\nunittest.case.FunctionTestCase (run)\nRST-02.nfc-power_intent_and_no_reset ... ok\nunittest.case.FunctionTestCase (run)\nRST-01.nfc-filesystem ... ok\nunittest.case.FunctionTestCase (run)\nRST-01.nfc-cleanup ... ok\nunittest.case.FunctionTestCase (run)\nRST-01.bindings-reset ... ok\nunittest.case.FunctionTestCase (run)\nRST-01.bindings-reset-sync ... ok\nunittest.case.FunctionTestCase (run)\nRST-01.bindings-reset-path ... ok\nunittest.case.FunctionTestCase (run)\nRST-01.bindings-reset-absent ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.jobs-persist ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.jobs-cancel ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.jobs-stop ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.jobs-pending ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.jobs-failure ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.jobs-reset ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.jobs-commit ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.jobs-unknown ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.jobs-remove ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.jobs-conflict ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.control-auth ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.control-invalid ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.control-cancel ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.control-disconnect ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.control-quiesce ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.control-floor ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.control-sequence ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.control-staging ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.selection-probe_error ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.selection-timeout ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.selection-malformed ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.selection-select_error ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.selection-invalid ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.selection-valid ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.card-valid ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.card-error ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.card-close ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.card-version ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.card-replay ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.card-validation ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.card-malformed ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.bindings-persist ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.bindings-revision ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.bindings-invalid ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.bindings-writefail ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.bindings-durability ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.bindings-corrupt ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.nfc-queued ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.nfc-active ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.nfc-close-error ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.nfc-rf-error ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.nfc-prestart ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.nfc-late ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-nfc-busy ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-nfc-failed ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.intent-voice ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.intent-gate ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.intent-revision ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.intent-cancel ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.intent-invalid ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.shared-start ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.shared-retry ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.shared-cancel ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.shared-invalid ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.clock ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.replay ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.invalid ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.wire ... ok\nunittest.case.FunctionTestCase (run)\nAUD-03.media-tail ... ok\nunittest.case.FunctionTestCase (run)\nAUD-03.media-cancel-next ... ok\nunittest.case.FunctionTestCase (run)\nNET-02.display-snapshot ... ok\nunittest.case.FunctionTestCase (run)\nDISP-01.expression-intent ... ok\nunittest.case.FunctionTestCase (run)\nDISP-01.expression-cancel ... ok\nunittest.case.FunctionTestCase (run)\nRES-02.trial-wire ... ok\nunittest.case.FunctionTestCase (run)\nRES-02.expression-trial ... ok\nunittest.case.FunctionTestCase (run)\nRES-02.expression-ownership ... ok\nunittest.case.FunctionTestCase (run)\nCFG-02.models-unknown ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.backend-stop-normal ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.backend-stop-retry ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.backend-stop-start-cleanup ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.backend-stop-close-error ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-normal ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-admission-failure ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-partial-failure ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-cp-declined ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-cp-unknown ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-admission-stops-trigger ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-storage-stops-trigger ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-trigger-failure ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-unpublished-trigger ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-admission-drains ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-failed-drains ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-final-close-drains ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-failure-display ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.quiesce-queries ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.quiesce-staging ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.quiesce-config-staging ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.quiesce-ota-commit ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.quiesce-invalid ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.owner-queries ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.owner-unauthenticated ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.owner-invalid-sequence ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.owner-legacy ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-01.owner-integration ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.capture-close-failure ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.capture-route-failure ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.acquiring ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.releasing ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.retry ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.unmount-failure ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.local-busy ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.wrong-owner ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.handoff ... ok\nunittest.case.FunctionTestCase (run)\nAUD-01.pcm-1 ... ok\nunittest.case.FunctionTestCase (run)\nAUD-01.pcm-20260924 ... ok\nunittest.case.FunctionTestCase (run)\nAUD-01.pcm-4294967295 ... ok\nunittest.case.FunctionTestCase (run)\nAUD-03.cancel-late ... ok\nunittest.case.FunctionTestCase (run)\nAUD-01.sse-1 ... ok\nunittest.case.FunctionTestCase (run)\nAUD-01.sse-20260924 ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.uid-empty ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.select-timeout ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.select-error ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.uid-size ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.uid-incomplete ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.uid-4 ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.uid-7 ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.uid-10 ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.empty ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.oversize ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.hce-positive ... ok\nunittest.case.FunctionTestCase (run)\nK2-01.legacy-suite ... ok\nunittest.case.FunctionTestCase (run)\nMSC-02.legacy-suite ... ok\nunittest.case.FunctionTestCase (run)\nMOT-01.legacy-suite ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.legacy-suite ... ok\nunittest.case.FunctionTestCase (run)\nCFG-01.wifi-reopen ... ok\nunittest.case.FunctionTestCase (run)\nSTORE-02.file-sync-failure ... ok\nunittest.case.FunctionTestCase (run)\nSTORE-02.file-sync-retry ... ok\nunittest.case.FunctionTestCase (run)\nSTORE-02.directory-sync-unknown ... ok\nunittest.case.FunctionTestCase (run)\nCFG-03.stale ... ok\nunittest.case.FunctionTestCase (run)\nCFG-03.conflict ... ok\nunittest.case.FunctionTestCase (run)\nCFG-03.keep-key ... ok\nunittest.case.FunctionTestCase (run)\nCFG-03.replace-key ... ok\nunittest.case.FunctionTestCase (run)\nCFG-03.clear-cloud ... ok\nunittest.case.FunctionTestCase (run)\nCFG-03.cross-host-retain ... ok\nunittest.case.FunctionTestCase (run)\nSTORE-02.restart-before-publish ... ok\nunittest.case.FunctionTestCase (run)\nSTORE-02.restart-after-publish ... ok\n\n----------------------------------------------------------------------\nRan 166 tests in 7.413s\n\nOK\nunittest.case.FunctionTestCase (run)\nCFG-01.restored ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.restored ... ok\n\n----------------------------------------------------------------------\nRan 2 tests in 0.066s\n\nOK\n{\"PASS\": 217, \"FAIL_ASSERTION\": 0, \"SETUP_ERROR\": 0, \"NOT_RUN\": 0} production_unchanged= True\n",
+    "cancel-green.log": "CONTRACT_PASS\n",
+    "mutation-auth-restored.log": "CONTRACT_PASS\n",
+    "mutation-floor-mutated.log": "test: /tmp/tmpbiahrelu/test_shaniu_nfc_control.c:68: main: Assertion `status.operation_floor==50 && status.revision==1' failed.\n",
+    "symbols.log": "0216aca4 00000084 T bk7258_nfc_job_cancel\n0216ad28 0000004c T bk7258_nfc_job_status\n0216ab04 000001a0 T bk7258_nfc_job_submit\n021699f0 000001f8 T bknfc_control\n28051a60 00000480 d g_bknfc_server\n",
+    "quiesce-initial.log": "test_shaniu_nfc_control: test_shaniu_nfc_control.c:76: main: Assertion `packet(BKCONTROL_CONFIG_READ,readarg,4)==0' failed.\n",
+    "disconnect-green.log": "CONTRACT_PASS\n",
+    "staging.log": "CONTRACT_PASS\n",
+    "interface-missing.log": "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\nmkdir -p build/sensor-rpc-include/nuttx/ build/sensor-rpc-include/nuttx/rpmsg/ build/sensor-rpc-include/nuttx/sensors/\nmkdir -p build/sensor-rpc-include/nuttx/contactless build/sensor-rpc-include/nuttx/fs\nln -sf /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/../nuttx/include/nuttx/contactless/ioctl.h build/sensor-rpc-include/nuttx/contactless/ioctl.h\nrm -f build/sensor-rpc-include/nuttx/fs/ioctl.h\nprintf '#define _CLIOC(nr) (0x2400 | (nr))\\n' > build/sensor-rpc-include/nuttx/fs/ioctl.h\ntouch build/sensor-rpc-include/.ready\ncc -std=c11 -Wall -Wextra -Werror -Wno-unused-function \\\n\t-fsanitize=undefined -fno-sanitize-recover=all \\\n\t-I build/sensor-rpc-include -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_bk7258_nfc_rpc.c -o build/test_bk7258_nfc_rpc\ncc -std=gnu11 -Wall -Wextra -Werror -Wno-unused-function -I build/sensor-rpc-include \\\n  -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/nuttx/include -I /home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/include \\\n  test_shaniu_nfc_jobs.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_bindings.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_store.c -Wl,--wrap=fsync build/voice-ota-store-mbedtls/library/libmbedcrypto.a -o build/test_shaniu_nfc_jobs\nmake: *** No rule to make target '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_control.c', needed by 'build/test_shaniu_nfc_control'.  Stop.\nmake: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\n",
+    "mutation-setup-error.log": "SETUP_ERROR: mutation selector 'if (!s->authenticated)' matched both packet authentication and quiesce admission (2 locations). No mutant executed. Refined selector to the packet authentication block with the difference variable; no production/test assertion changed.\n",
+    "quiesce-green.log": "CONTRACT_PASS\n",
+    "build.log": "LIBCLANG_PATH set to: /home/lijian/project/open-vela/prebuilts/rust/linux/extra_libs\nincluding vendor/beken/boards/bk7258/build/vendorsetup.sh\nincluding vendor/infineon/boards/aurix/build/vendorsetup.sh\nincluding vendor/infineon/boards/aurix_tc3/build/vendorsetup.sh\nincluding vendor/openvela/boards/build/vendorsetup.sh\ncustom CMake binary dir: /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake\n lunch .//out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/configs/mcuboot/cp /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake \nThe current build configuration lunched with: \u001b[32m[nuttx]-[configs]-[cp]!\u001b[0m\n\n\u001b[32m#### BINARY directory is set: /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake\u001b[0m\n\n  cmake --build /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake -j4  --\n[0/2] Re-checking globbed directories...\n[1/2] Re-running CMake...\n-- NuttX Host Tools\n-- Configuring done\n-- Generating done\n-- Build files have been written to: /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/bin_host\n-- ╭─────────────────────────────────────────────────╮\n-- │  Vela build custom modules base on NuttX build  |\n-- ╰─────────────────────────────────────────────────╯\n-- libmetal version: 1.7.0 (/home/lijian/project/open-vela/nuttx)\n-- Build type:  \n-- Host:    Linux/x86_64\n-- Target:  NuttX/arm\n-- Machine: arm\n-- Vendor: none\n-- open-amp version: 1.7.0 (/home/lijian/project/open-vela/nuttx/openamp/open-amp)\n-- Host:    Linux/x86_64\n-- Target:  NuttX/arm\n-- Machine: arm\n-- C_FLAGS :  -Wall -Wextra\n-- Configuring done\n-- Generating done\n-- Build files have been written to: /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake\n[0/4] Re-checking globbed directories...\n[1/15] cd /home/lijian/project/open-vela/nuttx && /home/lijian/project/open-vela/prebuilts/tools/cmake/bin/cmake -DKCONFIG_CONFIG=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/configs/mcuboot/cp/defconfig -DNUTTX_DIR=/home/lijian/project/open-vela/nuttx -DCMAKE_BINARY_DIR=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake -P /home/lijian/project/open-vela/nuttx/cmake/nuttx_generate_dts.cmake\n[2/15] Generating bin output directories\n[3/15] Building C object apps/CMakeFiles/apps.dir/dummy.c.o\n[4/15] Building C object boards/CMakeFiles/board.dir/__/dummy.c.o\n[5/15] Building C object apps/external/android/CMakeFiles/android.dir/dummy.c.o\n[6/15] Building C object CMakeFiles/nuttx.dir/empty.c.o\n[7/15] Linking C static library apps/external/android/libandroid.a\n[8/15] Linking C static library boards/libboard.a\n[9/15] Linking C static library apps/libapps.a\n[10/15] Linking C executable nuttx\n[11/15] Generating System.map\n[12/15] Generating nuttx.bin\n\n#### build completed successfully (3 seconds) ####\nLIBCLANG_PATH set to: /home/lijian/project/open-vela/prebuilts/rust/linux/extra_libs\nincluding vendor/beken/boards/bk7258/build/vendorsetup.sh\nincluding vendor/infineon/boards/aurix/build/vendorsetup.sh\nincluding vendor/infineon/boards/aurix_tc3/build/vendorsetup.sh\nincluding vendor/openvela/boards/build/vendorsetup.sh\ncustom CMake binary dir: /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake\n lunch .//out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/configs/mcuboot/ap /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake \nThe current build configuration lunched with: \u001b[32m[nuttx]-[configs]-[ap]!\u001b[0m\n\n\u001b[32m#### BINARY directory is set: /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake\u001b[0m\n\n  cmake --build /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake -j4  --\n[0/2] Re-checking globbed directories...\n[1/2] Re-running CMake...\n-- NuttX Host Tools\n-- Configuring done\n-- Generating done\n-- Build files have been written to: /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/bin_host\n-- ╭─────────────────────────────────────────────────╮\n-- │  Vela build custom modules base on NuttX build  |\n-- ╰─────────────────────────────────────────────────╯\n-- libmetal version: 1.7.0 (/home/lijian/project/open-vela/nuttx)\n-- Build type:  \n-- Host:    Linux/x86_64\n-- Target:  NuttX/arm\n-- Machine: arm\n-- Vendor: none\n-- open-amp version: 1.7.0 (/home/lijian/project/open-vela/nuttx/openamp/open-amp)\n-- Host:    Linux/x86_64\n-- Target:  NuttX/arm\n-- Machine: arm\n-- C_FLAGS :  -Wall -Wextra\n-- AIDK personalized wake reply selected\n-- AIDK wake reply PCM sha256=772a8aa9841a96bf96acdce733e4e6a67c2b46968333edb51fedc7511e3cc42f\n-- Agent framework: filtered official sources, 31 kept\n--   agent source: src/core/message_bus.c\n--   agent source: src/core/agent_loop.c\n--   agent source: src/core/agent_trace.c\n--   agent source: src/core/context_builder.c\n--   agent source: src/core/memory_store.c\n--   agent source: src/core/session_mgr.c\n--   agent source: src/core/arena_alloc.c\n--   agent source: src/llm/llm_proxy.c\n--   agent source: src/llm/llm_stream.c\n--   agent source: src/llm/llm_parse.c\n--   agent source: src/llm/llm_vision.c\n--   agent source: src/llm/llm_router.c\n--   agent source: src/llm/llm_cache.c\n--   agent source: src/infra/http_proxy.c\n--   agent source: src/infra/vela_tls.c\n--   agent source: src/infra/config_store.c\n--   agent source: src/tools/tool_registry.c\n--   agent source: src/tools/tool_files.c\n--   agent source: src/tools/skill_loader.c\n--   agent source: src/tools/tool_guard.c\n--   agent source: src/voice/volc_tts.c\n--   agent source: src/voice/volc_tts_ws.c\n--   agent source: src/voice/volc_asr.c\n--   agent source: src/voice/funasr_asr.c\n--   agent source: src/voice/voice_tts.c\n--   agent source: src/voice/voice_asr.c\n--   agent source: src/voice/audio_capture.c\n--   agent source: src/voice/voice_endpoint.c\n--   agent source: src/voice/audio_playback.c\n--   agent source: src/voice/voice_channel.c\n--   agent source: src/stubs.c\n-- Configuring done\n-- Generating done\n-- Build files have been written to: /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake\n[0/4] Re-checking globbed directories...\n[1/35] Generating bin output directories\n[2/35] cd /home/lijian/project/open-vela/nuttx && /home/lijian/project/open-vela/prebuilts/tools/cmake/bin/cmake -DKCONFIG_CONFIG=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/configs/mcuboot/ap/defconfig -DNUTTX_DIR=/home/lijian/project/open-vela/nuttx -DCMAKE_BINARY_DIR=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake -P /home/lijian/project/open-vela/nuttx/cmake/nuttx_generate_dts.cmake\n[3/35] cd /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/apps && cmake --build /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/bin_host --target incdir\nConsolidate compiler generated dependencies of target incdir\n[100%] Built target incdir\n[4/35] cd /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/apps && cmake --build /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/bin_host --target mkdeps\nConsolidate compiler generated dependencies of target mkdeps\n[200%] Built target mkdeps\n[5/35] Building C object apps/CMakeFiles/apps.dir/dummy.c.o\n[6/35] Building C object boards/CMakeFiles/board.dir/__/dummy.c.o\n[7/35] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_control_session.c.o\n[8/35] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_provision_config.c.o\n[9/35] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_provision_owner.c.o\n[10/35] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_control_pair.c.o\n[11/35] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_product_lifecycle.c.o\n[12/35] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_focus.c.o\n[13/35] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_focus_intent.c.o\n[14/35] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_agent_memory.c.o\n[15/35] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_agent_ota.c.o\n[16/35] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_display_trial_control.c.o\n[17/35] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_nfc_control.c.o\n[18/35] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_agent_trigger.c.o\n[19/35] Building C object apps/external/android/CMakeFiles/android.dir/dummy.c.o\n[20/35] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_agent_product.c.o\n../../../../../../../../../../apps/system/bk7258/bk7258_agent_product.c: In function 'install_product_skills':\n../../../../../../../../../../apps/system/bk7258/bk7258_agent_product.c:2765:5: warning: missing braces around initializer [-Wmissing-braces]\n 2765 |     {\n      |     ^\n 2766 |       \"device-assistant.md\", g_product_skill_device_assistant\n      |       {\n 2767 |     };\n      |     }\n[21/35] Linking C static library apps/external/android/libandroid.a\n[22/35] Linking C static library boards/libboard.a\n[23/35] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_nfc_service.c.o\n[24/35] Linking CXX static library apps/libapps.a\n[25/35] Performing build step for 'ffmpeg_out_tree'\n[26/35] Performing install step for 'ffmpeg_out_tree'\n[27/35] Completed 'ffmpeg_out_tree'\n[28/35] Building C object CMakeFiles/nuttx.dir/empty.c.o\n[29/35] Building CXX object CMakeFiles/nuttx.dir/empty.cxx.o\n[30/35] Linking CXX executable nuttx\n[31/35] Generating nuttx.bin\n[32/35] Generating System.map\n\n#### build completed successfully (8 seconds) ####\nbk7258 layer gate: PASS sources=526 kconfig=253 legacy-exceptions=2\nbk7258 build: PASS layout=bk7258-510173147382a879\nbl1 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.map\nbl2 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.map copy_size=13632\ncp elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.map identity=bk7258-role-9a0b5b6e466d063f seed=41811cb113e14cd5ce35630f0a6d42f0d32f88a10c512bb971734bce9a28c016 config=dd503376e1b5436c9221274dc5a9ff86bf2e49660dfad4d306292e1113d82bed\nap elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.map identity=bk7258-role-5a3061a4da19ae9f seed=9507a2073a35e2970300a150395dc4d8c48458a68cb24412497ab54c714a7fec config=4e73b6c67a5176a8136b7c46a43c46329f7ef19e5ec74e626937d64bdeddfcee\nbuild manifest=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json\n",
+    "sequence.log": "CONTRACT_PASS\n",
+    "manifest.log": "bk7258 verify build-manifest: PASS boot=mcuboot board=aidk_ai_toy layout=bk7258-510173147382a879 source=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json\n",
+    "mutation-floor-restored.log": "CONTRACT_PASS\n",
+    "compile-green.log": "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\ncc -std=gnu11 -Wall -Wextra -Werror -Wno-unused-function -DCONFIG_BK7258_PROVISION_GATT=1 -I build/sensor-rpc-include \\\n  -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/nuttx/include -I /home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/include \\\n  test_shaniu_nfc_control.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_control.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_control_session.c \\\n  /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_bindings.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_store.c -Wl,--wrap=fsync build/voice-ota-store-mbedtls/library/libmbedcrypto.a -o build/test_shaniu_nfc_control\nmake: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\n",
+    "compile-extra.log": "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\ncc -std=gnu11 -Wall -Wextra -Werror -Wno-unused-function -DCONFIG_BK7258_PROVISION_GATT=1 -I build/sensor-rpc-include \\\n  -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/nuttx/include -I /home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/include \\\n  test_shaniu_nfc_control.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_control.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_control_session.c \\\n  /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_bindings.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_store.c -Wl,--wrap=fsync build/voice-ota-store-mbedtls/library/libmbedcrypto.a -o build/test_shaniu_nfc_control\nmake: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\n",
+    "auth-initial.log": "CONTRACT_PASS\n",
+    "compile.log": "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\ncc -std=c11 -Wall -Wextra -Werror -Wno-unused-function \\\n\t-fsanitize=undefined -fno-sanitize-recover=all \\\n\t-I build/sensor-rpc-include -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_bk7258_nfc_rpc.c -o build/test_bk7258_nfc_rpc\ncc -std=gnu11 -Wall -Wextra -Werror -Wno-unused-function -I build/sensor-rpc-include \\\n  -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/nuttx/include -I /home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/include \\\n  test_shaniu_nfc_jobs.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_bindings.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_store.c -Wl,--wrap=fsync build/voice-ota-store-mbedtls/library/libmbedcrypto.a -o build/test_shaniu_nfc_jobs\ncc -std=gnu11 -Wall -Wextra -Werror -Wno-unused-function -DCONFIG_BK7258_PROVISION_GATT=1 -I build/sensor-rpc-include \\\n  -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/nuttx/include -I /home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/include \\\n  test_shaniu_nfc_control.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_control.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_control_session.c \\\n  /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_bindings.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_store.c -Wl,--wrap=fsync build/voice-ota-store-mbedtls/library/libmbedcrypto.a -o build/test_shaniu_nfc_control\nmake: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\n",
+    "mutation-auth-mutated.log": "test: /tmp/tmpuxxr2mjf/test_shaniu_nfc_control.c:50: main: Assertion `packet(BKCONTROL_CONFIG_READ,readarg,4)<0' failed.\n",
+    "disconnect-initial.log": "CONTRACT_PASS\n",
+    "auth-green.log": "CONTRACT_PASS\n",
+    "floor.log": "CONTRACT_PASS\n",
+    "invalid-initial.log": "CONTRACT_PASS\n"
+  }
+}

@@ -28,6 +28,7 @@ struct bknfc_job_status_s
 {
   uint64_t operation;
   uint64_t revision;
+  uint64_t operation_floor;
   uint64_t durations[8];
   unsigned int phase;
   int error;

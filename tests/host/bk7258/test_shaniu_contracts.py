@@ -425,6 +425,7 @@ def main():
         "test_shaniu_focus_intent",
         "test_shaniu_nfc_bindings",
         "test_shaniu_nfc_jobs",
+        "test_shaniu_nfc_control",
         "test_shaniu_nfc_quiesce",
         "test_shaniu_focus_pixels",
         "test_shaniu_focus_render",
@@ -614,6 +615,24 @@ def main():
             "L2",
             [HERE / "build/test_shaniu_nfc_jobs", variant],
             binaries["test_shaniu_nfc_jobs"],
+        )
+    for variant in (
+        "auth",
+        "invalid",
+        "cancel",
+        "disconnect",
+        "quiesce",
+        "floor",
+        "sequence",
+        "staging",
+    ):
+        add(
+            suite,
+            "NFC-02.control-" + variant,
+            "NFC-02",
+            "L2",
+            [HERE / "build/test_shaniu_nfc_control", variant],
+            binaries["test_shaniu_nfc_control"],
         )
     for variant in (
         "probe_error",

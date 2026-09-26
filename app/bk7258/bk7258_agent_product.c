@@ -84,6 +84,7 @@
 #include "bk7258_nfc_service.h"
 #ifdef CONFIG_BK7258_PROVISION_GATT
 #include "bk7258_nfc_bindings.h"
+#include "bk7258_nfc_control.h"
 #endif
 #endif
 #include "bk7258_display_trial_control.h"
@@ -1285,10 +1286,18 @@ static int product_config(void *context, enum bkcontrol_command_e command,
     return bkdisplay_trial_control(command, offset, record, size, status,
                                    bkvoice_config_now_ms(NULL));
 #endif
+#if defined(CONFIG_BK7258_NFC_SERVICE) && defined(CONFIG_BK7258_PROVISION_GATT)
+  if (kind == BKCONTROL_CONFIG_NFC_BINDINGS && command == BKCONTROL_CONFIG_READ)
+    return bknfc_control(command, offset, record, size, status);
+#endif
   if (bkagent_ota_busy())
     {
       return -EBUSY;
     }
+#if defined(CONFIG_BK7258_NFC_SERVICE) && defined(CONFIG_BK7258_PROVISION_GATT)
+  if (kind == BKCONTROL_CONFIG_NFC_BINDINGS)
+    return bknfc_control(command, offset, record, size, status);
+#endif
 
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
   if (kind == BKCONTROL_CONFIG_EXPRESSION_TRIAL)

@@ -43,6 +43,8 @@ static void stop_read(void)
 {
   assert(bk7258_nfc_service_quiesce(true)==-EBUSY);
 }
+
+#ifndef NFC_JOBS_NO_MAIN
 int main(int argc,char **argv)
 {
   assert(argc==2);
@@ -118,3 +120,5 @@ int main(int argc,char **argv)
   assert(rmdir(job_root)==0 && rmdir(parent)==0);
   puts("CONTRACT_PASS");return 0;
 }
+
+#endif

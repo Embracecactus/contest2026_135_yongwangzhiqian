@@ -36,12 +36,13 @@ int bk7258_nfc_job_submit(const struct bknfc_job_request_s *request)
   else if (!__atomic_load_n(&s->initialized, __ATOMIC_ACQUIRE)) ret = -ENODEV;
   else if (request->operation == s->job.operation)
     ret = bknfc_job_same(request, &s->job) ? 0 : -EEXIST;
-  else if (request->operation < s->job.operation) ret = -ESTALE;
+  else if (request->operation <= s->job_status.operation_floor) ret = -ESTALE;
   else if (bknfc_job_busy(s) || s->active || s->io_active || s->release_pending)
     ret = -EBUSY;
   else
     {
       s->job = *request;
+      s->job_status.operation_floor = request->operation;
       s->job_cancel = false;
       s->job_status.operation = request->operation;
       s->job_status.phase = BKNFC_JOB_PENDING;
@@ -147,6 +148,11 @@ static bool bknfc_job_work(struct bknfc_server_s *s)
   s->job_status.phase = canceled ? BKNFC_JOB_CANCELED :
     ret == -EINPROGRESS ? BKNFC_JOB_UNKNOWN : ret ? BKNFC_JOB_FAILED : BKNFC_JOB_SUCCEEDED;
   s->job_status.revision = s->bindings.revision;
+  uint64_t durable_operation = 0;
+  for (unsigned int i = 8; i < 16; i++)
+    durable_operation = (durable_operation << 8) | s->bindings.transaction[i];
+  if (durable_operation > s->job_status.operation_floor)
+    s->job_status.operation_floor = durable_operation;
   for (unsigned int i = 0; i < BKNFC_BINDING_SLOTS; i++)
     s->job_status.durations[i] = s->bindings.uncertain ? 0 : s->bindings.entries[i].duration_ms;
   s->io_active = false;
