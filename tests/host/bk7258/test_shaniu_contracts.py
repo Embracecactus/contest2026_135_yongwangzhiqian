@@ -681,6 +681,15 @@ def main():
             [HERE / "build/test_agent_tts_queue", variant],
             binaries["test_agent_tts_queue"],
         )
+    for variant in ("empty", "oversize", "hce-positive"):
+        add(
+            suite,
+            "NFC-01." + variant,
+            "NFC-01",
+            "L1",
+            [HERE / "build/test_bk7258_nfc_core", variant],
+            binaries["test_bk7258_nfc_core"],
+        )
     for parent, name in (
         ("K2-01", "product_keys"),
         ("MSC-02", "usbmode_lease"),

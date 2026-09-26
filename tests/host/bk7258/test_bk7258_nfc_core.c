@@ -221,12 +221,76 @@ static void test_failed_sample_does_not_reuse_previous_result(void)
          fixture.close_calls == 2);
 }
 
-int main(void)
+static void test_scan_completion(int result, int expected)
 {
+  struct fixture_s fixture =
+  {
+    0
+  };
+  struct bknfc_rpc_request_s request = make_request();
+  struct bknfc_rpc_response_s response;
+
+  /* A prior successful observation must not survive incomplete selection. */
+
+  fixture.read_result = 1;
+  assert(bknfc_rpc_handle_request(&request, &response, &g_ops,
+                                &fixture) == 0);
+  assert(response.present == 1);
+  fixture.read_result = result;
+  request.sequence++;
+  assert(bknfc_rpc_handle_request(&request, &response, &g_ops,
+                                &fixture) == expected);
+  assert(response.operation_status == expected && response.present == 0);
+  assert(fixture.open_calls == 2 && fixture.close_calls == 2);
+  assert(bknfc_rpc_response_valid(&response));
+}
+
+static void test_hce_positive_result(void)
+{
+  struct fixture_s fixture =
+  {
+    0
+  };
+  struct bknfc_rpc_request_s request = make_request();
+  struct bknfc_rpc_response_s response;
+  struct bknfc_source_ops_s ops = g_ops;
+
+  request.command = BKNFC_RPC_HCE;
+  ops.hce = fixture_hce;
+  fixture.read_result = 1;
+  assert(bknfc_rpc_handle_request(&request, &response, &ops,
+                                &fixture) == -EPROTO);
+  assert(response.present == 0 && response.operation_status == -EPROTO);
+  assert(fixture.read_calls == 0 && fixture.close_calls == 1);
+}
+
+int main(int argc, char **argv)
+{
+  if (argc == 2)
+    {
+      if (strcmp(argv[1], "empty") == 0)
+        {
+          test_scan_completion(0, -ENODATA);
+        }
+      else if (strcmp(argv[1], "oversize") == 0)
+        {
+          test_scan_completion(2, -EPROTO);
+        }
+      else
+        {
+          assert(strcmp(argv[1], "hce-positive") == 0);
+          test_hce_positive_result();
+        }
+
+      puts("CONTRACT_PASS");
+      return 0;
+    }
+
+  assert(argc == 1);
   test_failed_sample_does_not_reuse_previous_result();
   test_hce_dispatch();
   test_result(1, 1);
-  test_result(0, 1);
+  test_scan_completion(0, -ENODATA);
   test_result(-EAGAIN, 0);
   test_errors_and_release();
   test_no_unreleasable_open();

@@ -13,8 +13,14 @@
 struct bknfc_source_ops_s
 {
   int (*open)(void *context);
+
+  /* Scan: exactly one byte completes selection; zero is incomplete. */
+
   int (*read)(void *context, void *buffer, size_t length);
   int (*close)(void *context);
+
+  /* HCE: zero completes the validated transaction; negatives are errors. */
+
   int (*hce)(void *context);
 };
 

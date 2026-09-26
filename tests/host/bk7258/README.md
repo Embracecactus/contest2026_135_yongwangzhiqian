@@ -869,3 +869,31 @@ RES-02 interface now has App/wire/device bindings and host evidence, but physica
 render/restoration, persistent-default interaction and broader UI accessibility
 remain unverified. N1/NFC/N3 are not completed by this slice. See
 `acceptance/s30-20260927.json` and `acceptance/s30-app-evidence-20260927.json`.
+
+### S31 — NFC completion is not any nonnegative result (2026-09-27)
+
+Before wiring NFC scenes, three production-core tests reproduce false presence
+on zero-byte or oversized scan completion and a positive HCE transaction return.
+Scan now requires exactly the requested one byte; zero is ENODATA, excess is
+EPROTO. HCE success remains zero, positive status is EPROTO. EAGAIN still means
+no card. Close errors win, stale presence is cleared, and the UID-free v1 wire
+contract is unchanged. This is not card identity or authorization.
+
+The old `test_result(0, 1)` assertion was incorrect: the selected driver's read
+returns zero when selection has not yielded a complete sample. It is replaced
+with a stricter negative assertion, not deleted to hide a regression. Evidence
+archives the original assertion/source and three pre-fix assertion failures.
+Two runner attempts reported SETUP_ERROR because the new executable marker was
+not CONTRACT_PASS (the marker parameter is boolean, not custom text). Both raw
+reports are preserved; the test now emits the existing required marker. No gate
+was relaxed. Final strict collection: 138 PASS, original 63 retained; original
+two mutations detected. A separate compiled mutation restoring broad nonnegative
+acceptance is detected by all three cases. Existing RPC integration: 19 cases
+pass. Incremental target build and manifest pass.
+
+No new thread, buffer, timer or I/O is introduced. No physical NFC/RF validation
+was performed; binding, persistence, dwell dedupe, scene dispatch and target card
+compatibility remain incomplete. The underlying driver selection path still
+needs separate review; these tests prove only the core's response to its input.
+Full-file nxstyle reports existing header/section/style issues; it is not marked
+PASS. See `acceptance/s31-20260927.json` and `acceptance/s31-nfc-evidence-20260927.json`.

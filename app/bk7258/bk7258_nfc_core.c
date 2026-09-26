@@ -123,11 +123,23 @@ int bknfc_rpc_handle_request(const struct bknfc_rpc_request_s *request,
       return 0;
     }
 
-  if (result >= 0)
+  /* Scan reads one byte; zero means no completed sample, not presence.
+   * HCE is a transaction status and succeeds only with zero. Keep these
+   * contracts separate so an incomplete selection cannot trigger a scene.
+   */
+
+  if ((request->command == BKNFC_RPC_SCAN &&
+       result == (int)sizeof(scratch)) ||
+      (request->command == BKNFC_RPC_HCE && result == 0))
     {
       response->operation_status = 0;
       response->present = 1;
       return 0;
+    }
+
+  if (result >= 0)
+    {
+      result = result == 0 ? -ENODATA : -EPROTO;
     }
 
   response->operation_status = result;

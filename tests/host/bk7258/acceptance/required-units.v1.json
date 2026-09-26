@@ -135,7 +135,10 @@
     "provision.ExpressionTrialControllerTest.unsupportedDeviceDoesNotPretendToTrial",
     "provision.ExpressionTrialControllerTest.rejectedBeginCannotCancelAnotherEditorsTransaction",
     "provision.ExpressionTrialControllerTest.closingActiveTrialDoesNotSendRemoteCancel",
-    "provision.ExpressionTrialControllerTest.invalidDurationAndMismatchedReceiptCannotClaimSuccess"
+    "provision.ExpressionTrialControllerTest.invalidDurationAndMismatchedReceiptCannotClaimSuccess",
+    "NFC-01.empty",
+    "NFC-01.oversize",
+    "NFC-01.hce-positive"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -274,6 +277,9 @@
     "provision.ExpressionTrialControllerTest.unsupportedDeviceDoesNotPretendToTrial",
     "provision.ExpressionTrialControllerTest.rejectedBeginCannotCancelAnotherEditorsTransaction",
     "provision.ExpressionTrialControllerTest.closingActiveTrialDoesNotSendRemoteCancel",
-    "provision.ExpressionTrialControllerTest.invalidDurationAndMismatchedReceiptCannotClaimSuccess"
+    "provision.ExpressionTrialControllerTest.invalidDurationAndMismatchedReceiptCannotClaimSuccess",
+    "NFC-01.empty",
+    "NFC-01.oversize",
+    "NFC-01.hce-positive"
   ]
 }
