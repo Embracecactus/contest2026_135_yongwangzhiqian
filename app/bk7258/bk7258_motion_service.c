@@ -56,6 +56,8 @@ struct bkmotion_server_s
   bool io_active;
   uint32_t epoch;
   uint32_t request_epoch;
+  uint32_t admission_epoch;
+  uint32_t request_admission_epoch;
   bool replay_valid;
   struct bkmotion_rpc_request_s active_request;
   struct bkmotion_rpc_request_s last_request;
@@ -175,11 +177,21 @@ int bk7258_motion_service_quiesce(bool stop)
 
   if (stop)
     {
+      /* Reopening admission cannot revive work accepted before this stop.
+       * Saturate instead of wrapping into an old ticket's identity.
+       */
+
+      if (!server->quiescing && server->admission_epoch < UINT32_MAX)
+        {
+          server->admission_epoch++;
+        }
+
       server->quiescing = true;
       server->replay_valid = false;
     }
 
   ret = server->io_active ? -EBUSY :
+    server->admission_epoch == UINT32_MAX ? -EOVERFLOW :
     __atomic_load_n(&server->source.release_error, __ATOMIC_ACQUIRE);
   if (!stop && ret == 0) server->quiescing = false;
   spin_unlock_irqrestore(&server->request_lock, flags);
@@ -187,16 +199,19 @@ int bk7258_motion_service_quiesce(bool stop)
 }
 
 static int bkmotion_collect(const struct bkmotion_rpc_request_s *request,
-                            struct bkmotion_rpc_response_s *response)
+                            struct bkmotion_rpc_response_s *response,
+                            uint32_t admission_epoch)
 {
   struct bkmotion_server_s *server = &g_bkmotion_server;
   irqstate_t flags = spin_lock_irqsave(&server->request_lock);
   bool stopped = server->quiescing;
+  bool revoked = server->admission_epoch != admission_epoch;
   spin_unlock_irqrestore(&server->request_lock, flags);
-  if (stopped)
+  if (stopped || revoked)
     {
-      bkmotion_rpc_make_response(response, request, -ESHUTDOWN);
-      return -ESHUTDOWN;
+      int error = stopped ? -ESHUTDOWN : -ECANCELED;
+      bkmotion_rpc_make_response(response, request, error);
+      return error;
     }
 
   int ret = nxmutex_lock(&server->sample_lock);
@@ -208,6 +223,7 @@ static int bkmotion_collect(const struct bkmotion_rpc_request_s *request,
 
   flags = spin_lock_irqsave(&server->request_lock);
   ret = server->quiescing ? -ESHUTDOWN :
+    server->admission_epoch != admission_epoch ? -ECANCELED :
     __atomic_load_n(&server->source.release_error, __ATOMIC_ACQUIRE);
   if (ret == 0) server->io_active = true;
   spin_unlock_irqrestore(&server->request_lock, flags);
@@ -249,7 +265,11 @@ int bk7258_motion_service_sample(struct bkmotion_rpc_response_s *sample)
   /* Local Agent and CP requests share this single sampling owner and mutex;
    * no second collection service is created.
    */
-  return bkmotion_collect(&request, sample);
+
+  irqstate_t flags = spin_lock_irqsave(&g_bkmotion_server.request_lock);
+  uint32_t admission_epoch = g_bkmotion_server.admission_epoch;
+  spin_unlock_irqrestore(&g_bkmotion_server.request_lock, flags);
+  return bkmotion_collect(&request, sample, admission_epoch);
 }
 
 static int bkmotion_send(struct bkmotion_server_s *server,
@@ -296,6 +316,7 @@ static int bkmotion_worker(int argc, char **argv)
       struct bkmotion_rpc_response_s response;
       irqstate_t flags;
       uint32_t epoch;
+      uint32_t admission_epoch;
 
       if (nxsem_wait_uninterruptible(&server->request_sem) < 0)
         {
@@ -317,10 +338,11 @@ static int bkmotion_worker(int argc, char **argv)
 
       server->pending = false;
       epoch = server->request_epoch;
+      admission_epoch = server->request_admission_epoch;
       memcpy(&request, &server->active_request, sizeof(request));
       spin_unlock_irqrestore(&server->request_lock, flags);
 
-      (void)bkmotion_collect(&request, &response);
+      (void)bkmotion_collect(&request, &response, admission_epoch);
 
       flags = spin_lock_irqsave(&server->request_lock);
       /* Old I/O still closes its own fd, but must not publish a result or
@@ -330,6 +352,15 @@ static int bkmotion_worker(int argc, char **argv)
       if (server->epoch == epoch && server->active &&
           server->request_epoch == epoch)
         {
+          /* Collection may have finished before stop/resume, while this
+           * result was still waiting to be committed to the response slot.
+           */
+
+          if (server->admission_epoch != admission_epoch)
+            {
+              bkmotion_rpc_make_response(&response, &request, -ECANCELED);
+            }
+
           memcpy(&server->last_request, &request, sizeof(request));
           memcpy(&server->last_response, &response, sizeof(response));
           server->replay_valid = true;
@@ -421,6 +452,7 @@ static int bkmotion_server_cb(struct rpmsg_endpoint *endpoint, void *data,
       server->active = true;
       server->pending = true;
       server->request_epoch = epoch;
+      server->request_admission_epoch = server->admission_epoch;
     }
 
   spin_unlock_irqrestore(&server->request_lock, flags);

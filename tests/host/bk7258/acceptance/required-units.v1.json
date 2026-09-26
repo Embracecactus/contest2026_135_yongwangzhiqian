@@ -305,7 +305,10 @@
     "MOT-02.candidate-cooldown",
     "MOT-02.candidate-creep",
     "MOT-02.candidate-extreme",
-    "MOT-02.candidate-gate-cooldown"
+    "MOT-02.candidate-gate-cooldown",
+    "MOT-01.quiesce-queued-cycle",
+    "MOT-01.quiesce-waiter-cycle",
+    "MOT-01.quiesce-publication-cycle"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -614,6 +617,9 @@
     "MOT-02.candidate-cooldown",
     "MOT-02.candidate-creep",
     "MOT-02.candidate-extreme",
-    "MOT-02.candidate-gate-cooldown"
+    "MOT-02.candidate-gate-cooldown",
+    "MOT-01.quiesce-queued-cycle",
+    "MOT-01.quiesce-waiter-cycle",
+    "MOT-01.quiesce-publication-cycle"
   ]
 }

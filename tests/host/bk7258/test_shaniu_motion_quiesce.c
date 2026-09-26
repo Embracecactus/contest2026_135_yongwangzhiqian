@@ -7,6 +7,11 @@ static void stop_during_read(void)
   assert(bk7258_motion_service_quiesce(true)==-EBUSY);
   assert(bk7258_motion_service_quiesce(false)==-EBUSY);
 }
+static void cycle_admission(void)
+{
+ assert(bk7258_motion_service_quiesce(true)==0);
+ assert(bk7258_motion_service_quiesce(false)==0);
+}
 int main(int argc,char **argv)
 {
  assert(argc==2);struct bkmotion_rpc_response_s sample;
@@ -17,7 +22,31 @@ int main(int argc,char **argv)
  } else {
   assert(bk7258_motion_service_start()==0);
   assert(bk7258_motion_service_quiesce(false)==0);
-  if(!strcmp(argv[1],"queued") || !strcmp(argv[1],"late")) {
+  if(!strcmp(argv[1],"publication-cycle")) {
+   bkmotion_ns_bind(&cp,&g_bkmotion_server,BKMOTION_RPC_ENDPOINT,1);
+   struct bkmotion_rpc_request_s r=request(1);assert(deliver(&r)==0);
+   unlock_hook=cycle_admission;drain_worker();
+   assert(opens==1 && closes==1 && last_wire.rpc_status==-ECANCELED);
+   assert(!last_wire.flags && !last_wire.timestamp_us);
+   assert(deliver(&r)==sizeof(last_wire));
+   assert(last_wire.rpc_status==-ECANCELED && opens==1);
+  } else if(!strcmp(argv[1],"queued-cycle") || !strcmp(argv[1],"waiter-cycle")) {
+   bool queued_cycle=!strcmp(argv[1],"queued-cycle");
+   if(queued_cycle) {
+    bkmotion_ns_bind(&cp,&g_bkmotion_server,BKMOTION_RPC_ENDPOINT,1);
+    struct bkmotion_rpc_request_s r=request(1);assert(deliver(&r)==0);
+    cycle_admission();drain_worker();
+    assert(last_wire.rpc_status==-ECANCELED && !last_wire.flags && !opens);
+    assert(deliver(&r)==sizeof(last_wire));
+    assert(last_wire.rpc_status==-ECANCELED && !opens);
+   } else {
+    lock_hook=cycle_admission;in_worker=true;
+    assert(bk7258_motion_service_sample(&sample)==-ECANCELED);
+    in_worker=false;assert(!sample.flags && !sample.timestamp_us && !opens);
+   }
+   in_worker=true;assert(bk7258_motion_service_sample(&sample)==0);in_worker=false;
+   assert(sample.flags && opens==1 && closes==1);
+  } else if(!strcmp(argv[1],"queued") || !strcmp(argv[1],"late")) {
    bkmotion_ns_bind(&cp,&g_bkmotion_server,BKMOTION_RPC_ENDPOINT,1);
    struct bkmotion_rpc_request_s r=request(1);assert(deliver(&r)==0);
    bool late=!strcmp(argv[1],"late");

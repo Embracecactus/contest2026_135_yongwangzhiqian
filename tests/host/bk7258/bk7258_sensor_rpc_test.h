@@ -70,6 +70,7 @@ static jmp_buf worker_idle;
 static bool in_worker;
 static int callback_depth;
 static void (*unlock_hook)(void);
+static void (*lock_hook)(void);
 static void (*sleep_hook)(void);
 static void (*wait_hook)(void);
 static void (*read_hook)(void);
@@ -91,7 +92,7 @@ static void run_hook(void (**slot)(void))
   *slot = NULL;
   if (fn != NULL) fn();
 }
-static int nxmutex_lock(mutex_t *m) { assert(*m == 0); *m = 1; return 0; }
+static int nxmutex_lock(mutex_t *m) { run_hook(&lock_hook); assert(*m == 0); *m = 1; return 0; }
 static int nxmutex_unlock(mutex_t *m)
 {
   assert(*m == 1); *m = 0;

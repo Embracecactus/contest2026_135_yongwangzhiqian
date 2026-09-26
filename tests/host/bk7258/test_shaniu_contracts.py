@@ -720,7 +720,10 @@ def main():
         add(suite, "MOT-02.candidate-" + variant, "MOT-02", "L1",
             [HERE / "build/test_shaniu_motion_actions", variant],
             binaries["test_shaniu_motion_actions"])
-    for variant in ("prestart", "queued", "active", "idle", "close-error", "open-cleanup", "late"):
+    for variant in (
+        "prestart", "queued", "active", "idle", "close-error", "open-cleanup",
+        "late", "queued-cycle", "waiter-cycle", "publication-cycle",
+    ):
         add(suite, "MOT-01.quiesce-" + variant, "MOT-01", "L2",
             [HERE / "build/test_shaniu_motion_quiesce", variant],
             binaries["test_shaniu_motion_quiesce"])

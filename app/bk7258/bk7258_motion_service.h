@@ -11,8 +11,12 @@
 #include "bk7258_motion_protocol.h"
 
 /* Stops software sampling admission; zero acknowledges no in-flight I/O.
- * This does not certify physical sensor power-down behind the uORB upper half.
+ * Stop revokes queued and waiting samples even after admission resumes.
+ * Admission identity exhaustion fails closed until device restart.
+ * This does not certify physical sensor power-down behind the uORB
+ * upper half.
  */
+
 int bk7258_motion_service_quiesce(bool stop);
 int bk7258_motion_service_prepare(void);
 int bk7258_motion_service_start(void);

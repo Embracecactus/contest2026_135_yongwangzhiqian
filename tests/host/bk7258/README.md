@@ -1726,3 +1726,40 @@ production sensitivity and cadence NOT_FROZEN pending physical observations and
 resource budget; actual gesture/voice coexistence L3 NOT_RUN. These gaps do not block
 independent USB work or other contracted slices. No physical device operation.
 See `acceptance/s55-20260927.json` and `s55-motion-candidates-evidence-20260927.json`.
+
+### S56 — stop/resume cannot revive accepted motion work (2026-09-27)
+
+Three independent deterministic schedules exercise the real service, collector,
+RPC cache and production core: RPC queued before stop/resume; a local request
+waiting for its sampling mutex across stop/resume; completed collection waiting
+for its response-slot commit across stop/resume. Each initially failed its
+behavior assertion. The external scheduler/descriptor peers remain substitutes;
+no production state machine is replaced. The new mutex hook only schedules one
+external boundary and is inert in existing cases.
+
+Admission now has a generation captured at RPC acceptance or local sampling
+entry, checked before/after acquiring the sample lock and before committing the
+RPC response. Stop invalidates the generation; resume never restores it. Repeated
+RPC delivery returns the canceled response without reopening the sensor. Fresh
+requests after resume remain usable. Generation exhaustion fails closed rather
+than wrapping; ordinary service_start does not clear this lifetime state. The
+wire ABI and endpoint connection generation remain unchanged. Already submitted
+transport messages cannot be recalled; this is not a complete transport drain.
+
+Final selected collection: 308 PASS = original63 +245added, including this slice's
+3 added cases. The original63 still includes two restore reruns. Thirteen runner
+gate checks, the original two mutation detections and three new isolated
+mutation detections/restores are reported separately. The preliminary307 run did
+not include the later publication-boundary regression and is not final evidence.
+Target build and manifest verified; actual ARM server state296bytes, +8bytes.
+No new thread, queue, DMA, file write or hardware poll. Added short lock sections
+and comparisons have no measured board CPU/p95 or stack high-water yet.
+
+Source-level integration PASS is not sensor shutdown or physical action proof.
+N1 candidate-to-worker/display binding remains BLOCKED_INTERFACE; production
+sensitivity/cadence remain NOT_FROZEN; L3 NOT_RUN. Read-only host preflight found
+only emulator-5554 in ADB and no Windows serial ports; no physical device was
+opened, installed, flashed or reset. Full-file nxstyle/Black checks still report
+pre-existing formatting issues and are not reported as passing gates.
+See `acceptance/s56-20260927.json` and
+`acceptance/s56-motion-admission-evidence-20260927.json`.
