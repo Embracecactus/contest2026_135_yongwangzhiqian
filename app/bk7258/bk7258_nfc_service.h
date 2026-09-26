@@ -37,6 +37,11 @@ struct bknfc_job_status_s
 int bk7258_nfc_job_submit(const struct bknfc_job_request_s *request);
 int bk7258_nfc_job_cancel(uint64_t operation);
 void bk7258_nfc_job_status(struct bknfc_job_status_s *status);
+#if defined(CONFIG_BK7258_APP_AGENT) && defined(CONFIG_CL_MFRC522_RF)
+/* 产品所有者发布准入；只改短状态，撤销本组件尚未应用的意图，不执行I/O。
+ * worker沿用500ms空闲等待，先释放RF再交给共同focus服务。 */
+void bk7258_nfc_scene_admit(bool admitted);
+#endif
 /* 已授权重置工作者：NFC退出后独占清理并使缓存失效，不恢复准入。 */
 int bk7258_nfc_bindings_reset(void);
 #endif

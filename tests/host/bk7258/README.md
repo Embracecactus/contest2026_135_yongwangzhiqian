@@ -1469,3 +1469,52 @@ reject shutdown/racing jobs, load authoritative bindings and feed only fresh res
 to the shared scene. Automatic scan timing and physical false absence need separate
 validation before claiming autonomous card-to-focus. No board flash/reset/scan was
 performed. See `acceptance/s49-20260927.json` and `s49-nfc-observation-evidence-20260927.json`.
+
+
+## S50 — existing worker invokes observations and shared focus service
+
+The product owner publishes NFC admission only when bound, outside OTA and with
+an idle voice channel (or voice not initialized, preserving offline local use).
+Reset and power paths revoke admission. The existing NFC worker uses its existing
+500ms idle wait, not a new thread/timer. It loads the internal binding store once;
+failed load does not keep retrying storage. Successful explicit LOAD remains a
+recovery path. Cached revision/durable operation floor is published for clients.
+No scan is hidden in a status query. Jobs/RPC and scanning share one I/O owner.
+
+Every scan owns open/OBSERVE/RF-release/close. Only after successful release and
+same admission epoch may its result reach the real scene/focus mailbox. Revocation
+also cancels this component's pending focus intent; already applied timers remain
+under the product owner. Jobs revoke the scene candidate, so registration never
+starts a timer while the card remains present. Quiet observation can rearm; unknown
+errors cannot. No key/UID leaves the existing device boundary.
+
+Ten L2 tests use actual worker, real POSIX binding store, actual scene, mailbox and
+timer. External seams are the OS scheduler, VFS RF ioctl/close and fsync/read fault
+hooks. First enrollment persists a binding, requires quiet then reentry, and starts
+the same timer. Revoke during storage load initially still opened RF; an admission
+check after load fixes that actual Red. Other cases cover dwell, unknown, enrollment,
+pending cancel, revoke during scan, power quiesce and release failure.
+
+Initial enrollment fixture omitted the owner admission publication after a job;
+adding the missing external event preserves its original timer assertions. Initial
+release mutation SURVIVED because the fixture faulted the worker's startup idle
+release, never scan close. Injecting at the read callback and asserting one completed
+observation makes the same mutant fail. Raw and corrected mutation records remain;
+load-admission and ignored-release-error mutants both detect and restore. The reused
+scheduler fixture reenters worker on each drain, so its startup idle-release repeats;
+it does not prove continuous real scheduling, wall-clock cadence or IRQ behavior.
+
+AP build/manifest, actual product object reference to scene admission, and scene
+symbol in final ELF are recorded. Server static size1200 bytes versus1152 before
+this slice (+48). Scene observations are bounded stack values; no new persistent
+worker, timer, heap or DMA.500ms is the preexisting worker idle interval frozen for
+this software slice, completion-relative, not a measured feedback/power guarantee.
+Each RF exchange retains the200ms software watchdog; total anticollision/bus-block
+latency, CPU average/p95, stack high-water and radio coexistence need L3 measurement.
+New RF operation has not been enabled on a physical board in this session.
+
+Remaining: physical false-absence/dwell validation, voice/OTA/K2 combinations,
+real card-to-visible-focus acceptance, explicit App capability/status presentation
+(the older UI still conservatively says automatic use unavailable), and hardware
+resource budgets. Source/host vertical flow is not physical acceptance. See
+`acceptance/s50-20260927.json` and `s50-nfc-worker-scene-evidence-20260927.json`.

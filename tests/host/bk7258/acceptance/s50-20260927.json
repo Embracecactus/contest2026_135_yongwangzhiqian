@@ -1,0 +1,5241 @@
+{
+  "schema_version": 1,
+  "production_baseline": "272b3b2f366cf9ac9ae510757ac4288f0c68d3a0",
+  "checkout_head": "e97f0b8dbeb9f8b9b5109c5461ed4bf9aa90b233",
+  "test_commit": "See submission commit; input hashes bind uncommitted test execution",
+  "agent_head": "62a304ea69c4076f0f3ef7955a9af69a5ed35277",
+  "production_before": "a1e400530b862184d1e2e8f6ec43c28b15a8aa23919b0d23f7b1f4b29fd7d525",
+  "production_after": "a1e400530b862184d1e2e8f6ec43c28b15a8aa23919b0d23f7b1f4b29fd7d525",
+  "production_unchanged": true,
+  "environment": {
+    "platform": "Linux-5.15.167.4-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+    "python": "3.10.12",
+    "cc": "cc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0",
+    "cmake": "cmake version 4.0.2",
+    "java": "openjdk version \"21.0.6\" 2025-01-21 LTS"
+  },
+  "inputs": {
+    "tests/host/bk7258/test_shaniu_reset_nfc.py": "ce76b31b16beb57e66275bab1073fefb3e0506d656dc7a5d47faad24b1c19e11",
+    "tests/host/bk7258/test_shaniu_config_contract.c": "402e810903d22f30327d7a6b4579334b0da53849df32c84b50b0d93d95746717",
+    "tests/host/bk7258/test_shaniu_focus_render.c": "7d630a1f80cbfd97a9c94dea8f5b54a78588cd49b098de64cf189b42b6c43672",
+    "tests/host/bk7258/test_shaniu_nfc_bindings.c": "bf5b84ee11bb974f7d3df46f651ef9e31a5c53475a47db18b396808a97f78754",
+    "tests/host/bk7258/test_shaniu_volume_transition.c": "2a46c4cb1375c6382736e10fb8472143cab433afb727b678416e71da11ef5441",
+    "tests/host/bk7258/test_shaniu_nfc_worker_scene.c": "74f1a3971bbd4182ad3cae199015f28a02c5855553a8e065b5f3af4d234258d9",
+    "tests/host/bk7258/test_shaniu_display_snapshot.c": "e1b7eacd59e6eb8a74d801c7f3fc043726db014c7e6a71b79c922cd4cc85127c",
+    "tests/host/bk7258/test_shaniu_focus.c": "0b2fdb6525858c7f8db7068290be358b9c3d619c4c8bc5e2d780cdd2053ac403",
+    "tests/host/bk7258/test_shaniu_models_durability.c": "641f357069ec43c8423d15f9697212ea4a1a49af10e38c64a6f6b31c18e78521",
+    "tests/host/bk7258/test_shaniu_focus_intent.c": "c7fe75eba991a6398cef96968e6d3237d30cd2a54b94e7fd18fe3fc0fc8e8414",
+    "tests/host/bk7258/test_shaniu_capture_release.py": "c9640777d4434031c9dc922b5b16df12b26b6a471e4a9ea86c25b811b3207675",
+    "tests/host/bk7258/test_shaniu_focus_pixels.c": "1fdb64d0a57fe8101209e3954e1e3fc93113f25b5096276ef90b34214d94e9d7",
+    "tests/host/bk7258/test_shaniu_config_restart.py": "a11762422ba0a4a387295f3dff8999cf0b964417455e857ab1c889f75212df3f",
+    "tests/host/bk7258/test_shaniu_control_quiesce.c": "3805034a5d5cbd46f7c80df3cfb636c0af1073cba750a96d44893c20de5da4b3",
+    "tests/host/bk7258/test_shaniu_runner_gate.py": "bca3bd907127160a4b826853e8b9788ed715e69aaa417b6bb7b1d73be4648b29",
+    "tests/host/bk7258/test_shaniu_expression_cancel.c": "0d0088d08ddcce4d2b4eeb104e9525e5e33da719325fd7462b387ce346be9095",
+    "tests/host/bk7258/test_shaniu_nfc_control.c": "c88fa5ae34b4699a9e0b266a10fc6612cb3081cd2443e4726925c9fb4581f215",
+    "tests/host/bk7258/test_shaniu_power_contract.c": "3896b0364eae877341802a1c2811b83dee95dc4b8301c7e273ca10526fd1b8d5",
+    "tests/host/bk7258/test_shaniu_usb_cleanup.c": "b13007514350026421d31005f3a987f2d47b44793e6581c80451cd6705770abf",
+    "tests/host/bk7258/test_shaniu_trial_wire.c": "48b3e61d3715985d4bfda2789305b02f05225a05cf18803c86337e41e53a4971",
+    "tests/host/bk7258/test_shaniu_nfc_quiesce.c": "6b0b1ee9ec0adbb9a9b4936559844104c40d7a8a977d2601af187aa08318ac37",
+    "tests/host/bk7258/test_shaniu_display_intent.c": "832a49cd5e44f54e1f5d97d265bdffef2b4e3f44e871f7b045ba30a217efcdde",
+    "tests/host/bk7258/test_shaniu_expression_ownership.c": "4a1b147a643ad4d08572d5089b62b750b6aef24cfe15cc4b8df4f80128a29e7b",
+    "tests/host/bk7258/test_shaniu_nfc_jobs.c": "4f40bac114ed505bec06a3ae27973978c0a4753ac5c52b955f1a763b0c147ecb",
+    "tests/host/bk7258/test_shaniu_focus_shared.c": "fb428a2e3c19a10f5781d70938c91a07d2da7a9533acb83c5bd835a960ea31e8",
+    "tests/host/bk7258/test_shaniu_nfc_scene.c": "bd204de29d2b97cf5c7227a92180adb937915e413aa312f688c58be16f2550bb",
+    "tests/host/bk7258/test_shaniu_msc_stop.c": "0fc93cf823187849bd8c4f9821a5599a6cfe89a0a665aaf2d3ab4264d7af3542",
+    "tests/host/bk7258/test_shaniu_contracts.py": "21064799ed05d230d5a53bc36252c9b296f7a50a5f9178b2c188c9f411619f3e",
+    "tests/host/bk7258/test_shaniu_key_contract.c": "78bbad2ce5651d44f5b4595d178d3e98bd8b06496def5861c78c0c37d95cf113",
+    "tests/host/bk7258/test_shaniu_volume_contract.c": "4242eeb502a62fc4765c158abc6eef9e72b10defd58f18e4fc19a166cf13396a",
+    "tests/host/bk7258/test_shaniu_nfc_reset_path.py": "84e9a0d2f31d2ca77c9184563050017e5485661380a184db19370148af2a791c",
+    "tests/host/bk7258/test_shaniu_expression_trial.c": "416c21f7b33bd4988e9b77f887a26a297664caa32fb7dc480abee435b90daf10",
+    "tests/host/bk7258/test_shaniu_focus_wire.c": "4f03520ddef307eece0edb0c1e8acf7f2d0d7239b2da5260a66c5cbbe91585af",
+    "tests/host/bk7258/test_shaniu_power_pixels.c": "0223f454e414d5be53f8f82e1e22c9c2a58f71e40fcaef4f908ffac87402f600",
+    "tests/host/bk7258/acceptance/cases.v1.json": "10aa524f2dfc7434b8215989b5f9f1f411f502e4c5018f66233dffe34ef8bb43",
+    "tests/host/bk7258/acceptance/data-manifest.v1.json": "815d4a7555ab0b2a0de0b96904f18280e82240c557e8231239f418856e506948",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "0de431116ed539d17198d315ad791a8d6fe449bb42209a2ed0add778a491fd3a",
+    "android/shaniu-companion/app/src/test/resources/shaniu/scp1-wifi.hex": "ac45928494cf0f3be56d0b0e203be782499ebfbae8b82c582d22cf124e573208",
+    "tests/host/bk7258/Makefile": "8430f6447ea76dd800acabc6a3a47c3a9335814cd421aba7496506836e43a16a",
+    "tests/host/bk7258/test_provision_owner.c": "2830e74653edffcb52aad906bd8d2149636e7ea9ec72ce28fd3a23ae99603774",
+    "tests/host/bk7258/test_bk7258_agent_media_player.c": "9216a818acc08b71d396e4e678014bb26ef6d6f966e656bb0bee50ed0ddf131f",
+    "tests/host/bk7258/test_bk7258_cloud_http.py": "f762e3dc482ce272132fee37edc88f576f3ddb9212fd0f606f57f6f24083af58",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/ota/OtaSelfSignedCertificateTest.kt": "66d993be00604a6ddf2c8ec8ce56a8805dc1df1db7d4b32980a0b5e6b4ba6eb5",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/ota/OtaUpdatePolicyTest.kt": "f71b791dd96d5d8d84b7a258a35147117e864e2863a2460702564e299de0aef1",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/ota/BkpackInspectorTest.kt": "7f216463fc313e22382c947ad2cdc04524ceeaac2e3b5a31203fbbb00ca2e253",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/ota/OtaControlUploadTest.kt": "5d91eb15779733fd31f365b8ae044b1fb6845401d309f6954d012ab361cc5ae6",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/ota/OtaHttpRangeTest.kt": "03fbd0977d86ed9c2341cd20d0512cca6214bc14d6e3cf79b4d1ef5bfbeb6a6e",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/ota/OtaSessionContractTest.kt": "2f7862782f64f5a843395787aa6a45b5bafa4bb08d04710f0a1da5ac93f1a3f7",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/ProvisionBootstrapDeviceIdTest.kt": "ff3bbad6e4f0b860fc89521b061dded144e6634e9b69736f467757cce1fe1999",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/ProvisionClaimProtocolTest.kt": "cc0da87fe7bbce4846d831c5bf75a959fdfafc7947ff135f7700229a01b35b90",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/FocusTimerControllerTest.kt": "86549ed1db3bcacc24ed85e9da7b32876c2f82a1d6482ee5d1593e26c9f43701",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/ProvisionActivationTest.kt": "d91eac620fc648d9a1de6545d20508d6a3530ce105b7d4607931209ea47aec1b",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/CloudSettingsTest.kt": "7e46d6f327cbb5e5c6f2f0ed9026a46784c719cba658e8170fa36abf0341302c",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/NfcBindingControllerTest.kt": "fdd5fc04fa4d9c8657c538dbdfff3fcfd4fc17dbdb6dcd31e6ccc861ab359672",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DeviceControlPresentationTest.kt": "3ecff790b34dca896e06a75dad664c95e3a5464526a730f93cecd77f387d076d",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/ProvisionTlsTest.kt": "3330adcd3ce86c210464c2133e8ae2095c47b111369a749009f425e04794b0df",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/WifiScanProtocolTest.kt": "e708750794373d7dcc36701f7c42d2651a762f5a64d21d24dc612561565224f8",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/ProvisionBootstrapTest.kt": "b95c613ecbd73fc8cc3756a95c1743601260cfaa5c0754d2a55a3b09bc13c76b",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/ExpressionTrialControllerTest.kt": "b2f3097d12225a8c00bd39d20ec9b0d10798d51a8d5dc62c8a2ff67b2c934348",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DeviceControlSessionTest.kt": "fdb7b65066583463875c2b0840e1775352b4c320a80d9faf37ec0816c3fe4f8a",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DeviceControlProtocolTest.kt": "25305d00de456ad03121014163237e77a889a6634b66bf03630af83879893387",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DeviceControlInteropTest.kt": "89c1e746f354a19ddb67345da7fd7ebf85dcffa583c421183584cb5bbe0de832",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/ProvisionSettingsTest.kt": "8827fcc1f75781aed9c8c7bb3342525435087292764b746702c2f58c264bc39a",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DeviceControlTlsInteropTest.kt": "05a67e073b035dbccb863abaec662ffe2ba40afc1f5bae068a3531cfe5c01c5b",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/ProvisionBindingStoreTest.kt": "acbf886c304786a9f011cf08e5146c55f000bf9442572407a91a93d721096256",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/NfcHandoverProtocolTest.kt": "2d21bf2086ac871afbb5cbf66c4c6db96ad2690f33c971ac5784e0194208a529"
+  },
+  "capture_inputs": {
+    "packages/ai_agent/src/voice/audio_capture.c": "7a7899334d028a468e6548c8569a107b03e7e6b9986f621d9c3b093fb71addc8",
+    "packages/ai_agent/include/voice/audio_capture.h": "df65f59a60e384c5d171cda551c71d98624dbaa2513b7dcddee14912d105c668",
+    "contest2026_135_yongwangzhiqian/tests/host/bk7258/test_bk7258_agent_media_recorder.c": "f1f6b47b026d8450a4e0c647bd856935949906cc5a20f9a7436c13841c398552"
+  },
+  "public_ca_sha256": "d2d3e6d9d8f19ad1511dfbcf3847217c5a3f3b42837d1eadfe75485fca944fce",
+  "counts": {
+    "PASS": 262,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 163,
+      "counts": {
+        "PASS": 163,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "collection_errors": [],
+  "selected_execution_ids": [
+    "K2-01.release-2999",
+    "K2-01.release-3000",
+    "K2-01.release-3001",
+    "K2-01.held",
+    "K2-03.epoch",
+    "K2-03.rollback",
+    "K2-03.volume",
+    "MSC-01.unmount-failure",
+    "MSC-01.local-busy",
+    "MSC-01.wrong-owner",
+    "MSC-01.handoff",
+    "AUD-01.pcm-1",
+    "AUD-01.pcm-20260924",
+    "AUD-01.pcm-4294967295",
+    "AUD-03.cancel-late",
+    "AUD-01.sse-1",
+    "AUD-01.sse-20260924",
+    "K2-01.legacy-suite",
+    "MSC-02.legacy-suite",
+    "MOT-01.legacy-suite",
+    "NFC-01.legacy-suite",
+    "CFG-01.wifi-reopen",
+    "CFG-03.stale",
+    "CFG-03.conflict",
+    "CFG-03.keep-key",
+    "CFG-03.replace-key",
+    "CFG-03.clear-cloud",
+    "CFG-03.cross-host-retain",
+    "CFG-01.restored",
+    "MSC-01.restored",
+    "provision.DeviceControlSessionTest.writeWaitsBehindReadAndRequiresQuantizedReadback",
+    "provision.DeviceControlSessionTest.configCancelWaitsForInFlightAckAndPreventsOtherWriters",
+    "provision.DeviceControlSessionTest.otherActivityGraceAndForegroundReturnHaveDifferentPolicies",
+    "provision.DeviceControlSessionTest.claimHandoffDropsOldIdentityRetryAndCachedStatus",
+    "provision.DeviceControlSessionTest.ordinaryErrorIsNotDisconnectionAndDoesNotReplaceValue",
+    "provision.DeviceControlSessionTest.infoAndOtaDoNotReplaceStatusAndFragmentsStayContiguous",
+    "provision.DeviceControlSessionTest.failedReconnectKeepsOneCappedForegroundRetry",
+    "provision.DeviceControlSessionTest.graceDisconnectCannotReopenAnExplicitlyClosedSession",
+    "provision.DeviceControlSessionTest.tabsSubscribeTwentyTimesWithoutOpeningAnotherConnection",
+    "provision.DeviceControlSessionTest.failedConfigAckDoesNotReleaseStagingUntilExplicitCancel",
+    "provision.DeviceControlSessionTest.temporaryReadFailurePreservesConnectionAndUnconfirmedWrite",
+    "provision.DeviceControlSessionTest.reconnectDropsWritesAndOldCallbacksCannotPolluteNewState",
+    "provision.DeviceControlSessionTest.foregroundPollContinuesAcross120Seconds",
+    "provision.DeviceControlSessionTest.identityReleaseRejectsLateConfigResultAndDoesNotReplayIt",
+    "provision.ProvisionSettingsTest.rejectsMalformedInputsBeforeCreatingBundle",
+    "provision.ProvisionSettingsTest.packsCloudAndNetworkInOneTransaction",
+    "provision.ProvisionSettingsTest.revisionExhaustionAndEmptyOperationCannotProducePatch",
+    "provision.ProvisionSettingsTest.wifiOnlyPatchPreservesCloudAndBindsExpectedRevision",
+    "provision.ProvisionSettingsTest.ownerKeyIsBoundToTheSameCandidateAndCallerKeepsOwnership",
+    "provision.ProvisionSettingsTest.packsCompleteCandidateWithoutDeviceKeys",
+    "provision.ProvisionSettingsTest.reportsNetworkInputErrorsBeforeEndpointLookup",
+    "provision.ProvisionSettingsTest.rejectsMissingEntropyAndMalformedControlKeySizes",
+    "provision.ProvisionSettingsTest.CFG_03_wifiPatchMatchesIndependentGolden",
+    "provision.ProvisionSettingsTest.keepReplaceAndClearRemainDifferentPatchOperations",
+    "ota.OtaControlUploadTest.cancelWaitsForAcknowledgementAndHandlesStartRace",
+    "ota.OtaControlUploadTest.sendsBoundedChunksAndAcceptsOnlyStartAcknowledgement",
+    "ota.OtaControlUploadTest.lateAcknowledgementCannotOverwriteCanceledTerminalState",
+    "ota.OtaControlUploadTest.rejectsUnavailableTransportWithoutReplayAndAllowsMaximumRecord",
+    "ota.OtaControlUploadTest.closeCancelsWithoutSending",
+    "ota.OtaControlUploadTest.responseErrorsAndMismatchesFailAndDoNotReuseRecord",
+    "ota.OtaSessionContractTest.OTA_01_lateTransportCallbackIsFilteredBySession",
+    "ota.OtaSessionContractTest.OTA_01_cancelIsPendingUntilProtocolAcknowledges",
+    "ota.OtaSessionContractTest.OTA_01_lateWireAckCannotRestartCanceledUpload",
+    "K2-03.release-rollback",
+    "K2-03.combination",
+    "ota.OtaControlUploadTest.cancellationRequestWaitsForRemoteConfirmation",
+    "ota.OtaControlUploadTest.acceptedTerminalCannotBecomeCanceledFromLateAckOrClose",
+    "ota.OtaControlUploadTest.localCloseIgnoresLateAckWithoutClaimingRemoteCancellation",
+    "MSC-01.acquiring",
+    "MSC-01.releasing",
+    "MSC-01.retry",
+    "LIFE-02.capture-close-failure",
+    "LIFE-02.capture-route-failure",
+    "LIFE-02.power-normal",
+    "LIFE-02.power-admission-failure",
+    "LIFE-02.power-partial-failure",
+    "LIFE-02.power-cp-declined",
+    "LIFE-02.power-cp-unknown",
+    "LIFE-02.power-admission-stops-trigger",
+    "LIFE-02.power-storage-stops-trigger",
+    "LIFE-02.power-trigger-failure",
+    "LIFE-02.power-unpublished-trigger",
+    "LIFE-02.power-admission-drains",
+    "LIFE-02.power-failed-drains",
+    "NET-03.quiesce-queries",
+    "NET-03.quiesce-staging",
+    "NET-03.quiesce-config-staging",
+    "NET-03.quiesce-ota-commit",
+    "NET-03.quiesce-invalid",
+    "NET-03.owner-queries",
+    "NET-03.owner-unauthenticated",
+    "NET-03.owner-invalid-sequence",
+    "NET-03.owner-legacy",
+    "LIFE-02.power-final-close-drains",
+    "LIFE-01.owner-integration",
+    "LIFE-02.power-failure-display",
+    "DISP-01.power-pixels",
+    "STORE-02.file-sync-failure",
+    "STORE-02.file-sync-retry",
+    "STORE-02.directory-sync-unknown",
+    "STORE-02.restart-before-publish",
+    "STORE-02.restart-after-publish",
+    "MSC-01.backend-stop-normal",
+    "MSC-01.backend-stop-retry",
+    "MSC-01.backend-stop-start-cleanup",
+    "MSC-01.failed-start-handoff",
+    "AUD-03.media-tail",
+    "AUD-03.media-cancel-next",
+    "TIMER-01.clock",
+    "TIMER-01.replay",
+    "TIMER-01.invalid",
+    "TIMER-01.wire",
+    "provision.FocusTimerControllerTest.acceptedStartWaitsForDeviceReadback",
+    "provision.FocusTimerControllerTest.changedRevisionCannotProduceMixedSnapshot",
+    "provision.FocusTimerControllerTest.disconnectAndLateAckNeverReplayMutation",
+    "provision.FocusTimerControllerTest.unsupportedDeviceDoesNotStartLocalTimer",
+    "provision.FocusTimerControllerTest.rejectedBeginCannotCancelAnotherEditorsTransaction",
+    "TIMER-01.pixels",
+    "TIMER-01.render",
+    "MSC-01.backend-stop-close-error",
+    "NET-02.display-snapshot",
+    "DISP-01.expression-intent",
+    "DISP-01.expression-cancel",
+    "CFG-02.models-unknown",
+    "RES-02.expression-ownership",
+    "RES-02.expression-trial",
+    "RES-02.trial-wire",
+    "provision.ExpressionTrialControllerTest.acceptedTrialUsesGoldenRecordAndDeviceReadback",
+    "provision.ExpressionTrialControllerTest.cancellationAcceptanceIsNotRestoredCompletion",
+    "provision.ExpressionTrialControllerTest.changedHeaderCannotProduceMixedSnapshot",
+    "provision.ExpressionTrialControllerTest.disconnectAndLateAckNeverReplayMutation",
+    "provision.ExpressionTrialControllerTest.unsupportedDeviceDoesNotPretendToTrial",
+    "provision.ExpressionTrialControllerTest.rejectedBeginCannotCancelAnotherEditorsTransaction",
+    "provision.ExpressionTrialControllerTest.closingActiveTrialDoesNotSendRemoteCancel",
+    "provision.ExpressionTrialControllerTest.invalidDurationAndMismatchedReceiptCannotClaimSuccess",
+    "NFC-01.empty",
+    "NFC-01.oversize",
+    "NFC-01.hce-positive",
+    "NFC-01.uid-empty",
+    "NFC-01.select-timeout",
+    "NFC-01.select-error",
+    "NFC-01.uid-size",
+    "NFC-01.uid-incomplete",
+    "NFC-01.uid-4",
+    "NFC-01.uid-7",
+    "NFC-01.uid-10",
+    "TIMER-01.shared-start",
+    "TIMER-01.shared-retry",
+    "TIMER-01.shared-cancel",
+    "TIMER-01.shared-invalid",
+    "TIMER-01.intent-voice",
+    "TIMER-01.intent-gate",
+    "TIMER-01.intent-revision",
+    "TIMER-01.intent-cancel",
+    "TIMER-01.intent-invalid",
+    "NFC-01.rf-switch",
+    "NFC-01.rf-stuck",
+    "NFC-01.rf-registration",
+    "NFC-01.rf-registration-failure",
+    "NFC-01.rf-close",
+    "NFC-01.rf-open-cleanup",
+    "NFC-01.selection-probe_error",
+    "NFC-01.selection-timeout",
+    "NFC-01.selection-malformed",
+    "NFC-01.selection-select_error",
+    "NFC-01.selection-invalid",
+    "NFC-01.selection-valid",
+    "NFC-01.card-valid",
+    "NFC-01.card-error",
+    "NFC-01.card-close",
+    "NFC-01.card-version",
+    "NFC-01.card-replay",
+    "NFC-01.card-validation",
+    "NFC-01.card-malformed",
+    "NFC-02.bindings-persist",
+    "NFC-02.bindings-revision",
+    "NFC-02.bindings-invalid",
+    "NFC-02.bindings-writefail",
+    "NFC-02.bindings-durability",
+    "NFC-02.bindings-corrupt",
+    "LIFE-02.nfc-queued",
+    "LIFE-02.nfc-active",
+    "LIFE-02.nfc-close-error",
+    "LIFE-02.nfc-rf-error",
+    "LIFE-02.nfc-prestart",
+    "LIFE-02.nfc-late",
+    "LIFE-02.power-nfc-busy",
+    "LIFE-02.power-nfc-failed",
+    "RST-02.nfc-busy",
+    "RST-02.nfc-failed",
+    "RST-02.nfc-owner_failure_still_closes_admission",
+    "RST-02.nfc-resume_failure",
+    "RST-02.nfc-power_intent_and_no_reset",
+    "RST-01.nfc-filesystem",
+    "RST-01.nfc-cleanup",
+    "RST-01.bindings-reset",
+    "RST-01.bindings-reset-sync",
+    "RST-01.bindings-reset-path",
+    "RST-01.bindings-reset-absent",
+    "NFC-02.jobs-persist",
+    "NFC-02.jobs-cancel",
+    "NFC-02.jobs-stop",
+    "NFC-02.jobs-pending",
+    "NFC-02.jobs-failure",
+    "NFC-02.jobs-reset",
+    "NFC-02.jobs-commit",
+    "NFC-02.jobs-unknown",
+    "NFC-02.jobs-remove",
+    "NFC-02.jobs-conflict",
+    "NFC-02.control-auth",
+    "NFC-02.control-invalid",
+    "NFC-02.control-cancel",
+    "NFC-02.control-disconnect",
+    "NFC-02.control-quiesce",
+    "NFC-02.control-floor",
+    "NFC-02.control-sequence",
+    "NFC-02.control-staging",
+    "provision.NfcBindingControllerTest.acceptedEnrollmentRemainsPendingUntilDeviceConfirms",
+    "provision.NfcBindingControllerTest.verifiesOperationAndRevisionAcrossAllChunks",
+    "provision.NfcBindingControllerTest.disconnectDropsMutationAndLateAck",
+    "provision.NfcBindingControllerTest.rejectsUnrepresentableCounterAndUnknownOutcome",
+    "provision.NfcBindingControllerTest.cancelNamesCurrentJobWithoutAllocatingNewId",
+    "provision.NfcBindingControllerTest.unsupportedFirmwareStaysReadOnly",
+    "provision.NfcBindingControllerTest.rejectedBeginDoesNotCancelAnotherTransaction",
+    "provision.NfcBindingControllerTest.closeNeverClaimsAcceptedDeviceJobCanceled",
+    "provision.NfcBindingControllerTest.supersedingJobCannotConfirmOwnOperation",
+    "NFC-02.scene-dwell",
+    "NFC-02.scene-unknown",
+    "NFC-02.scene-stale",
+    "NFC-02.scene-gate",
+    "NFC-02.scene-busy",
+    "NFC-02.scene-binding",
+    "NFC-02.scene-invalid",
+    "NFC-01.deadline-crc_deadline",
+    "NFC-01.deadline-crc_wrap",
+    "NFC-01.deadline-crc_success",
+    "NFC-01.deadline-comm_deadline",
+    "NFC-01.deadline-comm_wrap",
+    "NFC-01.deadline-comm_success",
+    "NFC-01.deadline-hardware",
+    "NFC-01.deadline-protocol",
+    "NFC-01.observe-off",
+    "NFC-01.observe-quiet",
+    "NFC-01.observe-watchdog",
+    "NFC-01.observe-timer_error",
+    "NFC-01.observe-partial",
+    "NFC-01.observe-selection_timeout",
+    "NFC-01.observe-invalid_uid",
+    "NFC-01.observe-collision",
+    "NFC-01.observe-present",
+    "NFC-01.observe-residual_error",
+    "NFC-01.observe-null",
+    "NFC-02.worker-dwell",
+    "NFC-02.worker-unknown",
+    "NFC-02.worker-enroll",
+    "NFC-02.worker-pending-cancel",
+    "NFC-02.worker-revoke",
+    "NFC-02.worker-stop",
+    "NFC-02.worker-release",
+    "NFC-02.worker-error",
+    "NFC-02.worker-load-revoke",
+    "NFC-02.worker-first-enroll"
+  ],
+  "collected": [
+    {
+      "id": "K2-01.release-2999",
+      "parent": "K2-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0015970320091582835,
+      "evidence": "K2-01.release-2999.log",
+      "evidence_sha256": "b566fb5594f1425a70adc235402e883c0153ab83f7cbe93020c424599dca8ca2"
+    },
+    {
+      "id": "K2-01.release-3000",
+      "parent": "K2-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.00135363097069785,
+      "evidence": "K2-01.release-3000.log",
+      "evidence_sha256": "fb2c02d2a1579306828470758749006b0e9c98e490485da59f0587a3965ec3ec"
+    },
+    {
+      "id": "K2-01.release-3001",
+      "parent": "K2-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013010789989493787,
+      "evidence": "K2-01.release-3001.log",
+      "evidence_sha256": "e06ae32ad7d1d81ee839949da7a326731c19f1e8c9bc9063d58e00bcdd7edb7b"
+    },
+    {
+      "id": "K2-01.held",
+      "parent": "K2-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013470079866237938,
+      "evidence": "K2-01.held.log",
+      "evidence_sha256": "abf891a99612f7823235598a316dab2523d00887e98408644858637b8e196eff"
+    },
+    {
+      "id": "K2-03.epoch",
+      "parent": "K2-03",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013536919723264873,
+      "evidence": "K2-03.epoch.log",
+      "evidence_sha256": "e9b04610a1448d803771bebeeaee92520b6ad64193edc168e85e48f7d0ead37b"
+    },
+    {
+      "id": "K2-03.rollback",
+      "parent": "K2-03",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013440310140140355,
+      "evidence": "K2-03.rollback.log",
+      "evidence_sha256": "c7d3c671bb797ef26a2338642b33ff9191f90cd07b45f60ec344c88925a067ea"
+    },
+    {
+      "id": "K2-03.release-rollback",
+      "parent": "K2-03",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0012961309985257685,
+      "evidence": "K2-03.release-rollback.log",
+      "evidence_sha256": "5ec564b83147a0ff346ebd9325b0e479f25ff55175b237851c93578c485d1c25"
+    },
+    {
+      "id": "K2-03.combination",
+      "parent": "K2-03",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013398939627222717,
+      "evidence": "K2-03.combination.log",
+      "evidence_sha256": "6e19cce93d04aba8678e5a1ccf98ea2ca6963b8695779524afdccb03ed09566a"
+    },
+    {
+      "id": "K2-03.volume",
+      "parent": "K2-03",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.001322132011409849,
+      "evidence": "K2-03.volume.log",
+      "evidence_sha256": "0cbb6281293165c6613af82108198588078d62a5831be3c664547dcfc6b6b63c"
+    },
+    {
+      "id": "DISP-01.power-pixels",
+      "parent": "DISP-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0015341219841502607,
+      "evidence": "DISP-01.power-pixels.log",
+      "evidence_sha256": "53d8bca3a4535c60256a8007d391dd0f3818054742829f9c637959c0b825a518"
+    },
+    {
+      "id": "MSC-01.failed-start-handoff",
+      "parent": "MSC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0015471689985133708,
+      "evidence": "MSC-01.failed-start-handoff.log",
+      "evidence_sha256": "d85281e07d5195212b1f51a0663934523d248d8edad398589106a6d89c30553a"
+    },
+    {
+      "id": "TIMER-01.pixels",
+      "parent": "TIMER-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.001579918956849724,
+      "evidence": "TIMER-01.pixels.log",
+      "evidence_sha256": "0ce0c52ebc4db8879f159316d376d08fabdc1356bc31bd1857d3b8fc63d49aaa"
+    },
+    {
+      "id": "TIMER-01.render",
+      "parent": "TIMER-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0014741290360689163,
+      "evidence": "TIMER-01.render.log",
+      "evidence_sha256": "c0d4b12aabd6e4a14ee4ac5a265f45def5cbbceb3540f3f6daf056b7f5c11594"
+    },
+    {
+      "id": "NFC-01.rf-switch",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.2141967709758319,
+      "evidence": "NFC-01.rf-switch.log",
+      "evidence_sha256": "3a26cb0e9d80ddc9ab52d369d59a8378c60e21efb5eb93fac6ca7a10dc0070ad"
+    },
+    {
+      "id": "NFC-01.rf-stuck",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.21428613102762029,
+      "evidence": "NFC-01.rf-stuck.log",
+      "evidence_sha256": "868a6d02ddb3f1f82ff9b8fd66e53b186957424822a0ae01bd9334e832b7b7e5"
+    },
+    {
+      "id": "NFC-01.rf-registration",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.26428006298374385,
+      "evidence": "NFC-01.rf-registration.log",
+      "evidence_sha256": "00112f7e8157b04ccf9c22147dca9cf78818f28c016c041c9cdbea965df24483"
+    },
+    {
+      "id": "NFC-01.rf-registration-failure",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.21415457094553858,
+      "evidence": "NFC-01.rf-registration-failure.log",
+      "evidence_sha256": "709c9e6c060aba6d8219daa0231ad4aac9721797cee373c6f751a9b007065588"
+    },
+    {
+      "id": "NFC-01.rf-close",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.21414297900628299,
+      "evidence": "NFC-01.rf-close.log",
+      "evidence_sha256": "18d9aedc03a74757967a434b002ce5677900e2c5e6cba875bc7266790e706f55"
+    },
+    {
+      "id": "NFC-01.rf-open-cleanup",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.21421382704284042,
+      "evidence": "NFC-01.rf-open-cleanup.log",
+      "evidence_sha256": "1d820db423309cf15129f883bf881a65e9ad2cfdd5b9a5232c20afd0b5f91d64"
+    },
+    {
+      "id": "RST-02.nfc-busy",
+      "parent": "RST-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.2645081999944523,
+      "evidence": "RST-02.nfc-busy.log",
+      "evidence_sha256": "b84552e8e1d67157a10cdd195d7654a9413f52c3323ad9401fe86d6d1967a9df"
+    },
+    {
+      "id": "RST-02.nfc-failed",
+      "parent": "RST-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.21428408799692988,
+      "evidence": "RST-02.nfc-failed.log",
+      "evidence_sha256": "a0988b8deadaef5b5869ab7cdb9c5e07f6877303bb6c32cac52b7e8396b35db6"
+    },
+    {
+      "id": "RST-02.nfc-owner_failure_still_closes_admission",
+      "parent": "RST-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.2142804599716328,
+      "evidence": "RST-02.nfc-owner_failure_still_closes_admission.log",
+      "evidence_sha256": "71e25e91ddbb3ad105c9fecc215f724073166ad623ffb98986e5ea62f14196fd"
+    },
+    {
+      "id": "RST-02.nfc-resume_failure",
+      "parent": "RST-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.21425208495929837,
+      "evidence": "RST-02.nfc-resume_failure.log",
+      "evidence_sha256": "e650ff63e2875e9db072008adc2a915bf1805f7ef4dafa7cca6b77cc88c42bf2"
+    },
+    {
+      "id": "RST-02.nfc-power_intent_and_no_reset",
+      "parent": "RST-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.21426430298015475,
+      "evidence": "RST-02.nfc-power_intent_and_no_reset.log",
+      "evidence_sha256": "1a34eb425b84ddad1aeb3d6524c7a6786646ed783a49b41907c382cd20f826e4"
+    },
+    {
+      "id": "RST-01.nfc-filesystem",
+      "parent": "RST-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.2142526390380226,
+      "evidence": "RST-01.nfc-filesystem.log",
+      "evidence_sha256": "3be51ca4d7e0d1bd08b872af4d8a033fb5d9ebbec6d25d90dd72e6251243b48b"
+    },
+    {
+      "id": "RST-01.nfc-cleanup",
+      "parent": "RST-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.21427969000069425,
+      "evidence": "RST-01.nfc-cleanup.log",
+      "evidence_sha256": "b16b0aa6f5b03a168d3e5a227915926c4adceab2fc1a34a586ce0fc70ea4d39d"
+    },
+    {
+      "id": "RST-01.bindings-reset",
+      "parent": "RST-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.03202409000368789,
+      "evidence": "RST-01.bindings-reset.log",
+      "evidence_sha256": "4d9415249abda36f34ed7372e57c127b71d95756874f5153cb5525356c9cef18"
+    },
+    {
+      "id": "RST-01.bindings-reset-sync",
+      "parent": "RST-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.03180575603619218,
+      "evidence": "RST-01.bindings-reset-sync.log",
+      "evidence_sha256": "e1df2df229d112e5841ea51060eb66dc0d664520352a4b1758d3c9e476e73924"
+    },
+    {
+      "id": "RST-01.bindings-reset-path",
+      "parent": "RST-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.03169601800618693,
+      "evidence": "RST-01.bindings-reset-path.log",
+      "evidence_sha256": "754c327df3f8b300b04252b3e5d5f79684f14a23e3e0b4f6bc595bec4b20d20e"
+    },
+    {
+      "id": "RST-01.bindings-reset-absent",
+      "parent": "RST-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.001345686032436788,
+      "evidence": "RST-01.bindings-reset-absent.log",
+      "evidence_sha256": "c293c06d910af83ab7f680810f3dac9fb90d0a20bfdbd5bd9528332d0f14592d"
+    },
+    {
+      "id": "NFC-02.jobs-persist",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0319489780231379,
+      "evidence": "NFC-02.jobs-persist.log",
+      "evidence_sha256": "94a829c6be95cac680907281b560938142754f4b0d76c669d2a169ae08e1c474"
+    },
+    {
+      "id": "NFC-02.jobs-cancel",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.007520493993069977,
+      "evidence": "NFC-02.jobs-cancel.log",
+      "evidence_sha256": "4b11336bf79c8c068322de85fadfc404f9958b8fe0dda217d3ce7483ac065889"
+    },
+    {
+      "id": "NFC-02.jobs-stop",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0076342730317264795,
+      "evidence": "NFC-02.jobs-stop.log",
+      "evidence_sha256": "dc81865fbcfa03137b962fe312581970c7f23ceb35beadf40cbe41ef3221d23d"
+    },
+    {
+      "id": "NFC-02.jobs-pending",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.007596931012813002,
+      "evidence": "NFC-02.jobs-pending.log",
+      "evidence_sha256": "b112b3359b0f9e17fa25a6de88d9b4c013c12979329f4501a6900a473d2e0bd6"
+    },
+    {
+      "id": "NFC-02.jobs-failure",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.007484044996090233,
+      "evidence": "NFC-02.jobs-failure.log",
+      "evidence_sha256": "53e71a90916a53ce9bb505c63b2e751f9b2aab56267e1d2313f65e33939cc606"
+    },
+    {
+      "id": "NFC-02.jobs-reset",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.03164752502925694,
+      "evidence": "NFC-02.jobs-reset.log",
+      "evidence_sha256": "455c8b41fd83fabc16e42652d0005bf315453f29310f9a7bf760099f69b8e7b1"
+    },
+    {
+      "id": "NFC-02.jobs-commit",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.031672402983531356,
+      "evidence": "NFC-02.jobs-commit.log",
+      "evidence_sha256": "10f4f3e73c81d081b14629bd9ecaa801b85d16c034c6ae9554a3dc4aa3870e52"
+    },
+    {
+      "id": "NFC-02.jobs-unknown",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.03172478300984949,
+      "evidence": "NFC-02.jobs-unknown.log",
+      "evidence_sha256": "a961548cbcf36180e55f70ffeccf5d01943ede66e5e330f7c02d20622bfa4a7c"
+    },
+    {
+      "id": "NFC-02.jobs-remove",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.03173978900304064,
+      "evidence": "NFC-02.jobs-remove.log",
+      "evidence_sha256": "9ae5b47576a087e84361386ba3123f44d08a78614e16acea4c0baf8ed92e675f"
+    },
+    {
+      "id": "NFC-02.jobs-conflict",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.03167421603575349,
+      "evidence": "NFC-02.jobs-conflict.log",
+      "evidence_sha256": "30c1c3637b0def961eb9ba832087c27842d76370c01b6b79a4f4daa72e5f91ad"
+    },
+    {
+      "id": "NFC-02.control-auth",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.031922247959300876,
+      "evidence": "NFC-02.control-auth.log",
+      "evidence_sha256": "62ed6602138bb9e33c1e4548046a2891add054a706ba7de78eb7758c2c7f0b2e"
+    },
+    {
+      "id": "NFC-02.control-invalid",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.03171154699521139,
+      "evidence": "NFC-02.control-invalid.log",
+      "evidence_sha256": "2571a8c608995a8c1ab5c52378d8fb0983dafa9d31cead0ac74fd0c4f468876f"
+    },
+    {
+      "id": "NFC-02.control-cancel",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0075509430025704205,
+      "evidence": "NFC-02.control-cancel.log",
+      "evidence_sha256": "cbb4fe6759e4daae94d32370f15c18e23580482da3053bdefb5569870be44291"
+    },
+    {
+      "id": "NFC-02.control-disconnect",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0316489789984189,
+      "evidence": "NFC-02.control-disconnect.log",
+      "evidence_sha256": "64ce0d537f3e0d4270ac746485ae2240d29bec557d2a7f9e958246641d61c679"
+    },
+    {
+      "id": "NFC-02.control-quiesce",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.031812435016036034,
+      "evidence": "NFC-02.control-quiesce.log",
+      "evidence_sha256": "d3ef267fa44cad9f70738679a4bb4a746c74d3bd573f5fab43deee09a3a86327"
+    },
+    {
+      "id": "NFC-02.control-floor",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.03184511297149584,
+      "evidence": "NFC-02.control-floor.log",
+      "evidence_sha256": "ffc1b006ae699f376edf60ec3d1b501692a90cf424fc105332bd3c3a5aadf263"
+    },
+    {
+      "id": "NFC-02.control-sequence",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.03173101495485753,
+      "evidence": "NFC-02.control-sequence.log",
+      "evidence_sha256": "ecb48fc115e15fc88bc5365594f05f4ff38b058aa3c69d3ae7215a233e952429"
+    },
+    {
+      "id": "NFC-02.control-staging",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.031791838991921395,
+      "evidence": "NFC-02.control-staging.log",
+      "evidence_sha256": "af72a1dc7f527edb206e3179ac092659811474edece46144d20504ebc32b46b0"
+    },
+    {
+      "id": "NFC-01.selection-probe_error",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.21411949896719307,
+      "evidence": "NFC-01.selection-probe_error.log",
+      "evidence_sha256": "77c9f5f3cae95052662aa4305d810b15a48f2251c14fde17130da0b3bea20f1b"
+    },
+    {
+      "id": "NFC-01.selection-timeout",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.21413993503665552,
+      "evidence": "NFC-01.selection-timeout.log",
+      "evidence_sha256": "4c810a884eaf39b410c306934c32566b869ab9f879c655410b5527ecc353705d"
+    },
+    {
+      "id": "NFC-01.selection-malformed",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.2142628600122407,
+      "evidence": "NFC-01.selection-malformed.log",
+      "evidence_sha256": "31427d9058bf86bab8df45de9347b149f28269fce92ba15d88429a465f0780ce"
+    },
+    {
+      "id": "NFC-01.selection-select_error",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.21423235203837976,
+      "evidence": "NFC-01.selection-select_error.log",
+      "evidence_sha256": "9b8c95ecb1dcea1a73e22bbced3776089ffe6b60a66991402176d994783ba387"
+    },
+    {
+      "id": "NFC-01.selection-invalid",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.21421962702879682,
+      "evidence": "NFC-01.selection-invalid.log",
+      "evidence_sha256": "7f8964a5b7dce0fa41ad96f5aa8708f43a2a4fe8bee53822a862d2d0aa9163cf"
+    },
+    {
+      "id": "NFC-01.selection-valid",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.21424719196511433,
+      "evidence": "NFC-01.selection-valid.log",
+      "evidence_sha256": "1ceeeef985f685d81624b13ad6e7cdc44bc030373ceccaaa0908093bcebd9f9e"
+    },
+    {
+      "id": "NFC-01.card-valid",
+      "parent": "NFC-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.00373343302635476,
+      "evidence": "NFC-01.card-valid.log",
+      "evidence_sha256": "1f7117be697c587b25dd1d8dab5cbcd35b4c7fc9218fe1c09623003361501842"
+    },
+    {
+      "id": "NFC-01.card-error",
+      "parent": "NFC-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.001384320028591901,
+      "evidence": "NFC-01.card-error.log",
+      "evidence_sha256": "cc735f0facaf01efc33f084cf69e33868a195c21d00800e398868b71974ab479"
+    },
+    {
+      "id": "NFC-01.card-close",
+      "parent": "NFC-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013083150261081755,
+      "evidence": "NFC-01.card-close.log",
+      "evidence_sha256": "cbd0ef46af3f1d90a3744b9a201f8b971fed6daf948c6f0b7c4db5bfdf36cb21"
+    },
+    {
+      "id": "NFC-01.card-version",
+      "parent": "NFC-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.001293187029659748,
+      "evidence": "NFC-01.card-version.log",
+      "evidence_sha256": "73e3c8fc83a95c08650e5ad61c376d6dd5fef9e89fdfe07bd634ee888347a7bd"
+    },
+    {
+      "id": "NFC-01.card-replay",
+      "parent": "NFC-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.001298846967983991,
+      "evidence": "NFC-01.card-replay.log",
+      "evidence_sha256": "e1381cd2ad5da8dcc12703a050436ac0caab3095089f1fa772a9fd7d72067fb2"
+    },
+    {
+      "id": "NFC-01.card-validation",
+      "parent": "NFC-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013081450015306473,
+      "evidence": "NFC-01.card-validation.log",
+      "evidence_sha256": "b8900c568171e2371735c218f43a2def5c6031baf230d7449d1ffb1e864c26de"
+    },
+    {
+      "id": "NFC-01.card-malformed",
+      "parent": "NFC-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013019330217503011,
+      "evidence": "NFC-01.card-malformed.log",
+      "evidence_sha256": "42328b58e64f4ee55358de968b80953a1fdddaf53d1b96d5e484a258a9dd8dd7"
+    },
+    {
+      "id": "NFC-02.bindings-persist",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.031670871016103774,
+      "evidence": "NFC-02.bindings-persist.log",
+      "evidence_sha256": "bcbdfc1a9ee7e792034d92b7b9bd0dc523ed2678164ba63fbce5a116c2aa2c59"
+    },
+    {
+      "id": "NFC-02.bindings-revision",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.03162937000161037,
+      "evidence": "NFC-02.bindings-revision.log",
+      "evidence_sha256": "a3016e9918a119b9c6697faf62a667de979b6dbf30a61bf1751f9d17ccebcb4b"
+    },
+    {
+      "id": "NFC-02.bindings-invalid",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.001309960032813251,
+      "evidence": "NFC-02.bindings-invalid.log",
+      "evidence_sha256": "d4bdd0c6f895742479df6efa3f41b6cd89f8fc6b6516be0746dc6f20c5efee85"
+    },
+    {
+      "id": "NFC-02.bindings-writefail",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.015585163026116788,
+      "evidence": "NFC-02.bindings-writefail.log",
+      "evidence_sha256": "bf190d42b5154b264f7ae4ea6e25026f05967c1c8f614b973eb1d108baba71fb"
+    },
+    {
+      "id": "NFC-02.bindings-durability",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.03164974902756512,
+      "evidence": "NFC-02.bindings-durability.log",
+      "evidence_sha256": "429b2dc67ba9004b78470bf80b5326b0879c75a3bcf6bf89157be9e46dd160db"
+    },
+    {
+      "id": "NFC-02.bindings-corrupt",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.015597085992339998,
+      "evidence": "NFC-02.bindings-corrupt.log",
+      "evidence_sha256": "da4ddb7161b6121b8fa1c2e27baf2b960cd164d1bec5435ba1b0397661b97c6c"
+    },
+    {
+      "id": "LIFE-02.nfc-queued",
+      "parent": "LIFE-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0036467689787968993,
+      "evidence": "LIFE-02.nfc-queued.log",
+      "evidence_sha256": "d102993a6e3d10a7221bf599be8e5cea529357db7461bb79ea2f1d8f177073d4"
+    },
+    {
+      "id": "LIFE-02.nfc-active",
+      "parent": "LIFE-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0012916320119984448,
+      "evidence": "LIFE-02.nfc-active.log",
+      "evidence_sha256": "6e978f46cc8a57cc4e87c953c94510770e91799b0783dfb1703cbcdc97ae0fca"
+    },
+    {
+      "id": "LIFE-02.nfc-close-error",
+      "parent": "LIFE-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0014658549916930497,
+      "evidence": "LIFE-02.nfc-close-error.log",
+      "evidence_sha256": "cba940042ae0dab713372ab9d7ab365e38de8ae16f295feb3d60eb4006db1b5b"
+    },
+    {
+      "id": "LIFE-02.nfc-rf-error",
+      "parent": "LIFE-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013032450224272907,
+      "evidence": "LIFE-02.nfc-rf-error.log",
+      "evidence_sha256": "6eae6a57ccefdc02193722a74f0384e6ecee400e69962f45d34e1a9e2f7ac780"
+    },
+    {
+      "id": "LIFE-02.nfc-prestart",
+      "parent": "LIFE-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0012940189917571843,
+      "evidence": "LIFE-02.nfc-prestart.log",
+      "evidence_sha256": "cd487a5e250acd659249ea7004dc4646cdb99f6f3ccf97d00a8e0eabca62c0cc"
+    },
+    {
+      "id": "LIFE-02.nfc-late",
+      "parent": "LIFE-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013103500241413713,
+      "evidence": "LIFE-02.nfc-late.log",
+      "evidence_sha256": "7ca71b62fcfdecc8e748e0c346cab71262350d6d80d05d81da705e20e1ef0f01"
+    },
+    {
+      "id": "LIFE-02.power-nfc-busy",
+      "parent": "LIFE-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0015139360330067575,
+      "evidence": "LIFE-02.power-nfc-busy.log",
+      "evidence_sha256": "c985ac9a533725a6f7724de16b56c131e17d5e8c444edd95209fbb3f20762374"
+    },
+    {
+      "id": "LIFE-02.power-nfc-failed",
+      "parent": "LIFE-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013171719620004296,
+      "evidence": "LIFE-02.power-nfc-failed.log",
+      "evidence_sha256": "767f9599e5057533251cbc18f0d64357d52629420cd9262ea763162d283dafe8"
+    },
+    {
+      "id": "NFC-02.worker-dwell",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.03167156100971624,
+      "evidence": "NFC-02.worker-dwell.log",
+      "evidence_sha256": "f6e790ab53b9f26ae479721c739a0cdad8169968010e3eaa63f228b3808b0477"
+    },
+    {
+      "id": "NFC-02.worker-unknown",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.015588940004818141,
+      "evidence": "NFC-02.worker-unknown.log",
+      "evidence_sha256": "9e9febbb3ff194bdc9ade560adbb119f9f1926ac7a1d24883ddcee735283a18b"
+    },
+    {
+      "id": "NFC-02.worker-enroll",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.031685730966273695,
+      "evidence": "NFC-02.worker-enroll.log",
+      "evidence_sha256": "5c1c7c2ef4309fb68ea4abe029222c8af73b418bbfd2eabb91b19bb3648251a2"
+    },
+    {
+      "id": "NFC-02.worker-pending-cancel",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.03175252000801265,
+      "evidence": "NFC-02.worker-pending-cancel.log",
+      "evidence_sha256": "1571b1ed5fff32d9dc07fe1240b9a46aedb95a79ed65117be42f10a1c0dde22e"
+    },
+    {
+      "id": "NFC-02.worker-revoke",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.015593717980664223,
+      "evidence": "NFC-02.worker-revoke.log",
+      "evidence_sha256": "3b906a062384945f5c3f1e6005d839a10770b6058189376a10fe3d7a64e46da1"
+    },
+    {
+      "id": "NFC-02.worker-stop",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.03166587604209781,
+      "evidence": "NFC-02.worker-stop.log",
+      "evidence_sha256": "2d6cc283e790630ac47c9a892ad32718141afed608d5b84c9f91b58bfd4fdbc5"
+    },
+    {
+      "id": "NFC-02.worker-release",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.015597355959471315,
+      "evidence": "NFC-02.worker-release.log",
+      "evidence_sha256": "f760e9e0d2c73b64a3d757cb702c8a8d29b5a56a035fa51463f37c2ea1665fea"
+    },
+    {
+      "id": "NFC-02.worker-error",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.03171053895493969,
+      "evidence": "NFC-02.worker-error.log",
+      "evidence_sha256": "e5ca16d5b215a476a57dc3417fef5816beafb862410ce3f7b2cc2ee8e615d54b"
+    },
+    {
+      "id": "NFC-02.worker-load-revoke",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0316843279870227,
+      "evidence": "NFC-02.worker-load-revoke.log",
+      "evidence_sha256": "0c8a7c5f74e9bf5e88520fdd2d28cae1017e000073076d54fc129d59927fa985"
+    },
+    {
+      "id": "NFC-02.worker-first-enroll",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.031645187991671264,
+      "evidence": "NFC-02.worker-first-enroll.log",
+      "evidence_sha256": "ff97156fc2d774119db14e034f3a75a061045ccdf690bb2ba4c420ef5d8bc19a"
+    },
+    {
+      "id": "NFC-02.scene-dwell",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.03194121801061556,
+      "evidence": "NFC-02.scene-dwell.log",
+      "evidence_sha256": "ae555b41dfc9f8b873ec525e271c99ab523d3d31dc5a8a49d4a791c7a7447035"
+    },
+    {
+      "id": "NFC-02.scene-unknown",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.015546659007668495,
+      "evidence": "NFC-02.scene-unknown.log",
+      "evidence_sha256": "02b922d91f8d7523a0a6ec6ce29e991e52cb8de90a9bd2e56b39ad6515702eba"
+    },
+    {
+      "id": "NFC-02.scene-stale",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.015561808017082512,
+      "evidence": "NFC-02.scene-stale.log",
+      "evidence_sha256": "b8650a718be4599b09c3607f402fd231211abf0dcb1fb3dee7073f9466393abc"
+    },
+    {
+      "id": "NFC-02.scene-gate",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0316279319813475,
+      "evidence": "NFC-02.scene-gate.log",
+      "evidence_sha256": "566f91517f0f80e65a4e026670d3da51bcca947d25deb87d0c1a1cc674de7d1c"
+    },
+    {
+      "id": "NFC-02.scene-busy",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.015572188014630228,
+      "evidence": "NFC-02.scene-busy.log",
+      "evidence_sha256": "d15aa0f2968e159cff5cc8a0ef7ee3bb1fe4eae958aca8a513f8f52d99807426"
+    },
+    {
+      "id": "NFC-02.scene-binding",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.015577248006593436,
+      "evidence": "NFC-02.scene-binding.log",
+      "evidence_sha256": "130e91a00421ac20a40e1f230e1bbbdf42e31c41006527c07b29fb97d60ed59a"
+    },
+    {
+      "id": "NFC-02.scene-invalid",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.03161717101465911,
+      "evidence": "NFC-02.scene-invalid.log",
+      "evidence_sha256": "203f22f011f9a4179f35729ae005a0d6ca55534135bf6f36c1d9551825bee89b"
+    },
+    {
+      "id": "NFC-01.observe-off",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.26428269397001714,
+      "evidence": "NFC-01.observe-off.log",
+      "evidence_sha256": "7c55316c0c53d42eaabe0566166d1ad103578f40d64f269eac3f953fcd8b61da"
+    },
+    {
+      "id": "NFC-01.observe-quiet",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.2643631160026416,
+      "evidence": "NFC-01.observe-quiet.log",
+      "evidence_sha256": "df6b91d344b8482a2a3197c3e449968ba38140f3eaeec00f964263450f0e608a"
+    },
+    {
+      "id": "NFC-01.observe-watchdog",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.26438912498997524,
+      "evidence": "NFC-01.observe-watchdog.log",
+      "evidence_sha256": "f4d9d7da5385c43e353e15187c7f8217cf2dd92e47dea807cecbdd8f4a55286b"
+    },
+    {
+      "id": "NFC-01.observe-timer_error",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.26443589199334383,
+      "evidence": "NFC-01.observe-timer_error.log",
+      "evidence_sha256": "4dfe639539fa4a57d8e46c81f4ada1181dc095fe7f3be2a99af67751e3823b11"
+    },
+    {
+      "id": "NFC-01.observe-partial",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.26432758901501074,
+      "evidence": "NFC-01.observe-partial.log",
+      "evidence_sha256": "6c912dd25b8db78bc784a3d84d37786771004c2ff2cddd533214cb83f7622245"
+    },
+    {
+      "id": "NFC-01.observe-selection_timeout",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.26449484698241577,
+      "evidence": "NFC-01.observe-selection_timeout.log",
+      "evidence_sha256": "7ad7637b95885f51f79f2950794fb93b7506bad0599ffbbf31c9c8242a674dbd"
+    },
+    {
+      "id": "NFC-01.observe-invalid_uid",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.2645060989889316,
+      "evidence": "NFC-01.observe-invalid_uid.log",
+      "evidence_sha256": "902dfb8857fcc274940e425cce6f9511aaaa6a950283e3c2a463b5f661277d40"
+    },
+    {
+      "id": "NFC-01.observe-collision",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.26441137795336545,
+      "evidence": "NFC-01.observe-collision.log",
+      "evidence_sha256": "5ff64236f3a243b77edd55995fbd84694d36d159e13cc6e2dc03f9929d23596c"
+    },
+    {
+      "id": "NFC-01.observe-present",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.2643608439830132,
+      "evidence": "NFC-01.observe-present.log",
+      "evidence_sha256": "c74809a4b489d31e5ab19c87c90d894bc5e9b330e0b8934d883fb7b4065746a4"
+    },
+    {
+      "id": "NFC-01.observe-residual_error",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.26430116198025644,
+      "evidence": "NFC-01.observe-residual_error.log",
+      "evidence_sha256": "0ba28a83e2458175109cf0b3031000eeb0b21a274b7d715c5259e348a01a39f4"
+    },
+    {
+      "id": "NFC-01.observe-null",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.26456743298331276,
+      "evidence": "NFC-01.observe-null.log",
+      "evidence_sha256": "e1425d4e61dea0f9773d6ff707bcb14152b1ea85e2c3cea92a23ca7b69f7cf3c"
+    },
+    {
+      "id": "NFC-01.deadline-crc_deadline",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.26450004102662206,
+      "evidence": "NFC-01.deadline-crc_deadline.log",
+      "evidence_sha256": "1f1b2429da49623c2fbb152e7d79c659b6b972fcdd290f12fb1d505a87b0684f"
+    },
+    {
+      "id": "NFC-01.deadline-crc_wrap",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.214318368001841,
+      "evidence": "NFC-01.deadline-crc_wrap.log",
+      "evidence_sha256": "949376b39c42c799bfce03d94d2c16ca84567b5ebd324bc2246a8ee4db8bc477"
+    },
+    {
+      "id": "NFC-01.deadline-crc_success",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.21412696404149756,
+      "evidence": "NFC-01.deadline-crc_success.log",
+      "evidence_sha256": "172c15f8b595c53e4db4d918bfc25591a4ac35513573a1e6302946bf8d1a4282"
+    },
+    {
+      "id": "NFC-01.deadline-comm_deadline",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.21423162199789658,
+      "evidence": "NFC-01.deadline-comm_deadline.log",
+      "evidence_sha256": "99c8527d60b4c9cb4c820f11f185f38132bd0452d47c32d56c24eb4ad20dcd87"
+    },
+    {
+      "id": "NFC-01.deadline-comm_wrap",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.2143300559837371,
+      "evidence": "NFC-01.deadline-comm_wrap.log",
+      "evidence_sha256": "d3d147918513d1f8fa6459cdaead2f554b6c96886a4f7b0c4a5a148553e1c2ce"
+    },
+    {
+      "id": "NFC-01.deadline-comm_success",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.21423994295764714,
+      "evidence": "NFC-01.deadline-comm_success.log",
+      "evidence_sha256": "54bbfad6795037d231ff30b79f197c9e45008ac2c33dfa50ec92e42ac3715d94"
+    },
+    {
+      "id": "NFC-01.deadline-hardware",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.2142006490030326,
+      "evidence": "NFC-01.deadline-hardware.log",
+      "evidence_sha256": "2ce1b845a72aba0923bae2aee57810a9bfa9840fa115d0dd267f28a9379ed80f"
+    },
+    {
+      "id": "NFC-01.deadline-protocol",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.21437766798771918,
+      "evidence": "NFC-01.deadline-protocol.log",
+      "evidence_sha256": "6a6c048ca83854cda5a07967a1d694c11259660b219157bf06545b9063307ef1"
+    },
+    {
+      "id": "TIMER-01.intent-voice",
+      "parent": "TIMER-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0018658519838936627,
+      "evidence": "TIMER-01.intent-voice.log",
+      "evidence_sha256": "ec7f0f0eaef4b283341ae6e47edf37bfe65515ce2bde5c41e01cabc2a3cf9936"
+    },
+    {
+      "id": "TIMER-01.intent-gate",
+      "parent": "TIMER-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013125620316714048,
+      "evidence": "TIMER-01.intent-gate.log",
+      "evidence_sha256": "9ae6f74d90ebd0b9ece6fe34dd879d77df9d47f1f598ac65e09a3a2edbcef9e8"
+    },
+    {
+      "id": "TIMER-01.intent-revision",
+      "parent": "TIMER-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0012774249771609902,
+      "evidence": "TIMER-01.intent-revision.log",
+      "evidence_sha256": "54f5e301c41069c61c21b12e9499434e17eb4cf0e77151ede38a6b9e2034c0c1"
+    },
+    {
+      "id": "TIMER-01.intent-cancel",
+      "parent": "TIMER-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013096350012347102,
+      "evidence": "TIMER-01.intent-cancel.log",
+      "evidence_sha256": "11d15778aa00104dbe75922aad72c14df1cde4e72e236d8f61e842159f5b9067"
+    },
+    {
+      "id": "TIMER-01.intent-invalid",
+      "parent": "TIMER-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.001353832019958645,
+      "evidence": "TIMER-01.intent-invalid.log",
+      "evidence_sha256": "a73bbfb07993470e4aa5af128b16f50d82a032fe648eecf1c88a77eb87b374fd"
+    },
+    {
+      "id": "TIMER-01.shared-start",
+      "parent": "TIMER-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0017501330003142357,
+      "evidence": "TIMER-01.shared-start.log",
+      "evidence_sha256": "fb8700333faa3c63f3119ebf7039696f7b8bdd9f325289cd235e8f6464e8ff84"
+    },
+    {
+      "id": "TIMER-01.shared-retry",
+      "parent": "TIMER-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.001300989999435842,
+      "evidence": "TIMER-01.shared-retry.log",
+      "evidence_sha256": "c7b360b24a21646c904d47bb825d4732b7d9a4e2aa16b65e57d07bdb367265e3"
+    },
+    {
+      "id": "TIMER-01.shared-cancel",
+      "parent": "TIMER-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013032350107096136,
+      "evidence": "TIMER-01.shared-cancel.log",
+      "evidence_sha256": "7e7225e96d5f1074b000ecc1573221211cb49cace5dbf20261af5ffd9367ae3f"
+    },
+    {
+      "id": "TIMER-01.shared-invalid",
+      "parent": "TIMER-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0012817130191251636,
+      "evidence": "TIMER-01.shared-invalid.log",
+      "evidence_sha256": "c66ef7d3a6151c73de37cb167ff71f097cc9d56a5b029092c789c92e1eba37b1"
+    },
+    {
+      "id": "TIMER-01.clock",
+      "parent": "TIMER-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0017705409554764628,
+      "evidence": "TIMER-01.clock.log",
+      "evidence_sha256": "d3fa38c04593d59c5afcb11c8a64d6200ec8dff3ff25610f1bdcb711a8e1da9e"
+    },
+    {
+      "id": "TIMER-01.replay",
+      "parent": "TIMER-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0012795999646186829,
+      "evidence": "TIMER-01.replay.log",
+      "evidence_sha256": "4387b26f2ba1e95878361f28ae873b379d513435b3e8c8309262d60dc6e8e824"
+    },
+    {
+      "id": "TIMER-01.invalid",
+      "parent": "TIMER-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0012724859989248216,
+      "evidence": "TIMER-01.invalid.log",
+      "evidence_sha256": "ccca173a62e66f7fdea3492384623a7342cbf09d8967c829cb49dd24a8427493"
+    },
+    {
+      "id": "TIMER-01.wire",
+      "parent": "TIMER-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0016556939808651805,
+      "evidence": "TIMER-01.wire.log",
+      "evidence_sha256": "da4abb6a954a7d6c615dbe3a8ea22f6f4c387c88aa727a8a85918bd6c9599bb0"
+    },
+    {
+      "id": "AUD-03.media-tail",
+      "parent": "AUD-03",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0038070979644544423,
+      "evidence": "AUD-03.media-tail.log",
+      "evidence_sha256": "7289e38806f5f10ca129243f96cdbc2f41b5d94d84885ad381f2bed8706cd2d7"
+    },
+    {
+      "id": "AUD-03.media-cancel-next",
+      "parent": "AUD-03",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.007476856000721455,
+      "evidence": "AUD-03.media-cancel-next.log",
+      "evidence_sha256": "102470a9ba2abdb5fa2c0d2c903b86d5b7c452ed19238fcbadcdf654709d1b1e"
+    },
+    {
+      "id": "NET-02.display-snapshot",
+      "parent": "NET-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0016938759945333004,
+      "evidence": "NET-02.display-snapshot.log",
+      "evidence_sha256": "265ea7ab9ec9782d6479300e266ae3a671b2bb42a1af742ba3ddd7e981542cdf"
+    },
+    {
+      "id": "DISP-01.expression-intent",
+      "parent": "DISP-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0015658619813621044,
+      "evidence": "DISP-01.expression-intent.log",
+      "evidence_sha256": "0337037573a6dd8975038c2a007183121d1cc527e8ce694501f2e8729e75b874"
+    },
+    {
+      "id": "DISP-01.expression-cancel",
+      "parent": "DISP-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0015031959628686309,
+      "evidence": "DISP-01.expression-cancel.log",
+      "evidence_sha256": "c7acdcba11e6f5d4c7bbb45c1b231a28a3a23d7af824caa5951fc6d6b8d5723e"
+    },
+    {
+      "id": "RES-02.trial-wire",
+      "parent": "RES-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0016310049686580896,
+      "evidence": "RES-02.trial-wire.log",
+      "evidence_sha256": "dbb52bbde3e38dd7f45b0486880554fd2f09a151d6baf160e5da2659b7dd6ea0"
+    },
+    {
+      "id": "RES-02.expression-trial",
+      "parent": "RES-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0016121420194394886,
+      "evidence": "RES-02.expression-trial.log",
+      "evidence_sha256": "95a65856544582d0003a46929ad33885a9de29bb4ebaccc6459e8d620c4a63b0"
+    },
+    {
+      "id": "RES-02.expression-ownership",
+      "parent": "RES-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0016415269928984344,
+      "evidence": "RES-02.expression-ownership.log",
+      "evidence_sha256": "5fb41ec7e9ea449f74f423d7b8517cd8cd02b73a33be56d4992db06159b5b078"
+    },
+    {
+      "id": "CFG-02.models-unknown",
+      "parent": "CFG-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.032025793043430895,
+      "evidence": "CFG-02.models-unknown.log",
+      "evidence_sha256": "9a6f43814a91e73933976144f5883ae88424ce1b45a50481d72223994c86345b"
+    },
+    {
+      "id": "MSC-01.backend-stop-normal",
+      "parent": "MSC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0016037659952417016,
+      "evidence": "MSC-01.backend-stop-normal.log",
+      "evidence_sha256": "4fe5794b834d995d753a8a9cd4f6a6dbeb3aba1e33ab2f4c7e2759b306959b8e"
+    },
+    {
+      "id": "MSC-01.backend-stop-retry",
+      "parent": "MSC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013020620099268854,
+      "evidence": "MSC-01.backend-stop-retry.log",
+      "evidence_sha256": "b93538dc095dae8cebcbe6c5c3e9ae56fc512d50cc5c8c00d97cad41ab6ae804"
+    },
+    {
+      "id": "MSC-01.backend-stop-start-cleanup",
+      "parent": "MSC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.001327168953139335,
+      "evidence": "MSC-01.backend-stop-start-cleanup.log",
+      "evidence_sha256": "d7d25628821963aef78e9a9548119d93148677cec923984cfa258c664cdaa61f"
+    },
+    {
+      "id": "MSC-01.backend-stop-close-error",
+      "parent": "MSC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0012826850288547575,
+      "evidence": "MSC-01.backend-stop-close-error.log",
+      "evidence_sha256": "4d1c3dcfeb6ce7fd2530ce4b52e9ac9ec6dbced23011495c2a26827cba91bbf2"
+    },
+    {
+      "id": "LIFE-02.power-normal",
+      "parent": "LIFE-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013154679909348488,
+      "evidence": "LIFE-02.power-normal.log",
+      "evidence_sha256": "8d4f3caa9b3769cfd2ca37b5ddd31b81ea855593cadc55b12484727aa415198d"
+    },
+    {
+      "id": "LIFE-02.power-admission-failure",
+      "parent": "LIFE-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0012750609894283116,
+      "evidence": "LIFE-02.power-admission-failure.log",
+      "evidence_sha256": "0cc1981f8e3cf0a0b983792bc8f53bad02844227e675c0ed2e5f6733835181ce"
+    },
+    {
+      "id": "LIFE-02.power-partial-failure",
+      "parent": "LIFE-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0012758130324073136,
+      "evidence": "LIFE-02.power-partial-failure.log",
+      "evidence_sha256": "a626236e7d7715bcdbb4ec51ad404dd53ff692363d600feec86eb5cbe183f3b7"
+    },
+    {
+      "id": "LIFE-02.power-cp-declined",
+      "parent": "LIFE-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0012791489716619253,
+      "evidence": "LIFE-02.power-cp-declined.log",
+      "evidence_sha256": "1512411e2dd5209c2a8ce0d614db0e9e4f04b696453678f8d8407086201add7d"
+    },
+    {
+      "id": "LIFE-02.power-cp-unknown",
+      "parent": "LIFE-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0012823949800804257,
+      "evidence": "LIFE-02.power-cp-unknown.log",
+      "evidence_sha256": "03c70ed1380c4ef446e941cf68609fb803982a4a3e7fb0c048cf9fb5d116fef3"
+    },
+    {
+      "id": "LIFE-02.power-admission-stops-trigger",
+      "parent": "LIFE-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0012695000041276217,
+      "evidence": "LIFE-02.power-admission-stops-trigger.log",
+      "evidence_sha256": "1f0f107f876d2f7a1c5bdffbee0c0983f08bd19907730d015fc734bb6c615752"
+    },
+    {
+      "id": "LIFE-02.power-storage-stops-trigger",
+      "parent": "LIFE-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.00127381895435974,
+      "evidence": "LIFE-02.power-storage-stops-trigger.log",
+      "evidence_sha256": "ef6e8ed7adf36bafa024214556f439743f8351e687c0db1575e4fe1abd1900a5"
+    },
+    {
+      "id": "LIFE-02.power-trigger-failure",
+      "parent": "LIFE-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013046470121480525,
+      "evidence": "LIFE-02.power-trigger-failure.log",
+      "evidence_sha256": "9abdb0b09f18267eb0af73a2129a9ad2d90fb524e18b2c97855d066f03099eac"
+    },
+    {
+      "id": "LIFE-02.power-unpublished-trigger",
+      "parent": "LIFE-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0012763129780068994,
+      "evidence": "LIFE-02.power-unpublished-trigger.log",
+      "evidence_sha256": "621c7064ad37f0f79324d687aa52edc1816ba673c21b25aec4eb21b3f6173839"
+    },
+    {
+      "id": "LIFE-02.power-admission-drains",
+      "parent": "LIFE-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.001276955008506775,
+      "evidence": "LIFE-02.power-admission-drains.log",
+      "evidence_sha256": "cc76eab9f1e852ec078dc4423a0fb1eefbc00fd3ff2878afe707c6b5edefe3de"
+    },
+    {
+      "id": "LIFE-02.power-failed-drains",
+      "parent": "LIFE-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0012791390181519091,
+      "evidence": "LIFE-02.power-failed-drains.log",
+      "evidence_sha256": "882495fd67ee2c8e85b37597c9e6ce0614c90852ca0fcb5e7f4e68e0b777357d"
+    },
+    {
+      "id": "LIFE-02.power-final-close-drains",
+      "parent": "LIFE-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0012716850033029914,
+      "evidence": "LIFE-02.power-final-close-drains.log",
+      "evidence_sha256": "948bf3fd3c61699e22b1e4aa7ff0105a22d6974e1a7c88afc305008650b6876e"
+    },
+    {
+      "id": "LIFE-02.power-failure-display",
+      "parent": "LIFE-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013182330294512212,
+      "evidence": "LIFE-02.power-failure-display.log",
+      "evidence_sha256": "22495ddc585515be22a5f1f66248603aa61f5af60ff6d57c86f046c28489b6c9"
+    },
+    {
+      "id": "NET-03.quiesce-queries",
+      "parent": "NET-03",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0016410759999416769,
+      "evidence": "NET-03.quiesce-queries.log",
+      "evidence_sha256": "631d5c2e93130d00895d91a3572309fdadd6e17e431e3e25aa4f8ff21d60c4e6"
+    },
+    {
+      "id": "NET-03.quiesce-staging",
+      "parent": "NET-03",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0012992570409551263,
+      "evidence": "NET-03.quiesce-staging.log",
+      "evidence_sha256": "5e856cebd82add0b9c080dfb4ec3d6fab58a74e7a3db6b93e248343c9ee6fc6a"
+    },
+    {
+      "id": "NET-03.quiesce-config-staging",
+      "parent": "NET-03",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0012783170095644891,
+      "evidence": "NET-03.quiesce-config-staging.log",
+      "evidence_sha256": "40f64a65fde18f891053b9ade59e2a99d00bd175cfe14862ae75d80092a61cc5"
+    },
+    {
+      "id": "NET-03.quiesce-ota-commit",
+      "parent": "NET-03",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.00132263102568686,
+      "evidence": "NET-03.quiesce-ota-commit.log",
+      "evidence_sha256": "25c80b299294c36776ea54905a9d04cc64a58744e3f9ed4e543900f98ea23c0b"
+    },
+    {
+      "id": "NET-03.quiesce-invalid",
+      "parent": "NET-03",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.001274720998480916,
+      "evidence": "NET-03.quiesce-invalid.log",
+      "evidence_sha256": "9672ae851d115cda6d49a7727ff538031a6661043f47d97818a2627145f992d1"
+    },
+    {
+      "id": "NET-03.owner-queries",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0014777350006625056,
+      "evidence": "NET-03.owner-queries.log",
+      "evidence_sha256": "e60add3b6473afaf332d2dfeaef721f98f647c1b4ffa468794ccd283b6b58c66"
+    },
+    {
+      "id": "NET-03.owner-unauthenticated",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.001270762993954122,
+      "evidence": "NET-03.owner-unauthenticated.log",
+      "evidence_sha256": "17da5d7f57a5884aa7da53a7a2e3cfdd66dbe7e428bc274e085f63f2bfd45688"
+    },
+    {
+      "id": "NET-03.owner-invalid-sequence",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.001270982960704714,
+      "evidence": "NET-03.owner-invalid-sequence.log",
+      "evidence_sha256": "ed8a59425602a51484caf7857dab3d809ad4f89cbb0871b1b3d9ea2f95e9a9ac"
+    },
+    {
+      "id": "NET-03.owner-legacy",
+      "parent": "NET-03",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0012773150228895247,
+      "evidence": "NET-03.owner-legacy.log",
+      "evidence_sha256": "b8c58d1d1d4cc4964f00158187cab0f67e21ced6a557bdb8c6c654f021feaeef"
+    },
+    {
+      "id": "LIFE-01.owner-integration",
+      "parent": "LIFE-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0014954389771446586,
+      "evidence": "LIFE-01.owner-integration.log",
+      "evidence_sha256": "0aef1491f68126550961d666448f3039507c84460cd620c583fbb3365665799b"
+    },
+    {
+      "id": "LIFE-02.capture-close-failure",
+      "parent": "LIFE-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.3146942489547655,
+      "evidence": "LIFE-02.capture-close-failure.log",
+      "evidence_sha256": "e8a913e66aed31a7193ac6b900050428d86449df0ab72962b608a076d24e8077"
+    },
+    {
+      "id": "LIFE-02.capture-route-failure",
+      "parent": "LIFE-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.26444540900411084,
+      "evidence": "LIFE-02.capture-route-failure.log",
+      "evidence_sha256": "38a67bb19b33eba70194173604ad30f7921162c453655e58715cb12dd9b5d9fa"
+    },
+    {
+      "id": "MSC-01.acquiring",
+      "parent": "MSC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0017925340216606855,
+      "evidence": "MSC-01.acquiring.log",
+      "evidence_sha256": "59f0b79dd8ede0d64aa94fad0958f93e67e640f09ce1add3bb983b96e2dcf5f6"
+    },
+    {
+      "id": "MSC-01.releasing",
+      "parent": "MSC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013643699930980802,
+      "evidence": "MSC-01.releasing.log",
+      "evidence_sha256": "a22040b6e661b725458cf998119e1ac79074821578b15a5b60c9981c6d9be7bd"
+    },
+    {
+      "id": "MSC-01.retry",
+      "parent": "MSC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013056489988230169,
+      "evidence": "MSC-01.retry.log",
+      "evidence_sha256": "43daf61acd83b160e3626ac3ed84f57ff9e9567484c3770913bfbe4f55618834"
+    },
+    {
+      "id": "MSC-01.unmount-failure",
+      "parent": "MSC-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0015705020050518215,
+      "evidence": "MSC-01.unmount-failure.log",
+      "evidence_sha256": "a7efe770929bec81e58207bc8742134f1041165ec5a062a81136dafeedba52b1"
+    },
+    {
+      "id": "MSC-01.local-busy",
+      "parent": "MSC-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0012868630001321435,
+      "evidence": "MSC-01.local-busy.log",
+      "evidence_sha256": "18fb737932f5a911f17759c16e88f73a49098e8353908ec5f28a3279974d928e"
+    },
+    {
+      "id": "MSC-01.wrong-owner",
+      "parent": "MSC-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013783570029772818,
+      "evidence": "MSC-01.wrong-owner.log",
+      "evidence_sha256": "6b360a6b37d4643d712887804edd8e5c0264b58b5cf6b115427b0b7d240d189f"
+    },
+    {
+      "id": "MSC-01.handoff",
+      "parent": "MSC-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0012880450231023133,
+      "evidence": "MSC-01.handoff.log",
+      "evidence_sha256": "1d3b3e9086bb6e645cdb7fff10837300583a233b8b8248c37ecf29f8d77a0caf"
+    },
+    {
+      "id": "AUD-01.pcm-1",
+      "parent": "AUD-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.1141125580179505,
+      "evidence": "AUD-01.pcm-1.log",
+      "evidence_sha256": "6b825861d6a8cd7ee0143d78a44db3ff3b5aa5f308e522ef53fa2ab91e862638"
+    },
+    {
+      "id": "AUD-01.pcm-20260924",
+      "parent": "AUD-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.11385934997815639,
+      "evidence": "AUD-01.pcm-20260924.log",
+      "evidence_sha256": "aca8b2661965c630906e56827f8c45953f4e938181c74650be28f6a76a10fcd9"
+    },
+    {
+      "id": "AUD-01.pcm-4294967295",
+      "parent": "AUD-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.11404691298957914,
+      "evidence": "AUD-01.pcm-4294967295.log",
+      "evidence_sha256": "dc275e55d5855121fbbf1b11dad079c51483a3239624d9233ac8a08b796af54a"
+    },
+    {
+      "id": "AUD-03.cancel-late",
+      "parent": "AUD-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.007601071032695472,
+      "evidence": "AUD-03.cancel-late.log",
+      "evidence_sha256": "7ad4368133a47348085f387160ff4b128d67f2bc6e57c0a7479b270c8ad1e126"
+    },
+    {
+      "id": "AUD-01.sse-1",
+      "parent": "AUD-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.015619906014762819,
+      "evidence": "AUD-01.sse-1.log",
+      "evidence_sha256": "b86b4ec28c2f74be7e100899931688d90b3c81b3eefdb7a8089e67f50c68479c"
+    },
+    {
+      "id": "AUD-01.sse-20260924",
+      "parent": "AUD-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.015570314950309694,
+      "evidence": "AUD-01.sse-20260924.log",
+      "evidence_sha256": "17dc299cb665d635e2bcde61c13aa923062bdc0ccfc2658453380a3142fdb2af"
+    },
+    {
+      "id": "NFC-01.uid-empty",
+      "parent": "NFC-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013191539910621941,
+      "evidence": "NFC-01.uid-empty.log",
+      "evidence_sha256": "935bc3f514d01de7613613ef243aaa2650a0a01ada14cc9c1e8ab020fe53f34d"
+    },
+    {
+      "id": "NFC-01.select-timeout",
+      "parent": "NFC-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0012787379673682153,
+      "evidence": "NFC-01.select-timeout.log",
+      "evidence_sha256": "ed5bf54d20867053edfffb13a5d4c6eae08db851bdc98b42bb3bbfd8f28022fe"
+    },
+    {
+      "id": "NFC-01.select-error",
+      "parent": "NFC-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.001290380023419857,
+      "evidence": "NFC-01.select-error.log",
+      "evidence_sha256": "f7c58b71ee740e9fb0e3a277f04e12bd94749435de1941a816b52934e38ab1a2"
+    },
+    {
+      "id": "NFC-01.uid-size",
+      "parent": "NFC-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0012764929560944438,
+      "evidence": "NFC-01.uid-size.log",
+      "evidence_sha256": "9d8bb8b5ef924ca6fa4082485d211707a0abef7eed6f49699d8a9d60b7912a4e"
+    },
+    {
+      "id": "NFC-01.uid-incomplete",
+      "parent": "NFC-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013151869643479586,
+      "evidence": "NFC-01.uid-incomplete.log",
+      "evidence_sha256": "b77c2c42ce4d5a59f5ee7bf2fa8cb6708cf43264f81de25b2dd86a20b43462fc"
+    },
+    {
+      "id": "NFC-01.uid-4",
+      "parent": "NFC-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0012889470090158284,
+      "evidence": "NFC-01.uid-4.log",
+      "evidence_sha256": "c7568e0a3e0028eac3524a6c1e923dcbc11a6831a0313f6ea5a1818a27bd8309"
+    },
+    {
+      "id": "NFC-01.uid-7",
+      "parent": "NFC-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0014215789851732552,
+      "evidence": "NFC-01.uid-7.log",
+      "evidence_sha256": "1ad73faab9667d47afa25c9f54a936d5bfc461b4f13e357b6e6bdae079eb4518"
+    },
+    {
+      "id": "NFC-01.uid-10",
+      "parent": "NFC-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0012869930360466242,
+      "evidence": "NFC-01.uid-10.log",
+      "evidence_sha256": "398d1cb4de4dd60f6eb4d2c84a2e162ae1a48ba783a1eae547f0936422586103"
+    },
+    {
+      "id": "NFC-01.empty",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.005267781962174922,
+      "evidence": "NFC-01.empty.log",
+      "evidence_sha256": "87c70a5f356893a5a5742b152c4d47ba0102bea40d516e02a484eca639635374"
+    },
+    {
+      "id": "NFC-01.oversize",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0012840270064771175,
+      "evidence": "NFC-01.oversize.log",
+      "evidence_sha256": "b321b849f0363ecdba6d4374fd614a2e521a2b6d4ebe240b33e5a65bb5318e18"
+    },
+    {
+      "id": "NFC-01.hce-positive",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013081030338071287,
+      "evidence": "NFC-01.hce-positive.log",
+      "evidence_sha256": "440e1a7740b0a50e1adc830a91ad4c033912b39c5754f7e0a67f18e6e08b7789"
+    },
+    {
+      "id": "K2-01.legacy-suite",
+      "parent": "K2-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0015680869692005217,
+      "evidence": "K2-01.legacy-suite.log",
+      "evidence_sha256": "ea80bc19f967b5402be8192068925930a0de093a2727e93cde9e5d5a3e3dc0bf"
+    },
+    {
+      "id": "MSC-02.legacy-suite",
+      "parent": "MSC-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0016687079914845526,
+      "evidence": "MSC-02.legacy-suite.log",
+      "evidence_sha256": "0d5939e4ae15ebada68484ffac9535afc11d4425a141cd356e2c1933f10b5faf"
+    },
+    {
+      "id": "MOT-01.legacy-suite",
+      "parent": "MOT-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0015427990001626313,
+      "evidence": "MOT-01.legacy-suite.log",
+      "evidence_sha256": "9cfd0e033585e8fe373dd126206711a5c65192e609ae038fa200807a8d59c33b"
+    },
+    {
+      "id": "NFC-01.legacy-suite",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013830259558744729,
+      "evidence": "NFC-01.legacy-suite.log",
+      "evidence_sha256": "b6055320a00a8b9ee26dae19bfb2b3f3274cbe61768abdc7ad8f94b53ef29101"
+    },
+    {
+      "id": "CFG-01.wifi-reopen",
+      "parent": "CFG-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.06376539799384773,
+      "evidence": "CFG-01.wifi-reopen.log",
+      "evidence_sha256": "761e8057354b5b2e4c5c704d512a8e1fca2f97f7d596d4fc46c4c0565b7ceec5"
+    },
+    {
+      "id": "STORE-02.file-sync-failure",
+      "parent": "STORE-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.03170479496475309,
+      "evidence": "STORE-02.file-sync-failure.log",
+      "evidence_sha256": "1e2c1bc454fb1929a5a376887dca09db22e3231cafbb07202fcc502b0d4ff1d1"
+    },
+    {
+      "id": "STORE-02.file-sync-retry",
+      "parent": "STORE-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.06379255995852873,
+      "evidence": "STORE-02.file-sync-retry.log",
+      "evidence_sha256": "c730ab6f922bd4c614f32388c73f3f111c8db562f03f967f3600dc064a88dcec"
+    },
+    {
+      "id": "STORE-02.directory-sync-unknown",
+      "parent": "STORE-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.03172555402852595,
+      "evidence": "STORE-02.directory-sync-unknown.log",
+      "evidence_sha256": "eaaa0f58a0c120d96333d054fd4bc2ab66bff2b571442907ff607f821926726c"
+    },
+    {
+      "id": "CFG-03.stale",
+      "parent": "CFG-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.03164354100590572,
+      "evidence": "CFG-03.stale.log",
+      "evidence_sha256": "72e8a093cc768b71c3b51190394e73ddd5ba2845643f88aa5c0124d35f21912f"
+    },
+    {
+      "id": "CFG-03.conflict",
+      "parent": "CFG-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.031773145019542426,
+      "evidence": "CFG-03.conflict.log",
+      "evidence_sha256": "c6d920915309566a77084ed0b2ce68198a69716a9093f05e139f284ea1db4a79"
+    },
+    {
+      "id": "CFG-03.keep-key",
+      "parent": "CFG-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.06381268799304962,
+      "evidence": "CFG-03.keep-key.log",
+      "evidence_sha256": "29b314d11aeec02ce557d5f957bc3c8ae0c22d9c64f4a331e75ecfaaf18dbf1f"
+    },
+    {
+      "id": "CFG-03.replace-key",
+      "parent": "CFG-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.06379074498545378,
+      "evidence": "CFG-03.replace-key.log",
+      "evidence_sha256": "de5d14230298c06c36b694a28da85c52ae390b4c1d6f452bda182169081209ce"
+    },
+    {
+      "id": "CFG-03.clear-cloud",
+      "parent": "CFG-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.03173882298870012,
+      "evidence": "CFG-03.clear-cloud.log",
+      "evidence_sha256": "750b874f18e876e25257bb891fc5265475938517332743e6d51bb748749ae6bd"
+    },
+    {
+      "id": "CFG-03.cross-host-retain",
+      "parent": "CFG-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.03168737201485783,
+      "evidence": "CFG-03.cross-host-retain.log",
+      "evidence_sha256": "3c07dc8c8a470126eec17958274b16793e11926fb4ef7faf400f578a3b52cfb0"
+    },
+    {
+      "id": "STORE-02.restart-before-publish",
+      "parent": "STORE-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.06391888001235202,
+      "evidence": "STORE-02.restart-before-publish.log",
+      "evidence_sha256": "7e14ff3b169352fbee91f7092fa7a5c9aa7f5e31f7c47eaa1342fff6073c1f88"
+    },
+    {
+      "id": "STORE-02.restart-after-publish",
+      "parent": "STORE-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.06388068705564365,
+      "evidence": "STORE-02.restart-after-publish.log",
+      "evidence_sha256": "c082e2e54d090dd1f7e48290b0184f52c09fff33ef383ae6d58c62ac862a93fc"
+    },
+    {
+      "id": "CFG-01.restored",
+      "parent": "CFG-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.06397045601624995,
+      "evidence": "CFG-01.restored.log",
+      "evidence_sha256": "94f270d1225bf6438f7d375eab05cfed65ca711cf0e571641007b69795bd9867"
+    },
+    {
+      "id": "MSC-01.restored",
+      "parent": "MSC-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.001420027983840555,
+      "evidence": "MSC-01.restored.log",
+      "evidence_sha256": "a7efe770929bec81e58207bc8742134f1041165ec5a062a81136dafeedba52b1"
+    },
+    {
+      "id": "provision.DeviceControlSessionTest.writeWaitsBehindReadAndRequiresQuantizedReadback",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.002,
+      "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml",
+      "evidence_sha256": "51fbf2828ec9e75bbcec73b72e6371b2ac8790a22f57b962813694ce8ba9d9a4"
+    },
+    {
+      "id": "provision.DeviceControlSessionTest.configCancelWaitsForInFlightAckAndPreventsOtherWriters",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml",
+      "evidence_sha256": "51fbf2828ec9e75bbcec73b72e6371b2ac8790a22f57b962813694ce8ba9d9a4"
+    },
+    {
+      "id": "provision.DeviceControlSessionTest.otherActivityGraceAndForegroundReturnHaveDifferentPolicies",
+      "parent": "UI-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml",
+      "evidence_sha256": "51fbf2828ec9e75bbcec73b72e6371b2ac8790a22f57b962813694ce8ba9d9a4"
+    },
+    {
+      "id": "provision.DeviceControlSessionTest.claimHandoffDropsOldIdentityRetryAndCachedStatus",
+      "parent": "UI-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml",
+      "evidence_sha256": "51fbf2828ec9e75bbcec73b72e6371b2ac8790a22f57b962813694ce8ba9d9a4"
+    },
+    {
+      "id": "provision.DeviceControlSessionTest.ordinaryErrorIsNotDisconnectionAndDoesNotReplaceValue",
+      "parent": "UI-01",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.003,
+      "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml",
+      "evidence_sha256": "51fbf2828ec9e75bbcec73b72e6371b2ac8790a22f57b962813694ce8ba9d9a4"
+    },
+    {
+      "id": "provision.DeviceControlSessionTest.infoAndOtaDoNotReplaceStatusAndFragmentsStayContiguous",
+      "parent": "OTA-01",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml",
+      "evidence_sha256": "51fbf2828ec9e75bbcec73b72e6371b2ac8790a22f57b962813694ce8ba9d9a4"
+    },
+    {
+      "id": "provision.DeviceControlSessionTest.failedReconnectKeepsOneCappedForegroundRetry",
+      "parent": "NET-01",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml",
+      "evidence_sha256": "51fbf2828ec9e75bbcec73b72e6371b2ac8790a22f57b962813694ce8ba9d9a4"
+    },
+    {
+      "id": "provision.DeviceControlSessionTest.graceDisconnectCannotReopenAnExplicitlyClosedSession",
+      "parent": "UI-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml",
+      "evidence_sha256": "51fbf2828ec9e75bbcec73b72e6371b2ac8790a22f57b962813694ce8ba9d9a4"
+    },
+    {
+      "id": "provision.DeviceControlSessionTest.tabsSubscribeTwentyTimesWithoutOpeningAnotherConnection",
+      "parent": "UI-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml",
+      "evidence_sha256": "51fbf2828ec9e75bbcec73b72e6371b2ac8790a22f57b962813694ce8ba9d9a4"
+    },
+    {
+      "id": "provision.DeviceControlSessionTest.failedConfigAckDoesNotReleaseStagingUntilExplicitCancel",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml",
+      "evidence_sha256": "51fbf2828ec9e75bbcec73b72e6371b2ac8790a22f57b962813694ce8ba9d9a4"
+    },
+    {
+      "id": "provision.DeviceControlSessionTest.temporaryReadFailurePreservesConnectionAndUnconfirmedWrite",
+      "parent": "NET-01",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.003,
+      "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml",
+      "evidence_sha256": "51fbf2828ec9e75bbcec73b72e6371b2ac8790a22f57b962813694ce8ba9d9a4"
+    },
+    {
+      "id": "provision.DeviceControlSessionTest.reconnectDropsWritesAndOldCallbacksCannotPolluteNewState",
+      "parent": "NET-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml",
+      "evidence_sha256": "51fbf2828ec9e75bbcec73b72e6371b2ac8790a22f57b962813694ce8ba9d9a4"
+    },
+    {
+      "id": "provision.DeviceControlSessionTest.foregroundPollContinuesAcross120Seconds",
+      "parent": "NET-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.002,
+      "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml",
+      "evidence_sha256": "51fbf2828ec9e75bbcec73b72e6371b2ac8790a22f57b962813694ce8ba9d9a4"
+    },
+    {
+      "id": "provision.DeviceControlSessionTest.identityReleaseRejectsLateConfigResultAndDoesNotReplayIt",
+      "parent": "UI-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml",
+      "evidence_sha256": "51fbf2828ec9e75bbcec73b72e6371b2ac8790a22f57b962813694ce8ba9d9a4"
+    },
+    {
+      "id": "provision.ProvisionSettingsTest.rejectsMalformedInputsBeforeCreatingBundle",
+      "parent": "CFG-03",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.004,
+      "evidence": "TEST-com.shaniu.companion.provision.ProvisionSettingsTest.xml",
+      "evidence_sha256": "fae396c5d242dbd787f05e8a303f53d2c330f57e54f1747bf46500817114a765"
+    },
+    {
+      "id": "provision.ProvisionSettingsTest.packsCloudAndNetworkInOneTransaction",
+      "parent": "CFG-03",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.002,
+      "evidence": "TEST-com.shaniu.companion.provision.ProvisionSettingsTest.xml",
+      "evidence_sha256": "fae396c5d242dbd787f05e8a303f53d2c330f57e54f1747bf46500817114a765"
+    },
+    {
+      "id": "provision.ProvisionSettingsTest.revisionExhaustionAndEmptyOperationCannotProducePatch",
+      "parent": "CFG-03",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.ProvisionSettingsTest.xml",
+      "evidence_sha256": "fae396c5d242dbd787f05e8a303f53d2c330f57e54f1747bf46500817114a765"
+    },
+    {
+      "id": "provision.ProvisionSettingsTest.wifiOnlyPatchPreservesCloudAndBindsExpectedRevision",
+      "parent": "CFG-03",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.ProvisionSettingsTest.xml",
+      "evidence_sha256": "fae396c5d242dbd787f05e8a303f53d2c330f57e54f1747bf46500817114a765"
+    },
+    {
+      "id": "provision.ProvisionSettingsTest.ownerKeyIsBoundToTheSameCandidateAndCallerKeepsOwnership",
+      "parent": "CFG-03",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.002,
+      "evidence": "TEST-com.shaniu.companion.provision.ProvisionSettingsTest.xml",
+      "evidence_sha256": "fae396c5d242dbd787f05e8a303f53d2c330f57e54f1747bf46500817114a765"
+    },
+    {
+      "id": "provision.ProvisionSettingsTest.packsCompleteCandidateWithoutDeviceKeys",
+      "parent": "CFG-03",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.ProvisionSettingsTest.xml",
+      "evidence_sha256": "fae396c5d242dbd787f05e8a303f53d2c330f57e54f1747bf46500817114a765"
+    },
+    {
+      "id": "provision.ProvisionSettingsTest.reportsNetworkInputErrorsBeforeEndpointLookup",
+      "parent": "CFG-03",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.ProvisionSettingsTest.xml",
+      "evidence_sha256": "fae396c5d242dbd787f05e8a303f53d2c330f57e54f1747bf46500817114a765"
+    },
+    {
+      "id": "provision.ProvisionSettingsTest.rejectsMissingEntropyAndMalformedControlKeySizes",
+      "parent": "CFG-03",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.ProvisionSettingsTest.xml",
+      "evidence_sha256": "fae396c5d242dbd787f05e8a303f53d2c330f57e54f1747bf46500817114a765"
+    },
+    {
+      "id": "provision.ProvisionSettingsTest.CFG_03_wifiPatchMatchesIndependentGolden",
+      "parent": "CFG-03",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.002,
+      "evidence": "TEST-com.shaniu.companion.provision.ProvisionSettingsTest.xml",
+      "evidence_sha256": "fae396c5d242dbd787f05e8a303f53d2c330f57e54f1747bf46500817114a765"
+    },
+    {
+      "id": "provision.ProvisionSettingsTest.keepReplaceAndClearRemainDifferentPatchOperations",
+      "parent": "CFG-03",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.ProvisionSettingsTest.xml",
+      "evidence_sha256": "fae396c5d242dbd787f05e8a303f53d2c330f57e54f1747bf46500817114a765"
+    },
+    {
+      "id": "provision.FocusTimerControllerTest.acceptedStartWaitsForDeviceReadback",
+      "parent": "TIMER-01",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.002,
+      "evidence": "TEST-com.shaniu.companion.provision.FocusTimerControllerTest.xml",
+      "evidence_sha256": "ae6ff194d9e0883087b841fd239f4e22142181e142a6d48dbe89313bb4d8e73c"
+    },
+    {
+      "id": "provision.FocusTimerControllerTest.rejectedBeginCannotCancelAnotherEditorsTransaction",
+      "parent": "TIMER-01",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.FocusTimerControllerTest.xml",
+      "evidence_sha256": "ae6ff194d9e0883087b841fd239f4e22142181e142a6d48dbe89313bb4d8e73c"
+    },
+    {
+      "id": "provision.FocusTimerControllerTest.changedRevisionCannotProduceMixedSnapshot",
+      "parent": "TIMER-01",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.FocusTimerControllerTest.xml",
+      "evidence_sha256": "ae6ff194d9e0883087b841fd239f4e22142181e142a6d48dbe89313bb4d8e73c"
+    },
+    {
+      "id": "provision.FocusTimerControllerTest.unsupportedDeviceDoesNotStartLocalTimer",
+      "parent": "TIMER-01",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.FocusTimerControllerTest.xml",
+      "evidence_sha256": "ae6ff194d9e0883087b841fd239f4e22142181e142a6d48dbe89313bb4d8e73c"
+    },
+    {
+      "id": "provision.FocusTimerControllerTest.disconnectAndLateAckNeverReplayMutation",
+      "parent": "TIMER-01",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.FocusTimerControllerTest.xml",
+      "evidence_sha256": "ae6ff194d9e0883087b841fd239f4e22142181e142a6d48dbe89313bb4d8e73c"
+    },
+    {
+      "id": "provision.NfcBindingControllerTest.rejectsUnrepresentableCounterAndUnknownOutcome",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.003,
+      "evidence": "TEST-com.shaniu.companion.provision.NfcBindingControllerTest.xml",
+      "evidence_sha256": "7fedc6f87714662fab216ee20048662cfbf2ea2e0d0abd3ebc70b2fc96a251d8"
+    },
+    {
+      "id": "provision.NfcBindingControllerTest.rejectedBeginDoesNotCancelAnotherTransaction",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.NfcBindingControllerTest.xml",
+      "evidence_sha256": "7fedc6f87714662fab216ee20048662cfbf2ea2e0d0abd3ebc70b2fc96a251d8"
+    },
+    {
+      "id": "provision.NfcBindingControllerTest.verifiesOperationAndRevisionAcrossAllChunks",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.NfcBindingControllerTest.xml",
+      "evidence_sha256": "7fedc6f87714662fab216ee20048662cfbf2ea2e0d0abd3ebc70b2fc96a251d8"
+    },
+    {
+      "id": "provision.NfcBindingControllerTest.cancelNamesCurrentJobWithoutAllocatingNewId",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.NfcBindingControllerTest.xml",
+      "evidence_sha256": "7fedc6f87714662fab216ee20048662cfbf2ea2e0d0abd3ebc70b2fc96a251d8"
+    },
+    {
+      "id": "provision.NfcBindingControllerTest.disconnectDropsMutationAndLateAck",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.NfcBindingControllerTest.xml",
+      "evidence_sha256": "7fedc6f87714662fab216ee20048662cfbf2ea2e0d0abd3ebc70b2fc96a251d8"
+    },
+    {
+      "id": "provision.NfcBindingControllerTest.acceptedEnrollmentRemainsPendingUntilDeviceConfirms",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.NfcBindingControllerTest.xml",
+      "evidence_sha256": "7fedc6f87714662fab216ee20048662cfbf2ea2e0d0abd3ebc70b2fc96a251d8"
+    },
+    {
+      "id": "provision.NfcBindingControllerTest.supersedingJobCannotConfirmOwnOperation",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.NfcBindingControllerTest.xml",
+      "evidence_sha256": "7fedc6f87714662fab216ee20048662cfbf2ea2e0d0abd3ebc70b2fc96a251d8"
+    },
+    {
+      "id": "provision.NfcBindingControllerTest.closeNeverClaimsAcceptedDeviceJobCanceled",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.NfcBindingControllerTest.xml",
+      "evidence_sha256": "7fedc6f87714662fab216ee20048662cfbf2ea2e0d0abd3ebc70b2fc96a251d8"
+    },
+    {
+      "id": "provision.NfcBindingControllerTest.unsupportedFirmwareStaysReadOnly",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.NfcBindingControllerTest.xml",
+      "evidence_sha256": "7fedc6f87714662fab216ee20048662cfbf2ea2e0d0abd3ebc70b2fc96a251d8"
+    },
+    {
+      "id": "provision.ExpressionTrialControllerTest.rejectedBeginCannotCancelAnotherEditorsTransaction",
+      "parent": "RES-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.007,
+      "evidence": "TEST-com.shaniu.companion.provision.ExpressionTrialControllerTest.xml",
+      "evidence_sha256": "4312e29d10a2ca211b2b75649de3ba77ef282e2c122aafd761129d27869c449a"
+    },
+    {
+      "id": "provision.ExpressionTrialControllerTest.acceptedTrialUsesGoldenRecordAndDeviceReadback",
+      "parent": "RES-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.ExpressionTrialControllerTest.xml",
+      "evidence_sha256": "4312e29d10a2ca211b2b75649de3ba77ef282e2c122aafd761129d27869c449a"
+    },
+    {
+      "id": "provision.ExpressionTrialControllerTest.invalidDurationAndMismatchedReceiptCannotClaimSuccess",
+      "parent": "RES-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.ExpressionTrialControllerTest.xml",
+      "evidence_sha256": "4312e29d10a2ca211b2b75649de3ba77ef282e2c122aafd761129d27869c449a"
+    },
+    {
+      "id": "provision.ExpressionTrialControllerTest.cancellationAcceptanceIsNotRestoredCompletion",
+      "parent": "RES-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.ExpressionTrialControllerTest.xml",
+      "evidence_sha256": "4312e29d10a2ca211b2b75649de3ba77ef282e2c122aafd761129d27869c449a"
+    },
+    {
+      "id": "provision.ExpressionTrialControllerTest.changedHeaderCannotProduceMixedSnapshot",
+      "parent": "RES-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.ExpressionTrialControllerTest.xml",
+      "evidence_sha256": "4312e29d10a2ca211b2b75649de3ba77ef282e2c122aafd761129d27869c449a"
+    },
+    {
+      "id": "provision.ExpressionTrialControllerTest.unsupportedDeviceDoesNotPretendToTrial",
+      "parent": "RES-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.ExpressionTrialControllerTest.xml",
+      "evidence_sha256": "4312e29d10a2ca211b2b75649de3ba77ef282e2c122aafd761129d27869c449a"
+    },
+    {
+      "id": "provision.ExpressionTrialControllerTest.closingActiveTrialDoesNotSendRemoteCancel",
+      "parent": "RES-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.ExpressionTrialControllerTest.xml",
+      "evidence_sha256": "4312e29d10a2ca211b2b75649de3ba77ef282e2c122aafd761129d27869c449a"
+    },
+    {
+      "id": "provision.ExpressionTrialControllerTest.disconnectAndLateAckNeverReplayMutation",
+      "parent": "RES-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.ExpressionTrialControllerTest.xml",
+      "evidence_sha256": "4312e29d10a2ca211b2b75649de3ba77ef282e2c122aafd761129d27869c449a"
+    },
+    {
+      "id": "ota.OtaControlUploadTest.cancelWaitsForAcknowledgementAndHandlesStartRace",
+      "parent": "OTA-01",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.016,
+      "evidence": "TEST-com.shaniu.companion.ota.OtaControlUploadTest.xml",
+      "evidence_sha256": "136668efcf131f5885505c4b91777b1ba5d35b4fccf9a7bb68c9ea74d0860678"
+    },
+    {
+      "id": "ota.OtaControlUploadTest.sendsBoundedChunksAndAcceptsOnlyStartAcknowledgement",
+      "parent": "OTA-01",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.ota.OtaControlUploadTest.xml",
+      "evidence_sha256": "136668efcf131f5885505c4b91777b1ba5d35b4fccf9a7bb68c9ea74d0860678"
+    },
+    {
+      "id": "ota.OtaControlUploadTest.cancellationRequestWaitsForRemoteConfirmation",
+      "parent": "OTA-01",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.ota.OtaControlUploadTest.xml",
+      "evidence_sha256": "136668efcf131f5885505c4b91777b1ba5d35b4fccf9a7bb68c9ea74d0860678"
+    },
+    {
+      "id": "ota.OtaControlUploadTest.acceptedTerminalCannotBecomeCanceledFromLateAckOrClose",
+      "parent": "OTA-01",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.ota.OtaControlUploadTest.xml",
+      "evidence_sha256": "136668efcf131f5885505c4b91777b1ba5d35b4fccf9a7bb68c9ea74d0860678"
+    },
+    {
+      "id": "ota.OtaControlUploadTest.lateAcknowledgementCannotOverwriteCanceledTerminalState",
+      "parent": "OTA-01",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.ota.OtaControlUploadTest.xml",
+      "evidence_sha256": "136668efcf131f5885505c4b91777b1ba5d35b4fccf9a7bb68c9ea74d0860678"
+    },
+    {
+      "id": "ota.OtaControlUploadTest.rejectsUnavailableTransportWithoutReplayAndAllowsMaximumRecord",
+      "parent": "OTA-01",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.ota.OtaControlUploadTest.xml",
+      "evidence_sha256": "136668efcf131f5885505c4b91777b1ba5d35b4fccf9a7bb68c9ea74d0860678"
+    },
+    {
+      "id": "ota.OtaControlUploadTest.localCloseIgnoresLateAckWithoutClaimingRemoteCancellation",
+      "parent": "OTA-01",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.ota.OtaControlUploadTest.xml",
+      "evidence_sha256": "136668efcf131f5885505c4b91777b1ba5d35b4fccf9a7bb68c9ea74d0860678"
+    },
+    {
+      "id": "ota.OtaControlUploadTest.closeCancelsWithoutSending",
+      "parent": "OTA-01",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.ota.OtaControlUploadTest.xml",
+      "evidence_sha256": "136668efcf131f5885505c4b91777b1ba5d35b4fccf9a7bb68c9ea74d0860678"
+    },
+    {
+      "id": "ota.OtaControlUploadTest.responseErrorsAndMismatchesFailAndDoNotReuseRecord",
+      "parent": "OTA-01",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.ota.OtaControlUploadTest.xml",
+      "evidence_sha256": "136668efcf131f5885505c4b91777b1ba5d35b4fccf9a7bb68c9ea74d0860678"
+    },
+    {
+      "id": "ota.OtaSessionContractTest.OTA_01_lateTransportCallbackIsFilteredBySession",
+      "parent": "OTA-01",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.015,
+      "evidence": "TEST-com.shaniu.companion.ota.OtaSessionContractTest.xml",
+      "evidence_sha256": "14cdd3de454010ab796b498365aa7811b5686f69fb71879f93ec089d4c703120"
+    },
+    {
+      "id": "ota.OtaSessionContractTest.OTA_01_cancelIsPendingUntilProtocolAcknowledges",
+      "parent": "OTA-01",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.ota.OtaSessionContractTest.xml",
+      "evidence_sha256": "14cdd3de454010ab796b498365aa7811b5686f69fb71879f93ec089d4c703120"
+    },
+    {
+      "id": "ota.OtaSessionContractTest.OTA_01_lateWireAckCannotRestartCanceledUpload",
+      "parent": "OTA-01",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.ota.OtaSessionContractTest.xml",
+      "evidence_sha256": "14cdd3de454010ab796b498365aa7811b5686f69fb71879f93ec089d4c703120"
+    }
+  ],
+  "cases": [
+    {
+      "id": "K2-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "K2-01.release-2999",
+        "K2-01.release-3000",
+        "K2-01.release-3001",
+        "K2-01.held",
+        "K2-01.legacy-suite"
+      ],
+      "outstanding_layers": [
+        "L1",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L1": {
+          "status": "PARTIAL",
+          "collected": [
+            "K2-01.release-2999",
+            "K2-01.release-3000",
+            "K2-01.release-3001",
+            "K2-01.held",
+            "K2-01.legacy-suite"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "keys"
+      },
+      "binding": "keys",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "K2-02",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L1",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L1": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "power"
+      },
+      "binding": "power",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "K2-03",
+      "status": "NOT_RUN",
+      "collected": [
+        "K2-03.epoch",
+        "K2-03.rollback",
+        "K2-03.release-rollback",
+        "K2-03.combination",
+        "K2-03.volume"
+      ],
+      "outstanding_layers": [
+        "L1"
+      ],
+      "evidence_by_layer": {
+        "L1": {
+          "status": "PARTIAL",
+          "collected": [
+            "K2-03.epoch",
+            "K2-03.rollback",
+            "K2-03.release-rollback",
+            "K2-03.combination",
+            "K2-03.volume"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "keys"
+      },
+      "binding": "keys",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "LIFE-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "LIFE-01.owner-integration"
+      ],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "LIFE-01.owner-integration"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "power"
+      },
+      "binding": "power",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "LIFE-02",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "LIFE-02.nfc-queued",
+        "LIFE-02.nfc-active",
+        "LIFE-02.nfc-close-error",
+        "LIFE-02.nfc-rf-error",
+        "LIFE-02.nfc-prestart",
+        "LIFE-02.nfc-late",
+        "LIFE-02.power-nfc-busy",
+        "LIFE-02.power-nfc-failed",
+        "LIFE-02.power-normal",
+        "LIFE-02.power-admission-failure",
+        "LIFE-02.power-partial-failure",
+        "LIFE-02.power-cp-declined",
+        "LIFE-02.power-cp-unknown",
+        "LIFE-02.power-admission-stops-trigger",
+        "LIFE-02.power-storage-stops-trigger",
+        "LIFE-02.power-trigger-failure",
+        "LIFE-02.power-unpublished-trigger",
+        "LIFE-02.power-admission-drains",
+        "LIFE-02.power-failed-drains",
+        "LIFE-02.power-final-close-drains",
+        "LIFE-02.power-failure-display",
+        "LIFE-02.capture-close-failure",
+        "LIFE-02.capture-route-failure"
+      ],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "LIFE-02.nfc-queued",
+            "LIFE-02.nfc-active",
+            "LIFE-02.nfc-close-error",
+            "LIFE-02.nfc-rf-error",
+            "LIFE-02.nfc-prestart",
+            "LIFE-02.nfc-late",
+            "LIFE-02.capture-close-failure",
+            "LIFE-02.capture-route-failure"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "power"
+      },
+      "binding": "power",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "PWR-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "power"
+      },
+      "binding": "power",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "FAULT-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "power"
+      },
+      "binding": "power",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "RST-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "RST-01.nfc-filesystem",
+        "RST-01.nfc-cleanup",
+        "RST-01.bindings-reset",
+        "RST-01.bindings-reset-sync",
+        "RST-01.bindings-reset-path",
+        "RST-01.bindings-reset-absent"
+      ],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "RST-01.bindings-reset",
+            "RST-01.bindings-reset-sync",
+            "RST-01.bindings-reset-path",
+            "RST-01.bindings-reset-absent"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "reset"
+      },
+      "binding": "reset",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "RST-02",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "RST-02.nfc-busy",
+        "RST-02.nfc-failed",
+        "RST-02.nfc-owner_failure_still_closes_admission",
+        "RST-02.nfc-resume_failure",
+        "RST-02.nfc-power_intent_and_no_reset"
+      ],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "reset"
+      },
+      "binding": "reset",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "CFG-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "CFG-01.wifi-reopen",
+        "CFG-01.restored"
+      ],
+      "outstanding_layers": [
+        "L1",
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L1": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "CFG-01.wifi-reopen",
+            "CFG-01.restored"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "config"
+      },
+      "binding": "config",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "CFG-02",
+      "status": "BLOCKED_INTERFACE",
+      "collected": [
+        "CFG-02.models-unknown"
+      ],
+      "outstanding_layers": [
+        "L2"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "CFG-02.models-unknown"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "config"
+      },
+      "binding": "config",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "CFG-03",
+      "status": "BLOCKED_INTERFACE",
+      "collected": [
+        "CFG-03.stale",
+        "CFG-03.conflict",
+        "CFG-03.keep-key",
+        "CFG-03.replace-key",
+        "CFG-03.clear-cloud",
+        "CFG-03.cross-host-retain",
+        "provision.ProvisionSettingsTest.rejectsMalformedInputsBeforeCreatingBundle",
+        "provision.ProvisionSettingsTest.packsCloudAndNetworkInOneTransaction",
+        "provision.ProvisionSettingsTest.revisionExhaustionAndEmptyOperationCannotProducePatch",
+        "provision.ProvisionSettingsTest.wifiOnlyPatchPreservesCloudAndBindsExpectedRevision",
+        "provision.ProvisionSettingsTest.ownerKeyIsBoundToTheSameCandidateAndCallerKeepsOwnership",
+        "provision.ProvisionSettingsTest.packsCompleteCandidateWithoutDeviceKeys",
+        "provision.ProvisionSettingsTest.reportsNetworkInputErrorsBeforeEndpointLookup",
+        "provision.ProvisionSettingsTest.rejectsMissingEntropyAndMalformedControlKeySizes",
+        "provision.ProvisionSettingsTest.CFG_03_wifiPatchMatchesIndependentGolden",
+        "provision.ProvisionSettingsTest.keepReplaceAndClearRemainDifferentPatchOperations"
+      ],
+      "outstanding_layers": [
+        "L1",
+        "L2"
+      ],
+      "evidence_by_layer": {
+        "L1": {
+          "status": "PARTIAL",
+          "collected": [
+            "provision.ProvisionSettingsTest.rejectsMalformedInputsBeforeCreatingBundle",
+            "provision.ProvisionSettingsTest.packsCloudAndNetworkInOneTransaction",
+            "provision.ProvisionSettingsTest.revisionExhaustionAndEmptyOperationCannotProducePatch",
+            "provision.ProvisionSettingsTest.wifiOnlyPatchPreservesCloudAndBindsExpectedRevision",
+            "provision.ProvisionSettingsTest.ownerKeyIsBoundToTheSameCandidateAndCallerKeepsOwnership",
+            "provision.ProvisionSettingsTest.packsCompleteCandidateWithoutDeviceKeys",
+            "provision.ProvisionSettingsTest.reportsNetworkInputErrorsBeforeEndpointLookup",
+            "provision.ProvisionSettingsTest.rejectsMissingEntropyAndMalformedControlKeySizes",
+            "provision.ProvisionSettingsTest.CFG_03_wifiPatchMatchesIndependentGolden",
+            "provision.ProvisionSettingsTest.keepReplaceAndClearRemainDifferentPatchOperations"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "CFG-03.stale",
+            "CFG-03.conflict",
+            "CFG-03.keep-key",
+            "CFG-03.replace-key",
+            "CFG-03.clear-cloud",
+            "CFG-03.cross-host-retain"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "config"
+      },
+      "binding": "config",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "STORE-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "store"
+      },
+      "binding": "store",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "STORE-02",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "STORE-02.file-sync-failure",
+        "STORE-02.file-sync-retry",
+        "STORE-02.directory-sync-unknown",
+        "STORE-02.restart-before-publish",
+        "STORE-02.restart-after-publish"
+      ],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "STORE-02.file-sync-failure",
+            "STORE-02.file-sync-retry",
+            "STORE-02.directory-sync-unknown",
+            "STORE-02.restart-before-publish",
+            "STORE-02.restart-after-publish"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "store"
+      },
+      "binding": "store",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "MSC-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "MSC-01.failed-start-handoff",
+        "MSC-01.backend-stop-normal",
+        "MSC-01.backend-stop-retry",
+        "MSC-01.backend-stop-start-cleanup",
+        "MSC-01.backend-stop-close-error",
+        "MSC-01.acquiring",
+        "MSC-01.releasing",
+        "MSC-01.retry",
+        "MSC-01.unmount-failure",
+        "MSC-01.local-busy",
+        "MSC-01.wrong-owner",
+        "MSC-01.handoff",
+        "MSC-01.restored"
+      ],
+      "outstanding_layers": [
+        "L1",
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L1": {
+          "status": "PARTIAL",
+          "collected": [
+            "MSC-01.failed-start-handoff",
+            "MSC-01.backend-stop-normal",
+            "MSC-01.backend-stop-retry",
+            "MSC-01.backend-stop-start-cleanup",
+            "MSC-01.backend-stop-close-error",
+            "MSC-01.acquiring",
+            "MSC-01.releasing",
+            "MSC-01.retry"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "MSC-01.unmount-failure",
+            "MSC-01.local-busy",
+            "MSC-01.wrong-owner",
+            "MSC-01.handoff",
+            "MSC-01.restored"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "volume"
+      },
+      "binding": "volume",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "MSC-02",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "MSC-02.legacy-suite"
+      ],
+      "outstanding_layers": [
+        "L1",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L1": {
+          "status": "PARTIAL",
+          "collected": [
+            "MSC-02.legacy-suite"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "volume"
+      },
+      "binding": "volume",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "AUD-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "AUD-01.pcm-1",
+        "AUD-01.pcm-20260924",
+        "AUD-01.pcm-4294967295",
+        "AUD-01.sse-1",
+        "AUD-01.sse-20260924"
+      ],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "AUD-01.pcm-1",
+            "AUD-01.pcm-20260924",
+            "AUD-01.pcm-4294967295",
+            "AUD-01.sse-1",
+            "AUD-01.sse-20260924"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "audio"
+      },
+      "binding": "audio",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "AUD-02",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "audio"
+      },
+      "binding": "audio",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "AUD-03",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "AUD-03.media-tail",
+        "AUD-03.media-cancel-next",
+        "AUD-03.cancel-late"
+      ],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "AUD-03.cancel-late"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "audio"
+      },
+      "binding": "audio",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "AUD-04",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "audio"
+      },
+      "binding": "audio",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "CAP-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "audio"
+      },
+      "binding": "audio",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "ASR-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "agent"
+      },
+      "binding": "agent",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "AGENT-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "agent"
+      },
+      "binding": "agent",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "AGENT-02",
+      "status": "NOT_RUN",
+      "collected": [],
+      "outstanding_layers": [
+        "L2"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "agent"
+      },
+      "binding": "agent",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "AGENT-03",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "agent"
+      },
+      "binding": "agent",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "DISP-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "DISP-01.power-pixels",
+        "DISP-01.expression-intent",
+        "DISP-01.expression-cancel"
+      ],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "scene"
+      },
+      "binding": "scene",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "NET-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "provision.DeviceControlSessionTest.failedReconnectKeepsOneCappedForegroundRetry",
+        "provision.DeviceControlSessionTest.temporaryReadFailurePreservesConnectionAndUnconfirmedWrite"
+      ],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "provision.DeviceControlSessionTest.failedReconnectKeepsOneCappedForegroundRetry",
+            "provision.DeviceControlSessionTest.temporaryReadFailurePreservesConnectionAndUnconfirmedWrite"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "config"
+      },
+      "binding": "config",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "NET-02",
+      "status": "BLOCKED_INTERFACE",
+      "collected": [
+        "NET-02.display-snapshot",
+        "provision.DeviceControlSessionTest.reconnectDropsWritesAndOldCallbacksCannotPolluteNewState",
+        "provision.DeviceControlSessionTest.foregroundPollContinuesAcross120Seconds"
+      ],
+      "outstanding_layers": [
+        "L2"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "provision.DeviceControlSessionTest.reconnectDropsWritesAndOldCallbacksCannotPolluteNewState",
+            "provision.DeviceControlSessionTest.foregroundPollContinuesAcross120Seconds"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "session"
+      },
+      "binding": "session",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "NET-03",
+      "status": "BLOCKED_INTERFACE",
+      "collected": [
+        "NET-03.quiesce-queries",
+        "NET-03.quiesce-staging",
+        "NET-03.quiesce-config-staging",
+        "NET-03.quiesce-ota-commit",
+        "NET-03.quiesce-invalid",
+        "NET-03.owner-queries",
+        "NET-03.owner-unauthenticated",
+        "NET-03.owner-invalid-sequence",
+        "NET-03.owner-legacy",
+        "provision.DeviceControlSessionTest.writeWaitsBehindReadAndRequiresQuantizedReadback",
+        "provision.DeviceControlSessionTest.configCancelWaitsForInFlightAckAndPreventsOtherWriters",
+        "provision.DeviceControlSessionTest.failedConfigAckDoesNotReleaseStagingUntilExplicitCancel"
+      ],
+      "outstanding_layers": [
+        "L2"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "NET-03.owner-queries",
+            "NET-03.owner-unauthenticated",
+            "NET-03.owner-invalid-sequence",
+            "provision.DeviceControlSessionTest.writeWaitsBehindReadAndRequiresQuantizedReadback",
+            "provision.DeviceControlSessionTest.configCancelWaitsForInFlightAckAndPreventsOtherWriters",
+            "provision.DeviceControlSessionTest.failedConfigAckDoesNotReleaseStagingUntilExplicitCancel"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "session"
+      },
+      "binding": "session",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "NET-04",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "session"
+      },
+      "binding": "session",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "UI-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "provision.DeviceControlSessionTest.ordinaryErrorIsNotDisconnectionAndDoesNotReplaceValue"
+      ],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "provision.DeviceControlSessionTest.ordinaryErrorIsNotDisconnectionAndDoesNotReplaceValue"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "ui"
+      },
+      "binding": "ui",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "UI-02",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "provision.DeviceControlSessionTest.otherActivityGraceAndForegroundReturnHaveDifferentPolicies",
+        "provision.DeviceControlSessionTest.graceDisconnectCannotReopenAnExplicitlyClosedSession",
+        "provision.DeviceControlSessionTest.tabsSubscribeTwentyTimesWithoutOpeningAnotherConnection"
+      ],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "provision.DeviceControlSessionTest.otherActivityGraceAndForegroundReturnHaveDifferentPolicies",
+            "provision.DeviceControlSessionTest.graceDisconnectCannotReopenAnExplicitlyClosedSession",
+            "provision.DeviceControlSessionTest.tabsSubscribeTwentyTimesWithoutOpeningAnotherConnection"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "ui"
+      },
+      "binding": "ui",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "UI-03",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "provision.DeviceControlSessionTest.claimHandoffDropsOldIdentityRetryAndCachedStatus",
+        "provision.DeviceControlSessionTest.identityReleaseRejectsLateConfigResultAndDoesNotReplayIt"
+      ],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "provision.DeviceControlSessionTest.claimHandoffDropsOldIdentityRetryAndCachedStatus",
+            "provision.DeviceControlSessionTest.identityReleaseRejectsLateConfigResultAndDoesNotReplayIt"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "ui"
+      },
+      "binding": "ui",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "UI-04",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "ui"
+      },
+      "binding": "ui",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "OTA-01",
+      "status": "BLOCKED_INTERFACE",
+      "collected": [
+        "provision.DeviceControlSessionTest.infoAndOtaDoNotReplaceStatusAndFragmentsStayContiguous",
+        "ota.OtaControlUploadTest.cancelWaitsForAcknowledgementAndHandlesStartRace",
+        "ota.OtaControlUploadTest.sendsBoundedChunksAndAcceptsOnlyStartAcknowledgement",
+        "ota.OtaControlUploadTest.cancellationRequestWaitsForRemoteConfirmation",
+        "ota.OtaControlUploadTest.acceptedTerminalCannotBecomeCanceledFromLateAckOrClose",
+        "ota.OtaControlUploadTest.lateAcknowledgementCannotOverwriteCanceledTerminalState",
+        "ota.OtaControlUploadTest.rejectsUnavailableTransportWithoutReplayAndAllowsMaximumRecord",
+        "ota.OtaControlUploadTest.localCloseIgnoresLateAckWithoutClaimingRemoteCancellation",
+        "ota.OtaControlUploadTest.closeCancelsWithoutSending",
+        "ota.OtaControlUploadTest.responseErrorsAndMismatchesFailAndDoNotReuseRecord",
+        "ota.OtaSessionContractTest.OTA_01_lateTransportCallbackIsFilteredBySession",
+        "ota.OtaSessionContractTest.OTA_01_cancelIsPendingUntilProtocolAcknowledges",
+        "ota.OtaSessionContractTest.OTA_01_lateWireAckCannotRestartCanceledUpload"
+      ],
+      "outstanding_layers": [
+        "L1",
+        "L2"
+      ],
+      "evidence_by_layer": {
+        "L1": {
+          "status": "PARTIAL",
+          "collected": [
+            "ota.OtaControlUploadTest.cancelWaitsForAcknowledgementAndHandlesStartRace",
+            "ota.OtaControlUploadTest.sendsBoundedChunksAndAcceptsOnlyStartAcknowledgement",
+            "ota.OtaControlUploadTest.cancellationRequestWaitsForRemoteConfirmation",
+            "ota.OtaControlUploadTest.acceptedTerminalCannotBecomeCanceledFromLateAckOrClose",
+            "ota.OtaControlUploadTest.lateAcknowledgementCannotOverwriteCanceledTerminalState",
+            "ota.OtaControlUploadTest.rejectsUnavailableTransportWithoutReplayAndAllowsMaximumRecord",
+            "ota.OtaControlUploadTest.localCloseIgnoresLateAckWithoutClaimingRemoteCancellation",
+            "ota.OtaControlUploadTest.closeCancelsWithoutSending",
+            "ota.OtaControlUploadTest.responseErrorsAndMismatchesFailAndDoNotReuseRecord"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "provision.DeviceControlSessionTest.infoAndOtaDoNotReplaceStatusAndFragmentsStayContiguous",
+            "ota.OtaSessionContractTest.OTA_01_lateTransportCallbackIsFilteredBySession",
+            "ota.OtaSessionContractTest.OTA_01_cancelIsPendingUntilProtocolAcknowledges",
+            "ota.OtaSessionContractTest.OTA_01_lateWireAckCannotRestartCanceledUpload"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "ota"
+      },
+      "binding": "ota",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "OTA-02",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "ota"
+      },
+      "binding": "ota",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "RES-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "resource"
+      },
+      "binding": "resource",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "RES-02",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "RES-02.trial-wire",
+        "RES-02.expression-trial",
+        "RES-02.expression-ownership",
+        "provision.ExpressionTrialControllerTest.rejectedBeginCannotCancelAnotherEditorsTransaction",
+        "provision.ExpressionTrialControllerTest.acceptedTrialUsesGoldenRecordAndDeviceReadback",
+        "provision.ExpressionTrialControllerTest.invalidDurationAndMismatchedReceiptCannotClaimSuccess",
+        "provision.ExpressionTrialControllerTest.cancellationAcceptanceIsNotRestoredCompletion",
+        "provision.ExpressionTrialControllerTest.changedHeaderCannotProduceMixedSnapshot",
+        "provision.ExpressionTrialControllerTest.unsupportedDeviceDoesNotPretendToTrial",
+        "provision.ExpressionTrialControllerTest.closingActiveTrialDoesNotSendRemoteCancel",
+        "provision.ExpressionTrialControllerTest.disconnectAndLateAckNeverReplayMutation"
+      ],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "RES-02.trial-wire",
+            "RES-02.expression-trial",
+            "RES-02.expression-ownership",
+            "provision.ExpressionTrialControllerTest.rejectedBeginCannotCancelAnotherEditorsTransaction",
+            "provision.ExpressionTrialControllerTest.acceptedTrialUsesGoldenRecordAndDeviceReadback",
+            "provision.ExpressionTrialControllerTest.invalidDurationAndMismatchedReceiptCannotClaimSuccess",
+            "provision.ExpressionTrialControllerTest.cancellationAcceptanceIsNotRestoredCompletion",
+            "provision.ExpressionTrialControllerTest.changedHeaderCannotProduceMixedSnapshot",
+            "provision.ExpressionTrialControllerTest.unsupportedDeviceDoesNotPretendToTrial",
+            "provision.ExpressionTrialControllerTest.closingActiveTrialDoesNotSendRemoteCancel",
+            "provision.ExpressionTrialControllerTest.disconnectAndLateAckNeverReplayMutation"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "scene"
+      },
+      "binding": "scene",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "RES-03",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "usb"
+      },
+      "binding": "usb",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "KWS-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L1",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L1": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "kws"
+      },
+      "binding": "kws",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "KWS-02",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L1",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L1": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "kws"
+      },
+      "binding": "kws",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "KWS-03",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "kws"
+      },
+      "binding": "kws",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "MOT-01",
+      "status": "BLOCKED_INTERFACE",
+      "collected": [
+        "MOT-01.legacy-suite"
+      ],
+      "outstanding_layers": [
+        "L1",
+        "L2"
+      ],
+      "evidence_by_layer": {
+        "L1": {
+          "status": "PARTIAL",
+          "collected": [
+            "MOT-01.legacy-suite"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "motion"
+      },
+      "binding": "motion",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "MOT-02",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "scene"
+      },
+      "binding": "scene",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "MOT-03",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "scene"
+      },
+      "binding": "scene",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "TIMER-01",
+      "status": "BLOCKED_INTERFACE",
+      "collected": [
+        "TIMER-01.pixels",
+        "TIMER-01.render",
+        "TIMER-01.intent-voice",
+        "TIMER-01.intent-gate",
+        "TIMER-01.intent-revision",
+        "TIMER-01.intent-cancel",
+        "TIMER-01.intent-invalid",
+        "TIMER-01.shared-start",
+        "TIMER-01.shared-retry",
+        "TIMER-01.shared-cancel",
+        "TIMER-01.shared-invalid",
+        "TIMER-01.clock",
+        "TIMER-01.replay",
+        "TIMER-01.invalid",
+        "TIMER-01.wire",
+        "provision.FocusTimerControllerTest.acceptedStartWaitsForDeviceReadback",
+        "provision.FocusTimerControllerTest.rejectedBeginCannotCancelAnotherEditorsTransaction",
+        "provision.FocusTimerControllerTest.changedRevisionCannotProduceMixedSnapshot",
+        "provision.FocusTimerControllerTest.unsupportedDeviceDoesNotStartLocalTimer",
+        "provision.FocusTimerControllerTest.disconnectAndLateAckNeverReplayMutation"
+      ],
+      "outstanding_layers": [
+        "L2"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "TIMER-01.intent-voice",
+            "TIMER-01.intent-gate",
+            "TIMER-01.intent-revision",
+            "TIMER-01.intent-cancel",
+            "TIMER-01.intent-invalid",
+            "TIMER-01.shared-start",
+            "TIMER-01.shared-retry",
+            "TIMER-01.shared-cancel",
+            "TIMER-01.shared-invalid",
+            "TIMER-01.wire",
+            "provision.FocusTimerControllerTest.acceptedStartWaitsForDeviceReadback",
+            "provision.FocusTimerControllerTest.rejectedBeginCannotCancelAnotherEditorsTransaction",
+            "provision.FocusTimerControllerTest.changedRevisionCannotProduceMixedSnapshot",
+            "provision.FocusTimerControllerTest.unsupportedDeviceDoesNotStartLocalTimer",
+            "provision.FocusTimerControllerTest.disconnectAndLateAckNeverReplayMutation"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "scene"
+      },
+      "binding": "scene",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "TIMER-02",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "scene"
+      },
+      "binding": "scene",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "NFC-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "NFC-01.rf-switch",
+        "NFC-01.rf-stuck",
+        "NFC-01.rf-registration",
+        "NFC-01.rf-registration-failure",
+        "NFC-01.rf-close",
+        "NFC-01.rf-open-cleanup",
+        "NFC-01.selection-probe_error",
+        "NFC-01.selection-timeout",
+        "NFC-01.selection-malformed",
+        "NFC-01.selection-select_error",
+        "NFC-01.selection-invalid",
+        "NFC-01.selection-valid",
+        "NFC-01.card-valid",
+        "NFC-01.card-error",
+        "NFC-01.card-close",
+        "NFC-01.card-version",
+        "NFC-01.card-replay",
+        "NFC-01.card-validation",
+        "NFC-01.card-malformed",
+        "NFC-01.observe-off",
+        "NFC-01.observe-quiet",
+        "NFC-01.observe-watchdog",
+        "NFC-01.observe-timer_error",
+        "NFC-01.observe-partial",
+        "NFC-01.observe-selection_timeout",
+        "NFC-01.observe-invalid_uid",
+        "NFC-01.observe-collision",
+        "NFC-01.observe-present",
+        "NFC-01.observe-residual_error",
+        "NFC-01.observe-null",
+        "NFC-01.deadline-crc_deadline",
+        "NFC-01.deadline-crc_wrap",
+        "NFC-01.deadline-crc_success",
+        "NFC-01.deadline-comm_deadline",
+        "NFC-01.deadline-comm_wrap",
+        "NFC-01.deadline-comm_success",
+        "NFC-01.deadline-hardware",
+        "NFC-01.deadline-protocol",
+        "NFC-01.uid-empty",
+        "NFC-01.select-timeout",
+        "NFC-01.select-error",
+        "NFC-01.uid-size",
+        "NFC-01.uid-incomplete",
+        "NFC-01.uid-4",
+        "NFC-01.uid-7",
+        "NFC-01.uid-10",
+        "NFC-01.empty",
+        "NFC-01.oversize",
+        "NFC-01.hce-positive",
+        "NFC-01.legacy-suite"
+      ],
+      "outstanding_layers": [
+        "L1",
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L1": {
+          "status": "PARTIAL",
+          "collected": [
+            "NFC-01.rf-switch",
+            "NFC-01.rf-stuck",
+            "NFC-01.rf-registration",
+            "NFC-01.rf-registration-failure",
+            "NFC-01.rf-close",
+            "NFC-01.rf-open-cleanup",
+            "NFC-01.selection-probe_error",
+            "NFC-01.selection-timeout",
+            "NFC-01.selection-malformed",
+            "NFC-01.selection-select_error",
+            "NFC-01.selection-invalid",
+            "NFC-01.selection-valid",
+            "NFC-01.observe-off",
+            "NFC-01.observe-quiet",
+            "NFC-01.observe-watchdog",
+            "NFC-01.observe-timer_error",
+            "NFC-01.observe-partial",
+            "NFC-01.observe-selection_timeout",
+            "NFC-01.observe-invalid_uid",
+            "NFC-01.observe-collision",
+            "NFC-01.observe-present",
+            "NFC-01.observe-residual_error",
+            "NFC-01.observe-null",
+            "NFC-01.deadline-crc_deadline",
+            "NFC-01.deadline-crc_wrap",
+            "NFC-01.deadline-crc_success",
+            "NFC-01.deadline-comm_deadline",
+            "NFC-01.deadline-comm_wrap",
+            "NFC-01.deadline-comm_success",
+            "NFC-01.deadline-hardware",
+            "NFC-01.deadline-protocol",
+            "NFC-01.empty",
+            "NFC-01.oversize",
+            "NFC-01.hce-positive",
+            "NFC-01.legacy-suite"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "NFC-01.card-valid",
+            "NFC-01.card-error",
+            "NFC-01.card-close",
+            "NFC-01.card-version",
+            "NFC-01.card-replay",
+            "NFC-01.card-validation",
+            "NFC-01.card-malformed",
+            "NFC-01.uid-empty",
+            "NFC-01.select-timeout",
+            "NFC-01.select-error",
+            "NFC-01.uid-size",
+            "NFC-01.uid-incomplete",
+            "NFC-01.uid-4",
+            "NFC-01.uid-7",
+            "NFC-01.uid-10"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "nfc"
+      },
+      "binding": "nfc",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "NFC-02",
+      "status": "BLOCKED_INTERFACE",
+      "collected": [
+        "NFC-02.jobs-persist",
+        "NFC-02.jobs-cancel",
+        "NFC-02.jobs-stop",
+        "NFC-02.jobs-pending",
+        "NFC-02.jobs-failure",
+        "NFC-02.jobs-reset",
+        "NFC-02.jobs-commit",
+        "NFC-02.jobs-unknown",
+        "NFC-02.jobs-remove",
+        "NFC-02.jobs-conflict",
+        "NFC-02.control-auth",
+        "NFC-02.control-invalid",
+        "NFC-02.control-cancel",
+        "NFC-02.control-disconnect",
+        "NFC-02.control-quiesce",
+        "NFC-02.control-floor",
+        "NFC-02.control-sequence",
+        "NFC-02.control-staging",
+        "NFC-02.bindings-persist",
+        "NFC-02.bindings-revision",
+        "NFC-02.bindings-invalid",
+        "NFC-02.bindings-writefail",
+        "NFC-02.bindings-durability",
+        "NFC-02.bindings-corrupt",
+        "NFC-02.worker-dwell",
+        "NFC-02.worker-unknown",
+        "NFC-02.worker-enroll",
+        "NFC-02.worker-pending-cancel",
+        "NFC-02.worker-revoke",
+        "NFC-02.worker-stop",
+        "NFC-02.worker-release",
+        "NFC-02.worker-error",
+        "NFC-02.worker-load-revoke",
+        "NFC-02.worker-first-enroll",
+        "NFC-02.scene-dwell",
+        "NFC-02.scene-unknown",
+        "NFC-02.scene-stale",
+        "NFC-02.scene-gate",
+        "NFC-02.scene-busy",
+        "NFC-02.scene-binding",
+        "NFC-02.scene-invalid",
+        "provision.NfcBindingControllerTest.rejectsUnrepresentableCounterAndUnknownOutcome",
+        "provision.NfcBindingControllerTest.rejectedBeginDoesNotCancelAnotherTransaction",
+        "provision.NfcBindingControllerTest.verifiesOperationAndRevisionAcrossAllChunks",
+        "provision.NfcBindingControllerTest.cancelNamesCurrentJobWithoutAllocatingNewId",
+        "provision.NfcBindingControllerTest.disconnectDropsMutationAndLateAck",
+        "provision.NfcBindingControllerTest.acceptedEnrollmentRemainsPendingUntilDeviceConfirms",
+        "provision.NfcBindingControllerTest.supersedingJobCannotConfirmOwnOperation",
+        "provision.NfcBindingControllerTest.closeNeverClaimsAcceptedDeviceJobCanceled",
+        "provision.NfcBindingControllerTest.unsupportedFirmwareStaysReadOnly"
+      ],
+      "outstanding_layers": [
+        "L2"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "NFC-02.jobs-persist",
+            "NFC-02.jobs-cancel",
+            "NFC-02.jobs-stop",
+            "NFC-02.jobs-pending",
+            "NFC-02.jobs-failure",
+            "NFC-02.jobs-reset",
+            "NFC-02.jobs-commit",
+            "NFC-02.jobs-unknown",
+            "NFC-02.jobs-remove",
+            "NFC-02.jobs-conflict",
+            "NFC-02.control-auth",
+            "NFC-02.control-invalid",
+            "NFC-02.control-cancel",
+            "NFC-02.control-disconnect",
+            "NFC-02.control-quiesce",
+            "NFC-02.control-floor",
+            "NFC-02.control-sequence",
+            "NFC-02.control-staging",
+            "NFC-02.bindings-persist",
+            "NFC-02.bindings-revision",
+            "NFC-02.bindings-invalid",
+            "NFC-02.bindings-writefail",
+            "NFC-02.bindings-durability",
+            "NFC-02.bindings-corrupt",
+            "NFC-02.worker-dwell",
+            "NFC-02.worker-unknown",
+            "NFC-02.worker-enroll",
+            "NFC-02.worker-pending-cancel",
+            "NFC-02.worker-revoke",
+            "NFC-02.worker-stop",
+            "NFC-02.worker-release",
+            "NFC-02.worker-error",
+            "NFC-02.worker-load-revoke",
+            "NFC-02.worker-first-enroll",
+            "NFC-02.scene-dwell",
+            "NFC-02.scene-unknown",
+            "NFC-02.scene-stale",
+            "NFC-02.scene-gate",
+            "NFC-02.scene-busy",
+            "NFC-02.scene-binding",
+            "NFC-02.scene-invalid",
+            "provision.NfcBindingControllerTest.rejectsUnrepresentableCounterAndUnknownOutcome",
+            "provision.NfcBindingControllerTest.rejectedBeginDoesNotCancelAnotherTransaction",
+            "provision.NfcBindingControllerTest.verifiesOperationAndRevisionAcrossAllChunks",
+            "provision.NfcBindingControllerTest.cancelNamesCurrentJobWithoutAllocatingNewId",
+            "provision.NfcBindingControllerTest.disconnectDropsMutationAndLateAck",
+            "provision.NfcBindingControllerTest.acceptedEnrollmentRemainsPendingUntilDeviceConfirms",
+            "provision.NfcBindingControllerTest.supersedingJobCannotConfirmOwnOperation",
+            "provision.NfcBindingControllerTest.closeNeverClaimsAcceptedDeviceJobCanceled",
+            "provision.NfcBindingControllerTest.unsupportedFirmwareStaysReadOnly"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "scene"
+      },
+      "binding": "scene",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "USB-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "usb"
+      },
+      "binding": "usb",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "USB-02",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "usb"
+      },
+      "binding": "usb",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "PC-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "scene"
+      },
+      "binding": "scene",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "BOOT-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "delivery"
+      },
+      "binding": "delivery",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "DEL-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "delivery"
+      },
+      "binding": "delivery",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "DEL-02",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "delivery"
+      },
+      "binding": "delivery",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "CROSS-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "cross"
+      },
+      "binding": "cross",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    }
+  ],
+  "builds": [
+    {
+      "id": "build-test_shaniu_key_contract",
+      "exit_code": 0,
+      "seconds": 0.007894890033639967,
+      "evidence": "build-test_shaniu_key_contract.log"
+    },
+    {
+      "id": "build-test_shaniu_volume_contract",
+      "exit_code": 0,
+      "seconds": 0.0035994250210933387,
+      "evidence": "build-test_shaniu_volume_contract.log"
+    },
+    {
+      "id": "build-test_shaniu_volume_transition",
+      "exit_code": 0,
+      "seconds": 0.003631005994975567,
+      "evidence": "build-test_shaniu_volume_transition.log"
+    },
+    {
+      "id": "build-test_bk7258_agent_capture",
+      "exit_code": 0,
+      "seconds": 0.007679209986235946,
+      "evidence": "build-test_bk7258_agent_capture.log"
+    },
+    {
+      "id": "build-test_shaniu_power_contract",
+      "exit_code": 0,
+      "seconds": 0.0037317670066840947,
+      "evidence": "build-test_shaniu_power_contract.log"
+    },
+    {
+      "id": "build-test_shaniu_power_pixels",
+      "exit_code": 0,
+      "seconds": 0.003597842005547136,
+      "evidence": "build-test_shaniu_power_pixels.log"
+    },
+    {
+      "id": "build-test_shaniu_msc_stop",
+      "exit_code": 0,
+      "seconds": 0.003615995985455811,
+      "evidence": "build-test_shaniu_msc_stop.log"
+    },
+    {
+      "id": "build-test_shaniu_usb_cleanup",
+      "exit_code": 0,
+      "seconds": 0.003595677961129695,
+      "evidence": "build-test_shaniu_usb_cleanup.log"
+    },
+    {
+      "id": "build-test_shaniu_control_quiesce",
+      "exit_code": 0,
+      "seconds": 0.003634030988905579,
+      "evidence": "build-test_shaniu_control_quiesce.log"
+    },
+    {
+      "id": "build-test_shaniu_owner",
+      "exit_code": 0,
+      "seconds": 0.003576461982447654,
+      "evidence": "build-test_shaniu_owner.log"
+    },
+    {
+      "id": "build-test_shaniu_power_owner",
+      "exit_code": 0,
+      "seconds": 0.003570782020688057,
+      "evidence": "build-test_shaniu_power_owner.log"
+    },
+    {
+      "id": "build-test_bk7258_agent_media_player",
+      "exit_code": 0,
+      "seconds": 0.0077490549883805215,
+      "evidence": "build-test_bk7258_agent_media_player.log"
+    },
+    {
+      "id": "build-test_shaniu_focus",
+      "exit_code": 0,
+      "seconds": 0.0035392610006965697,
+      "evidence": "build-test_shaniu_focus.log"
+    },
+    {
+      "id": "build-test_shaniu_focus_shared",
+      "exit_code": 0,
+      "seconds": 0.0035890550352633,
+      "evidence": "build-test_shaniu_focus_shared.log"
+    },
+    {
+      "id": "build-test_shaniu_focus_intent",
+      "exit_code": 0,
+      "seconds": 0.0035765619832091033,
+      "evidence": "build-test_shaniu_focus_intent.log"
+    },
+    {
+      "id": "build-test_shaniu_nfc_bindings",
+      "exit_code": 0,
+      "seconds": 0.003644009993877262,
+      "evidence": "build-test_shaniu_nfc_bindings.log"
+    },
+    {
+      "id": "build-test_shaniu_nfc_jobs",
+      "exit_code": 0,
+      "seconds": 0.0035368770477361977,
+      "evidence": "build-test_shaniu_nfc_jobs.log"
+    },
+    {
+      "id": "build-test_shaniu_nfc_worker_scene",
+      "exit_code": 0,
+      "seconds": 0.003555161994881928,
+      "evidence": "build-test_shaniu_nfc_worker_scene.log"
+    },
+    {
+      "id": "build-test_shaniu_nfc_scene",
+      "exit_code": 0,
+      "seconds": 0.003573713998775929,
+      "evidence": "build-test_shaniu_nfc_scene.log"
+    },
+    {
+      "id": "build-test_shaniu_nfc_control",
+      "exit_code": 0,
+      "seconds": 0.0035549099557101727,
+      "evidence": "build-test_shaniu_nfc_control.log"
+    },
+    {
+      "id": "build-test_shaniu_nfc_quiesce",
+      "exit_code": 0,
+      "seconds": 0.0036967190098948777,
+      "evidence": "build-test_shaniu_nfc_quiesce.log"
+    },
+    {
+      "id": "build-test_shaniu_focus_pixels",
+      "exit_code": 0,
+      "seconds": 0.003544339968357235,
+      "evidence": "build-test_shaniu_focus_pixels.log"
+    },
+    {
+      "id": "build-test_shaniu_focus_render",
+      "exit_code": 0,
+      "seconds": 0.0037660410162061453,
+      "evidence": "build-test_shaniu_focus_render.log"
+    },
+    {
+      "id": "build-test_shaniu_display_snapshot",
+      "exit_code": 0,
+      "seconds": 0.0035926220007240772,
+      "evidence": "build-test_shaniu_display_snapshot.log"
+    },
+    {
+      "id": "build-test_shaniu_display_intent",
+      "exit_code": 0,
+      "seconds": 0.003643258009105921,
+      "evidence": "build-test_shaniu_display_intent.log"
+    },
+    {
+      "id": "build-test_shaniu_expression_cancel",
+      "exit_code": 0,
+      "seconds": 0.0037491790135391057,
+      "evidence": "build-test_shaniu_expression_cancel.log"
+    },
+    {
+      "id": "build-test_shaniu_expression_ownership",
+      "exit_code": 0,
+      "seconds": 0.0036547709605656564,
+      "evidence": "build-test_shaniu_expression_ownership.log"
+    },
+    {
+      "id": "build-test_shaniu_expression_trial",
+      "exit_code": 0,
+      "seconds": 0.0036402909900061786,
+      "evidence": "build-test_shaniu_expression_trial.log"
+    },
+    {
+      "id": "build-test_shaniu_trial_wire",
+      "exit_code": 0,
+      "seconds": 0.0037181299994699657,
+      "evidence": "build-test_shaniu_trial_wire.log"
+    },
+    {
+      "id": "build-test_shaniu_models_durability",
+      "exit_code": 0,
+      "seconds": 0.0035620539565570652,
+      "evidence": "build-test_shaniu_models_durability.log"
+    },
+    {
+      "id": "build-test_shaniu_focus_wire",
+      "exit_code": 0,
+      "seconds": 0.0036287109833210707,
+      "evidence": "build-test_shaniu_focus_wire.log"
+    },
+    {
+      "id": "build-test_agent_tts_queue",
+      "exit_code": 0,
+      "seconds": 0.007887287996709347,
+      "evidence": "build-test_agent_tts_queue.log"
+    },
+    {
+      "id": "build-test_bk7258_product_keys",
+      "exit_code": 0,
+      "seconds": 0.0036741369985975325,
+      "evidence": "build-test_bk7258_product_keys.log"
+    },
+    {
+      "id": "build-test_bk7258_usbmode_lease",
+      "exit_code": 0,
+      "seconds": 0.0035871430300176144,
+      "evidence": "build-test_bk7258_usbmode_lease.log"
+    },
+    {
+      "id": "build-test_bk7258_motion_core",
+      "exit_code": 0,
+      "seconds": 0.003772735013626516,
+      "evidence": "build-test_bk7258_motion_core.log"
+    },
+    {
+      "id": "build-test_bk7258_nfc_core",
+      "exit_code": 0,
+      "seconds": 0.0035234299721196294,
+      "evidence": "build-test_bk7258_nfc_core.log"
+    },
+    {
+      "id": "build-test_bk7258_nfc_rpc",
+      "exit_code": 0,
+      "seconds": 0.0035928330034948885,
+      "evidence": "build-test_bk7258_nfc_rpc.log"
+    },
+    {
+      "id": "config-build",
+      "exit_code": 0,
+      "seconds": 4.073429687006865,
+      "evidence": "config-build.log"
+    },
+    {
+      "id": "public-cert",
+      "exit_code": 0,
+      "seconds": 0.008171362977009267,
+      "evidence": "public-cert.log"
+    },
+    {
+      "id": "MSC-01.early-release-build",
+      "exit_code": 0,
+      "seconds": 0.2645103639806621,
+      "evidence": "MSC-01.early-release-build.log"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud-build",
+      "exit_code": 0,
+      "seconds": 0.7153774410253391,
+      "evidence": "CFG-01.wifi-clears-cloud-build.log"
+    },
+    {
+      "id": "config-restored-build",
+      "exit_code": 0,
+      "seconds": 0.6653650220250711,
+      "evidence": "config-restored-build.log"
+    },
+    {
+      "id": "JVM",
+      "exit_code": 0,
+      "seconds": 9.987721655983478,
+      "collected": 58,
+      "evidence": "jvm.log"
+    }
+  ],
+  "mutations": [
+    {
+      "id": "MSC-01.early-release",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.007715528015978634,
+      "source": "app/bk7258/bk7258_media_volume.c",
+      "original_sha256": "58ebb18ae63adccf21262253da18f153bbb7c680cc0b64719ca20e8a6d9681c8",
+      "mutant_sha256": "bf298373a95ac54d5587f93ece34a30a7f661a65a969c69db9e27c6570770c57",
+      "expected_assertion": "!mounted",
+      "evidence": "MSC-01.early-release.log"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.06401555298361927,
+      "source": "app/bk7258/bk7258_provision_config.c",
+      "original_sha256": "98f5100ca49ca44e45fe3e5da4bb2da0add7466f0e357a205ca8b1e307a5818e",
+      "mutant_sha256": "4c0c615b8ffc99247b0fd91bd934d3df0409a1180769cb939b2820f9e6f69427",
+      "expected_assertion": "bkcloud_config_decode",
+      "evidence": "CFG-01.wifi-clears-cloud.log"
+    }
+  ]
+}

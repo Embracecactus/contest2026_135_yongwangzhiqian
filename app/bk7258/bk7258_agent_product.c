@@ -2037,6 +2037,17 @@ static int product_capture_prepare(unsigned int rate, unsigned int channels,
   return ret < 0 ? ret : 1;
 }
 
+/* 产品循环发布空闲准入；读卡I/O仍仅属于原NFC worker。 */
+static void product_nfc_scene_gate(bool admitted)
+{
+#if defined(CONFIG_BK7258_NFC_SERVICE) && defined(CONFIG_BK7258_PROVISION_GATT) && \
+    defined(CONFIG_CL_MFRC522_RF)
+  bk7258_nfc_scene_admit(admitted);
+#else
+  (void)admitted;
+#endif
+}
+
 static int product_capture_route(int active)
 {
   int ret = bkvoice_media_source_set_active(MEDIA_SOURCE_MIC, active != 0);
@@ -2271,6 +2282,7 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
       int reset = product_reset_step();
       if (reset)
         {
+          product_nfc_scene_gate(false);
           if (reset > 0 || g_reset_phase != PRODUCT_RESET_IDLE)
             {
               /* Do this before TURN_COMPLETE or preference recovery can
@@ -2303,6 +2315,7 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
 #ifdef CONFIG_BK7258_PRODUCT_KEYS
       if (product_keys_step(now))
         {
+          product_nfc_scene_gate(false);
           bkfocus_cancel();
           bkfocus_intent_step(now, false);
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
@@ -2318,6 +2331,8 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
 
 #endif
       (void)bkfocus_step(now);
+      product_nfc_scene_gate(g_control_bound && !bkagent_ota_busy() &&
+        (!atomic_load(&g_voice_initialized) || voice_channel_is_idle()));
       bkfocus_intent_step(now, g_control_bound && !bkagent_ota_busy());
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
       bk7258_display_focus(atomic_load(&g_voice_initialized) && !voice_channel_is_idle() ?

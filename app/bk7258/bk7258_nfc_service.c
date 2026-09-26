@@ -15,6 +15,11 @@
 #ifdef CONFIG_BK7258_PROVISION_GATT
 #include "bk7258_provision_gatt.h"
 #include "bk7258_nfc_bindings.h"
+#if defined(CONFIG_BK7258_APP_AGENT) && defined(CONFIG_CL_MFRC522_RF)
+#define BKNFC_HAS_SCENE 1
+#include "bk7258_nfc_scene.h"
+#include "bk7258_focus_intent.h"
+#endif
 #include <sys/stat.h>
 #endif
 
@@ -68,6 +73,14 @@ struct bknfc_server_s
   struct bknfc_job_request_s job;
   struct bknfc_job_status_s job_status;
   bool job_cancel;
+#ifdef BKNFC_HAS_SCENE
+  struct bknfc_scene_s scene;
+  uint32_t scene_epoch;
+  uint32_t scene_intent;
+  int scene_error;
+  bool scene_admitted;
+  bool scene_load_attempted;
+#endif
 #endif
   uint32_t epoch;
   uint32_t request_epoch;
@@ -90,6 +103,9 @@ static struct bknfc_server_s g_bknfc_server =
 
 #ifdef CONFIG_BK7258_PROVISION_GATT
 static void bknfc_job_stop_locked(struct bknfc_server_s *server);
+#ifdef BKNFC_HAS_SCENE
+static void bknfc_scene_stop_locked(struct bknfc_server_s *server);
+#endif
 #endif
 
 int bk7258_nfc_service_quiesce(bool stop)
@@ -104,6 +120,9 @@ int bk7258_nfc_service_quiesce(bool stop)
       server->quiescing = true;
 #ifdef CONFIG_BK7258_PROVISION_GATT
       bknfc_job_stop_locked(server);
+#ifdef BKNFC_HAS_SCENE
+      bknfc_scene_stop_locked(server);
+#endif
 #endif
       if (server->active)
         {
@@ -534,6 +553,9 @@ static int bknfc_send(struct bknfc_server_s *server,
 #ifdef CONFIG_BK7258_PROVISION_GATT
 #include "bk7258_nfc_jobs.inc"
 #endif
+#ifdef BKNFC_HAS_SCENE
+#include "bk7258_nfc_worker_scene.inc"
+#endif
 
 static int bknfc_worker(int argc, char **argv)
 {
@@ -617,6 +639,9 @@ static int bknfc_worker(int argc, char **argv)
                                                    MSEC2TICK(500));
       if (waitret == -ETIMEDOUT)
         {
+#ifdef BKNFC_HAS_SCENE
+          bknfc_scene_work(server);
+#endif
 #if defined(CONFIG_BK7258_PROVISION_GATT) && defined(CONFIG_CL_ISODEP)
           uint8_t locator[BKPROV_GATT_LOCATOR_SIZE];
           if (bkprov_gatt_locator(locator) < 0)
@@ -909,6 +934,9 @@ int bk7258_nfc_service_start(void)
       return 0;
     }
 
+#ifdef BKNFC_HAS_SCENE
+  (void)bknfc_scene_init(&server->scene, 1);
+#endif
   ret = nxsem_init(&server->request_sem, 0, 0);
   if (ret >= 0)
     {

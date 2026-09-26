@@ -252,7 +252,17 @@
     "NFC-01.observe-collision",
     "NFC-01.observe-present",
     "NFC-01.observe-residual_error",
-    "NFC-01.observe-null"
+    "NFC-01.observe-null",
+    "NFC-02.worker-dwell",
+    "NFC-02.worker-unknown",
+    "NFC-02.worker-enroll",
+    "NFC-02.worker-pending-cancel",
+    "NFC-02.worker-revoke",
+    "NFC-02.worker-stop",
+    "NFC-02.worker-release",
+    "NFC-02.worker-error",
+    "NFC-02.worker-load-revoke",
+    "NFC-02.worker-first-enroll"
   ],
   "baseline_ids": [
     "K2-01.release-2999",

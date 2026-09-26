@@ -41,6 +41,9 @@ int bk7258_nfc_job_submit(const struct bknfc_job_request_s *request)
     ret = -EBUSY;
   else
     {
+#ifdef BKNFC_HAS_SCENE
+      bknfc_scene_stop_locked(s);
+#endif
       s->job = *request;
       s->job_status.operation_floor = request->operation;
       s->job_cancel = false;
@@ -100,6 +103,18 @@ static int bknfc_job_open(struct bknfc_server_s *s)
   if (ret < 0) return ret;
   return bknfc_bindings_open(&s->bindings, BKNFC_BINDINGS_ROOT);
 }
+/* 调用者持有request_lock；只发布已经完成的绑定缓存。 */
+static void bknfc_job_publish_bindings(struct bknfc_server_s *s)
+{
+  s->job_status.revision = s->bindings.revision;
+  uint64_t durable_operation = 0;
+  for (unsigned int i = 8; i < 16; i++)
+    durable_operation = (durable_operation << 8) | s->bindings.transaction[i];
+  if (durable_operation > s->job_status.operation_floor)
+    s->job_status.operation_floor = durable_operation;
+  for (unsigned int i = 0; i < BKNFC_BINDING_SLOTS; i++)
+    s->job_status.durations[i] = s->bindings.uncertain ? 0 : s->bindings.entries[i].duration_ms;
+}
 static bool bknfc_job_work(struct bknfc_server_s *s)
 {
   irqstate_t flags = spin_lock_irqsave(&s->request_lock);
@@ -147,14 +162,7 @@ static bool bknfc_job_work(struct bknfc_server_s *s)
   s->job_status.error = ret;
   s->job_status.phase = canceled ? BKNFC_JOB_CANCELED :
     ret == -EINPROGRESS ? BKNFC_JOB_UNKNOWN : ret ? BKNFC_JOB_FAILED : BKNFC_JOB_SUCCEEDED;
-  s->job_status.revision = s->bindings.revision;
-  uint64_t durable_operation = 0;
-  for (unsigned int i = 8; i < 16; i++)
-    durable_operation = (durable_operation << 8) | s->bindings.transaction[i];
-  if (durable_operation > s->job_status.operation_floor)
-    s->job_status.operation_floor = durable_operation;
-  for (unsigned int i = 0; i < BKNFC_BINDING_SLOTS; i++)
-    s->job_status.durations[i] = s->bindings.uncertain ? 0 : s->bindings.entries[i].duration_ms;
+  bknfc_job_publish_bindings(s);
   s->io_active = false;
   spin_unlock_irqrestore(&s->request_lock, flags);
   return true;
@@ -173,6 +181,10 @@ int bk7258_nfc_bindings_reset(void)
   spin_unlock_irqrestore(&s->request_lock, flags);
   int ret = bknfc_bindings_reset(BKNFC_BINDINGS_ROOT);
   flags = spin_lock_irqsave(&s->request_lock);
+#ifdef BKNFC_HAS_SCENE
+  s->scene_load_attempted = false;
+  s->scene.armed = false;
+#endif
   memset(&s->bindings, 0, sizeof(s->bindings));
   s->bindings.uncertain = ret != 0;
   s->job_status.revision = 0;

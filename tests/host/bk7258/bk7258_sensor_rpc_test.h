@@ -77,6 +77,9 @@ static int (*worker_entry)(int, char **);
 static int opens, reads, closes, fd_live, open_error, read_error, close_error;
 static int ioctl_error;
 static int nfc_selects;
+#ifdef TEST_NFC_SCENE
+static int worker_timeouts, nfc_observations, nfc_present = 1;
+#endif
 static uint8_t nfc_uid_size = 4, nfc_sak;
 static int requests_sent, responses_sent, no_buffers;
 static bool drop_reply;
@@ -115,7 +118,14 @@ static int nxsem_wait_uninterruptible(sem_t *s)
 static int nxsem_tickwait_uninterruptible(sem_t *s, clock_t timeout)
 {
 #ifdef TEST_NFC_RF
-  if (in_worker) return nxsem_wait_uninterruptible(s);
+  if (in_worker)
+    {
+#ifdef TEST_NFC_SCENE
+      if (*s == 0 && worker_timeouts > 0)
+        { worker_timeouts--; ticks += timeout; return -ETIMEDOUT; }
+#endif
+      return nxsem_wait_uninterruptible(s);
+    }
 #endif
   run_hook(&wait_hook);
   if (*s != 0) { (*s)--; return 0; }
@@ -196,6 +206,20 @@ static int mock_ioctl(int fd, unsigned long cmd, ...)
       va_end(args); assert(on<=1);
       if (!on && rf_off_error) { errno=rf_off_error; return -1; }
       rf_on=on; return 0;
+    }
+#endif
+#ifdef TEST_NFC_SCENE
+  if (cmd == MFRC522IOC_OBSERVE)
+    {
+      va_list args;va_start(args,cmd);
+      struct mfrc522_observation_s *sample = (void *)va_arg(args,unsigned long);
+      va_end(args);nfc_observations++;run_hook(&read_hook);
+      memset(sample,0,sizeof(*sample));
+      if (read_error) {errno=read_error;return -1;}
+      sample->present=nfc_present;
+      if (nfc_present)
+        {sample->uid.size=nfc_uid_size;sample->uid.sak=nfc_sak;memset(sample->uid.uid_data,0xa5,4);}
+      return 0;
     }
 #endif
   if (cmd == MFRC522IOC_GET_PICC_UID)
