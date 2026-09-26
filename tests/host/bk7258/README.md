@@ -1678,3 +1678,51 @@ handshakes reuse existing locks. Real latency, stack peak, cleanup interruption,
 uORB hardware deactivation, actual reset/reclaim and N1 gesture feedback remain
 unverified or unimplemented. No physical reset, erase, install or flashing.
 See `acceptance/s54-20260927.json` and `s54-reset-motion-evidence-20260927.json`.
+
+## S55: parameterized local action candidates (not physical gesture acceptance)
+
+The existing production motion core now contains a single-owner finite candidate
+detector: MOVED for a sufficient sample-to-sample delta, SETTLED after movement
+remains inside one quiet anchor for the configured duration, and TILTED after a
+stable gravity-range vector leaves the reference orientation. Separate enter/leave
+cosines provide hysteresis. Moving/settling candidates are not proof of physical
+pickup/putdown or position. No LLM, audio, motor, configuration or power action.
+
+Caller supplies immutable reviewed thresholds, dwell/cooldown and maximum gap;
+state is zero-initialized once per owner lifetime. Fixture values (including
+400ms settle,200ms gap and example acceleration ranges) are synthetic test inputs,
+not deployed sensitivity or performance budgets. No production default is selected.
+Invalid/error/gated observations rebase candidates; duplicate time cannot advance
+dwell; reversed time is rejected; a long gap starts a new baseline. Previously
+emitted cooldown survives rebasing, and time comparison cannot underflow it. Events
+suppressed during cooldown are consumed, not queued for later surprise replay.
+A fixed anchor detects cumulative creep rather than treating every small step as
+stable. Full int32 wire extremes use double arithmetic before products/subtraction.
+
+Nine selected L1 cases compile the actual core with UBSan. Initial missing API is
+BLOCKED_INTERFACE. First eight cases passed after implementation; a ninth exposed
+admission toggle resetting cooldown, then passed after correction. Before any
+implementation, the settle fixture was corrected from700000 to600000us: a stable
+vector first observed at200000 reaches400000us duration at600000, independently of
+code. No runtime threshold was relaxed to make an observed failure pass.
+Forgetting cooldown and skipping settle time are isolated detected mutants; both
+restore.305PASS = original63 +242added;13 runner gate checks remain separate.
+
+Actual AP core object contains the candidate function; target build/manifest pass.
+It is NOT yet called by the motion worker, so object compilation is not runtime
+activation or a complete N1 path. ARM ABI sizes: state72bytes, policy48bytes; neither
+has a production resident instance yet. No added thread, heap, DMA, file writes or
+hardware polling. Double arithmetic CPU cost, stack high-water and physical
+classification quality are unmeasured.
+
+Next binding is explicitly the existing bkmotion_worker and sampling mutex, with
+product-owned admission alongside reset/power/voice/OTA. It must feed only released
+fresh samples to this core and send finite intents through the existing display
+trial service. A later explicit display/default choice must win; cancel only the
+owned trial ID; no independent renderer or sensor worker. The integration must
+exercise these real owners, not a successful synthetic gesture/renderer mock.
+Layer gaps: L1 candidate logic PASS; sampling/scene/display binding BLOCKED_INTERFACE;
+production sensitivity and cadence NOT_FROZEN pending physical observations and
+resource budget; actual gesture/voice coexistence L3 NOT_RUN. These gaps do not block
+independent USB work or other contracted slices. No physical device operation.
+See `acceptance/s55-20260927.json` and `s55-motion-candidates-evidence-20260927.json`.

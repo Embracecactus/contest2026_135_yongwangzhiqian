@@ -1961,3 +1961,6 @@ $(BUILD)/shaniu-focus-intent.o: $(VOICE_PACK_ROOT)/bk7258_focus_intent.c $(VOICE
 
 $(BUILD)/test_shaniu_motion_quiesce: test_shaniu_motion_quiesce.c test_bk7258_motion_rpc.c bk7258_sensor_rpc_test.h $(wildcard $(VOICE_PACK_ROOT)/bk7258_motion_*.c) $(wildcard $(VOICE_PACK_ROOT)/bk7258_motion_*.h) $(SENSOR_RPC_SHIM)/.ready
 	$(CC) -std=c11 -Wall -Wextra -Werror -Wno-unused-function -fsanitize=undefined -fno-sanitize-recover=all -I $(SENSOR_RPC_SHIM) -I $(VOICE_PACK_ROOT) $< -o $@
+
+$(BUILD)/test_shaniu_motion_actions: test_shaniu_motion_actions.c $(VOICE_PACK_ROOT)/bk7258_motion_core.c $(VOICE_PACK_ROOT)/bk7258_motion_core.h | $(BUILD)
+	$(CC) -std=c11 -Wall -Wextra -Werror -fsanitize=undefined -fno-sanitize-recover=all -I $(VOICE_PACK_ROOT) $< $(VOICE_PACK_ROOT)/bk7258_motion_core.c -o $@

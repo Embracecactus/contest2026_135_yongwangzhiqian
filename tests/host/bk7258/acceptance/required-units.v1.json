@@ -296,7 +296,16 @@
     "RST-02.motion-resume_failure",
     "RST-02.motion-resume_rollback",
     "RST-02.motion-owner_resume_failure",
-    "RST-02.motion-power_intent"
+    "RST-02.motion-power_intent",
+    "MOT-02.candidate-move-settle",
+    "MOT-02.candidate-tilt",
+    "MOT-02.candidate-freshness",
+    "MOT-02.candidate-gate",
+    "MOT-02.candidate-error",
+    "MOT-02.candidate-cooldown",
+    "MOT-02.candidate-creep",
+    "MOT-02.candidate-extreme",
+    "MOT-02.candidate-gate-cooldown"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -596,6 +605,15 @@
     "RST-02.motion-resume_failure",
     "RST-02.motion-resume_rollback",
     "RST-02.motion-owner_resume_failure",
-    "RST-02.motion-power_intent"
+    "RST-02.motion-power_intent",
+    "MOT-02.candidate-move-settle",
+    "MOT-02.candidate-tilt",
+    "MOT-02.candidate-freshness",
+    "MOT-02.candidate-gate",
+    "MOT-02.candidate-error",
+    "MOT-02.candidate-cooldown",
+    "MOT-02.candidate-creep",
+    "MOT-02.candidate-extreme",
+    "MOT-02.candidate-gate-cooldown"
   ]
 }

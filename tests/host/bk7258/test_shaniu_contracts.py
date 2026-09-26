@@ -422,6 +422,7 @@ def main():
         "test_bk7258_agent_capture",
         "test_shaniu_power_contract",
         "test_shaniu_motion_quiesce",
+        "test_shaniu_motion_actions",
         "test_shaniu_power_pixels",
         "test_shaniu_msc_stop",
         "test_shaniu_usb_cleanup",
@@ -714,6 +715,11 @@ def main():
         add(suite, "RST-02.motion-" + variant, "RST-02", "L1",
             [sys.executable, HERE / "test_shaniu_reset_nfc.py",
              "ResetMotionTest.test_motion_" + variant], marker=False)
+    for variant in ("move-settle", "tilt", "freshness", "gate", "error", "cooldown",
+                    "creep", "extreme", "gate-cooldown"):
+        add(suite, "MOT-02.candidate-" + variant, "MOT-02", "L1",
+            [HERE / "build/test_shaniu_motion_actions", variant],
+            binaries["test_shaniu_motion_actions"])
     for variant in ("prestart", "queued", "active", "idle", "close-error", "open-cleanup", "late"):
         add(suite, "MOT-01.quiesce-" + variant, "MOT-01", "L2",
             [HERE / "build/test_shaniu_motion_quiesce", variant],
