@@ -211,6 +211,10 @@ static bool product_keys_step(uint64_t now)
        */
       int admission = bkprov_owner_prepare_stop(now);
       int nfc = 0;
+      int motion = 0;
+#ifdef CONFIG_BK7258_MOTION_SERVICE
+      motion = bk7258_motion_service_quiesce(true);
+#endif
 #ifdef CONFIG_BK7258_NFC_SERVICE
       nfc = bk7258_nfc_service_quiesce(true);
 #endif
@@ -231,9 +235,9 @@ static bool product_keys_step(uint64_t now)
         }
 
       product_power_drain();
-      if (admission < 0 || trigger < 0 || nfc < 0)
+      if (admission < 0 || trigger < 0 || nfc < 0 || motion < 0)
         {
-          int error = admission < 0 ? admission : trigger < 0 ? trigger : nfc;
+          int error = admission < 0 ? admission : trigger < 0 ? trigger : nfc < 0 ? nfc : motion;
           /* Quiescing is a handshake: EAGAIN/EBUSY is incomplete, not a
            * permanent failure. A permanent participant error takes priority.
            */
@@ -241,6 +245,8 @@ static bool product_keys_step(uint64_t now)
             error = trigger;
           if (nfc < 0 && nfc != -EAGAIN && nfc != -EBUSY)
             error = nfc;
+          if (motion < 0 && motion != -EAGAIN && motion != -EBUSY)
+            error = motion;
           if (error == -EAGAIN || error == -EBUSY)
             {
               if (now >= g_shutdown_deadline)

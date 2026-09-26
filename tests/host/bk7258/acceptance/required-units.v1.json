@@ -280,7 +280,16 @@
     "MOT-01.sensor-partial",
     "MOT-01.sensor-status_error",
     "MOT-01.sensor-data_error",
-    "MOT-01.sensor-fresh"
+    "MOT-01.sensor-fresh",
+    "MOT-01.quiesce-prestart",
+    "MOT-01.quiesce-queued",
+    "MOT-01.quiesce-active",
+    "MOT-01.quiesce-idle",
+    "MOT-01.quiesce-close-error",
+    "MOT-01.quiesce-open-cleanup",
+    "MOT-01.quiesce-late",
+    "LIFE-01.motion-busy",
+    "LIFE-01.motion-failed"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -564,6 +573,15 @@
     "MOT-01.sensor-partial",
     "MOT-01.sensor-status_error",
     "MOT-01.sensor-data_error",
-    "MOT-01.sensor-fresh"
+    "MOT-01.sensor-fresh",
+    "MOT-01.quiesce-prestart",
+    "MOT-01.quiesce-queued",
+    "MOT-01.quiesce-active",
+    "MOT-01.quiesce-idle",
+    "MOT-01.quiesce-close-error",
+    "MOT-01.quiesce-open-cleanup",
+    "MOT-01.quiesce-late",
+    "LIFE-01.motion-busy",
+    "LIFE-01.motion-failed"
   ]
 }

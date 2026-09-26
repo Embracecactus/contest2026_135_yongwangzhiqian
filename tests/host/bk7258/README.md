@@ -1604,3 +1604,43 @@ conversion time. Startup/ODR-change stale registers, missed/overrun conversions,
 physical scaling, driver exit acknowledgment, autonomous sampling/recognition and
 short expression restoration are not closed by this slice. No hardware action.
 See `acceptance/s52-20260927.json` and `s52-motion-sampling-evidence-20260927.json`.
+
+## S53: motion sampling admission and power preparation
+
+The shared motion service now has a short-lock quiesce contract. Stop closes
+local/RPC sampling admission before reporting busy; pending worker requests may
+produce an error response but cannot open the sensor. Recheck after obtaining the
+existing sample mutex prevents a waiter from starting after stop. A read already
+running finishes its mandatory descriptor cleanup; if stop is observed before its
+completion publication, the sample is sanitized as canceled. Cached replay is
+invalidated and new stopped RPC requests return a sanitized error. A response
+already submitted to transport is not retractable; this is not transport drain.
+
+Normal and failed-open cleanup record close errors separately from the operation's
+first error. A descriptor consumed by NuttX close is never retained/retried. A
+cleanup fault refuses new samples/resume and remains diagnostic until service
+restart; resume during active I/O is busy. No sleep or timeout claims completion.
+The product power preparation includes motion alongside NFC/trigger, waiting on
+busy and preserving permanent failure rather than requesting CP transition.
+The service stop-before-start intent survives initialization. No new worker.
+
+Seven service/RPC cases compile actual production service/core/client with only
+existing OS/sensor transport substitutes. Two actual power-coordinator cases first
+failed (motion busy/error ignored), then pass with the participant connected.
+The missing service interface was BLOCKED_INTERFACE, never a claimed business Red.
+Initial legacy fixture reused the same virtual source after a forced close fault;
+its case-reset now explicitly starts fresh virtual device state, not a production
+reconnect/reset capability. The late-RPC case initially asserted callback return0;
+the existing synchronous trysend fixture returns frame length. Corrected to that
+exact fixture contract; its no-new-I/O/no-old-valid-sample assertions remain intact.
+Original failure evidence is retained. Final289PASS = original63 +226added;
+runner13 separate, two new isolated mutants detected/restored, existing two retained.
+
+AP build/manifest pass and real quiesce symbol linked. Current motion server288
+bytes; no new queue, thread, heap, DMA or periodic writes. Actual lock duration,
+stack usage and sensor power need hardware measurement. NuttX sensor_close currently
+ignores lower activate(false) return: zero here proves no owned software I/O, not
+physical standby. Factory-reset coordination, actual uORB deactivation feedback,
+autonomous sampling/gesture/short-expression flow and L3 remain outstanding.
+No physical installation, flashing, K2/reset or data clearing. See
+`acceptance/s53-20260927.json` and `s53-motion-quiesce-evidence-20260927.json`.

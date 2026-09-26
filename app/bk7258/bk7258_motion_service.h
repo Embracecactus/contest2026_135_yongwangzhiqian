@@ -7,8 +7,13 @@
 #ifndef __APP_BK7258_BK7258_MOTION_SERVICE_H
 #define __APP_BK7258_BK7258_MOTION_SERVICE_H
 
+#include <stdbool.h>
 #include "bk7258_motion_protocol.h"
 
+/* Stops software sampling admission; zero acknowledges no in-flight I/O.
+ * This does not certify physical sensor power-down behind the uORB upper half.
+ */
+int bk7258_motion_service_quiesce(bool stop);
 int bk7258_motion_service_prepare(void);
 int bk7258_motion_service_start(void);
 int bk7258_motion_service_sample(struct bkmotion_rpc_response_s *sample);

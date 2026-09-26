@@ -1,0 +1,447 @@
+{
+  "slice": "S53",
+  "date": "2026-09-27",
+  "parent": "16e745daf4f1aa97026528da9650d1cd546bcb4d",
+  "counts": {
+    "PASS": 289,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 226,
+      "counts": {
+        "PASS": 226,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "new_cases": [
+    {
+      "id": "MOT-01.quiesce-prestart",
+      "parent": "MOT-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013054279843345284,
+      "evidence": "MOT-01.quiesce-prestart.log",
+      "evidence_sha256": "e34824e8f78e6aa26ab3f28afe1be2fad1d94091f8083fb4777a525f2f3dd01c"
+    },
+    {
+      "id": "MOT-01.quiesce-queued",
+      "parent": "MOT-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013090040301904082,
+      "evidence": "MOT-01.quiesce-queued.log",
+      "evidence_sha256": "9d3592c0583ec72153815f067e67cb8729328560876ec7969f917831c3bcaf15"
+    },
+    {
+      "id": "MOT-01.quiesce-active",
+      "parent": "MOT-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013235419755801558,
+      "evidence": "MOT-01.quiesce-active.log",
+      "evidence_sha256": "9e72ff4fe3cb81b88bee4ca36beafa2973e40faa45a3dc25a717a728fe94b5c8"
+    },
+    {
+      "id": "MOT-01.quiesce-idle",
+      "parent": "MOT-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.001294868008699268,
+      "evidence": "MOT-01.quiesce-idle.log",
+      "evidence_sha256": "7d6da553174fa8b5a6399202d70e123a5799af1943f8199cde79049fa48bdd32"
+    },
+    {
+      "id": "MOT-01.quiesce-close-error",
+      "parent": "MOT-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013129619765095413,
+      "evidence": "MOT-01.quiesce-close-error.log",
+      "evidence_sha256": "0a784b03c1d3502acddbf0cf328ebce000b6190707fa5a1256d1f13c0e0695d8"
+    },
+    {
+      "id": "MOT-01.quiesce-open-cleanup",
+      "parent": "MOT-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.001306549005676061,
+      "evidence": "MOT-01.quiesce-open-cleanup.log",
+      "evidence_sha256": "3b199ac20a063ab324c4d4ae01c915f93c620793c980c3d02f039529230a21b1"
+    },
+    {
+      "id": "MOT-01.quiesce-late",
+      "parent": "MOT-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0012803390272893012,
+      "evidence": "MOT-01.quiesce-late.log",
+      "evidence_sha256": "3c4ed7ceaab0805bfb9de60d2a4ce15ab704a0a9b9ecea57661e8ea80f9687a3"
+    },
+    {
+      "id": "LIFE-01.motion-busy",
+      "parent": "LIFE-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0015278509818017483,
+      "evidence": "LIFE-01.motion-busy.log",
+      "evidence_sha256": "5d4af3bd4c818a24eb4f71e892b04c20f4088a653ee0b86972f801fd3e405c08"
+    },
+    {
+      "id": "LIFE-01.motion-failed",
+      "parent": "LIFE-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013092159642837942,
+      "evidence": "LIFE-01.motion-failed.log",
+      "evidence_sha256": "06e85cddc1b521b44ad5313e24b9796f0faca858886cfc51857534d6b4a7ef39"
+    }
+  ],
+  "baseline": {
+    "power_assertion_failures": 2,
+    "service_initial": "BLOCKED_INTERFACE"
+  },
+  "runner_gate": {
+    "tests": 13,
+    "status": "PASS"
+  },
+  "mutations": [
+    {
+      "id": "close-error-hidden",
+      "status": "DETECTED",
+      "restore": "PASS",
+      "source": "bk7258_motion_service.c",
+      "original_sha256": "219682b976459be2c94370fd3584b7beea31817fb24c80931b1e10ff3fe6f0c0",
+      "mutant_sha256": "37c64c99eadc4e0f8b3cc42c289fe960f3ca97d13045dd2472b323c707df0159"
+    },
+    {
+      "id": "power-ignores-motion",
+      "status": "DETECTED",
+      "restore": "PASS",
+      "source": "bk7258_agent_product_power.inc",
+      "original_sha256": "d42ed84f88631dd6f4a3d9546dacde0c5e17266d7c8cd3ad023ea1015a65e4ac",
+      "mutant_sha256": "463a78234a6d5285143c8cc1f49fc0cd4887d5ed9084f0e8b329abd26a9581eb"
+    }
+  ],
+  "existing_mutations": [
+    {
+      "id": "MSC-01.early-release",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.007885093975346535,
+      "source": "app/bk7258/bk7258_media_volume.c",
+      "original_sha256": "58ebb18ae63adccf21262253da18f153bbb7c680cc0b64719ca20e8a6d9681c8",
+      "mutant_sha256": "bf298373a95ac54d5587f93ece34a30a7f661a65a969c69db9e27c6570770c57",
+      "expected_assertion": "!mounted",
+      "evidence": "MSC-01.early-release.log"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.06395529699511826,
+      "source": "app/bk7258/bk7258_provision_config.c",
+      "original_sha256": "98f5100ca49ca44e45fe3e5da4bb2da0add7466f0e357a205ca8b1e307a5818e",
+      "mutant_sha256": "4c0c615b8ffc99247b0fd91bd934d3df0409a1180769cb939b2820f9e6f69427",
+      "expected_assertion": "bkcloud_config_decode",
+      "evidence": "CFG-01.wifi-clears-cloud.log"
+    }
+  ],
+  "inputs": {
+    "app/bk7258/bk7258_agent_product_power.inc": "d42ed84f88631dd6f4a3d9546dacde0c5e17266d7c8cd3ad023ea1015a65e4ac",
+    "app/bk7258/bk7258_motion_service.c": "219682b976459be2c94370fd3584b7beea31817fb24c80931b1e10ff3fe6f0c0",
+    "app/bk7258/bk7258_motion_service.h": "5dd3c997db1e191e2b6d71a9974675e1d722d342013051b04ca24c02bd2e57b6",
+    "goal-objective.md": "ca78ec5068efbd4602960d4ecdc2092f16348577084a0763d138419dae84a289",
+    "tests/host/bk7258/Makefile": "a5aca355c0af48af25b8490f09eaf7e7e5fa610efc42ba2e1fd0aec6b5815301",
+    "tests/host/bk7258/README.md": "acd827762e2189fe8814548b872a2c70fb6b260cbe4f3fed50eab4a5311b6627",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "6c609b6494c8d87e39e1211533dfd35bf268f964bae283655cef2d1f1c225158",
+    "tests/host/bk7258/test_bk7258_motion_rpc.c": "6d9478c24c1419e7936fad90cd09c64210be5e5fe23d83434ecb666ab1654b02",
+    "tests/host/bk7258/test_shaniu_contracts.py": "02706d30de4c1e13deebe01b97d9b01eafed416239569f2d70a843848541a06e",
+    "tests/host/bk7258/test_shaniu_power_contract.c": "2845f4193bfb5704e3b5d440955a9262de56726619830a116dcf4a4ab60e63ce",
+    "tests/host/bk7258/test_shaniu_motion_quiesce.c": "bfe40beec82d0559de45043bd58f758362abd5b2eae79412b937c16631419c17"
+  },
+  "logs": {
+    "active-after.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "build-after.log": {
+      "sha256": "0752f2008f7e42c82ce2de1a4fb3d4f3b7a0218299578bc6f8f3b8eccec5b819",
+      "tail": [
+        "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'",
+        "cc -std=c11 -Wall -Wextra -Werror -Wno-unused-function -fsanitize=undefined -fno-sanitize-recover=all -I build/sensor-rpc-include -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_shaniu_motion_quiesce.c -o build/test_shaniu_motion_quiesce",
+        "cc -std=gnu11 -Wall -Wextra -Werror -O2 -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_shaniu_power_contract.c -o build/test_shaniu_power_contract",
+        "cc -std=c11 -Wall -Wextra -Werror -Wno-unused-function \\",
+        "\t-fsanitize=undefined -fno-sanitize-recover=all \\",
+        "\t-I build/sensor-rpc-include -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_bk7258_motion_rpc.c -o build/test_bk7258_motion_rpc",
+        "./build/test_bk7258_motion_rpc",
+        "test_bk7258_motion_rpc: test_bk7258_motion_rpc.c:103: exchange: Assertion `reply.operation_status == 0' failed.",
+        "make: *** [Makefile:409: run-motion-rpc] Aborted (core dumped)",
+        "make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'"
+      ]
+    },
+    "build-fixed.log": {
+      "sha256": "4de29835170db70ed6fbe90ccfb0040224469d1d921552e72a71a2157bf87192",
+      "tail": [
+        "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'",
+        "cc -std=c11 -Wall -Wextra -Werror -Wno-unused-function -fsanitize=undefined -fno-sanitize-recover=all -I build/sensor-rpc-include -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_shaniu_motion_quiesce.c -o build/test_shaniu_motion_quiesce",
+        "make: 'build/test_shaniu_power_contract' is up to date.",
+        "cc -std=c11 -Wall -Wextra -Werror -Wno-unused-function \\",
+        "\t-fsanitize=undefined -fno-sanitize-recover=all \\",
+        "\t-I build/sensor-rpc-include -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_bk7258_motion_rpc.c -o build/test_bk7258_motion_rpc",
+        "./build/test_bk7258_motion_rpc",
+        "BKMOTION_RPC_HOST_PASS cases=20",
+        "make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'"
+      ]
+    },
+    "build-target.log": {
+      "sha256": "fd7fd92386e0a669a1fb19f3b98f9e69c1d4461897712e2608ef7f78e179d33e",
+      "tail": [
+        "[12/15] Linking CXX executable nuttx",
+        "[13/15] Generating nuttx.bin",
+        "[14/15] Generating System.map",
+        "",
+        "#### build completed successfully (1 seconds) ####",
+        "bk7258 layer gate: PASS sources=528 kconfig=253 legacy-exceptions=2",
+        "bk7258 build: PASS layout=bk7258-510173147382a879",
+        "bl1 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.map",
+        "bl2 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.map copy_size=13632",
+        "cp elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.map identity=bk7258-role-9a0b5b6e466d063f seed=41811cb113e14cd5ce35630f0a6d42f0d32f88a10c512bb971734bce9a28c016 config=dd503376e1b5436c9221274dc5a9ff86bf2e49660dfad4d306292e1113d82bed",
+        "ap elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.map identity=bk7258-role-5a3061a4da19ae9f seed=9507a2073a35e2970300a150395dc4d8c48458a68cb24412497ab54c714a7fec config=4e73b6c67a5176a8136b7c46a43c46329f7ef19e5ec74e626937d64bdeddfcee",
+        "build manifest=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    },
+    "close-error-after.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "close-error-hidden-build.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tail": []
+    },
+    "close-error-hidden-restore.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "close-error-hidden.log": {
+      "sha256": "31f538616e6aae9cbde4bf8004462c249b13fadd64ae9bff88b6b30505166e52",
+      "tail": [
+        "test: /tmp/motion-mutant-6uq2ubhh/test_shaniu_motion_quiesce.c:40: main: Assertion `bk7258_motion_service_quiesce(true)==(fault?-EIO:0)' failed."
+      ]
+    },
+    "contracts-final.log": {
+      "sha256": "67407b1b7ef412e66653b3c0c822b6eb069fc3b5d397a5445f1f82c98af3f3f4",
+      "tail": [
+        "",
+        "OK",
+        "unittest.case.FunctionTestCase (run)",
+        "CFG-01.restored ... ok",
+        "unittest.case.FunctionTestCase (run)",
+        "MSC-01.restored ... ok",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 2 tests in 0.066s",
+        "",
+        "OK",
+        "{\"PASS\": 289, \"FAIL_ASSERTION\": 0, \"SETUP_ERROR\": 0, \"NOT_RUN\": 0} production_unchanged= True"
+      ]
+    },
+    "contracts.log": {
+      "sha256": "2a0f4baa01a1788d01ea38aad0986d1cc68eda4022df61f786e2d6e9195d234b",
+      "tail": [
+        "",
+        "FAILED (failures=1)",
+        "unittest.case.FunctionTestCase (run)",
+        "CFG-01.restored ... ok",
+        "unittest.case.FunctionTestCase (run)",
+        "MSC-01.restored ... ok",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 2 tests in 0.066s",
+        "",
+        "OK",
+        "{\"PASS\": 288, \"FAIL_ASSERTION\": 1, \"SETUP_ERROR\": 0, \"NOT_RUN\": 0} production_unchanged= True"
+      ]
+    },
+    "idle-after.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "interface-before.log": {
+      "sha256": "56f0433efa316f796a89e86107ff58c4080c33873a5335d531e422f000a8ed19",
+      "tail": [
+        "touch build/sensor-rpc-include/.ready",
+        "cc -std=c11 -Wall -Wextra -Werror -Wno-unused-function -fsanitize=undefined -fno-sanitize-recover=all -I build/sensor-rpc-include -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_shaniu_motion_quiesce.c -o build/test_shaniu_motion_quiesce",
+        "In file included from bk7258_sensor_rpc_test.h:10,",
+        "                 from test_bk7258_motion_rpc.c:5,",
+        "                 from test_shaniu_motion_quiesce.c:4:",
+        "test_shaniu_motion_quiesce.c: In function ‘stop_during_read’:",
+        "test_shaniu_motion_quiesce.c:7:10: error: implicit declaration of function ‘bk7258_motion_service_quiesce’; did you mean ‘bk7258_motion_service_sample’? [-Werror=implicit-function-declaration]",
+        "    7 |   assert(bk7258_motion_service_quiesce(true)==-EBUSY);",
+        "      |          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+        "cc1: all warnings being treated as errors",
+        "make: *** [Makefile:1963: build/test_shaniu_motion_quiesce] Error 1",
+        "make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'"
+      ]
+    },
+    "motion-busy-after.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "motion-busy-before.log": {
+      "sha256": "74e7525f8b1f57da8723f0aad778949091f07ad6d8f522feb74bb66da0dfa9ee",
+      "tail": [
+        "test_shaniu_power_contract: test_shaniu_power_contract.c:150: main: Assertion `cp_calls == 0 && storage_stops == 0' failed."
+      ]
+    },
+    "motion-failed-after.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "motion-failed-before.log": {
+      "sha256": "74e7525f8b1f57da8723f0aad778949091f07ad6d8f522feb74bb66da0dfa9ee",
+      "tail": [
+        "test_shaniu_power_contract: test_shaniu_power_contract.c:150: main: Assertion `cp_calls == 0 && storage_stops == 0' failed."
+      ]
+    },
+    "open-cleanup-after.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "power-build-before.log": {
+      "sha256": "50ecc248f89c389c959ad2811e90f36e142a097b8e8f3be35227b945dff3161d",
+      "tail": [
+        "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'",
+        "cc -std=gnu11 -Wall -Wextra -Werror -O2 -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_shaniu_power_contract.c -o build/test_shaniu_power_contract",
+        "make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'"
+      ]
+    },
+    "power-ignores-motion-build.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tail": []
+    },
+    "power-ignores-motion-restore.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "power-ignores-motion.log": {
+      "sha256": "6c4b546441a753632640ebce6c29464227aa7f75ac1da432f256ca045ba7701d",
+      "tail": [
+        "test: /tmp/motion-mutant-d547w5od/test_shaniu_power_contract.c:150: main: Assertion `cp_calls == 0 && storage_stops == 0' failed."
+      ]
+    },
+    "prestart-after.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "queued-after.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "runner-gate.log": {
+      "sha256": "d66977177a4741ff16797d55544b2be383401230643d086f449a8efd04b14542",
+      "tail": [
+        ".............",
+        "----------------------------------------------------------------------",
+        "Ran 13 tests in 0.032s",
+        "",
+        "OK"
+      ]
+    },
+    "symbols.log": {
+      "sha256": "87628ee1304d6fc5c2c5d35e6de2ea65f683e29ffac2d123998d91449abe15f5",
+      "tail": [
+        "02168a18 00000068 T bk7258_motion_service_quiesce",
+        "28051818 00000120 d g_bkmotion_server"
+      ]
+    },
+    "verify-manifest.log": {
+      "sha256": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac",
+      "tail": [
+        "bk7258 verify build-manifest: PASS boot=mcuboot board=aidk_ai_toy layout=bk7258-510173147382a879 source=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    }
+  },
+  "test_corrections": [
+    "Existing RPC case reset now clears virtual-device cleanup fault explicitly between independent cases; production reconnect has no reset of that fault. Initial suite failure retained.",
+    "MOT-01.quiesce-late initial expected0 was wrong for synchronous mock trysend. Now exact sizeof(last_wire), unchanged zero-new-I/O and sanitized response assertions. Initial288PASS/1FAIL report retained."
+  ],
+  "layers": {
+    "service": "7 actual service/core/RPC cases with scheduler and sensor file/IO boundary substitutes",
+    "power": "2 actual coordinator cases with external resource peers; not full combined power/service hardware integration",
+    "target": "AP linked quiesce symbol and build-manifest verified",
+    "L3": "NOT_RUN"
+  },
+  "budget": {
+    "current_motion_server_bytes": 288,
+    "new_threads": 0,
+    "new_queues": 0,
+    "new_heap": 0,
+    "new_dma": 0,
+    "unmeasured": [
+      "stack high water",
+      "critical section duration",
+      "hardware sensor standby"
+    ]
+  },
+  "remaining": [
+    "sensor upper-half deactivation acknowledgment",
+    "reset coordinator motion participant",
+    "autonomous sampling and gesture-expression flow",
+    "already-submitted transport response cannot be retracted",
+    "hardware/combined lifecycle regressions"
+  ],
+  "physical_actions": []
+}

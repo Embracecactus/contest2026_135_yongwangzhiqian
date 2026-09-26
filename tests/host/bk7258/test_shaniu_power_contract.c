@@ -23,6 +23,11 @@ int test_owner_reply(void);
 #define CONFIG_BK7258_VISION_SERVICE 1
 #define CONFIG_BK7258_HAPTIC_SERVICE 1
 #define CONFIG_BK7258_NFC_SERVICE 1
+#define CONFIG_BK7258_MOTION_SERVICE 1
+static int motion_error;
+static bool motion_closed;
+int bk7258_motion_service_quiesce(bool stop)
+{ assert(stop); motion_closed = !motion_error; return motion_error; }
 #define CONFIG_BK7258_DISPLAY_SERVICE 1
 #define CONFIG_BK7258_PROVISION_NATIVE 1
 static int nfc_error;
@@ -137,6 +142,19 @@ static int bkvoice_volume_store_set(unsigned int volume) { (void)volume; return 
 int main(int argc, char **argv)
 {
   assert(argc == 2);
+  if (!strcmp(argv[1], "motion-busy") || !strcmp(argv[1], "motion-failed"))
+    {
+      bool failed = !strcmp(argv[1], "motion-failed");
+      motion_error = failed ? -EIO : -EBUSY;
+      assert(product_keys_step(0));
+      assert(cp_calls == 0 && storage_stops == 0);
+      motion_error = 0;
+      assert(product_keys_step(100));
+      if (failed) assert(cp_calls == 0 && g_shutdown_failed);
+      else assert(cp_calls == 1 && motion_closed);
+      puts("CONTRACT_PASS"); return 0;
+    }
+
   if (!strcmp(argv[1], "nfc-busy") || !strcmp(argv[1], "nfc-failed"))
     {
       bool failed = !strcmp(argv[1], "nfc-failed");

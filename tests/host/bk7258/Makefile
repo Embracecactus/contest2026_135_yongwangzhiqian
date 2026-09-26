@@ -1958,3 +1958,6 @@ $(BUILD)/test_shaniu_nfc_worker_scene: test_shaniu_nfc_worker_scene.c $(VOICE_PA
 $(BUILD)/shaniu-focus-intent.o: $(VOICE_PACK_ROOT)/bk7258_focus_intent.c $(VOICE_PACK_ROOT)/bk7258_focus_intent.h | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(MOCKS) -I $(VOICE_PACK_ROOT) \
 	  -I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON -c $< -o $@
+
+$(BUILD)/test_shaniu_motion_quiesce: test_shaniu_motion_quiesce.c test_bk7258_motion_rpc.c bk7258_sensor_rpc_test.h $(wildcard $(VOICE_PACK_ROOT)/bk7258_motion_*.c) $(wildcard $(VOICE_PACK_ROOT)/bk7258_motion_*.h) $(SENSOR_RPC_SHIM)/.ready
+	$(CC) -std=c11 -Wall -Wextra -Werror -Wno-unused-function -fsanitize=undefined -fno-sanitize-recover=all -I $(SENSOR_RPC_SHIM) -I $(VOICE_PACK_ROOT) $< -o $@

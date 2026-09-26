@@ -37,6 +37,7 @@
 struct bkmotion_source_s
 {
   int fd;
+  int release_error;
 };
 
 struct bkmotion_server_s
@@ -51,6 +52,8 @@ struct bkmotion_server_s
   volatile bool endpoint_created;
   bool active;
   bool pending;
+  bool quiescing;
+  bool io_active;
   uint32_t epoch;
   uint32_t request_epoch;
   bool replay_valid;
@@ -98,7 +101,9 @@ static int bkmotion_open(void *context)
   if (ret < 0)
     {
       ret = bkmotion_errno();
-      (void)close(source->fd);
+      if (close(source->fd) < 0)
+        __atomic_store_n(&source->release_error, bkmotion_errno(),
+                         __ATOMIC_RELEASE);
       source->fd = -1;
       return ret;
     }
@@ -149,7 +154,10 @@ static int bkmotion_close(void *context)
       return -EBADF;
     }
 
-  return close(fd) < 0 ? bkmotion_errno() : 0;
+  int ret = close(fd) < 0 ? bkmotion_errno() : 0;
+  if (ret < 0)
+    __atomic_store_n(&source->release_error, ret, __ATOMIC_RELEASE);
+  return ret;
 }
 
 static const struct bkmotion_source_ops_s g_bkmotion_ops =
@@ -159,18 +167,69 @@ static const struct bkmotion_source_ops_s g_bkmotion_ops =
   .close = bkmotion_close,
 };
 
+int bk7258_motion_service_quiesce(bool stop)
+{
+  struct bkmotion_server_s *server = &g_bkmotion_server;
+  irqstate_t flags = spin_lock_irqsave(&server->request_lock);
+  int ret;
+
+  if (stop)
+    {
+      server->quiescing = true;
+      server->replay_valid = false;
+    }
+
+  ret = server->io_active ? -EBUSY :
+    __atomic_load_n(&server->source.release_error, __ATOMIC_ACQUIRE);
+  if (!stop && ret == 0) server->quiescing = false;
+  spin_unlock_irqrestore(&server->request_lock, flags);
+  return ret;
+}
+
 static int bkmotion_collect(const struct bkmotion_rpc_request_s *request,
                             struct bkmotion_rpc_response_s *response)
 {
   struct bkmotion_server_s *server = &g_bkmotion_server;
+  irqstate_t flags = spin_lock_irqsave(&server->request_lock);
+  bool stopped = server->quiescing;
+  spin_unlock_irqrestore(&server->request_lock, flags);
+  if (stopped)
+    {
+      bkmotion_rpc_make_response(response, request, -ESHUTDOWN);
+      return -ESHUTDOWN;
+    }
+
   int ret = nxmutex_lock(&server->sample_lock);
   if (ret < 0)
-  {
-    bkmotion_rpc_make_response(response, request, ret);
-    return ret;
-  }
-  ret = bkmotion_rpc_handle_request(request, response, &g_bkmotion_ops,
-                                     &server->source);
+    {
+      bkmotion_rpc_make_response(response, request, ret);
+      return ret;
+    }
+
+  flags = spin_lock_irqsave(&server->request_lock);
+  ret = server->quiescing ? -ESHUTDOWN :
+    __atomic_load_n(&server->source.release_error, __ATOMIC_ACQUIRE);
+  if (ret == 0) server->io_active = true;
+  spin_unlock_irqrestore(&server->request_lock, flags);
+  if (ret == 0)
+    {
+      ret = bkmotion_rpc_handle_request(request, response, &g_bkmotion_ops,
+                                       &server->source);
+      flags = spin_lock_irqsave(&server->request_lock);
+      server->io_active = false;
+      /* Stop revokes publication, not the descriptor's cleanup obligation. */
+      if (server->quiescing && ret == 0)
+        {
+          ret = -ECANCELED;
+          bkmotion_rpc_make_response(response, request, ret);
+        }
+
+      spin_unlock_irqrestore(&server->request_lock, flags);
+    }
+  else
+    {
+      bkmotion_rpc_make_response(response, request, ret);
+    }
   nxmutex_unlock(&server->sample_lock);
   return ret;
 }
@@ -320,6 +379,13 @@ static int bkmotion_server_cb(struct rpmsg_endpoint *endpoint, void *data,
     {
       spin_unlock_irqrestore(&server->request_lock, flags);
       return -ENOTCONN;
+    }
+
+  if (server->quiescing)
+    {
+      spin_unlock_irqrestore(&server->request_lock, flags);
+      bkmotion_rpc_make_response(&response, request, -ESHUTDOWN);
+      return bkmotion_send(server, &response, epoch);
     }
 
   if (server->replay_valid &&

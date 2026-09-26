@@ -421,6 +421,7 @@ def main():
         "test_shaniu_volume_transition",
         "test_bk7258_agent_capture",
         "test_shaniu_power_contract",
+        "test_shaniu_motion_quiesce",
         "test_shaniu_power_pixels",
         "test_shaniu_msc_stop",
         "test_shaniu_usb_cleanup",
@@ -708,6 +709,14 @@ def main():
             [HERE / "build/test_shaniu_nfc_quiesce", variant],
             binaries["test_shaniu_nfc_quiesce"],
         )
+    for variant in ("prestart", "queued", "active", "idle", "close-error", "open-cleanup", "late"):
+        add(suite, "MOT-01.quiesce-" + variant, "MOT-01", "L2",
+            [HERE / "build/test_shaniu_motion_quiesce", variant],
+            binaries["test_shaniu_motion_quiesce"])
+    for variant in ("motion-busy", "motion-failed"):
+        add(suite, "LIFE-01." + variant, "LIFE-01", "L1",
+            [HERE / "build/test_shaniu_power_contract", variant],
+            binaries["test_shaniu_power_contract"])
     for variant in ("nfc-busy", "nfc-failed"):
         add(
             suite,

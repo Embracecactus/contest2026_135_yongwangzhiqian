@@ -83,6 +83,11 @@ static struct bkmotion_rpc_request_s request(unsigned int sequence)
 static void reset_case(void)
 {
   assert(!fd_live && !in_worker);
+  /* Each case starts a new virtual device fixture. A peer reconnect alone
+   * must not clear a retained cleanup fault in the production service. */
+  g_bkmotion_server.source.release_error = 0;
+  g_bkmotion_server.quiescing = false;
+  g_bkmotion_server.io_active = false;
   server_reconnect();
   client_reconnect();
   drain_worker(); /* Discard any old pending token. */
@@ -360,6 +365,7 @@ static void test_local_sample_unavailable(void)
   passes++;
 }
 
+#ifndef MOTION_RPC_NO_MAIN
 int main(void)
 {
   assert(bkmotion_rpc_client_initialize() == 0);
@@ -376,3 +382,5 @@ int main(void)
   printf("BKMOTION_RPC_HOST_PASS cases=%u\n", passes);
   return 0;
 }
+
+#endif
