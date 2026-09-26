@@ -106,6 +106,9 @@ static int bknfc_job_open(struct bknfc_server_s *s)
 /* 调用者持有request_lock；只发布已经完成的绑定缓存。 */
 static void bknfc_job_publish_bindings(struct bknfc_server_s *s)
 {
+#ifdef BKNFC_HAS_SCENE
+  s->scene_cache_ready = s->bindings.ready && !s->bindings.uncertain;
+#endif
   s->job_status.revision = s->bindings.revision;
   uint64_t durable_operation = 0;
   for (unsigned int i = 8; i < 16; i++)
@@ -183,6 +186,7 @@ int bk7258_nfc_bindings_reset(void)
   flags = spin_lock_irqsave(&s->request_lock);
 #ifdef BKNFC_HAS_SCENE
   s->scene_load_attempted = false;
+  s->scene_cache_ready = false;
   s->scene.armed = false;
 #endif
   memset(&s->bindings, 0, sizeof(s->bindings));

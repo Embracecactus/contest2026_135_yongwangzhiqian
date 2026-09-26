@@ -1,0 +1,844 @@
+{
+  "slice": "S51",
+  "date": "2026-09-27",
+  "parent": "172922dbdb0b0d8b2d945ff845f8cdf239b483bb",
+  "counts": {
+    "PASS": 272,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 209,
+      "counts": {
+        "PASS": 209,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "new_cases": [
+    {
+      "id": "NFC-02.control-capabilities",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013476400054059923,
+      "evidence": "NFC-02.control-capabilities.log",
+      "evidence_sha256": "78f46cf12c6bf3d61457ec3b186aab564bcf2113dcf37b8f3a87ccd4f0ec39c0"
+    },
+    {
+      "id": "NFC-02.control-cap-auth",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0012789499596692622,
+      "evidence": "NFC-02.control-cap-auth.log",
+      "evidence_sha256": "e7a57a3dcbd8cf2e5013188ed5303931bed437222c4588e4769493ce3ef62fb1"
+    },
+    {
+      "id": "NFC-02.worker-capability",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.01555081200785935,
+      "evidence": "NFC-02.worker-capability.log",
+      "evidence_sha256": "f81091ca894798fa802f0460adedb0971ef54f8bdd022f640ccdbcabd9cfc663"
+    },
+    {
+      "id": "NFC-02.worker-capability-inflight",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.015544209978543222,
+      "evidence": "NFC-02.worker-capability-inflight.log",
+      "evidence_sha256": "2afc9bd392cea5b1e3aa497bd6aac217f4693e4331236dab14b287cefd6cabec"
+    },
+    {
+      "id": "provision.NfcBindingControllerTest.sceneCapabilityComesFromIndependentRead",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.NfcBindingControllerTest.xml",
+      "evidence_sha256": "28df3c982b127324c67c666db7813abd5882dd7cf701318b3d9563ce857e00e5"
+    },
+    {
+      "id": "provision.NfcBindingControllerTest.oldSceneEndpointDoesNotInvalidateConfirmedBindings",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.NfcBindingControllerTest.xml",
+      "evidence_sha256": "28df3c982b127324c67c666db7813abd5882dd7cf701318b3d9563ce857e00e5"
+    },
+    {
+      "id": "provision.NfcBindingControllerTest.sceneReadDisconnectCannotRestoreOldCapability",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.002,
+      "evidence": "TEST-com.shaniu.companion.provision.NfcBindingControllerTest.xml",
+      "evidence_sha256": "28df3c982b127324c67c666db7813abd5882dd7cf701318b3d9563ce857e00e5"
+    },
+    {
+      "id": "provision.NfcBindingControllerTest.blockedReaderIsNotReportedAsReady",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.002,
+      "evidence": "TEST-com.shaniu.companion.provision.NfcBindingControllerTest.xml",
+      "evidence_sha256": "28df3c982b127324c67c666db7813abd5882dd7cf701318b3d9563ce857e00e5"
+    },
+    {
+      "id": "provision.NfcBindingControllerTest.malformedSceneDoesNotInventSupport",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.NfcBindingControllerTest.xml",
+      "evidence_sha256": "28df3c982b127324c67c666db7813abd5882dd7cf701318b3d9563ce857e00e5"
+    },
+    {
+      "id": "provision.NfcBindingControllerTest.newOperationInvalidatesSceneSnapshot",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.NfcBindingControllerTest.xml",
+      "evidence_sha256": "28df3c982b127324c67c666db7813abd5882dd7cf701318b3d9563ce857e00e5"
+    }
+  ],
+  "runner_gate": {
+    "tests": 13,
+    "status": "PASS",
+    "correction": "46 selected IDs were missing from added_ids; exact partition assertion failed before correction. Original63 unchanged; historical reports untouched."
+  },
+  "mutations": [
+    {
+      "id": "query-enables-scan",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "restore": "PASS",
+      "sha256": "247af7894a62fa93980a0d5e8a45bb353b59e6c5ba8755c337d016cb2181bbee"
+    },
+    {
+      "id": "stop-blocks-query",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "restore": "PASS",
+      "sha256": "92f47139b993fb11fdc18f0a33c058aea265c447662cbb18a7f21e651e302716"
+    }
+  ],
+  "existing_mutations": [
+    {
+      "id": "MSC-01.early-release",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.007815022021532059,
+      "source": "app/bk7258/bk7258_media_volume.c",
+      "original_sha256": "58ebb18ae63adccf21262253da18f153bbb7c680cc0b64719ca20e8a6d9681c8",
+      "mutant_sha256": "bf298373a95ac54d5587f93ece34a30a7f661a65a969c69db9e27c6570770c57",
+      "expected_assertion": "!mounted",
+      "evidence": "MSC-01.early-release.log"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.06395330902887508,
+      "source": "app/bk7258/bk7258_provision_config.c",
+      "original_sha256": "98f5100ca49ca44e45fe3e5da4bb2da0add7466f0e357a205ca8b1e307a5818e",
+      "mutant_sha256": "4c0c615b8ffc99247b0fd91bd934d3df0409a1180769cb939b2820f9e6f69427",
+      "expected_assertion": "bkcloud_config_decode",
+      "evidence": "CFG-01.wifi-clears-cloud.log"
+    }
+  ],
+  "sha256": {
+    "android/shaniu-companion/app/src/androidTest/java/com/shaniu/companion/provision/DeviceUiAcceptance.kt": "637c84fcc7f03c7c842d333bd7e9a65657d7dc4ed51d1483f50065d4869e2f83",
+    "android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt": "bdf4f46b2404d771ae2ee4868307af150a8732b705d2395a61195a43a994664d",
+    "android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/NfcBindingController.kt": "0e626f41b8c87a9e1ea1f138b9d4bfbaefa5502ad99d12207a8f0e890b7b0ef3",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/NfcBindingControllerTest.kt": "208431d32ddeafd08d3d9c7932eee836649db6d13da78486feec139b7addfb32",
+    "app/bk7258/bk7258_agent_product.c": "9dcdfbb2a8be8daa6de976629135038e3648b94b1113698e12e56699710cd8c7",
+    "app/bk7258/bk7258_control_session.c": "5216f99bfa82388179608f8b21245295aadbd2cf8d46659184ab4a69e20f08ab",
+    "app/bk7258/bk7258_control_session.h": "d3fa573a67ce64344ea4a042062b13fc57e587a79ee21afa229f8be7d319017d",
+    "app/bk7258/bk7258_nfc_control.c": "f4cdbf0250722781c19d58bf185d35daad2c7a7accc2991582c2642dd3636490",
+    "app/bk7258/bk7258_nfc_control.h": "68f9e5afe4b4f4f4e3717976346f787155403b17ce14d2d6692eb1cb9f2cb566",
+    "app/bk7258/bk7258_nfc_jobs.inc": "94730322c045485f06d8e008dd89cc0f3acf0bbf80464843f0669e90f71f002d",
+    "app/bk7258/bk7258_nfc_service.c": "934f62e18d6db13879a3447b53253d75588f54b852d7231248b5fcf02f090ac0",
+    "app/bk7258/bk7258_nfc_service.h": "c5530dee9ea9ab625a5991d43201fafabb4df52e38b4b339dbef1961dfae319f",
+    "app/bk7258/bk7258_nfc_worker_scene.inc": "9f4e223e9ace053b453c3fbf06b1a480343db64a763d8d9f8cc694c76916039d",
+    "goal-objective.md": "70964b369c1dfa41c0b8c273a13531a329ef58b3ca26fbe1353e7444fd403f2a",
+    "tests/host/bk7258/Makefile": "177671baac1780b46ed59af8ea753595d14e4c1dc1e73ccddb6694bf5816ff16",
+    "tests/host/bk7258/README.md": "d816c6793a107e623c0b414199f2786400f4d4938121907f7060bf5650ec8878",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "23e6073fd384e5ae776603589bb1696ae4328ac5cec7ecd2862059832c036c52",
+    "tests/host/bk7258/test_shaniu_contracts.py": "109feb5a8cbf366a0f321500393b23a62a272095f87ae927b40b5a32ca611fb5",
+    "tests/host/bk7258/test_shaniu_nfc_control.c": "db86492af0cfd63e94e408ba314cbc49a00ffcfba1de8138f469231c600c2024",
+    "tests/host/bk7258/test_shaniu_nfc_worker_scene.c": "2eecaaaddfff1512fb56645a9cf4cdf559788dd85e30e17a870b269204f1182c",
+    "tests/host/bk7258/test_shaniu_runner_gate.py": "049958ea2d522343b1d1ea065cdee1f20dd2fa3fa224e1f5f1f4906fe2459163"
+  },
+  "logs": {
+    "build-apk.log": {
+      "sha256": "b40629b1b1687d416b619731f5648095366c39daf6220f51daba595fc7eb55b0",
+      "tail": [
+        "> Task :app:mergeDebugAndroidTestGlobalSynthetics UP-TO-DATE",
+        "> Task :app:processDebugAndroidTestJavaRes UP-TO-DATE",
+        "> Task :app:mergeDebugAndroidTestJavaResource UP-TO-DATE",
+        "> Task :app:mergeProjectDexDebugAndroidTest UP-TO-DATE",
+        "> Task :app:packageDebugAndroidTest UP-TO-DATE",
+        "> Task :app:createDebugAndroidTestApkListingFileRedirect UP-TO-DATE",
+        "> Task :app:assembleDebugAndroidTest UP-TO-DATE",
+        "",
+        "BUILD SUCCESSFUL in 4s",
+        "64 actionable tasks: 6 executed, 58 up-to-date"
+      ]
+    },
+    "build-host.log": {
+      "sha256": "729f9bacbd1deb6d4730adde12c6b7aa23a5438b59375762654d12264b8964b6",
+      "tail": [
+        "  -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/nuttx/include -I /home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/include \\",
+        "  test_shaniu_nfc_control.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_control.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_control_session.c \\",
+        "  /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_bindings.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_store.c -Wl,--wrap=fsync build/voice-ota-store-mbedtls/library/libmbedcrypto.a -o build/test_shaniu_nfc_control",
+        "cc -std=gnu11 -Wall -Wextra -Werror -Wno-unused-function -pthread \\",
+        "  -I build/sensor-rpc-include -I mocks -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/nuttx/include \\",
+        "  -I /home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/include -I /home/lijian/project/open-vela/apps/netutils/cjson/cJSON \\",
+        "  test_shaniu_nfc_worker_scene.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_bindings.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_store.c \\",
+        "  /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_scene.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.c build/shaniu-focus-intent.o \\",
+        "  /home/lijian/project/open-vela/apps/netutils/cjson/cJSON/cJSON.c -Wl,--wrap=fsync -Wl,--wrap=read build/voice-ota-store-mbedtls/library/libmbedcrypto.a -lm -o build/test_shaniu_nfc_worker_scene",
+        "make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'"
+      ]
+    },
+    "build-inflight-fixed.log": {
+      "sha256": "ff1aed4015b08db2eb400e446450a8fde424963952889f89ea2041180c593873",
+      "tail": [
+        "cc -std=c11 -Wall -Wextra -Werror -Wno-unused-function \\",
+        "\t-fsanitize=undefined -fno-sanitize-recover=all \\",
+        "\t-I build/sensor-rpc-include -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_bk7258_nfc_rpc.c -o build/test_bk7258_nfc_rpc",
+        "cc -std=gnu11 -Wall -Wextra -Werror -Wno-unused-function -pthread \\",
+        "  -I build/sensor-rpc-include -I mocks -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/nuttx/include \\",
+        "  -I /home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/include -I /home/lijian/project/open-vela/apps/netutils/cjson/cJSON \\",
+        "  test_shaniu_nfc_worker_scene.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_bindings.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_store.c \\",
+        "  /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_scene.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.c build/shaniu-focus-intent.o \\",
+        "  /home/lijian/project/open-vela/apps/netutils/cjson/cJSON/cJSON.c -Wl,--wrap=fsync -Wl,--wrap=read build/voice-ota-store-mbedtls/library/libmbedcrypto.a -lm -o build/test_shaniu_nfc_worker_scene",
+        "make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'"
+      ]
+    },
+    "build-inflight.log": {
+      "sha256": "d054ee5713ebf6e11117f8da8b8da5b303c0099965e72dc23276f8cc2ddf4bdc",
+      "tail": [
+        "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'",
+        "cc -std=gnu11 -Wall -Wextra -Werror -Wno-unused-function -pthread \\",
+        "  -I build/sensor-rpc-include -I mocks -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/nuttx/include \\",
+        "  -I /home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/include -I /home/lijian/project/open-vela/apps/netutils/cjson/cJSON \\",
+        "  test_shaniu_nfc_worker_scene.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_bindings.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_store.c \\",
+        "  /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_scene.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.c build/shaniu-focus-intent.o \\",
+        "  /home/lijian/project/open-vela/apps/netutils/cjson/cJSON/cJSON.c -Wl,--wrap=fsync -Wl,--wrap=read build/voice-ota-store-mbedtls/library/libmbedcrypto.a -lm -o build/test_shaniu_nfc_worker_scene",
+        "make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'"
+      ]
+    },
+    "build-target-final.log": {
+      "sha256": "73a95e9689c5eeadfa24b5a95504d280552a6fc8929f9eab8d62e1fab6d0d6ab",
+      "tail": [
+        "[12/13] Generating System.map",
+        "",
+        "#### build completed successfully (1 seconds) ####",
+        "bk7258 layer gate: PASS sources=528 kconfig=253 legacy-exceptions=2",
+        "bk7258 build: PASS layout=bk7258-510173147382a879",
+        "bl1 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.map",
+        "bl2 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.map copy_size=13632",
+        "cp elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.map identity=bk7258-role-9a0b5b6e466d063f seed=41811cb113e14cd5ce35630f0a6d42f0d32f88a10c512bb971734bce9a28c016 config=dd503376e1b5436c9221274dc5a9ff86bf2e49660dfad4d306292e1113d82bed",
+        "ap elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.map identity=bk7258-role-5a3061a4da19ae9f seed=9507a2073a35e2970300a150395dc4d8c48458a68cb24412497ab54c714a7fec config=4e73b6c67a5176a8136b7c46a43c46329f7ef19e5ec74e626937d64bdeddfcee",
+        "build manifest=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    },
+    "build-target.log": {
+      "sha256": "089bedda29482a78622d0f157d9265a1962639cbe24d211fe4f28e5c70c88b1c",
+      "tail": [
+        "[26/27] Generating System.map",
+        "",
+        "#### build completed successfully (2 seconds) ####",
+        "bk7258 layer gate: PASS sources=528 kconfig=253 legacy-exceptions=2",
+        "bk7258 build: PASS layout=bk7258-510173147382a879",
+        "bl1 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.map",
+        "bl2 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.map copy_size=13632",
+        "cp elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.map identity=bk7258-role-9a0b5b6e466d063f seed=41811cb113e14cd5ce35630f0a6d42f0d32f88a10c512bb971734bce9a28c016 config=dd503376e1b5436c9221274dc5a9ff86bf2e49660dfad4d306292e1113d82bed",
+        "ap elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.map identity=bk7258-role-5a3061a4da19ae9f seed=9507a2073a35e2970300a150395dc4d8c48458a68cb24412497ab54c714a7fec config=4e73b6c67a5176a8136b7c46a43c46329f7ef19e5ec74e626937d64bdeddfcee",
+        "build manifest=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    },
+    "build-ui-bounded.log": {
+      "sha256": "a195fa1928f8119c833b25f19dfec9960b06b0c8a510a7d0cbedeb4c2af2c2ef",
+      "tail": [
+        "> Task :app:mergeDebugAndroidTestGlobalSynthetics UP-TO-DATE",
+        "> Task :app:processDebugAndroidTestJavaRes UP-TO-DATE",
+        "> Task :app:mergeDebugAndroidTestJavaResource UP-TO-DATE",
+        "> Task :app:mergeProjectDexDebugAndroidTest",
+        "> Task :app:packageDebugAndroidTest",
+        "> Task :app:createDebugAndroidTestApkListingFileRedirect UP-TO-DATE",
+        "> Task :app:assembleDebugAndroidTest",
+        "",
+        "BUILD SUCCESSFUL in 3s",
+        "64 actionable tasks: 9 executed, 55 up-to-date"
+      ]
+    },
+    "build-ui-diagnostic.log": {
+      "sha256": "f0d93f7aae21dfd1f474fde83bdc2a5cbaa8a467f3319de94389b4c59ec459ee",
+      "tail": [
+        "> Task :app:mergeDebugAndroidTestGlobalSynthetics UP-TO-DATE",
+        "> Task :app:processDebugAndroidTestJavaRes UP-TO-DATE",
+        "> Task :app:mergeDebugAndroidTestJavaResource UP-TO-DATE",
+        "> Task :app:mergeProjectDexDebugAndroidTest",
+        "> Task :app:packageDebugAndroidTest",
+        "> Task :app:createDebugAndroidTestApkListingFileRedirect UP-TO-DATE",
+        "> Task :app:assembleDebugAndroidTest",
+        "",
+        "BUILD SUCCESSFUL in 2s",
+        "47 actionable tasks: 4 executed, 43 up-to-date"
+      ]
+    },
+    "build-ui-trace-final.log": {
+      "sha256": "330b6fd27a2ea35c9a946250fdf1be6206bbdf9a696a5c17c5099033f08d2483",
+      "tail": [
+        "> Task :app:mergeDebugAndroidTestGlobalSynthetics UP-TO-DATE",
+        "> Task :app:processDebugAndroidTestJavaRes UP-TO-DATE",
+        "> Task :app:mergeDebugAndroidTestJavaResource UP-TO-DATE",
+        "> Task :app:mergeProjectDexDebugAndroidTest",
+        "> Task :app:packageDebugAndroidTest",
+        "> Task :app:createDebugAndroidTestApkListingFileRedirect UP-TO-DATE",
+        "> Task :app:assembleDebugAndroidTest",
+        "",
+        "BUILD SUCCESSFUL in 1s",
+        "47 actionable tasks: 4 executed, 43 up-to-date"
+      ]
+    },
+    "build-ui-trace.log": {
+      "sha256": "53c26a624add344c4828dbf6b783c52f5e0499ce2481188308f7b332aebe34d5",
+      "tail": [
+        "> Task :app:mergeDebugAndroidTestNativeLibs NO-SOURCE",
+        "> Task :app:stripDebugAndroidTestDebugSymbols NO-SOURCE",
+        "> Task :app:validateSigningDebugAndroidTest UP-TO-DATE",
+        "> Task :app:writeDebugAndroidTestSigningConfigVersions UP-TO-DATE",
+        "> Task :app:packageDebugAndroidTest UP-TO-DATE",
+        "> Task :app:createDebugAndroidTestApkListingFileRedirect UP-TO-DATE",
+        "> Task :app:assembleDebugAndroidTest UP-TO-DATE",
+        "",
+        "BUILD SUCCESSFUL in 932ms",
+        "47 actionable tasks: 47 up-to-date"
+      ]
+    },
+    "cap-auth.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "capabilities.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "capability.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "contracts-final.log": {
+      "sha256": "0b19f87bddc97e82b91d6ae78e8b12db26bbb8e55c3940b515598e2024437409",
+      "tail": [
+        "unittest.case.FunctionTestCase (run)",
+        "CFG-01.restored ... ok",
+        "unittest.case.FunctionTestCase (run)",
+        "MSC-01.restored ... ok",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 2 tests in 0.066s",
+        "",
+        "OK",
+        "{\"PASS\": 272, \"FAIL_ASSERTION\": 0, \"SETUP_ERROR\": 0, \"NOT_RUN\": 0} production_unchanged= True"
+      ]
+    },
+    "contracts-grouped.log": {
+      "sha256": "bdc5fcdd3e6d184ac718855d5756f0f9b20a326d36bbd0c27d056b8812ab168a",
+      "tail": [
+        "unittest.case.FunctionTestCase (run)",
+        "CFG-01.restored ... ok",
+        "unittest.case.FunctionTestCase (run)",
+        "MSC-01.restored ... ok",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 2 tests in 0.066s",
+        "",
+        "OK",
+        "{\"PASS\": 272, \"FAIL_ASSERTION\": 0, \"SETUP_ERROR\": 0, \"NOT_RUN\": 0} production_unchanged= True"
+      ]
+    },
+    "contracts.log": {
+      "sha256": "64a97cf26c4413d9178f6af0984d221645622b21e0b28a2f53aac71de8146d61",
+      "tail": [
+        "unittest.case.FunctionTestCase (run)",
+        "CFG-01.restored ... ok",
+        "unittest.case.FunctionTestCase (run)",
+        "MSC-01.restored ... ok",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 2 tests in 0.066s",
+        "",
+        "OK",
+        "{\"PASS\": 271, \"FAIL_ASSERTION\": 0, \"SETUP_ERROR\": 0, \"NOT_RUN\": 0} production_unchanged= True"
+      ]
+    },
+    "dark-412-large-bounded-geometry.txt": {
+      "sha256": "36d54448962ad2f9a523201b7e582e8df8cfdf6790f9d9cf101f73b020d447dc",
+      "tail": [
+        "219491024 top=1585 h=186 frame=Rect(0, 72 - 1236, 2328) root=2256 ancestors=LinearLayout:4138:0, :2256:0, FrameLayout:2256:0, FrameLayout:2256:0, DecorView:2256:0",
+        "219491538 top=1585 h=186 frame=Rect(0, 72 - 1236, 2328) root=2256 ancestors=LinearLayout:4138:0, :2256:0, FrameLayout:2256:0, FrameLayout:2256:0, DecorView:2256:0",
+        "219492055 top=1585 h=186 frame=Rect(0, 72 - 1236, 2328) root=2256 ancestors=LinearLayout:4138:0, :2256:0, FrameLayout:2256:0, FrameLayout:2256:0, DecorView:2256:0",
+        "219492390 top=1585 h=186 frame=Rect(0, 72 - 1236, 1524) root=2256 ancestors=LinearLayout:4138:0, :2256:0, FrameLayout:2256:0, FrameLayout:2256:0, DecorView:2256:0",
+        "219492471 top=1585 h=186 frame=Rect(0, 72 - 1236, 1524) root=1452 ancestors=LinearLayout:4138:0, :1452:0, FrameLayout:1452:0, FrameLayout:1452:0, DecorView:1452:0",
+        "REQUEST 219492486",
+        "219492499 top=1338 h=186 frame=Rect(0, 72 - 1236, 1524) root=1452 ancestors=LinearLayout:4138:0, :1452:247, FrameLayout:1452:0, FrameLayout:1452:0, DecorView:1452:0",
+        "219492529 top=1338 h=186 frame=Rect(0, 72 - 1236, 1524) root=1452 ancestors=LinearLayout:4138:0, :1452:247, FrameLayout:1452:0, FrameLayout:1452:0, DecorView:1452:0",
+        "219492791 top=2142 h=186 frame=Rect(0, 72 - 1236, 1524) root=1452 ancestors=LinearLayout:4138:0, :1452:247, FrameLayout:1452:0, FrameLayout:1452:0, DecorView:1452:0",
+        "219492891 top=-237 h=186 frame=Rect(0, 72 - 1236, 1524) root=1452 ancestors=LinearLayout:4138:0, :1452:2626, FrameLayout:1452:0, FrameLayout:1452:0, DecorView:1452:0"
+      ]
+    },
+    "dark-412-large-bounded.log": {
+      "sha256": "7755f52688b481041a7f01fb962ef3a4442dbb37f5b5286ae598db0aa8f1ffd4",
+      "tail": [
+        "PASS: NFC-02.card-draft 20 real View navigation rounds and Activity recreation; synthetic admission, no BLE"
+      ]
+    },
+    "dark-412-large-fixed.log": {
+      "sha256": "7755f52688b481041a7f01fb962ef3a4442dbb37f5b5286ae598db0aa8f1ffd4",
+      "tail": [
+        "PASS: NFC-02.card-draft 20 real View navigation rounds and Activity recreation; synthetic admission, no BLE"
+      ]
+    },
+    "dark-412-large-trace-geometry.txt": {
+      "sha256": "5b151d512efe2feadb673671c768eaad2a34bfc0b1a2ebebda6ba3b439e149ae",
+      "tail": [
+        "219305455 top=-237 h=186 frame=Rect(0, 72 - 1236, 2328) root=2256 ancestors=LinearLayout:4138:0, :2256:1822, FrameLayout:2256:0, FrameLayout:2256:0, DecorView:2256:0",
+        "219305858 top=-237 h=186 frame=Rect(0, 72 - 1236, 2328) root=2256 ancestors=LinearLayout:4138:0, :2256:1822, FrameLayout:2256:0, FrameLayout:2256:0, DecorView:2256:0",
+        "219305905 top=-237 h=186 frame=Rect(0, 72 - 1236, 2328) root=2256 ancestors=LinearLayout:4138:0, :2256:1822, FrameLayout:2256:0, FrameLayout:2256:0, DecorView:2256:0",
+        "219305926 top=-237 h=186 frame=Rect(0, 72 - 1236, 2328) root=2256 ancestors=LinearLayout:4138:0, :2256:1822, FrameLayout:2256:0, FrameLayout:2256:0, DecorView:2256:0",
+        "219305940 top=-237 h=186 frame=Rect(0, 72 - 1236, 2328) root=2256 ancestors=LinearLayout:4138:0, :2256:1822, FrameLayout:2256:0, FrameLayout:2256:0, DecorView:2256:0",
+        "219305965 top=-237 h=186 frame=Rect(0, 72 - 1236, 2328) root=2256 ancestors=LinearLayout:4138:0, :2256:1822, FrameLayout:2256:0, FrameLayout:2256:0, DecorView:2256:0",
+        "219305987 top=-237 h=186 frame=Rect(0, 72 - 1236, 2328) root=2256 ancestors=LinearLayout:4138:0, :2256:1822, FrameLayout:2256:0, FrameLayout:2256:0, DecorView:2256:0",
+        "219306121 top=-237 h=186 frame=Rect(0, 72 - 1236, 2328) root=2256 ancestors=LinearLayout:4138:0, :2256:1822, FrameLayout:2256:0, FrameLayout:2256:0, DecorView:2256:0",
+        "219306181 top=-237 h=186 frame=Rect(0, 72 - 1236, 2328) root=2256 ancestors=LinearLayout:4138:0, :2256:1822, FrameLayout:2256:0, FrameLayout:2256:0, DecorView:2256:0",
+        "219306222 top=-237 h=186 frame=Rect(0, 72 - 1236, 2328) root=2256 ancestors=LinearLayout:4138:0, :2256:1822, FrameLayout:2256:0, FrameLayout:2256:0, DecorView:2256:0"
+      ]
+    },
+    "dark-412-large-trace.log": {
+      "sha256": "7755f52688b481041a7f01fb962ef3a4442dbb37f5b5286ae598db0aa8f1ffd4",
+      "tail": [
+        "PASS: NFC-02.card-draft 20 real View navigation rounds and Activity recreation; synthetic admission, no BLE"
+      ]
+    },
+    "diagnostic-install-app-debug-androidTest.apk.log": {
+      "sha256": "c4aa470acafcf8576c15b0f0b5ae7e852d1ec5413372d0e6a9272e788e1306d3",
+      "tail": [
+        "Performing Streamed Install",
+        "Success"
+      ]
+    },
+    "diagnostic-install-app-debug.apk.log": {
+      "sha256": "c4aa470acafcf8576c15b0f0b5ae7e852d1ec5413372d0e6a9272e788e1306d3",
+      "tail": [
+        "Performing Streamed Install",
+        "Success"
+      ]
+    },
+    "expression-shared-sheet.log": {
+      "sha256": "b07eb322d4299366b7605f4943bff29d89900db0ad8f63ec00cdf897ea274f77",
+      "tail": [
+        "PASS: RES-02.trial-draft 20 real View navigation rounds and Activity recreation; synthetic admission, no BLE"
+      ]
+    },
+    "focus-shared-sheet.log": {
+      "sha256": "e65175aafdaa869309f1837441159dadbc885495df37e991a9e56aebb16efb97",
+      "tail": [
+        "PASS: UI-02.focus-draft 20 real View navigation rounds and Activity recreation; synthetic admission, no BLE"
+      ]
+    },
+    "group-gate-after.log": {
+      "sha256": "0fe5cb662bfff14a9884376c5dc9b13021e73aa15d1c18bc3ecfc2226a9f364f",
+      "tail": [
+        ".............",
+        "----------------------------------------------------------------------",
+        "Ran 13 tests in 0.031s",
+        "",
+        "OK"
+      ]
+    },
+    "group-gate-before.log": {
+      "sha256": "d5d8cdfa018313f309790688c0f18f3610c457436b940192c043d680de5ecf59",
+      "tail": [
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_runner_gate.py\", line 131, in test_report_groups_partition_selected_units",
+        "    self.assertCountEqual(baseline + added, runner.REQUIRED)",
+        "AssertionError: Element counts were not equal:",
+        "",
+        "Diff is 2796 characters long. Set self.maxDiff to None to see it.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 13 tests in 0.032s",
+        "",
+        "FAILED (failures=1)"
+      ]
+    },
+    "inflight-before.log": {
+      "sha256": "b8d4ddb1868d2481c24b57a34fbf36a1dc9816b9462871ab4f29f0f334b14a5e",
+      "tail": [
+        "test_shaniu_nfc_worker_scene: test_shaniu_nfc_worker_scene.c:12: inspect_capability: Assertion `(scene.flags & 8)!=0 && (scene.flags & 4)==0 && job.revision==0' failed."
+      ]
+    },
+    "inflight-fixed.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "interface-jvm.log": {
+      "sha256": "b49bed8fd2d48b2f9c0ac853dd02fc511f4400f60d526f3b874872fc5345f6f0",
+      "tail": [
+        "   > Compilation error. See log for more details",
+        "",
+        "* Try:",
+        "> Run with --stacktrace option to get the stack trace.",
+        "> Run with --info or --debug option to get more log output.",
+        "> Run with --scan to get full insights.",
+        "> Get more help at https://help.gradle.org.",
+        "",
+        "BUILD FAILED in 1s",
+        "22 actionable tasks: 1 executed, 21 up-to-date"
+      ]
+    },
+    "interface-missing.log": {
+      "sha256": "750354e7b0048de13199d88d4d5dd69207c24bb1e2cf14ec00d69e330ca92f75",
+      "tail": [
+        "   43 |    uint8_t arg[4];wire32(arg,BKCONTROL_CONFIG_NFC_SCENE<<16);",
+        "      |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~",
+        "      |                              BKCONTROL_CONFIG_WIFI_SCAN",
+        "test_shaniu_nfc_control.c: In function ‘config’:",
+        "test_shaniu_nfc_control.c:13:163: error: control reaches end of non-void function [-Werror=return-type]",
+        "   13 | {(void)c;return kind==BKCONTROL_CONFIG_NFC_BINDINGS ? bknfc_control(cmd,off,p,n,s) : kind==BKCONTROL_CONFIG_NFC_SCENE ? bknfc_scene_control(cmd,off,s) : -ENOTSUP;}",
+        "      |                                                                                                                                                                   ^",
+        "cc1: all warnings being treated as errors",
+        "make: *** [Makefile:1940: build/test_shaniu_nfc_control] Error 1",
+        "make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'"
+      ]
+    },
+    "jvm-fixed.log": {
+      "sha256": "31bf30651b5e9d50c2c9ff74f54d4ba3afe0229dbd7d73c6da24a856884a34a8",
+      "tail": [
+        "> Task :app:processDebugJavaRes UP-TO-DATE",
+        "> Task :app:bundleDebugClassesToRuntimeJar",
+        "> Task :app:bundleDebugClassesToCompileJar",
+        "> Task :app:compileDebugUnitTestKotlin",
+        "> Task :app:compileDebugUnitTestJavaWithJavac NO-SOURCE",
+        "> Task :app:processDebugUnitTestJavaRes UP-TO-DATE",
+        "> Task :app:testDebugUnitTest",
+        "",
+        "BUILD SUCCESSFUL in 2s",
+        "24 actionable tasks: 5 executed, 19 up-to-date"
+      ]
+    },
+    "jvm.log": {
+      "sha256": "b49bed8fd2d48b2f9c0ac853dd02fc511f4400f60d526f3b874872fc5345f6f0",
+      "tail": [
+        "   > Compilation error. See log for more details",
+        "",
+        "* Try:",
+        "> Run with --stacktrace option to get the stack trace.",
+        "> Run with --info or --debug option to get more log output.",
+        "> Run with --scan to get full insights.",
+        "> Get more help at https://help.gradle.org.",
+        "",
+        "BUILD FAILED in 1s",
+        "22 actionable tasks: 1 executed, 21 up-to-date"
+      ]
+    },
+    "keyboard-bounded-install-app-debug-androidTest.apk.log": {
+      "sha256": "c4aa470acafcf8576c15b0f0b5ae7e852d1ec5413372d0e6a9272e788e1306d3",
+      "tail": [
+        "Performing Streamed Install",
+        "Success"
+      ]
+    },
+    "keyboard-bounded-install-app-debug.apk.log": {
+      "sha256": "c4aa470acafcf8576c15b0f0b5ae7e852d1ec5413372d0e6a9272e788e1306d3",
+      "tail": [
+        "Performing Streamed Install",
+        "Success"
+      ]
+    },
+    "keyboard-fixed-install-app-debug-androidTest.apk.log": {
+      "sha256": "c4aa470acafcf8576c15b0f0b5ae7e852d1ec5413372d0e6a9272e788e1306d3",
+      "tail": [
+        "Performing Streamed Install",
+        "Success"
+      ]
+    },
+    "keyboard-fixed-install-app-debug.apk.log": {
+      "sha256": "c4aa470acafcf8576c15b0f0b5ae7e852d1ec5413372d0e6a9272e788e1306d3",
+      "tail": [
+        "Performing Streamed Install",
+        "Success"
+      ]
+    },
+    "keyboard-trace-install-app-debug-androidTest.apk.log": {
+      "sha256": "c4aa470acafcf8576c15b0f0b5ae7e852d1ec5413372d0e6a9272e788e1306d3",
+      "tail": [
+        "Performing Streamed Install",
+        "Success"
+      ]
+    },
+    "keyboard-trace-install-app-debug.apk.log": {
+      "sha256": "c4aa470acafcf8576c15b0f0b5ae7e852d1ec5413372d0e6a9272e788e1306d3",
+      "tail": [
+        "Performing Streamed Install",
+        "Success"
+      ]
+    },
+    "light-360-bounded-geometry.txt": {
+      "sha256": "8b940742c5773347956eabb9fba06e79403ce98a0345b9d6ef6c59165de08aaa",
+      "tail": [
+        "219518445 top=1097 h=168 frame=Rect(0, 72 - 1080, 1848) root=1776 ancestors=LinearLayout:2913:0, :1776:0, FrameLayout:1776:0, FrameLayout:1776:0, DecorView:1776:0",
+        "219518514 top=1097 h=168 frame=Rect(0, 72 - 1080, 1155) root=1776 ancestors=LinearLayout:2913:0, :1776:0, FrameLayout:1776:0, FrameLayout:1776:0, DecorView:1776:0",
+        "219518572 top=1097 h=168 frame=Rect(0, 72 - 1080, 1155) root=1083 ancestors=LinearLayout:2913:0, :1083:0, FrameLayout:1083:0, FrameLayout:1083:0, DecorView:1083:0",
+        "219518596 top=1007 h=168 frame=Rect(0, 72 - 1080, 1155) root=1083 ancestors=LinearLayout:2913:0, :1083:90, FrameLayout:1083:0, FrameLayout:1083:0, DecorView:1083:0",
+        "REQUEST 219518650",
+        "219518685 top=987 h=168 frame=Rect(0, 72 - 1080, 1155) root=1083 ancestors=LinearLayout:2913:0, :1083:110, FrameLayout:1083:0, FrameLayout:1083:0, DecorView:1083:0",
+        "219518721 top=987 h=168 frame=Rect(0, 72 - 1080, 1155) root=1083 ancestors=LinearLayout:2913:0, :1083:110, FrameLayout:1083:0, FrameLayout:1083:0, DecorView:1083:0",
+        "219518901 top=987 h=168 frame=Rect(0, 72 - 1080, 1155) root=1083 ancestors=LinearLayout:2913:0, :1083:110, FrameLayout:1083:0, FrameLayout:1083:0, DecorView:1083:0",
+        "219519037 top=1680 h=168 frame=Rect(0, 72 - 1080, 1155) root=1083 ancestors=LinearLayout:2913:0, :1083:110, FrameLayout:1083:0, FrameLayout:1083:0, DecorView:1083:0",
+        "219519104 top=20 h=168 frame=Rect(0, 72 - 1080, 1155) root=1083 ancestors=LinearLayout:2913:0, :1083:1770, FrameLayout:1083:0, FrameLayout:1083:0, DecorView:1083:0"
+      ]
+    },
+    "light-360-bounded.log": {
+      "sha256": "7755f52688b481041a7f01fb962ef3a4442dbb37f5b5286ae598db0aa8f1ffd4",
+      "tail": [
+        "PASS: NFC-02.card-draft 20 real View navigation rounds and Activity recreation; synthetic admission, no BLE"
+      ]
+    },
+    "light-360-fixed.log": {
+      "sha256": "2a60ed9531de4407023af32064f26fb172c0cef8af1b96398f07ca6db4655ea1",
+      "tail": [
+        "FAIL: IllegalStateException: NFC-02.card-draft: keyboard obscures input: top=1097 height=168 frame=Rect(0, 72 - 1080, 1155) at com.shaniu.companion.provision.DeviceUiAcceptance.runNfcDraft$lambda$87(DeviceUiAcceptance.kt:328)"
+      ]
+    },
+    "light-360-trace-geometry.txt": {
+      "sha256": "166f4e443d586fdb61bef606b6869f62a1cd95d3e5ba750efab0510c289ce3e0",
+      "tail": [
+        "219325388 top=1097 h=168 frame=Rect(0, 72 - 1080, 1848) root=1776 ancestors=LinearLayout:2913:0, :1776:0, FrameLayout:1776:0, FrameLayout:1776:0, DecorView:1776:0",
+        "219325914 top=1097 h=168 frame=Rect(0, 72 - 1080, 1848) root=1776 ancestors=LinearLayout:2913:0, :1776:0, FrameLayout:1776:0, FrameLayout:1776:0, DecorView:1776:0",
+        "219326086 top=1097 h=168 frame=Rect(0, 72 - 1080, 1848) root=1776 ancestors=LinearLayout:2913:0, :1776:0, FrameLayout:1776:0, FrameLayout:1776:0, DecorView:1776:0",
+        "219326196 top=1097 h=168 frame=Rect(0, 72 - 1080, 1155) root=1776 ancestors=LinearLayout:2913:0, :1776:0, FrameLayout:1776:0, FrameLayout:1776:0, DecorView:1776:0",
+        "REQUEST 219326208",
+        "219326427 top=1097 h=168 frame=Rect(0, 72 - 1080, 1155) root=1776 ancestors=LinearLayout:2913:0, :1776:0, FrameLayout:1776:0, FrameLayout:1776:0, DecorView:1776:0"
+      ]
+    },
+    "light-360-trace.log": {
+      "sha256": "9aeb10630a0a37c4f21250faead25dc7eb660b46d8b65aecc5718e3874dd31f9",
+      "tail": [
+        "FAIL: IllegalStateException: NFC-02.card-draft: keyboard obscures input: top=1097 height=168 frame=Rect(0, 72 - 1080, 1155) root=1080x1776 rootTop=72 ancestors=LinearLayout:2913:0, :1776:0, FrameLayout:1776:0, FrameLayout:1776:0, DecorView:1776:0 at com.shaniu.companion.provision.DeviceUiAcceptance.runNfcDraft$lambda$90(DeviceUiAcceptance.kt:342)"
+      ]
+    },
+    "light360-diagnostic.log": {
+      "sha256": "7755f52688b481041a7f01fb962ef3a4442dbb37f5b5286ae598db0aa8f1ffd4",
+      "tail": [
+        "PASS: NFC-02.card-draft 20 real View navigation rounds and Activity recreation; synthetic admission, no BLE"
+      ]
+    },
+    "operation-stale-before.log": {
+      "sha256": "73a00cf989ff6f15aa2dff64d4959186031f25ad3bebd6073f4181a4e5e58079",
+      "tail": [
+        "",
+        "* What went wrong:",
+        "Execution failed for task ':app:testDebugUnitTest'.",
+        "> There were failing tests. See the report at: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/build/reports/tests/testDebugUnitTest/index.html",
+        "",
+        "* Try:",
+        "> Run with --scan to get full insights.",
+        "",
+        "BUILD FAILED in 1s",
+        "24 actionable tasks: 2 executed, 22 up-to-date"
+      ]
+    },
+    "query-enables-scan-build.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tail": []
+    },
+    "query-enables-scan-restore.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "query-enables-scan.log": {
+      "sha256": "af410fbf57714510bdcd8824a4cf9505677a007cd9082e8a0a456d13bda7a33f",
+      "tail": [
+        "test_shaniu_nfc_worker_scene: test_shaniu_nfc_worker_scene.c:49: main: Assertion `bknfc_scene_control(BKCONTROL_CONFIG_READ,0,&status)==0 && status.config_chunk[11]==5' failed."
+      ]
+    },
+    "stop-blocks-query-build.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tail": []
+    },
+    "stop-blocks-query-restore.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "stop-blocks-query.log": {
+      "sha256": "dc236a337388e8611c84bcf9c1f7431782963e8579f036f9685191b78d7a04d7",
+      "tail": [
+        "test_shaniu_nfc_control: test_shaniu_nfc_control.c:51: main: Assertion `packet(BKCONTROL_CONFIG_READ,arg,4)==0 && !memcmp(response+24,expected,16)' failed."
+      ]
+    },
+    "verify-manifest-final.log": {
+      "sha256": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac",
+      "tail": [
+        "bk7258 verify build-manifest: PASS boot=mcuboot board=aidk_ai_toy layout=bk7258-510173147382a879 source=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    },
+    "verify-manifest.log": {
+      "sha256": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac",
+      "tail": [
+        "bk7258 verify build-manifest: PASS boot=mcuboot board=aidk_ai_toy layout=bk7258-510173147382a879 source=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    }
+  },
+  "ui": {
+    "ui-profiles-fixed.json": [
+      {
+        "profile": "dark-412-large-fixed",
+        "size": "1236x2400",
+        "density": "480",
+        "font": "2.0",
+        "night": "yes",
+        "status": "PASS"
+      },
+      {
+        "profile": "light-360-fixed",
+        "size": "1080x1920",
+        "density": "480",
+        "font": "1.0",
+        "night": "no",
+        "status": "FAIL_ASSERTION"
+      }
+    ],
+    "ui-profiles-diagnostic.json": [
+      {
+        "profile": "light360-diagnostic",
+        "size": "1080x1920",
+        "density": "480",
+        "font": "1.0",
+        "night": "no",
+        "status": "PASS"
+      }
+    ],
+    "ui-profiles-bounded.json": [
+      {
+        "profile": "dark-412-large-bounded",
+        "size": "1236x2400",
+        "density": "480",
+        "font": "2.0",
+        "night": "yes",
+        "status": "PASS"
+      },
+      {
+        "profile": "light-360-bounded",
+        "size": "1080x1920",
+        "density": "480",
+        "font": "1.0",
+        "night": "no",
+        "status": "PASS"
+      }
+    ],
+    "ui-profiles-trace.json": [
+      {
+        "profile": "dark-412-large-trace",
+        "size": "1236x2400",
+        "density": "480",
+        "font": "2.0",
+        "night": "yes",
+        "status": "PASS"
+      },
+      {
+        "profile": "light-360-trace",
+        "size": "1080x1920",
+        "density": "480",
+        "font": "1.0",
+        "night": "no",
+        "status": "FAIL_ASSERTION"
+      }
+    ],
+    "artifacts": {
+      "dark-412-large-fixed.png": "984feeaa2fb6263d1f20d0adf36684cada5a4d6a83c1d929e0aef014217383d5",
+      "light360-diagnostic.png": "cc35b3c4783a9147cf8db815953aca1d854053470e82030b119db0f048cc0c7d",
+      "dark-412-large-trace.png": "984feeaa2fb6263d1f20d0adf36684cada5a4d6a83c1d929e0aef014217383d5",
+      "dark-412-large-bounded.png": "1b4e4faf87f022221988e38c1c0a6ba685dfd2bf64f4357739161da6947a9d1d",
+      "light-360-bounded.png": "1d30d859d7f44933b6b80327cc35a7547bbffc6916dc7bacd004b44c8c0a5d78"
+    }
+  },
+  "layers": {
+    "interface": "NCA1 kind13 read-only authenticated status; existing NCS1/NCF1 unchanged",
+    "L1_L2": "Actual Session/control/worker/store and JVM Session/controller, hardware/network peers only external substitutes",
+    "native_ui": "Synthetic admission only; emulator, no BLE",
+    "L3": "NOT_RUN"
+  },
+  "budget": {
+    "resident_nfc_server_bytes": 1200,
+    "added_resident_bytes": 0,
+    "new_threads": 0,
+    "new_dma": 0,
+    "new_persistent_writes": 0,
+    "read": "one extra 16-byte capability read after explicit NCS1 refresh; no background poll",
+    "unmeasured": [
+      "CPU average/p95",
+      "RF/ISR blocking",
+      "stack high water",
+      "actual BLE overhead"
+    ]
+  },
+  "remaining": [
+    "real phone/BLE capability readback",
+    "physical card/voice/OTA/K2 combinations",
+    "card-to-visible-timer physical flow",
+    "measured resource budgets"
+  ],
+  "physical_actions": [],
+  "test_corrections": [
+    "Earlier NFC UI probe could pass without IME; new fixture waits for focus and actual IME visible, retains size/full visibility assertions. No-IME diagnostic/trace PASS is not keyboard evidence.",
+    "Trace on light360 reproduced visible1083px versus dialog1776px; product sheet now uses visible display frame.",
+    "One trace editing command used incorrect cwd and changed nothing; subsequent unchanged build was not treated as new probe build."
+  ]
+}

@@ -10,7 +10,7 @@ static uint32_t value32(const uint8_t *p){return (uint32_t)p[0]<<24|(uint32_t)p[
 static int execute(void *c,enum bkcontrol_command_e cmd,uint32_t arg,struct bkcontrol_status_s *s)
 {(void)c;(void)cmd;(void)arg;(void)s;return 0;}
 static int config(void *c,enum bkcontrol_command_e cmd,uint32_t kind,uint32_t off,const uint8_t *p,size_t n,struct bkcontrol_status_s *s)
-{(void)c;return kind==BKCONTROL_CONFIG_NFC_BINDINGS ? bknfc_control(cmd,off,p,n,s) : -ENOTSUP;}
+{(void)c;return kind==BKCONTROL_CONFIG_NFC_BINDINGS ? bknfc_control(cmd,off,p,n,s) : kind==BKCONTROL_CONFIG_NFC_SCENE ? bknfc_scene_control(cmd,off,s) : -ENOTSUP;}
 static int packet(unsigned cmd,const void *data,size_t size)
 {
  uint8_t bytes[100]={0};memcpy(bytes,"SDC1",4);wire32(bytes+4,cmd);wire32(bytes+8,sequence);wire32(bytes+12,size);
@@ -38,6 +38,20 @@ int main(int argc,char **argv)
 {
  assert(argc==2);char parent[]="/tmp/shaniu-nfc-wire-XXXXXX";assert(mkdtemp(parent));
  snprintf(job_root,sizeof(job_root),"%s/cards",parent);assert(bk7258_nfc_service_start()==0);
+ if(!strcmp(argv[1],"capabilities") || !strcmp(argv[1],"cap-auth"))
+  {
+   uint8_t arg[4];wire32(arg,BKCONTROL_CONFIG_NFC_SCENE<<16);
+   if(!strcmp(argv[1],"cap-auth")) {start(false);assert(packet(BKCONTROL_CONFIG_READ,arg,4)<0);}
+   start(true);assert(packet(BKCONTROL_CONFIG_READ,arg,4)==0);
+   const uint8_t expected[16]={'N','C','A','1'}; /* no Agent in this firmware fixture */
+   assert(value32(response+20)==16 && !memcmp(response+24,expected,16));
+   uint8_t begin[8];wire32(begin,BKCONTROL_CONFIG_NFC_SCENE);wire32(begin+4,16);
+   assert(packet(BKCONTROL_CONFIG_BEGIN,begin,8)==-EPERM);
+   assert(bkcontrol_session_quiesce(&control)==0);
+   assert(packet(BKCONTROL_CONFIG_READ,arg,4)==0 && !memcmp(response+24,expected,16));
+   wire32(arg,(BKCONTROL_CONFIG_NFC_SCENE<<16)|16);assert(packet(BKCONTROL_CONFIG_READ,arg,4)==-ERANGE);
+   assert(!opens && access(job_root,F_OK)<0);assert(rmdir(parent)==0);puts("CONTRACT_PASS");return 0;
+  }
  if(!strcmp(argv[1],"floor"))
    {
     struct bknfc_bindings_s saved={0};struct bknfc_card_s card={.size=4,.uid={1,2,3,4}};

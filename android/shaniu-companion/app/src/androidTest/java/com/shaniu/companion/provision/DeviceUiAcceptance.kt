@@ -236,6 +236,7 @@ internal object DeviceUiAcceptance {
         check(android.os.Build.FINGERPRINT.contains("generic") || android.os.Build.MODEL.contains("sdk")) {
             "NFC draft fixture is emulator-only"
         }
+        val geometry = StringBuilder()
         var activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
         fun field(name: String) = MainActivity::class.java.getDeclaredField(name).apply { isAccessible = true }
@@ -295,6 +296,9 @@ internal object DeviceUiAcceptance {
                     show.invoke(activity)
                 }
                 instrumentation.waitForIdleSync()
+                awaitUi(instrumentation, activity) {
+                    (field("companionSheet").get(activity) as? android.app.Dialog)?.window?.decorView?.hasWindowFocus() == true
+                }
                 onUi(instrumentation) {
                     val dialog = checkNotNull(field("companionSheet").get(activity) as? android.app.Dialog)
                     val input = checkNotNull(findView(checkNotNull(dialog.window).decorView) {
@@ -303,16 +307,37 @@ internal object DeviceUiAcceptance {
                     check(input.text.toString() == "47") { "NFC-02.card-draft: recreation lost minutes" }
                     val slots = checkNotNull(findView(checkNotNull(dialog.window).decorView) { it.contentDescription == "卡片保存位置" } as? android.widget.Spinner)
                     check(slots.selectedItemPosition == 3) { "NFC-02.card-draft: recreation lost slot" }
+                    val root = checkNotNull(dialog.window).decorView
+                    root.viewTreeObserver.addOnPreDrawListener(object : android.view.ViewTreeObserver.OnPreDrawListener {
+                        var frames = 0
+                        override fun onPreDraw(): Boolean {
+                            if (frames++ < 100) {
+                                val frame = Rect(); root.getWindowVisibleDisplayFrame(frame)
+                                val xy = IntArray(2); input.getLocationOnScreen(xy)
+                                geometry.append("${android.os.SystemClock.uptimeMillis()} top=${xy[1]} h=${input.height} frame=$frame root=${root.height} ancestors=${generateSequence(input.parent) { it.parent }.filterIsInstance<View>().joinToString { "${it.javaClass.simpleName}:${it.height}:${it.scrollY}" }}\n")
+                            }
+                            return true
+                        }
+                    })
                     input.requestFocus()
                     (activity.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
                         .showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
                 }
                 instrumentation.waitForIdleSync()
-                Thread.sleep(600)
+                awaitUi(instrumentation, activity) {
+                    (field("companionSheet").get(activity) as? android.app.Dialog)?.window?.decorView
+                        ?.rootWindowInsets?.isVisible(WindowInsets.Type.ime()) == true
+                }
+                awaitUi(instrumentation, activity) {
+                    val root = (field("companionSheet").get(activity) as android.app.Dialog).window!!.decorView
+                    val frame = Rect(); root.getWindowVisibleDisplayFrame(frame)
+                    root.height <= frame.height()
+                }
                 onUi(instrumentation) {
                     val dialog = checkNotNull(field("companionSheet").get(activity) as? android.app.Dialog)
                     val root = checkNotNull(dialog.window).decorView
                     val input = checkNotNull(findView(root) { it.contentDescription == "卡片专注分钟数" } as? EditText)
+                    geometry.append("REQUEST ${android.os.SystemClock.uptimeMillis()}\n")
                     input.requestRectangleOnScreen(Rect(0, 0, input.width, input.height), true)
                 }
                 instrumentation.waitForIdleSync()
@@ -326,7 +351,7 @@ internal object DeviceUiAcceptance {
                         "NFC input size=${input.width}x${input.height} density=${activity.resources.displayMetrics.density} min=${input.minHeight}/${input.minimumHeight} laid=${input.isLaidOut} requested=${input.isLayoutRequested} root=${root.width}x${root.height}"
                     }
                     check(location[1] >= frame.top && location[1] + input.height <= frame.bottom) {
-                        "NFC-02.card-draft: keyboard obscures input: top=${location[1]} height=${input.height} frame=$frame"
+                        "NFC-02.card-draft: keyboard obscures input: top=${location[1]} height=${input.height} frame=$frame root=${root.width}x${root.height} rootTop=${IntArray(2).also { root.getLocationOnScreen(it) }[1]} ancestors=${generateSequence(input.parent) { it.parent }.filterIsInstance<View>().joinToString { v -> "${v.javaClass.simpleName}:${v.height}:${v.scrollY}" }}"
                     }
                     (activity.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
                         .hideSoftInputFromWindow(input.windowToken, 0)
@@ -358,6 +383,7 @@ internal object DeviceUiAcceptance {
                 instrumentation.removeMonitor(monitor)
             }
         } finally {
+            File(activity.filesDir, "nfc-geometry.txt").writeText(geometry.toString())
             onUi(instrumentation) { activity.finish() }
             instrumentation.waitForIdleSync()
         }
@@ -1527,7 +1553,7 @@ internal object DeviceUiAcceptance {
         failure.get()?.let { throw it }
     }
 
-    private fun awaitUi(instrumentation: Instrumentation, activity: ProvisionActivity,
+    private fun awaitUi(instrumentation: Instrumentation, activity: android.app.Activity,
                         condition: () -> Boolean) {
         val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3)
         while (System.nanoTime() < deadline) {

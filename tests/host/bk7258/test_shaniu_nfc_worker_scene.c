@@ -4,6 +4,13 @@
 #define NFC_JOBS_NO_MAIN
 #include "test_shaniu_nfc_jobs.c"
 #include "bk7258_focus_intent.h"
+#include "bk7258_nfc_control.c"
+static void inspect_capability(void)
+{
+ struct bknfc_scene_status_s scene;struct bknfc_job_status_s job;
+ bk7258_nfc_scene_status(&scene);bk7258_nfc_job_status(&job);
+ assert((scene.flags & 8)!=0 && (scene.flags & 4)==0 && job.revision==0);
+}
 static void fail_release(void) { rf_off_error=EIO; }
 static void revoke(void) { bk7258_nfc_scene_admit(false); }
 static void stop_scene(void) { assert(bk7258_nfc_service_quiesce(true)==-EBUSY); }
@@ -30,6 +37,7 @@ int main(int argc,char **argv)
  if(strcmp(argv[1],"first-enroll"))assert(bknfc_bindings_set(&saved,0,1,0,&card,60000)==0);
  assert(bk7258_nfc_service_start()==0);poll();assert(nfc_observations==0);
  bkfocus_intent_step(1000,true);bk7258_nfc_scene_admit(true);
+ if(!strcmp(argv[1],"capability-inflight"))read_hook=inspect_capability;
  if(!strcmp(argv[1],"load-revoke"))revoke_load=true;
  if(!strcmp(argv[1],"revoke"))read_hook=revoke;
  if(!strcmp(argv[1],"stop"))read_hook=stop_scene;
@@ -38,6 +46,18 @@ int main(int argc,char **argv)
  poll();assert(!fd_live);
  assert(nfc_observations==(!strcmp(argv[1],"load-revoke")?0:1));
  struct bkfocus_intent_status_s intent;bkfocus_intent_status(&intent);
+ if(!strcmp(argv[1],"capability") || !strcmp(argv[1],"capability-inflight"))
+  {
+   struct bkcontrol_status_s status={0};int before=opens;
+   assert(bknfc_scene_control(BKCONTROL_CONFIG_READ,0,&status)==0);
+   const uint8_t expected[16]={'N','C','A','1',0,0,0,1,0,0,0,7,0,0,0,0};
+   assert(status.config_total==16 && !memcmp(status.config_chunk,expected,16));
+   bk7258_nfc_scene_admit(false);
+   assert(bknfc_scene_control(BKCONTROL_CONFIG_READ,0,&status)==0 && status.config_chunk[11]==5);
+   assert(bknfc_scene_control(BKCONTROL_CONFIG_READ,16,&status)==-ERANGE);
+   assert(bknfc_scene_control(BKCONTROL_CONFIG_APPLY,0,&status)==-EPERM);
+   assert(opens==before);goto cleanup;
+  }
  if(!strcmp(argv[1],"first-enroll"))
   {
    assert(intent.phase==0);

@@ -34,9 +34,14 @@ class NfcBindingControllerTest {
         fun wire(phase: Int = 4, operation: Long = 3, revision: Long = 1, floor: Long = 8): ByteArray =
             ByteBuffer.allocate(112).put("NCS1".toByteArray()).putInt(phase).putInt(0).putInt(0)
                 .putLong(operation).putLong(revision).putLong(floor).putLong(0).putLong(60000).array()
-        fun read(bytes: ByteArray = wire()) {
+        fun read(bytes: ByteArray = wire(), capabilityDone: Boolean = true) {
             for (offset in 0..96 step 16) reply(bytes = bytes.copyOfRange(offset, offset + 16))
             for (offset in 0..32 step 16) reply(bytes = bytes.copyOfRange(offset, offset + 16))
+            if (capabilityDone && sent.last().second.size == 4 && ByteBuffer.wrap(sent.last().second).int == (13 shl 16)) reply(-95)
+        }
+        fun scene(caps: Int = 1, flags: Int = 7, error: Int = 0) {
+            val data = ByteBuffer.allocate(16).put("NCA1".toByteArray()).putInt(caps).putInt(flags).putInt(error).array()
+            events.result(DeviceControlProtocol.Command.CONFIG_READ, ok.copy(configChunk=DeviceControlProtocol.ConfigChunk(16,data)))
         }
     }
     @Test fun acceptedEnrollmentRemainsPendingUntilDeviceConfirms() {
@@ -110,6 +115,46 @@ class NfcBindingControllerTest {
         f.reply();f.reply();f.reply();f.reply();f.read(f.wire(4,10,2,10))
         assertNull(f.controller.current().snapshot)
         assertTrue(f.controller.current().message.contains("替换"))
+    }
+
+    @Test fun sceneCapabilityComesFromIndependentRead() {
+        val f=Fixture();f.controller.refresh();f.read(capabilityDone=false)
+        assertEquals(13 shl 16,ByteBuffer.wrap(f.sent.last().second).int)
+        assertTrue(f.controller.current().busy);assertFalse(f.controller.act(2,0,60000))
+        f.scene();assertFalse(f.controller.current().busy)
+        assertEquals(1,f.controller.current().scene?.capabilities)
+        assertEquals(7,f.controller.current().scene?.flags)
+        assertNotNull(f.controller.current().snapshot)
+    }
+    @Test fun oldSceneEndpointDoesNotInvalidateConfirmedBindings() {
+        val f=Fixture();f.controller.refresh();f.read()
+        assertNull(f.controller.current().scene);assertNotNull(f.controller.current().snapshot)
+        assertTrue(f.controller.act(2,0,60000))
+    }
+    @Test fun malformedSceneDoesNotInventSupport() {
+        val f=Fixture();f.controller.refresh();f.read(capabilityDone=false)
+        f.scene(caps=2);assertNull(f.controller.current().scene)
+        assertNotNull(f.controller.current().snapshot);assertFalse(f.controller.current().busy)
+    }
+    @Test fun sceneReadDisconnectCannotRestoreOldCapability() {
+        val f=Fixture();f.controller.refresh();f.read(capabilityDone=false)
+        f.events.closed("lost");f.scene()
+        assertNull(f.controller.current().scene);assertNull(f.controller.current().snapshot)
+    }
+    @Test fun blockedReaderIsNotReportedAsReady() {
+        val f=Fixture();f.controller.refresh();f.read(capabilityDone=false)
+        f.scene(flags=21,error=-5)
+        assertEquals(-5,f.controller.current().scene?.error)
+        assertTrue(f.controller.current().sceneMessage.contains("故障"))
+        assertFalse(f.controller.current().sceneMessage.contains("已开始"))
+    }
+
+    @Test fun newOperationInvalidatesSceneSnapshot() {
+        val f=Fixture();f.controller.refresh();f.read(capabilityDone=false);f.scene()
+        assertNotNull(f.controller.current().scene)
+        assertTrue(f.controller.act(2,0,60000))
+        assertNull(f.controller.current().scene)
+        assertTrue(f.controller.current().sceneMessage.contains("未确认"))
     }
 
 }

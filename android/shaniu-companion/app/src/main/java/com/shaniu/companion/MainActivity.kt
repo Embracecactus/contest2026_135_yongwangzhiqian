@@ -2462,7 +2462,12 @@ class MainActivity : Activity() {
             nfcDraftCapture = { nfcMinutesDraft = minutes.text.toString(); nfcSlotDraft = slots.selectedItemPosition.coerceIn(0, 7) }
             val saved = TextView(this).apply { textSize = 14f; setTextColor(design.ink); setPadding(0, dp(12), 0, dp(8)) }
             body.addView(saved)
-            page.notice("将兼容卡片贴近傻妞，再点登记；一次只放一张。此版本可保存绑定，刷卡自动开始专注尚未开放。关闭页面不会取消设备已受理的作业。")
+            val sceneStatus = TextView(this).apply {
+                textSize = 14f; setTextColor(design.ink)
+                accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+            }
+            body.addView(sceneStatus)
+            page.notice("将兼容卡片贴近傻妞，再点登记；一次只放一张。自动专注能力以本次设备回读为准。关闭页面不会取消设备已受理的作业。")
             fun button(label: String, primary: Boolean = false, action: () -> Unit): com.google.android.material.button.MaterialButton {
                 page.primaryButton(label, false, action)
                 return (body.getChildAt(body.childCount - 1) as com.google.android.material.button.MaterialButton).apply {
@@ -2497,6 +2502,7 @@ class MainActivity : Activity() {
             nfcEditor = com.shaniu.companion.provision.NfcBindingController(directSession) { state ->
                 val value = state.snapshot
                 status.text = state.message
+                sceneStatus.text = state.sceneMessage
                 saved.text = if (value?.phase == 4) value.durations.mapIndexed { index, duration ->
                     "卡片 ${index + 1}：" + if (duration == 0L) "未登记" else "${duration / 1000} 秒"
                 }.joinToString("\n") else "已保存卡片：尚未确认，请加载并回读"
@@ -2567,6 +2573,21 @@ class MainActivity : Activity() {
         }
         dialog.show()
         dialog.window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        var visibleSignature = 0
+        scroll.viewTreeObserver.addOnGlobalLayoutListener {
+            if (dialog.isShowing) {
+                val visible = android.graphics.Rect()
+                dialog.window?.decorView?.getWindowVisibleDisplayFrame(visible)
+                val signature = 31 * visible.height() + visible.width()
+                if (visible.height() > 0 && signature != visibleSignature) {
+                    visibleSignature = signature
+                    // Floating windows may keep their full height with the IME open.
+                    // Use the display frame, never the already constrained decor size.
+                    dialog.window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT,
+                        minOf(body.measuredHeight, visible.height()))
+                }
+            }
+        }
     }
 
     private fun renderDirectDiscoveryCard() {

@@ -21,6 +21,20 @@ void bk7258_nfc_scene_admit(bool admitted)
     }
   spin_unlock_irqrestore(&s->request_lock, flags);
 }
+void bk7258_nfc_scene_status(struct bknfc_scene_status_s *status)
+{
+  if (!status) return;
+  struct bknfc_server_s *s = &g_bknfc_server;
+  irqstate_t flags = spin_lock_irqsave(&s->request_lock);
+  int released = __atomic_load_n(&s->source.release_error, __ATOMIC_ACQUIRE);
+  status->capabilities = 1;
+  status->flags = (__atomic_load_n(&s->initialized, __ATOMIC_ACQUIRE) ? 1u : 0u) |
+    (s->scene_admitted && !s->quiescing ? 2u : 0u) |
+    (s->scene_cache_ready ? 4u : 0u) |
+    (s->io_active ? 8u : 0u) | (released ? 16u : 0u);
+  status->error = released ? released : s->scene_error;
+  spin_unlock_irqrestore(&s->request_lock, flags);
+}
 static void bknfc_scene_work(struct bknfc_server_s *s)
 {
   irqstate_t flags = spin_lock_irqsave(&s->request_lock);

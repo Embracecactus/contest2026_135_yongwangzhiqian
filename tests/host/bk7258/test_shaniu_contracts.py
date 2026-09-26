@@ -635,6 +635,8 @@ def main():
         "floor",
         "sequence",
         "staging",
+        "capabilities",
+        "cap-auth",
     ):
         add(
             suite,
@@ -716,7 +718,7 @@ def main():
             binaries["test_shaniu_power_contract"],
         )
     for variant in ("dwell", "unknown", "enroll", "pending-cancel", "revoke",
-                    "stop", "release", "error", "load-revoke", "first-enroll"):
+                    "stop", "release", "error", "load-revoke", "first-enroll", "capability", "capability-inflight"):
         add(suite, "NFC-02.worker-" + variant, "NFC-02", "L2",
             [HERE / "build/test_shaniu_nfc_worker_scene", variant],
             binaries["test_shaniu_nfc_worker_scene"])

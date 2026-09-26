@@ -80,6 +80,7 @@ struct bknfc_server_s
   int scene_error;
   bool scene_admitted;
   bool scene_load_attempted;
+  bool scene_cache_ready;
 #endif
 #endif
   uint32_t epoch;

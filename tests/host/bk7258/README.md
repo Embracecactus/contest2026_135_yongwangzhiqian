@@ -1518,3 +1518,46 @@ real card-to-visible-focus acceptance, explicit App capability/status presentati
 (the older UI still conservatively says automatic use unavailable), and hardware
 resource budgets. Source/host vertical flow is not physical acceptance. See
 `acceptance/s50-20260927.json` and `s50-nfc-worker-scene-evidence-20260927.json`.
+
+## S51: read-only NFC scene capability and native status
+
+Authenticated config kind13 returns independent NCA1, 16 bytes big-endian:
+magic, capability bits (bit0 card-to-focus), status flags (initialized, admitted,
+published bindings ready, I/O active, release fault in bits0..4), signed last
+error. Only READ at offset0 is accepted; writes are EPERM and other offsets
+ERANGE. Unsupported builds return zero capabilities/flags/error. Query takes
+a short existing lock, performs no storage/RF I/O, and remains available during
+quiescing. NCF1/NCS1, authentication, sequence and existing job semantics remain.
+The ready flag is published with revision/floor, not read from the worker's
+in-flight mutable store. A real read-hook test caught that premature publication.
+
+The existing native controller reads NCA1 after its verified NCS1 snapshot. Old
+firmware or malformed/missing capability information is unknown, preserving the
+confirmed binding snapshot. Connection changes and new writes invalidate the
+capability display immediately; a late previous status cannot imply readiness.
+A real JVM assertion caught stale capability retention at operation start. This
+is a snapshot, not a live guarantee of RF availability or successful timer start.
+No new polling, session, thread, persistent write, DMA or authentication bypass.
+
+Ten added strict units: two actual Session/control cases, two worker/control
+cases and six real Session JVM cases. Missing APIs initially BLOCKED_INTERFACE;
+the stale-operation and in-flight-ready assertions were real Reds before fixes.
+Two isolated query mutants detected and restored, separately from the two existing
+strict-suite mutants. The selected collection remains272, including original63.
+A new runner test found46 selected units omitted from the added-only report group;
+current added_ids now contains209 with disjoint complete membership. Historical
+reports retain their original grouping, which did not alter their collected list
+or total gate result. Runner gate now13 tests, reported separately.
+
+Emulator trace exposed a real floating-window defect: IME reduced visible height
+to1083px but the dialog/ScrollView stayed1776px, so requestRectangleOnScreen did
+not scroll the field. Shared companion sheets now constrain window height from
+the visible display frame. The former NFC fixture could pass without an IME;
+it now waits for actual window focus, requires visible IME and bounded geometry,
+then retains the full48dp/input and footer visibility assertions. Initial failures
+and misleading no-IME passes are retained, not used as keyboard acceptance.
+Final emulator outcome and exact input/log hashes are in the S51 evidence record.
+
+L1/L2 and native synthetic UI evidence remain separate. Actual phone/BLE/read-card
+status, physical RF errors/coexistence, timer rendering, CPU/p95/stack and long-run
+behavior are NOT_RUN. No physical installation, flash, reset or data clearing.

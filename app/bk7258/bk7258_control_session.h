@@ -91,6 +91,8 @@ enum bkcontrol_command_e
 #define BKCONTROL_CONFIG_EXPRESSION_TRIAL 11u
 /* NCF1/NCS1 asynchronous authenticated NFC binding jobs. */
 #define BKCONTROL_CONFIG_NFC_BINDINGS 12u
+/* NCA1: read-only16-byte scene capability/current-admission snapshot. */
+#define BKCONTROL_CONFIG_NFC_SCENE 13u
 #define BKCONTROL_CONFIG_CAPABILITIES 0x7fffu
 #define BKCONTROL_CONFIG_RECORD_MAX (140u + 65536u) /* WKM2 显式前端字段 */
 struct bkcontrol_device_info_s

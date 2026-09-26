@@ -123,6 +123,13 @@ class SelectedCollectionGateTest(unittest.TestCase):
             with self.subTest(results=results):
                 self.assertTrue(runner.collection_errors(results, ["selected"]))
 
+    def test_report_groups_partition_selected_units(self):
+        baseline = runner.SELECTION["baseline_ids"]
+        added = runner.SELECTION["added_ids"]
+        self.assertEqual(len(baseline), 63)
+        self.assertFalse(set(baseline) & set(added))
+        self.assertCountEqual(baseline + added, runner.REQUIRED)
+
     def test_empty_selection_cannot_pass(self):
         self.assertTrue(runner.collection_errors([], []))
 

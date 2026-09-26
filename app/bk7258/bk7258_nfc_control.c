@@ -59,3 +59,22 @@ int bknfc_control(enum bkcontrol_command_e command, uint32_t offset,
     }
   return bk7258_nfc_job_submit(&request);
 }
+
+int bknfc_scene_control(enum bkcontrol_command_e command, uint32_t offset,
+                        struct bkcontrol_status_s *status)
+{
+  if (!status) return -EINVAL;
+  if (command != BKCONTROL_CONFIG_READ) return -EPERM;
+  if (offset) return -ERANGE;
+  uint8_t data[16] = {'N','C','A','1'};
+#if defined(CONFIG_BK7258_APP_AGENT) && defined(CONFIG_CL_MFRC522_RF)
+  struct bknfc_scene_status_s scene;
+  bk7258_nfc_scene_status(&scene);
+  nfc_put32(data + 4, scene.capabilities);
+  nfc_put32(data + 8, scene.flags);
+  nfc_put32(data + 12, (uint32_t)scene.error);
+#endif
+  status->config_total = sizeof(data);
+  memcpy(status->config_chunk, data, sizeof(data));
+  return 0;
+}

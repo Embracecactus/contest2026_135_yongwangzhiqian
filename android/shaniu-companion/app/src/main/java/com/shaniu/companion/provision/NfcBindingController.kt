@@ -9,10 +9,14 @@ internal class NfcBindingController(
 ) : AutoCloseable {
     data class Snapshot(val phase: Int, val error: Int, val operation: Long,
         val revision: Long, val floor: Long, val durations: List<Long>)
-    data class State(val snapshot: Snapshot?, val busy: Boolean, val message: String)
-    private enum class Phase { IDLE, READ, VERIFY, BEGIN, APPEND, APPLY }
+    data class Scene(val capabilities: Int, val flags: Int, val error: Int)
+    data class State(val snapshot: Snapshot?, val busy: Boolean, val message: String,
+        val scene: Scene?, val sceneMessage: String)
+    private enum class Phase { IDLE, READ, VERIFY, CAPABILITY, BEGIN, APPEND, APPLY }
     private var phase = Phase.IDLE
     private var snapshot: Snapshot? = null
+    private var scene: Scene? = null
+    private var sceneMessage = "自动专注能力未确认，请读取设备状态"
     private var message = "尚未读取设备卡片设置"
     private var bytes = ByteArray(112)
     private var offset = 0
@@ -26,17 +30,18 @@ internal class NfcBindingController(
     private val connection = session.observe {
         if (!it.authenticated || it.generation != generation) {
             generation = it.generation
+            scene = null; sceneMessage = "连接变化，自动专注能力未确认"
             snapshot = null; phase = Phase.IDLE; ownsTransaction = false
             request = null; awaitingOperation = null; bytes.fill(0)
             message = "连接变化；请重新读取。已受理作业由设备继续，不自动重发"
             publish()
         }
     }
-    fun current() = State(snapshot, phase != Phase.IDLE, message)
+    fun current() = State(snapshot, phase != Phase.IDLE, message, scene, sceneMessage)
     private fun publish() { if (active) changed(current()) }
     fun refresh(): Boolean {
         if (!active || phase != Phase.IDLE || !session.current().authenticated) return false
-        snapshot = null; bytes.fill(0); offset = 0
+        snapshot = null; scene = null; sceneMessage = "正在读取自动专注能力"; bytes.fill(0); offset = 0
         phase = Phase.READ; message = "正在读取设备卡片状态"; publish()
         return read()
     }
@@ -56,6 +61,7 @@ internal class NfcBindingController(
             .putInt(action).putInt(slot).putInt(0)
             .putLong(if (action in listOf(1,4)) 0 else value.revision)
             .putLong(id).putLong(durationMs).array()
+        scene = null; sceneMessage = "设备正在处理，自动专注当前状态未确认"
         snapshot = null; phase = Phase.BEGIN; ownsTransaction = true
         message = "正在提交；是否完成以设备回读为准"; publish()
         return send(DeviceControlProtocol.Command.CONFIG_BEGIN,
@@ -65,6 +71,10 @@ internal class NfcBindingController(
         ByteBuffer.allocate(4).putInt((12 shl 16) or offset).array())
     private fun send(command: DeviceControlProtocol.Command, payload: ByteArray): Boolean {
         val accepted = session.requestPayload(command, payload)
+        if (!accepted && phase == Phase.CAPABILITY) {
+            finishCapability(null, "自动专注能力未确认，请稍后重新读取")
+            return false
+        }
         if (!accepted) {
             if (command == DeviceControlProtocol.Command.CONFIG_BEGIN) ownsTransaction = false
             fail("设备正忙，结果未确认；请重新读取")
@@ -72,6 +82,7 @@ internal class NfcBindingController(
         return accepted
     }
     private fun fail(reason: String) {
+        scene = null; sceneMessage = "自动专注能力未确认，请重新读取"
         phase = Phase.IDLE; snapshot = null; request = null; awaitingOperation = null; bytes.fill(0)
         message = reason
         if (ownsTransaction) { ownsTransaction = false; session.cancelConfigTransaction() }
@@ -86,6 +97,7 @@ internal class NfcBindingController(
             else -> DeviceControlProtocol.Command.CONFIG_READ
         }
         if (command != expected) return
+        if (phase == Phase.CAPABILITY) { receiveCapability(reply); return }
         if (reply.error != 0) {
             fail(if (reply.error == -95) "此固件不支持卡片绑定" else "设备返回 ${reply.error}；请重新读取，不会自动重发")
             return
@@ -158,10 +170,47 @@ internal class NfcBindingController(
             6 -> "设备确认作业已取消"
             else -> "保存结果未知，不能继续写入；请重新读取或恢复设备后再试"
         }
+        phase = Phase.CAPABILITY
         publish()
+        send(DeviceControlProtocol.Command.CONFIG_READ,
+            ByteBuffer.allocate(4).putInt(13 shl 16).array())
+    }
+    private fun finishCapability(value: Scene?, summary: String) {
+        scene = value; sceneMessage = summary; phase = Phase.IDLE
+        publish()
+    }
+    private fun receiveCapability(reply: DeviceControlProtocol.Snapshot) {
+        val chunk = reply.configChunk
+        if (reply.error != 0 || chunk?.totalLength != 16 || chunk.bytes.size != 16) {
+            finishCapability(null, "自动专注能力未确认；此固件可能未提供该信息"); return
+        }
+        val data = ByteBuffer.wrap(chunk.bytes)
+        if (data.int != 0x4e434131) { finishCapability(null, "自动专注能力格式未知"); return }
+        val caps = data.int; val flags = data.int; val error = data.int
+        if (caps !in 0..1 || flags and 31 != flags || error > 0 ||
+            (caps == 0 && (flags != 0 || error != 0)) ||
+            (flags and 2 != 0 && flags and 1 == 0) ||
+            (flags and 16 != 0 && error == 0)) {
+            finishCapability(null, "自动专注能力格式未知"); return
+        }
+        val summary = when {
+            caps == 0 -> "此固件未提供刷卡自动专注"
+            flags and 16 != 0 -> "读卡服务故障（$error），需恢复设备后再试"
+            error !in listOf(0, -2, -16, -114) -> "读卡状态异常（$error），请重新读取"
+            flags and 1 == 0 -> "支持刷卡自动专注；读卡服务尚未就绪"
+            flags and 2 == 0 -> "支持刷卡自动专注；当前暂停，请在设备空闲后移开再刷"
+            flags and 4 == 0 -> "支持刷卡自动专注；卡片设置尚未就绪"
+            flags and 8 != 0 -> "支持刷卡自动专注；设备正在读卡或处理设置"
+            error == -2 -> "支持刷卡自动专注；当前卡片尚未登记"
+            error == -114 -> "支持刷卡自动专注；请先移开卡片，再放回"
+            error == -16 -> "支持刷卡自动专注；设备暂忙，请稍后移开再刷"
+            else -> "支持刷卡自动专注；登记后移开，再刷卡启动"
+        }
+        finishCapability(Scene(caps,flags,error), summary)
     }
     override fun close() {
         active = false; results.cancel(); connection.cancel()
+        scene = null; sceneMessage = "自动专注能力未确认"
         if (ownsTransaction) session.cancelConfigTransaction()
         ownsTransaction = false; request = null; awaitingOperation = null; snapshot = null; bytes.fill(0); phase = Phase.IDLE
     }

@@ -1287,6 +1287,8 @@ static int product_config(void *context, enum bkcontrol_command_e command,
                                    bkvoice_config_now_ms(NULL));
 #endif
 #if defined(CONFIG_BK7258_NFC_SERVICE) && defined(CONFIG_BK7258_PROVISION_GATT)
+  if (kind == BKCONTROL_CONFIG_NFC_SCENE)
+    return bknfc_scene_control(command, offset, status);
   if (kind == BKCONTROL_CONFIG_NFC_BINDINGS && command == BKCONTROL_CONFIG_READ)
     return bknfc_control(command, offset, record, size, status);
 #endif

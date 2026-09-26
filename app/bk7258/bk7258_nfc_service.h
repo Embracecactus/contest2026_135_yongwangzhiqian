@@ -41,6 +41,14 @@ void bk7258_nfc_job_status(struct bknfc_job_status_s *status);
 /* 产品所有者发布准入；只改短状态，撤销本组件尚未应用的意图，不执行I/O。
  * worker沿用500ms空闲等待，先释放RF再交给共同focus服务。 */
 void bk7258_nfc_scene_admit(bool admitted);
+struct bknfc_scene_status_s
+{
+  uint32_t capabilities; /* bit0: local card-to-focus implementation */
+  uint32_t flags; /* bit0 initialized,1 admitted,2 cache ready,3 I/O,4 release fault */
+  int error;
+};
+/* 单个锁内复制，无RF/存储动作；支持能力不等于本轮意图已经应用。 */
+void bk7258_nfc_scene_status(struct bknfc_scene_status_s *status);
 #endif
 /* 已授权重置工作者：NFC退出后独占清理并使缓存失效，不恢复准入。 */
 int bk7258_nfc_bindings_reset(void);
