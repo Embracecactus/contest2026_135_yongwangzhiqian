@@ -1908,7 +1908,7 @@ static int product_reset_cleanup(void)
   /* 存储重置工作者只在原NFC工作者真实退出后取得文件清理权。 */
   ret = bk7258_nfc_service_quiesce(true);
   if (ret < 0) return ret;
-  ret = bknfc_bindings_reset(BKNFC_BINDINGS_ROOT);
+  ret = bk7258_nfc_bindings_reset();
   if (ret < 0) return ret;
 #endif
 #ifdef CONFIG_BK7258_PREFERENCES

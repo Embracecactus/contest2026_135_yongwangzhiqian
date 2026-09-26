@@ -1232,3 +1232,40 @@ CPU and RPMsgFS durability remain unmeasured. L1 peers and POSIX L2 are not L3.
 Async registration/jobs, cache invalidation before enabling those jobs, auth/UI,
 dwell/reentry and scene execution remain software gaps. See
 `acceptance/s42-20260927.json` and `s42-binding-reset-evidence-20260927.json`.
+
+### S43 single-worker binding jobs (2026-09-27)
+
+The existing NFC worker now owns explicit LOAD/ENROLL/REMOVE jobs and the actual
+binding store. Queries copy a UID-free cached status; they neither scan nor open
+storage. A pending job excludes new RPC work, and existing RPC work excludes job
+admission. Cancel before commit is acknowledged only after active I/O releases;
+a commit cannot be canceled or reported canceled. Quiescence waits through actual
+commit. An uncertain commit remains UNKNOWN and blocks store reuse. Authorized
+reset reserves quiescent ownership, clears files and invalidates cached bindings.
+
+Ten L2 tests use the actual server/core/worker and POSIX binding store, replacing
+only RF, scheduler and fsync boundaries: persistence/replay, running cancellation,
+stop, pending cancellation, RF read error, reset with sync failure, committing
+stop/too-late cancel, unknown commit, removal and RPC conflict. Invalid requests
+and stale IDs have no new job. Original missing APIs were BLOCKED_INTERFACE.
+One wrong version constant was compile SETUP_ERROR, corrected to the existing
+BKNFC_CARD_VERSION. The failure fixture initially set ioctl_error (sensor interval)
+instead of read_error (UID ioctl): correcting the injection did not relax the
+expected FAILED/no-new-binding assertion. Original logs remain retained.
+
+Strict209 PASS retain original63. Two isolated compiled mutants bypass cancel or
+retain reset cache; both fail assertions and restorations pass. Build/manifest
+pass; target server is1144 bytes (+896), with the reset entry retained. Worker
+job handling is compiled in its existing loop; external submission is not yet
+wired through product authentication, and linker retention of unused public
+submit APIs is not claimed. No new worker/timer/heap/DMA is introduced by job
+code; existing store allocation and I/O remain. Actual CPU, stack and critical
+section duration are unmeasured. There is no automatic scan or enrollment.
+
+The previous reset-cleanup fixture now observes the service reset entry rather
+than the file-only helper: the external requirement is unchanged, while the real
+worker test verifies cache invalidation. Software gaps: authenticated control and
+monotonic operation-ID adapter, native UI, disconnect policy, ambient dwell/reentry,
+focus dispatch and full reset/storage concurrency. L3 NOT_RUN, no physical action.
+See `NFC_BINDING_JOBS_V1.md`, `acceptance/s43-20260927.json` and
+`s43-binding-jobs-evidence-20260927.json`.

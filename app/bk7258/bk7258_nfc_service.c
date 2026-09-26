@@ -14,6 +14,8 @@
 #include "bk7258_nfc_service.h"
 #ifdef CONFIG_BK7258_PROVISION_GATT
 #include "bk7258_provision_gatt.h"
+#include "bk7258_nfc_bindings.h"
+#include <sys/stat.h>
 #endif
 
 #include <errno.h>
@@ -61,6 +63,12 @@ struct bknfc_server_s
   bool quiescing;
   bool io_active;
   bool release_pending;
+#ifdef CONFIG_BK7258_PROVISION_GATT
+  struct bknfc_bindings_s bindings;
+  struct bknfc_job_request_s job;
+  struct bknfc_job_status_s job_status;
+  bool job_cancel;
+#endif
   uint32_t epoch;
   uint32_t request_epoch;
   bool replay_valid;
@@ -80,6 +88,10 @@ static struct bknfc_server_s g_bknfc_server =
   },
 };
 
+#ifdef CONFIG_BK7258_PROVISION_GATT
+static void bknfc_job_stop_locked(struct bknfc_server_s *server);
+#endif
+
 int bk7258_nfc_service_quiesce(bool stop)
 {
   struct bknfc_server_s *server = &g_bknfc_server;
@@ -90,6 +102,9 @@ int bk7258_nfc_service_quiesce(bool stop)
   if (stop && !server->quiescing)
     {
       server->quiescing = true;
+#ifdef CONFIG_BK7258_PROVISION_GATT
+      bknfc_job_stop_locked(server);
+#endif
       if (server->active)
         {
           /* 保留取消回执，恢复准入后同一旧请求也不能重新采样。 */
@@ -516,6 +531,10 @@ static int bknfc_send(struct bknfc_server_s *server,
   nxmutex_unlock(&server->endpoint_lock);
   return ret;
 }
+#ifdef CONFIG_BK7258_PROVISION_GATT
+#include "bk7258_nfc_jobs.inc"
+#endif
+
 static int bknfc_worker(int argc, char **argv)
 {
   struct bknfc_server_s *server = &g_bknfc_server;
@@ -634,6 +653,9 @@ static int bknfc_worker(int argc, char **argv)
         {
           continue;
         }
+#ifdef CONFIG_BK7258_PROVISION_GATT
+      if (bknfc_job_work(server)) continue;
+#endif
       flags = spin_lock_irqsave(&server->request_lock);
       /* A disconnect may leave a semaphore token behind.  Only the pending
        * slot owns work; consuming another token must never execute it twice.
@@ -735,6 +757,15 @@ static int bknfc_server_cb(struct rpmsg_endpoint *endpoint, void *data,
       memcpy(&response, &server->last_response, sizeof(response));
       replay = true;
     }
+#ifdef CONFIG_BK7258_PROVISION_GATT
+  else if (server->job_status.phase >= BKNFC_JOB_PENDING &&
+           server->job_status.phase <= BKNFC_JOB_COMMITTING)
+    {
+      spin_unlock_irqrestore(&server->request_lock, flags);
+      bknfc_rpc_make_response(&response, request, -EBUSY);
+      return bknfc_send(server, &response, epoch);
+    }
+#endif
   else if (server->active)
     {
       duplicate = memcmp(request, &server->active_request,

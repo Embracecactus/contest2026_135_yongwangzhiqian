@@ -85,9 +85,7 @@ static atomic_bool g_probe_running,g_voice_initialized;
 static int stop_error, reset_error, resets;
 static bool voice_channel_is_idle(void){return true;}
 static int bk7258_nfc_service_quiesce(bool stop){assert(stop);return stop_error;}
-static int bknfc_bindings_reset(const char *root){
- assert(!strcmp(root,BKNFC_BINDINGS_ROOT));resets++;return reset_error;
-}
+static int bk7258_nfc_bindings_reset(void){resets++;return reset_error;}
 """
             + function(source, "product_reset_cleanup")
             + r"""

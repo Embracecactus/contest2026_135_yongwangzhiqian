@@ -1,0 +1,312 @@
+{
+  "slice": "S43",
+  "date": "2026-09-27",
+  "parent": "95d8b9987fe16bd2a93d2415b93ce5950ce51c8f",
+  "scope": "Existing NFC worker binding jobs and reset-cache ownership. Public authenticated submission/UI/scene execution remain unwired.",
+  "counts": {
+    "PASS": 209,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 146,
+      "counts": {
+        "PASS": 146,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "existing_mutations": [
+    {
+      "id": "MSC-01.early-release",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.007707601995207369,
+      "source": "app/bk7258/bk7258_media_volume.c",
+      "original_sha256": "58ebb18ae63adccf21262253da18f153bbb7c680cc0b64719ca20e8a6d9681c8",
+      "mutant_sha256": "bf298373a95ac54d5587f93ece34a30a7f661a65a969c69db9e27c6570770c57",
+      "expected_assertion": "!mounted",
+      "evidence": "MSC-01.early-release.log"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.11415982496691868,
+      "source": "app/bk7258/bk7258_provision_config.c",
+      "original_sha256": "98f5100ca49ca44e45fe3e5da4bb2da0add7466f0e357a205ca8b1e307a5818e",
+      "mutant_sha256": "4c0c615b8ffc99247b0fd91bd934d3df0409a1180769cb939b2820f9e6f69427",
+      "expected_assertion": "bkcloud_config_decode",
+      "evidence": "CFG-01.wifi-clears-cloud.log"
+    }
+  ],
+  "additional_mutations": [
+    {
+      "name": "ignore-cancel",
+      "mutant": true,
+      "compile_exit": 0,
+      "exit": -6,
+      "status": "DETECTED",
+      "source_sha256": "621d27f25f03f8d9fb972a405030d39c97177d25c56c18b826d9219313ba5f37",
+      "log": "mutation-ignore-cancel-mutated.log"
+    },
+    {
+      "name": "ignore-cancel",
+      "mutant": false,
+      "compile_exit": 0,
+      "exit": 0,
+      "status": "PASS",
+      "source_sha256": "587d027680ad6bb8950cc7a1e9e15387b6479cd30948e26cc5649d4f3e699251",
+      "log": "mutation-ignore-cancel-restored.log"
+    },
+    {
+      "name": "stale-cache",
+      "mutant": true,
+      "compile_exit": 0,
+      "exit": -6,
+      "status": "DETECTED",
+      "source_sha256": "ea93a6160edf0c2abe608bbe43a8cac83f1ab3554d4e92c0a361cb5471a47e35",
+      "log": "mutation-stale-cache-mutated.log"
+    },
+    {
+      "name": "stale-cache",
+      "mutant": false,
+      "compile_exit": 0,
+      "exit": 0,
+      "status": "PASS",
+      "source_sha256": "587d027680ad6bb8950cc7a1e9e15387b6479cd30948e26cc5649d4f3e699251",
+      "log": "mutation-stale-cache-restored.log"
+    }
+  ],
+  "test_first": {
+    "API_missing": "BLOCKED_INTERFACE",
+    "version_constant": "SETUP_ERROR corrected to existing BKNFC_CARD_VERSION",
+    "read_failure_fixture": "ioctl_error applies to sensor interval, not UID ioctl; corrected read_error injection without changing FAILED/no-write oracle",
+    "production_input_audit": "Initial strict run omitted untracked .inc in tracked production digest; final run after staging includes it. Historical results retained.",
+    "previous_reset_fixture": "Now observes service ownership reset entry instead of file-only helper, unchanged externally required stop/error propagation; worker integration verifies actual cache invalidation."
+  },
+  "checks": {
+    "strict": "209 PASS original63 retained",
+    "build": "PASS",
+    "manifest": "PASS",
+    "symbols": "0216a8b4 0000010c T bk7258_nfc_bindings_reset\n28051a60 00000478 d g_bknfc_server\n",
+    "diff_check": "PASS"
+  },
+  "artifact_manifest_sha256": "aed0069eb1e25acc432347c5834983ef5acfe52daab53c383cf1166ada92c612",
+  "resources": {
+    "server_bytes": 1144,
+    "server_delta_bytes": 896,
+    "new_threads_timers": 0,
+    "new_job_heap_dma": 0,
+    "backend": "Existing store allocates and performs file I/O; no assertion of allocation-free backend",
+    "critical_sections": "Bounded status copies and reset context invalidation; actual duration unmeasured",
+    "unmeasured": [
+      "CPU/p95",
+      "stack high-water",
+      "RPMsgFS timing",
+      "physical RF/commit interruption"
+    ]
+  },
+  "gaps": {
+    "interface": [
+      "authenticated public control",
+      "monotonic operation-ID adapter",
+      "native App enrollment",
+      "disconnect policy",
+      "ambient dwell/reentry",
+      "focus dispatch"
+    ],
+    "L1_L2": [
+      "full reset storage and service integration beyond tested ownership boundaries"
+    ],
+    "L3": {
+      "status": "NOT_RUN",
+      "reason": "No flash, APK install, physical key/reset or card operation performed"
+    }
+  },
+  "hashes": {
+    "app/bk7258/bk7258_agent_product.c": "e4768feeb917ec663c3e545850c22b0ab9e108f2dfdab8b690fc4b0d8593888c",
+    "app/bk7258/bk7258_nfc_jobs.inc": "587d027680ad6bb8950cc7a1e9e15387b6479cd30948e26cc5649d4f3e699251",
+    "app/bk7258/bk7258_nfc_service.c": "2041f870c26149b13138e25923c2f1920d37ab6e6b3c65e01f92905516e85ade",
+    "app/bk7258/bk7258_nfc_service.h": "fdad093e95400dd3b610c998fe0dad031057379301cbfe927eaa745acd3ef5eb",
+    "goal-objective.md": "58c245e5c2825c7fbb6a4eb1be44f7975d401929f88e9c2a699e4659bd264487",
+    "tests/host/bk7258/Makefile": "fbc48a5329d71daa1e7a299a058e0f4c59269fe36aff34a9eea05e5600b9722a",
+    "tests/host/bk7258/README.md": "68304541b7a29cf3098ce31fc8ace3016312188fc294f2ad2ee298334cbd5ef6",
+    "tests/host/bk7258/acceptance/NFC_BINDING_JOBS_V1.md": "ed2e2796af7dad508b7adb96ebb5a867b556f793bee27904a16ce57b39082673",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "72bf9e3ba9aa28d62389eb59cc61c1330fcaac9047e95ff6d12dfabd54bd10aa",
+    "tests/host/bk7258/test_shaniu_contracts.py": "86206a582d7deed72be2ef7e0e42f0c4af3fc59db15b69e40ec6d471639e6ae2",
+    "tests/host/bk7258/test_shaniu_nfc_jobs.c": "9efee4ab2ac47fc8911cd39da4bd37235eca782640aaf80015060cf0b80be282",
+    "tests/host/bk7258/test_shaniu_nfc_reset_path.py": "84e9a0d2f31d2ca77c9184563050017e5485661380a184db19370148af2a791c"
+  },
+  "logs": {
+    "persist-expanded.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "remove-expanded.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "contracts.log": {
+      "sha256": "02c3802c4f09034735931358f37e7afe0ae52c4292763920e1e1b53ba8a4ca30",
+      "bytes": 10891
+    },
+    "mutation-stale-cache-restored.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "pending.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "pending-expanded.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "symbols.log": {
+      "sha256": "a9829e26aa24960f8dea98114b930672681e8b692715913f940148c32da1c59f",
+      "bytes": 81
+    },
+    "mutation-ignore-cancel-restored.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "conflict-expanded.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "persist.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "commit-expanded.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "interface-missing.log": {
+      "sha256": "c17d2863e7013f17c13f8fb444a835317c78d84188ccbc5215d6d258f11e5adb",
+      "bytes": 10273
+    },
+    "unknown-expanded.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "contracts-final.log": {
+      "sha256": "412f0f94e3aab3ea9bd0d0bd93f894a21e62e00e3a9b3317d2aeadcd8ef8530a",
+      "bytes": 10891
+    },
+    "mutation-ignore-cancel-mutated.log": {
+      "sha256": "76d7fe504791a766d22c01ceafe102ba9cd1212bf752ab60028f2c19ccfc9d12",
+      "bytes": 131
+    },
+    "build.log": {
+      "sha256": "de9051f6946857343e8bc5471cae314a86b1bf7678c6572a4f6d44776df9797f",
+      "bytes": 7764
+    },
+    "compile-corrected.log": {
+      "sha256": "46eef07ebbb5504bfacc5a1315e9aebb9e7d7c9a088211d1e25dd2d95c792701",
+      "bytes": 837
+    },
+    "failure-expanded.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "cancel-expanded.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "stop-expanded.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "reset.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "compile-expanded.log": {
+      "sha256": "33e3ae82d2315a70243411b9c87ebd728994609d69a1f6edb437c8f447389677",
+      "bytes": 1663
+    },
+    "failure.log": {
+      "sha256": "c75a19c1a03734849d84725a68a8a8a58ddd43eb60d653a958726de3200f6372",
+      "bytes": 128
+    },
+    "stop.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "manifest.log": {
+      "sha256": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac",
+      "bytes": 236
+    },
+    "reset-expanded.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "cancel.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "mutation-stale-cache-mutated.log": {
+      "sha256": "9412648472b9572a882a531e7ce2c7f08bb1f6cc3a7b505be09c37057a205e51",
+      "bytes": 133
+    },
+    "compile.log": {
+      "sha256": "cd9ca0cfc7c5c3f60fbf6c2ec5732a0a82d9ea55d70d2a5b021b3985234a557e",
+      "bytes": 2143
+    }
+  },
+  "raw_evidence": {
+    "persist-expanded.log": "CONTRACT_PASS\n",
+    "remove-expanded.log": "CONTRACT_PASS\n",
+    "contracts.log": "unittest.case.FunctionTestCase (run)\nK2-01.release-2999 ... ok\nunittest.case.FunctionTestCase (run)\nK2-01.release-3000 ... ok\nunittest.case.FunctionTestCase (run)\nK2-01.release-3001 ... ok\nunittest.case.FunctionTestCase (run)\nK2-01.held ... ok\nunittest.case.FunctionTestCase (run)\nK2-03.epoch ... ok\nunittest.case.FunctionTestCase (run)\nK2-03.rollback ... ok\nunittest.case.FunctionTestCase (run)\nK2-03.release-rollback ... ok\nunittest.case.FunctionTestCase (run)\nK2-03.combination ... ok\nunittest.case.FunctionTestCase (run)\nK2-03.volume ... ok\nunittest.case.FunctionTestCase (run)\nDISP-01.power-pixels ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.failed-start-handoff ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.pixels ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.render ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.rf-switch ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.rf-stuck ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.rf-registration ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.rf-registration-failure ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.rf-close ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.rf-open-cleanup ... ok\nunittest.case.FunctionTestCase (run)\nRST-02.nfc-busy ... ok\nunittest.case.FunctionTestCase (run)\nRST-02.nfc-failed ... ok\nunittest.case.FunctionTestCase (run)\nRST-02.nfc-owner_failure_still_closes_admission ... ok\nunittest.case.FunctionTestCase (run)\nRST-02.nfc-resume_failure ... ok\nunittest.case.FunctionTestCase (run)\nRST-02.nfc-power_intent_and_no_reset ... ok\nunittest.case.FunctionTestCase (run)\nRST-01.nfc-filesystem ... ok\nunittest.case.FunctionTestCase (run)\nRST-01.nfc-cleanup ... ok\nunittest.case.FunctionTestCase (run)\nRST-01.bindings-reset ... ok\nunittest.case.FunctionTestCase (run)\nRST-01.bindings-reset-sync ... ok\nunittest.case.FunctionTestCase (run)\nRST-01.bindings-reset-path ... ok\nunittest.case.FunctionTestCase (run)\nRST-01.bindings-reset-absent ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.jobs-persist ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.jobs-cancel ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.jobs-stop ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.jobs-pending ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.jobs-failure ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.jobs-reset ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.jobs-commit ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.jobs-unknown ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.jobs-remove ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.jobs-conflict ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.selection-probe_error ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.selection-timeout ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.selection-malformed ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.selection-select_error ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.selection-invalid ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.selection-valid ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.card-valid ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.card-error ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.card-close ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.card-version ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.card-replay ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.card-validation ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.card-malformed ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.bindings-persist ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.bindings-revision ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.bindings-invalid ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.bindings-writefail ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.bindings-durability ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.bindings-corrupt ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.nfc-queued ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.nfc-active ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.nfc-close-error ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.nfc-rf-error ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.nfc-prestart ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.nfc-late ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-nfc-busy ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-nfc-failed ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.intent-voice ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.intent-gate ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.intent-revision ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.intent-cancel ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.intent-invalid ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.shared-start ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.shared-retry ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.shared-cancel ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.shared-invalid ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.clock ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.replay ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.invalid ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.wire ... ok\nunittest.case.FunctionTestCase (run)\nAUD-03.media-tail ... ok\nunittest.case.FunctionTestCase (run)\nAUD-03.media-cancel-next ... ok\nunittest.case.FunctionTestCase (run)\nNET-02.display-snapshot ... ok\nunittest.case.FunctionTestCase (run)\nDISP-01.expression-intent ... ok\nunittest.case.FunctionTestCase (run)\nDISP-01.expression-cancel ... ok\nunittest.case.FunctionTestCase (run)\nRES-02.trial-wire ... ok\nunittest.case.FunctionTestCase (run)\nRES-02.expression-trial ... ok\nunittest.case.FunctionTestCase (run)\nRES-02.expression-ownership ... ok\nunittest.case.FunctionTestCase (run)\nCFG-02.models-unknown ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.backend-stop-normal ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.backend-stop-retry ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.backend-stop-start-cleanup ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.backend-stop-close-error ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-normal ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-admission-failure ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-partial-failure ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-cp-declined ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-cp-unknown ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-admission-stops-trigger ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-storage-stops-trigger ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-trigger-failure ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-unpublished-trigger ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-admission-drains ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-failed-drains ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-final-close-drains ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-failure-display ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.quiesce-queries ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.quiesce-staging ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.quiesce-config-staging ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.quiesce-ota-commit ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.quiesce-invalid ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.owner-queries ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.owner-unauthenticated ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.owner-invalid-sequence ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.owner-legacy ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-01.owner-integration ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.capture-close-failure ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.capture-route-failure ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.acquiring ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.releasing ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.retry ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.unmount-failure ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.local-busy ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.wrong-owner ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.handoff ... ok\nunittest.case.FunctionTestCase (run)\nAUD-01.pcm-1 ... ok\nunittest.case.FunctionTestCase (run)\nAUD-01.pcm-20260924 ... ok\nunittest.case.FunctionTestCase (run)\nAUD-01.pcm-4294967295 ... ok\nunittest.case.FunctionTestCase (run)\nAUD-03.cancel-late ... ok\nunittest.case.FunctionTestCase (run)\nAUD-01.sse-1 ... ok\nunittest.case.FunctionTestCase (run)\nAUD-01.sse-20260924 ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.uid-empty ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.select-timeout ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.select-error ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.uid-size ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.uid-incomplete ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.uid-4 ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.uid-7 ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.uid-10 ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.empty ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.oversize ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.hce-positive ... ok\nunittest.case.FunctionTestCase (run)\nK2-01.legacy-suite ... ok\nunittest.case.FunctionTestCase (run)\nMSC-02.legacy-suite ... ok\nunittest.case.FunctionTestCase (run)\nMOT-01.legacy-suite ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.legacy-suite ... ok\nunittest.case.FunctionTestCase (run)\nCFG-01.wifi-reopen ... ok\nunittest.case.FunctionTestCase (run)\nSTORE-02.file-sync-failure ... ok\nunittest.case.FunctionTestCase (run)\nSTORE-02.file-sync-retry ... ok\nunittest.case.FunctionTestCase (run)\nSTORE-02.directory-sync-unknown ... ok\nunittest.case.FunctionTestCase (run)\nCFG-03.stale ... ok\nunittest.case.FunctionTestCase (run)\nCFG-03.conflict ... ok\nunittest.case.FunctionTestCase (run)\nCFG-03.keep-key ... ok\nunittest.case.FunctionTestCase (run)\nCFG-03.replace-key ... ok\nunittest.case.FunctionTestCase (run)\nCFG-03.clear-cloud ... ok\nunittest.case.FunctionTestCase (run)\nCFG-03.cross-host-retain ... ok\nunittest.case.FunctionTestCase (run)\nSTORE-02.restart-before-publish ... ok\nunittest.case.FunctionTestCase (run)\nSTORE-02.restart-after-publish ... ok\n\n----------------------------------------------------------------------\nRan 158 tests in 6.309s\n\nOK\nunittest.case.FunctionTestCase (run)\nCFG-01.restored ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.restored ... ok\n\n----------------------------------------------------------------------\nRan 2 tests in 0.066s\n\nOK\n{\"PASS\": 209, \"FAIL_ASSERTION\": 0, \"SETUP_ERROR\": 0, \"NOT_RUN\": 0} production_unchanged= True\n",
+    "mutation-stale-cache-restored.log": "CONTRACT_PASS\n",
+    "pending.log": "CONTRACT_PASS\n",
+    "pending-expanded.log": "CONTRACT_PASS\n",
+    "symbols.log": "0216a8b4 0000010c T bk7258_nfc_bindings_reset\n28051a60 00000478 d g_bknfc_server\n",
+    "mutation-ignore-cancel-restored.log": "CONTRACT_PASS\n",
+    "conflict-expanded.log": "CONTRACT_PASS\n",
+    "persist.log": "CONTRACT_PASS\n",
+    "commit-expanded.log": "CONTRACT_PASS\n",
+    "interface-missing.log": "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\nmkdir -p build/sensor-rpc-include/nuttx/ build/sensor-rpc-include/nuttx/rpmsg/ build/sensor-rpc-include/nuttx/sensors/\nmkdir -p build/sensor-rpc-include/nuttx/contactless build/sensor-rpc-include/nuttx/fs\nln -sf /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/../nuttx/include/nuttx/contactless/ioctl.h build/sensor-rpc-include/nuttx/contactless/ioctl.h\nrm -f build/sensor-rpc-include/nuttx/fs/ioctl.h\nprintf '#define _CLIOC(nr) (0x2400 | (nr))\\n' > build/sensor-rpc-include/nuttx/fs/ioctl.h\ntouch build/sensor-rpc-include/.ready\ncc -std=c11 -Wall -Wextra -Werror -Wno-unused-function \\\n\t-fsanitize=undefined -fno-sanitize-recover=all \\\n\t-I build/sensor-rpc-include -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_bk7258_nfc_rpc.c -o build/test_bk7258_nfc_rpc\ncc -std=gnu11 -Wall -Wextra -Werror -Wno-unused-function -I build/sensor-rpc-include \\\n  -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/nuttx/include -I /home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/include \\\n  test_shaniu_nfc_jobs.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_bindings.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_store.c build/voice-ota-store-mbedtls/library/libmbedcrypto.a -o build/test_shaniu_nfc_jobs\ntest_shaniu_nfc_jobs.c: In function ‘cancel_read’:\ntest_shaniu_nfc_jobs.c:20:29: error: storage size of ‘s’ isn’t known\n   20 |   struct bknfc_job_status_s s;\n      |                             ^\ntest_shaniu_nfc_jobs.c:21:3: error: implicit declaration of function ‘bk7258_nfc_job_status’ [-Werror=implicit-function-declaration]\n   21 |   bk7258_nfc_job_status(&s);\n      |   ^~~~~~~~~~~~~~~~~~~~~\nIn file included from bk7258_sensor_rpc_test.h:10,\n                 from test_bk7258_nfc_rpc.c:5,\n                 from test_shaniu_nfc_jobs.c:12:\ntest_shaniu_nfc_jobs.c:22:19: error: ‘BKNFC_JOB_RUNNING’ undeclared (first use in this function)\n   22 |   assert(s.phase==BKNFC_JOB_RUNNING);\n      |                   ^~~~~~~~~~~~~~~~~\ntest_shaniu_nfc_jobs.c:22:19: note: each undeclared identifier is reported only once for each function it appears in\ntest_shaniu_nfc_jobs.c:23:10: error: implicit declaration of function ‘bk7258_nfc_job_cancel’ [-Werror=implicit-function-declaration]\n   23 |   assert(bk7258_nfc_job_cancel(s.operation)==0);\n      |          ^~~~~~~~~~~~~~~~~~~~~\ntest_shaniu_nfc_jobs.c:20:29: error: unused variable ‘s’ [-Werror=unused-variable]\n   20 |   struct bknfc_job_status_s s;\n      |                             ^\ntest_shaniu_nfc_jobs.c: In function ‘main’:\ntest_shaniu_nfc_jobs.c:37:10: error: variable ‘req’ has initializer but incomplete type\n   37 |   struct bknfc_job_request_s req={.operation=1,.action=BKNFC_JOB_LOAD};\n      |          ^~~~~~~~~~~~~~~~~~~\ntest_shaniu_nfc_jobs.c:37:36: error: ‘struct bknfc_job_request_s’ has no member named ‘operation’\n   37 |   struct bknfc_job_request_s req={.operation=1,.action=BKNFC_JOB_LOAD};\n      |                                    ^~~~~~~~~\ntest_shaniu_nfc_jobs.c:37:46: error: excess elements in struct initializer [-Werror]\n   37 |   struct bknfc_job_request_s req={.operation=1,.action=BKNFC_JOB_LOAD};\n      |                                              ^\ntest_shaniu_nfc_jobs.c:37:46: note: (near initialization for ‘req’)\ntest_shaniu_nfc_jobs.c:37:49: error: ‘struct bknfc_job_request_s’ has no member named ‘action’\n   37 |   struct bknfc_job_request_s req={.operation=1,.action=BKNFC_JOB_LOAD};\n      |                                                 ^~~~~~\ntest_shaniu_nfc_jobs.c:37:56: error: ‘BKNFC_JOB_LOAD’ undeclared (first use in this function)\n   37 |   struct bknfc_job_request_s req={.operation=1,.action=BKNFC_JOB_LOAD};\n      |                                                        ^~~~~~~~~~~~~~\ntest_shaniu_nfc_jobs.c:37:56: error: excess elements in struct initializer [-Werror]\ntest_shaniu_nfc_jobs.c:37:56: note: (near initialization for ‘req’)\ntest_shaniu_nfc_jobs.c:37:30: error: storage size of ‘req’ isn’t known\n   37 |   struct bknfc_job_request_s req={.operation=1,.action=BKNFC_JOB_LOAD};\n      |                              ^~~\ntest_shaniu_nfc_jobs.c:38:29: error: storage size of ‘status’ isn’t known\n   38 |   struct bknfc_job_status_s status;\n      |                             ^~~~~~\nIn file included from bk7258_sensor_rpc_test.h:10,\n                 from test_bk7258_nfc_rpc.c:5,\n                 from test_shaniu_nfc_jobs.c:12:\ntest_shaniu_nfc_jobs.c:41:10: error: implicit declaration of function ‘bk7258_nfc_job_submit’ [-Werror=implicit-function-declaration]\n   41 |   assert(bk7258_nfc_job_submit(&req)==0);drain_worker();\n      |          ^~~~~~~~~~~~~~~~~~~~~\ntest_shaniu_nfc_jobs.c:43:24: error: ‘BKNFC_JOB_SUCCEEDED’ undeclared (first use in this function)\n   43 |   assert(status.phase==BKNFC_JOB_SUCCEEDED && status.revision==0);\n      |                        ^~~~~~~~~~~~~~~~~~~\ntest_shaniu_nfc_jobs.c:44:37: error: ‘struct bknfc_job_request_s’ has no member named ‘operation’\n   44 |   req=(struct bknfc_job_request_s){.operation=2,.action=BKNFC_JOB_ENROLL,.duration_ms=60000};\n      |                                     ^~~~~~~~~\ntest_shaniu_nfc_jobs.c:44:47: error: excess elements in struct initializer [-Werror]\n   44 |   req=(struct bknfc_job_request_s){.operation=2,.action=BKNFC_JOB_ENROLL,.duration_ms=60000};\n      |                                               ^\ntest_shaniu_nfc_jobs.c:44:47: note: (near initialization for ‘(anonymous)’)\ntest_shaniu_nfc_jobs.c:44:50: error: ‘struct bknfc_job_request_s’ has no member named ‘action’\n   44 |   req=(struct bknfc_job_request_s){.operation=2,.action=BKNFC_JOB_ENROLL,.duration_ms=60000};\n      |                                                  ^~~~~~\ntest_shaniu_nfc_jobs.c:44:57: error: ‘BKNFC_JOB_ENROLL’ undeclared (first use in this function)\n   44 |   req=(struct bknfc_job_request_s){.operation=2,.action=BKNFC_JOB_ENROLL,.duration_ms=60000};\n      |                                                         ^~~~~~~~~~~~~~~~\ntest_shaniu_nfc_jobs.c:44:57: error: excess elements in struct initializer [-Werror]\ntest_shaniu_nfc_jobs.c:44:57: note: (near initialization for ‘(anonymous)’)\ntest_shaniu_nfc_jobs.c:44:75: error: ‘struct bknfc_job_request_s’ has no member named ‘duration_ms’\n   44 |   req=(struct bknfc_job_request_s){.operation=2,.action=BKNFC_JOB_ENROLL,.duration_ms=60000};\n      |                                                                           ^~~~~~~~~~~\ntest_shaniu_nfc_jobs.c:44:87: error: excess elements in struct initializer [-Werror]\n   44 |   req=(struct bknfc_job_request_s){.operation=2,.action=BKNFC_JOB_ENROLL,.duration_ms=60000};\n      |                                                                                       ^~~~~\ntest_shaniu_nfc_jobs.c:44:87: note: (near initialization for ‘(anonymous)’)\ntest_shaniu_nfc_jobs.c:44:35: error: invalid use of undefined type ‘struct bknfc_job_request_s’\n   44 |   req=(struct bknfc_job_request_s){.operation=2,.action=BKNFC_JOB_ENROLL,.duration_ms=60000};\n      |                                   ^\nIn file included from bk7258_sensor_rpc_test.h:10,\n                 from test_bk7258_nfc_rpc.c:5,\n                 from test_shaniu_nfc_jobs.c:12:\ntest_shaniu_nfc_jobs.c:52:26: error: ‘BKNFC_JOB_CANCELED’ undeclared (first use in this function)\n   52 |     assert(status.phase==BKNFC_JOB_CANCELED && status.revision==0);\n      |                          ^~~~~~~~~~~~~~~~~~\ntest_shaniu_nfc_jobs.c:54:26: error: ‘BKNFC_JOB_FAILED’ undeclared (first use in this function)\n   54 |     assert(status.phase==BKNFC_JOB_FAILED && status.revision==0);\n      |                          ^~~~~~~~~~~~~~~~\ntest_shaniu_nfc_jobs.c:65:10: error: implicit declaration of function ‘bk7258_nfc_bindings_reset’; did you mean ‘bknfc_bindings_reset’? [-Werror=implicit-function-declaration]\n   65 |   assert(bk7258_nfc_bindings_reset()==0);\n      |          ^~~~~~~~~~~~~~~~~~~~~~~~~\ntest_shaniu_nfc_jobs.c:68:37: error: ‘struct bknfc_job_request_s’ has no member named ‘operation’\n   68 |   req=(struct bknfc_job_request_s){.operation=3,.action=BKNFC_JOB_LOAD};\n      |                                     ^~~~~~~~~\ntest_shaniu_nfc_jobs.c:68:47: error: excess elements in struct initializer [-Werror]\n   68 |   req=(struct bknfc_job_request_s){.operation=3,.action=BKNFC_JOB_LOAD};\n      |                                               ^\ntest_shaniu_nfc_jobs.c:68:47: note: (near initialization for ‘(anonymous)’)\ntest_shaniu_nfc_jobs.c:68:50: error: ‘struct bknfc_job_request_s’ has no member named ‘action’\n   68 |   req=(struct bknfc_job_request_s){.operation=3,.action=BKNFC_JOB_LOAD};\n      |                                                  ^~~~~~\ntest_shaniu_nfc_jobs.c:68:57: error: excess elements in struct initializer [-Werror]\n   68 |   req=(struct bknfc_job_request_s){.operation=3,.action=BKNFC_JOB_LOAD};\n      |                                                         ^~~~~~~~~~~~~~\ntest_shaniu_nfc_jobs.c:68:57: note: (near initialization for ‘(anonymous)’)\ntest_shaniu_nfc_jobs.c:68:35: error: invalid use of undefined type ‘struct bknfc_job_request_s’\n   68 |   req=(struct bknfc_job_request_s){.operation=3,.action=BKNFC_JOB_LOAD};\n      |                                   ^\ntest_shaniu_nfc_jobs.c:38:29: error: unused variable ‘status’ [-Werror=unused-variable]\n   38 |   struct bknfc_job_status_s status;\n      |                             ^~~~~~\ntest_shaniu_nfc_jobs.c:37:30: error: unused variable ‘req’ [-Werror=unused-variable]\n   37 |   struct bknfc_job_request_s req={.operation=1,.action=BKNFC_JOB_LOAD};\n      |                              ^~~\ncc1: all warnings being treated as errors\nmake: *** [Makefile:1935: build/test_shaniu_nfc_jobs] Error 1\nmake: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\n",
+    "unknown-expanded.log": "CONTRACT_PASS\n",
+    "contracts-final.log": "unittest.case.FunctionTestCase (run)\nK2-01.release-2999 ... ok\nunittest.case.FunctionTestCase (run)\nK2-01.release-3000 ... ok\nunittest.case.FunctionTestCase (run)\nK2-01.release-3001 ... ok\nunittest.case.FunctionTestCase (run)\nK2-01.held ... ok\nunittest.case.FunctionTestCase (run)\nK2-03.epoch ... ok\nunittest.case.FunctionTestCase (run)\nK2-03.rollback ... ok\nunittest.case.FunctionTestCase (run)\nK2-03.release-rollback ... ok\nunittest.case.FunctionTestCase (run)\nK2-03.combination ... ok\nunittest.case.FunctionTestCase (run)\nK2-03.volume ... ok\nunittest.case.FunctionTestCase (run)\nDISP-01.power-pixels ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.failed-start-handoff ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.pixels ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.render ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.rf-switch ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.rf-stuck ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.rf-registration ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.rf-registration-failure ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.rf-close ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.rf-open-cleanup ... ok\nunittest.case.FunctionTestCase (run)\nRST-02.nfc-busy ... ok\nunittest.case.FunctionTestCase (run)\nRST-02.nfc-failed ... ok\nunittest.case.FunctionTestCase (run)\nRST-02.nfc-owner_failure_still_closes_admission ... ok\nunittest.case.FunctionTestCase (run)\nRST-02.nfc-resume_failure ... ok\nunittest.case.FunctionTestCase (run)\nRST-02.nfc-power_intent_and_no_reset ... ok\nunittest.case.FunctionTestCase (run)\nRST-01.nfc-filesystem ... ok\nunittest.case.FunctionTestCase (run)\nRST-01.nfc-cleanup ... ok\nunittest.case.FunctionTestCase (run)\nRST-01.bindings-reset ... ok\nunittest.case.FunctionTestCase (run)\nRST-01.bindings-reset-sync ... ok\nunittest.case.FunctionTestCase (run)\nRST-01.bindings-reset-path ... ok\nunittest.case.FunctionTestCase (run)\nRST-01.bindings-reset-absent ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.jobs-persist ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.jobs-cancel ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.jobs-stop ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.jobs-pending ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.jobs-failure ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.jobs-reset ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.jobs-commit ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.jobs-unknown ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.jobs-remove ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.jobs-conflict ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.selection-probe_error ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.selection-timeout ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.selection-malformed ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.selection-select_error ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.selection-invalid ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.selection-valid ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.card-valid ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.card-error ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.card-close ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.card-version ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.card-replay ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.card-validation ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.card-malformed ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.bindings-persist ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.bindings-revision ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.bindings-invalid ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.bindings-writefail ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.bindings-durability ... ok\nunittest.case.FunctionTestCase (run)\nNFC-02.bindings-corrupt ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.nfc-queued ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.nfc-active ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.nfc-close-error ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.nfc-rf-error ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.nfc-prestart ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.nfc-late ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-nfc-busy ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-nfc-failed ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.intent-voice ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.intent-gate ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.intent-revision ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.intent-cancel ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.intent-invalid ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.shared-start ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.shared-retry ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.shared-cancel ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.shared-invalid ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.clock ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.replay ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.invalid ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.wire ... ok\nunittest.case.FunctionTestCase (run)\nAUD-03.media-tail ... ok\nunittest.case.FunctionTestCase (run)\nAUD-03.media-cancel-next ... ok\nunittest.case.FunctionTestCase (run)\nNET-02.display-snapshot ... ok\nunittest.case.FunctionTestCase (run)\nDISP-01.expression-intent ... ok\nunittest.case.FunctionTestCase (run)\nDISP-01.expression-cancel ... ok\nunittest.case.FunctionTestCase (run)\nRES-02.trial-wire ... ok\nunittest.case.FunctionTestCase (run)\nRES-02.expression-trial ... ok\nunittest.case.FunctionTestCase (run)\nRES-02.expression-ownership ... ok\nunittest.case.FunctionTestCase (run)\nCFG-02.models-unknown ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.backend-stop-normal ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.backend-stop-retry ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.backend-stop-start-cleanup ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.backend-stop-close-error ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-normal ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-admission-failure ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-partial-failure ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-cp-declined ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-cp-unknown ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-admission-stops-trigger ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-storage-stops-trigger ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-trigger-failure ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-unpublished-trigger ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-admission-drains ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-failed-drains ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-final-close-drains ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-failure-display ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.quiesce-queries ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.quiesce-staging ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.quiesce-config-staging ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.quiesce-ota-commit ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.quiesce-invalid ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.owner-queries ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.owner-unauthenticated ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.owner-invalid-sequence ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.owner-legacy ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-01.owner-integration ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.capture-close-failure ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.capture-route-failure ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.acquiring ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.releasing ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.retry ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.unmount-failure ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.local-busy ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.wrong-owner ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.handoff ... ok\nunittest.case.FunctionTestCase (run)\nAUD-01.pcm-1 ... ok\nunittest.case.FunctionTestCase (run)\nAUD-01.pcm-20260924 ... ok\nunittest.case.FunctionTestCase (run)\nAUD-01.pcm-4294967295 ... ok\nunittest.case.FunctionTestCase (run)\nAUD-03.cancel-late ... ok\nunittest.case.FunctionTestCase (run)\nAUD-01.sse-1 ... ok\nunittest.case.FunctionTestCase (run)\nAUD-01.sse-20260924 ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.uid-empty ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.select-timeout ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.select-error ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.uid-size ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.uid-incomplete ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.uid-4 ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.uid-7 ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.uid-10 ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.empty ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.oversize ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.hce-positive ... ok\nunittest.case.FunctionTestCase (run)\nK2-01.legacy-suite ... ok\nunittest.case.FunctionTestCase (run)\nMSC-02.legacy-suite ... ok\nunittest.case.FunctionTestCase (run)\nMOT-01.legacy-suite ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.legacy-suite ... ok\nunittest.case.FunctionTestCase (run)\nCFG-01.wifi-reopen ... ok\nunittest.case.FunctionTestCase (run)\nSTORE-02.file-sync-failure ... ok\nunittest.case.FunctionTestCase (run)\nSTORE-02.file-sync-retry ... ok\nunittest.case.FunctionTestCase (run)\nSTORE-02.directory-sync-unknown ... ok\nunittest.case.FunctionTestCase (run)\nCFG-03.stale ... ok\nunittest.case.FunctionTestCase (run)\nCFG-03.conflict ... ok\nunittest.case.FunctionTestCase (run)\nCFG-03.keep-key ... ok\nunittest.case.FunctionTestCase (run)\nCFG-03.replace-key ... ok\nunittest.case.FunctionTestCase (run)\nCFG-03.clear-cloud ... ok\nunittest.case.FunctionTestCase (run)\nCFG-03.cross-host-retain ... ok\nunittest.case.FunctionTestCase (run)\nSTORE-02.restart-before-publish ... ok\nunittest.case.FunctionTestCase (run)\nSTORE-02.restart-after-publish ... ok\n\n----------------------------------------------------------------------\nRan 158 tests in 6.347s\n\nOK\nunittest.case.FunctionTestCase (run)\nCFG-01.restored ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.restored ... ok\n\n----------------------------------------------------------------------\nRan 2 tests in 0.066s\n\nOK\n{\"PASS\": 209, \"FAIL_ASSERTION\": 0, \"SETUP_ERROR\": 0, \"NOT_RUN\": 0} production_unchanged= True\n",
+    "mutation-ignore-cancel-mutated.log": "test: /tmp/tmpk2rljubs/test_shaniu_nfc_jobs.c:81: main: Assertion `status.phase==BKNFC_JOB_CANCELED && status.revision==0' failed.\n",
+    "build.log": "LIBCLANG_PATH set to: /home/lijian/project/open-vela/prebuilts/rust/linux/extra_libs\nincluding vendor/beken/boards/bk7258/build/vendorsetup.sh\nincluding vendor/infineon/boards/aurix/build/vendorsetup.sh\nincluding vendor/infineon/boards/aurix_tc3/build/vendorsetup.sh\nincluding vendor/openvela/boards/build/vendorsetup.sh\ncustom CMake binary dir: /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake\n lunch .//out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/configs/mcuboot/cp /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake \nThe current build configuration lunched with: \u001b[32m[nuttx]-[configs]-[cp]!\u001b[0m\n\n\u001b[32m#### BINARY directory is set: /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake\u001b[0m\n\n  cmake --build /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake -j4  --\n[0/2] Re-checking globbed directories...\n[1/3] Generating bin output directories\n[2/3] cd /home/lijian/project/open-vela/nuttx && /home/lijian/project/open-vela/prebuilts/tools/cmake/bin/cmake -DKCONFIG_CONFIG=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/configs/mcuboot/cp/defconfig -DNUTTX_DIR=/home/lijian/project/open-vela/nuttx -DCMAKE_BINARY_DIR=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake -P /home/lijian/project/open-vela/nuttx/cmake/nuttx_generate_dts.cmake\n\n#### build completed successfully  ####\nLIBCLANG_PATH set to: /home/lijian/project/open-vela/prebuilts/rust/linux/extra_libs\nincluding vendor/beken/boards/bk7258/build/vendorsetup.sh\nincluding vendor/infineon/boards/aurix/build/vendorsetup.sh\nincluding vendor/infineon/boards/aurix_tc3/build/vendorsetup.sh\nincluding vendor/openvela/boards/build/vendorsetup.sh\ncustom CMake binary dir: /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake\n lunch .//out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/configs/mcuboot/ap /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake \nThe current build configuration lunched with: \u001b[32m[nuttx]-[configs]-[ap]!\u001b[0m\n\n\u001b[32m#### BINARY directory is set: /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake\u001b[0m\n\n  cmake --build /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake -j4  --\n[0/2] Re-checking globbed directories...\n[1/15] Generating bin output directories\n[2/15] cd /home/lijian/project/open-vela/nuttx && /home/lijian/project/open-vela/prebuilts/tools/cmake/bin/cmake -DKCONFIG_CONFIG=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/configs/mcuboot/ap/defconfig -DNUTTX_DIR=/home/lijian/project/open-vela/nuttx -DCMAKE_BINARY_DIR=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake -P /home/lijian/project/open-vela/nuttx/cmake/nuttx_generate_dts.cmake\n[3/15] cd /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/apps && cmake --build /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/bin_host --target mkdeps\n[100%] Built target mkdeps\n[4/15] cd /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/apps && cmake --build /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/bin_host --target incdir\n[200%] Built target incdir\n[5/15] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_product_lifecycle.c.o\n[6/15] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_nfc_service.c.o\n[7/15] Performing build step for 'ffmpeg_out_tree'\n[8/15] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_agent_product.c.o\n../../../../../../../../../../apps/system/bk7258/bk7258_agent_product.c: In function 'install_product_skills':\n../../../../../../../../../../apps/system/bk7258/bk7258_agent_product.c:2756:5: warning: missing braces around initializer [-Wmissing-braces]\n 2756 |     {\n      |     ^\n 2757 |       \"device-assistant.md\", g_product_skill_device_assistant\n      |       {\n 2758 |     };\n      |     }\n[9/15] Linking CXX static library apps/libapps.a\n[10/15] Performing install step for 'ffmpeg_out_tree'\n[11/15] Completed 'ffmpeg_out_tree'\n[12/15] Linking CXX executable nuttx\n[13/15] Generating nuttx.bin\n[14/15] Generating System.map\n\n#### build completed successfully (2 seconds) ####\nbk7258 layer gate: PASS sources=524 kconfig=253 legacy-exceptions=2\nbk7258 build: PASS layout=bk7258-510173147382a879\nbl1 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.map\nbl2 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.map copy_size=13632\ncp elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.map identity=bk7258-role-9a0b5b6e466d063f seed=41811cb113e14cd5ce35630f0a6d42f0d32f88a10c512bb971734bce9a28c016 config=dd503376e1b5436c9221274dc5a9ff86bf2e49660dfad4d306292e1113d82bed\nap elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.map identity=bk7258-role-5a3061a4da19ae9f seed=9507a2073a35e2970300a150395dc4d8c48458a68cb24412497ab54c714a7fec config=4e73b6c67a5176a8136b7c46a43c46329f7ef19e5ec74e626937d64bdeddfcee\nbuild manifest=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json\n",
+    "compile-corrected.log": "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\ncc -std=gnu11 -Wall -Wextra -Werror -Wno-unused-function -I build/sensor-rpc-include \\\n  -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/nuttx/include -I /home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/include \\\n  test_shaniu_nfc_jobs.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_bindings.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_store.c build/voice-ota-store-mbedtls/library/libmbedcrypto.a -o build/test_shaniu_nfc_jobs\nmake: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\n",
+    "failure-expanded.log": "CONTRACT_PASS\n",
+    "cancel-expanded.log": "CONTRACT_PASS\n",
+    "stop-expanded.log": "CONTRACT_PASS\n",
+    "reset.log": "CONTRACT_PASS\n",
+    "compile-expanded.log": "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\nmkdir -p build/sensor-rpc-include/nuttx/ build/sensor-rpc-include/nuttx/rpmsg/ build/sensor-rpc-include/nuttx/sensors/\nmkdir -p build/sensor-rpc-include/nuttx/contactless build/sensor-rpc-include/nuttx/fs\nln -sf /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/../nuttx/include/nuttx/contactless/ioctl.h build/sensor-rpc-include/nuttx/contactless/ioctl.h\nrm -f build/sensor-rpc-include/nuttx/fs/ioctl.h\nprintf '#define _CLIOC(nr) (0x2400 | (nr))\\n' > build/sensor-rpc-include/nuttx/fs/ioctl.h\ntouch build/sensor-rpc-include/.ready\ncc -std=c11 -Wall -Wextra -Werror -Wno-unused-function \\\n\t-fsanitize=undefined -fno-sanitize-recover=all \\\n\t-I build/sensor-rpc-include -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_bk7258_nfc_rpc.c -o build/test_bk7258_nfc_rpc\ncc -std=gnu11 -Wall -Wextra -Werror -Wno-unused-function -I build/sensor-rpc-include \\\n  -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/nuttx/include -I /home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/include \\\n  test_shaniu_nfc_jobs.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_bindings.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_store.c -Wl,--wrap=fsync build/voice-ota-store-mbedtls/library/libmbedcrypto.a -o build/test_shaniu_nfc_jobs\nmake: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\n",
+    "failure.log": "test_shaniu_nfc_jobs: test_shaniu_nfc_jobs.c:54: main: Assertion `status.phase==BKNFC_JOB_FAILED && status.revision==0' failed.\n",
+    "stop.log": "CONTRACT_PASS\n",
+    "manifest.log": "bk7258 verify build-manifest: PASS boot=mcuboot board=aidk_ai_toy layout=bk7258-510173147382a879 source=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json\n",
+    "reset-expanded.log": "CONTRACT_PASS\n",
+    "cancel.log": "CONTRACT_PASS\n",
+    "mutation-stale-cache-mutated.log": "test: /tmp/tmp49gg28ej/test_shaniu_nfc_jobs.c:117: main: Assertion `status.phase==BKNFC_JOB_SUCCEEDED && status.revision==0' failed.\n",
+    "compile.log": "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\ncc -std=c11 -Wall -Wextra -Werror -Wno-unused-function \\\n\t-fsanitize=undefined -fno-sanitize-recover=all \\\n\t-I build/sensor-rpc-include -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_bk7258_nfc_rpc.c -o build/test_bk7258_nfc_rpc\ncc -std=gnu11 -Wall -Wextra -Werror -Wno-unused-function -I build/sensor-rpc-include \\\n  -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/nuttx/include -I /home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/include \\\n  test_shaniu_nfc_jobs.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_bindings.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_store.c build/voice-ota-store-mbedtls/library/libmbedcrypto.a -o build/test_shaniu_nfc_jobs\nIn file included from /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_service.c:535,\n                 from test_bk7258_nfc_rpc.c:10,\n                 from test_shaniu_nfc_jobs.c:12:\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_jobs.inc: In function ‘bknfc_job_work’:\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_jobs.inc:121:46: error: ‘BKNFC_RPC_CARD_VERSION’ undeclared (first use in this function); did you mean ‘BKNFC_CARD_VERSION’?\n  121 |         .magic = BKNFC_RPC_MAGIC, .version = BKNFC_RPC_CARD_VERSION,\n      |                                              ^~~~~~~~~~~~~~~~~~~~~~\n      |                                              BKNFC_CARD_VERSION\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_jobs.inc:121:46: note: each undeclared identifier is reported only once for each function it appears in\nmake: *** [Makefile:1935: build/test_shaniu_nfc_jobs] Error 1\nmake: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\n"
+  }
+}

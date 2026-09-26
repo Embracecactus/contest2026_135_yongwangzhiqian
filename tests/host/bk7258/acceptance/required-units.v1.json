@@ -199,7 +199,17 @@
     "RST-01.bindings-reset",
     "RST-01.bindings-reset-sync",
     "RST-01.bindings-reset-path",
-    "RST-01.bindings-reset-absent"
+    "RST-01.bindings-reset-absent",
+    "NFC-02.jobs-persist",
+    "NFC-02.jobs-cancel",
+    "NFC-02.jobs-stop",
+    "NFC-02.jobs-pending",
+    "NFC-02.jobs-failure",
+    "NFC-02.jobs-reset",
+    "NFC-02.jobs-commit",
+    "NFC-02.jobs-unknown",
+    "NFC-02.jobs-remove",
+    "NFC-02.jobs-conflict"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -402,6 +412,16 @@
     "RST-01.bindings-reset",
     "RST-01.bindings-reset-sync",
     "RST-01.bindings-reset-path",
-    "RST-01.bindings-reset-absent"
+    "RST-01.bindings-reset-absent",
+    "NFC-02.jobs-persist",
+    "NFC-02.jobs-cancel",
+    "NFC-02.jobs-stop",
+    "NFC-02.jobs-pending",
+    "NFC-02.jobs-failure",
+    "NFC-02.jobs-reset",
+    "NFC-02.jobs-commit",
+    "NFC-02.jobs-unknown",
+    "NFC-02.jobs-remove",
+    "NFC-02.jobs-conflict"
   ]
 }

@@ -424,6 +424,7 @@ def main():
         "test_shaniu_focus_shared",
         "test_shaniu_focus_intent",
         "test_shaniu_nfc_bindings",
+        "test_shaniu_nfc_jobs",
         "test_shaniu_nfc_quiesce",
         "test_shaniu_focus_pixels",
         "test_shaniu_focus_render",
@@ -593,6 +594,26 @@ def main():
             "L2",
             [HERE / "build/test_shaniu_nfc_bindings", variant],
             binaries["test_shaniu_nfc_bindings"],
+        )
+    for variant in (
+        "persist",
+        "cancel",
+        "stop",
+        "pending",
+        "failure",
+        "reset",
+        "commit",
+        "unknown",
+        "remove",
+        "conflict",
+    ):
+        add(
+            suite,
+            "NFC-02.jobs-" + variant,
+            "NFC-02",
+            "L2",
+            [HERE / "build/test_shaniu_nfc_jobs", variant],
+            binaries["test_shaniu_nfc_jobs"],
         )
     for variant in (
         "probe_error",
