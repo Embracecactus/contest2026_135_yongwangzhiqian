@@ -2001,3 +2001,41 @@ SERIAL_REMOVABLE，与S59的CDC隔离契约共同构成接线基础，未修改�
 
 后续缺口：产品USB worker与电源/维护协调、连接准备/错误后重同步、电脑自身
 凭据授予/持久化/撤销、工作台和任务事件，以及实物验证。没有现场操作。
+
+## S63：与当前owner绑定的独立电脑凭据存储（2026-09-27）
+
+新增 `bk7258_pc_grants`，复用真实 `bkprov_store` 的私有内部卷事务。首版一个
+电脑principal槽；手机仍使用原控制凭据，两者独立。PCG1固定88字节：magic4、
+capabilities BE32、owner binding32、client id16、PC key32。binding为
+SHA256(`SHANIU-PC-OWNER-v1`的18字节ASCII拼接当前owner key32)，不存第二份
+原owner key；公开snapshot仅revision/id/caps。cap位1/2/4/8对应资源、场景、
+任务、诊断，尚未成为对外消息schema或完成权限分派，不含owner/reset授权。
+电脑key不得为零或等于当前owner key；加载已存记录也执行相同独立性检查。
+
+已认证owner的单一文件worker才能调用set，输入非零16字节transaction和expected
+revision。最后一次相同transaction/内容可幂等回查，冲突内容EEXIST、旧revision
+ESTALE。撤销写caps/id/key全零的持久墓碑，保留revision，不通过删除记录将版本
+倒回零。owner变化时旧PC凭据不可读取，公开快照不暴露旧id；修改Wi-Fi但owner
+不变不会因此失效。结果未知EINPROGRESS时该对象拒绝授权/写入/同启动重开，
+新进程重读才能协调；明确的发布前失败仍保留旧有效文件，不能称撤销成功。
+
+先写真实存储用例再实现，缺接口的初次编译单列BLOCKED_INTERFACE。9个新增ID
+覆盖保存/撤销回读、owner变化、revision/重放、非法/共用owner key、文件同步
+失败、目录同步未知与exec后读取、损坏、独立正向golden及磁盘中别名key拒绝。
+独立hashlib正向向量通过后，别名key向量发现写入校验未覆盖加载的真实Red；补
+加载校验后通过。不能把该Red外推为已在线上发生的凭据泄漏。
+
+已有TLS/SDC1测试的独立principal现在从该真实存储读取key，20组证书同时覆盖
+内存流及实际PTY串口路径，手机/PC凭据隔离继续成立。只替换文件系统故障边界
+和设备动作终点；不是App授权/真实USB服务已跑。全集合340PASS = 原63 +277新增，
+本片新增9；13运行器另计，原2变异保留，新3变异（跳过加载独立性、未知时继续
+授权、把磁盘旧owner当当前owner）均断言检出并恢复。历史报告不改写。
+
+AP对象编译与manifest通过；ARM对象696字节，PCG1本体88字节，无新增常驻实例、
+线程或DMA。每次调用既有store_commit仍有32KiB临时堆分配，不能忽略；栈高水位、
+CPU/文件系统时延待实测。环境缺clang-format14，不声称C格式检查通过。
+
+未完成：固定产品root/文件worker接线、手机授权确认与PC端生成/交付、SDC1权限
+分派、grant revision变化时关闭已认证USB会话、恢复出厂精确清理（同一手机key
+再次出现也必须已撤销旧PC）、工作台与事件工具、实际设备验收。模块本身不是
+授权入口或会话撤销器，不能仅删磁盘凭据后保留活会话。没有刷写、安装或实物操作。

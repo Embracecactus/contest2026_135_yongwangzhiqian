@@ -331,7 +331,16 @@
     "USB-02.serial-backpressure",
     "USB-02.serial-disconnect",
     "USB-02.serial-invalid",
-    "USB-02.serial-failed-open"
+    "USB-02.serial-failed-open",
+    "NET-03.pc-grant-persist",
+    "NET-03.pc-grant-owner",
+    "NET-03.pc-grant-revision",
+    "NET-03.pc-grant-invalid",
+    "NET-03.pc-grant-writefail",
+    "NET-03.pc-grant-uncertain",
+    "NET-03.pc-grant-corrupt",
+    "NET-03.pc-grant-golden",
+    "NET-03.pc-grant-aliased-key"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -666,6 +675,15 @@
     "USB-02.serial-backpressure",
     "USB-02.serial-disconnect",
     "USB-02.serial-invalid",
-    "USB-02.serial-failed-open"
+    "USB-02.serial-failed-open",
+    "NET-03.pc-grant-persist",
+    "NET-03.pc-grant-owner",
+    "NET-03.pc-grant-revision",
+    "NET-03.pc-grant-invalid",
+    "NET-03.pc-grant-writefail",
+    "NET-03.pc-grant-uncertain",
+    "NET-03.pc-grant-corrupt",
+    "NET-03.pc-grant-golden",
+    "NET-03.pc-grant-aliased-key"
   ]
 }

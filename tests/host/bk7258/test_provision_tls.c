@@ -6,6 +6,8 @@
 #include "bk7258_provision_store.h"
 #include "bk7258_control_pair.h"
 #include "bk7258_control_serial.h"
+#include "bk7258_pc_grants.h"
+#include <sys/stat.h>
 #include <arch/chip/bk7258_wifi.h>
 #include <assert.h>
 #include <errno.h>
@@ -195,6 +197,7 @@ static void receive_scan(struct bkprov_pair_s *pair, mbedtls_ssl_context *client
          !memcmp(response + 44, "test", 4));
 }
 
+static struct bkpc_grants_s pc_grants;
 static unsigned control_calls;
 static unsigned control_cancels;
 static int control_execute(void *context, enum bkcontrol_command_e command,
@@ -230,7 +233,9 @@ static void control_handshake_on(struct bkcontrol_pair_s *control,
     {
       struct bkprov_tls_transport_s transport =
         { &stream_generation, stream_epoch, stream_read, stream_send, 64, 0 };
-      owner[0] = 84; /* Independent synthetic credential, never the phone key. */
+      uint32_t granted;
+      assert(bkpc_grants_key(&pc_grants, 1, owner, &granted) == 0);
+      assert(granted == 3); /* Actual private store supplies this principal. */
       stream_generation++;
       uint32_t selected_generation = stream_generation;
       if (serial_wire)
@@ -775,7 +780,16 @@ int main(int argc, char **argv)
   bkprov_pair_close(&pair);
   control_encrypted_tests(&client, &cert, &key);
   if (getenv("SHANIU_TLS_STREAM"))
-    control_stream_tests(&client, &cert, &key);
+    {
+      char root[256];
+      const uint8_t phone[32] = {42}, pc[32] = {84}, client_id[16] = {7};
+      const uint8_t transaction[16] = {99};
+      assert(snprintf(root, sizeof(root), "%s/pc", argv[3]) < (int)sizeof(root));
+      assert(mkdir(root, 0700) == 0);
+      assert(bkpc_grants_open(&pc_grants, root, phone) == 0);
+      assert(bkpc_grants_set(&pc_grants, 0, transaction, client_id, pc, 3) == 0);
+      control_stream_tests(&client, &cert, &key);
+    }
   mbedtls_ssl_free(&client); mbedtls_ssl_config_free(&config);
 
   generation++;

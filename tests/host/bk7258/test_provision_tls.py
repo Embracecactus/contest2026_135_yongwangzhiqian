@@ -170,6 +170,7 @@ class ProvisionTlsTest(unittest.TestCase):
                         ROOT / "tests/host/bk7258/test_provision_tls.c",
                         ROOT / "tests/host/bk7258/test_control_serial_peer.c",
                         ROOT / "app/bk7258/bk7258_control_serial.c",
+                        ROOT / "app/bk7258/bk7258_pc_grants.c",
                         "-Wl,--wrap=open",
                         ROOT / "app/bk7258/bk7258_provision_tls.c",
                         ROOT / "app/bk7258/bk7258_provision_claim.c",
@@ -381,7 +382,7 @@ class ProvisionTlsTest(unittest.TestCase):
                     )
                     print(
                         f"TLS sample={index} GATT=PASS independent-stream=PASS "
-                        f"SDC1-stream=PASS serial-SDC1=PASS public_certificate_sha256="
+                        f"SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS public_certificate_sha256="
                         f"{hashlib.sha256((temp / 'cert.pem').read_bytes()).hexdigest()}",
                         flush=True,
                     )

@@ -417,6 +417,7 @@ def main():
     binaries = {}
     for target in (
         "test_control_serial",
+        "test_pc_grants",
         "test_shaniu_key_contract",
         "test_shaniu_volume_contract",
         "test_shaniu_volume_transition",
@@ -761,6 +762,11 @@ def main():
         add(suite, "NFC-01.deadline-" + variant, "NFC-01", "L1",
             [sys.executable, HERE / "test_mfrc522_deadline.py",
              "DeadlineTest.test_" + variant], marker=False)
+    for variant in ("persist", "owner", "revision", "invalid", "writefail",
+                    "uncertain", "corrupt", "golden", "aliased-key"):
+        add(suite, "NET-03.pc-grant-" + variant, "NET-03", "L2",
+            [HERE / "build/test_pc_grants", variant],
+            binaries["test_pc_grants"])
     for variant in ("binary", "backpressure", "disconnect", "invalid", "failed-open"):
         add(suite, "USB-02.serial-" + variant, "USB-02", "L2",
             [HERE / "build/test_control_serial", variant],
@@ -1252,6 +1258,9 @@ def main():
         HERE / "test_control_serial_peer.c",
         ROOT / "app/bk7258/bk7258_control_serial.c",
         ROOT / "app/bk7258/bk7258_control_serial.h",
+        ROOT / "app/bk7258/bk7258_pc_grants.c",
+        ROOT / "app/bk7258/bk7258_pc_grants.h",
+        HERE / "test_pc_grants.c",
         ROOT / "chips/bk7258/ap/bk7258_usbcdc.c",
         ROOT / "nuttx/drivers/sensors/sc7a20.c",
         ROOT / "nuttx/include/nuttx/sensors/sc7a20.h",
