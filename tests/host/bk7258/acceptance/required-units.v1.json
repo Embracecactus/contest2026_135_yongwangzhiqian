@@ -146,7 +146,11 @@
     "NFC-01.uid-incomplete",
     "NFC-01.uid-4",
     "NFC-01.uid-7",
-    "NFC-01.uid-10"
+    "NFC-01.uid-10",
+    "TIMER-01.shared-start",
+    "TIMER-01.shared-retry",
+    "TIMER-01.shared-cancel",
+    "TIMER-01.shared-invalid"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -296,6 +300,10 @@
     "NFC-01.uid-incomplete",
     "NFC-01.uid-4",
     "NFC-01.uid-7",
-    "NFC-01.uid-10"
+    "NFC-01.uid-10",
+    "TIMER-01.shared-start",
+    "TIMER-01.shared-retry",
+    "TIMER-01.shared-cancel",
+    "TIMER-01.shared-invalid"
   ]
 }

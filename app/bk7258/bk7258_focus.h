@@ -10,6 +10,32 @@
  * Exact last successful operation retry is idempotent; stale revisions fail.
  * READ never advances state. step() alone reports a completion once.
  */
+/* Transport-independent entry for the same serialized product owner.
+ * Callers must pass through product authorization/power admission first.
+ * A sensor callback must enqueue an intent, never call this from its worker.
+ * Actions and states retain the FOC1/FOS1 values; no extra timer is created.
+ * Exact retry compares fields, not struct padding; all mutations use the
+ * same revision/operation domain as authenticated wire requests.
+ */
+struct bkfocus_request_s
+{
+  unsigned int action;
+  uint64_t revision;
+  uint64_t operation;
+  uint64_t duration_ms;
+};
+
+struct bkfocus_snapshot_s
+{
+  unsigned int state;
+  uint64_t revision;
+  uint64_t remaining_ms;
+  uint64_t duration_ms;
+};
+
+int bkfocus_execute(const struct bkfocus_request_s *request, uint64_t now);
+int bkfocus_snapshot(struct bkfocus_snapshot_s *snapshot, uint64_t now);
+
 int bkfocus_control(enum bkcontrol_command_e command, uint32_t offset,
                     const uint8_t *record, size_t size,
                     struct bkcontrol_status_s *status, uint64_t now);

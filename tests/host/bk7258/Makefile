@@ -1912,3 +1912,6 @@ $(BUILD)/test_shaniu_trial_wire: test_shaniu_trial_wire.c $(VOICE_PACK_ROOT)/bk7
 .PHONY: run-trial-wire
 run-trial-wire: $(BUILD)/test_shaniu_trial_wire
 	./$(BUILD)/test_shaniu_trial_wire
+
+$(BUILD)/test_shaniu_focus_shared: test_shaniu_focus_shared.c $(VOICE_PACK_ROOT)/bk7258_focus.c $(VOICE_PACK_ROOT)/bk7258_focus.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) $< $(VOICE_PACK_ROOT)/bk7258_focus.c -o $@

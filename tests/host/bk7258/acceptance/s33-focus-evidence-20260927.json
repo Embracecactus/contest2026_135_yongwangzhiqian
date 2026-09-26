@@ -1,0 +1,159 @@
+{
+  "slice": "S33",
+  "date": "2026-09-27",
+  "parent": "244f291c81e6295381b5f174152d9d0da7b63f1a",
+  "contract": "Frozen FOC1/FOS1 behavior; same serialized product owner. Typed requests carry action/revision/operation/duration. Exact retries compare fields, not padding. Caller authorization/power admission remains mandatory.",
+  "implementation": "Existing wire control decodes into bkfocus_execute and snapshots through bkfocus_snapshot; original state/step/lifecycle cancel retained. No secondary timer implementation.",
+  "test_first": "Header/test precede implementation; initial undefined references are BLOCKED_INTERFACE, not FAIL_ASSERTION. Four mixed-entry production sequences then pass.",
+  "counts": {
+    "PASS": 150,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 87,
+      "counts": {
+        "PASS": 87,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "existing_mutations": [
+    {
+      "id": "MSC-01.early-release",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.008134094008710235,
+      "source": "app/bk7258/bk7258_media_volume.c",
+      "original_sha256": "58ebb18ae63adccf21262253da18f153bbb7c680cc0b64719ca20e8a6d9681c8",
+      "mutant_sha256": "bf298373a95ac54d5587f93ece34a30a7f661a65a969c69db9e27c6570770c57",
+      "expected_assertion": "!mounted",
+      "evidence": "MSC-01.early-release.log"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.06571334099862725,
+      "source": "app/bk7258/bk7258_provision_config.c",
+      "original_sha256": "98f5100ca49ca44e45fe3e5da4bb2da0add7466f0e357a205ca8b1e307a5818e",
+      "mutant_sha256": "4c0c615b8ffc99247b0fd91bd934d3df0409a1180769cb939b2820f9e6f69427",
+      "expected_assertion": "bkcloud_config_decode",
+      "evidence": "CFG-01.wifi-clears-cloud.log"
+    }
+  ],
+  "additional_mutation": {
+    "name": "wire-accepted-without-common-owner",
+    "compiled": true,
+    "cases": [
+      {
+        "case": "start",
+        "exit": -6,
+        "output": "test: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_focus_shared.c:30: snapshot: Assertion `value.state == state && value.revision == revision' failed.\n"
+      },
+      {
+        "case": "retry",
+        "exit": -6,
+        "output": "test: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_focus_shared.c:31: snapshot: Assertion `value.remaining_ms == remaining && value.duration_ms == 60000' failed.\n"
+      },
+      {
+        "case": "cancel",
+        "exit": -6,
+        "output": "test: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_focus_shared.c:86: main: Assertion `bkfocus_execute(&request, 2000) == 0' failed.\n"
+      }
+    ],
+    "source_sha256": "3b8abe868e9575415ab8fac9e220c9b8d9bb96384a6161917c3e972df378f4c3",
+    "mutant_sha256": "283b01e416318f57dc72fb956cada3ce964614149e5e6e929c79cc9dc37d5826"
+  },
+  "restoration": "Strict final production run passes all 4 shared-entry cases; mutation was temporary only",
+  "checks": {
+    "incremental_target": "PASS",
+    "layers": "PASS via build",
+    "manifest": "PASS",
+    "AP_symbols": "02159ed8 0000003c T bkfocus_cancel\n0215a0c8 00000180 T bkfocus_control\n02159f4c 0000017c T bkfocus_execute\n02159f14 00000038 T bkfocus_snapshot\n02159e80 00000058 T bkfocus_step\n02159df4 0000008c T bkfocus_visual\n280629c0 00000058 b g_focus\n",
+    "runner_gate": "12 PASS",
+    "nxstyle": "NOT_PASS full-file style and section conventions; see raw output"
+  },
+  "resources": {
+    "AP_g_focus_bytes": 88,
+    "new_threads": 0,
+    "new_heap": 0,
+    "new_io": 0,
+    "new_persistence": 0,
+    "stack_cpu_high_water": "NOT_MEASURED",
+    "stack_change": "wire adapter has typed request/snapshot automatic structs; actual optimizer/frame budget not measured"
+  },
+  "parent_gaps": {
+    "TIMER-01": {
+      "interface": "Typed and wire service share production state; existing App wire caller retained",
+      "L1_L2": "Alternating entry start/pause/resume/cancel, retry, invalid fields, deadline/lifecycle tests PASS",
+      "L3": "NOT_RUN",
+      "not_implemented": "NFC/voice intent adapters and their product-owner admission; restart/persistence policy remains pending"
+    }
+  },
+  "hashes": {
+    "app/bk7258/bk7258_focus.c": "3b8abe868e9575415ab8fac9e220c9b8d9bb96384a6161917c3e972df378f4c3",
+    "app/bk7258/bk7258_focus.h": "d124e3cee7d57a4ebee8dc23ca4646d3f965e4f9fcb5a363e5327742c3ef2c22",
+    "goal-objective.md": "976ef5ea6adb53ef74d7df5441acb1c9a9cbcc6e5e83cae5283717e9acbdbada",
+    "tests/host/bk7258/Makefile": "9007eb71082d8d084211ca071103c06b9b6e9799747c1ccd685195373733cb75",
+    "tests/host/bk7258/README.md": "b608769612a2a269ae869a0afd38e1101132fdab759d32b3126eddb7a5755f5a",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "627f542551ccb7a20842dbb828eae0a33bdd38c4b3329a4d020941eddf5313ca",
+    "tests/host/bk7258/test_shaniu_contracts.py": "7a9f863a0bfa9e7baf3525bd237229a3d8252e8e8a146ea58d2b42031d745198",
+    "tests/host/bk7258/test_shaniu_focus_shared.c": "fb428a2e3c19a10f5781d70938c91a07d2da7a9533acb83c5bd835a960ea31e8",
+    "out/shaniu-s33/runner-gate.log": "1e56d4a82a95e20708b5562efba64112ed1eff20782a4aad077508a369ab2380",
+    "out/shaniu-s33/contracts.log": "3293c47ec6f1933f76917035202afd16a98d457239bd4b44206c4fdb63a647ae",
+    "out/shaniu-s33/symbols.log": "93e48655936a929c233bec638a529f2fb9797652b469c16207e7be7ffc3aba0a",
+    "out/shaniu-s33/build-green.log": "5921d2f7e2c409c713a6576d1ca3365d2374a8ce1c37e263ddb386b8c38ce69b",
+    "out/shaniu-s33/interface-missing.log": "2b29730b4fe8a981593a5822db3b79e870b4b16e079dea32313757ee1ac504e1",
+    "out/shaniu-s33/build.log": "5032fc79736bfb62c9b34b16affaf0f4477eed2a7b568912b192d13b10e61e7e",
+    "out/shaniu-s33/manifest.log": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac"
+  },
+  "outputs": {
+    "runner-gate.log": "............\n----------------------------------------------------------------------\nRan 12 tests in 0.034s\n\nOK\n",
+    "contracts.log": "unittest.case.FunctionTestCase (run)\nK2-01.release-2999 ... ok\nunittest.case.FunctionTestCase (run)\nK2-01.release-3000 ... ok\nunittest.case.FunctionTestCase (run)\nK2-01.release-3001 ... ok\nunittest.case.FunctionTestCase (run)\nK2-01.held ... ok\nunittest.case.FunctionTestCase (run)\nK2-03.epoch ... ok\nunittest.case.FunctionTestCase (run)\nK2-03.rollback ... ok\nunittest.case.FunctionTestCase (run)\nK2-03.release-rollback ... ok\nunittest.case.FunctionTestCase (run)\nK2-03.combination ... ok\nunittest.case.FunctionTestCase (run)\nK2-03.volume ... ok\nunittest.case.FunctionTestCase (run)\nDISP-01.power-pixels ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.failed-start-handoff ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.pixels ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.render ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.shared-start ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.shared-retry ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.shared-cancel ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.shared-invalid ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.clock ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.replay ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.invalid ... ok\nunittest.case.FunctionTestCase (run)\nTIMER-01.wire ... ok\nunittest.case.FunctionTestCase (run)\nAUD-03.media-tail ... ok\nunittest.case.FunctionTestCase (run)\nAUD-03.media-cancel-next ... ok\nunittest.case.FunctionTestCase (run)\nNET-02.display-snapshot ... ok\nunittest.case.FunctionTestCase (run)\nDISP-01.expression-intent ... ok\nunittest.case.FunctionTestCase (run)\nDISP-01.expression-cancel ... ok\nunittest.case.FunctionTestCase (run)\nRES-02.trial-wire ... ok\nunittest.case.FunctionTestCase (run)\nRES-02.expression-trial ... ok\nunittest.case.FunctionTestCase (run)\nRES-02.expression-ownership ... ok\nunittest.case.FunctionTestCase (run)\nCFG-02.models-unknown ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.backend-stop-normal ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.backend-stop-retry ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.backend-stop-start-cleanup ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.backend-stop-close-error ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-normal ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-admission-failure ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-partial-failure ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-cp-declined ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-cp-unknown ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-admission-stops-trigger ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-storage-stops-trigger ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-trigger-failure ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-unpublished-trigger ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-admission-drains ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-failed-drains ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-final-close-drains ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.power-failure-display ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.quiesce-queries ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.quiesce-staging ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.quiesce-config-staging ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.quiesce-ota-commit ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.quiesce-invalid ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.owner-queries ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.owner-unauthenticated ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.owner-invalid-sequence ... ok\nunittest.case.FunctionTestCase (run)\nNET-03.owner-legacy ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-01.owner-integration ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.capture-close-failure ... ok\nunittest.case.FunctionTestCase (run)\nLIFE-02.capture-route-failure ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.acquiring ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.releasing ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.retry ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.unmount-failure ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.local-busy ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.wrong-owner ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.handoff ... ok\nunittest.case.FunctionTestCase (run)\nAUD-01.pcm-1 ... ok\nunittest.case.FunctionTestCase (run)\nAUD-01.pcm-20260924 ... ok\nunittest.case.FunctionTestCase (run)\nAUD-01.pcm-4294967295 ... ok\nunittest.case.FunctionTestCase (run)\nAUD-03.cancel-late ... ok\nunittest.case.FunctionTestCase (run)\nAUD-01.sse-1 ... ok\nunittest.case.FunctionTestCase (run)\nAUD-01.sse-20260924 ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.uid-empty ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.select-timeout ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.select-error ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.uid-size ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.uid-incomplete ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.uid-4 ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.uid-7 ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.uid-10 ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.empty ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.oversize ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.hce-positive ... ok\nunittest.case.FunctionTestCase (run)\nK2-01.legacy-suite ... ok\nunittest.case.FunctionTestCase (run)\nMSC-02.legacy-suite ... ok\nunittest.case.FunctionTestCase (run)\nMOT-01.legacy-suite ... ok\nunittest.case.FunctionTestCase (run)\nNFC-01.legacy-suite ... ok\nunittest.case.FunctionTestCase (run)\nCFG-01.wifi-reopen ... ok\nunittest.case.FunctionTestCase (run)\nSTORE-02.file-sync-failure ... ok\nunittest.case.FunctionTestCase (run)\nSTORE-02.file-sync-retry ... ok\nunittest.case.FunctionTestCase (run)\nSTORE-02.directory-sync-unknown ... ok\nunittest.case.FunctionTestCase (run)\nCFG-03.stale ... ok\nunittest.case.FunctionTestCase (run)\nCFG-03.conflict ... ok\nunittest.case.FunctionTestCase (run)\nCFG-03.keep-key ... ok\nunittest.case.FunctionTestCase (run)\nCFG-03.replace-key ... ok\nunittest.case.FunctionTestCase (run)\nCFG-03.clear-cloud ... ok\nunittest.case.FunctionTestCase (run)\nCFG-03.cross-host-retain ... ok\nunittest.case.FunctionTestCase (run)\nSTORE-02.restart-before-publish ... ok\nunittest.case.FunctionTestCase (run)\nSTORE-02.restart-after-publish ... ok\n\n----------------------------------------------------------------------\nRan 99 tests in 2.042s\n\nOK\nunittest.case.FunctionTestCase (run)\nCFG-01.restored ... ok\nunittest.case.FunctionTestCase (run)\nMSC-01.restored ... ok\n\n----------------------------------------------------------------------\nRan 2 tests in 0.068s\n\nOK\n{\"PASS\": 150, \"FAIL_ASSERTION\": 0, \"SETUP_ERROR\": 0, \"NOT_RUN\": 0} production_unchanged= True\n",
+    "symbols.log": "02159ed8 0000003c T bkfocus_cancel\n0215a0c8 00000180 T bkfocus_control\n02159f4c 0000017c T bkfocus_execute\n02159f14 00000038 T bkfocus_snapshot\n02159e80 00000058 T bkfocus_step\n02159df4 0000008c T bkfocus_visual\n280629c0 00000058 b g_focus\n",
+    "build-green.log": "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\ncc -std=gnu11 -Wall -Wextra -Werror -O2 -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_shaniu_focus_shared.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.c -o build/test_shaniu_focus_shared\nmake: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\n",
+    "interface-missing.log": "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\ncc -std=gnu11 -Wall -Wextra -Werror -O2 -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_shaniu_focus_shared.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.c -o build/test_shaniu_focus_shared\n/usr/bin/ld: /tmp/ccjFEFjU.o: in function `snapshot':\ntest_shaniu_focus_shared.c:(.text+0x47): undefined reference to `bkfocus_snapshot'\n/usr/bin/ld: /tmp/ccjFEFjU.o: in function `main':\ntest_shaniu_focus_shared.c:(.text.startup+0xb6): undefined reference to `bkfocus_execute'\n/usr/bin/ld: test_shaniu_focus_shared.c:(.text.startup+0xc8): undefined reference to `bkfocus_snapshot'\n/usr/bin/ld: test_shaniu_focus_shared.c:(.text.startup+0xe2): undefined reference to `bkfocus_execute'\n/usr/bin/ld: test_shaniu_focus_shared.c:(.text.startup+0x105): undefined reference to `bkfocus_execute'\n/usr/bin/ld: test_shaniu_focus_shared.c:(.text.startup+0x124): undefined reference to `bkfocus_execute'\n/usr/bin/ld: test_shaniu_focus_shared.c:(.text.startup+0x152): undefined reference to `bkfocus_execute'\n/usr/bin/ld: test_shaniu_focus_shared.c:(.text.startup+0x171): undefined reference to `bkfocus_execute'\n/usr/bin/ld: /tmp/ccjFEFjU.o:test_shaniu_focus_shared.c:(.text.startup+0x187): more undefined references to `bkfocus_execute' follow\ncollect2: error: ld returned 1 exit status\nmake: *** [Makefile:1917: build/test_shaniu_focus_shared] Error 1\nmake: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\n",
+    "build.log": "LIBCLANG_PATH set to: /home/lijian/project/open-vela/prebuilts/rust/linux/extra_libs\nincluding vendor/beken/boards/bk7258/build/vendorsetup.sh\nincluding vendor/infineon/boards/aurix/build/vendorsetup.sh\nincluding vendor/infineon/boards/aurix_tc3/build/vendorsetup.sh\nincluding vendor/openvela/boards/build/vendorsetup.sh\ncustom CMake binary dir: /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake\n lunch .//out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/configs/mcuboot/cp /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake \nThe current build configuration lunched with: \u001b[32m[nuttx]-[configs]-[cp]!\u001b[0m\n\n\u001b[32m#### BINARY directory is set: /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake\u001b[0m\n\n  cmake --build /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake -j4  --\n[0/2] Re-checking globbed directories...\n[1/3] Generating bin output directories\n[2/3] cd /home/lijian/project/open-vela/nuttx && /home/lijian/project/open-vela/prebuilts/tools/cmake/bin/cmake -DKCONFIG_CONFIG=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/configs/mcuboot/cp/defconfig -DNUTTX_DIR=/home/lijian/project/open-vela/nuttx -DCMAKE_BINARY_DIR=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake -P /home/lijian/project/open-vela/nuttx/cmake/nuttx_generate_dts.cmake\n\n#### build completed successfully  ####\nLIBCLANG_PATH set to: /home/lijian/project/open-vela/prebuilts/rust/linux/extra_libs\nincluding vendor/beken/boards/bk7258/build/vendorsetup.sh\nincluding vendor/infineon/boards/aurix/build/vendorsetup.sh\nincluding vendor/infineon/boards/aurix_tc3/build/vendorsetup.sh\nincluding vendor/openvela/boards/build/vendorsetup.sh\ncustom CMake binary dir: /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-c3282628a929d75f/cmake\n lunch .//out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/configs/mcuboot/ap /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-c3282628a929d75f/cmake \nThe current build configuration lunched with: \u001b[32m[nuttx]-[configs]-[ap]!\u001b[0m\n\n\u001b[32m#### BINARY directory is set: /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-c3282628a929d75f/cmake\u001b[0m\n\n  cmake --build /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-c3282628a929d75f/cmake -j4  --\n[0/2] Re-checking globbed directories...\n[1/14] Generating bin output directories\n[2/14] cd /home/lijian/project/open-vela/nuttx && /home/lijian/project/open-vela/prebuilts/tools/cmake/bin/cmake -DKCONFIG_CONFIG=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/configs/mcuboot/ap/defconfig -DNUTTX_DIR=/home/lijian/project/open-vela/nuttx -DCMAKE_BINARY_DIR=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-c3282628a929d75f/cmake -P /home/lijian/project/open-vela/nuttx/cmake/nuttx_generate_dts.cmake\n[3/14] cd /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-c3282628a929d75f/cmake/apps && cmake --build /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-c3282628a929d75f/cmake/bin_host --target incdir\n[100%] Built target incdir\n[4/14] cd /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-c3282628a929d75f/cmake/apps && cmake --build /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-c3282628a929d75f/cmake/bin_host --target mkdeps\n[200%] Built target mkdeps\n[5/14] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_focus.c.o\n[6/14] Performing build step for 'ffmpeg_out_tree'\n[7/14] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_agent_product.c.o\n../../../../../../../../../../apps/system/bk7258/bk7258_agent_product.c: In function 'install_product_skills':\n../../../../../../../../../../apps/system/bk7258/bk7258_agent_product.c:2698:5: warning: missing braces around initializer [-Wmissing-braces]\n 2698 |     {\n      |     ^\n 2699 |       \"device-assistant.md\", g_product_skill_device_assistant\n      |       {\n 2700 |     };\n      |     }\n[8/14] Linking CXX static library apps/libapps.a\n[9/14] Performing install step for 'ffmpeg_out_tree'\n[10/14] Completed 'ffmpeg_out_tree'\n[11/14] Linking CXX executable nuttx\n[12/14] Generating nuttx.bin\n[13/14] Generating System.map\n\n#### build completed successfully (2 seconds) ####\nbk7258 layer gate: PASS sources=520 kconfig=253 legacy-exceptions=2\nbk7258 build: PASS layout=bk7258-510173147382a879\nbl1 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.map\nbl2 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.map copy_size=13632\ncp elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.map identity=bk7258-role-9a0b5b6e466d063f seed=41811cb113e14cd5ce35630f0a6d42f0d32f88a10c512bb971734bce9a28c016 config=056df3be5fe9db7d56d38bb36da6b53964ab6fca70368ce03a65005a9479b4cc\nap elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-c3282628a929d75f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-c3282628a929d75f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-c3282628a929d75f/cmake/nuttx.map identity=bk7258-role-c3282628a929d75f seed=87b240d1f8532f4818b54a003fbc5e5ff4d74c4baca1fd1c9ada12bfbfa1fba0 config=ff380f50ea0971200e354a8468e49576ad42920e872de7dfeaa7b4ead23ad3c1\nbuild manifest=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json\n",
+    "manifest.log": "bk7258 verify build-manifest: PASS boot=mcuboot board=aidk_ai_toy layout=bk7258-510173147382a879 source=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json\n"
+  },
+  "style": [
+    {
+      "file": "app/bk7258/bk7258_focus.c",
+      "exit": 1,
+      "output": "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.c: error: No block comments found\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.c:2:0: error: Path relative to repository other than \"nuttx\" must begin with the root directory\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.c:2:1: warning: #include outside of 'Included Files' section\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.c:3:1: warning: #include outside of 'Included Files' section\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.c:4:1: warning: #include outside of 'Included Files' section\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.c:5:1: warning: #include outside of 'Included Files' section\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.c:16:82: error: Right bracket not on separate line\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.c:16:83: error: Long line found\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.c:18:31: error: Left bracket not on separate line\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.c:18:52: error: Garbage follows right bracket\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.c:18:54: error: Right bracket not on separate line\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.c:22:85: error: Long line found\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.c:28:83: error: Long line found\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.c:121:30: error: Multiple data definitions\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.c:121:25: error: Left bracket not on separate line\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.c:141:1: error: \"Private/Public Functions\" not found! File will not be checked\n"
+    },
+    {
+      "file": "app/bk7258/bk7258_focus.h",
+      "exit": 1,
+      "output": "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.h: error: No block comments found\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.h:2:0: error: Path relative to repository other than \"nuttx\" must begin with the root directory\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.h:4:1: warning: #include outside of 'Included Files' section\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.h:6:82: error: Long line found\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.h:12:1: error: Missing blank line after comment\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.h:19:1: error: Missing blank line after comment\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.h:44:1: error: Missing blank line before comment found\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.h:44:1: error: Missing blank line after comment\n"
+    },
+    {
+      "file": "tests/host/bk7258/test_shaniu_focus_shared.c",
+      "exit": 1,
+      "output": "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_focus_shared.c: error: No block comments found\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_focus_shared.c:1:1: error: Missing blank line after comment\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_focus_shared.c:2:0: error: Too many whitespaces before relative file path\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_focus_shared.c:3:1: warning: #include outside of 'Included Files' section\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_focus_shared.c:4:1: warning: #include outside of 'Included Files' section\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_focus_shared.c:5:1: warning: #include outside of 'Included Files' section\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_focus_shared.c:6:1: warning: #include outside of 'Included Files' section\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_focus_shared.c:7:1: warning: #include outside of 'Included Files' section\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_focus_shared.c:10:1: error: Missing blank line before comment found\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_focus_shared.c:10:1: error: Missing blank line after comment\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_focus_shared.c:55:1: error: Missing blank line before comment found\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_focus_shared.c:55:1: error: Missing blank line after comment\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_focus_shared.c:72:1: error: Missing blank line before comment found\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_focus_shared.c:72:1: error: Missing blank line after comment\n/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_focus_shared.c:121:1: error: \"Private/Public Functions\" not found! File will not be checked\n"
+    }
+  ]
+}

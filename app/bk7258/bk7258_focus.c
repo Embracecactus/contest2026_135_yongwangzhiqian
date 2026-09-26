@@ -8,7 +8,7 @@ static struct
 {
   unsigned state;
   uint64_t revision, duration, remaining, deadline, last_time;
-  uint8_t last_request[32];
+  struct bkfocus_request_s last_request;
   bool have_request;
 } g_focus;
 
@@ -45,32 +45,32 @@ void bkfocus_cancel(void)
   g_focus.have_request = false;
   if (g_focus.revision != UINT64_MAX) g_focus.revision++;
 }
-int bkfocus_control(enum bkcontrol_command_e command, uint32_t offset,
-                    const uint8_t *record, size_t size,
-                    struct bkcontrol_status_s *status, uint64_t now)
+int bkfocus_snapshot(struct bkfocus_snapshot_s *snapshot, uint64_t now)
 {
-  if (!status) return -EINVAL;
-  if (command == BKCONTROL_CONFIG_READ)
-    {
-      uint8_t data[32] = {'F', 'O', 'S', '1'};
-      if (offset != 0 && offset != 16) return -ERANGE;
-      data[7] = g_focus.state;
-      put64(data + 8, g_focus.revision);
-      put64(data + 16, remaining(now));
-      put64(data + 24, g_focus.duration);
-      status->config_total = sizeof(data);
-      memcpy(status->config_chunk, data + offset, 16);
-      return 0;
-    }
-  if (command == BKCONTROL_CONFIG_BEGIN) return size == 32 ? 0 : -EMSGSIZE;
-  if (command != BKCONTROL_CONFIG_APPLY || !record || size != 32 ||
-      memcmp(record, "FOC1", 4) || record[4] || record[5] || record[6] ||
-      record[7] < 1 || record[7] > 4 || !get64(record + 16)) return -EINVAL;
-  unsigned action = record[7];
-  uint64_t duration = get64(record + 24);
+  if (snapshot == NULL) return -EINVAL;
+  snapshot->state = g_focus.state;
+  snapshot->revision = g_focus.revision;
+  snapshot->remaining_ms = remaining(now);
+  snapshot->duration_ms = g_focus.duration;
+  return 0;
+}
+
+int bkfocus_execute(const struct bkfocus_request_s *request, uint64_t now)
+{
+  unsigned action;
+  uint64_t duration;
+
+  if (request == NULL || request->action < 1 || request->action > 4 ||
+      request->operation == 0) return -EINVAL;
+  action = request->action;
+  duration = request->duration_ms;
   if ((action == 1 && !duration) || (action != 1 && duration)) return -EINVAL;
-  if (g_focus.have_request && !memcmp(record, g_focus.last_request, 32)) return 0;
-  if (get64(record + 8) != g_focus.revision) return -ESTALE;
+  if (g_focus.have_request &&
+      request->action == g_focus.last_request.action &&
+      request->revision == g_focus.last_request.revision &&
+      request->operation == g_focus.last_request.operation &&
+      request->duration_ms == g_focus.last_request.duration_ms) return 0;
+  if (request->revision != g_focus.revision) return -ESTALE;
   if (g_focus.revision == UINT64_MAX) return -EOVERFLOW;
   if (now < g_focus.last_time) return -EAGAIN;
   if (action == 1)
@@ -103,7 +103,39 @@ int bkfocus_control(enum bkcontrol_command_e command, uint32_t offset,
     }
   g_focus.last_time = now;
   g_focus.revision++;
-  memcpy(g_focus.last_request, record, 32);
+  g_focus.last_request = *request;
   g_focus.have_request = true;
   return 0;
+}
+
+int bkfocus_control(enum bkcontrol_command_e command, uint32_t offset,
+                    const uint8_t *record, size_t size,
+                    struct bkcontrol_status_s *status, uint64_t now)
+{
+  struct bkfocus_request_s request;
+
+  if (!status) return -EINVAL;
+  if (command == BKCONTROL_CONFIG_READ)
+    {
+      struct bkfocus_snapshot_s snapshot;
+      uint8_t data[32] = {'F', 'O', 'S', '1'};
+      if (offset != 0 && offset != 16) return -ERANGE;
+      (void)bkfocus_snapshot(&snapshot, now);
+      data[7] = snapshot.state;
+      put64(data + 8, snapshot.revision);
+      put64(data + 16, snapshot.remaining_ms);
+      put64(data + 24, snapshot.duration_ms);
+      status->config_total = sizeof(data);
+      memcpy(status->config_chunk, data + offset, 16);
+      return 0;
+    }
+  if (command == BKCONTROL_CONFIG_BEGIN) return size == 32 ? 0 : -EMSGSIZE;
+  if (command != BKCONTROL_CONFIG_APPLY || !record || size != 32 ||
+      memcmp(record, "FOC1", 4) || record[4] || record[5] || record[6])
+    return -EINVAL;
+  request.action = record[7];
+  request.revision = get64(record + 8);
+  request.operation = get64(record + 16);
+  request.duration_ms = get64(record + 24);
+  return bkfocus_execute(&request, now);
 }

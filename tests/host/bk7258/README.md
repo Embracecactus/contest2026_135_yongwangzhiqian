@@ -927,3 +927,28 @@ Current target disables CL_ISODEP/CL_MFRC522_FRAME; HCE code existence is not
 capability evidence. Scene-card binding, retention, dwell dedupe and common scene
 dispatch are still missing; RF/physical compatibility remains NOT_RUN. See
 `acceptance/s32-20260927.json` and `acceptance/s32-selection-evidence-20260927.json`.
+
+### S33 — one focus owner behind typed and wire entry points
+
+The existing authenticated FOC1 adapter now decodes into `bkfocus_execute`;
+FOS1 reads the same owner through `bkfocus_snapshot`. No second timer, thread,
+queue, authorization bypass or wire change is introduced. Typed callers must
+first pass product admission and run on its serialized owner; NFC/voice workers
+must post intents rather than call the service concurrently.
+
+Four new real-production sequences alternate typed and wire start/pause/resume/
+cancel, verify exact cross-entry retry despite struct padding, stale revision
+rejection, lifecycle cancel, invalid fields and deadline completion once. The
+initial missing functions are BLOCKED_INTERFACE, not a business Red. A compiled
+isolated mutation disconnecting wire application from the common owner is
+detected by all three mixed-entry sequences. Existing tests retain their oracle.
+
+Strict 150 PASS retain original 63 IDs and both original mutation detections.
+Incremental firmware/layers/manifest pass. AP ELF retains execute/snapshot/control
+and the single g_focus state (88 bytes). Target stack/CPU not measured; no new
+heap, thread, persistence or I/O. Whole-file nxstyle is NOT_PASS (format/section
+conventions); no full style pass claimed. This is a production refactor serving
+the existing App protocol, not a working card or voice binding. Those adapters,
+authorization/queue admission, persistence policy and physical evidence remain
+required. See `acceptance/s33-20260927.json` and
+`acceptance/s33-focus-evidence-20260927.json`.
