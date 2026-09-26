@@ -174,7 +174,13 @@
     "NFC-01.card-version",
     "NFC-01.card-replay",
     "NFC-01.card-validation",
-    "NFC-01.card-malformed"
+    "NFC-01.card-malformed",
+    "NFC-02.bindings-persist",
+    "NFC-02.bindings-revision",
+    "NFC-02.bindings-invalid",
+    "NFC-02.bindings-writefail",
+    "NFC-02.bindings-durability",
+    "NFC-02.bindings-corrupt"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -352,6 +358,12 @@
     "NFC-01.card-version",
     "NFC-01.card-replay",
     "NFC-01.card-validation",
-    "NFC-01.card-malformed"
+    "NFC-01.card-malformed",
+    "NFC-02.bindings-persist",
+    "NFC-02.bindings-revision",
+    "NFC-02.bindings-invalid",
+    "NFC-02.bindings-writefail",
+    "NFC-02.bindings-durability",
+    "NFC-02.bindings-corrupt"
   ]
 }

@@ -1,0 +1,289 @@
+{
+  "slice": "S39",
+  "date": "2026-09-27",
+  "parent": "7bc291aa9ad4f9e331ca91502bfa0bcd5d6d7059",
+  "contract": "NFC_BINDING_STORE_V1.md",
+  "scope": "Production persistence component only; not wired to product jobs/UI/card enrollment/scene execution",
+  "architecture_correction": "Actual AP config enables APP_AGENT and NFC_SERVICE; same AP worker can feed focus. S38 CP sample capability is not required for scenes.",
+  "test_first": {
+    "new_API": "BLOCKED_INTERFACE until implemented; no fake baseline business Red",
+    "golden_fix": "Duration low byte is27 (header8+offset12+7), not29 which is reserved; corrected before implementation test execution",
+    "corrupted_transaction": "real assertion Red after initial module implementation; loader validates transaction metadata then Green"
+  },
+  "counts": {
+    "PASS": 180,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 117,
+      "counts": {
+        "PASS": 117,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "existing_mutations": [
+    {
+      "id": "MSC-01.early-release",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.007734348007943481,
+      "source": "app/bk7258/bk7258_media_volume.c",
+      "original_sha256": "58ebb18ae63adccf21262253da18f153bbb7c680cc0b64719ca20e8a6d9681c8",
+      "mutant_sha256": "bf298373a95ac54d5587f93ece34a30a7f661a65a969c69db9e27c6570770c57",
+      "expected_assertion": "!mounted",
+      "evidence": "MSC-01.early-release.log"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.06388690398307517,
+      "source": "app/bk7258/bk7258_provision_config.c",
+      "original_sha256": "98f5100ca49ca44e45fe3e5da4bb2da0add7466f0e357a205ca8b1e307a5818e",
+      "mutant_sha256": "4c0c615b8ffc99247b0fd91bd934d3df0409a1180769cb939b2820f9e6f69427",
+      "expected_assertion": "bkcloud_config_decode",
+      "evidence": "CFG-01.wifi-clears-cloud.log"
+    }
+  ],
+  "additional_mutations": [
+    {
+      "name": "uncertainty",
+      "case": "durability",
+      "mutation": true,
+      "compile_exit": 0,
+      "exit": -6,
+      "source_sha256": "4e65f6b1e7ff099fa6941107ccd20f2b9380aec62bdf607e62a9de75298eaa8b",
+      "log": "mutation-uncertainty-mutated.log",
+      "result": "DETECTED"
+    },
+    {
+      "name": "uncertainty",
+      "case": "durability",
+      "mutation": false,
+      "compile_exit": 0,
+      "exit": 0,
+      "source_sha256": "cf8b592d04ee5d6ada57b30b824f748e0059f72432e044e2c83cdefeb16657af",
+      "log": "mutation-uncertainty-restored.log",
+      "result": "PASS"
+    },
+    {
+      "name": "publish-failure",
+      "case": "writefail",
+      "mutation": true,
+      "compile_exit": 0,
+      "exit": -6,
+      "source_sha256": "c1f2cdbe20d25bdf82f9c4d49ea0214639023dbafb69396caa5606090b18c5e6",
+      "log": "mutation-publish-failure-mutated.log",
+      "result": "DETECTED"
+    },
+    {
+      "name": "publish-failure",
+      "case": "writefail",
+      "mutation": false,
+      "compile_exit": 0,
+      "exit": 0,
+      "source_sha256": "cf8b592d04ee5d6ada57b30b824f748e0059f72432e044e2c83cdefeb16657af",
+      "log": "mutation-publish-failure-restored.log",
+      "result": "PASS"
+    }
+  ],
+  "boundary": "Actual binding component + actual bkprov_store/checksum/file write/rename; injected external fsync failure; fresh exec for restart validation",
+  "checks": {
+    "target_compile": "PASS new ARM object",
+    "build": "PASS",
+    "manifest": "PASS",
+    "runner_gate": "12 PASS",
+    "product_runtime_linkage": "NOT_WIRED; no runtime feature claim",
+    "hardware": "NOT_RUN"
+  },
+  "artifact": {
+    "object_sha256": "f27c6c6607936ca57957d61df96036a77f7605b85ba3c6996912c515792cb9fd",
+    "manifest_sha256": "de3bebc2a47e8c60d7a77fad6c440dc0dbb31617a465fbf612c4d40dd1cd7902",
+    "elfs": {
+      "ap": {
+        "kind": "elf",
+        "path": "roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx",
+        "sha256": "b1f61a31dcc843348ea2e50521d38585762bcaf1e4f01911f134cb48b5cfe790",
+        "size": 6698236
+      },
+      "bl1": {
+        "kind": "elf",
+        "path": "releases/mcuboot/bl1/bl.elf",
+        "sha256": "39fb2051ed3a83ad08f41dcdc50d3ec9d6332a4232e9c6b8f9acf719fc2cdc87",
+        "size": 236724
+      },
+      "bl2": {
+        "kind": "elf",
+        "path": "releases/mcuboot/bl2/bl2.elf",
+        "sha256": "6246b367960053e00dda587170f189837e991e36fc1426838b8d8a01a1695847",
+        "size": 272476
+      },
+      "cp": {
+        "kind": "elf",
+        "path": "roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx",
+        "sha256": "217c5e79ca1f7ce855845d062ccade5bf482f9cfb68c0af94a089b472364e056",
+        "size": 11959696
+      }
+    }
+  },
+  "resources": {
+    "slots": 8,
+    "slot_source_bytes": 24,
+    "record_bytes": 200,
+    "new_runtime_threads": 0,
+    "new_polling": 0,
+    "new_DMA": 0,
+    "new_enabled_writes": 0,
+    "component_heap": 0,
+    "write_contract": "explicit mutations only; exact retry and lookup have no write",
+    "high_water_and_IO_latency": "NOT_MEASURED"
+  },
+  "gaps": {
+    "interface": "storage API implemented; authenticated product routing NOT_WIRED",
+    "L1_L2": "6 storage integration cases PASS; worker/exit/reset/scene integration NOT_RUN",
+    "L3": "BLOCKED_DEVICE; no physical operation",
+    "next": "single AP NFC worker, power/reset drain before admission, then authenticated enrollment/removal/run; ambient reentry and UI separate"
+  },
+  "hashes": {
+    "app/bk7258/bk7258_nfc_bindings.c": "cf8b592d04ee5d6ada57b30b824f748e0059f72432e044e2c83cdefeb16657af",
+    "app/bk7258/bk7258_nfc_bindings.h": "efe22864fa775d0117e5f07cd2e190b447fc8cd2d1468177bd56c694be960059",
+    "app/bk7258/bk7258_nfc_core.c": "edebd2b6a5fed793acf4ce6f68ea4b0a954f3419b58e84ad8ce32882366df590",
+    "app/bk7258/bk7258_provision_store.c": "2e2472575f8f41605e98a6176c792cea91a88cc80bf576d14014a09c0c62dac8",
+    "app/bk7258/CMakeLists.txt": "ccd6346e490e566e5bc7761a25acd0738f9f85e93c21d34cd091490098eff81f",
+    "app/bk7258/Makefile": "9cde420241a6532ae47d722ac55d351283c6ac3e73844f0fd12434bca01248d9",
+    "tests/host/bk7258/test_shaniu_nfc_bindings.c": "509b9257b2a0e76d819f9a4f1f752fb2c84a95996bb245589037e18059395679",
+    "tests/host/bk7258/Makefile": "1439c8d37df934063bda6672e8f713876d7f30523fefe44d89886d5d19178a71",
+    "tests/host/bk7258/test_shaniu_contracts.py": "dcc47baf430bd4d873fa8592612c5197a4c9000f95fe8d1626953aafa4c6a624",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "74d32ea3bc46dfc92d2242b2a5bdd51d604e8cf10416d4e1d7e91b5dbadde07d",
+    "tests/host/bk7258/acceptance/NFC_BINDING_STORE_V1.md": "4d48e348b4e381fd28bd3a62706ee8f8afe5a1f836118a18b5f1774fda472c74"
+  },
+  "logs": {
+    "corrupt-red.log": {
+      "sha256": "f279ce096ac4fad76ce5e85ea943958b0bf27c2fdb4779c74f1ce7c7b2df2eba",
+      "bytes": 128
+    },
+    "build-final.log": {
+      "sha256": "f6e98dc0239d698d0bb4527d9c1430a776c12f552a9b121c29d5e428009880de",
+      "bytes": 7185
+    },
+    "mutation-uncertainty-mutated.log": {
+      "sha256": "0b2825ff420f39e4ecf3a68b8101df28b397af91b9910668bd888abb799687bc",
+      "bytes": 218
+    },
+    "runner-gate.log": {
+      "sha256": "6972c0cf61761401b1edf45bb74993776587ceeb8b4205fdfc1519492f4f583d",
+      "bytes": 111
+    },
+    "mutation-publish-failure-restored.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "contracts.log": {
+      "sha256": "37ba44e45c508521ab9880c18051e15ecc0e5acef5b8aa179505663ca09ba378",
+      "bytes": 8894
+    },
+    "mutation-publish-failure-mutated.log": {
+      "sha256": "132c3a5c997a81618c7f0dd6041b93336e6cd85460fe59bd264b783b6e959ab1",
+      "bytes": 164
+    },
+    "durability.log": {
+      "sha256": "477ee410e5d519469198a1e3c24d51972e90c8476d287ab6e7ca760dd18dac5f",
+      "bytes": 33
+    },
+    "invalid.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "corrupt-green.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "bindings-object-symbols.log": {
+      "sha256": "bf000d85d0c1abb58f5be2829a4da2e8c00c091f979f92cbe2f117018ef4dbd0",
+      "bytes": 364
+    },
+    "corrupt-build.log": {
+      "sha256": "3fa231ba0a92e9d07c71f3967dbf07eb74b8a1b88fc39631f801b8f13f67f77f",
+      "bytes": 829
+    },
+    "persist.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "interface-missing.log": {
+      "sha256": "d2fcf275083327533994694af75a9b8256cf4c2deb4d1fffc133602db28c1d80",
+      "bytes": 398
+    },
+    "contracts-final.log": {
+      "sha256": "66fd70207ed94055597ff0447ab979d336c0099d807e38f833642294e0364c42",
+      "bytes": 8962
+    },
+    "mutation-uncertainty-restored.log": {
+      "sha256": "477ee410e5d519469198a1e3c24d51972e90c8476d287ab6e7ca760dd18dac5f",
+      "bytes": 33
+    },
+    "build.log": {
+      "sha256": "a91287744bf2289a3cfaff5d52b776c3cb74e1f471bdf1767ea8b58d21c6ec1a",
+      "bytes": 12364
+    },
+    "revision.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "corrupt-build-fixed.log": {
+      "sha256": "3fa231ba0a92e9d07c71f3967dbf07eb74b8a1b88fc39631f801b8f13f67f77f",
+      "bytes": 829
+    },
+    "manifest.log": {
+      "sha256": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac",
+      "bytes": 236
+    },
+    "test-build.log": {
+      "sha256": "3fa231ba0a92e9d07c71f3967dbf07eb74b8a1b88fc39631f801b8f13f67f77f",
+      "bytes": 829
+    }
+  },
+  "raw_evidence": {
+    "corrupt-red.log": "test_shaniu_nfc_bindings: test_shaniu_nfc_bindings.c:77: main: Assertion `bknfc_bindings_open(&reopened,root)==-EPROTO' failed.\n",
+    "mutation-uncertainty-mutated.log": "test: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_nfc_bindings.c:97: main: Assertion `bknfc_bindings_lookup(&state,&a,&duration) == -EINPROGRESS && duration==0' failed.\n",
+    "runner-gate.log": "............\n----------------------------------------------------------------------\nRan 12 tests in 0.028s\n\nOK\n",
+    "mutation-publish-failure-restored.log": "CONTRACT_PASS\n",
+    "mutation-publish-failure-mutated.log": "test: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_nfc_bindings.c:86: main: Assertion `state.revision == 1' failed.\n",
+    "durability.log": "FRESH_PROCESS_PASS\nCONTRACT_PASS\n",
+    "invalid.log": "CONTRACT_PASS\n",
+    "corrupt-green.log": "CONTRACT_PASS\n",
+    "bindings-object-symbols.log": "00000000 00000108 T bknfc_bindings_decode\n00000000 00000076 T bknfc_bindings_lookup\n00000000 000000e4 T bknfc_bindings_open\n00000000 000002a4 T bknfc_bindings_set\n         U bknfc_card_valid\n         U bkprov_store_commit\n         U bkprov_store_load\n         U bkprov_store_open\n         U memcmp\n         U memcpy\n         U memset\n00000000 00000020 t same_card\n",
+    "corrupt-build.log": "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\ncc -std=gnu11 -Wall -Wextra -Werror -O2 -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -I /home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/include \\\n  test_shaniu_nfc_bindings.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_bindings.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_core.c \\\n  /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_store.c -Wl,--wrap=fsync build/voice-ota-store-mbedtls/library/libmbedcrypto.a -o build/test_shaniu_nfc_bindings\nmake: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\n",
+    "persist.log": "CONTRACT_PASS\n",
+    "interface-missing.log": "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\nmake: *** No rule to make target '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_bindings.c', needed by 'build/test_shaniu_nfc_bindings'.  Stop.\nmake: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\n",
+    "mutation-uncertainty-restored.log": "FRESH_PROCESS_PASS\nCONTRACT_PASS\n",
+    "revision.log": "CONTRACT_PASS\n",
+    "corrupt-build-fixed.log": "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\ncc -std=gnu11 -Wall -Wextra -Werror -O2 -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -I /home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/include \\\n  test_shaniu_nfc_bindings.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_bindings.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_core.c \\\n  /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_store.c -Wl,--wrap=fsync build/voice-ota-store-mbedtls/library/libmbedcrypto.a -o build/test_shaniu_nfc_bindings\nmake: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\n",
+    "manifest.log": "bk7258 verify build-manifest: PASS boot=mcuboot board=aidk_ai_toy layout=bk7258-510173147382a879 source=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json\n",
+    "test-build.log": "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\ncc -std=gnu11 -Wall -Wextra -Werror -O2 -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -I /home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/include \\\n  test_shaniu_nfc_bindings.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_bindings.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_core.c \\\n  /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_store.c -Wl,--wrap=fsync build/voice-ota-store-mbedtls/library/libmbedcrypto.a -o build/test_shaniu_nfc_bindings\nmake: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\n"
+  }
+}

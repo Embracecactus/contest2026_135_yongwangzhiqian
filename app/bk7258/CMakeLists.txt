@@ -133,6 +133,9 @@ if(CONFIG_BK7258_APP_HAPTIC)
 endif()
 
 if(CONFIG_BK7258_NFC_SERVICE)
+  if(CONFIG_BK7258_PROVISION_GATT)
+    target_sources(apps PRIVATE bk7258_nfc_bindings.c)
+  endif()
   target_include_directories(apps PRIVATE
       ${NUTTX_DIR}/../vendor/beken/nuttx/include)
   target_sources(apps PRIVATE bk7258_nfc_service.c bk7258_nfc_core.c)

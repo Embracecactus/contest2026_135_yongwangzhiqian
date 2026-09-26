@@ -51,6 +51,9 @@ CSRCS     += bk7258_haptic_client.c
 endif
 
 ifeq ($(CONFIG_BK7258_NFC_SERVICE),y)
+ifeq ($(CONFIG_BK7258_PROVISION_GATT),y)
+CSRCS += bk7258_nfc_bindings.c
+endif
 CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)/../vendor/beken/nuttx/include
 	CSRCS += bk7258_nfc_service.c bk7258_nfc_core.c
 endif

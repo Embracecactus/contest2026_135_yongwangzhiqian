@@ -1920,3 +1920,8 @@ $(BUILD)/test_shaniu_focus_intent: test_shaniu_focus_intent.c $(VOICE_PACK_ROOT)
 	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(MOCKS) -I $(VOICE_PACK_ROOT) \
 		-I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON $(filter %.c,$^) \
 		$(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c -o $@
+
+$(BUILD)/test_shaniu_nfc_bindings: test_shaniu_nfc_bindings.c $(VOICE_PACK_ROOT)/bk7258_nfc_bindings.c $(VOICE_PACK_ROOT)/bk7258_nfc_core.c $(VOICE_PACK_ROOT)/bk7258_provision_store.c $(VOICE_OTA_MBEDCRYPTO) | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) -I $(VOICE_OTA_MBEDTLS_SOURCE)/include \
+	  $< $(VOICE_PACK_ROOT)/bk7258_nfc_bindings.c $(VOICE_PACK_ROOT)/bk7258_nfc_core.c \
+	  $(VOICE_PACK_ROOT)/bk7258_provision_store.c -Wl,--wrap=fsync $(VOICE_OTA_MBEDCRYPTO) -o $@

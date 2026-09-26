@@ -1118,3 +1118,38 @@ server object 240 bytes, client 216 bytes (whole objects, not incremental cost).
 ISR duration, CPU p95, stack high-water, real transport and RF/card compatibility
 remain NOT_RUN. Protocol host integration is not complete NFC-scene or L3 proof.
 See `acceptance/s38-20260927.json` and `s38-card-wire-evidence-20260927.json`.
+
+### S39 NFC binding persistence component (2026-09-27)
+
+`NFC_BINDING_STORE_V1.md` defines the bounded table and unique filesystem-owner
+contract. The production component reuses actual `bkprov_store` transactions,
+checks persisted transaction/schema, supports revision/operation replay, and
+blocks lookup/write after an unknown commit. UID does not grant authority.
+The actual architecture places both NFC and focus on AP; S38's CP extension
+is not a necessary scene path. The future adapter must use the existing AP
+worker and power/reset drain, not a second sampler or an arbitrary path.
+
+Six new storage integration cases: persistent save/reopen/remove, revision and
+idempotency, invalid/golden records, prepublication failure, unknown directory
+sync and fresh-process reopen, and corrupted transaction metadata. Only fsync
+is fault-injected; real storage, checksum, parse and rename are executed. Initial
+missing API was BLOCKED_INTERFACE. The initial golden duration byte was corrected
+from index29 to27 before running the implementation: header8 + duration offset12
++ BE64 last byte7. Index29 is reserved; layout was not loosened. The corrupted
+transaction case later produced an actual assertion Red, then passed after
+loader validation. Two isolated mutants (drop uncertainty; publish failed cache)
+compile and fail assertions, with restored cases passing.
+
+Strict 180 PASS retain original63. Target compilation of the new ARM object and
+full build/manifest pass. The object is not yet called from the product path;
+linker retention or board functionality is NOT claimed. Authentication routing,
+worker integration, exit/reset handshake, UI, enrollment, dwell/reentry and
+focus dispatch remain software gaps. No new runtime thread, timer, filesystem
+root or device operation is enabled by this commit.
+
+Storage context contains eight 24-byte entries, existing store paths, revision,
+transaction and flags; encoding adds 200-byte bounded buffers. Own code has no
+heap, DMA, ISR, polling or network activity. Backend I/O latency, complete stack
+high-water and hardware resource budgets remain unmeasured. Writes occur only
+on explicit set/remove; duplicate retry and cached lookup do not write. See
+`acceptance/s39-20260927.json` and `s39-bindings-evidence-20260927.json`.

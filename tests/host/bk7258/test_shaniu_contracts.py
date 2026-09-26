@@ -423,6 +423,7 @@ def main():
         "test_shaniu_focus",
         "test_shaniu_focus_shared",
         "test_shaniu_focus_intent",
+        "test_shaniu_nfc_bindings",
         "test_shaniu_focus_pixels",
         "test_shaniu_focus_render",
         "test_shaniu_display_snapshot",
@@ -587,6 +588,22 @@ def main():
             "L2",
             [HERE / "build/test_bk7258_nfc_rpc", "card-" + variant],
             binaries["test_bk7258_nfc_rpc"],
+        )
+    for variant in (
+        "persist",
+        "revision",
+        "invalid",
+        "writefail",
+        "durability",
+        "corrupt",
+    ):
+        add(
+            suite,
+            "NFC-02.bindings-" + variant,
+            "NFC-02",
+            "L2",
+            [HERE / "build/test_shaniu_nfc_bindings", variant],
+            binaries["test_shaniu_nfc_bindings"],
         )
     for variant in ("voice", "gate", "revision", "cancel", "invalid"):
         add(
