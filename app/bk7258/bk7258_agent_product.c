@@ -1932,8 +1932,15 @@ static int product_reset_step(void)
   if (g_reset_phase != PRODUCT_RESET_FINISHING)
     {
       g_reset_phase = PRODUCT_RESET_QUIESCING;
+#ifdef CONFIG_BK7258_NFC_SERVICE
+      /* 独立关闭采样准入；其他参与者失败也不能留下新的NFC作业。 */
+      int nfc = bk7258_nfc_service_quiesce(true);
+#endif
       ret = bkprov_owner_quiesce(true);
       if (ret < 0) return ret;
+#ifdef CONFIG_BK7258_NFC_SERVICE
+      if (nfc < 0) return nfc;
+#endif
       ret = bkprov_network_cancel();
       if (ret < 0 && ret != -EAGAIN) return ret;
       bkprov_network_step();
@@ -1977,6 +1984,16 @@ static int product_reset_step(void)
   g_config_revision = 0;
   atomic_store(&g_active_persona, -1);
   atomic_store(&g_trigger_prepare_pending, true);
+#ifdef CONFIG_BK7258_NFC_SERVICE
+  /* 清理完成后才恢复采样；重置不能撤销已经提交的关机意图。 */
+#if defined(CONFIG_BK7258_PRODUCT_KEYS) && defined(CONFIG_BK7258_PM_SOFT_OFF)
+  if (!g_shutdown_requested && !g_shutdown_failed && !g_power_pending)
+#endif
+    {
+      ret = bk7258_nfc_service_quiesce(false);
+      if (ret < 0) return ret;
+    }
+#endif
   (void)bkprov_owner_quiesce(false);
   g_reset_phase = PRODUCT_RESET_IDLE;
   return 1;

@@ -1182,3 +1182,27 @@ Reset coordination, binding jobs/authenticated enrollment, dwell/reentry, scene
 dispatch and UI remain software gaps. L3 is NOT_RUN and requires actual artifact/
 device preflight and user action; this does not assert hardware is absent.
 See `acceptance/s40-20260927.json` and `s40-nfc-exit-evidence-20260927.json`.
+
+### S41 reset coordinator NFC barrier (2026-09-27)
+
+The actual product reset step closes NFC admission even when the owner fails,
+and waits for NFC acknowledgement before submitting cleanup. Failed admission
+restoration keeps FINISHING closed; completion cannot resume NFC over an existing
+power intent. The reset gesture and persistent receipt contract are unchanged.
+
+Five L1 cases compile the verbatim production function with external participant
+peers: busy, failure, independent owner failure, resume failure and power/absent
+reset. All produced runtime C assertion failures before implementation and pass
+afterward. unittest wraps SIGABRT as ERROR; these are business assertion failures,
+not compilation/setup failures. Two isolated compiled mutants ignore stop failure
+or power intent; both are detected and both restorations pass. Strict193 PASS
+retain original63 and separate existing mutant/restoration counts. Target build
+and manifest verification pass. No new static state, thread, heap or DMA; no long
+I/O in the coordinator. Stack/CPU/physical timing remain unmeasured.
+
+This is L1 coordinator coverage, not full storage/voice/NFC integration. Permanent
+release failure stays closed; automatic reset-specific cleanup retry is not
+claimed. Future binding-root cleanup, authenticated jobs/enrollment, dwell/scene
+dispatch and App UI remain software gaps. L3 NOT_RUN: no physical reset, install
+or flash occurred. See `acceptance/s41-20260927.json` and
+`s41-reset-nfc-evidence-20260927.json`.

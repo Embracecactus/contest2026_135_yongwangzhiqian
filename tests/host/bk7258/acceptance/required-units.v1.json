@@ -188,7 +188,12 @@
     "LIFE-02.nfc-prestart",
     "LIFE-02.nfc-late",
     "LIFE-02.power-nfc-busy",
-    "LIFE-02.power-nfc-failed"
+    "LIFE-02.power-nfc-failed",
+    "RST-02.nfc-busy",
+    "RST-02.nfc-failed",
+    "RST-02.nfc-owner_failure_still_closes_admission",
+    "RST-02.nfc-resume_failure",
+    "RST-02.nfc-power_intent_and_no_reset"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -380,6 +385,11 @@
     "LIFE-02.nfc-prestart",
     "LIFE-02.nfc-late",
     "LIFE-02.power-nfc-busy",
-    "LIFE-02.power-nfc-failed"
+    "LIFE-02.power-nfc-failed",
+    "RST-02.nfc-busy",
+    "RST-02.nfc-failed",
+    "RST-02.nfc-owner_failure_still_closes_admission",
+    "RST-02.nfc-resume_failure",
+    "RST-02.nfc-power_intent_and_no_reset"
   ]
 }

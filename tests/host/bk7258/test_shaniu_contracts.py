@@ -554,6 +554,25 @@ def main():
         marker=False,
     )
     for variant in (
+        "busy",
+        "failed",
+        "owner_failure_still_closes_admission",
+        "resume_failure",
+        "power_intent_and_no_reset",
+    ):
+        add(
+            suite,
+            "RST-02.nfc-" + variant,
+            "RST-02",
+            "L1",
+            [
+                sys.executable,
+                HERE / "test_shaniu_reset_nfc.py",
+                "ResetNfcTest.test_" + variant,
+            ],
+            marker=False,
+        )
+    for variant in (
         "probe_error",
         "timeout",
         "malformed",
