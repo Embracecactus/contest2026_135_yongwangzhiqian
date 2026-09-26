@@ -436,6 +436,7 @@ def main():
         "test_bk7258_usbmode_lease",
         "test_bk7258_motion_core",
         "test_bk7258_nfc_core",
+        "test_bk7258_nfc_rpc",
     ):
         binaries[target] = build(["make", "build/" + target], "build-" + target)
     for variant in (
@@ -680,6 +681,26 @@ def main():
             "L2",
             [HERE / "build/test_agent_tts_queue", variant],
             binaries["test_agent_tts_queue"],
+        )
+    for index, variant in enumerate(
+        (
+            "uid-empty",
+            "select-timeout",
+            "select-error",
+            "uid-size",
+            "uid-incomplete",
+            "uid-4",
+            "uid-7",
+            "uid-10",
+        )
+    ):
+        add(
+            suite,
+            "NFC-01." + variant,
+            "NFC-01",
+            "L2",
+            [HERE / "build/test_bk7258_nfc_rpc", str(index)],
+            binaries["test_bk7258_nfc_rpc"],
         )
     for variant in ("empty", "oversize", "hce-positive"):
         add(

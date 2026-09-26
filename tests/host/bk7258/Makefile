@@ -382,11 +382,16 @@ run-nfc-core: nfc-core
 
 # These tests include the real client, service and core. The explicit empty
 # headers isolate their deterministic RPC/VFS mocks from a target .config.
-$(SENSOR_RPC_SHIM)/.ready: | $(BUILD)
+$(SENSOR_RPC_SHIM)/.ready: Makefile \
+	$(REPOSITORY_ROOT)/../nuttx/include/nuttx/contactless/ioctl.h | $(BUILD)
 	mkdir -p $(sort $(dir $(addprefix $(SENSOR_RPC_SHIM)/,$(SENSOR_RPC_HEADERS))))
 	@for header in $(SENSOR_RPC_HEADERS); do \
 		touch "$(SENSOR_RPC_SHIM)/$$header"; \
 	done
+	mkdir -p $(SENSOR_RPC_SHIM)/nuttx/contactless $(SENSOR_RPC_SHIM)/nuttx/fs
+	ln -sf $(REPOSITORY_ROOT)/../nuttx/include/nuttx/contactless/ioctl.h $(SENSOR_RPC_SHIM)/nuttx/contactless/ioctl.h
+	rm -f $(SENSOR_RPC_SHIM)/nuttx/fs/ioctl.h
+	printf '#define _CLIOC(nr) (0x2400 | (nr))\n' > $(SENSOR_RPC_SHIM)/nuttx/fs/ioctl.h
 	touch $@
 
 $(SENSOR_RPC_TARGETS): $(BUILD)/test_bk7258_%_rpc: test_bk7258_%_rpc.c \

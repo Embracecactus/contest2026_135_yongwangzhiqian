@@ -22,6 +22,7 @@
 #include <syslog.h>
 #include <time.h>
 #include <unistd.h>
+#include <nuttx/contactless/ioctl.h>
 
 #define CONFIG_BK7258_APP_MOTION 1
 #define CONFIG_BK7258_MOTION_SERVICE 1
@@ -70,6 +71,8 @@ static void (*read_hook)(void);
 static int (*worker_entry)(int, char **);
 static int opens, reads, closes, fd_live, open_error, read_error, close_error;
 static int ioctl_error;
+static int nfc_selects;
+static uint8_t nfc_uid_size = 4, nfc_sak;
 static int requests_sent, responses_sent, no_buffers;
 static bool drop_reply;
 static unsigned int passes;
@@ -178,6 +181,21 @@ static int mock_close(int fd)
 static int mock_ioctl(int fd, unsigned long cmd, ...)
 {
   assert(in_worker && !callback_depth && fd_live && fd == 42);
+  if (cmd == MFRC522IOC_GET_PICC_UID)
+    {
+      va_list args;
+      struct picc_uid_s *uid;
+      nfc_selects++;
+      run_hook(&read_hook);
+      if (read_error) { errno = read_error; return -1; }
+      va_start(args, cmd);
+      uid = (struct picc_uid_s *)va_arg(args, unsigned long);
+      va_end(args);
+      memset(uid, 0xa5, sizeof(*uid));
+      uid->size = nfc_uid_size;
+      uid->sak = nfc_sak;
+      return 0;
+    }
   assert(cmd == SNIOC_SET_INTERVAL);
   if (ioctl_error) { errno = ioctl_error; return -1; }
   return 0;

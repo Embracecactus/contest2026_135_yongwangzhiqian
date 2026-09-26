@@ -897,3 +897,33 @@ compatibility remain incomplete. The underlying driver selection path still
 needs separate review; these tests prove only the core's response to its input.
 Full-file nxstyle reports existing header/section/style issues; it is not marked
 PASS. See `acceptance/s31-20260927.json` and `acceptance/s31-nfc-evidence-20260927.json`.
+
+### S32 — NFC selected-card validation at the real service boundary
+
+Current target uses standard CL_MFRC522. Its legacy read path ignores the
+selection return and may inspect an incomplete UID. The existing standard
+GET_PICC_UID ioctl propagates selection errors. The service now uses it, checks
+4/7/10-byte UID lengths and the incomplete-selection bit, returns only a presence
+byte, and retains its single worker/close/error semantics. No UID is logged or
+added to the version-1 RPC. This does not make UID an authorization credential.
+
+Eight separately collected L2 cases compile actual client/service/core and replace
+only OS/RPMsg/VFS boundaries: empty UID, selection timeout/error, invalid length,
+incomplete bit and valid 4/7/10-byte identities. The public contactless ABI header
+is read from the pinned NuttX checkout; the host shim isolates its filesystem
+ioctl-number macro from Linux headers. An initial direct fs-header include failed
+to compile (SETUP_ERROR), then the empty-UID case failed its product assertion
+before the service change. Legacy RPC I/O-count assertions now count the selected
+ioctl instead of read; replay/close counts and outcome assertions are unchanged.
+
+146 strict PASS include the original 63; original mutations remain detected.
+Full NFC RPC 27 and motion RPC 20 pass separately (8 NFC cases overlap strict
+collection; do not add them again). Removing UID validation in a temporary
+compiled mutation is detected by empty/invalid/incomplete cases. Incremental
+firmware/layer gate and manifest pass. Whole-file nxstyle still reports existing
+structural/style issues and is not a pass. No new thread, static state or heap;
+a local 12-byte UID structure is added, target stack/latency are not measured.
+Current target disables CL_ISODEP/CL_MFRC522_FRAME; HCE code existence is not
+capability evidence. Scene-card binding, retention, dwell dedupe and common scene
+dispatch are still missing; RF/physical compatibility remains NOT_RUN. See
+`acceptance/s32-20260927.json` and `acceptance/s32-selection-evidence-20260927.json`.

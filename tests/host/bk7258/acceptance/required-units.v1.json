@@ -138,7 +138,15 @@
     "provision.ExpressionTrialControllerTest.invalidDurationAndMismatchedReceiptCannotClaimSuccess",
     "NFC-01.empty",
     "NFC-01.oversize",
-    "NFC-01.hce-positive"
+    "NFC-01.hce-positive",
+    "NFC-01.uid-empty",
+    "NFC-01.select-timeout",
+    "NFC-01.select-error",
+    "NFC-01.uid-size",
+    "NFC-01.uid-incomplete",
+    "NFC-01.uid-4",
+    "NFC-01.uid-7",
+    "NFC-01.uid-10"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -280,6 +288,14 @@
     "provision.ExpressionTrialControllerTest.invalidDurationAndMismatchedReceiptCannotClaimSuccess",
     "NFC-01.empty",
     "NFC-01.oversize",
-    "NFC-01.hce-positive"
+    "NFC-01.hce-positive",
+    "NFC-01.uid-empty",
+    "NFC-01.select-timeout",
+    "NFC-01.select-error",
+    "NFC-01.uid-size",
+    "NFC-01.uid-incomplete",
+    "NFC-01.uid-4",
+    "NFC-01.uid-7",
+    "NFC-01.uid-10"
   ]
 }

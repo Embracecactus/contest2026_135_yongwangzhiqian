@@ -24,6 +24,7 @@
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <nuttx/clock.h>
+#include <nuttx/contactless/ioctl.h>
 #include <nuttx/signal.h>
 #ifdef CONFIG_CL_MFRC522_FRAME
 #include <nuttx/contactless/mfrc522_frame.h>
@@ -107,14 +108,39 @@ static int bknfc_open(void *context)
 static int bknfc_read(void *context, void *buffer, size_t length)
 {
   struct bknfc_source_s *source = context;
-  ssize_t ret;
+  struct picc_uid_s uid;
+  int ret;
 
   if (source->fd < 0 || buffer == NULL || length != 1)
     {
       return -EINVAL;
     }
-  ret = read(source->fd, buffer, length);
-  return ret < 0 ? bknfc_errno() : (int)ret;
+
+  /* The legacy read path ignores selection errors. The standard ioctl
+   * reports them and returns the complete cascade result. Keep its UID
+   * local: only a validated presence byte reaches the RPC core.
+   */
+
+  *(uint8_t *)buffer = 0;
+  memset(&uid, 0, sizeof(uid));
+  ret = ioctl(source->fd, MFRC522IOC_GET_PICC_UID, (unsigned long)&uid);
+  if (ret < 0)
+    {
+      ret = bknfc_errno();
+    }
+  else if (ret != 0 || (uid.sak & PICC_TYPE_NOT_COMPLETE) != 0 ||
+           (uid.size != 4 && uid.size != 7 && uid.size != 10))
+    {
+      ret = -EPROTO;
+    }
+  else
+    {
+      *(uint8_t *)buffer = 1;
+      ret = 1;
+    }
+
+  memset(&uid, 0, sizeof(uid));
+  return ret;
 }
 static int bknfc_close(void *context)
 {
