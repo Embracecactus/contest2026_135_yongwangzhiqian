@@ -13,6 +13,7 @@
 
 #define BKNFC_RPC_MAGIC            0x424b4e46u /* BKNF */
 #define BKNFC_RPC_VERSION          1u
+#define BKNFC_CARD_VERSION         2u
 #define BKNFC_RPC_ENDPOINT         "bknfc-v1"
 #define BKNFC_RPC_ENDPOINT_WAIT_MS 3000u
 #define BKNFC_RPC_SEND_WAIT_MS     1000u
@@ -23,12 +24,21 @@ enum bknfc_rpc_command_e
 {
   BKNFC_RPC_SCAN = 1,
   BKNFC_RPC_HCE = 2, /* App SELECT response, never ownership approval */
+  BKNFC_RPC_CARD = 3, /* V2 only: internal scene matching, never authority */
   BKNFC_RPC_RESPONSE = 0x8000,
 };
 
-/* Privacy boundary: this response intentionally has no UID, card ID, or
- * payload field.  Presence alone is not an identity or authorization claim.
+/* V1 keeps its presence-only privacy contract. V2 CARD carries a complete
+ * sample only between the trusted board CPUs; no client/log export or grant.
  */
+struct bknfc_card_s
+{
+  uint8_t size;
+  uint8_t sak;
+  uint8_t uid[10];
+};
+
+_Static_assert(sizeof(struct bknfc_card_s) == 12, "card wire size changed");
 struct bknfc_rpc_request_s
 {
   uint32_t magic;
@@ -49,7 +59,11 @@ struct bknfc_rpc_response_s
   int32_t rpc_status;
   int32_t operation_status;
   uint32_t present;
-  uint32_t reserved[3];
+  union
+  {
+    uint32_t reserved[3]; /* V1 and every failed/absent V2 sample: zero */
+    struct bknfc_card_s card;
+  };
 };
 
 _Static_assert(sizeof(struct bknfc_rpc_request_s) == 24,

@@ -22,8 +22,13 @@ struct bknfc_source_ops_s
   /* HCE: zero completes the validated transaction; negatives are errors. */
 
   int (*hce)(void *context);
+
+  /* V2 explicit sample: zero plus complete card, negatives stay errors. */
+
+  int (*card)(void *context, struct bknfc_card_s *card);
 };
 
+bool bknfc_card_valid(const struct bknfc_card_s *card);
 bool bknfc_rpc_request_valid(const struct bknfc_rpc_request_s *request);
 bool bknfc_rpc_response_valid(const struct bknfc_rpc_response_s *response);
 void bknfc_rpc_make_response(struct bknfc_rpc_response_s *response,

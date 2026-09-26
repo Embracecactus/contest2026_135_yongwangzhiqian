@@ -3,19 +3,42 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Host-testable NFC-presence policy.  A card UID never escapes this layer.
+ * Host-testable NFC policy. V1 presence; V2 device-internal card sample.
  ****************************************************************************/
 #include "bk7258_nfc_core.h"
 
 #include <errno.h>
 #include <string.h>
 
+bool bknfc_card_valid(const struct bknfc_card_s *card)
+{
+  unsigned int i;
+
+  if (card == NULL || (card->sak & 4) != 0 ||
+      (card->size != 4 && card->size != 7 && card->size != 10))
+    {
+      return false;
+    }
+
+  for (i = card->size; i < sizeof(card->uid); i++)
+    {
+      if (card->uid[i] != 0)
+        {
+          return false;
+        }
+    }
+
+  return true;
+}
+
 bool bknfc_rpc_request_valid(const struct bknfc_rpc_request_s *request)
 {
   return request != NULL && request->magic == BKNFC_RPC_MAGIC &&
-         request->version == BKNFC_RPC_VERSION &&
-         (request->command == BKNFC_RPC_SCAN ||
-          request->command == BKNFC_RPC_HCE) && request->session != 0 &&
+         ((request->version == BKNFC_RPC_VERSION &&
+           (request->command == BKNFC_RPC_SCAN ||
+            request->command == BKNFC_RPC_HCE)) ||
+          (request->version == BKNFC_CARD_VERSION &&
+           request->command == BKNFC_RPC_CARD)) && request->session != 0 &&
          request->sequence != 0 && request->reserved[0] == 0 &&
          request->reserved[1] == 0;
 }
@@ -23,12 +46,24 @@ bool bknfc_rpc_request_valid(const struct bknfc_rpc_request_s *request)
 bool bknfc_rpc_response_valid(const struct bknfc_rpc_response_s *response)
 {
   if (response == NULL || response->magic != BKNFC_RPC_MAGIC ||
-      response->version != BKNFC_RPC_VERSION ||
+      (response->version != BKNFC_RPC_VERSION &&
+       response->version != BKNFC_CARD_VERSION) ||
       response->command != BKNFC_RPC_RESPONSE || response->session == 0 ||
-      response->sequence == 0 || response->reserved[0] != 0 ||
-      response->reserved[1] != 0 || response->reserved[2] != 0 ||
+      response->sequence == 0 ||
       response->rpc_status > 0 || response->operation_status > 0 ||
       response->present > 1)
+    {
+      return false;
+    }
+
+  if (response->version == BKNFC_CARD_VERSION && response->present == 1)
+    {
+      return response->rpc_status == 0 && response->operation_status == 0 &&
+             bknfc_card_valid(&response->card);
+    }
+
+  if (response->reserved[0] != 0 || response->reserved[1] != 0 ||
+      response->reserved[2] != 0)
     {
       return false;
     }
@@ -53,7 +88,9 @@ void bknfc_rpc_make_response(struct bknfc_rpc_response_s *response,
 
   memset(response, 0, sizeof(*response));
   response->magic = BKNFC_RPC_MAGIC;
-  response->version = BKNFC_RPC_VERSION;
+  response->version = request != NULL &&
+                      request->version == BKNFC_CARD_VERSION ?
+                      BKNFC_CARD_VERSION : BKNFC_RPC_VERSION;
   response->command = BKNFC_RPC_RESPONSE;
   response->rpc_status = rpc_status;
   response->operation_status = rpc_status < 0 ? rpc_status : -ENODATA;
@@ -70,6 +107,7 @@ int bknfc_rpc_handle_request(const struct bknfc_rpc_request_s *request,
                              void *context)
 {
   unsigned char scratch = 0;
+  struct bknfc_card_s card = {0};
   int result;
   int close_result;
 
@@ -98,7 +136,11 @@ int bknfc_rpc_handle_request(const struct bknfc_rpc_request_s *request,
       return result;
     }
 
-  if (request->command == BKNFC_RPC_HCE)
+  if (request->command == BKNFC_RPC_CARD)
+    {
+      result = ops->card == NULL ? -ENOSYS : ops->card(context, &card);
+    }
+  else if (request->command == BKNFC_RPC_HCE)
     {
       result = ops->hce == NULL ? -ENOSYS : ops->hce(context);
     }
@@ -114,6 +156,24 @@ int bknfc_rpc_handle_request(const struct bknfc_rpc_request_s *request,
       response->operation_status = close_result;
       response->present = 0;
       return close_result;
+    }
+
+  if (request->command == BKNFC_RPC_CARD)
+    {
+      /* 关闭成功后才发布卡片；读取错误不能作为移开后的重入证据。 */
+
+      if (result == 0 && bknfc_card_valid(&card))
+        {
+          response->card = card;
+          response->present = 1;
+        }
+      else if (result >= 0)
+        {
+          result = -EPROTO;
+        }
+
+      response->operation_status = result;
+      return result;
     }
 
   if (result == -EAGAIN)

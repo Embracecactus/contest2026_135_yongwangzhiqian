@@ -111,24 +111,18 @@ static int bknfc_open(void *context)
 #endif
   return 0;
 }
-static int bknfc_read(void *context, void *buffer, size_t length)
+static int bknfc_card_read(void *context, struct bknfc_card_s *card)
 {
   struct bknfc_source_s *source = context;
-  struct picc_uid_s uid;
+  struct picc_uid_s uid = {0};
   int ret;
 
-  if (source->fd < 0 || buffer == NULL || length != 1)
+  if (source->fd < 0 || card == NULL)
     {
       return -EINVAL;
     }
 
-  /* The legacy read path ignores selection errors. The standard ioctl
-   * reports them and returns the complete cascade result. Keep its UID
-   * local: only a validated presence byte reaches the RPC core.
-   */
-
-  *(uint8_t *)buffer = 0;
-  memset(&uid, 0, sizeof(uid));
+  memset(card, 0, sizeof(*card));
   ret = ioctl(source->fd, MFRC522IOC_GET_PICC_UID, (unsigned long)&uid);
   if (ret < 0)
     {
@@ -141,11 +135,34 @@ static int bknfc_read(void *context, void *buffer, size_t length)
     }
   else
     {
-      *(uint8_t *)buffer = 1;
-      ret = 1;
+      card->size = uid.size;
+      card->sak = uid.sak;
+      memcpy(card->uid, uid.uid_data, uid.size);
     }
 
   memset(&uid, 0, sizeof(uid));
+  return ret;
+}
+
+static int bknfc_read(void *context, void *buffer, size_t length)
+{
+  struct bknfc_card_s card = {0};
+  int ret;
+
+  if (buffer == NULL || length != 1)
+    {
+      return -EINVAL;
+    }
+
+  *(uint8_t *)buffer = 0;
+  ret = bknfc_card_read(context, &card);
+  memset(&card, 0, sizeof(card));
+  if (ret == 0)
+    {
+      *(uint8_t *)buffer = 1;
+      return 1;
+    }
+
   return ret;
 }
 static int bknfc_close(void *context)
@@ -356,6 +373,7 @@ static const struct bknfc_source_ops_s g_bknfc_ops =
   .read = bknfc_read,
   .close = bknfc_close,
   .hce = bknfc_hce,
+  .card = bknfc_card_read,
 };
 static int bknfc_send(struct bknfc_server_s *server,
                       const struct bknfc_rpc_response_s *response,
@@ -525,7 +543,8 @@ static int bknfc_server_cb(struct rpmsg_endpoint *endpoint, void *data,
   (void)src;
   if (request == NULL || len != sizeof(*request) ||
       request->magic != BKNFC_RPC_MAGIC ||
-      request->version != BKNFC_RPC_VERSION)
+      (request->version != BKNFC_RPC_VERSION &&
+       request->version != BKNFC_CARD_VERSION))
     {
       return -EINVAL;
     }

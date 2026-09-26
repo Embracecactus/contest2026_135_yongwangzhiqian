@@ -1077,3 +1077,44 @@ and ATQA occupy 14 source-level bytes plus compiler alignment/frame overhead.
 Actual stack high-water, CPU p95, transport time and physical card removal
 are NOT_RUN. Bindings, dwell/reentry and scene dispatch are still unimplemented.
 See `acceptance/s37-20260927.json` and `s37-selection-evidence-20260927.json`.
+
+### S38 explicit internal card sample protocol (2026-09-27)
+
+`acceptance/NFC_CARD_WIRE_V2.md` freezes the new device-internal CARD operation.
+Existing V1 scan/HCE and CLI remain presence-only. V2 command 3 uses the same
+24/40-byte transport envelopes and existing worker; its 12-byte card sample
+never becomes authentication or a BLE/App/USB/log field. No automatic polling,
+owner binding or scene dispatch is enabled. A future matching caller still
+needs authenticated configuration, persistence, deduplication and admission.
+
+Seven new cases in `test_bk7258_nfc_rpc.c` execute actual client, server queue,
+core and worker with external NuttX/RPMsg/ioctl boundaries controlled: valid
+UID lengths/tail, read errors, close failure, version mismatch, duplicate
+request, malformed envelope/payload and invalid selected card. V2's EAGAIN
+and timeout remain errors; no current scan result proves physical card removal.
+Failed/close-failed replies have no card payload. Version now joins session,
+sequence and connection epoch correlation. Exact duplicate response bytes
+are cached without a second hardware read.
+
+The initial new-card test reaches the old dispatcher and fails because V2
+is absent: BLOCKED_INTERFACE, not a known-business Red. During implementation
+`card-replay` incorrectly expected zero from a direct replay callback. That
+callback forwards rpmsg_trysend's nonnegative byte count (also used in the
+existing replay tests); the controlled peer returns exactly 40. Its assertion
+was corrected to that exact count. No payload, no-repeat-I/O or error assertion
+was removed. The original failure log is preserved.
+
+Full NFC RPC: 34 cases; motion RPC: 20 unchanged; NFC core: PASS. Strict set:
+174 PASS including original 63 and seven new IDs. Two additional isolated
+mutations (omit reply version correlation; publish UID before failed close)
+compile, hit their assertions and are detected; restores pass. Original two
+mutations/restores remain visible separately. Actual AP/CP builds and manifest
+rehash pass; ELF contains the real client, service and card validator.
+
+No new thread, heap allocation, persistent write, polling interval, DMA buffer
+or I/O retry is introduced. Request/response/cache sizes remain 24/40 bytes.
+Card scratch is 12 bytes plus compiler frame overhead. Actual target symbols:
+server object 240 bytes, client 216 bytes (whole objects, not incremental cost).
+ISR duration, CPU p95, stack high-water, real transport and RF/card compatibility
+remain NOT_RUN. Protocol host integration is not complete NFC-scene or L3 proof.
+See `acceptance/s38-20260927.json` and `s38-card-wire-evidence-20260927.json`.

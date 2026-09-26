@@ -34,3 +34,8 @@ publishes only a complete selection. Failed output is cleared. Timeouts remain
 errors; they do not prove physical removal or authorize scene rearming. The
 legacy string read entry is not the product scan path and is not validated by
 these UID-ioctl tests.
+
+The product V1 RPMsg scan remains presence-only. Its explicit V2 CARD operation
+can return a complete UID sample to the trusted board CP for future scene
+matching; it does not expose a UID in the CLI or external transports and grants
+no authority. See tests/host/bk7258/acceptance/NFC_CARD_WIRE_V2.md.

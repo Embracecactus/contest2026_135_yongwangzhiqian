@@ -167,7 +167,14 @@
     "NFC-01.selection-malformed",
     "NFC-01.selection-select_error",
     "NFC-01.selection-invalid",
-    "NFC-01.selection-valid"
+    "NFC-01.selection-valid",
+    "NFC-01.card-valid",
+    "NFC-01.card-error",
+    "NFC-01.card-close",
+    "NFC-01.card-version",
+    "NFC-01.card-replay",
+    "NFC-01.card-validation",
+    "NFC-01.card-malformed"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -338,6 +345,13 @@
     "NFC-01.selection-malformed",
     "NFC-01.selection-select_error",
     "NFC-01.selection-invalid",
-    "NFC-01.selection-valid"
+    "NFC-01.selection-valid",
+    "NFC-01.card-valid",
+    "NFC-01.card-error",
+    "NFC-01.card-close",
+    "NFC-01.card-version",
+    "NFC-01.card-replay",
+    "NFC-01.card-validation",
+    "NFC-01.card-malformed"
   ]
 }

@@ -571,6 +571,23 @@ def main():
             ],
             marker=False,
         )
+    for variant in (
+        "valid",
+        "error",
+        "close",
+        "version",
+        "replay",
+        "validation",
+        "malformed",
+    ):
+        add(
+            suite,
+            "NFC-01.card-" + variant,
+            "NFC-01",
+            "L2",
+            [HERE / "build/test_bk7258_nfc_rpc", "card-" + variant],
+            binaries["test_bk7258_nfc_rpc"],
+        )
     for variant in ("voice", "gate", "revision", "cancel", "invalid"):
         add(
             suite,

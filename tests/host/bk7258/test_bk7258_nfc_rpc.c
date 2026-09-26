@@ -370,6 +370,103 @@ static void test_selection_result(int selected)
       passes++;
     }
 }
+
+/* V2 golden values are from NFC_CARD_WIRE_V2.md, independent of encoders. */
+static void wrong_version_reply(void)
+{
+  struct bknfc_rpc_response_s r = {0};
+  r.magic = BKNFC_RPC_MAGIC; r.version = 1; r.command = BKNFC_RPC_RESPONSE;
+  r.session = g_bknfc_client.waiting_session;
+  r.sequence = g_bknfc_client.waiting_sequence;
+  r.present = 1;
+  assert(bknfc_client_cb(&g_bknfc_client.endpoint, &r, sizeof(r), 0,
+                         &g_bknfc_client) == -ENOMSG);
+  drain_worker();
+}
+static void test_card_contract(const char *name)
+{
+  struct bknfc_rpc_request_s r;
+  struct bknfc_rpc_response_s reply;
+  uint8_t *payload = (uint8_t *)&reply + 28;
+  reset_case();
+  r = request(1); r.command = 3; r.version = 2;
+  memset(&reply, 0xa5, sizeof(reply));
+  if (!strcmp(name, "card-valid"))
+    {
+      const uint8_t sizes[] = {4, 7, 10};
+      for (unsigned int i = 0; i < 3; i++)
+        {
+          nfc_uid_size = sizes[i]; wait_hook = drain_worker;
+          assert(bknfc_rpc_exchange(&r, &reply, 20) == 0);
+          assert(reply.version == 2 && reply.operation_status == 0 &&
+                 reply.present == 1 && payload[0] == sizes[i] && payload[1] == 0);
+          for (unsigned int j = 0; j < 10; j++)
+            assert(payload[j + 2] == (j < sizes[i] ? 0xa5 : 0));
+          assert(bknfc_rpc_response_valid(&reply));
+        }
+      assert(nfc_selects == 3 && closes == 3);
+    }
+  else if (!strcmp(name, "card-error"))
+    {
+      const int errors[] = {EIO, EAGAIN, ETIMEDOUT};
+      for (unsigned int i = 0; i < 3; i++)
+        {
+          read_error = errors[i]; wait_hook = drain_worker;
+          assert(bknfc_rpc_exchange(&r, &reply, 20) == 0);
+          assert(reply.version == 2 && reply.operation_status == -errors[i] &&
+                 reply.present == 0);
+          for (unsigned int j = 0; j < 12; j++) assert(payload[j] == 0);
+        }
+      assert(nfc_selects == 3 && closes == 3);
+    }
+  else if (!strcmp(name, "card-close"))
+    {
+      close_error = EIO; wait_hook = drain_worker;
+      assert(bknfc_rpc_exchange(&r, &reply, 20) == 0);
+      assert(reply.version == 2 && reply.operation_status == -EIO && !reply.present);
+      for (unsigned int j = 0; j < 12; j++) assert(payload[j] == 0);
+      assert(nfc_selects == 1 && closes == 1);
+    }
+  else if (!strcmp(name, "card-version"))
+    {
+      wait_hook = wrong_version_reply;
+      assert(bknfc_rpc_exchange(&r, &reply, 20) == 0);
+      assert(reply.version == 2 && reply.present == 1);
+    }
+  else if (!strcmp(name, "card-replay"))
+    {
+      assert(deliver(&r) == 0); drain_worker(); reply = last_wire;
+      assert(reply.version == 2 && reply.present == 1);
+      assert(deliver(&r) == (int)sizeof(reply)); drain_worker();
+      assert(!memcmp(&last_wire, &reply, sizeof(reply)));
+      assert(nfc_selects == 1 && closes == 1 && responses_sent == 2);
+    }
+  else if (!strcmp(name, "card-validation"))
+    {
+      memset(&reply, 0, sizeof(reply));
+      reply.magic = BKNFC_RPC_MAGIC; reply.version = 2;
+      reply.command = BKNFC_RPC_RESPONSE; reply.session = 1; reply.sequence = 1;
+      reply.present = 1; payload[0] = 4; memset(payload + 2, 0xa5, 4);
+      assert(bknfc_rpc_response_valid(&reply));
+      payload[0] = 5; assert(!bknfc_rpc_response_valid(&reply)); payload[0] = 4;
+      payload[1] = 4; assert(!bknfc_rpc_response_valid(&reply)); payload[1] = 0;
+      payload[11] = 1; assert(!bknfc_rpc_response_valid(&reply)); payload[11] = 0;
+      reply.operation_status = -EIO; assert(!bknfc_rpc_response_valid(&reply));
+      reply.operation_status = 0; reply.version = 1;
+      assert(!bknfc_rpc_response_valid(&reply));
+      r.command = 1; assert(!bknfc_rpc_request_valid(&r));
+      assert(opens == 0 && nfc_selects == 0);
+    }
+  else if (!strcmp(name, "card-malformed"))
+    {
+      nfc_uid_size = 5; wait_hook = drain_worker;
+      assert(bknfc_rpc_exchange(&r, &reply, 20) == 0);
+      assert(reply.version == 2 && reply.operation_status == -EPROTO && !reply.present);
+      for (unsigned int j = 0; j < 12; j++) assert(payload[j] == 0);
+    }
+  else assert(0);
+  passes++;
+}
 int main(int argc, char **argv)
 {
   assert(bknfc_rpc_client_initialize() == 0);
@@ -378,6 +475,13 @@ int main(int argc, char **argv)
   bknfc_ns_bind(&cp, &g_bknfc_server, BKNFC_RPC_ENDPOINT, 1);
   if (argc == 2)
     {
+      if (!strncmp(argv[1], "card-", 5))
+        {
+          test_card_contract(argv[1]);
+          assert(passes == 1);
+          puts("CONTRACT_PASS");
+          return 0;
+        }
       assert(argv[1][0] >= '0' && argv[1][0] <= '7' && argv[1][1] == 0);
       test_selection_result(argv[1][0] - '0');
       assert(passes == 1);
@@ -386,6 +490,10 @@ int main(int argc, char **argv)
     }
 
   assert(argc == 1);
+  const char *cards[] = {"card-valid", "card-error", "card-close",
+    "card-version", "card-replay", "card-validation", "card-malformed"};
+  for (unsigned int i = 0; i < sizeof(cards) / sizeof(cards[0]); i++)
+    test_card_contract(cards[i]);
   test_selection_result(-1);
   test_client_backpressure();
   test_client_reconnect();
