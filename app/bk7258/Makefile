@@ -17,7 +17,7 @@ CSRCS += bk7258_provision_gatt.c bk7258_provision_tls.c bk7258_provision_claim.c
 CSRCS += bk7258_provision_store.c bk7258_provision_pair.c bk7258_provision_owner.c
 CSRCS += bk7258_provision_scan.c bk7258_provision_settings.c bk7258_provision_config.c bk7258_provision_storage.c
 CSRCS += bk7258_provision_identity.c bk7258_provision_network.c bk7258_provision_time.c
-CSRCS += bk7258_control_session.c bk7258_control_pair.c bk7258_control_serial.c bk7258_pc_grants.c bk7258_control_ota_request.c
+CSRCS += bk7258_control_session.c bk7258_control_pair.c bk7258_control_serial.c bk7258_pc_grants.c bk7258_pc_control.c bk7258_control_ota_request.c
 endif
 
 ifneq ($(filter y,$(CONFIG_BK7258_VISION_SERVICE) $(CONFIG_BK7258_DISPLAY_SERVICE)),)

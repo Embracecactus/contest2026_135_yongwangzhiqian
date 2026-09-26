@@ -7,6 +7,7 @@
 #include "bk7258_control_pair.h"
 #include "bk7258_control_serial.h"
 #include "bk7258_pc_grants.h"
+#include "bk7258_pc_control.h"
 #include <sys/stat.h>
 #include <arch/chip/bk7258_wifi.h>
 #include <assert.h>
@@ -198,6 +199,47 @@ static void receive_scan(struct bkprov_pair_s *pair, mbedtls_ssl_context *client
 }
 
 static struct bkpc_grants_s pc_grants;
+static int pc_sync_fault;
+int __real_fsync(int fd);
+int __wrap_fsync(int fd)
+{
+  struct stat st;
+  assert(fstat(fd, &st) == 0);
+  if ((pc_sync_fault == 1 && S_ISREG(st.st_mode)) ||
+      (pc_sync_fault == 2 && S_ISDIR(st.st_mode)))
+    { errno = EIO; return -1; }
+  return __real_fsync(fd);
+}
+static struct bkpc_control_s pc_control;
+static bool pc_guarded;
+static unsigned pc_reads, pc_writes;
+static int pc_execute(void *context, enum bkcontrol_command_e command,
+                       uint32_t value, struct bkcontrol_status_s *status)
+{
+  assert(context == &pc_reads && value == 0);
+  assert(command == BKCONTROL_STATUS || command == BKCONTROL_INFO);
+  pc_reads++;
+  status->flags = 1;
+  return 0;
+}
+static int pc_config(void *context, enum bkcontrol_command_e command,
+                      uint32_t kind, uint32_t offset, const uint8_t *record,
+                      size_t size, struct bkcontrol_status_s *status)
+{
+  assert(context == &pc_reads && offset == 0);
+  assert(kind == BKCONTROL_CONFIG_FOCUS || kind == BKCONTROL_CONFIG_EXPRESSION_TRIAL ||
+         kind == BKCONTROL_CONFIG_EYE_PACK);
+  if (command == BKCONTROL_CONFIG_READ)
+    { pc_reads++; status->config_total = 4; memcpy(status->config_chunk, "TEST", 4); }
+  else if (command == BKCONTROL_CONFIG_APPLY)
+    { assert(record && size == 4 && !memcmp(record, "TEST", 4)); pc_writes++; }
+  else assert(command == BKCONTROL_CONFIG_BEGIN && size == 4);
+  return 0;
+}
+static int control_step(struct bkcontrol_pair_s *pair)
+{
+  return pc_guarded ? bkpc_control_step(&pc_control) : bkcontrol_pair_step(pair);
+}
 static unsigned control_calls;
 static unsigned control_cancels;
 static int control_execute(void *context, enum bkcontrol_command_e command,
@@ -234,8 +276,11 @@ static void control_handshake_on(struct bkcontrol_pair_s *control,
       struct bkprov_tls_transport_s transport =
         { &stream_generation, stream_epoch, stream_read, stream_send, 64, 0 };
       uint32_t granted;
-      assert(bkpc_grants_key(&pc_grants, 1, owner, &granted) == 0);
-      assert(granted == 3); /* Actual private store supplies this principal. */
+      if (!pc_guarded)
+        {
+          assert(bkpc_grants_key(&pc_grants, 1, owner, &granted) == 0);
+          assert(granted == 3);
+        } /* Actual private store supplies this principal. */
       stream_generation++;
       uint32_t selected_generation = stream_generation;
       if (serial_wire)
@@ -244,9 +289,14 @@ static void control_handshake_on(struct bkcontrol_pair_s *control,
           assert(bkcontrol_serial_open(&serial, &transport) == 0);
           selected_generation = transport.generation(transport.context);
         }
-      assert(bkcontrol_pair_start_transport(control, selected_generation, cert,
-               key, owner, clock_ms, NULL, control_execute, NULL,
-               &transport) == 0);
+      if (pc_guarded)
+        assert(bkpc_control_start(&pc_control, control, &pc_grants,
+                   selected_generation, cert, key, clock_ms, NULL,
+                   pc_execute, pc_config, &pc_reads, &transport) == 0);
+      else
+        assert(bkcontrol_pair_start_transport(control, selected_generation, cert,
+                 key, owner, clock_ms, NULL, control_execute, NULL,
+                 &transport) == 0);
       memset(&transport, 0, sizeof(transport));
       generation++;
     }
@@ -259,7 +309,7 @@ static void control_handshake_on(struct bkcontrol_pair_s *control,
   bool ready = false;
   for (int i = 0; i < 2500 && (!ready || !control->tls.established); i++)
     {
-      assert(bkcontrol_pair_step(control) == 0);
+      assert(control_step(control) == 0);
       if (!ready)
         {
           int ret = mbedtls_ssl_handshake(client);
@@ -285,7 +335,7 @@ static void control_response(struct bkcontrol_pair_s *control,
   uint8_t response[40]; size_t size = 0;
   for (int i = 0; i < 200 && size < sizeof(response); i++)
     {
-      assert(bkcontrol_pair_step(control) == 0);
+      assert(control_step(control) == 0);
       int ret = mbedtls_ssl_read(client, response + size, sizeof(response) - size);
       assert(ret > 0 || ret == MBEDTLS_ERR_SSL_WANT_READ);
       if (ret > 0) size += ret;
@@ -315,7 +365,7 @@ static void control_encrypted_tests(mbedtls_ssl_context *client,
   assert(mbedtls_ssl_write(client, volume, sizeof(volume)) == sizeof(volume));
   congested = true;
   for (int i = 0; i < 80; i++)
-    { assert(bkcontrol_pair_step(&control) == 0); now += 10; }
+    { assert(control_step(&control) == 0); now += 10; }
   assert(control_calls == 1);
   congested = false;
   control_response(&control, client, 4, 1, 73);
@@ -323,7 +373,7 @@ static void control_encrypted_tests(mbedtls_ssl_context *client,
   assert(mbedtls_ssl_write(client, volume, sizeof(volume)) == sizeof(volume));
   int error = 0;
   for (int i = 0; i < 200 && !error; i++)
-    { error = bkcontrol_pair_step(&control); now += 10; }
+    { error = control_step(&control); now += 10; }
   assert(error == -EPROTO && control_calls == 1 && !control.tls.initialized);
 
   control_handshake(&control, client, cert, key);
@@ -331,12 +381,12 @@ static void control_encrypted_tests(mbedtls_ssl_context *client,
   assert(mbedtls_ssl_write(client, auth, sizeof(auth)) == sizeof(auth));
   error = 0;
   for (int i = 0; i < 200 && !error; i++)
-    { error = bkcontrol_pair_step(&control); now += 10; }
+    { error = control_step(&control); now += 10; }
   assert(error < 0 && control_calls == 1 && !control.tls.initialized);
 
   control_handshake(&control, client, cert, key);
   now += 10000;
-  assert(bkcontrol_pair_step(&control) == -ETIMEDOUT);
+  assert(control_step(&control) == -ETIMEDOUT);
   const unsigned char *bytes = (const unsigned char *)&control;
   for (size_t i = 0; i < sizeof(control); i++) assert(bytes[i] == 0);
 }
@@ -349,13 +399,13 @@ static void control_terminal(struct bkcontrol_pair_s *control, int expected)
   int error = 0;
   for (int i = 0; i < 200 && error == 0; i++)
     {
-      error = bkcontrol_pair_step(control);
+      error = control_step(control);
       now += 10;
     }
   assert(error == expected);
   const unsigned char *bytes = (const unsigned char *)control;
   for (size_t i = 0; i < sizeof(*control); i++) assert(bytes[i] == 0);
-  assert(bkcontrol_pair_step(control) == -ENOTCONN);
+  assert(control_step(control) == -ENOTCONN);
 }
 
 static void control_stream_tests(mbedtls_ssl_context *client,
@@ -379,7 +429,7 @@ static void control_stream_tests(mbedtls_ssl_context *client,
   uint8_t principal[32] = {84};
   assert(bkcontrol_pair_start_transport(&control, stream_generation, cert,
            key, principal, clock_ms, NULL, control_execute, NULL, NULL) == -EINVAL);
-  assert(bkcontrol_pair_step(&control) == -ENOTCONN);
+  assert(control_step(&control) == -ENOTCONN);
   assert(bkcontrol_pair_start_transport(&control, stream_generation + 1,
            cert, key, principal, clock_ms, NULL, control_execute, NULL,
            &transport) == -ESTALE);
@@ -416,7 +466,7 @@ static void control_stream_tests(mbedtls_ssl_context *client,
   assert(mbedtls_ssl_write(client, volume, sizeof(volume)) == sizeof(volume));
   congested = true;
   for (int i = 0; i < 50; i++)
-    { assert(bkcontrol_pair_step(&control) == 0); now += 10; }
+    { assert(control_step(&control) == 0); now += 10; }
   assert(control_calls == before + 1);
   congested = false;
   control_response(&control, client, 4, 1, 73);
@@ -461,11 +511,158 @@ static void control_stream_tests(mbedtls_ssl_context *client,
   memcpy(control.scan_secret, proof, sizeof(proof));
   request(client, 1, 0, proof, sizeof(proof));
   for (int i = 0; i < 100 && control.scan == NULL; i++)
-    { assert(bkcontrol_pair_step(&control) == 0); now += 10; }
+    { assert(control_step(&control) == 0); now += 10; }
   assert(control.scan != NULL);
   receive_status(control.scan, client, BKPROV_READY);
   assert(control_calls == before + 1);
   bkcontrol_pair_close(&control);
+}
+
+/* Real PC lease + store + TLS + SDC1; service callbacks are independent
+ * side-effect observers, not replacement authorization/transfer machines.
+ */
+static void pc_exchange(struct bkcontrol_pair_s *control, mbedtls_ssl_context *client,
+                         uint32_t command, uint32_t sequence,
+                         const uint8_t *payload, size_t size, int expected)
+{
+  uint8_t frame[528] = {'S', 'D', 'C', '1'}, response[40];
+  assert(size <= sizeof(frame) - 16);
+  for (unsigned int i = 0; i < 4; i++)
+    {
+      frame[4+i] = command >> (24-i*8);
+      frame[8+i] = sequence >> (24-i*8);
+      frame[12+i] = size >> (24-i*8);
+    }
+  if (size) memcpy(frame + 16, payload, size);
+  assert(mbedtls_ssl_write(client, frame, 16 + size) == (int)(16 + size));
+  size_t received = 0;
+  for (unsigned int i = 0; i < 200 && received < sizeof(response); i++)
+    {
+      assert(control_step(control) == 0);
+      int ret = mbedtls_ssl_read(client, response + received, sizeof(response) - received);
+      assert(ret > 0 || ret == MBEDTLS_ERR_SSL_WANT_READ);
+      if (ret > 0) received += ret;
+      now += 10;
+    }
+  assert(received == 40 && !memcmp(response, "SDC1", 4));
+  uint32_t actual = (uint32_t)response[16]<<24 | (uint32_t)response[17]<<16 |
+                    (uint32_t)response[18]<<8 | response[19];
+  assert(actual == (uint32_t)expected);
+}
+static void pc_change_result(uint32_t caps, int expected)
+{
+  uint64_t revision; uint32_t old; uint8_t id[16], tx[16] = {0};
+  const uint8_t client[16] = {7}, key[32] = {84};
+  assert(bkpc_grants_snapshot(&pc_grants, &revision, id, &old) == 0);
+  assert(revision < 200); tx[0] = (uint8_t)(revision + 100);
+  assert(bkpc_grants_set(&pc_grants, revision, tx, caps ? client : NULL,
+                         caps ? key : NULL, caps) == expected);
+}
+static void pc_change(uint32_t caps)
+{
+  pc_change_result(caps, 0);
+}
+static void pc_guard_tests(mbedtls_ssl_context *client,
+                            mbedtls_x509_crt *cert, mbedtls_pk_context *key)
+{
+  struct bkcontrol_pair_s control = {0};
+  const uint8_t auth[32] = {84}, volume[4] = {0,0,0,73};
+  const uint8_t focus[4] = {0,10,0,0}, eye[4] = {0,5,0,0};
+  const uint8_t begin[8] = {0,0,0,10,0,0,0,4};
+  const uint8_t denied_kinds[] = {1,2,3,4,6,7,8,9,12,13,14};
+  pc_guarded = true;
+  control_handshake_on(&control, client, cert, key, true);
+  pc_exchange(&control, client, 1, 0, auth, 32, 0);
+  uint32_t seq = 1;
+  pc_exchange(&control, client, 2, seq++, NULL, 0, 0);
+  pc_exchange(&control, client, 9, seq++, NULL, 0, 0);
+  pc_exchange(&control, client, 4, seq++, volume, 4, -EACCES);
+  pc_exchange(&control, client, 3, seq++, NULL, 0, -EACCES);
+  pc_exchange(&control, client, 6, seq++, NULL, 0, -EACCES);
+  for (size_t i = 0; i < sizeof(denied_kinds); i++)
+    {
+      uint8_t read[4] = {0,denied_kinds[i],0,0};
+      uint8_t write[8] = {0,0,0,denied_kinds[i],0,0,0,4};
+      pc_exchange(&control, client, 15, seq++, read, 4, -EACCES);
+      pc_exchange(&control, client, 16, seq++, write, 8, -EACCES);
+    }
+  assert(pc_reads == 2 && pc_writes == 0);
+  pc_exchange(&control, client, 15, seq++, focus, 4, 0);
+  pc_exchange(&control, client, 15, seq++, eye, 4, 0);
+  pc_exchange(&control, client, 16, seq++, begin, 8, 0);
+  pc_exchange(&control, client, 17, seq++, (const uint8_t *)"TEST", 4, 0);
+  pc_exchange(&control, client, 18, seq++, NULL, 0, 0);
+  assert(pc_reads == 4 && pc_writes == 1);
+  const uint8_t ota[4] = {0,0,0,44};
+  pc_exchange(&control, client, 10, seq++, ota, 4, -ENOTSUP);
+  /* Revoke while a valid application record remains queued in encrypted I/O. */
+  uint8_t queued[20] = {'S','D','C','1',0,0,0,15,0,0,0,0,0,0,0,4,0,10,0,0};
+  queued[11] = seq;
+  assert(mbedtls_ssl_write(client, queued, sizeof(queued)) == sizeof(queued));
+  pc_change(0);
+  control_terminal(&control, -ESTALE);
+  assert(pc_reads == 4 && pc_writes == 1);
+  assert(!pc_control.open);
+  /* Explicit regrant cannot resume or replay the old session. */
+  pc_change(BKPC_CAP_DIAGNOSTICS);
+  assert(control_step(&control) == -ENOTCONN);
+  control_handshake_on(&control, client, cert, key, true);
+  pc_exchange(&control, client, 1, 0, auth, 32, 0);
+  pc_exchange(&control, client, 15, 1, focus, 4, -EACCES);
+  pc_exchange(&control, client, 16, 2, begin, 8, -EACCES);
+  assert(pc_reads == 4 && pc_writes == 1);
+  pc_change(BKPC_CAP_SCENES); /* Changing scope also invalidates current AUTH. */
+  control_terminal(&control, -ESTALE);
+  control_handshake_on(&control, client, cert, key, true);
+  pc_exchange(&control, client, 1, 0, auth, 32, 0);
+  pc_exchange(&control, client, 16, 1, begin, 8, 0);
+  pc_exchange(&control, client, 17, 2, (const uint8_t *)"TEST", 4, 0);
+  pc_change(0); /* In-flight staging is destroyed, not applied on reconnect. */
+  control_terminal(&control, -ESTALE);
+  assert(pc_writes == 1);
+  /* An already accepted action is not undone/repeated when its ACK is lost. */
+  pc_change(BKPC_CAP_SCENES);
+  control_handshake_on(&control, client, cert, key, true);
+  pc_exchange(&control, client, 1, 0, auth, 32, 0);
+  pc_exchange(&control, client, 16, 1, begin, 8, 0);
+  pc_exchange(&control, client, 17, 2, (const uint8_t *)"TEST", 4, 0);
+  const uint8_t apply[16] = {'S','D','C','1',0,0,0,18,0,0,0,3,0,0,0,0};
+  assert(mbedtls_ssl_write(client, apply, sizeof(apply)) == sizeof(apply));
+  for (int i = 0; i < 200 && pc_writes == 1; i++)
+    { assert(control_step(&control) == 0); now += 10; }
+  assert(pc_writes == 2 && control.report);
+  pc_change(0);
+  control_terminal(&control, -ESTALE);
+  assert(pc_writes == 2);
+  struct bkprov_tls_transport_s transport =
+    { &stream_generation, stream_epoch, stream_read, stream_send, 64, 0 };
+  assert(bkpc_control_start(&pc_control, &control, &pc_grants,
+             stream_generation, cert, key, clock_ms, NULL,
+             pc_execute, pc_config, &pc_reads, &transport) == -EACCES);
+  assert(!pc_control.open && !control.tls.initialized);
+  /* A failed revoke is not a successful revoke. Unknown durability instead
+   * closes the active connection and forbids a fresh AUTH in this process. */
+  pc_change(BKPC_CAP_SCENES);
+  control_handshake_on(&control, client, cert, key, true);
+  pc_exchange(&control, client, 1, 0, auth, 32, 0);
+  pc_change(BKPC_CAP_SCENES); /* Same key and scope, a new authorization revision. */
+  control_terminal(&control, -ESTALE);
+  control_handshake_on(&control, client, cert, key, true);
+  pc_exchange(&control, client, 1, 0, auth, 32, 0);
+  pc_sync_fault = 1;
+  pc_change_result(0, -EIO);
+  pc_sync_fault = 0;
+  pc_exchange(&control, client, 2, 1, NULL, 0, 0);
+  assert(pc_reads == 5);
+  pc_sync_fault = 2;
+  pc_change_result(0, -EINPROGRESS);
+  pc_sync_fault = 0;
+  control_terminal(&control, -EINPROGRESS);
+  assert(bkpc_control_start(&pc_control, &control, &pc_grants,
+             stream_generation, cert, key, clock_ms, NULL,
+             pc_execute, pc_config, &pc_reads, &transport) == -EINPROGRESS);
+  assert(pc_writes == 2 && !pc_control.open);
+  pc_guarded = false;
 }
 
 /* Ciphertext pipe endpoint for the JVM production TLS/GATT client test.
@@ -503,7 +700,7 @@ static int control_pipe_peer(const char *certificate, const char *private_key)
       if (count > 0 && put(&inbound, bytes, (size_t)count) != count) { result = 3; break; }
       clock_gettime(CLOCK_MONOTONIC, &time);
       now = (uint64_t)time.tv_sec * 1000 + time.tv_nsec / 1000000;
-      if (bkcontrol_pair_step(&control) < 0) { result = 4; break; }
+      if (control_step(&control) < 0) { result = 4; break; }
       if (outbound.size)
         {
           count = write(STDOUT_FILENO, outbound.data, outbound.size < 20 ? outbound.size : 20);
@@ -789,6 +986,7 @@ int main(int argc, char **argv)
       assert(bkpc_grants_open(&pc_grants, root, phone) == 0);
       assert(bkpc_grants_set(&pc_grants, 0, transaction, client_id, pc, 3) == 0);
       control_stream_tests(&client, &cert, &key);
+      pc_guard_tests(&client, &cert, &key);
     }
   mbedtls_ssl_free(&client); mbedtls_ssl_config_free(&config);
 

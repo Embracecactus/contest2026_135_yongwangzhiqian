@@ -2068,3 +2068,34 @@ CPU/文件系统时延待实测。环境缺clang-format14，不声称C格式检�
 - 当前无生产 PC grant 缓存/USB worker 实例；未来 caller 必须先撤销准入并退出
   活会话，再进入清理，不能仅凭删盘文件撤销已复制的密钥。授权 UI/权限分派、
   USB 产品 worker、工作台和任务事件仍缺。未刷板、未触发实物重置。
+
+### S65 电脑会话授权版本与权限分派（2026-09-27）
+
+- `bkpc_control_start/step/close` 复用实际 PC grant、TLS、SDC1 pair/session，
+  借用调用者持有的 pair/transport/身份，不复制手机凭据。单一串行 owner 同时
+  持有 grant 和会话，grant 仅在 step 之间变更；跨线程同步并未由此自动获得。
+- 启动时绑定 revision/client/capabilities，每次 step 在处理 TLS/排队输入或输出
+  前检查实际 grant 缓存，业务回调也检查。版本变化（包括同 key/同权限再授权）、
+  撤销或未知持久结果关闭并清零 TLS/暂存记录。close 不关闭 fd、不取消已经
+  受理的服务任务、不宣称 DMA 退出；未来 worker 必须完成对应资源退出。
+- 任何有效授权允许 STATUS/INFO 和非秘密 CAP1；SCENES 允许 focus/临时表情；
+  RESOURCES 当前只允许眼睛状态读取。其他配置和普通写命令拒绝，不注册 OTA，
+  不继承 SPV1。旧 HTTPS 眼睛导入不是 USB 文件入口，不能借它宣称 N3 导入完成。
+  TASKS/DIAGNOSTICS 扩展仍须明确命令及接线，不是已经实现。
+- 先写真实 TLS 测试，新头文件缺失记 BLOCKED_INTERFACE，不当业务 Red。20 组
+  证书分别覆盖原 GATT、独立内存流、实际 PTY，PC 权限测试在后两条路径执行；
+  服务端点只观察动作计数，未替换正在验证的授权/协议/持久化状态机。
+  验证拒绝 owner/网络/重置/唤醒配置、允许专注请求、排队读取及暂存 APPLY 前
+  撤销、已受理后丢 ACK 不重做、同权限重授权、写入失败与未知同步分别处理。
+- 最终集合仍 346 PASS（原63、累计新增283）；本片扩展现有 USB-01.tls-transport
+  bundle，新增执行ID为0，不把内部重复样本加到分母。13运行器检查、原2变异、
+  新3变异/恢复另计。变异为忽略revision、跳过step检查、忽略SCENES权限，均为
+  可编译的真实断言检出。日志 `out/shaniu-s65/`；acceptance/s65-20260927.json
+  和 s65-pc-control-evidence-20260927.json 固定逐例/输入与边界。
+- AIDK构建/manifest通过；新增ARM上下文56字节，借用原69016字节pair，不新增
+  产品实例、线程或DMA；step/权限检查无文件I/O。新C/H完整nxstyle通过，Python
+  black24.10.0通过。栈高水位、CPU/p95和双客户端峰值尚待实际 worker 测量，
+  不能将物理PSRAM容量当可分配预算。
+- USB产品worker、手机授权确认/密钥交付、共享真实服务终点、包安装/任务协议、
+  工作台仍未接；没有启用新并发。生产接口实现和主机协议联动不等于实际USB
+  服务可用或实板验收；无现场操作。后续必须先绑定授权生命周期再启用通道。

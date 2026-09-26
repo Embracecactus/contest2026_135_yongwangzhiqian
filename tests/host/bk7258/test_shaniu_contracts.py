@@ -1265,6 +1265,8 @@ def main():
         ROOT / "app/bk7258/bk7258_control_serial.h",
         ROOT / "app/bk7258/bk7258_pc_grants.c",
         ROOT / "app/bk7258/bk7258_pc_grants.h",
+        ROOT / "app/bk7258/bk7258_pc_control.c",
+        ROOT / "app/bk7258/bk7258_pc_control.h",
         HERE / "test_pc_grants.c",
         HERE / "test_pc_reset.c",
         HERE / "test_pc_reset.py",
