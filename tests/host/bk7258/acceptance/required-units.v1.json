@@ -193,7 +193,13 @@
     "RST-02.nfc-failed",
     "RST-02.nfc-owner_failure_still_closes_admission",
     "RST-02.nfc-resume_failure",
-    "RST-02.nfc-power_intent_and_no_reset"
+    "RST-02.nfc-power_intent_and_no_reset",
+    "RST-01.nfc-filesystem",
+    "RST-01.nfc-cleanup",
+    "RST-01.bindings-reset",
+    "RST-01.bindings-reset-sync",
+    "RST-01.bindings-reset-path",
+    "RST-01.bindings-reset-absent"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -390,6 +396,12 @@
     "RST-02.nfc-failed",
     "RST-02.nfc-owner_failure_still_closes_admission",
     "RST-02.nfc-resume_failure",
-    "RST-02.nfc-power_intent_and_no_reset"
+    "RST-02.nfc-power_intent_and_no_reset",
+    "RST-01.nfc-filesystem",
+    "RST-01.nfc-cleanup",
+    "RST-01.bindings-reset",
+    "RST-01.bindings-reset-sync",
+    "RST-01.bindings-reset-path",
+    "RST-01.bindings-reset-absent"
   ]
 }

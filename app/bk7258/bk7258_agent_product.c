@@ -82,6 +82,9 @@
 #include "bk7258_focus_intent.h"
 #ifdef CONFIG_BK7258_NFC_SERVICE
 #include "bk7258_nfc_service.h"
+#ifdef CONFIG_BK7258_PROVISION_GATT
+#include "bk7258_nfc_bindings.h"
+#endif
 #endif
 #include "bk7258_display_trial_control.h"
 #include "bk7258_provision_config.h"
@@ -1901,6 +1904,13 @@ static int product_reset_cleanup(void)
   if (g_trigger_started || atomic_load(&g_probe_running) ||
       (atomic_load(&g_voice_initialized) && !voice_channel_is_idle()))
     return -EBUSY;
+#if defined(CONFIG_BK7258_NFC_SERVICE) && defined(CONFIG_BK7258_PROVISION_GATT)
+  /* 存储重置工作者只在原NFC工作者真实退出后取得文件清理权。 */
+  ret = bk7258_nfc_service_quiesce(true);
+  if (ret < 0) return ret;
+  ret = bknfc_bindings_reset(BKNFC_BINDINGS_ROOT);
+  if (ret < 0) return ret;
+#endif
 #ifdef CONFIG_BK7258_PREFERENCES
   ret = bkagent_memory_reset();
   if (ret < 0) return ret;

@@ -102,6 +102,45 @@ int main(int argc, char **argv)
       int status; assert(waitpid(child,&status,0)==child);
       assert(WIFEXITED(status) && WEXITSTATUS(status)==0);
     }
+  else if (!strcmp(argv[1], "reset-absent"))
+    {
+      assert(rmdir(root)==0);
+      assert(bknfc_bindings_reset(root)==0);
+      char missing[256]; snprintf(missing,sizeof(missing),"%s/missing",root);
+      assert(bknfc_bindings_reset(missing)==-ENOENT);
+      assert(symlink("/tmp",root)==0);
+      assert(bknfc_bindings_reset(root)==-ENOTDIR);
+      assert(unlink(root)==0);
+      puts("CONTRACT_PASS"); return 0;
+    }
+  else if (!strcmp(argv[1], "reset") || !strcmp(argv[1], "reset-sync") ||
+           !strcmp(argv[1], "reset-path"))
+    {
+      assert(bknfc_bindings_set(&state,0,1,0,&a,60000) == 0);
+      char keep[256]; snprintf(keep,sizeof(keep),"%s/keep",root);
+      FILE *f=fopen(keep,"w"); assert(f); fputs("preserve",f); assert(fclose(f)==0);
+      if (!strcmp(argv[1],"reset-path"))
+        {
+          assert(mkdir(state.store.pending,0700)==0);
+          assert(bknfc_bindings_reset(root)<0);
+          assert(access(keep,F_OK)==0 && access(state.store.pending,F_OK)==0);
+          assert(rmdir(state.store.pending)==0);
+        }
+      else
+        {
+          f=fopen(state.store.pending,"w"); assert(f); fputs("incomplete",f); assert(fclose(f)==0);
+          if (!strcmp(argv[1],"reset-sync")) fail_sync=1;
+          int ret=bknfc_bindings_reset(root);
+          assert(ret==(!strcmp(argv[1],"reset-sync") ? -EINPROGRESS : 0));
+          fail_sync=0;
+        }
+      assert(bknfc_bindings_reset(root)==0);
+      assert(bknfc_bindings_reset(root)==0);
+      assert(access(keep,F_OK)==0);
+      assert(bknfc_bindings_open(&reopened,root)==0 && reopened.revision==0);
+      assert(bknfc_bindings_lookup(&reopened,&a,&duration)==-ENOENT && duration==0);
+      assert(unlink(keep)==0);
+    }
   else assert(0);
   if (access(state.store.active,F_OK)==0) assert(unlink(state.store.active)==0);
   if (access(state.store.pending,F_OK)==0) assert(unlink(state.store.pending)==0);

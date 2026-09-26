@@ -572,6 +572,28 @@ def main():
             ],
             marker=False,
         )
+    for variant in ("filesystem", "cleanup"):
+        add(
+            suite,
+            "RST-01.nfc-" + variant,
+            "RST-01",
+            "L1",
+            [
+                sys.executable,
+                HERE / "test_shaniu_nfc_reset_path.py",
+                "NfcResetPathTest.test_" + variant,
+            ],
+            marker=False,
+        )
+    for variant in ("reset", "reset-sync", "reset-path", "reset-absent"):
+        add(
+            suite,
+            "RST-01.bindings-" + variant,
+            "RST-01",
+            "L2",
+            [HERE / "build/test_shaniu_nfc_bindings", variant],
+            binaries["test_shaniu_nfc_bindings"],
+        )
     for variant in (
         "probe_error",
         "timeout",

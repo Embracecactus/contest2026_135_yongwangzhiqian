@@ -40,3 +40,11 @@ S39 implements this storage contract and real filesystem tests only. Authenticat
 routing, asynchronous worker jobs, cancellation/exit acknowledgements, App UI,
 card enrollment, ambient dwell/reentry and actual focus dispatch are NOT_WIRED.
 No software gap is reclassified as merely waiting for a board.
+
+S42 integration: the fixed product namespace is `/cpdata/shaniu/nfc-cards` on AP
+(`/data/shaniu/nfc-cards` on local CP storage). Existing authenticated/persistent
+reset cleanup owns deletion only after NFC quiescence. It removes only the two
+known record files and requires the directory durability barrier; missing parent,
+wrong filesystem, symlink namespace and I/O errors do not mean empty. No directory
+is created by reset. Registration jobs remain unwired; when enabled, their owner
+must invalidate cached bindings across reset before reopening admission.

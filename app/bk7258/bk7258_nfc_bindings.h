@@ -4,6 +4,11 @@
 #include <stdbool.h>
 #include "bk7258_nfc_protocol.h"
 #include "bk7258_provision_store.h"
+#ifdef CONFIG_BK7258_AP_CORE
+#define BKNFC_BINDINGS_ROOT "/cpdata/shaniu/nfc-cards"
+#else
+#define BKNFC_BINDINGS_ROOT "/data/shaniu/nfc-cards"
+#endif
 #define BKNFC_BINDING_SLOTS 8u
 #define BKNFC_BINDING_RECORD_SIZE 200u
 struct bknfc_binding_s
@@ -30,4 +35,6 @@ int bknfc_bindings_set(struct bknfc_bindings_s *state, uint64_t expected,
                        const struct bknfc_card_s *card, uint64_t duration);
 int bknfc_bindings_lookup(const struct bknfc_bindings_s *state,
                           const struct bknfc_card_s *card, uint64_t *duration);
+/* 仅授权重置工作者在NFC退出后调用；仅删除本组件两个文件，不递归。 */
+int bknfc_bindings_reset(const char *root);
 #endif

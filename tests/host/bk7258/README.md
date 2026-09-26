@@ -1206,3 +1206,29 @@ claimed. Future binding-root cleanup, authenticated jobs/enrollment, dwell/scene
 dispatch and App UI remain software gaps. L3 NOT_RUN: no physical reset, install
 or flash occurred. See `acceptance/s41-20260927.json` and
 `s41-reset-nfc-evidence-20260927.json`.
+
+### S42 binding namespace and authorized reset (2026-09-27)
+
+The actual AP RPMsgFS whitelist now accepts exactly `/cpdata/shaniu/nfc-cards`,
+with the existing mounted-geometry check. Product reset cleanup rechecks NFC exit
+then clears only config.pending/config.bin in this fixed namespace. It does not
+recursively delete, format, mount or create directories. Missing namespace is
+empty only when the parent exists on an accepted filesystem. Directory-sync
+uncertainty remains EINPROGRESS; errors propagate through existing reset handling.
+
+Two production-function tests cover filesystem admission and cleanup dispatch;
+both failed assertions before fixes. Initial cleanup fixture omitted preferences,
+causing unused-ret SETUP_ERROR; corrected to actual configuration before Red.
+Four real-store cases cover durable repeatable reset, sync failure, unexpected
+directory preservation and absent-root/missing-parent/symlink behavior. Unknown
+files are preserved. The missing reset API was BLOCKED_INTERFACE, not a Red.
+Strict199 PASS retain original63; two extra compiled mutants (skip delete/sync)
+are detected and restored. Target build/manifest pass; final AP ELF retains
+bknfc_bindings_reset and product_reset_cleanup. No physical reset was executed.
+
+No new thread/static state/heap/DMA. Reset uses544 bytes of store path arrays; the
+absent-root branch adds160 parent bytes plus stat/compiler frame. Actual stack,
+CPU and RPMsgFS durability remain unmeasured. L1 peers and POSIX L2 are not L3.
+Async registration/jobs, cache invalidation before enabling those jobs, auth/UI,
+dwell/reentry and scene execution remain software gaps. See
+`acceptance/s42-20260927.json` and `s42-binding-reset-evidence-20260927.json`.

@@ -1,8 +1,11 @@
+#define _POSIX_C_SOURCE 200809L
 /* SPDX-License-Identifier: Apache-2.0 */
 #include "bk7258_nfc_bindings.h"
 #include "bk7258_nfc_core.h"
 #include <errno.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 static uint64_t get64(const uint8_t *p)
 {
@@ -149,4 +152,30 @@ int bknfc_bindings_lookup(const struct bknfc_bindings_s *state,
         return 0;
       }
   return -ENOENT;
+}
+
+int bknfc_bindings_reset(const char *root)
+{
+  struct bkprov_store_s store;
+  int ret = bkprov_store_open(&store, root);
+  if (ret == -ENOENT)
+    {
+      /* 目录从未创建可以为空；父卷不可用不能冒充已清理。 */
+      char parent[sizeof(store.directory)];
+      struct stat info;
+      size_t size = strlen(root);
+      if (size >= sizeof(parent)) return -EINVAL;
+      memcpy(parent, root, size + 1);
+      char *slash = strrchr(parent, '/');
+      if (!slash) return -EINVAL;
+      if (slash == parent) slash[1] = 0; else *slash = 0;
+      if (lstat(parent, &info) < 0) return -errno;
+      if (!S_ISDIR(info.st_mode)) return -ENOTDIR;
+      return bkprov_store_check_filesystem(parent);
+    }
+  if (ret < 0) return ret;
+  /* 先去掉未发布文件，再去掉活动文件；不触碰同目录其他数据。 */
+  if (unlink(store.pending) < 0 && errno != ENOENT) return -errno;
+  if (unlink(store.active) < 0 && errno != ENOENT) return -errno;
+  return bkprov_store_sync_directory(store.directory);
 }
