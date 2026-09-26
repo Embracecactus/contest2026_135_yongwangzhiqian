@@ -58,7 +58,8 @@ if(CONFIG_LIBCXXTOOLCHAIN AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
                  CALL bk7258_configure_toolchain_cxx_headers)
 endif()
 
-if(CONFIG_CL_MFRC522_FRAME AND CONFIG_CL_MFRC522)
+if((CONFIG_CL_MFRC522_FRAME AND CONFIG_CL_MFRC522) OR
+   (CONFIG_CL_MFRC522_RF AND (CONFIG_CL_MFRC522 OR CONFIG_CL_MFRC522_FRAME)))
   message(FATAL_ERROR "select exactly one MFRC522 implementation")
 endif()
 
@@ -438,6 +439,11 @@ endif()
 if(CONFIG_CL_MFRC522_FRAME)
   list(APPEND BK7258_AP_BASE_SRCS
        ${NUTTX_DIR}/drivers/contactless/mfrc522.c)
+endif()
+
+if(CONFIG_CL_MFRC522_RF)
+  list(APPEND BK7258_AP_BASE_SRCS
+       ${BK7258_NUTTX_OVERLAY_DIR}/drivers/contactless/mfrc522_rf.c)
 endif()
 
 if(CONFIG_CL_ISODEP)

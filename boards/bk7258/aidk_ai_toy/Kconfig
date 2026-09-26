@@ -110,7 +110,7 @@ config BK7258_AIDK_MFRC522
 	depends on BK7258_AP_CORE
 	depends on BK7258_UART1
 	select DRIVERS_CONTACTLESS
-	select CL_MFRC522
+	select CL_MFRC522_RF
 	help
 		Bind the MFRC522 RFID/NFC reader on the UART1 host interface (P0/P1)
 		as /dev/nfc0.  The board supplies only a UART register-transport adapter;

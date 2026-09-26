@@ -17,3 +17,15 @@ presence only for the exact protocol-version response. No UID or APDU payload
 crosses RPMsg, and the command cannot grant ownership. Physical phone acceptance
 is still required. `MFRC522IOC_SET_RF` allows the adapter to restart the field
 before selection and drop it on exit; a subsequent scan re-enables the field.
+
+## Controlled standard reader
+
+`CL_MFRC522_RF` selects the standard reader with explicit SET_RF (0/1),
+control-register readback and idle-off registration. It excludes CL_MFRC522
+and CL_MFRC522_FRAME. The AIDK profile uses this implementation; its single
+NFC worker enables the field for each request and disables it before closing.
+It does not implement EXCHANGE or enable ISO-DEP/HCE. Earlier frame-related
+text above describes an interface/conditional path, not current board capability.
+RF readback verifies register bits only; physical field/current and error recovery
+still require real-board measurement. The upstream SPI/UART register transport,
+selection and MIFARE implementation are preserved with their license.

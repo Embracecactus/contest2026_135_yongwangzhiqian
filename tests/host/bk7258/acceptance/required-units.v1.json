@@ -155,7 +155,13 @@
     "TIMER-01.intent-gate",
     "TIMER-01.intent-revision",
     "TIMER-01.intent-cancel",
-    "TIMER-01.intent-invalid"
+    "TIMER-01.intent-invalid",
+    "NFC-01.rf-switch",
+    "NFC-01.rf-stuck",
+    "NFC-01.rf-registration",
+    "NFC-01.rf-registration-failure",
+    "NFC-01.rf-close",
+    "NFC-01.rf-open-cleanup"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -314,6 +320,12 @@
     "TIMER-01.intent-gate",
     "TIMER-01.intent-revision",
     "TIMER-01.intent-cancel",
-    "TIMER-01.intent-invalid"
+    "TIMER-01.intent-invalid",
+    "NFC-01.rf-switch",
+    "NFC-01.rf-stuck",
+    "NFC-01.rf-registration",
+    "NFC-01.rf-registration-failure",
+    "NFC-01.rf-close",
+    "NFC-01.rf-open-cleanup"
   ]
 }

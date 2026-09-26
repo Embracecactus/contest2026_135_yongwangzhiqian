@@ -491,6 +491,66 @@ def main():
             [HERE / ("build/test_shaniu_focus_" + variant)],
             binaries["test_shaniu_focus_" + variant],
         )
+    add(
+        suite,
+        "NFC-01.rf-switch",
+        "NFC-01",
+        "L1",
+        [sys.executable, HERE / "test_mfrc522_rf.py", "RfDriverTest.test_switch"],
+        marker=False,
+    )
+    add(
+        suite,
+        "NFC-01.rf-stuck",
+        "NFC-01",
+        "L1",
+        [sys.executable, HERE / "test_mfrc522_rf.py", "RfDriverTest.test_stuck"],
+        marker=False,
+    )
+    add(
+        suite,
+        "NFC-01.rf-registration",
+        "NFC-01",
+        "L1",
+        [sys.executable, HERE / "test_mfrc522_rf.py", "RfDriverTest.test_registration"],
+        marker=False,
+    )
+    add(
+        suite,
+        "NFC-01.rf-registration-failure",
+        "NFC-01",
+        "L1",
+        [
+            sys.executable,
+            HERE / "test_mfrc522_rf.py",
+            "RfDriverTest.test_registration_failure",
+        ],
+        marker=False,
+    )
+    add(
+        suite,
+        "NFC-01.rf-close",
+        "NFC-01",
+        "L1",
+        [
+            sys.executable,
+            HERE / "test_nfc_rf_lifecycle.py",
+            "RfLifecycleTest.test_idle_and_close_release_field_and_descriptor",
+        ],
+        marker=False,
+    )
+    add(
+        suite,
+        "NFC-01.rf-open-cleanup",
+        "NFC-01",
+        "L1",
+        [
+            sys.executable,
+            HERE / "test_nfc_rf_lifecycle.py",
+            "RfLifecycleTest.test_controlled_open_failure_releases_partial_field",
+        ],
+        marker=False,
+    )
     for variant in ("voice", "gate", "revision", "cancel", "invalid"):
         add(
             suite,

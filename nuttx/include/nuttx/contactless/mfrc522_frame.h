@@ -3,11 +3,10 @@
 #define __NUTTX_CONTACTLESS_MFRC522_FRAME_H
 #include <stdint.h>
 #include <nuttx/contactless/ioctl.h>
+#include <nuttx/contactless/mfrc522_rf.h>
 #ifndef MFRC522IOC_EXCHANGE
 #define MFRC522IOC_EXCHANGE _CLIOC(0x000e)
 #endif
-/* arg: 0 disables the RF field, 1 enables it. Caller owns field timing. */
-#define MFRC522IOC_SET_RF _CLIOC(0x000f)
 
 /* Selected-card, byte-aligned CRC_A frames. Caller serializes access to the
  * selected card. tx_length is 1..62, excluding CRC; driver appends/checks CRC.

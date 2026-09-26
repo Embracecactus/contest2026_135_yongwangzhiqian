@@ -42,6 +42,12 @@ ifeq ($(CONFIG_CL_MFRC522_FRAME)$(CONFIG_CL_MFRC522),yy)
 $(error select exactly one MFRC522 implementation)
 endif
 
+ifeq ($(CONFIG_CL_MFRC522_RF),y)
+ifneq ($(filter y,$(CONFIG_CL_MFRC522_FRAME) $(CONFIG_CL_MFRC522)),)
+$(error select exactly one MFRC522 implementation)
+endif
+endif
+
 ifeq ($(CONFIG_INPUT_GT9XX_STANDARD_IOCTL)$(CONFIG_INPUT_GT9XX),yy)
 $(error select exactly one GT9xx implementation)
 endif
@@ -431,6 +437,9 @@ BK7258_AP_BASE_CSRCS += gc9d01.c
 endif
 ifeq ($(CONFIG_CL_MFRC522_FRAME),y)
 BK7258_AP_BASE_CSRCS += mfrc522.c
+endif
+ifeq ($(CONFIG_CL_MFRC522_RF),y)
+BK7258_AP_BASE_CSRCS += mfrc522_rf.c
 endif
 ifeq ($(CONFIG_CL_ISODEP),y)
 BK7258_AP_BASE_CSRCS += isodep.c

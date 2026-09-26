@@ -1,0 +1,332 @@
+{
+  "slice": "S36",
+  "date": "2026-09-27",
+  "parent": "5ac34b474a1171814de4268a4622bf5581d1a917",
+  "scope": "Controlled NFC RF ownership in maintained driver and existing single worker; no scene bindings yet",
+  "source_origin": {
+    "commit": "76354c637858ecb0aa4601629327acb6f44a26bb",
+    "driver_sha256": "7d8d1fe833df701f4d8c4ecd6814940c10cc3c338944080a426e3a749c3a67d1",
+    "private_header_unchanged": true
+  },
+  "test_first": {
+    "missing_helper": "BLOCKED_INTERFACE; not a business Red",
+    "partial_enable": "FAIL_ASSERTION before cleanup; PASS after",
+    "function_extractor": "two SETUP_ERROR from matching a prototype; regex now requires definition brace, unchanged behavior assertions",
+    "build_config": "RF driver initially linked without service; artifact assertion failed. Expanded production dependency, then supported clean build removed stale config.",
+    "manifest_invocation": "Initial relative path resolved against workspace rather than repository and returned missing file; corrected to absolute path, verification PASS."
+  },
+  "counts": {
+    "PASS": 161,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 98,
+      "counts": {
+        "PASS": 98,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "existing_mutations": [
+    {
+      "id": "MSC-01.early-release",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.007649980019778013,
+      "source": "app/bk7258/bk7258_media_volume.c",
+      "original_sha256": "58ebb18ae63adccf21262253da18f153bbb7c680cc0b64719ca20e8a6d9681c8",
+      "mutant_sha256": "bf298373a95ac54d5587f93ece34a30a7f661a65a969c69db9e27c6570770c57",
+      "expected_assertion": "!mounted",
+      "evidence": "MSC-01.early-release.log"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.06387002801056951,
+      "source": "app/bk7258/bk7258_provision_config.c",
+      "original_sha256": "98f5100ca49ca44e45fe3e5da4bb2da0add7466f0e357a205ca8b1e307a5818e",
+      "mutant_sha256": "4c0c615b8ffc99247b0fd91bd934d3df0409a1180769cb939b2820f9e6f69427",
+      "expected_assertion": "bkcloud_config_decode",
+      "evidence": "CFG-01.wifi-clears-cloud.log"
+    }
+  ],
+  "additional_mutations": [
+    {
+      "name": "readback",
+      "mutation": true,
+      "exit": 1,
+      "source_sha256": "ac69de854457c8e12cc0b303fac4141239c5e7254b897633afbddade6a1af4ee",
+      "log": "mutation-readback-mutated.log",
+      "result": "DETECTED"
+    },
+    {
+      "name": "readback",
+      "mutation": false,
+      "exit": 0,
+      "source_sha256": "02953b6baf9d22aad0ec29816bf704ef02878ab7daff9cd598f6ed637c32287c",
+      "log": "mutation-readback-restored.log",
+      "result": "PASS"
+    },
+    {
+      "name": "partial-enable",
+      "mutation": true,
+      "exit": 1,
+      "source_sha256": "a8ad82d1c1aa91c87a5fa715730f83b9cf821947c015644a1e84f6c2db9a95e9",
+      "log": "mutation-partial-enable-mutated.log",
+      "result": "DETECTED"
+    },
+    {
+      "name": "partial-enable",
+      "mutation": false,
+      "exit": 0,
+      "source_sha256": "8efb2c74f98ce13cc2251186febb2c4181f9ee490ccbc6510dc718f76c1fbedc",
+      "log": "mutation-partial-enable-restored.log",
+      "result": "PASS"
+    }
+  ],
+  "target": {
+    "status": "PASS",
+    "layer": "target-build",
+    "config": "../out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/.config",
+    "elf": "../out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx"
+  },
+  "build_manifest": {
+    "sha256": "e1ab5788f0021748a64329a9f4caa252c061c460c7767a6f971e48b72feaa48e",
+    "elfs": {
+      "ap": {
+        "kind": "elf",
+        "path": "roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx",
+        "sha256": "64fb721b8223bff28c7abcae6172af6ace3852a6b347559f7599568557704466",
+        "size": 6698144
+      },
+      "bl1": {
+        "kind": "elf",
+        "path": "releases/mcuboot/bl1/bl.elf",
+        "sha256": "39fb2051ed3a83ad08f41dcdc50d3ec9d6332a4232e9c6b8f9acf719fc2cdc87",
+        "size": 236724
+      },
+      "bl2": {
+        "kind": "elf",
+        "path": "releases/mcuboot/bl2/bl2.elf",
+        "sha256": "6246b367960053e00dda587170f189837e991e36fc1426838b8d8a01a1695847",
+        "size": 272476
+      },
+      "cp": {
+        "kind": "elf",
+        "path": "roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx",
+        "sha256": "96e162814742cc24202c773de3bf06554b0ae65737869fd7ba68bc61bb0d04c3",
+        "size": 11959520
+      }
+    },
+    "inputs": {
+      "ap": {
+        "kind": "raw-build",
+        "path": "roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.bin",
+        "sha256": "2b4c6f5f935ad611c225c4bfb49881850f7473d689977c890d9f3c1b982c013c",
+        "size": 1691080
+      },
+      "bl2": {
+        "kind": "raw-build",
+        "path": "releases/mcuboot/bl2/bl2.bin",
+        "sha256": "ffb36cdb89174bec06d12c817d2e97165f7d53e22d59b4e45ef63b66ed29e901",
+        "size": 13620
+      },
+      "boot": {
+        "kind": "raw-build",
+        "path": "releases/mcuboot/bl1/bl.bin",
+        "sha256": "d6d6789436a3c760f4a985d094129e2cfd789bdd9d2f2f3e2d577c20d7810443",
+        "size": 65376
+      },
+      "cp": {
+        "kind": "raw-build",
+        "path": "roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.bin",
+        "sha256": "ea3ae3010d527baa5a14fa97d58cd9f081b64b783d65408187b3bd1161041bc9",
+        "size": 1115240
+      }
+    },
+    "ap_config_sha256": "4e73b6c67a5176a8136b7c46a43c46329f7ef19e5ec74e626937d64bdeddfcee"
+  },
+  "checks": {
+    "strict": "161 PASS",
+    "runner_gate": "12 PASS",
+    "target_clean_build": "PASS",
+    "manifest": "PASS",
+    "black": "PASS",
+    "diff_check": "PASS"
+  },
+  "parent_gaps": {
+    "NFC-01": {
+      "interface": "controlled RF implemented; compatible physical card limits unverified",
+      "L1_L2": "real driver/service function tests with external register/descriptor boundaries; no complete card-selection integration",
+      "L3": "BLOCKED_DEVICE, no hardware actions"
+    },
+    "NFC-02": {
+      "interface": "authorized binding/dwell/scene caller NOT_IMPLEMENTED",
+      "L1_L2": "NOT_RUN for scene dispatch; RF tests do not cover it",
+      "L3": "BLOCKED_DEVICE"
+    }
+  },
+  "resources": {
+    "new_threads": 0,
+    "new_queues": 0,
+    "new_dma_buffers": 0,
+    "new_persistent_writes": 0,
+    "retained": "existing NFC worker, stack and driver allocation; no new sampler",
+    "extra_IO": "control register readback per transition; no new retry budget",
+    "measured_cpu_p95_stack_current_RF": "NOT_RUN"
+  },
+  "limits": [
+    "Readback is not physical RF measurement",
+    "SPI facade/UART transport errors and card compatibility need hardware validation",
+    "No ISO-DEP or raw-frame implementation claimed",
+    "No flash, APK installation, K2 or destructive device operation",
+    "Not 56 requirements accepted"
+  ],
+  "hashes": {
+    "app/bk7258/Kconfig": "ffd1845ffb4739ec2ed34c8f9b40791c51bb205f4e2248e97c0269f1b4ca2843",
+    "app/bk7258/bk7258_nfc_service.c": "8efb2c74f98ce13cc2251186febb2c4181f9ee490ccbc6510dc718f76c1fbedc",
+    "boards/bk7258/aidk_ai_toy/Kconfig": "01a7c86c2983921a62dd11bcefec4e7c47d0ea8232bc3407f4155053a14f375b",
+    "boards/bk7258/aidk_ai_toy/configs/openvela_ap/defconfig": "47acbd9ccc095be3d5e594cee4cfac4b036bb49ac4152041504117ee2e7b2fd1",
+    "nuttx/drivers/contactless/Kconfig.mfrc522": "4bfedc7b662c1ac7c38c64cf4d92396ce145797233dd2fb418068a20a90a1b64",
+    "nuttx/include/nuttx/contactless/mfrc522_frame.h": "64f2498f5ea021b54b305329d8cbb2827ce64804acc9e4fcb1ace8fde99e5f69",
+    "tests/host/bk7258/test_nfc_rf_lifecycle.py": "e993ee2862261817f8fbee42a72c5b3a06c8eb3d6927b2b29c696c62a5395819",
+    "tests/host/bk7258/test_shaniu_contracts.py": "16d266ebed45786ea60b05ea8f664447fc2695e145d6213ebdfdf6beca72349a",
+    "nuttx/drivers/contactless/mfrc522.h": "76fc9f7d730ee91dc228ff8a4ceb74b63df67e896f38d0a0424c238e418e0f1d",
+    "nuttx/drivers/contactless/mfrc522_rf.c": "02953b6baf9d22aad0ec29816bf704ef02878ab7daff9cd598f6ed637c32287c",
+    "nuttx/include/nuttx/contactless/mfrc522_rf.h": "b39bfabe13b596a2b4797728c9fe8716bedb1df6357b441c580b9f9c49dc9694",
+    "tests/host/bk7258/check_nfc_rf_build.py": "5c1a059442f410abd2cdb485c08761dedbdf69cdf79b50ae0d174dfa89bb8f67",
+    "tests/host/bk7258/test_mfrc522_rf.py": "a1237e3d193cba59ba7ae97b8f9b26b7291356ed9bfac02804bb3208e7cb776a",
+    "chips/bk7258/CMakeLists.txt": "9f69f7ae3722d153b2604cd84653715c1c1e284273933c17e8b166b7e3be67c5",
+    "chips/bk7258/Make.defs": "61c8554517955b057ce3676ac7d2e1d73936b8bd271026520db02bb505ef26ef",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "5d6c7c997d8a5c671010d277b37c0f6392c227998c9307d912b7cd482ed2403d",
+    "tests/host/bk7258/test_mfrc522_read_errors.py": "5dc3c14d3d49a334935e8adb89f40b360e84dd8b634fe4e256fd6f73f87f633e"
+  },
+  "logs": {
+    "build-final.log": {
+      "sha256": "aa05572183d62709b4397e0a2b191c1a4469fa46535269a88547f10dfd9679fc",
+      "bytes": 7144
+    },
+    "runner-gate.log": {
+      "sha256": "0f0149f92c2183ef7246fcaec2decd1c651e8502ce280acaef0e7400e32feec8",
+      "bytes": 111
+    },
+    "contracts.log": {
+      "sha256": "c44df70bef758034ece4bb4a5f2cfad24002c1d82fd1853b9c8e4e7dbc15711c",
+      "bytes": 9047
+    },
+    "mutation-partial-enable-restored.log": {
+      "sha256": "4770d8a76bd7bab0cd6634baad89f7499a146fa0e95b79e50ca96f71e4771a77",
+      "bytes": 98
+    },
+    "driver-green.log": {
+      "sha256": "4414ad60001677be1e9dd93a69ebeecace6cd661864d204178be33e485de3939",
+      "bytes": 102
+    },
+    "open-red.log": {
+      "sha256": "39738ae3086a49594bcf37a3e555f0c45542eae65a19f38c31c6d37e2c2c4724",
+      "bytes": 946
+    },
+    "driver-final.log": {
+      "sha256": "7de716788aef921bff6df0b2fbc0560da1717b0faadc5c99d163cda86aeacf03",
+      "bytes": 102
+    },
+    "contracts-linked.log": {
+      "sha256": "4db93e87696d5698eca114256f9654f8313988990967f5c769c4466f47e96b5f",
+      "bytes": 7679
+    },
+    "build-clean.log": {
+      "sha256": "d1ab14435ae6038a052e2c9fc1be77571374680261fdb64ccc9043200e004be4",
+      "bytes": 429016
+    },
+    "interface-missing.log": {
+      "sha256": "0a6a5fa86f8b500addc7585634de8fc0fdfb1bfbba310f8e0059e0363db0311c",
+      "bytes": 733
+    },
+    "lifecycle-corrected.log": {
+      "sha256": "4c67810c623db5ec7ce85f055681784c66e983e90cf320a9b9eceb139e192851",
+      "bytes": 100
+    },
+    "lifecycle-green.log": {
+      "sha256": "0a8b6e4da6781683fcc6e305b54222b6ea488f0cad35f6fffbcfba2e9fd754ef",
+      "bytes": 98
+    },
+    "contracts-final.log": {
+      "sha256": "42dea29140970504a5e78bb2f9b3851d0b1b18390b1a830a6f32fdd097685555",
+      "bytes": 7679
+    },
+    "lifecycle-final.log": {
+      "sha256": "ece95d0a70c8f5f210fc3a9da432c0c2df25df955b406de67bea10574a406c20",
+      "bytes": 3329
+    },
+    "build.log": {
+      "sha256": "71bfd37121e0e46e686b4da217ac3ffd04a5a5208c4417104c7ce1e559d1aeed",
+      "bytes": 210650
+    },
+    "mutation-readback-restored.log": {
+      "sha256": "b4ecc486d34a0abc21afd18dfc3b971f6e3224e8b06d5c6d7e0b8904b4486f19",
+      "bytes": 98
+    },
+    "mutation-readback-mutated.log": {
+      "sha256": "764d5413e72a99af601bcd6e2ac16ee2f6fe16f1bda8a7d001c2f6158f57e88d",
+      "bytes": 893
+    },
+    "manifest.log": {
+      "sha256": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac",
+      "bytes": 236
+    },
+    "mutation-partial-enable-mutated.log": {
+      "sha256": "ffb1871a2f58f111b2158af9a14f924541d32c1a482118163251f34cbf15bb5a",
+      "bytes": 959
+    },
+    "build-linked.log": {
+      "sha256": "e6d94ebf7ed9b469ba78e0346f327eb1f7d143c23bfb0b0a0c3f227736e6a0ea",
+      "bytes": 6934
+    },
+    "config-red.log": {
+      "sha256": "4d4a7bc47e919bc15b64aa7ff5d3c25a7b06d93303f77de61a39667954e9757b",
+      "bytes": 147
+    },
+    "manifest-path-error.log": {
+      "sha256": "5dbd8a9ca1ddd9939a5647fe49ed41fdf12f8f077e719a3b107320530d74e54f",
+      "bytes": 174
+    }
+  },
+  "raw_evidence": {
+    "open-red.log": "test: /tmp/tmpn84dorhy/test.c:79: main: Assertion `field==0 && enables==1 && disables==1 && closes==1 && s.fd==-1' failed.\nE\n======================================================================\nERROR: test_controlled_open_failure_releases_partial_field (__main__.RfLifecycleTest)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_nfc_rf_lifecycle.py\", line 130, in test_controlled_open_failure_releases_partial_field\n    subprocess.run([str(path / \"test\")], check=True)\n  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run\n    raise CalledProcessError(retcode, process.args,\nsubprocess.CalledProcessError: Command '['/tmp/tmpn84dorhy/test']' died with <Signals.SIGABRT: 6>.\n\n----------------------------------------------------------------------\nRan 1 test in 0.195s\n\nFAILED (errors=1)\n",
+    "config-red.log": "Traceback (most recent call last):\n  File \"<stdin>\", line 3, in <module>\nAssertionError: controlled RF selected but production NFC service missing\n",
+    "lifecycle-final.log": "/tmp/tmpyouxw3y8/test.c:53:13: error: redefinition of ‘bknfc_open’\n   53 | }static int bknfc_open(void *context)\n      |             ^~~~~~~~~~\n/tmp/tmpyouxw3y8/test.c:25:12: note: previous definition of ‘bknfc_open’ with type ‘int(void *)’\n   25 | static int bknfc_open(void *context)\n      |            ^~~~~~~~~~\n/tmp/tmpyouxw3y8/test.c:23:12: error: ‘bknfc_close’ used but never defined [-Werror]\n   23 | static int bknfc_close(void *context);\n      |            ^~~~~~~~~~~\n/tmp/tmpyouxw3y8/test.c:25:12: error: ‘bknfc_open’ defined but not used [-Werror=unused-function]\n   25 | static int bknfc_open(void *context)\n      |            ^~~~~~~~~~\n/tmp/tmpyouxw3y8/test.c:13:12: error: ‘close’ defined but not used [-Werror=unused-function]\n   13 | static int close(int fd) { assert(fd==7);closes++;return 0; }\n      |            ^~~~~\ncc1: all warnings being treated as errors\nE/tmp/tmpizq66ybd/test.c: In function ‘bknfc_open’:\n/tmp/tmpizq66ybd/test.c:50:3: error: implicit declaration of function ‘nxsig_usleep’ [-Werror=implicit-function-declaration]\n   50 |   nxsig_usleep(6000);\n      |   ^~~~~~~~~~~~\n/tmp/tmpizq66ybd/test.c: At top level:\n/tmp/tmpizq66ybd/test.c:23:12: error: ‘bknfc_close’ used but never defined [-Werror]\n   23 | static int bknfc_close(void *context);\n      |            ^~~~~~~~~~~\n/tmp/tmpizq66ybd/test.c:25:12: error: ‘bknfc_open’ defined but not used [-Werror=unused-function]\n   25 | static int bknfc_open(void *context)\n      |            ^~~~~~~~~~\n/tmp/tmpizq66ybd/test.c:19:12: error: ‘close’ defined but not used [-Werror=unused-function]\n   19 | static int close(int fd) {\n      |            ^~~~~\ncc1: all warnings being treated as errors\nE\n======================================================================\nERROR: test_controlled_open_failure_releases_partial_field (__main__.RfLifecycleTest)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_nfc_rf_lifecycle.py\", line 126, in test_controlled_open_failure_releases_partial_field\n    subprocess.run(\n  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run\n    raise CalledProcessError(retcode, process.args,\nsubprocess.CalledProcessError: Command '['cc', '-Wall', '-Wextra', '-Werror', '/tmp/tmpyouxw3y8/test.c', '-o', '/tmp/tmpyouxw3y8/test']' returned non-zero exit status 1.\n\n======================================================================\nERROR: test_idle_and_close_release_field_and_descriptor (__main__.RfLifecycleTest)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_nfc_rf_lifecycle.py\", line 70, in test_idle_and_close_release_field_and_descriptor\n    subprocess.run(\n  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run\n    raise CalledProcessError(retcode, process.args,\nsubprocess.CalledProcessError: Command '['cc', '-Wall', '-Wextra', '-Werror', '/tmp/tmpizq66ybd/test.c', '-o', '/tmp/tmpizq66ybd/test']' returned non-zero exit status 1.\n\n----------------------------------------------------------------------\nRan 2 tests in 0.018s\n\nFAILED (errors=2)\n",
+    "lifecycle-corrected.log": "..\n----------------------------------------------------------------------\nRan 2 tests in 0.351s\n\nOK\n",
+    "driver-final.log": "....\n----------------------------------------------------------------------\nRan 4 tests in 0.166s\n\nOK\n",
+    "runner-gate.log": "............\n----------------------------------------------------------------------\nRan 12 tests in 0.026s\n\nOK\n",
+    "manifest.log": "bk7258 verify build-manifest: PASS boot=mcuboot board=aidk_ai_toy layout=bk7258-510173147382a879 source=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json\n",
+    "mutation-readback-mutated.log": "test: /tmp/shaniu-rf-zjg8cp1l/test.c:255: main: Assertion `mfrc522_ioctl(&f,MFRC522IOC_SET_RF,0)==-EIO && (rf&3)==3' failed.\nE\n======================================================================\nERROR: test_stuck (test_mfrc522_rf.RfDriverTest)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_mfrc522_rf.py\", line 126, in test_stuck\n    subprocess.run([self.binary, \"stuck\"], check=True)\n  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run\n    raise CalledProcessError(retcode, process.args,\nsubprocess.CalledProcessError: Command '[PosixPath('/tmp/shaniu-rf-zjg8cp1l/test'), 'stuck']' died with <Signals.SIGABRT: 6>.\n\n----------------------------------------------------------------------\nRan 1 test in 0.178s\n\nFAILED (errors=1)\n",
+    "mutation-readback-restored.log": ".\n----------------------------------------------------------------------\nRan 1 test in 0.177s\n\nOK\n",
+    "mutation-partial-enable-mutated.log": "test: /tmp/tmpfq4n0xii/test.c:80: main: Assertion `field==0 && enables==1 && disables==1 && closes==1 && s.fd==-1' failed.\nE\n======================================================================\nERROR: test_controlled_open_failure_releases_partial_field (test_nfc_rf_lifecycle.RfLifecycleTest)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_nfc_rf_lifecycle.py\", line 142, in test_controlled_open_failure_releases_partial_field\n    subprocess.run([str(path / \"test\")], check=True)\n  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run\n    raise CalledProcessError(retcode, process.args,\nsubprocess.CalledProcessError: Command '['/tmp/tmpfq4n0xii/test']' died with <Signals.SIGABRT: 6>.\n\n----------------------------------------------------------------------\nRan 1 test in 0.170s\n\nFAILED (errors=1)\n",
+    "mutation-partial-enable-restored.log": ".\n----------------------------------------------------------------------\nRan 1 test in 0.163s\n\nOK\n",
+    "manifest-path-error.log": "bk7258: error: missing build manifest: /home/lijian/project/open-vela/../out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json\n"
+  }
+}

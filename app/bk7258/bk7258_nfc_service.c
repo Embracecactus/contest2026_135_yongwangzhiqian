@@ -26,8 +26,11 @@
 #include <nuttx/clock.h>
 #include <nuttx/contactless/ioctl.h>
 #include <nuttx/signal.h>
+#if defined(CONFIG_CL_MFRC522_FRAME) || defined(CONFIG_CL_MFRC522_RF)
+#include <nuttx/contactless/mfrc522_rf.h>
 #ifdef CONFIG_CL_MFRC522_FRAME
 #include <nuttx/contactless/mfrc522_frame.h>
+#endif
 #endif
 #ifdef CONFIG_CL_ISODEP
 #include <nuttx/contactless/isodep.h>
@@ -77,6 +80,8 @@ static int bknfc_errno(void)
 {
   return errno > 0 ? -errno : -EIO;
 }
+static int bknfc_close(void *context);
+
 static int bknfc_open(void *context)
 {
   struct bknfc_source_s *source = context;
@@ -92,12 +97,13 @@ static int bknfc_open(void *context)
       return bknfc_errno();
     }
 
-#ifdef CONFIG_CL_MFRC522_FRAME
+#if defined(CONFIG_CL_MFRC522_FRAME) || defined(CONFIG_CL_MFRC522_RF)
   if (ioctl(source->fd, MFRC522IOC_SET_RF, 1) < 0)
     {
       int ret = bknfc_errno();
-      close(source->fd);
-      source->fd = -1;
+      /* 开启可能部分生效，失败也须尝试释放射频并关闭句柄。 */
+
+      (void)bknfc_close(context);
       return ret;
     }
 
@@ -154,7 +160,7 @@ static int bknfc_close(void *context)
       return -EBADF;
     }
 
-#ifdef CONFIG_CL_MFRC522_FRAME
+#if defined(CONFIG_CL_MFRC522_FRAME) || defined(CONFIG_CL_MFRC522_RF)
   if (ioctl(fd, MFRC522IOC_SET_RF, 0) < 0)
     {
       ret = bknfc_errno();
@@ -168,7 +174,7 @@ static int bknfc_close(void *context)
   return ret;
 }
 
-#ifdef CONFIG_CL_MFRC522_FRAME
+#if defined(CONFIG_CL_MFRC522_FRAME) || defined(CONFIG_CL_MFRC522_RF)
 /* The generic driver enables its antenna during registration. Product idle
  * must release the field too, before any explicit scan or claim window.
  */
@@ -385,7 +391,7 @@ static int bknfc_send(struct bknfc_server_s *server,
 static int bknfc_worker(int argc, char **argv)
 {
   struct bknfc_server_s *server = &g_bknfc_server;
-#ifdef CONFIG_CL_MFRC522_FRAME
+#if defined(CONFIG_CL_MFRC522_FRAME) || defined(CONFIG_CL_MFRC522_RF)
   bool idle_ready = false;
   int idle_error = 0;
 #endif
@@ -404,7 +410,7 @@ static int bknfc_worker(int argc, char **argv)
       irqstate_t flags;
       uint32_t epoch;
 
-#ifdef CONFIG_CL_MFRC522_FRAME
+#if defined(CONFIG_CL_MFRC522_FRAME) || defined(CONFIG_CL_MFRC522_RF)
       /* Board registration is deferred. Retry the initial RF release until
        * the device exists instead of leaving its power-on field enabled.
        */

@@ -1001,3 +1001,45 @@ including code, constants, symbols and relocations. Strict 155 PASS retain all
 previous IDs and original mutation checks. Build/layers/manifest pass. No new
 test, threshold, behavior, resource allocation or device operation is added.
 See `acceptance/s35-20260927.json` and `acceptance/s35-style-evidence-20260927.json`.
+
+### S36 controlled NFC reader (2026-09-27)
+
+The maintained `CL_MFRC522_RF` driver derives from pinned NuttX
+`76354c637858ecb0aa4601629327acb6f44a26bb`, retaining its license and standard
+card protocol. It adds a 0/1 antenna ioctl, register readback and idle-off
+registration. This is not the previously described but absent raw-frame patch
+series. Frame exchange and ISO-DEP remain disabled. Board selection and the
+NFC service's Kconfig dependency must both accept this driver.
+
+`test_mfrc522_rf.py` executes actual driver antenna/ioctl/register functions
+with only external register/allocation/registration boundaries replaced. Four
+cases cover transitions/invalid values, stuck registers, idle-off publication
+and failed release. Two lifecycle cases execute actual service functions;
+partial RF-on failure must attempt RF-off before descriptor release while
+retaining the original error. The new case first failed at that side-effect
+assertion. A missing new API was BLOCKED_INTERFACE, not a business Red.
+
+The function extractor was corrected to skip forward declarations after the
+production cleanup introduced one. The first complete run's two compile
+errors are retained as SETUP_ERROR; no behavior assertion was relaxed. The
+strict set adds six IDs, preserving the original 63 including two restores.
+Two extra isolated mutations (ignore register mismatch; omit failed-open
+cleanup) must fail actual runtime assertions, and their restores pass. These
+are counted separately from the strict set and its original two mutations.
+
+Build success alone initially missed a disabled service: the new driver was
+linked but an old Kconfig dependency rejected it. The explicit configuration
+assertion failed. After fixing that dependency, cached incremental config was
+still stale; the supported `build --clean` is used to regenerate it.
+`check_nfc_rf_build.py --config <AP .config> --elf <AP ELF> --map <AP map>`
+requires both actual production entries, exactly one driver and no claimed
+ISO-DEP/frame support. This is a target-artifact check, not device acceptance.
+
+No new worker, queue, persistent write, sampling loop or DMA allocation is
+introduced. Existing worker stack and driver object are retained; each RF
+transition adds register readback, with no new retry or wait budget. CPU p95,
+UART latency, stack high-water, current/RF measurements and physical card
+compatibility remain NOT_RUN. A failed RF-off reports an error, not physical
+safety. Authorized card bindings, dwell/reentry and scene dispatch remain
+unimplemented; L3 is BLOCKED_DEVICE, not evidence that those software gaps
+are complete. No firmware was flashed or phone app installed.

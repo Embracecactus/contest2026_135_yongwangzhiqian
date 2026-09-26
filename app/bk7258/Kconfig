@@ -446,14 +446,15 @@ config BK7258_NFC_SERVICE
 	bool "BK7258 AP Shaniu NFC presence service"
 	default n
 	depends on BK7258_AP_CORE && BK7258_RPTUN
-	depends on CL_MFRC522 || CL_MFRC522_FRAME
+	depends on CL_MFRC522 || CL_MFRC522_FRAME || CL_MFRC522_RF
 	select BK7258_AP_APPLICATION_LIFECYCLE
 	help
 		Start the AP-resident endpoint used by bknfc.  Each request opens,
 		uses /dev/nfc0 in a dedicated worker, and closes the device after
 		each request. The standard SPI driver supports presence checks;
 		the frame driver also supports bounded ISO-DEP handover and idle
-		RF release. Presence responses contain no UID.
+		RF release. The controlled RF driver supports presence with
+		explicit field ownership. Presence responses contain no UID.
 
 if BK7258_NFC_SERVICE
 
