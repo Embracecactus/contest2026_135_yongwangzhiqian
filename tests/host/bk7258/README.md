@@ -985,3 +985,19 @@ is not PASS; style/section diagnostics are preserved. Timer completion is not
 proof of visible/sounded reminder. No physical install/flash; actual Agent/ASR/
 audio integration and NFC binding remain unverified or unimplemented. See
 `acceptance/s34-20260927.json` and `acceptance/s34-voice-evidence-20260927.json`.
+
+### S35 — close S34 production-module style findings
+
+Only focus_intent source/header formatting is changed. The pinned nxstyle
+source is built with TOPDIR set to this canonical team repository, so its
+relative-path rule checks the correct root instead of treating all non-NuttX
+files as apps/. No rules are removed or diagnostics suppressed. Both files pass
+full-file nxstyle. Compiler invocation, checker source hash/commit and raw
+results are recorded; this does not claim other legacy files are style-clean.
+
+Target log confirms recompilation. The complete ARM relocatable object is
+byte-identical before/after (also identical after stripping debug information),
+including code, constants, symbols and relocations. Strict 155 PASS retain all
+previous IDs and original mutation checks. Build/layers/manifest pass. No new
+test, threshold, behavior, resource allocation or device operation is added.
+See `acceptance/s35-20260927.json` and `acceptance/s35-style-evidence-20260927.json`.
