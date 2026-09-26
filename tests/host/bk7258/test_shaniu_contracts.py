@@ -718,6 +718,11 @@ def main():
         add(suite, "NFC-02.scene-" + variant, "NFC-02", "L2",
             [HERE / "build/test_shaniu_nfc_scene", variant],
             binaries["test_shaniu_nfc_scene"])
+    for variant in ("crc_deadline", "crc_wrap", "crc_success", "comm_deadline",
+                    "comm_wrap", "comm_success", "hardware", "protocol"):
+        add(suite, "NFC-01.deadline-" + variant, "NFC-01", "L1",
+            [sys.executable, HERE / "test_mfrc522_deadline.py",
+             "DeadlineTest.test_" + variant], marker=False)
     for variant in ("voice", "gate", "revision", "cancel", "invalid"):
         add(
             suite,

@@ -233,7 +233,15 @@
     "NFC-02.scene-gate",
     "NFC-02.scene-busy",
     "NFC-02.scene-binding",
-    "NFC-02.scene-invalid"
+    "NFC-02.scene-invalid",
+    "NFC-01.deadline-crc_deadline",
+    "NFC-01.deadline-crc_wrap",
+    "NFC-01.deadline-crc_success",
+    "NFC-01.deadline-comm_deadline",
+    "NFC-01.deadline-comm_wrap",
+    "NFC-01.deadline-comm_success",
+    "NFC-01.deadline-hardware",
+    "NFC-01.deadline-protocol"
   ],
   "baseline_ids": [
     "K2-01.release-2999",

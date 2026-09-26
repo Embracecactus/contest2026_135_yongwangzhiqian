@@ -1401,3 +1401,36 @@ A worker-owned state will cost sizeof(struct bknfc_scene_s) (24 bytes with the t
 ABI); no heap, DMA, resident thread, radio or SD I/O is added by this component.
 Actual hardware CPU/stack/p95 and RF coexistence remain unmeasured. This is an
 intermediate service slice, not autonomous NFC functionality or product acceptance.
+
+
+## S48 — actual MFRC522 RF software wait deadlines
+
+The active AP configuration selects CL_MFRC522_RF, not the upstream frame driver.
+Its real CRC and communication routines added200000ns then required both seconds
+and nanoseconds to exceed the deadline. The existing CRC comment specifies200ms;
+before repair, the tests freeze that software watchdog for both waits. This is
+separate from RF hardware timeout, automatic scan period or a physical absence
+criterion. No NFC scene threshold is inferred from this change.
+
+Eight tests extract the unchanged production function bodies and real register
+constants, replacing only the register bus and monotonic clock. Four deadline
+cases fail before repair (finite clock script catches the overrun); the fixes use
+200000000ns and normalized lexicographic >= comparison. Early completion, hardware
+timeout and protocol-error paths retain their results. No real sleeping or assumed
+physical removal. Initial setup failed to accept '#  define'; corrected extraction
+is separately logged, followed by4 actual assertion failures and8 passes.
+
+Strict241 PASS retain original63; target AP build/manifest verified. Isolated wrong
+units mutation triggers6 assertions, wrong comparison4; restore passes8. The first
+ad-hoc mutation classifier incorrectly demanded exactly4 failures and mislabeled the
+6-failure mutant SURVIVED; raw records and correction are preserved, with no changed
+oracle or production edits. Driver behavior remains synchronous; no heap/thread/DMA
+or RF scheduling was added.200ms bounds software polling when the clock advances;
+blocking SPI callbacks and actual scheduling/exit latency are not proved by host
+clock substitution. Hardware timer programming is unchanged. The unrelated timer
+comment's numeric mismatch was observed but not rewritten in this slice.
+
+S47's scene still has no production worker caller. Distinguishing failed selection,
+reader watchdog and a trustworthy no-response observation, admission/cancellation,
+autonomous loading and card-to-focus L3 remain required. No physical action performed.
+See `acceptance/s48-20260927.json` and `s48-nfc-deadline-evidence-20260927.json`.

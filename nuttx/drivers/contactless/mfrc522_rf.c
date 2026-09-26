@@ -357,8 +357,10 @@ int mfrc522_calc_crc(FAR struct mfrc522_dev_s *dev, uint8_t *buffer,
 
   /* Wait for CRC completion or 200ms time-out */
 
+  /* 200ms软件上限；按规范化的单调时间比较，跨秒不延长等待。 */
+
   clock_systime_timespec(&tstart);
-  tstart.tv_nsec += 200000;
+  tstart.tv_nsec += 200000000;
   if (tstart.tv_nsec >= 1000 * 1000 * 1000)
     {
       tstart.tv_sec++;
@@ -379,7 +381,8 @@ int mfrc522_calc_crc(FAR struct mfrc522_dev_s *dev, uint8_t *buffer,
 
       clock_systime_timespec(&tend);
 
-      if ((tend.tv_sec > tstart.tv_sec) && (tend.tv_nsec > tstart.tv_nsec))
+      if (tend.tv_sec > tstart.tv_sec ||
+          (tend.tv_sec == tstart.tv_sec && tend.tv_nsec >= tstart.tv_nsec))
         {
           return -ETIMEDOUT;
         }
@@ -456,8 +459,10 @@ int mfrc522_comm_picc(FAR struct mfrc522_dev_s *dev, uint8_t command,
    * hardware fault, let us to use a NuttX timeout as well.
    */
 
+  /* 200ms软件上限；按规范化的单调时间比较，跨秒不延长等待。 */
+
   clock_systime_timespec(&tstart);
-  tstart.tv_nsec += 200000;
+  tstart.tv_nsec += 200000000;
   if (tstart.tv_nsec >= 1000 * 1000 * 1000)
     {
       tstart.tv_sec++;
@@ -499,8 +504,8 @@ int mfrc522_comm_picc(FAR struct mfrc522_dev_s *dev, uint8_t command,
 
       clock_systime_timespec(&tend);
 
-      if ((tend.tv_sec > tstart.tv_sec) &&
-          (tend.tv_nsec > tstart.tv_nsec))
+      if (tend.tv_sec > tstart.tv_sec ||
+          (tend.tv_sec == tstart.tv_sec && tend.tv_nsec >= tstart.tv_nsec))
         {
           return -ETIMEDOUT;
         }
