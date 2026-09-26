@@ -115,6 +115,7 @@ struct bk7258_usbcdc_priv_s
   bool rx_pending;
   bool serial_registered;
   bool opened;
+  bool quarantined;
   struct bk7258_usbcdc_config_s config;
 };
 
@@ -293,7 +294,7 @@ static void bk7258_usbcdc_arm_rx(void)
    * The pinned DCD start_read only publishes state and enables the IRQ.
    */
 
-  if (!priv->configured || priv->rx_pending ||
+  if (!priv->configured || priv->quarantined || priv->rx_pending ||
       bk7258_usbcdc_ring_free(&priv->rx) < sizeof(priv->rxbuf))
     {
       leave_critical_section(flags);
@@ -369,6 +370,12 @@ static void bk7258_usbcdc_notify(uint8_t event, FAR void *arg)
       if (!priv->configured)
         {
           priv->configured = true;
+#ifdef CONFIG_SERIAL_REMOVABLE
+          if (priv->serial_registered && !priv->quarantined)
+            {
+              uart_connected(&priv->uartdev, true);
+            }
+#endif
           bk7258_usbcdc_arm_rx();
         }
     }
@@ -378,6 +385,14 @@ static void bk7258_usbcdc_notify(uint8_t event, FAR void *arg)
       priv->tx_pending = false;
       priv->rx_pending = false;
       memset(&priv->rx, 0, sizeof(priv->rx));
+      memset(&priv->tx, 0, sizeof(priv->tx));
+      priv->quarantined = priv->opened;
+#ifdef CONFIG_SERIAL_REMOVABLE
+      if (priv->serial_registered)
+        {
+          uart_connected(&priv->uartdev, false);
+        }
+#endif
     }
 
   leave_critical_section(flags);
@@ -469,7 +484,7 @@ static void bk7258_usbcdc_kick_tx(FAR struct bk7258_usbcdc_priv_s *priv)
   int ret;
 
   flags = enter_critical_section();
-  if (priv->tx_pending || !priv->configured)
+  if (priv->tx_pending || !priv->configured || priv->quarantined)
     {
       leave_critical_section(flags);
       return;
@@ -519,16 +534,48 @@ static void bk7258_usbcdc_kick_tx(FAR struct bk7258_usbcdc_priv_s *priv)
 static int bk7258_usbcdc_setup(FAR struct uart_dev_s *uartdev)
 {
   FAR struct bk7258_usbcdc_priv_s *priv = uartdev->priv;
+  irqstate_t flags = enter_critical_section();
 
+  if (!priv->configured || priv->quarantined || priv->tx_pending)
+    {
+      int ret = priv->tx_pending ? -EBUSY : -ENOTCONN;
+      leave_critical_section(flags);
+      return ret;
+    }
+
+  /* First-open setup is serialized by the serial upper half after all old
+   * descriptors close. Do not reset upper indices from a disconnect IRQ,
+   * where a reader or writer can still own its buffer cursor.
+   */
+
+  uartdev->recv.head = uartdev->recv.tail = 0;
+  uartdev->xmit.head = uartdev->xmit.tail = 0;
+  memset(&priv->rx, 0, sizeof(priv->rx));
+  memset(&priv->tx, 0, sizeof(priv->tx));
   priv->opened = true;
+  leave_critical_section(flags);
   return OK;
 }
 
 static void bk7258_usbcdc_shutdown(FAR struct uart_dev_s *uartdev)
 {
   FAR struct bk7258_usbcdc_priv_s *priv = uartdev->priv;
+  irqstate_t flags = enter_critical_section();
 
   priv->opened = false;
+  if (priv->quarantined)
+    {
+      /* Reconnect cannot revive an old descriptor. Last-close is the only
+       * point that admits a fresh open after the USB link has returned.
+       */
+
+      priv->quarantined = false;
+#ifdef CONFIG_SERIAL_REMOVABLE
+      uart_connected(uartdev, priv->configured);
+#endif
+    }
+
+  leave_critical_section(flags);
 }
 
 static int bk7258_usbcdc_attach(FAR struct uart_dev_s *uartdev)
@@ -644,7 +691,8 @@ static bool bk7258_usbcdc_txready(FAR struct uart_dev_s *uartdev)
   FAR struct bk7258_usbcdc_priv_s *priv = &g_bk7258_usbcdc;
 
   (void)uartdev;
-  return bk7258_usbcdc_ring_free(&priv->tx) != 0;
+  return priv->configured && !priv->quarantined &&
+         bk7258_usbcdc_ring_free(&priv->tx) != 0;
 }
 
 static bool bk7258_usbcdc_txempty(FAR struct uart_dev_s *uartdev)
@@ -734,6 +782,10 @@ int bk7258_usbcdc_initialize_with_config(
       priv->uartdev.ops         = &g_bk7258_usbcdc_uart_ops;
       priv->uartdev.priv        = priv;
       priv->opened              = false;
+      priv->quarantined         = false;
+#ifdef CONFIG_SERIAL_REMOVABLE
+      priv->uartdev.disconnected = true;
+#endif
 
       ret = uart_register(devname, &priv->uartdev);
       if (ret < 0)

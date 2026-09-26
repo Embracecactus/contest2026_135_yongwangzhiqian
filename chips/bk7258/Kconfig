@@ -2511,6 +2511,7 @@ config BK7258_USBCDC
 	depends on BK7258_AP_CORE
 	depends on !BK7258_USBHOST
 	select SERIAL
+	select SERIAL_REMOVABLE
 	help
 		Expose the BK7258 MUSB controller as a USB device CDC-ACM serial
 		gadget.  By default it publishes the standard NuttX serial device

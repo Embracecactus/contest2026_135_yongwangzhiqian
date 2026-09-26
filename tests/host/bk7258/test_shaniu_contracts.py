@@ -776,6 +776,13 @@ def main():
             "L2" if variant.startswith("upper_") else "L1",
             [sys.executable, HERE / "test_shaniu_usbcdc_tx.py",
              "CdcTxTest.test_" + variant], marker=False)
+    for variant in (
+        "wake_disconnect", "fast_reconnect", "drop_old_queue", "new_open",
+        "offline_open",
+    ):
+        add(suite, "USB-02.life-" + variant, "USB-02", "L2",
+            [sys.executable, HERE / "test_shaniu_usbcdc_lifecycle.py",
+             "CdcLifeTest.test_" + variant], marker=False)
     for variant in ("register", "inactive", "invalid", "not_ready", "partial",
                     "status_error", "data_error", "fresh"):
         add(suite, "MOT-01.sensor-" + variant, "MOT-01", "L1",
@@ -1225,6 +1232,7 @@ def main():
         HERE / "test_sc7a20_sampling.py",
         HERE / "test_shaniu_usbcdc_rx.py",
         HERE / "test_shaniu_usbcdc_tx.py",
+        HERE / "test_shaniu_usbcdc_lifecycle.py",
         ROOT / "chips/bk7258/ap/bk7258_usbcdc.c",
         ROOT / "nuttx/drivers/sensors/sc7a20.c",
         ROOT / "nuttx/include/nuttx/sensors/sc7a20.h",

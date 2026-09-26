@@ -320,7 +320,12 @@
     "USB-02.tx-queued_progress",
     "USB-02.tx-upper_start",
     "USB-02.tx-upper_backpressure",
-    "USB-02.tx-wrong_completion"
+    "USB-02.tx-wrong_completion",
+    "USB-02.life-wake_disconnect",
+    "USB-02.life-fast_reconnect",
+    "USB-02.life-drop_old_queue",
+    "USB-02.life-new_open",
+    "USB-02.life-offline_open"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -644,6 +649,11 @@
     "USB-02.tx-queued_progress",
     "USB-02.tx-upper_start",
     "USB-02.tx-upper_backpressure",
-    "USB-02.tx-wrong_completion"
+    "USB-02.tx-wrong_completion",
+    "USB-02.life-wake_disconnect",
+    "USB-02.life-fast_reconnect",
+    "USB-02.life-drop_old_queue",
+    "USB-02.life-new_open",
+    "USB-02.life-offline_open"
   ]
 }

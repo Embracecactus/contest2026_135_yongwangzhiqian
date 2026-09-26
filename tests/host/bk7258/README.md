@@ -1855,3 +1855,43 @@ OTA uses a separate data path and was not changed. No device operations; L3 is
 NOT_RUN. Existing full-file nxstyle errors remain; Black24.10.0 passes new test.
 See `acceptance/s58-20260927.json` and
 `acceptance/s58-usbcdc-tx-evidence-20260927.json`.
+
+### S59 — CDC disconnect notification and old-descriptor quarantine (2026-09-27)
+
+The CDC Kconfig now selects the existing SERIAL_REMOVABLE facility. Default
+serial registration starts disconnected. USB configuration calls the real
+uart_connected(true); reset/disconnect calls uart_connected(false), notifying
+poll hangup and waking both serial wait domains. The lower RX/TX queues are
+invalidated. If a descriptor was open, fast USB reconfiguration leaves it
+quarantined/disconnected, with both RX arming and TX admission closed until
+last-close shutdown. Only then may a new open occur. First-open setup resets
+upper cursor indices under the upper-half open/close serialization, instead of
+mutating active readers' cursors in a USB interrupt. Setup rejects offline,
+quarantined or still-transmitting state. This is serial lifetime, not PC auth.
+
+Five production lifecycle cases initially failed; actual NuttX uart_connected
+is linked into the host cases and external poll/wakeup boundaries are counted.
+An added fast-reconnect TX-ready assertion separately failed before its gate
+was fixed. Existing12 RX/TX cases remain green. Final325PASS = original63 +262
+added, with5 added here.13 runner tests, original2 mutations/restores and new3
+mutations/restores are separate. Reviving an old descriptor, omitting hangup,
+or retaining upper receive cursors is independently detected after compilation.
+
+The first incremental target build retained stale Kconfig and was explicitly
+rejected as feature integration evidence. The existing AP CMake resetconfig
+regenerated the profile; the public build then completed. Final.config selects
+SERIAL_REMOVABLE, the CDC object references uart_connected and the final ELF
+defines it. Manifest verification passes. CDC ARM state1764bytes (+4). No added
+worker/heap/DMA/poll; generic serial state layout also changes with removable
+support. Actual blocking-thread timing, IRQ cost, stack and other boards are
+not measured. New test Black passes; historical full-file C style issues remain.
+
+The host layer executes real lifecycle/notification functions, not full
+open/read/write/close syscalls or concurrent task wake scheduling. Last-close
+ownership is the existing NuttX upper-half contract. DCD reset completion and
+late IRQ ordering need hardware validation; no product authentication is
+created by opening a port or changing DTR. USB framing, independent PC
+credentials, workbench/install/task events and physical reconnect tests remain
+incomplete. No device operation or deployment was performed.
+See `acceptance/s59-20260927.json` and
+`acceptance/s59-usbcdc-lifecycle-evidence-20260927.json`.
