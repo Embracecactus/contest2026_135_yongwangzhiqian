@@ -737,6 +737,11 @@ def main():
         add(suite, "NFC-01.deadline-" + variant, "NFC-01", "L1",
             [sys.executable, HERE / "test_mfrc522_deadline.py",
              "DeadlineTest.test_" + variant], marker=False)
+    for variant in ("register", "inactive", "invalid", "not_ready", "partial",
+                    "status_error", "data_error", "fresh"):
+        add(suite, "MOT-01.sensor-" + variant, "MOT-01", "L1",
+            [sys.executable, HERE / "test_sc7a20_sampling.py",
+             "SamplingTest.test_" + variant], marker=False)
     for variant in ("voice", "gate", "revision", "cancel", "invalid"):
         add(
             suite,
@@ -1178,6 +1183,9 @@ def main():
         HERE / "test_provision_owner.c",
         HERE / "test_bk7258_agent_media_player.c",
         HERE / "test_bk7258_cloud_http.py",
+        HERE / "test_sc7a20_sampling.py",
+        ROOT / "nuttx/drivers/sensors/sc7a20.c",
+        ROOT / "nuttx/include/nuttx/sensors/sc7a20.h",
         *ROOT.glob(
             "android/shaniu-companion/app/src/test/java/com/shaniu/companion/ota/*Test.kt"
         ),

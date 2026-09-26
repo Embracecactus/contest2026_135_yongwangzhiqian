@@ -1561,3 +1561,46 @@ Final emulator outcome and exact input/log hashes are in the S51 evidence record
 L1/L2 and native synthetic UI evidence remain separate. Actual phone/BLE/read-card
 status, physical RF errors/coexistence, timer rendering, CPU/p95/stack and long-run
 behavior are NOT_RUN. No physical installation, flash, reset or data clearing.
+
+## S52: SC7A20 new-conversion admission for N1
+
+Before autonomous action recognition, MOT-01 requires samples backed by valid
+new observations. Actual SC7A20 fetch previously read output unconditionally and
+assigned a new host timestamp even when no axis conversion was ready. The whole
+production lower half now checks STATUS_REG ZYXDA before reading six output bytes.
+No-ready/partial-ready returns EAGAIN without consuming output or publishing a new
+timestamp. Bus errors propagate; failed fetch leaves caller output untouched.
+Registration enables BDU without changing full scale, ODR or normal resolution.
+BDU protects low/high pairs; it does not prove all axes sampled simultaneously.
+
+`test_sc7a20_sampling.py` compiles the entire actual driver and public config
+header, replacing only includes with external sensor-framework/clock/mutex/bus
+fixtures. No driver function, register constants, state machine or conversion is
+reimplemented. Literal bus/status expectations come from the manufacturer manual,
+not the production encoder. Eight independent processes cover inactive, invalid,
+no/partial readiness, status/data errors, registration BDU and successive valid
+conversions (including equal values). Initial6 assertion Reds/2PASS become8PASS.
+Two isolated mutants (ignore readiness and omit BDU) fail, then restore to PASS.
+These are register-transport host checks, not physical data-ready behavior proof.
+
+The preliminary close hypothesis was rejected before any product edits: the
+actual NuttX descriptor is invalidated even when close fails; retaining that fd
+would be wrong. sensor_accel.status is calibration status, not errno. Actual sensor
+upper-half close currently ignores lower-half deactivate return, so hardware
+shutdown confirmation remains a separate unresolved integration boundary.
+
+Strict selected collection280: original63 (including2restores) plus217added.
+Runner gate13 remains separate. Driver/header and new test input hashes are included
+explicitly, because the historical production_digest does not cover nuttx overlays.
+AP build and manifest verification are separate from software tests. An initial
+nxstyle invocation used the official checkout's compiled TOPDIR and rejected the
+team mirror header path; rebuilding the same pinned tool with the mirror TOPDIR
+passes. Python Black24.10.0 and diff whitespace checks pass. No framework upgrade.
+
+Resource change: one bounded one-byte status read per fetch, one stack status byte,
+no added persistent state, thread, queue, timer, heap or DMA. Bus transaction and
+lock duration need hardware measurement. Timestamp remains host fetch time, not
+conversion time. Startup/ODR-change stale registers, missed/overrun conversions,
+physical scaling, driver exit acknowledgment, autonomous sampling/recognition and
+short expression restoration are not closed by this slice. No hardware action.
+See `acceptance/s52-20260927.json` and `s52-motion-sampling-evidence-20260927.json`.

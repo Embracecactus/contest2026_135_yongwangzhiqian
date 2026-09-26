@@ -481,3 +481,15 @@ X509Certificate 和 MessageDigest API，没有复制密码库或上游 Bluetooth
   `cp/include/components/system.h` 中 `RESET_SOURCE_HARD_FAULT`（Apache-2.0）；
   芯片层保留编译期 ABI 校验，自动复位策略复用 NuttX
   `BOARD_RESET_ON_ASSERT`，不修改 SDK 复位实现。
+
+### S52 SC7A20 conversion readiness and byte-pair coherence
+
+The SC7A20 lower half now follows Silan Microelectronics' *SC7A20 说明书*,
+version1.3, sections12.4 (CTRL_REG4 BDU, printed page15) and12.7 (STATUS_REG
+ZYXDA, printed pages16–17). Manufacturer-authored manual obtained from the
+[distributor mirror](https://www.unikeyic.com/media/datasheet/0d/29/07e1/0d2907e1144f1d3e98f0a7bde9391acf.pdf),
+SHA256 `31aaf020b25a3c1ab69f6f34519d1a9b0d933e14757f67dbd5191ac16eba9cb1`.
+Only register facts are used; no manual text or document is redistributed here.
+New implementation/test code remains Apache-2.0. Existing SDK provenance above
+continues to apply to identity, scaling and bus binding. BDU holds byte pairs,
+not a claim of atomic simultaneous three-axis conversion or physical calibration.

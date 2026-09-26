@@ -272,7 +272,15 @@
     "provision.NfcBindingControllerTest.sceneReadDisconnectCannotRestoreOldCapability",
     "provision.NfcBindingControllerTest.blockedReaderIsNotReportedAsReady",
     "provision.NfcBindingControllerTest.newOperationInvalidatesSceneSnapshot",
-    "NFC-02.worker-capability-inflight"
+    "NFC-02.worker-capability-inflight",
+    "MOT-01.sensor-register",
+    "MOT-01.sensor-inactive",
+    "MOT-01.sensor-invalid",
+    "MOT-01.sensor-not_ready",
+    "MOT-01.sensor-partial",
+    "MOT-01.sensor-status_error",
+    "MOT-01.sensor-data_error",
+    "MOT-01.sensor-fresh"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -548,6 +556,14 @@
     "provision.NfcBindingControllerTest.sceneReadDisconnectCannotRestoreOldCapability",
     "provision.NfcBindingControllerTest.blockedReaderIsNotReportedAsReady",
     "provision.NfcBindingControllerTest.newOperationInvalidatesSceneSnapshot",
-    "NFC-02.worker-capability-inflight"
+    "NFC-02.worker-capability-inflight",
+    "MOT-01.sensor-register",
+    "MOT-01.sensor-inactive",
+    "MOT-01.sensor-invalid",
+    "MOT-01.sensor-not_ready",
+    "MOT-01.sensor-partial",
+    "MOT-01.sensor-status_error",
+    "MOT-01.sensor-data_error",
+    "MOT-01.sensor-fresh"
   ]
 }
