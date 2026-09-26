@@ -1915,3 +1915,8 @@ run-trial-wire: $(BUILD)/test_shaniu_trial_wire
 
 $(BUILD)/test_shaniu_focus_shared: test_shaniu_focus_shared.c $(VOICE_PACK_ROOT)/bk7258_focus.c $(VOICE_PACK_ROOT)/bk7258_focus.h | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) $< $(VOICE_PACK_ROOT)/bk7258_focus.c -o $@
+
+$(BUILD)/test_shaniu_focus_intent: test_shaniu_focus_intent.c $(VOICE_PACK_ROOT)/bk7258_focus.c $(VOICE_PACK_ROOT)/bk7258_focus_intent.c $(VOICE_PACK_ROOT)/bk7258_focus_intent.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(MOCKS) -I $(VOICE_PACK_ROOT) \
+		-I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON $(filter %.c,$^) \
+		$(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c -o $@

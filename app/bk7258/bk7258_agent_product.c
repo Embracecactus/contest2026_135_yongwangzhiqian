@@ -79,6 +79,7 @@
 #include "bk7258_provision_claim.h"
 #include "bk7258_provision_settings.h"
 #include "bk7258_focus.h"
+#include "bk7258_focus_intent.h"
 #include "bk7258_display_trial_control.h"
 #include "bk7258_provision_config.h"
 #include "bk7258_provision_storage.h"
@@ -570,6 +571,19 @@ static char *product_tools(void)
     "\"maximum\":" BK7258_STRINGIFY(BK7258_TOOL_VALUE_MAX) "},"
     "\"mood\":{\"type\":\"string\",\"enum\":[\"gentle\",\"playful\","
     "\"quiet\",\"serious\",\"tsundere_lite\"]}},\"required\":[\"action\"]}}"
+    ",{\"name\":\"focus_timer\",\"description\":"
+    "\"Only on an explicit user request, start/pause/resume/cancel the "
+    "device's local focus timer. Start requires integer seconds. Accepted "
+    "means queued, not running or completed; call status once if needed. "
+    "Status is a cached observation: phase 0 idle, 1 pending, 2 applied, "
+    "3 failed, 4 canceled; timer_state 0 idle, 1 running, 2 paused, "
+    "3 completed, 4 canceled. A timer completion does not confirm sound. "
+    "Do not repeatedly poll or start a timer without the user's request.\","
+    "\"input_schema\":{\"type\":\"object\",\"properties\":{"
+    "\"action\":{\"type\":\"string\",\"enum\":[\"status\",\"start\","
+    "\"pause\",\"resume\",\"cancel\"]},\"seconds\":{\"type\":\"integer\","
+    "\"minimum\":1,\"maximum\":4294967}},\"required\":[\"action\"],"
+    "\"additionalProperties\":false}}"
     ",{\"name\":\"read_file\",\"description\":"
     "\"Read a UTF-8 text file under /data/agent. Use it to open a skill "
     "document under /data/agent/skills before following that skill's "
@@ -586,7 +600,8 @@ static int product_tool_execute(const char *name, const char *input,
   int written = 0;
   if (!name || (strcmp(name, "device_status") &&
                 strcmp(name, "device_motion") &&
-                strcmp(name, "device_control") && strcmp(name, "read_file")))
+                strcmp(name, "device_control") && strcmp(name, "focus_timer") &&
+                strcmp(name, "read_file")))
     {
       return ERROR;
     }
@@ -620,6 +635,12 @@ static int product_tool_execute(const char *name, const char *input,
   if (!cJSON_IsObject(args))
     {
       ret = -EINVAL;
+      goto out;
+    }
+
+  if (!strcmp(name, "focus_timer"))
+    {
+      ret = bkfocus_tool_execute(args, output, capacity, check, context);
       goto out;
     }
 
@@ -2216,6 +2237,7 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
               /* Do this before TURN_COMPLETE or preference recovery can
                * revive an owner that SRV1 has already revoked. */
               bkfocus_cancel();
+              bkfocus_intent_step(now, false);
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
               bk7258_display_focus(0);
 #endif
@@ -2232,6 +2254,7 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
             }
           else
             {
+              bkfocus_intent_step(now, false);
               /* 未确认撤销的读取故障阻止新工作，但不吞掉完成通知。 */
               atomic_fetch_or(&g_product_events, events);
             }
@@ -2242,6 +2265,7 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
       if (product_keys_step(now))
         {
           bkfocus_cancel();
+          bkfocus_intent_step(now, false);
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
           bk7258_display_focus(0);
 #endif
@@ -2255,6 +2279,7 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
 
 #endif
       (void)bkfocus_step(now);
+      bkfocus_intent_step(now, g_control_bound && !bkagent_ota_busy());
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
       bk7258_display_focus(atomic_load(&g_voice_initialized) && !voice_channel_is_idle() ?
                           0 : bkfocus_visual(now));
@@ -2680,6 +2705,9 @@ static const char g_product_skill_device_assistant[] =
   "eyes (neutral/happy/shy/sad/surprised/thinking/listening/speaking/"
   "sleepy). Every repeat request needs a fresh tool call; report errors "
   "honestly.\n"
+  "4. Focus: use focus_timer only on the user's request. Start requires "
+  "seconds. Accepted is queued, not running; status reports the device "
+  "owner's last observation. Never promise a completion sound from it.\n"
   "\n"
   "## Example\n"
   "User asks about the battery in Chinese -> device_status -> answer with "

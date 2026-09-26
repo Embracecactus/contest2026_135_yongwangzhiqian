@@ -422,6 +422,7 @@ def main():
         "test_bk7258_agent_media_player",
         "test_shaniu_focus",
         "test_shaniu_focus_shared",
+        "test_shaniu_focus_intent",
         "test_shaniu_focus_pixels",
         "test_shaniu_focus_render",
         "test_shaniu_display_snapshot",
@@ -489,6 +490,15 @@ def main():
             "L1",
             [HERE / ("build/test_shaniu_focus_" + variant)],
             binaries["test_shaniu_focus_" + variant],
+        )
+    for variant in ("voice", "gate", "revision", "cancel", "invalid"):
+        add(
+            suite,
+            "TIMER-01.intent-" + variant,
+            "TIMER-01",
+            "L2",
+            [HERE / "build/test_shaniu_focus_intent", variant],
+            binaries["test_shaniu_focus_intent"],
         )
     for variant in ("start", "retry", "cancel", "invalid"):
         add(

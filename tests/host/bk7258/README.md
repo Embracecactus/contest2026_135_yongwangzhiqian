@@ -952,3 +952,36 @@ the existing App protocol, not a working card or voice binding. Those adapters,
 authorization/queue admission, persistence policy and physical evidence remain
 required. See `acceptance/s33-20260927.json` and
 `acceptance/s33-focus-evidence-20260927.json`.
+
+### S34 — voice focus tool posts to the product owner
+
+`focus_timer` is registered in the actual product tool provider, parses the
+existing cJSON input, and posts one bounded intent. Start/pause/resume/cancel
+share the S33 timer. Product loop executes after reset/power gates; unknown
+reset and power preparation close admission and cancel pending requests. OTA
+busy blocks new intent application. No worker directly owns timer state.
+
+The tool reports accepted plus request ID, not running/completed. Status copies
+a cached observation with its monotonic timestamp and never advances the timer.
+A changed revision fails when applied. Cancel checks before/after enqueue remove
+pending work by exact ID; if application already won, cancellation reports
+too_late instead of pretending to undo it. Timer execution then remains local,
+independent of cloud connectivity; voice recognition itself is not claimed offline.
+
+Five tests compile real tool parser/mailbox/focus with cJSON and the external
+OS-lock shim. They cover start/pause/resume/completion, passive queries, queue
+full, power gate, stale revision, pending/too-late cancellation, invalid input and
+output reservation. Initial missing module is BLOCKED_INTERFACE. Removing
+admission or pending cancellation in separate compiled mutants is detected.
+Actual tool schema literal parses and its actions/limits match (static supplement,
+not an Agent round). Existing authenticated App FOC1 path is unchanged.
+
+Strict 155 PASS retain original 63 and original mutation detections. Target
+build/layers/manifest pass; AP includes all mailbox/tool symbols. Named static
+state: lock 4, request 32, status 56 = 92 bytes; no added thread, heap allocation
+in mailbox, persistence or hardware I/O. Existing product cJSON parsing allocates
+as before. Target CPU/stack/voice latency remain unmeasured. Whole-file nxstyle
+is not PASS; style/section diagnostics are preserved. Timer completion is not
+proof of visible/sounded reminder. No physical install/flash; actual Agent/ASR/
+audio integration and NFC binding remain unverified or unimplemented. See
+`acceptance/s34-20260927.json` and `acceptance/s34-voice-evidence-20260927.json`.

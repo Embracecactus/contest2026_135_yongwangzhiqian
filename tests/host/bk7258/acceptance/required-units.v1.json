@@ -150,7 +150,12 @@
     "TIMER-01.shared-start",
     "TIMER-01.shared-retry",
     "TIMER-01.shared-cancel",
-    "TIMER-01.shared-invalid"
+    "TIMER-01.shared-invalid",
+    "TIMER-01.intent-voice",
+    "TIMER-01.intent-gate",
+    "TIMER-01.intent-revision",
+    "TIMER-01.intent-cancel",
+    "TIMER-01.intent-invalid"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -304,6 +309,11 @@
     "TIMER-01.shared-start",
     "TIMER-01.shared-retry",
     "TIMER-01.shared-cancel",
-    "TIMER-01.shared-invalid"
+    "TIMER-01.shared-invalid",
+    "TIMER-01.intent-voice",
+    "TIMER-01.intent-gate",
+    "TIMER-01.intent-revision",
+    "TIMER-01.intent-cancel",
+    "TIMER-01.intent-invalid"
   ]
 }
