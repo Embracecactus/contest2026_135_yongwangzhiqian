@@ -760,6 +760,8 @@ def main():
         add(suite, "NFC-01.deadline-" + variant, "NFC-01", "L1",
             [sys.executable, HERE / "test_mfrc522_deadline.py",
              "DeadlineTest.test_" + variant], marker=False)
+    add(suite, "USB-01.tls-transport", "USB-01", "L2",
+        [sys.executable, HERE / "test_provision_tls.py"], marker=False)
     for variant in (
         "fast_reader", "slow_reader", "partial", "upper_backpressure",
         "arm_failure", "reset", "duplicate_callback",
@@ -1233,6 +1235,11 @@ def main():
         HERE / "test_shaniu_usbcdc_rx.py",
         HERE / "test_shaniu_usbcdc_tx.py",
         HERE / "test_shaniu_usbcdc_lifecycle.py",
+        HERE / "test_provision_tls.py",
+        HERE / "test_provision_tls.c",
+        HERE / "test_provision_tls_transport.c",
+        ROOT / "app/bk7258/bk7258_provision_tls.c",
+        ROOT / "app/bk7258/bk7258_provision_tls.h",
         ROOT / "chips/bk7258/ap/bk7258_usbcdc.c",
         ROOT / "nuttx/drivers/sensors/sc7a20.c",
         ROOT / "nuttx/include/nuttx/sensors/sc7a20.h",

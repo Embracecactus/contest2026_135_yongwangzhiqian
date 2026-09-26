@@ -1895,3 +1895,40 @@ credentials, workbench/install/task events and physical reconnect tests remain
 incomplete. No device operation or deployment was performed.
 See `acceptance/s59-20260927.json` and
 `acceptance/s59-usbcdc-lifecycle-evidence-20260927.json`.
+
+## S60：同一 TLS 状态机的显式传输接口（2026-09-27）
+
+`bkprov_tls_start_transport` 接收一份有界非阻塞字节传输描述：context、当前连接
+代次、带期望代次的 read/send、最大分片和发送间隔。TLS 对象复制描述并借用 context
+直到 close；同一产品 worker 仍独占 TLS。后端须在实际 I/O 边界拒绝旧代次，不得
+重复提交正数返回的字节。新接口不授权设备、不选择业务服务。原 start 包装器仍用
+GATT 20 字节/10ms，TLS1.2、密码套件、证书与应用认证、期限及终态清理契约不变。
+本片删除 TLS BIO 对 GATT 的硬绑定，没有新增第二套 TLS/SDC1 状态机。
+
+先扩展已有 `test_provision_tls.c/.py`：20 份临时公开测试证书各跑原 GATT 路径及
+独立代次的内存字节流，真实 mbedTLS 客户端验签/握手，双向1024字节内容、背压、
+篡改拒绝、代次撤销和清理。独立流打开后改变 GATT 代次并销毁调用者的描述，验证
+会话没有借用描述或错误依赖 GATT。成功样本记录公开证书 SHA256；测试私钥仅在
+原有临时夹具中创建/使用/移除，不涉及板端或发布身份。流的短写仍由20字节 peer
+刻意触发，并不模拟 USB/DCD。后续原 claim/control/session 回归仍跑原 GATT。
+
+新增 `test_provision_tls_transport.c` 包含真实 TLS 源码，定向检查 BIO 边界：
+非法描述/陈旧代次入场拒绝、短读写、越界返回、零/背压、回调中代次改变、发送
+间隔及倒退时钟。这里只直接测试回调适配，不能代替上面的真实密码协议集成。
+两者作为一个明确标注的 `USB-01.tls-transport` bundle 收集，内部样本不虚增
+逐例分母。全套326PASS = 原63（含2恢复复验）+ 新增263；13运行器门禁另计。
+原2变异保留，新增3变异（越界返回放行、BIO忽略旧代次、错误使用GATT代次）均
+在隔离目录中被断言检出，逐项恢复后通过。新接口不存在时的初次编译失败标
+BLOCKED_INTERFACE，不是业务Red；没有把编译失败当变异检出。
+
+首次加入 selected IDs 时遗漏 added_ids，分组自测确实失败；补齐同一必需用例的
+报告分组后重跑，未减少收集或改断言。原日志留在 `out/shaniu-s60/`，旧S0—S59
+报告不改写。ARM实测 TLS 对象2632字节，传输描述24字节（每TLS对象增加24）；
+无新增线程/DMA/持久写入，原有 TLS 动态分配仍存在。CPU/栈/真实传输性能未测。
+目标 AP 构建及 manifest 校验通过。完整旧C文件 nxstyle 仍有历史格式问题，不报
+风格全绿；Python Black24.10.0 与 diff 检查通过。
+
+分层：传输接口已实现，主机真实TLS集成通过；USB fd/端点接线、PC独立凭据授予与
+撤销、同一SDC1服务、资源安装工作台与事件工具未实现；L3 NOT_RUN。没有安装、
+刷写或操作真实设备。不能以326/326推导56项需求通过。下一片需继续共用设备服务
+并建立电脑自己的授权，不复制手机控制密钥，不通过开串口自动认领。

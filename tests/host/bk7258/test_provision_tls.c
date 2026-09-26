@@ -9,6 +9,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -87,6 +88,32 @@ ssize_t bkprov_gatt_send(uint32_t gen, const void *data, size_t size)
   assert(size <= 20);
   if (gen != generation) return -ESTALE;
   if (congested) return -ENOMEM;
+  int ret = put(&outbound, data, size);
+  if (ret > 0) fragments++;
+  return ret;
+}
+
+/* A second byte transport deliberately has no GATT generation dependency. */
+static uint32_t stream_generation = 7;
+static uint32_t stream_epoch(void *context)
+{
+  assert(context == &stream_generation);
+  return stream_generation;
+}
+
+static ssize_t stream_read(void *context, uint32_t epoch, void *data,
+                           size_t size)
+{
+  assert(context == &stream_generation && epoch == stream_generation);
+  return take(&inbound, data, size);
+}
+
+static ssize_t stream_send(void *context, uint32_t epoch, const void *data,
+                           size_t size)
+{
+  assert(context == &stream_generation && epoch == stream_generation);
+  assert(size <= 64);
+  if (congested) return -EAGAIN;
   int ret = put(&outbound, data, size);
   if (ret > 0) fragments++;
   return ret;
@@ -340,7 +367,22 @@ int main(int argc, char **argv)
   assert(mbedtls_ssl_set_hostname(&client, "localhost") == 0);
   mbedtls_ssl_set_bio(&client, NULL, client_send, client_recv, NULL);
   assert(bkprov_tls_start(&server, 2, &cert, &key, clock_ms, NULL) == -ESTALE);
-  assert(bkprov_tls_start(&server, 1, &cert, &key, clock_ms, NULL) == 0);
+  if (getenv("SHANIU_TLS_STREAM"))
+    {
+      struct bkprov_tls_transport_s transport =
+        { &stream_generation, stream_epoch, stream_read, stream_send, 64, 0 };
+      assert(bkprov_tls_start_transport(&server, stream_generation, &cert,
+               &key, clock_ms, NULL, &transport) == 0);
+      /* Start copies the callbacks/configuration, not this stack descriptor.
+       * A BLE disconnect cannot revoke the independent stream's generation.
+       */
+      memset(&transport, 0, sizeof(transport));
+      generation++;
+    }
+  else
+    {
+      assert(bkprov_tls_start(&server, 1, &cert, &key, clock_ms, NULL) == 0);
+    }
   assert(bkprov_tls_queue(&server, "early", 5) == -EAGAIN);
   for (int i = 0; i < 2500 && (!client_ready || !server.established); i++)
     {
@@ -395,6 +437,17 @@ int main(int argc, char **argv)
   memset(received, 0, sizeof(received));
   assert(bkprov_tls_read(&server, received, sizeof(received)) == -ECONNRESET);
   assert_wiped(&server);
+  if (getenv("SHANIU_TLS_STREAM"))
+    {
+      struct bkprov_tls_transport_s transport =
+        { &stream_generation, stream_epoch, stream_read, stream_send, 64, 0 };
+      stream_generation++;
+      assert(bkprov_tls_start_transport(&server, stream_generation, &cert,
+               &key, clock_ms, NULL, &transport) == 0);
+      stream_generation++;
+      assert(bkprov_tls_step(&server) == -ESTALE);
+      assert_wiped(&server);
+    }
 
   /* A fresh encrypted connection must release queued plaintext when output
    * congestion lasts beyond the deadline. No same-generation TLS restart is

@@ -325,7 +325,8 @@
     "USB-02.life-fast_reconnect",
     "USB-02.life-drop_old_queue",
     "USB-02.life-new_open",
-    "USB-02.life-offline_open"
+    "USB-02.life-offline_open",
+    "USB-01.tls-transport"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -654,6 +655,7 @@
     "USB-02.life-fast_reconnect",
     "USB-02.life-drop_old_queue",
     "USB-02.life-new_open",
-    "USB-02.life-offline_open"
+    "USB-02.life-offline_open",
+    "USB-01.tls-transport"
   ]
 }

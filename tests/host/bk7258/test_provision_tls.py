@@ -6,6 +6,7 @@ Named host gate: python3 tests/host/bk7258/test_provision_tls.py.
 Builds crypto out of tree; ephemeral test-only identity is removed afterward.
 MBEDTLS_SOURCE may select another checkout for upstream compatibility testing.
 """
+import hashlib
 import os
 from pathlib import Path
 import subprocess
@@ -181,6 +182,26 @@ class ProvisionTlsTest(unittest.TestCase):
                         temp / "test",
                     ]
                 )
+                run(
+                    [
+                        "cc",
+                        "-std=c11",
+                        "-Wall",
+                        "-Wextra",
+                        "-Werror",
+                        "-I",
+                        source / "include",
+                        "-I",
+                        ROOT / "app/bk7258",
+                        ROOT / "tests/host/bk7258/test_provision_tls_transport.c",
+                        build / "library/libmbedtls.a",
+                        build / "library/libmbedx509.a",
+                        build / "library/libmbedcrypto.a",
+                        "-o",
+                        temp / "transport",
+                    ]
+                )
+                run([temp / "transport"])
                 if os.environ.get("SHANIU_ANDROID_INTEROP") == "1":
                     run(
                         [
@@ -329,6 +350,23 @@ class ProvisionTlsTest(unittest.TestCase):
                     run(
                         [temp / "test", temp / "cert.pem", temp / "key.pem", pair_store]
                     )
+                    stream_store = temp / f"stream-{index}"
+                    stream_store.mkdir(mode=0o700)
+                    run(
+                        [
+                            temp / "test",
+                            temp / "cert.pem",
+                            temp / "key.pem",
+                            stream_store,
+                        ],
+                        env={**os.environ, "SHANIU_TLS_STREAM": "1"},
+                    )
+                    print(
+                        f"TLS sample={index} GATT=PASS independent-stream=PASS "
+                        f"public_certificate_sha256="
+                        f"{hashlib.sha256((temp / 'cert.pem').read_bytes()).hexdigest()}",
+                        flush=True,
+                    )
                     if index == 0:
                         run(
                             [
@@ -359,9 +397,25 @@ class ProvisionTlsTest(unittest.TestCase):
                         run([temp / "settings", temp / "cert.der", temp / "key.der"])
                         # Native device generation writes an EC SEC1 key,
                         # unlike the historical PC-supplied PKCS#8 fixture.
-                        run(["openssl", "ec", "-in", temp / "key.pem",
-                             "-outform", "DER", "-out", temp / "native-key.der"])
-                        run([temp / "settings", temp / "cert.der", temp / "native-key.der"])
+                        run(
+                            [
+                                "openssl",
+                                "ec",
+                                "-in",
+                                temp / "key.pem",
+                                "-outform",
+                                "DER",
+                                "-out",
+                                temp / "native-key.der",
+                            ]
+                        )
+                        run(
+                            [
+                                temp / "settings",
+                                temp / "cert.der",
+                                temp / "native-key.der",
+                            ]
+                        )
                         run(
                             [
                                 "openssl",
