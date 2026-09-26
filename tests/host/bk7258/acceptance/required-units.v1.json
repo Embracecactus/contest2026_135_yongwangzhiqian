@@ -126,7 +126,8 @@
     "DISP-01.expression-cancel",
     "CFG-02.models-unknown",
     "RES-02.expression-ownership",
-    "RES-02.expression-trial"
+    "RES-02.expression-trial",
+    "RES-02.trial-wire"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -256,6 +257,7 @@
     "DISP-01.expression-cancel",
     "CFG-02.models-unknown",
     "RES-02.expression-ownership",
-    "RES-02.expression-trial"
+    "RES-02.expression-trial",
+    "RES-02.trial-wire"
   ]
 }

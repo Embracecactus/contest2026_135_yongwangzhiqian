@@ -123,7 +123,8 @@ int bk7258_display_cancel_expression(uint32_t id)
 }
 
 static int bkdisplay_request(const char *expression, uint32_t *id,
-                              uint32_t duration_ms, uint64_t now)
+                              uint32_t duration_ms, uint64_t now,
+                              bool check_id, uint32_t expected_id)
 {
   static const char *const allowed[] = {
     "neutral", "happy", "shy", "sad", "surprised", "thinking",
@@ -139,7 +140,8 @@ static int bkdisplay_request(const char *expression, uint32_t *id,
     return now == 0 ? -EAGAIN : -EOVERFLOW;
 
   irqstate_t flags = spin_lock_irqsave(&g_bkdisplay_intent_lock);
-  if ((duration_ms && bkdisplay_trial_busy()) || !g_bkdisplay_intent_allowed ||
+  if (check_id && expected_id != g_bkdisplay_trial.id) ret = -ESTALE;
+  else if ((duration_ms && bkdisplay_trial_busy()) || !g_bkdisplay_intent_allowed ||
       g_bkdisplay_intent.state == BKDISPLAY_EXPRESSION_PENDING ||
       g_bkdisplay_intent.state == BKDISPLAY_EXPRESSION_RUNNING)
     ret = -EBUSY;
@@ -169,12 +171,19 @@ static int bkdisplay_request(const char *expression, uint32_t *id,
 
 int bk7258_display_request_expression(const char *expression, uint32_t *id)
 {
-  return bkdisplay_request(expression, id, 0, 0);
+  return bkdisplay_request(expression, id, 0, 0, false, 0);
 }
 int bk7258_display_trial(const char *expression, uint32_t duration_ms, uint32_t *id)
 {
   if (duration_ms == 0) return -EINVAL;
-  return bkdisplay_request(expression, id, duration_ms, bkdisplay_now_ms());
+  return bkdisplay_request(expression, id, duration_ms, bkdisplay_now_ms(), false, 0);
+}
+
+int bk7258_display_trial_checked(const char *expression, uint32_t duration_ms,
+                                  uint32_t expected_id, uint32_t *id)
+{
+  if (duration_ms == 0) return -EINVAL;
+  return bkdisplay_request(expression, id, duration_ms, bkdisplay_now_ms(), true, expected_id);
 }
 
 /* Existing worker, rendering mutex held; short intent lock never covers I/O. */

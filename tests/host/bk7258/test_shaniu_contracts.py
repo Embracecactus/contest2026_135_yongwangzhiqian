@@ -418,6 +418,7 @@ def main():
         "test_shaniu_expression_cancel",
         "test_shaniu_expression_ownership",
         "test_shaniu_expression_trial",
+        "test_shaniu_trial_wire",
         "test_shaniu_models_durability",
         "test_shaniu_focus_wire",
         "test_agent_tts_queue",
@@ -526,6 +527,14 @@ def main():
         "L1",
         [HERE / "build/test_shaniu_expression_cancel"],
         binaries["test_shaniu_expression_cancel"],
+    )
+    add(
+        suite,
+        "RES-02.trial-wire",
+        "RES-02",
+        "L2",
+        [HERE / "build/test_shaniu_trial_wire"],
+        binaries["test_shaniu_trial_wire"],
     )
     add(
         suite,

@@ -102,7 +102,7 @@ if(CONFIG_BK7258_APP_AGENT)
 endif()
 
 if(CONFIG_BK7258_DISPLAY_SERVICE)
-  target_sources(apps PRIVATE bk7258_display_service.c
+  target_sources(apps PRIVATE bk7258_display_service.c bk7258_display_trial_control.c
                               bk7258_display_store.c
                               bk7258_display_pack.c
                               bk7258_display_rpc.c

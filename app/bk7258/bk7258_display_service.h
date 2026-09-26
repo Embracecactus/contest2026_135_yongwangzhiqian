@@ -111,6 +111,9 @@ struct bkdisplay_trial_status_s
   uint64_t deadline_ms;
 };
 int bk7258_display_trial(const char *expression, uint32_t duration_ms, uint32_t *id);
+/* Atomic expected-ID admission for independently authenticated clients. */
+int bk7258_display_trial_checked(const char *expression, uint32_t duration_ms,
+                                  uint32_t expected_id, uint32_t *id);
 int bk7258_display_trial_status(struct bkdisplay_trial_status_s *status);
 int bk7258_display_cancel_trial(uint32_t id);
 

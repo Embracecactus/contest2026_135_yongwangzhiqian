@@ -79,6 +79,7 @@
 #include "bk7258_provision_claim.h"
 #include "bk7258_provision_settings.h"
 #include "bk7258_focus.h"
+#include "bk7258_display_trial_control.h"
 #include "bk7258_provision_config.h"
 #include "bk7258_provision_storage.h"
 #include "bk7258_provision_time.h"
@@ -1252,10 +1253,21 @@ static int product_config(void *context, enum bkcontrol_command_e command,
   uint32_t kind, uint32_t offset, const uint8_t *record, size_t size,
   struct bkcontrol_status_s *status)
 {
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+  if (kind == BKCONTROL_CONFIG_EXPRESSION_TRIAL && command == BKCONTROL_CONFIG_READ)
+    return bkdisplay_trial_control(command, offset, record, size, status,
+                                   bkvoice_config_now_ms(NULL));
+#endif
   if (bkagent_ota_busy())
     {
       return -EBUSY;
     }
+
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+  if (kind == BKCONTROL_CONFIG_EXPRESSION_TRIAL)
+    return bkdisplay_trial_control(command, offset, record, size, status,
+                                   bkvoice_config_now_ms(NULL));
+#endif
 
   if (kind == BKCONTROL_CONFIG_FOCUS)
     {

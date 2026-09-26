@@ -821,3 +821,27 @@ water remain unmeasured. Protocol and App adapters do not exist yet, so linker G
 omits unused public admission/status/cancel entries. This is service preparation,
 not a user-accessible trial or N2 acceptance. Default App TTL remains undecided.
 See `acceptance/s28-20260927.json` and `acceptance/s28-trial-evidence-20260927.json`.
+
+### S29 — authenticated expression trial protocol (2026-09-27)
+
+`run-trial-wire` executes production SDC1 authentication/staging/sequence logic,
+the ETC1/ETS1 controller, and actual display trial/identity state. Its literal
+request/response vectors precede the controller implementation; the initially
+missing source is BLOCKED_INTERFACE. Only clock/pixel/OS boundaries are replaced.
+The host config callback is thin kind routing; the actual product route and
+public service entry symbols are separately verified in the linked AP firmware.
+
+It covers unauthorized/wrong-key/old-sequence rejection, fragmented submission,
+readback, receipt collision, stale ID, close/reopen retry without deadline reset,
+terminal retry without restart, cancel acceptance versus restored completion,
+invalid records, local caller receipt isolation and read-only quiesce admission.
+Expanded reconnect first omitted closing the old Session; that rejected fixture
+is retained as `s29-fixture-error-20260927.json`. The fixture now uses real close
+before reconnect. This correction does not loosen authentication or sequence rules.
+
+Current strict collection: 127 PASS including the original 63 IDs. Two isolated
+mutations (dedupe removal and atomic-ID guard removal) are detected and the
+unchanged production rerun passes. Incremental build/layers/manifest/runner checks
+pass. The new controller has 37 named static bytes, no new thread/heap/persistence.
+App UI/controller and physical BLE/render checks remain incomplete. See
+`acceptance/s29-20260927.json` and `acceptance/s29-wire-evidence-20260927.json`.

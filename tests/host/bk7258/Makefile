@@ -1901,3 +1901,9 @@ $(BUILD)/test_shaniu_expression_trial: test_shaniu_expression_trial.c $(VOICE_PA
 .PHONY: run-expression-trial
 run-expression-trial: $(BUILD)/test_shaniu_expression_trial
 	./$(BUILD)/test_shaniu_expression_trial
+
+$(BUILD)/test_shaniu_trial_wire: test_shaniu_trial_wire.c $(VOICE_PACK_ROOT)/bk7258_display_trial_control.c $(VOICE_PACK_ROOT)/bk7258_control_session.c $(VOICE_PACK_ROOT)/bk7258_display_intent.inc $(VOICE_PACK_ROOT)/bk7258_display_render_identity.inc | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(MOCKS) -I $(VOICE_PACK_ROOT) $< $(VOICE_PACK_ROOT)/bk7258_display_trial_control.c $(VOICE_PACK_ROOT)/bk7258_control_session.c -o $@
+.PHONY: run-trial-wire
+run-trial-wire: $(BUILD)/test_shaniu_trial_wire
+	./$(BUILD)/test_shaniu_trial_wire
