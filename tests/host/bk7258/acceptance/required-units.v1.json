@@ -315,7 +315,12 @@
     "USB-02.rx-upper_backpressure",
     "USB-02.rx-arm_failure",
     "USB-02.rx-reset",
-    "USB-02.rx-duplicate_callback"
+    "USB-02.rx-duplicate_callback",
+    "USB-02.tx-start_failure",
+    "USB-02.tx-queued_progress",
+    "USB-02.tx-upper_start",
+    "USB-02.tx-upper_backpressure",
+    "USB-02.tx-wrong_completion"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -634,6 +639,11 @@
     "USB-02.rx-upper_backpressure",
     "USB-02.rx-arm_failure",
     "USB-02.rx-reset",
-    "USB-02.rx-duplicate_callback"
+    "USB-02.rx-duplicate_callback",
+    "USB-02.tx-start_failure",
+    "USB-02.tx-queued_progress",
+    "USB-02.tx-upper_start",
+    "USB-02.tx-upper_backpressure",
+    "USB-02.tx-wrong_completion"
   ]
 }

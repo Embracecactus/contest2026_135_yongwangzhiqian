@@ -106,6 +106,7 @@ struct bk7258_usbcdc_priv_s
   uint8_t rxbuf[BK7258_USBCDC_RXBUFSIZE];
   uint8_t serial_rxbuf[BK7258_USBCDC_RXBUFSIZE];
   uint8_t txbuf[BK7258_USBCDC_TXBUFSIZE];
+  uint8_t serial_txbuf[BK7258_USBCDC_TXBUFSIZE];
   bool inited;
   bool configured;
   bool rx_enabled;
@@ -188,6 +189,7 @@ static struct bk7258_usbcdc_priv_s g_bk7258_usbcdc =
   .lock = NXMUTEX_INITIALIZER,
 };
 
+static void bk7258_usbcdc_kick_tx(FAR struct bk7258_usbcdc_priv_s *priv);
 static void bk7258_usbcdc_ep_in_cb(uint8_t ep, uint32_t nbytes);
 static void bk7258_usbcdc_ep_out_cb(uint8_t ep, uint32_t nbytes);
 static int bk7258_usbcdc_setup(FAR struct uart_dev_s *uartdev);
@@ -434,16 +436,28 @@ static void bk7258_usbcdc_ep_in_cb(uint8_t ep, uint32_t nbytes)
   FAR struct bk7258_usbcdc_priv_s *priv = &g_bk7258_usbcdc;
   irqstate_t flags;
 
-  (void)ep;
   (void)nbytes;
-
   flags = enter_critical_section();
-  priv->tx_pending = false;
-  if (priv->tx_enabled)
+  if (ep != priv->config.ep_bulk_in || !priv->configured ||
+      !priv->tx_pending)
     {
-      uart_datasent(&priv->uartdev);
+      leave_critical_section(flags);
+      return;
     }
 
+  priv->tx_pending = false;
+
+  /* Upper-half TX interrupts may already be disabled because its queue was
+   * drained into our FIFO. That must not strand the accepted lower bytes.
+   */
+
+  bk7258_usbcdc_kick_tx(priv);
+  if (priv->tx_enabled)
+    {
+      uart_xmitchars(&priv->uartdev);
+    }
+
+  uart_datasent(&priv->uartdev);
   leave_critical_section(flags);
 }
 
@@ -473,20 +487,31 @@ static void bk7258_usbcdc_kick_tx(FAR struct bk7258_usbcdc_priv_s *priv)
       used = sizeof(priv->txbuf);
     }
 
+  /* The controller may reject a busy endpoint. Peek into the bounded FIFO;
+   * transfer ownership only after successful submission, never before it.
+   * Serialize submission against reset and completion IRQs as for RX.
+   */
+
   for (i = 0; i < used; i++)
     {
-      (void)bk7258_usbcdc_ring_pop(&priv->tx, &priv->txbuf[i]);
+      priv->txbuf[i] = priv->tx.data[(priv->tx.tail + i) &
+                                   (sizeof(priv->tx.data) - 1)];
     }
 
   priv->tx_pending = true;
-  leave_critical_section(flags);
-
   ret = usbd_ep_start_write(priv->config.ep_bulk_in, priv->txbuf, used);
   if (ret < 0)
     {
-      flags = enter_critical_section();
       priv->tx_pending = false;
-      leave_critical_section(flags);
+    }
+  else
+    {
+      priv->tx.tail += used;
+    }
+
+  leave_critical_section(flags);
+  if (ret < 0)
+    {
       syslog(LOG_ERR, "BK7258 USBCDC: TX start failed: %d\n", ret);
     }
 }
@@ -609,6 +634,7 @@ static void bk7258_usbcdc_txint(FAR struct uart_dev_s *uartdev, bool enable)
   leave_critical_section(flags);
   if (enable)
     {
+      uart_xmitchars(&priv->uartdev);
       bk7258_usbcdc_kick_tx(priv);
     }
 }
@@ -704,7 +730,7 @@ int bk7258_usbcdc_initialize_with_config(
       priv->uartdev.recv.size   = sizeof(priv->rx.data);
       priv->uartdev.recv.buffer = (FAR char *)priv->serial_rxbuf;
       priv->uartdev.xmit.size   = sizeof(priv->tx.data);
-      priv->uartdev.xmit.buffer = (FAR char *)priv->tx.data;
+      priv->uartdev.xmit.buffer = (FAR char *)priv->serial_txbuf;
       priv->uartdev.ops         = &g_bk7258_usbcdc_uart_ops;
       priv->uartdev.priv        = priv;
       priv->opened              = false;

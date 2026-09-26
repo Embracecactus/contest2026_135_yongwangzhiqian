@@ -1819,3 +1819,39 @@ are NOT_RUN; no device was flashed, opened or reset. Other board profiles were
 not built; the callback OTA consumer uses a different data path.
 See `acceptance/s57-20260927.json` and
 `acceptance/s57-usbcdc-rx-evidence-20260927.json`.
+
+### S58 — CDC TX ownership and queued progress (2026-09-27)
+
+Five new cases execute the actual default CDC TX functions; upper-start and
+upper-backpressure also execute the pinned real uart_xmitchars and the actual
+buffer-binding statements. All five initially produced assertion failures.
+The USB peer retains the submitted pointer until explicit completion, so the
+byte ledger also observes in-flight buffer lifetime instead of eagerly copying
+and hiding overwrites. Independent bytes are index modulo251.
+
+A rejected start_write no longer consumes FIFO bytes. The bounded copy peeks
+until submission succeeds; submission is serialized against local USB IRQs.
+The upper serial queue has its own256-byte TX array. TX enable feeds the actual
+upper half; completion continues lower queued bytes even after upper TX
+interrupts are disabled, then admits remaining upper bytes. Wrong endpoint and
+unarmed completions cannot mark the current transfer complete.
+
+Final320PASS = original63 +257added; this slice adds5 and preserves S57 RX7.
+Thirteen runner checks, original two mutations/restores and three new isolated
+mutations/restores remain separate. New mutants discard rejected bytes, alias
+the upper/lower TX array, or omit lower-queue progress; all are detected after
+successful compilation and pass after restoration. Build and manifest pass for
+AIDK AP only. CDC ARM state1760bytes, +256 from S57; no new heap/thread/DMA/poll.
+The DCD submission does bounded FIFO/MMIO work under the critical section;
+actual IRQ duration, CPU/p95, stack and wire throughput remain unmeasured.
+
+This verifies software TX submission/progress, not USB/application delivery.
+A rejected submission requires a later send/enable stimulus to retry; no timed
+retry or failure-reporting product protocol has been added. Reconnect does not
+yet invalidate all upper/lower queues or product authorization. Physical DCD
+completion, reset/unplug during transfers, independent PC credentials and
+framed status/install/cancel/event services remain incomplete. Callback-mode
+OTA uses a separate data path and was not changed. No device operations; L3 is
+NOT_RUN. Existing full-file nxstyle errors remain; Black24.10.0 passes new test.
+See `acceptance/s58-20260927.json` and
+`acceptance/s58-usbcdc-tx-evidence-20260927.json`.

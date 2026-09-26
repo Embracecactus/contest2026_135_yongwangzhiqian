@@ -768,6 +768,14 @@ def main():
             "L2" if variant in ("fast_reader", "upper_backpressure") else "L1",
             [sys.executable, HERE / "test_shaniu_usbcdc_rx.py",
              "CdcRxTest.test_" + variant], marker=False)
+    for variant in (
+        "start_failure", "queued_progress", "upper_start",
+        "upper_backpressure", "wrong_completion",
+    ):
+        add(suite, "USB-02.tx-" + variant, "USB-02",
+            "L2" if variant.startswith("upper_") else "L1",
+            [sys.executable, HERE / "test_shaniu_usbcdc_tx.py",
+             "CdcTxTest.test_" + variant], marker=False)
     for variant in ("register", "inactive", "invalid", "not_ready", "partial",
                     "status_error", "data_error", "fresh"):
         add(suite, "MOT-01.sensor-" + variant, "MOT-01", "L1",
@@ -1216,6 +1224,7 @@ def main():
         HERE / "test_bk7258_cloud_http.py",
         HERE / "test_sc7a20_sampling.py",
         HERE / "test_shaniu_usbcdc_rx.py",
+        HERE / "test_shaniu_usbcdc_tx.py",
         ROOT / "chips/bk7258/ap/bk7258_usbcdc.c",
         ROOT / "nuttx/drivers/sensors/sc7a20.c",
         ROOT / "nuttx/include/nuttx/sensors/sc7a20.h",
