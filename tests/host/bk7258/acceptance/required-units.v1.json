@@ -217,7 +217,16 @@
     "NFC-02.control-quiesce",
     "NFC-02.control-floor",
     "NFC-02.control-sequence",
-    "NFC-02.control-staging"
+    "NFC-02.control-staging",
+    "provision.NfcBindingControllerTest.acceptedEnrollmentRemainsPendingUntilDeviceConfirms",
+    "provision.NfcBindingControllerTest.verifiesOperationAndRevisionAcrossAllChunks",
+    "provision.NfcBindingControllerTest.disconnectDropsMutationAndLateAck",
+    "provision.NfcBindingControllerTest.rejectsUnrepresentableCounterAndUnknownOutcome",
+    "provision.NfcBindingControllerTest.cancelNamesCurrentJobWithoutAllocatingNewId",
+    "provision.NfcBindingControllerTest.unsupportedFirmwareStaysReadOnly",
+    "provision.NfcBindingControllerTest.rejectedBeginDoesNotCancelAnotherTransaction",
+    "provision.NfcBindingControllerTest.closeNeverClaimsAcceptedDeviceJobCanceled",
+    "provision.NfcBindingControllerTest.supersedingJobCannotConfirmOwnOperation"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -438,6 +447,15 @@
     "NFC-02.control-quiesce",
     "NFC-02.control-floor",
     "NFC-02.control-sequence",
-    "NFC-02.control-staging"
+    "NFC-02.control-staging",
+    "provision.NfcBindingControllerTest.acceptedEnrollmentRemainsPendingUntilDeviceConfirms",
+    "provision.NfcBindingControllerTest.verifiesOperationAndRevisionAcrossAllChunks",
+    "provision.NfcBindingControllerTest.disconnectDropsMutationAndLateAck",
+    "provision.NfcBindingControllerTest.rejectsUnrepresentableCounterAndUnknownOutcome",
+    "provision.NfcBindingControllerTest.cancelNamesCurrentJobWithoutAllocatingNewId",
+    "provision.NfcBindingControllerTest.unsupportedFirmwareStaysReadOnly",
+    "provision.NfcBindingControllerTest.rejectedBeginDoesNotCancelAnotherTransaction",
+    "provision.NfcBindingControllerTest.closeNeverClaimsAcceptedDeviceJobCanceled",
+    "provision.NfcBindingControllerTest.supersedingJobCannotConfirmOwnOperation"
   ]
 }

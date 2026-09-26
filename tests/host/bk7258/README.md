@@ -1300,3 +1300,40 @@ claimed solved here. Native UI, multi-page read consistency handling, ambient
 card dwell/reentry and focus dispatch remain software work. L3 NOT_RUN.
 See `acceptance/NFC_CONTROL_V1.md`, `acceptance/s44-20260927.json` and
 `s44-nfc-control-evidence-20260927.json`.
+
+### S45 native NFC controller (2026-09-27)
+
+NfcBindingController reuses the existing foreground DeviceControlSession. It
+collects112 bytes then rechecks all48 header bytes (phase/error, operation/revision,
+floor/reserved), rejects unsupported signed counter ranges, and derives new IDs
+from the device floor. Cancellation targets the existing operation. It distinguishes
+pending/committing/failed/unknown from completion and refuses writes while pending
+or unknown. Reconnect invalidates state without replay; close releases owned
+staging only and never claims to cancel an accepted device job.
+
+Nine JVM tests execute the actual Session and controller with a transport peer.
+Two real Reds exposed40-byte APPEND against the device32-byte maximum and a newer
+job's result being mistaken for this operation. The final sender waits for32+8
+fragment ACKs before APPLY and correlates the subsequent readback. Initial peer
+accepted arbitrary payload sizes; explicit32/8 assertions close that fixture gap
+without weakening the wire contract. Missing controller was BLOCKED_INTERFACE.
+Other cases cover mixed snapshot metadata, late ACK after disconnect, unsupported
+firmware, unknown outcomes/counter range, targeted cancel and another writer's
+transaction. Strict226 PASS retain original63. Debug APK builds; no release or
+installation claim, and existing version/signing configuration is unchanged.
+
+This controller is not yet called by MainActivity. Native sheet wiring, stateful
+layout/navigation checks, real BLE, physical enrollment and scene dispatch remain
+unfinished. No new connection, worker, background service or automatic polling.
+Client buffers are bounded112/40 bytes plus reply copies; actual Android allocation
+and device p95 remain unmeasured. See `acceptance/s45-20260927.json` and
+`s45-native-nfc-evidence-20260927.json`.
+
+Test-effectiveness correction: the first header mutant survived because the old
+mixed-header test asserted null before consuming the final verification chunk.
+The harness initially mislabeled this SETUP_ERROR; corrected classification is
+SURVIVED, with the raw record preserved. Completing the input sequence makes the
+same compiled mutant fail. The corrected test and restored production pass;
+operation-correlation mutation also fails and restores. No business rule changed.
+Final strict rerun remains226 PASS; runner gate12 PASS. Initial and final mutation
+results/logs are separately retained in S45 evidence.

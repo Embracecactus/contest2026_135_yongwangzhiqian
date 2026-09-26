@@ -262,6 +262,7 @@ def run_jvm():
         "provision.DeviceControlSessionTest",
         "provision.ProvisionSettingsTest",
         "provision.FocusTimerControllerTest",
+        "provision.NfcBindingControllerTest",
         "provision.ExpressionTrialControllerTest",
         "ota.OtaControlUploadTest",
         "ota.OtaSessionContractTest",
@@ -363,6 +364,8 @@ def run_jvm():
                     )
                 )
             )
+            if "NfcBinding" in name:
+                parent = "NFC-02"
             if "ExpressionTrial" in name:
                 parent = "RES-02"
             RESULTS.append(
@@ -373,7 +376,12 @@ def run_jvm():
                         "L2"
                         if any(
                             part in name
-                            for part in ("Session", "FocusTimer", "ExpressionTrial")
+                            for part in (
+                                "Session",
+                                "FocusTimer",
+                                "ExpressionTrial",
+                                "NfcBinding",
+                            )
                         )
                         else "L1"
                     ),
