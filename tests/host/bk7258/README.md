@@ -2039,3 +2039,32 @@ CPU/文件系统时延待实测。环境缺clang-format14，不声称C格式检�
 分派、grant revision变化时关闭已认证USB会话、恢复出厂精确清理（同一手机key
 再次出现也必须已撤销旧PC）、工作台与事件工具、实际设备验收。模块本身不是
 授权入口或会话撤销器，不能仅删磁盘凭据后保留活会话。没有刷写、安装或实物操作。
+
+### S64 电脑凭据的恢复出厂清理（2026-09-27）
+
+- 在 S63 存储实现上，6 个独立用例调用真实 storage worker / PC grant / store，
+  仅在 unlink/fsync 外部边界注入故障。初始 clear/unlink/sync/symlink 4 Red，
+  absent/no-marker 2 Green。缺少清理是源码路径缺口，不表示尚未启用的 PC 功能
+  已在线上发生凭据复活。
+- 实际 JOB_RESET 在原产品退出回调成功后，先精确删除 `pc-grants/config.pending`
+  和 `config.bin` 并同步目录，再走原完成回执。保留同目录其他文件、不递归、
+  不创建缺失目录、不跟随根目录符号链接。错误保留 SRV1；同步未知仍保持
+  EINPROGRESS，禁止同进程重开；新进程验证标记并续清理。
+- RST-01.pc-sync 初稿错误要求未知同步后返回普通 pending=1 并允许同进程重开。
+  依据既有 store sync / storage uncertainty 合同，纠正为未知状态关闭访问、
+  fork+exec 新进程恢复；原失败日志保留在 `out/shaniu-s64/sync-after.log`。
+  没有放宽同步要求或将未知结果改成成功。其余初始失败也单独保留。
+- 固定产品目录 AP `/cpdata/shaniu/pc-grants`、CP `/data/shaniu/pc-grants`；
+  RPMsgFS 仅放行精确 AP 路径，类似前缀/路径穿越拒绝，沿用原就绪/介质检查。
+  路径断言先 Red 再修，纳入既有 RST-01.nfc-filesystem 执行单元，不虚增分母。
+- 最终 346 PASS = 原 63 + 新增累计 283，本轮新增 6；13 运行器检查、原 2 变异、
+  本轮 3 变异检出及 3 恢复另计。AIDK AP 构建和 manifest 校验通过。
+  原始日志位于 `out/shaniu-s64/`，逐例/输入哈希在 acceptance/s64-20260927.json，
+  证据和测试纠正在 s64-pc-reset-evidence-20260927.json。
+- 沿用已有存储 worker，不新增线程、常驻对象、DMA 或正常运行轮询/写入。
+  清理最多 2 次 unlink 和 1 次目录同步；局部 store/path 对象，不分配大块堆。
+  CPU/p95、实际 RPMsgFS 阻塞时间、栈高水位仍待测。主机 fsync 故障不等于
+  实板 LittleFS 掉电验证；NuttX 路径沿用现有元数据提交契约。
+- 当前无生产 PC grant 缓存/USB worker 实例；未来 caller 必须先撤销准入并退出
+  活会话，再进入清理，不能仅凭删盘文件撤销已复制的密钥。授权 UI/权限分派、
+  USB 产品 worker、工作台和任务事件仍缺。未刷板、未触发实物重置。

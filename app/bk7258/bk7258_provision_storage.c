@@ -153,6 +153,48 @@ static int reset_user_tree(const char *path, unsigned int depth, unsigned int *b
   return ret;
 }
 
+/* PC grants are private user credentials. Only their two transaction files
+ * belong to reset; unknown siblings are not ours to delete. The product must
+ * stop all credential consumers before entering JOB_RESET, including any
+ * future USB worker. Keep SRV1 until this directory is durably synchronized.
+ */
+
+static int reset_pc_records(const char *root)
+{
+  struct bkprov_store_s store;
+  char path[192];
+  int ret;
+
+  if (snprintf(path, sizeof(path), "%s/pc-grants", root) >=
+      (int)sizeof(path))
+    {
+      return -ENAMETOOLONG;
+    }
+
+  ret = bkprov_store_open(&store, path);
+  if (ret == -ENOENT)
+    {
+      return 0;
+    }
+
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (unlink(store.pending) < 0 && errno != ENOENT)
+    {
+      return -errno;
+    }
+
+  if (unlink(store.active) < 0 && errno != ENOENT)
+    {
+      return -errno;
+    }
+
+  return bkprov_store_sync_directory(store.directory);
+}
+
 static int reset_user_records(const char *root)
 {
   static const char *const names[] = {
@@ -266,6 +308,7 @@ static void *worker(void *context)
           /* The marker remains selected until every product-owned replica
            * has been cleaned. No format, identity erase or broad tree erase. */
           ret = s->reset_cleanup();
+          if (ret == 0) ret = reset_pc_records(s->root);
           if (ret == 0) ret = reset_user_records(s->root);
           if (ret == 0 && unlink(s->store.pending) < 0 && errno != ENOENT)
             ret = -errno;

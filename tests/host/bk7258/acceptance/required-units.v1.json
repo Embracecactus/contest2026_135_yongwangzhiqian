@@ -340,7 +340,13 @@
     "NET-03.pc-grant-uncertain",
     "NET-03.pc-grant-corrupt",
     "NET-03.pc-grant-golden",
-    "NET-03.pc-grant-aliased-key"
+    "NET-03.pc-grant-aliased-key",
+    "RST-01.pc-clear",
+    "RST-01.pc-unlink",
+    "RST-01.pc-sync",
+    "RST-01.pc-symlink",
+    "RST-01.pc-absent",
+    "RST-01.pc-no-marker"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -684,6 +690,12 @@
     "NET-03.pc-grant-uncertain",
     "NET-03.pc-grant-corrupt",
     "NET-03.pc-grant-golden",
-    "NET-03.pc-grant-aliased-key"
+    "NET-03.pc-grant-aliased-key",
+    "RST-01.pc-clear",
+    "RST-01.pc-unlink",
+    "RST-01.pc-sync",
+    "RST-01.pc-symlink",
+    "RST-01.pc-absent",
+    "RST-01.pc-no-marker"
   ]
 }

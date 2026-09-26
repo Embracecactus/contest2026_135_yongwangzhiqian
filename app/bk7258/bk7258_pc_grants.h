@@ -4,6 +4,12 @@
 #include <stdbool.h>
 #include "bk7258_provision_store.h"
 
+#ifdef CONFIG_BK7258_AP_CORE
+#define BKPC_GRANTS_ROOT "/cpdata/shaniu/pc-grants"
+#else
+#define BKPC_GRANTS_ROOT "/data/shaniu/pc-grants"
+#endif
+
 #define BKPC_CAP_RESOURCES 1u
 #define BKPC_CAP_SCENES 2u
 #define BKPC_CAP_TASKS 4u

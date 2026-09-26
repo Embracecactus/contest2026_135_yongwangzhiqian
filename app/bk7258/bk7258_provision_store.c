@@ -82,7 +82,8 @@ int bkprov_store_check_filesystem(const char *root)
        !strcmp(root, "/cpdata/shaniu/memory-snapshot") ||
        !strcmp(root, "/cpdata/shaniu/cloud-models") ||
        !strcmp(root, "/cpdata/shaniu/wake-models") ||
-       !strcmp(root, "/cpdata/shaniu/nfc-cards")))
+       !strcmp(root, "/cpdata/shaniu/nfc-cards") ||
+       !strcmp(root, "/cpdata/shaniu/pc-grants")))
     return fs.f_blocks > 0 && fs.f_bsize > 0 ? 0 : -ENODEV;
 #endif
   return -EXDEV;

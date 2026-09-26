@@ -56,6 +56,9 @@ static int statfs(const char *root, struct statfs *fs) {
             + r"""
 int main(void) {
  assert(bkprov_store_check_filesystem("/cpdata/shaniu/nfc-cards")==0);
+ assert(bkprov_store_check_filesystem("/cpdata/shaniu/pc-grants")==0);
+ assert(bkprov_store_check_filesystem("/cpdata/shaniu/pc-grants-evil")==-EXDEV);
+ assert(bkprov_store_check_filesystem("/cpdata/shaniu/pc-grants/../identity")==-EXDEV);
  assert(bkprov_store_check_filesystem("/cpdata/shaniu/nfc-cards-evil")==-EXDEV);
  assert(bkprov_store_check_filesystem("/cpdata/shaniu/nfc-cards/../identity")==-EXDEV);
  blocks=0;assert(bkprov_store_check_filesystem("/cpdata/shaniu/nfc-cards")==-ENODEV);
