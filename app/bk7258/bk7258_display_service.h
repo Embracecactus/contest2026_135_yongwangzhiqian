@@ -83,6 +83,37 @@ int bk7258_display_expression_status(struct bkdisplay_expression_request_s *stat
  */
 int bk7258_display_cancel_expression(uint32_t id);
 
+/* Volatile, non-persistent trial on the same render worker. TTL starts at
+ * acceptance (monotonic clock), includes queue time, and is supplied by caller.
+ * Cancel returns acceptance; ACTIVE cancellation is confirmed only after restore.
+ * New explicit renders/claim/power supersede the trial without restoring over
+ * them. A failed restore is FAILED, not a successful cancellation/expiry.
+ * One trial; status retains its latest identity, independently of render jobs.
+ */
+enum bkdisplay_trial_state_e
+{
+  BKDISPLAY_TRIAL_IDLE = 0,
+  BKDISPLAY_TRIAL_PENDING,
+  BKDISPLAY_TRIAL_RENDERING,
+  BKDISPLAY_TRIAL_ACTIVE,
+  BKDISPLAY_TRIAL_CANCEL_PENDING,
+  BKDISPLAY_TRIAL_RESTORING,
+  BKDISPLAY_TRIAL_EXPIRED,
+  BKDISPLAY_TRIAL_CANCELED,
+  BKDISPLAY_TRIAL_SUPERSEDED,
+  BKDISPLAY_TRIAL_FAILED
+};
+struct bkdisplay_trial_status_s
+{
+  uint32_t id;
+  enum bkdisplay_trial_state_e state;
+  int error;
+  uint64_t deadline_ms;
+};
+int bk7258_display_trial(const char *expression, uint32_t duration_ms, uint32_t *id);
+int bk7258_display_trial_status(struct bkdisplay_trial_status_s *status);
+int bk7258_display_cancel_trial(uint32_t id);
+
 int bk7258_display_set_expression(const char *expression);
 /* Atomic acquisition/conditional update under the rendering mutex. A nonzero
  * identity owns the attempted render even on I/O failure. Zero means no lease.

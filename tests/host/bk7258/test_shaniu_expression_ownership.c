@@ -22,6 +22,7 @@ static int bkdisplay_render_pixels_locked(struct bkdisplay_service_s *service, c
 { renders++; if (render_error) return render_error;
   strcpy(service->status.expression, expression); return 0; }
 #include "bk7258_display_render_identity.inc"
+static uint64_t bkdisplay_now_ms(void) { return 100; }
 #include "bk7258_display_intent.inc"
 #include "display-commands.inc"
 static int set(void *unused, const char *expression, uint64_t *identity)
@@ -42,6 +43,7 @@ int main(void)
   };
   struct bkvision_feedback_s feedback;
   bkdisplay_intent_gate(true);
+  assert(!bkdisplay_trial_step(&g_bkdisplay_service, true));
   bkdisplay_intent_supersede();
   assert(!bkdisplay_intent_pending());
   assert(!bkdisplay_intent_step(&g_bkdisplay_service, true));

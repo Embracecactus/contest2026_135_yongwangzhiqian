@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "bk7258_display_service.h"
-struct bkdisplay_service_s { int unused; };
+struct bkdisplay_service_s { struct bkdisplay_service_status_s status; };
 static int renders, cancel_during_render;
 static int bkdisplay_render_locked(struct bkdisplay_service_s *service, const char *expression)
 {
@@ -19,6 +19,8 @@ static int bkdisplay_render_locked(struct bkdisplay_service_s *service, const ch
   }
   return 0;
 }
+static uint64_t bkdisplay_now_ms(void) { return 100; }
+static uint64_t g_bkdisplay_expression_identity;
 #include "bk7258_display_intent.inc"
 static int voice_result, replace_during_cancel;
 static uint32_t newer;
@@ -44,6 +46,7 @@ int main(void)
   struct bkdisplay_service_s service = {0};
   uint32_t old = 0;
   bkdisplay_intent_gate(true);
+  assert(!bkdisplay_trial_step(&service, true));
   reject_at = 1;
   assert(product_expression_request("happy", &old, guard, NULL) == -ECANCELED);
   assert(bk7258_display_expression_status(&state) == 0 && state.id == 0);

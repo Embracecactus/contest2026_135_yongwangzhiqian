@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "bk7258_display_service.h"
-struct bkdisplay_service_s { int unused; };
+struct bkdisplay_service_s { struct bkdisplay_service_status_s status; };
 static int renders, render_error;
 static char rendered[BKDISPLAY_EXPRESSION_SIZE];
 static int bkdisplay_render_locked(struct bkdisplay_service_s *service, const char *expression)
@@ -19,6 +19,8 @@ static int bkdisplay_render_locked(struct bkdisplay_service_s *service, const ch
   renders++; strcpy(rendered, expression);
   return render_error;
 }
+static uint64_t bkdisplay_now_ms(void) { return 100; }
+static uint64_t g_bkdisplay_expression_identity;
 #include "bk7258_display_intent.inc"
 int main(void)
 {
@@ -27,6 +29,7 @@ int main(void)
   uint32_t id = 0, rejected = 0;
   assert(bk7258_display_request_expression("happy", &id) == -EBUSY);
   bkdisplay_intent_gate(true);
+  assert(!bkdisplay_trial_step(&service, true));
   assert(bk7258_display_request_expression("../invalid", &id) == -EINVAL);
   assert(bk7258_display_request_expression("happy", NULL) == -EINVAL);
   assert(bk7258_display_request_expression("happy", &id) == 0 && id != 0);

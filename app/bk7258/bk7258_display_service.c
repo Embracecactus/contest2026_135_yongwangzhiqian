@@ -171,6 +171,7 @@ static struct bkdisplay_service_s g_bkdisplay_service =
 static int bkdisplay_render_pixels_locked(struct bkdisplay_service_s *service,
                                     const char *expression);
 #include "bk7258_display_render_identity.inc"
+static uint64_t bkdisplay_now_ms(void);
 #include "bk7258_display_intent.inc"
 #include "bk7258_display_snapshot.inc"
 
@@ -713,6 +714,7 @@ static int bkdisplay_worker(int argc, char *argv[])
         {
           service->status.state = BKDISPLAY_SERVICE_WAITING_DEVICES;
           (void)bkdisplay_intent_step(service, false);
+          (void)bkdisplay_trial_step(service, false);
         }
       else if (service->claim_qr[0] || service->power_overlay || service->overlay_dirty)
         {
@@ -727,6 +729,12 @@ static int bkdisplay_worker(int argc, char *argv[])
           next = now;
         }
       else if (bkdisplay_intent_step(service, true))
+        {
+          service->focus_painted = 0;
+          service->speaking_painted = false;
+          next = now;
+        }
+      else if (bkdisplay_trial_step(service, true))
         {
           service->focus_painted = 0;
           service->speaking_painted = false;

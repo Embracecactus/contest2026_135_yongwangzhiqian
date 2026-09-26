@@ -1895,3 +1895,9 @@ $(BUILD)/test_shaniu_expression_ownership: test_shaniu_expression_ownership.c $(
 .PHONY: run-expression-ownership
 run-expression-ownership: $(BUILD)/test_shaniu_expression_ownership
 	./$(BUILD)/test_shaniu_expression_ownership
+
+$(BUILD)/test_shaniu_expression_trial: test_shaniu_expression_trial.c $(VOICE_PACK_ROOT)/bk7258_display_intent.inc $(VOICE_PACK_ROOT)/bk7258_display_render_identity.inc $(VOICE_PACK_ROOT)/bk7258_display_service.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(MOCKS) -I $(VOICE_PACK_ROOT) $< -o $@
+.PHONY: run-expression-trial
+run-expression-trial: $(BUILD)/test_shaniu_expression_trial
+	./$(BUILD)/test_shaniu_expression_trial

@@ -796,3 +796,28 @@ runner checks pass. No new allocation/thread/wait is introduced. This does not
 complete trial TTL, general scene arbitration, physical pixel/DMA or latency
 acceptance. See `acceptance/s27-20260925.json` and
 `acceptance/s27-display-evidence-20260925.json`.
+
+### S28 — parameterized display trial service (2026-09-27)
+
+`run-expression-trial` compiles production intent/trial state and render identity
+with an external virtual monotonic clock and pixel sink. Its initial missing API
+was BLOCKED_INTERFACE, not an assertion Red. The service accepts a caller-supplied
+TTL, includes queue time, skips an already expired queued trial, and restores the
+previous logical expression only while still owning it. Active cancel is pending
+until the existing display worker restores; failed restore is terminal failure.
+New explicit identity, pending expression or power/claim supersedes restoration.
+
+Tests cover normal expiry, duplicate/stale cancel, rendering/restoring cancel
+rejection, queue expiry, new same-name selection, regular pending request,
+resource failure, clock reversal/unavailability and deadline overflow. Removing
+expiry or new-identity checks in isolated builds is detected; original rerun
+passes. Strict count is 126 PASS, with all original 63 IDs retained.
+
+Incremental build, layers, manifest and runner checks pass. Named static trial
+variables total 62 bytes (64-byte layout span), no new thread/heap/DMA buffer.
+Deadlines are evaluated by the existing 100 ms worker poll after renderer I/O;
+this is not a hard rendering deadline or I/O cancellation. CPU/p95 and stack high
+water remain unmeasured. Protocol and App adapters do not exist yet, so linker GC
+omits unused public admission/status/cancel entries. This is service preparation,
+not a user-accessible trial or N2 acceptance. Default App TTL remains undecided.
+See `acceptance/s28-20260927.json` and `acceptance/s28-trial-evidence-20260927.json`.
