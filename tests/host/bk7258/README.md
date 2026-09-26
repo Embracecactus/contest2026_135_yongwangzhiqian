@@ -1153,3 +1153,32 @@ heap, DMA, ISR, polling or network activity. Backend I/O latency, complete stack
 high-water and hardware resource budgets remain unmeasured. Writes occur only
 on explicit set/remove; duplicate retry and cached lookup do not write. See
 `acceptance/s39-20260927.json` and `s39-bindings-evidence-20260927.json`.
+
+### S40 NFC exit acknowledgement (2026-09-27)
+
+K2 power coordination now closes NFC admission and waits for the existing worker's
+actual I/O/RF-close result before storage/CP power transition. Busy is incomplete;
+release failure remains failure. A new power intent can request cleanup retry in
+the same worker. Canceled active requests retain a replay tombstone so explicit
+resume cannot resample that old request. No I/O occurs in the short stop caller.
+
+Six actual NFC worker cases cover queued/active/prestart stop, close/RF failure,
+and late replay. Two power coordinator cases prove busy/failure cannot reach CP.
+Strict188 PASS retain original63; original mutants/restores remain separately
+reported. Two additional isolated mutants compile and fail assertions; restored
+cases pass. Existing NFC34/motion20, runner gate12, target build and manifest pass.
+
+Initial wrong include path was SETUP_ERROR; missing APIs were BLOCKED_INTERFACE.
+Power-before-NFC-ack and canceled-request resampling produced real assertion Red.
+The active fixture reenters worker initialization, causing an extra initialization
+close: the corrected observer counts from the active read-hook boundary, still
+requiring one sample release. The lifecycle fixture uses a designated initializer
+for the added release_error field. Original failure logs are retained.
+
+The target server object is248 bytes (+8). No new worker, timer, heap or DMA;
+existing shutdown deadline remains unchanged. CPU/p95, stack and hardware timing
+are unmeasured. Software RF-off acknowledgement is not physical RF measurement.
+Reset coordination, binding jobs/authenticated enrollment, dwell/reentry, scene
+dispatch and UI remain software gaps. L3 is NOT_RUN and requires actual artifact/
+device preflight and user action; this does not assert hardware is absent.
+See `acceptance/s40-20260927.json` and `s40-nfc-exit-evidence-20260927.json`.

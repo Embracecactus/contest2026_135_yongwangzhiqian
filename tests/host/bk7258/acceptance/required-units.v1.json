@@ -180,7 +180,15 @@
     "NFC-02.bindings-invalid",
     "NFC-02.bindings-writefail",
     "NFC-02.bindings-durability",
-    "NFC-02.bindings-corrupt"
+    "NFC-02.bindings-corrupt",
+    "LIFE-02.nfc-queued",
+    "LIFE-02.nfc-active",
+    "LIFE-02.nfc-close-error",
+    "LIFE-02.nfc-rf-error",
+    "LIFE-02.nfc-prestart",
+    "LIFE-02.nfc-late",
+    "LIFE-02.power-nfc-busy",
+    "LIFE-02.power-nfc-failed"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -364,6 +372,14 @@
     "NFC-02.bindings-invalid",
     "NFC-02.bindings-writefail",
     "NFC-02.bindings-durability",
-    "NFC-02.bindings-corrupt"
+    "NFC-02.bindings-corrupt",
+    "LIFE-02.nfc-queued",
+    "LIFE-02.nfc-active",
+    "LIFE-02.nfc-close-error",
+    "LIFE-02.nfc-rf-error",
+    "LIFE-02.nfc-prestart",
+    "LIFE-02.nfc-late",
+    "LIFE-02.power-nfc-busy",
+    "LIFE-02.power-nfc-failed"
   ]
 }

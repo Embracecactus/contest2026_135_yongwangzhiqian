@@ -35,7 +35,7 @@ class RfLifecycleTest(unittest.TestCase):
 #define CONFIG_BK7258_NFC_DEVPATH "/dev/nfc0"
 #define MFRC522IOC_SET_RF 14
 #define O_RDONLY 0
-struct bknfc_source_s { int fd; };
+struct bknfc_source_s { int fd; int release_error; };
 static int opens, releases, closes, open_error, rf_error, close_error;
 static int open(const char *path, int flags) {
  assert(!strcmp(path,CONFIG_BK7258_NFC_DEVPATH) && flags==O_RDONLY);
@@ -53,7 +53,7 @@ static int bknfc_errno(void){return errno>0?-errno:-EIO;}
         code += function(source, "bknfc_close") + function(source, "bknfc_idle")
         code += r"""
 int main(void) {
- struct bknfc_source_s s={-1};
+ struct bknfc_source_s s={.fd=-1};
  assert(bknfc_idle(&s)==0 && s.fd==-1);
  assert(opens==1 && releases==1 && closes==1);
  assert(bknfc_close(&s)==-EBADF && releases==1 && closes==1);
@@ -96,7 +96,7 @@ int main(void) {
 #define CONFIG_BK7258_NFC_DEVPATH "/dev/nfc0"
 #define MFRC522IOC_SET_RF 0x240f
 #define O_RDONLY 0
-struct bknfc_source_s { int fd; };
+struct bknfc_source_s { int fd; int release_error; };
 static int field, enables, disables, closes, fail_enable;
 static int open(const char *p,int flags) { (void)p;(void)flags;return 7; }
 static int close(int fd) { assert(fd==7);closes++;return 0; }
@@ -113,7 +113,7 @@ static int bknfc_errno(void) { return errno>0?-errno:-EIO; }
         code += function(source, "bknfc_close") + function(source, "bknfc_open")
         code += r"""
 int main(void) {
- struct bknfc_source_s s={-1};
+ struct bknfc_source_s s={.fd=-1};
  fail_enable=1;
  assert(bknfc_open(&s)==-EIO);
  assert(field==0 && enables==1 && disables==1 && closes==1 && s.fd==-1);

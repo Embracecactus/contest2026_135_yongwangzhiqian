@@ -166,6 +166,9 @@ static bool product_keys_step(uint64_t now)
   if (power)
     {
 #ifdef CONFIG_BK7258_PM_SOFT_OFF
+#ifdef CONFIG_BK7258_NFC_SERVICE
+      if (g_shutdown_failed) (void)bk7258_nfc_service_retry_stop();
+#endif
       g_shutdown_failed = false;
       g_shutdown_requested = true;
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
@@ -207,6 +210,10 @@ static bool product_keys_step(uint64_t now)
        * is closed. A successful cancel is not a completed shutdown.
        */
       int admission = bkprov_owner_prepare_stop(now);
+      int nfc = 0;
+#ifdef CONFIG_BK7258_NFC_SERVICE
+      nfc = bk7258_nfc_service_quiesce(true);
+#endif
       /* Independent shutdown participants must still run after an admission
        * failure. A start flag is not proof that failed startup owns nothing.
        * Retain the stop acknowledgement only after the owner reports success.
@@ -224,14 +231,16 @@ static bool product_keys_step(uint64_t now)
         }
 
       product_power_drain();
-      if (admission < 0 || trigger < 0)
+      if (admission < 0 || trigger < 0 || nfc < 0)
         {
-          int error = admission < 0 ? admission : trigger;
+          int error = admission < 0 ? admission : trigger < 0 ? trigger : nfc;
           /* Quiescing is a handshake: EAGAIN/EBUSY is incomplete, not a
            * permanent failure. A permanent participant error takes priority.
            */
           if (trigger < 0 && trigger != -EAGAIN && trigger != -EBUSY)
             error = trigger;
+          if (nfc < 0 && nfc != -EAGAIN && nfc != -EBUSY)
+            error = nfc;
           if (error == -EAGAIN || error == -EBUSY)
             {
               if (now >= g_shutdown_deadline)

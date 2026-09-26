@@ -424,6 +424,7 @@ def main():
         "test_shaniu_focus_shared",
         "test_shaniu_focus_intent",
         "test_shaniu_nfc_bindings",
+        "test_shaniu_nfc_quiesce",
         "test_shaniu_focus_pixels",
         "test_shaniu_focus_render",
         "test_shaniu_display_snapshot",
@@ -604,6 +605,24 @@ def main():
             "L2",
             [HERE / "build/test_shaniu_nfc_bindings", variant],
             binaries["test_shaniu_nfc_bindings"],
+        )
+    for variant in ("queued", "active", "close-error", "rf-error", "prestart", "late"):
+        add(
+            suite,
+            "LIFE-02.nfc-" + variant,
+            "LIFE-02",
+            "L2",
+            [HERE / "build/test_shaniu_nfc_quiesce", variant],
+            binaries["test_shaniu_nfc_quiesce"],
+        )
+    for variant in ("nfc-busy", "nfc-failed"):
+        add(
+            suite,
+            "LIFE-02.power-" + variant,
+            "LIFE-02",
+            "L1",
+            [HERE / "build/test_shaniu_power_contract", variant],
+            binaries["test_shaniu_power_contract"],
         )
     for variant in ("voice", "gate", "revision", "cancel", "invalid"):
         add(

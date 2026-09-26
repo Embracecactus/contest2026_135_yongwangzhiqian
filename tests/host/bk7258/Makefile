@@ -1925,3 +1925,8 @@ $(BUILD)/test_shaniu_nfc_bindings: test_shaniu_nfc_bindings.c $(VOICE_PACK_ROOT)
 	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) -I $(VOICE_OTA_MBEDTLS_SOURCE)/include \
 	  $< $(VOICE_PACK_ROOT)/bk7258_nfc_bindings.c $(VOICE_PACK_ROOT)/bk7258_nfc_core.c \
 	  $(VOICE_PACK_ROOT)/bk7258_provision_store.c -Wl,--wrap=fsync $(VOICE_OTA_MBEDCRYPTO) -o $@
+
+$(BUILD)/test_shaniu_nfc_quiesce: test_shaniu_nfc_quiesce.c test_bk7258_nfc_rpc.c bk7258_sensor_rpc_test.h $(BUILD)/test_bk7258_nfc_rpc $(VOICE_PACK_ROOT)/bk7258_nfc_service.c | $(BUILD)
+	$(CC) -std=c11 -Wall -Wextra -Werror -Wno-unused-function \
+	  -fsanitize=undefined -fno-sanitize-recover=all -I $(BUILD)/sensor-rpc-include \
+	  -I $(VOICE_PACK_ROOT) -I $(REPOSITORY_ROOT)/nuttx/include $< -o $@

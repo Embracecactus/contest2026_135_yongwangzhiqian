@@ -31,6 +31,11 @@
 #define CONFIG_BK7258_MOTION_RPC_STACKSIZE 4096
 #define CONFIG_BK7258_APP_NFC 1
 #define CONFIG_BK7258_NFC_SERVICE 1
+#ifdef TEST_NFC_RF
+#define CONFIG_CL_MFRC522_RF 1
+#include <nuttx/contactless/mfrc522_rf.h>
+static int rf_on, rf_off_error;
+#endif
 #define CONFIG_BK7258_NFC_DEVPATH "/dev/nfc0"
 #define CONFIG_BK7258_NFC_RPC_PRIORITY 80
 #define CONFIG_BK7258_NFC_RPC_STACKSIZE 4096
@@ -109,6 +114,9 @@ static int nxsem_wait_uninterruptible(sem_t *s)
 }
 static int nxsem_tickwait_uninterruptible(sem_t *s, clock_t timeout)
 {
+#ifdef TEST_NFC_RF
+  if (in_worker) return nxsem_wait_uninterruptible(s);
+#endif
   run_hook(&wait_hook);
   if (*s != 0) { (*s)--; return 0; }
   ticks += timeout;
@@ -181,6 +189,15 @@ static int mock_close(int fd)
 static int mock_ioctl(int fd, unsigned long cmd, ...)
 {
   assert(in_worker && !callback_depth && fd_live && fd == 42);
+#ifdef TEST_NFC_RF
+  if (cmd == MFRC522IOC_SET_RF)
+    {
+      va_list args; va_start(args,cmd); unsigned long on=va_arg(args,unsigned long);
+      va_end(args); assert(on<=1);
+      if (!on && rf_off_error) { errno=rf_off_error; return -1; }
+      rf_on=on; return 0;
+    }
+#endif
   if (cmd == MFRC522IOC_GET_PICC_UID)
     {
       va_list args;

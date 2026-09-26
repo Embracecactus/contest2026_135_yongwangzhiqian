@@ -45,6 +45,7 @@
 struct bknfc_source_s
 {
   int fd;
+  int release_error;
 };
 struct bknfc_server_s
 {
@@ -57,6 +58,9 @@ struct bknfc_server_s
   volatile bool endpoint_created;
   bool active;
   bool pending;
+  bool quiescing;
+  bool io_active;
+  bool release_pending;
   uint32_t epoch;
   uint32_t request_epoch;
   bool replay_valid;
@@ -75,6 +79,111 @@ static struct bknfc_server_s g_bknfc_server =
     .fd = -1,
   },
 };
+
+int bk7258_nfc_service_quiesce(bool stop)
+{
+  struct bknfc_server_s *server = &g_bknfc_server;
+  irqstate_t flags = spin_lock_irqsave(&server->request_lock);
+  int ret = 0;
+  bool resumed = false;
+
+  if (stop && !server->quiescing)
+    {
+      server->quiescing = true;
+      if (server->active)
+        {
+          /* 保留取消回执，恢复准入后同一旧请求也不能重新采样。 */
+
+          server->last_request = server->active_request;
+          bknfc_rpc_make_response(&server->last_response,
+                                 &server->last_request, -ECANCELED);
+          server->replay_valid = true;
+        }
+
+      server->pending = false;
+      server->active = false;
+      server->epoch++;
+    }
+
+  if (server->quiescing)
+    {
+      ret = server->io_active || server->release_pending ? -EBUSY :
+            __atomic_load_n(&server->source.release_error, __ATOMIC_ACQUIRE);
+#if !defined(CONFIG_CL_MFRC522_FRAME) && !defined(CONFIG_CL_MFRC522_RF)
+      if (!ret && __atomic_load_n(&server->initialized, __ATOMIC_ACQUIRE))
+        {
+          ret = -ENOTSUP;
+        }
+#endif
+      if (!stop && ret == 0)
+        {
+          server->quiescing = false;
+          resumed = true;
+        }
+    }
+
+  spin_unlock_irqrestore(&server->request_lock, flags);
+  if (resumed && __atomic_load_n(&server->initialized, __ATOMIC_ACQUIRE))
+    {
+      ret = nxsem_post(&server->request_sem);
+      if (ret < 0) (void)bk7258_nfc_service_quiesce(true);
+    }
+
+  return ret;
+}
+
+int bk7258_nfc_service_retry_stop(void)
+{
+  struct bknfc_server_s *server = &g_bknfc_server;
+  irqstate_t flags = spin_lock_irqsave(&server->request_lock);
+  int ret;
+
+  if (!server->quiescing)
+    {
+      ret = -EINVAL;
+    }
+  else if (server->io_active || server->release_pending)
+    {
+      ret = -EBUSY;
+    }
+  else if (__atomic_load_n(&server->source.release_error, __ATOMIC_ACQUIRE) == 0)
+    {
+      ret = 0;
+    }
+  else
+    {
+      server->release_pending = true;
+      spin_unlock_irqrestore(&server->request_lock, flags);
+      ret = nxsem_post(&server->request_sem);
+      if (ret < 0)
+        {
+          flags = spin_lock_irqsave(&server->request_lock);
+          server->release_pending = false;
+          spin_unlock_irqrestore(&server->request_lock, flags);
+        }
+
+      return ret;
+    }
+
+  spin_unlock_irqrestore(&server->request_lock, flags);
+  return ret;
+}
+
+static bool bknfc_begin_io(struct bknfc_server_s *server)
+{
+  irqstate_t flags = spin_lock_irqsave(&server->request_lock);
+  bool admitted = !server->quiescing;
+  if (admitted) server->io_active = true;
+  spin_unlock_irqrestore(&server->request_lock, flags);
+  return admitted;
+}
+
+static void bknfc_end_io(struct bknfc_server_s *server)
+{
+  irqstate_t flags = spin_lock_irqsave(&server->request_lock);
+  server->io_active = false;
+  spin_unlock_irqrestore(&server->request_lock, flags);
+}
 
 static int bknfc_errno(void)
 {
@@ -98,7 +207,7 @@ static int bknfc_open(void *context)
     }
 
 #if defined(CONFIG_CL_MFRC522_FRAME) || defined(CONFIG_CL_MFRC522_RF)
-  if (ioctl(source->fd, MFRC522IOC_SET_RF, 1) < 0)
+  if (ioctl(source->fd, MFRC522IOC_SET_RF, 1ul) < 0)
     {
       int ret = bknfc_errno();
       /* 开启可能部分生效，失败也须尝试释放射频并关闭句柄。 */
@@ -178,7 +287,7 @@ static int bknfc_close(void *context)
     }
 
 #if defined(CONFIG_CL_MFRC522_FRAME) || defined(CONFIG_CL_MFRC522_RF)
-  if (ioctl(fd, MFRC522IOC_SET_RF, 0) < 0)
+  if (ioctl(fd, MFRC522IOC_SET_RF, 0ul) < 0)
     {
       ret = bknfc_errno();
     }
@@ -188,6 +297,7 @@ static int bknfc_close(void *context)
       ret = bknfc_errno();
     }
 
+  __atomic_store_n(&source->release_error, ret, __ATOMIC_RELEASE);
   return ret;
 }
 
@@ -243,7 +353,7 @@ static int bknfc_delay(void *arg, uint32_t delay_us)
 static void bknfc_release_rf(void *arg)
 {
   struct bknfc_source_s *source = arg;
-  ioctl(source->fd, MFRC522IOC_SET_RF, 0);
+  ioctl(source->fd, MFRC522IOC_SET_RF, 0ul);
 }
 
 static uint64_t bknfc_now_ms(void *arg)
@@ -286,7 +396,7 @@ static int bknfc_hce_exchange(void *context, bool report)
       goto out;
     }
 
-  if (ioctl(source->fd, MFRC522IOC_SET_RF, 1) < 0)
+  if (ioctl(source->fd, MFRC522IOC_SET_RF, 1ul) < 0)
     {
       ret = bknfc_errno();
       goto out;
@@ -427,12 +537,42 @@ static int bknfc_worker(int argc, char **argv)
       struct bknfc_rpc_response_s response;
       irqstate_t flags;
       uint32_t epoch;
+      bool stopping;
+      bool retry;
+
+      flags = spin_lock_irqsave(&server->request_lock);
+      stopping = server->quiescing;
+      retry = stopping && server->release_pending;
+      if (retry)
+        {
+          server->release_pending = false;
+          server->io_active = true;
+        }
+
+      spin_unlock_irqrestore(&server->request_lock, flags);
+      if (stopping)
+        {
+          if (retry)
+            {
+#if defined(CONFIG_CL_MFRC522_FRAME) || defined(CONFIG_CL_MFRC522_RF)
+              int released = bknfc_idle(&server->source);
+#else
+              int released = -ENOTSUP;
+#endif
+              __atomic_store_n(&server->source.release_error, released,
+                               __ATOMIC_RELEASE);
+              bknfc_end_io(server);
+            }
+
+          (void)nxsem_wait_uninterruptible(&server->request_sem);
+          continue;
+        }
 
 #if defined(CONFIG_CL_MFRC522_FRAME) || defined(CONFIG_CL_MFRC522_RF)
       /* Board registration is deferred. Retry the initial RF release until
        * the device exists instead of leaving its power-on field enabled.
        */
-      if (!idle_ready)
+      if (!idle_ready && bknfc_begin_io(server))
         {
           int ret = bknfc_idle(&server->source);
           if (ret == 0)
@@ -447,6 +587,8 @@ static int bknfc_worker(int argc, char **argv)
             }
 
           idle_error = ret;
+          __atomic_store_n(&server->source.release_error, ret, __ATOMIC_RELEASE);
+          bknfc_end_io(server);
         }
 
       /* The same worker owns both explicit probes and discovery. RF activity
@@ -465,10 +607,15 @@ static int bknfc_worker(int argc, char **argv)
             }
           else if (idle_ready && (!delivered_valid ||
                     memcmp(delivered, locator, sizeof(locator)) != 0) &&
-                   bknfc_open(&server->source) == 0)
+                   bknfc_begin_io(server))
             {
-              int result = bknfc_hce_exchange(&server->source, false);
-              (void)bknfc_close(&server->source);
+              int result = bknfc_open(&server->source);
+              if (result == 0)
+                {
+                  result = bknfc_hce_exchange(&server->source, false);
+                  (void)bknfc_close(&server->source);
+                }
+              bknfc_end_io(server);
               if (result == 0)
                 {
                   memcpy(delivered, locator, sizeof(delivered));
@@ -492,7 +639,7 @@ static int bknfc_worker(int argc, char **argv)
        * slot owns work; consuming another token must never execute it twice.
        */
 
-      if (!server->active || !server->pending ||
+      if (server->quiescing || !server->active || !server->pending ||
           server->request_epoch != server->epoch ||
           !__atomic_load_n(&server->endpoint_created, __ATOMIC_ACQUIRE))
         {
@@ -501,6 +648,7 @@ static int bknfc_worker(int argc, char **argv)
         }
 
       server->pending = false;
+      server->io_active = true;
       epoch = server->request_epoch;
       memcpy(&request, &server->active_request, sizeof(request));
       spin_unlock_irqrestore(&server->request_lock, flags);
@@ -508,6 +656,7 @@ static int bknfc_worker(int argc, char **argv)
       (void)bknfc_rpc_handle_request(&request, &response, &g_bknfc_ops,
                                      &server->source);
       flags = spin_lock_irqsave(&server->request_lock);
+      server->io_active = false;
       /* Old I/O still closes its own fd, but must not publish a result or
        * clear a request accepted by a reconnected peer.
        */
@@ -563,6 +712,13 @@ static int bknfc_server_cb(struct rpmsg_endpoint *endpoint, void *data,
     {
       spin_unlock_irqrestore(&server->request_lock, flags);
       return -ENOTCONN;
+    }
+
+  if (server->quiescing)
+    {
+      spin_unlock_irqrestore(&server->request_lock, flags);
+      bknfc_rpc_make_response(&response, request, -ESHUTDOWN);
+      return bknfc_send(server, &response, epoch);
     }
 
   if (server->replay_valid &&
@@ -704,6 +860,11 @@ int bk7258_nfc_service_start(void)
   bool callback_registered = false;
   pid_t pid;
   int ret;
+
+  irqstate_t flags = spin_lock_irqsave(&server->request_lock);
+  bool stopping = server->quiescing;
+  spin_unlock_irqrestore(&server->request_lock, flags);
+  if (stopping) return -ESHUTDOWN;
 
   ret = nxmutex_lock(&server->init_lock);
   if (ret < 0)

@@ -22,8 +22,20 @@ int test_owner_reply(void);
 #define CONFIG_BK7258_PM_SOFT_OFF 1
 #define CONFIG_BK7258_VISION_SERVICE 1
 #define CONFIG_BK7258_HAPTIC_SERVICE 1
+#define CONFIG_BK7258_NFC_SERVICE 1
 #define CONFIG_BK7258_DISPLAY_SERVICE 1
 #define CONFIG_BK7258_PROVISION_NATIVE 1
+static int nfc_error;
+static unsigned int nfc_retries;
+static bool nfc_closed;
+int bk7258_nfc_service_quiesce(bool stop)
+{
+  assert(stop);
+  if (nfc_error) return nfc_error;
+  nfc_closed = true;
+  return 0;
+}
+int bk7258_nfc_service_retry_stop(void) { nfc_retries++; return 0; }
 static bool g_trigger_started = true;
 static int g_product_error;
 static atomic_bool g_trigger_prepare_pending;
@@ -106,7 +118,7 @@ static int bk7258_agent_trigger_stop(void)
 static void sync(void) {}
 static int bk7258_pm_soft_off_request(void)
 {
-  assert(storage_closed && vision_closed && haptic_closed && leased && trigger_closed);
+  assert(storage_closed && vision_closed && haptic_closed && leased && trigger_closed && nfc_closed);
 #ifdef TEST_REAL_OWNER
   assert(!bkprov_owner_busy() && !test_owner_window());
 #else
@@ -125,6 +137,24 @@ static int bkvoice_volume_store_set(unsigned int volume) { (void)volume; return 
 int main(int argc, char **argv)
 {
   assert(argc == 2);
+  if (!strcmp(argv[1], "nfc-busy") || !strcmp(argv[1], "nfc-failed"))
+    {
+      bool failed = !strcmp(argv[1], "nfc-failed");
+      nfc_error = failed ? -EIO : -EBUSY;
+      assert(product_keys_step(0));
+      assert(cp_calls == 0 && storage_stops == 0);
+      nfc_error = 0;
+      assert(product_keys_step(100));
+      if (failed)
+        {
+          assert(cp_calls == 0);
+          key_power = true;
+          assert(product_keys_step(200));
+          assert(nfc_retries == 1);
+        }
+      assert(cp_calls == 1 && nfc_closed);
+      puts("CONTRACT_PASS"); return 0;
+    }
 #ifdef TEST_REAL_OWNER
   if (!strcmp(argv[1], "owner-integration"))
     {

@@ -80,6 +80,9 @@
 #include "bk7258_provision_settings.h"
 #include "bk7258_focus.h"
 #include "bk7258_focus_intent.h"
+#ifdef CONFIG_BK7258_NFC_SERVICE
+#include "bk7258_nfc_service.h"
+#endif
 #include "bk7258_display_trial_control.h"
 #include "bk7258_provision_config.h"
 #include "bk7258_provision_storage.h"
