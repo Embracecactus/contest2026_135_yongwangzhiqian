@@ -5,6 +5,7 @@
 #include "bk7258_provision_pair.h"
 #include "bk7258_provision_store.h"
 #include "bk7258_control_pair.h"
+#include "bk7258_control_serial.h"
 #include <arch/chip/bk7258_wifi.h>
 #include <assert.h>
 #include <errno.h>
@@ -119,15 +120,24 @@ static ssize_t stream_send(void *context, uint32_t epoch, const void *data,
   return ret;
 }
 
+static struct bkcontrol_serial_s serial;
+static bool serial_wire;
+void test_serial_peer_open(void);
+void test_serial_peer_close(void);
+int test_serial_peer_send(const void *, size_t);
+int test_serial_peer_recv(void *, size_t);
+
 static int client_send(void *ctx, const unsigned char *data, size_t size)
 {
-  (void)ctx; int ret = put(&inbound, data, size);
+  (void)ctx; int ret = serial_wire ? test_serial_peer_send(data, size) :
+                                  put(&inbound, data, size);
   return ret < 0 ? MBEDTLS_ERR_SSL_WANT_WRITE : ret;
 }
 
 static int client_recv(void *ctx, unsigned char *data, size_t size)
 {
-  (void)ctx; int ret = take(&outbound, data, size);
+  (void)ctx; int ret = serial_wire ? test_serial_peer_recv(data, size) :
+                                  take(&outbound, data, size);
   return ret < 0 ? MBEDTLS_ERR_SSL_WANT_READ : ret;
 }
 
@@ -209,6 +219,9 @@ static void control_handshake_on(struct bkcontrol_pair_s *control,
                               bool independent)
 {
   uint8_t owner[32] = {42};
+  assert(bkcontrol_serial_close(&serial) == 0);
+  test_serial_peer_close();
+  serial_wire = independent && getenv("SHANIU_TLS_SERIAL") != NULL;
   generation++;
   inbound.size = outbound.size = 0;
   congested = false;
@@ -219,7 +232,14 @@ static void control_handshake_on(struct bkcontrol_pair_s *control,
         { &stream_generation, stream_epoch, stream_read, stream_send, 64, 0 };
       owner[0] = 84; /* Independent synthetic credential, never the phone key. */
       stream_generation++;
-      assert(bkcontrol_pair_start_transport(control, stream_generation, cert,
+      uint32_t selected_generation = stream_generation;
+      if (serial_wire)
+        {
+          test_serial_peer_open();
+          assert(bkcontrol_serial_open(&serial, &transport) == 0);
+          selected_generation = transport.generation(transport.context);
+        }
+      assert(bkcontrol_pair_start_transport(control, selected_generation, cert,
                key, owner, clock_ms, NULL, control_execute, NULL,
                &transport) == 0);
       memset(&transport, 0, sizeof(transport));
@@ -411,7 +431,8 @@ static void control_stream_tests(mbedtls_ssl_context *client,
   assert(mbedtls_ssl_write(client, auth, sizeof(auth)) == sizeof(auth));
   control_response(&control, client, 1, 0, 255);
   assert(mbedtls_ssl_write(client, volume, sizeof(volume)) == sizeof(volume));
-  stream_generation++;
+  if (serial_wire) assert(bkcontrol_serial_close(&serial) == 0);
+  else stream_generation++;
   control_terminal(&control, -ESTALE);
   assert(control_calls == before + 1);
 

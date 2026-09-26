@@ -1966,3 +1966,38 @@ AP构建/manifest通过，ARM pair对象仍69016字节（新增bool占用原padd
 设备业务仲裁接线、资源工作台与任务发送器仍未实现，L3 NOT_RUN。没有刷写、
 安装、清数据或操作按键。326PASS不表示56项验收通过，下一步继续产品通道与授权
 生命周期，不把模拟字节流称为USB成功。
+
+## S62：原始非阻塞串口承载 TLS/SDC1（2026-09-27）
+
+`bk7258_control_serial` 仅打开固定原生CDC节点 `/dev/ttyGS0`，不启动USB、不切MSC、
+不执行Shell，也不自动重连/授权。AP当前没有NSH或其他该节点消费者。对象由一个
+产品worker独占，O_NONBLOCK/O_NOCTTY/O_CLOEXEC，保留虚拟端口硬件参数但关闭
+字符翻译/回显/信号；没有DTR、flush或drain操作。每次成功打开采用新epoch，
+饱和拒绝；poll的HUP/ERR/NVAL及致命I/O令该代次失效，旧回调拒绝。close先撤销
+准入再关闭一次，保持epoch；NuttX原串口close在O_NONBLOCK下不等待TX排空。
+这些退出语义不是远端取消确认，也不是DMA/IRQ已停止的证明。
+
+先写五个生产模块测试，用链接器仅将固定节点重定向到真实Linux PTY，真实
+termios/poll/read/write/close验证全部256种字节、无回显、短写、有界背压、
+拔掉peer后旧代次拒绝、新打开不复活旧回调、非法参数、代次耗尽及打开失败。
+再将已有真实TLS客户端/服务端＋SDC1回归接上同一生产串口适配，20组临时测试
+证书全部通过。PTY不含CherryUSB/DCD，不能冒充真实USB或阻塞任务调度验收。
+生产模块进入CMake/Make编译，但目前没有产品启动caller/常驻实例；线程、独立
+PC凭据、共同业务服务接线和客户端连接准备/重同步流程仍需后续完成。
+
+完整331PASS = 原63（含2恢复）+ 新增268；本片新增5个独立执行ID，20组协议
+样本留在原bundle中不加分母。13运行器检查通过，原2变异保留；新3变异（输出
+换行翻译、旧代次放行、阻塞打开）都被断言检出，恢复后通过。首次接口不存在的
+编译失败为BLOCKED_INTERFACE；严格C编译缺POSIX特性宏的SETUP_ERROR已修。
+首次全收集因为夹具误打印SHANIU_CASE_PASS而产生5个SETUP_ERROR；纠正为现有
+CONTRACT_PASS后全量重跑，不修改运行器判据。首次报告保留在
+`out/shaniu-s62/contracts-marker-error/`，未覆盖历史。
+
+AP对象编译及manifest通过；ARM串口对象12字节，无新增线程/DMA/堆分配或持久
+写入，尚无生产实例。字节收发本身不循环等待；真实锁等待、CPU/栈和吞吐未测。
+Python Black24.10.0及diff检查通过；环境没有clang-format14，未宣称C格式验证。
+源事实：固定NuttX serial.c的TCGETS/TCSETS上层处理、nonblocking close和
+SERIAL_REMOVABLE，与S59的CDC隔离契约共同构成接线基础，未修改官方源码。
+
+后续缺口：产品USB worker与电源/维护协调、连接准备/错误后重同步、电脑自身
+凭据授予/持久化/撤销、工作台和任务事件，以及实物验证。没有现场操作。

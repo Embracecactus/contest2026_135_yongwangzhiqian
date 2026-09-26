@@ -8,7 +8,7 @@ if(CONFIG_BK7258_PROVISION_GATT)
                               bk7258_provision_storage.c bk7258_provision_owner.c
                               bk7258_provision_identity.c bk7258_provision_network.c
                               bk7258_provision_time.c bk7258_control_session.c
-                              bk7258_control_pair.c bk7258_control_ota_request.c
+                              bk7258_control_pair.c bk7258_control_serial.c bk7258_control_ota_request.c
                               bk7258_prov_service.c)
 endif()
 

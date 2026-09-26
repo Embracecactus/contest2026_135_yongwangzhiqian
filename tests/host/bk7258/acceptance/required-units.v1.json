@@ -326,7 +326,12 @@
     "USB-02.life-drop_old_queue",
     "USB-02.life-new_open",
     "USB-02.life-offline_open",
-    "USB-01.tls-transport"
+    "USB-01.tls-transport",
+    "USB-02.serial-binary",
+    "USB-02.serial-backpressure",
+    "USB-02.serial-disconnect",
+    "USB-02.serial-invalid",
+    "USB-02.serial-failed-open"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -656,6 +661,11 @@
     "USB-02.life-drop_old_queue",
     "USB-02.life-new_open",
     "USB-02.life-offline_open",
-    "USB-01.tls-transport"
+    "USB-01.tls-transport",
+    "USB-02.serial-binary",
+    "USB-02.serial-backpressure",
+    "USB-02.serial-disconnect",
+    "USB-02.serial-invalid",
+    "USB-02.serial-failed-open"
   ]
 }

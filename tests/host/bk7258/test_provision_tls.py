@@ -168,6 +168,9 @@ class ProvisionTlsTest(unittest.TestCase):
                         "-I",
                         ROOT / "app/bk7258",
                         ROOT / "tests/host/bk7258/test_provision_tls.c",
+                        ROOT / "tests/host/bk7258/test_control_serial_peer.c",
+                        ROOT / "app/bk7258/bk7258_control_serial.c",
+                        "-Wl,--wrap=open",
                         ROOT / "app/bk7258/bk7258_provision_tls.c",
                         ROOT / "app/bk7258/bk7258_provision_claim.c",
                         ROOT / "app/bk7258/bk7258_provision_store.c",
@@ -361,9 +364,24 @@ class ProvisionTlsTest(unittest.TestCase):
                         ],
                         env={**os.environ, "SHANIU_TLS_STREAM": "1"},
                     )
+                    serial_store = temp / f"serial-{index}"
+                    serial_store.mkdir(mode=0o700)
+                    run(
+                        [
+                            temp / "test",
+                            temp / "cert.pem",
+                            temp / "key.pem",
+                            serial_store,
+                        ],
+                        env={
+                            **os.environ,
+                            "SHANIU_TLS_STREAM": "1",
+                            "SHANIU_TLS_SERIAL": "1",
+                        },
+                    )
                     print(
                         f"TLS sample={index} GATT=PASS independent-stream=PASS "
-                        f"SDC1-stream=PASS public_certificate_sha256="
+                        f"SDC1-stream=PASS serial-SDC1=PASS public_certificate_sha256="
                         f"{hashlib.sha256((temp / 'cert.pem').read_bytes()).hexdigest()}",
                         flush=True,
                     )

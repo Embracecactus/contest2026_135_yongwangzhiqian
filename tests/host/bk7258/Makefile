@@ -1964,3 +1964,11 @@ $(BUILD)/test_shaniu_motion_quiesce: test_shaniu_motion_quiesce.c test_bk7258_mo
 
 $(BUILD)/test_shaniu_motion_actions: test_shaniu_motion_actions.c $(VOICE_PACK_ROOT)/bk7258_motion_core.c $(VOICE_PACK_ROOT)/bk7258_motion_core.h | $(BUILD)
 	$(CC) -std=c11 -Wall -Wextra -Werror -fsanitize=undefined -fno-sanitize-recover=all -I $(VOICE_PACK_ROOT) $< $(VOICE_PACK_ROOT)/bk7258_motion_core.c -o $@
+
+# Native CDC byte adapter; only the device node is redirected to a host PTY.
+$(BUILD)/test_control_serial: $(REPOSITORY_ROOT)/app/bk7258/bk7258_control_serial.c \
+                              $(TEST_ROOT)/test_control_serial.c \
+                              $(REPOSITORY_ROOT)/app/bk7258/bk7258_control_serial.h \
+                              $(REPOSITORY_ROOT)/app/bk7258/bk7258_provision_tls.h
+	@mkdir -p $(BUILD)
+	$(CC) $(CFLAGS) -Werror -I$(REPOSITORY_ROOT)/app/bk7258 -I$(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/include $(filter %.c,$^) -Wl,--wrap=open -o $@

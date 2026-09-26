@@ -416,6 +416,7 @@ def main():
     suite = unittest.TestSuite()
     binaries = {}
     for target in (
+        "test_control_serial",
         "test_shaniu_key_contract",
         "test_shaniu_volume_contract",
         "test_shaniu_volume_transition",
@@ -760,6 +761,10 @@ def main():
         add(suite, "NFC-01.deadline-" + variant, "NFC-01", "L1",
             [sys.executable, HERE / "test_mfrc522_deadline.py",
              "DeadlineTest.test_" + variant], marker=False)
+    for variant in ("binary", "backpressure", "disconnect", "invalid", "failed-open"):
+        add(suite, "USB-02.serial-" + variant, "USB-02", "L2",
+            [HERE / "build/test_control_serial", variant],
+            binaries["test_control_serial"])
     add(suite, "USB-01.tls-transport", "USB-01", "L2",
         [sys.executable, HERE / "test_provision_tls.py"], marker=False)
     for variant in (
@@ -1243,6 +1248,10 @@ def main():
         ROOT / "app/bk7258/bk7258_control_pair.c",
         ROOT / "app/bk7258/bk7258_control_pair.h",
         HERE / "test_control_pair.c",
+        HERE / "test_control_serial.c",
+        HERE / "test_control_serial_peer.c",
+        ROOT / "app/bk7258/bk7258_control_serial.c",
+        ROOT / "app/bk7258/bk7258_control_serial.h",
         ROOT / "chips/bk7258/ap/bk7258_usbcdc.c",
         ROOT / "nuttx/drivers/sensors/sc7a20.c",
         ROOT / "nuttx/include/nuttx/sensors/sc7a20.h",
