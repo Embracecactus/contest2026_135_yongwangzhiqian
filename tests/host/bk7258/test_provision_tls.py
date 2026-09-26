@@ -363,7 +363,7 @@ class ProvisionTlsTest(unittest.TestCase):
                     )
                     print(
                         f"TLS sample={index} GATT=PASS independent-stream=PASS "
-                        f"public_certificate_sha256="
+                        f"SDC1-stream=PASS public_certificate_sha256="
                         f"{hashlib.sha256((temp / 'cert.pem').read_bytes()).hexdigest()}",
                         flush=True,
                     )

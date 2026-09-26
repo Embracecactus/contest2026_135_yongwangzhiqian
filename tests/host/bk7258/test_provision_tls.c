@@ -186,27 +186,51 @@ static void receive_scan(struct bkprov_pair_s *pair, mbedtls_ssl_context *client
 }
 
 static unsigned control_calls;
+static unsigned control_cancels;
 static int control_execute(void *context, enum bkcontrol_command_e command,
                            uint32_t value, struct bkcontrol_status_s *status)
 {
   (void)context;
+  if (command == BKCONTROL_CANCEL)
+    {
+      control_cancels++;
+      status->flags = 2; /* Accepted cancellation, still busy: not drained. */
+      return 0;
+    }
   assert(command == BKCONTROL_VOLUME && value == 73);
   control_calls++;
   status->flags = 8;
   status->volume = value;
   return 0;
 }
-static void control_handshake(struct bkcontrol_pair_s *control,
+static void control_handshake_on(struct bkcontrol_pair_s *control,
                               mbedtls_ssl_context *client,
-                              mbedtls_x509_crt *cert, mbedtls_pk_context *key)
+                              mbedtls_x509_crt *cert, mbedtls_pk_context *key,
+                              bool independent)
 {
-  const uint8_t owner[32] = {42};
+  uint8_t owner[32] = {42};
   generation++;
   inbound.size = outbound.size = 0;
   congested = false;
   assert(mbedtls_ssl_session_reset(client) == 0);
-  assert(bkcontrol_pair_start(control, generation, cert, key, owner,
-                             clock_ms, NULL, control_execute, NULL) == 0);
+  if (independent)
+    {
+      struct bkprov_tls_transport_s transport =
+        { &stream_generation, stream_epoch, stream_read, stream_send, 64, 0 };
+      owner[0] = 84; /* Independent synthetic credential, never the phone key. */
+      stream_generation++;
+      assert(bkcontrol_pair_start_transport(control, stream_generation, cert,
+               key, owner, clock_ms, NULL, control_execute, NULL,
+               &transport) == 0);
+      memset(&transport, 0, sizeof(transport));
+      generation++;
+    }
+  else
+    {
+      assert(bkcontrol_pair_start(control, generation, cert, key, owner,
+                                 clock_ms, NULL, control_execute, NULL) == 0);
+    }
+  memset(owner, 0, sizeof(owner));
   bool ready = false;
   for (int i = 0; i < 2500 && (!ready || !control->tls.established); i++)
     {
@@ -222,6 +246,13 @@ static void control_handshake(struct bkcontrol_pair_s *control,
     }
   assert(ready && control->tls.established);
 }
+static void control_handshake(struct bkcontrol_pair_s *control,
+                              mbedtls_ssl_context *client,
+                              mbedtls_x509_crt *cert, mbedtls_pk_context *key)
+{
+  control_handshake_on(control, client, cert, key, false);
+}
+
 static void control_response(struct bkcontrol_pair_s *control,
                              mbedtls_ssl_context *client, uint8_t command,
                              uint8_t sequence, uint8_t volume)
@@ -238,6 +269,11 @@ static void control_response(struct bkcontrol_pair_s *control,
   assert(size == sizeof(response) && !memcmp(response, "SDC1", 4));
   assert(response[4] == 128 && response[7] == command && response[11] == sequence);
   assert(response[15] == 24 && response[19] == 0 && response[27] == volume);
+  if (command == 3)
+    {
+      assert(response[23] == 2);
+      for (size_t i = 32; i < 36; i++) assert(response[i] == 255);
+    }
 }
 static void control_encrypted_tests(mbedtls_ssl_context *client,
                                     mbedtls_x509_crt *cert, mbedtls_pk_context *key)
@@ -278,6 +314,132 @@ static void control_encrypted_tests(mbedtls_ssl_context *client,
   assert(bkcontrol_pair_step(&control) == -ETIMEDOUT);
   const unsigned char *bytes = (const unsigned char *)&control;
   for (size_t i = 0; i < sizeof(control); i++) assert(bytes[i] == 0);
+}
+
+/* Real TLS + control parser/session; only the endpoint action is observed.
+ * These tests do not grant/store/revoke a real PC credential or use USB.
+ */
+static void control_terminal(struct bkcontrol_pair_s *control, int expected)
+{
+  int error = 0;
+  for (int i = 0; i < 200 && error == 0; i++)
+    {
+      error = bkcontrol_pair_step(control);
+      now += 10;
+    }
+  assert(error == expected);
+  const unsigned char *bytes = (const unsigned char *)control;
+  for (size_t i = 0; i < sizeof(*control); i++) assert(bytes[i] == 0);
+  assert(bkcontrol_pair_step(control) == -ENOTCONN);
+}
+
+static void control_stream_tests(mbedtls_ssl_context *client,
+                                 mbedtls_x509_crt *cert,
+                                 mbedtls_pk_context *key)
+{
+  struct bkcontrol_pair_s control = {0};
+  uint8_t auth[48] = {'S', 'D', 'C', '1', 0, 0, 0, 1, 0, 0, 0, 0,
+                      0, 0, 0, 32, 84};
+  uint8_t volume[20] = {'S', 'D', 'C', '1', 0, 0, 0, 4, 0, 0, 0, 1,
+                        0, 0, 0, 4, 0, 0, 0, 73};
+  const uint8_t spv1[16] = {'S', 'P', 'V', '1'};
+  const uint8_t cancel[16] = {'S', 'D', 'C', '1', 0, 0, 0, 3,
+                               0, 0, 0, 2, 0, 0, 0, 0};
+  const uint8_t oversized[16] = {'S', 'D', 'C', '1', 0, 0, 0, 17,
+                                  0, 0, 0, 1, 0, 0, 2, 1};
+  unsigned before = control_calls;
+
+  struct bkprov_tls_transport_s transport =
+    { &stream_generation, stream_epoch, stream_read, stream_send, 64, 0 };
+  uint8_t principal[32] = {84};
+  assert(bkcontrol_pair_start_transport(&control, stream_generation, cert,
+           key, principal, clock_ms, NULL, control_execute, NULL, NULL) == -EINVAL);
+  assert(bkcontrol_pair_step(&control) == -ENOTCONN);
+  assert(bkcontrol_pair_start_transport(&control, stream_generation + 1,
+           cert, key, principal, clock_ms, NULL, control_execute, NULL,
+           &transport) == -ESTALE);
+  const unsigned char *closed = (const unsigned char *)&control;
+  for (size_t i = 0; i < sizeof(control); i++) assert(closed[i] == 0);
+
+  /* TLS alone cannot authorize a command. */
+  control_handshake_on(&control, client, cert, key, true);
+  volume[11] = 0;
+  assert(mbedtls_ssl_write(client, volume, sizeof(volume)) == sizeof(volume));
+  control_terminal(&control, -EPROTO);
+  assert(control_calls == before);
+  volume[11] = 1;
+
+  /* A valid phone credential does not authenticate the separate principal. */
+  control_handshake_on(&control, client, cert, key, true);
+  auth[16] = 42;
+  assert(mbedtls_ssl_write(client, auth, sizeof(auth)) == sizeof(auth));
+  control_terminal(&control, -EACCES);
+  assert(control_calls == before);
+  auth[16] = 84;
+
+  control_handshake_on(&control, client, cert, key, true);
+  assert(mbedtls_ssl_write(client, spv1, sizeof(spv1)) == sizeof(spv1));
+  control_terminal(&control, -EPROTO);
+  assert(control_calls == before);
+
+  /* The existing SDC1 sequence and one-response-at-a-time contract applies. */
+  control_handshake_on(&control, client, cert, key, true);
+  for (size_t i = 0; i < sizeof(auth); i++)
+    assert(mbedtls_ssl_write(client, auth + i, 1) == 1);
+  control_response(&control, client, 1, 0, 255);
+  assert(control_calls == before);
+  assert(mbedtls_ssl_write(client, volume, sizeof(volume)) == sizeof(volume));
+  congested = true;
+  for (int i = 0; i < 50; i++)
+    { assert(bkcontrol_pair_step(&control) == 0); now += 10; }
+  assert(control_calls == before + 1);
+  congested = false;
+  control_response(&control, client, 4, 1, 73);
+  assert(control_calls == before + 1);
+  unsigned previous_cancels = control_cancels;
+  assert(mbedtls_ssl_write(client, cancel, sizeof(cancel)) == sizeof(cancel));
+  control_response(&control, client, 3, 2, 255);
+  assert(control_cancels == previous_cancels + 1);
+  assert(mbedtls_ssl_write(client, volume, sizeof(volume)) == sizeof(volume));
+  control_terminal(&control, -EPROTO);
+  assert(control_calls == before + 1);
+
+  /* Revocation is supplied by the owning transport, not a BLE epoch. Queued
+   * plaintext from the revoked connection must never reach an endpoint.
+   */
+  control_handshake_on(&control, client, cert, key, true);
+  assert(mbedtls_ssl_write(client, auth, sizeof(auth)) == sizeof(auth));
+  control_response(&control, client, 1, 0, 255);
+  assert(mbedtls_ssl_write(client, volume, sizeof(volume)) == sizeof(volume));
+  stream_generation++;
+  control_terminal(&control, -ESTALE);
+  assert(control_calls == before + 1);
+
+  control_handshake_on(&control, client, cert, key, true);
+  assert(mbedtls_ssl_write(client, auth, sizeof(auth)) == sizeof(auth));
+  control_response(&control, client, 1, 0, 255);
+  assert(mbedtls_ssl_write(client, oversized, sizeof(oversized)) == sizeof(oversized));
+  control_terminal(&control, -EPROTO);
+  assert(control_calls == before + 1);
+
+  control_handshake_on(&control, client, cert, key, true);
+  now += 10000;
+  control_terminal(&control, -ETIMEDOUT);
+  assert(control_calls == before + 1);
+
+  /* Existing phone-only SPV1 scan remains available with its own possession
+   * proof. This is a real demultiplex/claim path, not a successful mock.
+   */
+  const uint8_t proof[32] = {9};
+  control_handshake(&control, client, cert, key);
+  memcpy(control.scan_secret, proof, sizeof(proof));
+  request(client, 1, 0, proof, sizeof(proof));
+  for (int i = 0; i < 100 && control.scan == NULL; i++)
+    { assert(bkcontrol_pair_step(&control) == 0); now += 10; }
+  assert(control.scan != NULL);
+  receive_status(control.scan, client, BKPROV_READY);
+  assert(control_calls == before + 1);
+  bkcontrol_pair_close(&control);
 }
 
 /* Ciphertext pipe endpoint for the JVM production TLS/GATT client test.
@@ -591,6 +753,8 @@ int main(int argc, char **argv)
   assert_wiped(&server);
   bkprov_pair_close(&pair);
   control_encrypted_tests(&client, &cert, &key);
+  if (getenv("SHANIU_TLS_STREAM"))
+    control_stream_tests(&client, &cert, &key);
   mbedtls_ssl_free(&client); mbedtls_ssl_config_free(&config);
 
   generation++;

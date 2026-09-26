@@ -1,0 +1,367 @@
+{
+  "slice": "S61",
+  "date": "2026-09-27",
+  "parent": "e246e54aef4af575e5159df7cc375789f975b27b",
+  "counts": {
+    "PASS": 326,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 263,
+      "counts": {
+        "PASS": 263,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "new_collected_ids": [],
+  "strengthened_bundle": [
+    {
+      "id": "USB-01.tls-transport",
+      "parent": "USB-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 7.179704756999854,
+      "evidence": "USB-01.tls-transport.log",
+      "evidence_sha256": "c5b2264faca35decdef1db3bd5410b07cf46ef51a74ee348d0b0ca3017ae73e5"
+    }
+  ],
+  "source_hashes": {
+    "app/bk7258/bk7258_control_pair.c": "ecd01fd125d7fb8a899da9f9cde28428525d542ea872d05b15fe125f93208f7e",
+    "app/bk7258/bk7258_control_pair.h": "c7182af5f1b7243b13136b57174f3f4e133e8108a96a1bf859f0d01cc06fe9df",
+    "tests/host/bk7258/test_provision_tls.c": "b8f43a89897583896d31d6580bff61b07b0c5ffd6ca4a11ebe46aa2200eb72dd",
+    "tests/host/bk7258/test_provision_tls.py": "bbc8af42aabb4ac3897bedad3c70e820f7cf66598c249cf8bb225be73d98face",
+    "tests/host/bk7258/test_control_pair.c": "7bb5ac6bf454555ee563f895711a19e7ceb1f8b993dda28a59ed2ce4afa04852",
+    "tests/host/bk7258/test_shaniu_contracts.py": "7e9aee78d7e9305347999d765b423cab69e9e3daed1904f649fe270a9f8369b6"
+  },
+  "post_test_change": "Control-pair header prose clarified for independent transport; no declarations/layout/behavior changed after strict run. Exact run inputs preserved in s61-20260927.json, final comment-inclusive source hashes here; target rebuilt and manifest verified.",
+  "test_contracts": [
+    "null transport rejected without fallback",
+    "stale transport admission clears session secret",
+    "TLS without SDC1 AUTH cannot execute",
+    "phone test credential rejected for independent test principal",
+    "SPV1 rejected on explicit transport",
+    "fragmented AUTH then exactly one endpoint execution under backpressure",
+    "CANCEL acknowledgement preserves busy and unknown drain state",
+    "old sequence is terminal and cannot repeat endpoint action",
+    "transport revocation discards queued command and wipes complete pair",
+    "oversized APPEND header rejected",
+    "10s authentication deadline and closed-session rejection",
+    "legacy GATT SPV1 proof still reaches READY"
+  ],
+  "tls_samples": [
+    {
+      "sample": 0,
+      "public_certificate_sha256": "633e60ec6b711dfb2068c8dcbb89471efcde55ea1a46a65ddcd3bf0153f59320",
+      "gatt": "PASS",
+      "independent_stream": "PASS",
+      "sdc1_stream": "PASS"
+    },
+    {
+      "sample": 1,
+      "public_certificate_sha256": "12e5cbd6384e072bcb641d445f515ea7ef54979829e89cbf32bda614f88fed19",
+      "gatt": "PASS",
+      "independent_stream": "PASS",
+      "sdc1_stream": "PASS"
+    },
+    {
+      "sample": 2,
+      "public_certificate_sha256": "6047a1207af21b8eef18bd819639a7688458b2c8cdf265632d07e826d16c4207",
+      "gatt": "PASS",
+      "independent_stream": "PASS",
+      "sdc1_stream": "PASS"
+    },
+    {
+      "sample": 3,
+      "public_certificate_sha256": "524b470de2ad9489bd9b0e09a6db1560f8f51af5ff674bcb39eb2bae3040ac6b",
+      "gatt": "PASS",
+      "independent_stream": "PASS",
+      "sdc1_stream": "PASS"
+    },
+    {
+      "sample": 4,
+      "public_certificate_sha256": "63373eb7b93404da034c3c00f6350eb648990861371a2b356aa51434a9f0bb8a",
+      "gatt": "PASS",
+      "independent_stream": "PASS",
+      "sdc1_stream": "PASS"
+    },
+    {
+      "sample": 5,
+      "public_certificate_sha256": "ba62412686c9d5dae5e08d284b82c87744a722cbaf5b3f9960e719c03884bfc3",
+      "gatt": "PASS",
+      "independent_stream": "PASS",
+      "sdc1_stream": "PASS"
+    },
+    {
+      "sample": 6,
+      "public_certificate_sha256": "bc03ddc5f74cb7d84c92fadb235005c2b8511c37a1985d0ebbd0a8a00cef7d95",
+      "gatt": "PASS",
+      "independent_stream": "PASS",
+      "sdc1_stream": "PASS"
+    },
+    {
+      "sample": 7,
+      "public_certificate_sha256": "c715936951e8c0294baa9ace9cbd6b792bcbd4508f40bf45f20b0110f5739289",
+      "gatt": "PASS",
+      "independent_stream": "PASS",
+      "sdc1_stream": "PASS"
+    },
+    {
+      "sample": 8,
+      "public_certificate_sha256": "c16737cb68e0a5f309ff22a99b4a9df947636585edccb3dd47aa88fd6c28a72e",
+      "gatt": "PASS",
+      "independent_stream": "PASS",
+      "sdc1_stream": "PASS"
+    },
+    {
+      "sample": 9,
+      "public_certificate_sha256": "ea84d06de4eca52bbef85b1418b2086fe8049261ed683693eeda3e3b3ea6f6c1",
+      "gatt": "PASS",
+      "independent_stream": "PASS",
+      "sdc1_stream": "PASS"
+    },
+    {
+      "sample": 10,
+      "public_certificate_sha256": "12010783296ab4b47cdbb2e33f4d06ef5b2207f60af1b2e5d85f9efaf967c14f",
+      "gatt": "PASS",
+      "independent_stream": "PASS",
+      "sdc1_stream": "PASS"
+    },
+    {
+      "sample": 11,
+      "public_certificate_sha256": "2a73549dea894d29aa26f915fea827e30d282944230206313d256af72809f732",
+      "gatt": "PASS",
+      "independent_stream": "PASS",
+      "sdc1_stream": "PASS"
+    },
+    {
+      "sample": 12,
+      "public_certificate_sha256": "88fb8008dd2e425d7f0287712d6bafe1628dbfe11042dcd8fe6030d498d9b35c",
+      "gatt": "PASS",
+      "independent_stream": "PASS",
+      "sdc1_stream": "PASS"
+    },
+    {
+      "sample": 13,
+      "public_certificate_sha256": "6735a228a411218359a3c6f07eddc63be6564460eeebb00783a286dff18ecc8e",
+      "gatt": "PASS",
+      "independent_stream": "PASS",
+      "sdc1_stream": "PASS"
+    },
+    {
+      "sample": 14,
+      "public_certificate_sha256": "660999eed4395c844596d8a976acac73e2199bfbe11f1abe532ea1110f13e0e9",
+      "gatt": "PASS",
+      "independent_stream": "PASS",
+      "sdc1_stream": "PASS"
+    },
+    {
+      "sample": 15,
+      "public_certificate_sha256": "68baac8f2e8a7e2cb116a9fa0585f26a4c5d20437d9bdbdb0cf35e7457e4416e",
+      "gatt": "PASS",
+      "independent_stream": "PASS",
+      "sdc1_stream": "PASS"
+    },
+    {
+      "sample": 16,
+      "public_certificate_sha256": "f08296d1f1f2bbcbc06d1c72ce4662d49da91dcd5a0dc465a6465e800c02c1b8",
+      "gatt": "PASS",
+      "independent_stream": "PASS",
+      "sdc1_stream": "PASS"
+    },
+    {
+      "sample": 17,
+      "public_certificate_sha256": "b4eeb5621995d2451767f2f21378cf30ec8408826e4215f517407ba28e8b9844",
+      "gatt": "PASS",
+      "independent_stream": "PASS",
+      "sdc1_stream": "PASS"
+    },
+    {
+      "sample": 18,
+      "public_certificate_sha256": "9b9e4d3a1734784f21b46f387fec321cdcd295b525b0477f97e7ac2ad0b9e15e",
+      "gatt": "PASS",
+      "independent_stream": "PASS",
+      "sdc1_stream": "PASS"
+    },
+    {
+      "sample": 19,
+      "public_certificate_sha256": "4c36581ded29af05fd00d9aaa5fc917b749546680ca1ca989837e65731278a55",
+      "gatt": "PASS",
+      "independent_stream": "PASS",
+      "sdc1_stream": "PASS"
+    }
+  ],
+  "initial": {
+    "status": "BLOCKED_INTERFACE",
+    "reason": "new pair transport API absent; compilation failure is not business Red"
+  },
+  "new_mutations": [
+    {
+      "mutation": "inherit-recovery",
+      "mode": "mutated",
+      "exit_code": 1,
+      "detected": true,
+      "log": "inherit-recovery-mutated.log",
+      "sha256": "d1ca19367a89be7993ff8255ca1dfc8f151b32beb06ebe39b62893bd6ffb906c"
+    },
+    {
+      "mutation": "inherit-recovery",
+      "mode": "restored",
+      "exit_code": 0,
+      "detected": false,
+      "log": "inherit-recovery-restored.log",
+      "sha256": "91fc1574cd3f4ef71c8b98b9dbe426a9f4432d146b43ab4ca79a38241560e3a9"
+    },
+    {
+      "mutation": "disable-phone-recovery",
+      "mode": "mutated",
+      "exit_code": 1,
+      "detected": true,
+      "log": "disable-phone-recovery-mutated.log",
+      "sha256": "6682a7e4cb5f904582cc354ec6e8decb63fbe10f5e0569bed1f5c83047383a25"
+    },
+    {
+      "mutation": "disable-phone-recovery",
+      "mode": "restored",
+      "exit_code": 0,
+      "detected": false,
+      "log": "disable-phone-recovery-restored.log",
+      "sha256": "26653af089d83a8e94f40c387dccb2f63999ee3a14fa728f4b09af89b59ea032"
+    },
+    {
+      "mutation": "bypass-control-auth",
+      "mode": "mutated",
+      "exit_code": 1,
+      "detected": true,
+      "log": "bypass-control-auth-mutated.log",
+      "sha256": "e2e1b3653c179f1eb367ed05498c46f61e194df32a6003e74055da2950794f78"
+    },
+    {
+      "mutation": "bypass-control-auth",
+      "mode": "restored",
+      "exit_code": 0,
+      "detected": false,
+      "log": "bypass-control-auth-restored.log",
+      "sha256": "ab89a71c046998c5ff2282fc88668ca4a828eb190f90d57a9da84bc186175416"
+    }
+  ],
+  "baseline_mutations": [
+    {
+      "id": "MSC-01.early-release",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.0077985969837754965,
+      "source": "app/bk7258/bk7258_media_volume.c",
+      "original_sha256": "58ebb18ae63adccf21262253da18f153bbb7c680cc0b64719ca20e8a6d9681c8",
+      "mutant_sha256": "bf298373a95ac54d5587f93ece34a30a7f661a65a969c69db9e27c6570770c57",
+      "expected_assertion": "!mounted",
+      "evidence": "MSC-01.early-release.log"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.06399149604840204,
+      "source": "app/bk7258/bk7258_provision_config.c",
+      "original_sha256": "98f5100ca49ca44e45fe3e5da4bb2da0add7466f0e357a205ca8b1e307a5818e",
+      "mutant_sha256": "4c0c615b8ffc99247b0fd91bd934d3df0409a1180769cb939b2820f9e6f69427",
+      "expected_assertion": "bkcloud_config_decode",
+      "evidence": "CFG-01.wifi-clears-cloud.log"
+    }
+  ],
+  "extra_checks": {
+    "runner_gate": 13,
+    "runner_gate_status": "PASS",
+    "existing_parser_target": "PASS (TLS substitute, not crypto proof)"
+  },
+  "target": {
+    "build": "PASS",
+    "manifest": "PASS",
+    "ap_elf_sha256": "5cf63f96fa7760df504955dd8378b99ed17b778b69f2a8843fe10ca6e8f9683d",
+    "manifest_sha256": "b0740a9f13c2839756a29a86fff72ed7a313dce1201e033d20a101ec81126448"
+  },
+  "budget": {
+    "old_arm_pair_bytes": 69016,
+    "arm_pair_bytes": 69016,
+    "added_field": "bool occupies former padding",
+    "new_instances": 0,
+    "new_threads": 0,
+    "new_dma": 0,
+    "new_persistent_writes": 0,
+    "warning": "A second live pair still costs a full object plus TLS heap; no concurrent PC worker/instance enabled",
+    "unmeasured": [
+      "stack high water",
+      "CPU/p95",
+      "physical transfer throughput"
+    ]
+  },
+  "layers": {
+    "interface": "explicit SDC1-only start implemented; trusted owner provides credential and callbacks",
+    "L1": "existing real parser/session with TLS boundary substitute separately checked",
+    "L2": "real TLS/pair/session over bounded in-memory transport; only endpoint action is observed, not full product service",
+    "L3": "NOT_RUN"
+  },
+  "remaining": [
+    "native CDC byte bridge and worker lifecycle",
+    "independent PC credential grant/persistence/revocation",
+    "actual common device service and resource arbitration wiring",
+    "USB resource installer/workbench",
+    "task event sender and device events",
+    "physical integration and budget acceptance"
+  ],
+  "style": {
+    "black": "24.10.0 PASS",
+    "diff_check": "PASS",
+    "nxstyle_current": 1,
+    "nxstyle_parent": 1,
+    "note": "Existing full-file C failures retained; no style PASS claim"
+  },
+  "physical_actions": [],
+  "log_hashes": {
+    "arm-size-current.log": "ac6532bae1b31fb3208ade62a49fd88325227c5a4f9be27849648e4344144d53",
+    "arm-size-old.log": "ac6532bae1b31fb3208ade62a49fd88325227c5a4f9be27849648e4344144d53",
+    "black.log": "1a56c7cd8457fd05d978cfbd139d7bfd86e86acaa9b57668e718ef8bccc0cf48",
+    "build-final.log": "99cee40488329698f041a06c6409a3b4fa54349405cdca3c1a6500c81a15b2e7",
+    "build.log": "85d488178803ab48edf1ec1747699d59881ff2172f3bf5273e82c2f7c9094ba7",
+    "bypass-control-auth-mutated.log": "e2e1b3653c179f1eb367ed05498c46f61e194df32a6003e74055da2950794f78",
+    "bypass-control-auth-restored.log": "ab89a71c046998c5ff2282fc88668ca4a828eb190f90d57a9da84bc186175416",
+    "contracts.log": "77c71ca5d03428e16110aaebf4bcc88646f3f71a60a9310ce870d6192130affd",
+    "control-pair.log": "f92a56c1bd47d6d2a9212a4929aa74d26e386d1390d5de0985f05ae1c794cbc5",
+    "disable-phone-recovery-mutated.log": "6682a7e4cb5f904582cc354ec6e8decb63fbe10f5e0569bed1f5c83047383a25",
+    "disable-phone-recovery-restored.log": "26653af089d83a8e94f40c387dccb2f63999ee3a14fa728f4b09af89b59ea032",
+    "inherit-recovery-mutated.log": "d1ca19367a89be7993ff8255ca1dfc8f151b32beb06ebe39b62893bd6ffb906c",
+    "inherit-recovery-restored.log": "91fc1574cd3f4ef71c8b98b9dbe426a9f4432d146b43ab4ca79a38241560e3a9",
+    "interface-baseline.log": "926c8f928b6837ba32549697c062956d80cbd144a281fee961ad8f7e6f54b040",
+    "manifest-final.log": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac",
+    "manifest.log": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac",
+    "mutations.log": "059f117b63031434fb406d4420211e7b519285ed961bf9a3221b74a1e72e8b7f",
+    "runner-gate.log": "60b5edc8087e061f2f9c8555ca9c1875fac04657d569ed1c0f03fc9a75a17576",
+    "style-baseline.log": "a55641b17ae3bba5f13d0e6638dc9d02626b231ea64d48c8329d505eaee0e57d",
+    "style-current.log": "a393b3941ac448001fca44f0eb93fe6ebcfaf067d7fdf6fa9290651f5edc3404",
+    "tls.log": "5d601a4f876f55e0e2ba6390e142dd1fbc870a676a101b1f3472953596c52e7a"
+  }
+}

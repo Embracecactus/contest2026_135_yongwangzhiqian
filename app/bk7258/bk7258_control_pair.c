@@ -23,21 +23,51 @@ void bkcontrol_pair_close(struct bkcontrol_pair_s *pair)
   mbedtls_platform_zeroize(pair, sizeof(*pair));
 }
 
-int bkcontrol_pair_start(struct bkcontrol_pair_s *pair, uint32_t generation,
+static int pair_start(struct bkcontrol_pair_s *pair, uint32_t generation,
                          mbedtls_x509_crt *certificate, mbedtls_pk_context *key,
                          const uint8_t owner_key[32], uint64_t (*now_ms)(void *),
                          void *clock_context, bkcontrol_execute_t execute,
-                         void *context)
+                         void *context,
+                         const struct bkprov_tls_transport_s *transport)
 {
   int ret;
   if (pair == NULL || now_ms == NULL) return -EINVAL;
   if (pair->tls.initialized || pair->session.open) return -EBUSY;
   ret = bkcontrol_session_open(&pair->session, owner_key, execute, context);
   if (ret < 0) return ret;
-  ret = bkprov_tls_start(&pair->tls, generation, certificate, key, now_ms, clock_context);
+  ret = transport == NULL ?
+        bkprov_tls_start(&pair->tls, generation, certificate, key, now_ms,
+                          clock_context) :
+        bkprov_tls_start_transport(&pair->tls, generation, certificate, key,
+                                    now_ms, clock_context, transport);
   if (ret < 0) { bkcontrol_pair_close(pair); return ret; }
   pair->expected = 16;
+  pair->provisioning_allowed = transport == NULL;
   return 0;
+}
+
+int bkcontrol_pair_start(struct bkcontrol_pair_s *pair, uint32_t generation,
+                         mbedtls_x509_crt *certificate, mbedtls_pk_context *key,
+                         const uint8_t owner_key[32], uint64_t (*now_ms)(void *),
+                         void *clock_context, bkcontrol_execute_t execute,
+                         void *context)
+{
+  return pair_start(pair, generation, certificate, key, owner_key, now_ms,
+                    clock_context, execute, context, NULL);
+}
+
+int bkcontrol_pair_start_transport(struct bkcontrol_pair_s *pair,
+                                   uint32_t generation,
+                                   mbedtls_x509_crt *certificate,
+                                   mbedtls_pk_context *key,
+                                   const uint8_t principal_key[32],
+                                   uint64_t (*now_ms)(void *), void *clock_context,
+                                   bkcontrol_execute_t execute, void *context,
+                                   const struct bkprov_tls_transport_s *transport)
+{
+  if (transport == NULL) return -EINVAL;
+  return pair_start(pair, generation, certificate, key, principal_key, now_ms,
+                    clock_context, execute, context, transport);
 }
 
 int bkcontrol_pair_step(struct bkcontrol_pair_s *pair)
@@ -82,7 +112,8 @@ int bkcontrol_pair_step(struct bkcontrol_pair_s *pair)
   if (pair->received != pair->expected) return 0;
   if (pair->expected == 16)
     {
-      if (!pair->session.authenticated && !memcmp(pair->input, "SPV1", 4))
+      if (pair->provisioning_allowed && !pair->session.authenticated &&
+          !memcmp(pair->input, "SPV1", 4))
         {
           /* Reuses the same TLS; the AUTH scan and the explicit AUTH_OWNER
            * recovery privilege stay separate.

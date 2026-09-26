@@ -22,6 +22,15 @@ int bkprov_tls_start(struct bkprov_tls_s *t, uint32_t g, mbedtls_x509_crt *c,
   t->initialized = true; t->generation = g; t->now_ms = n; t->clock_context = p;
   return 0;
 }
+int bkprov_tls_start_transport(struct bkprov_tls_s *t, uint32_t g,
+                               mbedtls_x509_crt *c, mbedtls_pk_context *k,
+                               uint64_t (*n)(void *), void *p,
+                               const struct bkprov_tls_transport_s *transport)
+{
+  (void)t; (void)g; (void)c; (void)k; (void)n; (void)p; (void)transport;
+  assert(!"unexpected independent transport in GATT parser fixture");
+  return -ENOSYS;
+}
 void bkprov_tls_close(struct bkprov_tls_s *t) { memset(t, 0, sizeof(*t)); }
 int bkprov_tls_step(struct bkprov_tls_s *t)
 {
