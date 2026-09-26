@@ -262,6 +262,7 @@ def run_jvm():
         "provision.DeviceControlSessionTest",
         "provision.ProvisionSettingsTest",
         "provision.FocusTimerControllerTest",
+        "provision.ExpressionTrialControllerTest",
         "ota.OtaControlUploadTest",
         "ota.OtaSessionContractTest",
     ]
@@ -362,11 +363,20 @@ def run_jvm():
                     )
                 )
             )
+            if "ExpressionTrial" in name:
+                parent = "RES-02"
             RESULTS.append(
                 dict(
                     id=name + "." + node.attrib["name"],
                     parent=parent,
-                    layer="L2" if "Session" in name or "FocusTimer" in name else "L1",
+                    layer=(
+                        "L2"
+                        if any(
+                            part in name
+                            for part in ("Session", "FocusTimer", "ExpressionTrial")
+                        )
+                        else "L1"
+                    ),
                     status=status,
                     seconds=float(node.get("time", 0)),
                     evidence=xml.name,

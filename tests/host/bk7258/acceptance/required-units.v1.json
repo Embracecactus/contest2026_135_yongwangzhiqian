@@ -127,7 +127,15 @@
     "CFG-02.models-unknown",
     "RES-02.expression-ownership",
     "RES-02.expression-trial",
-    "RES-02.trial-wire"
+    "RES-02.trial-wire",
+    "provision.ExpressionTrialControllerTest.acceptedTrialUsesGoldenRecordAndDeviceReadback",
+    "provision.ExpressionTrialControllerTest.cancellationAcceptanceIsNotRestoredCompletion",
+    "provision.ExpressionTrialControllerTest.changedHeaderCannotProduceMixedSnapshot",
+    "provision.ExpressionTrialControllerTest.disconnectAndLateAckNeverReplayMutation",
+    "provision.ExpressionTrialControllerTest.unsupportedDeviceDoesNotPretendToTrial",
+    "provision.ExpressionTrialControllerTest.rejectedBeginCannotCancelAnotherEditorsTransaction",
+    "provision.ExpressionTrialControllerTest.closingActiveTrialDoesNotSendRemoteCancel",
+    "provision.ExpressionTrialControllerTest.invalidDurationAndMismatchedReceiptCannotClaimSuccess"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -258,6 +266,14 @@
     "CFG-02.models-unknown",
     "RES-02.expression-ownership",
     "RES-02.expression-trial",
-    "RES-02.trial-wire"
+    "RES-02.trial-wire",
+    "provision.ExpressionTrialControllerTest.acceptedTrialUsesGoldenRecordAndDeviceReadback",
+    "provision.ExpressionTrialControllerTest.cancellationAcceptanceIsNotRestoredCompletion",
+    "provision.ExpressionTrialControllerTest.changedHeaderCannotProduceMixedSnapshot",
+    "provision.ExpressionTrialControllerTest.disconnectAndLateAckNeverReplayMutation",
+    "provision.ExpressionTrialControllerTest.unsupportedDeviceDoesNotPretendToTrial",
+    "provision.ExpressionTrialControllerTest.rejectedBeginCannotCancelAnotherEditorsTransaction",
+    "provision.ExpressionTrialControllerTest.closingActiveTrialDoesNotSendRemoteCancel",
+    "provision.ExpressionTrialControllerTest.invalidDurationAndMismatchedReceiptCannotClaimSuccess"
   ]
 }

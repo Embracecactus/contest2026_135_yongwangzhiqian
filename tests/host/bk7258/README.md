@@ -845,3 +845,27 @@ unchanged production rerun passes. Incremental build/layers/manifest/runner chec
 pass. The new controller has 37 named static bytes, no new thread/heap/persistence.
 App UI/controller and physical BLE/render checks remain incomplete. See
 `acceptance/s29-20260927.json` and `acceptance/s29-wire-evidence-20260927.json`.
+
+### S30 — native App expression trial (2026-09-27)
+
+Eight JVM cases exercise the real foreground Session/controller with an external
+transport peer and literal ETC1 golden bytes. They cover accepted versus rendered,
+cancel-pending versus confirmed, inconsistent split snapshots, generation changes,
+unsupported firmware, another editor's staging ownership, close without remote
+cancel, invalid duration and mismatched receipts. Missing initial controller/UI
+interfaces are BLOCKED_INTERFACE. The unsupported-message assertion then exposed
+missing NuttX ENOTSUP/ENOSYS handling; its genuine Red and fixed run are retained.
+
+The native sheet requires an explicit duration, preserves only public drafts, and
+does not replay a device operation on recreation. No chosen default TTL or local
+countdown substitutes for device status. Emulator-only real View instrumentation
+passes 20 navigation rounds and Activity recreation; synthetic admission cannot
+prove BLE or rendering. Device actions remain disabled without readback.
+
+Strict collection is 135 PASS (original 63 plus 72 added); original two mutations
+are detected and their restores remain in the 63. One UI test and 12 runner-gate
+tests are reported separately. APKs build; no physical install/flash occurred.
+RES-02 interface now has App/wire/device bindings and host evidence, but physical
+render/restoration, persistent-default interaction and broader UI accessibility
+remain unverified. N1/NFC/N3 are not completed by this slice. See
+`acceptance/s30-20260927.json` and `acceptance/s30-app-evidence-20260927.json`.

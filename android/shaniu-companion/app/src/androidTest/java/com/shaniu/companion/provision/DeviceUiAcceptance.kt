@@ -77,6 +77,83 @@ internal object DeviceUiAcceptance {
         }
     }
 
+    /** RES-02 expression trial UI navigation. Synthetic admission only; no transport. */
+    fun runExpressionTrial(instrumentation: Instrumentation) {
+        check(android.os.Build.FINGERPRINT.contains("generic") || android.os.Build.MODEL.contains("sdk")) {
+            "Expression trial fixture is emulator-only"
+        }
+        var activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
+        fun field(name: String) = MainActivity::class.java.getDeclaredField(name).apply { isAccessible = true }
+        val session = MainActivity::class.java.getDeclaredMethod("getDirectSession").apply { isAccessible = true }
+            .invoke(activity) as DeviceControlSession
+        val state = DeviceControlSession::class.java.getDeclaredField("state").apply { isAccessible = true }
+        val show = MainActivity::class.java.getDeclaredMethod("showExpressionTrial").apply { isAccessible = true }
+        try {
+            repeat(20) { round ->
+                onUi(instrumentation) {
+                    state.set(session, DeviceControlSession.State(
+                        connection = DeviceControlSession.Connection.CONNECTED, authenticated = true,
+                        snapshotFresh = true, snapshot = DeviceControlProtocol.Snapshot(
+                            0, true, false, 50, 0, 0, 0, publicConfigSupported = true)))
+                    show.invoke(activity)
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    val dialog = checkNotNull(field("companionSheet").get(activity) as? android.app.Dialog)
+                    val root = checkNotNull(dialog.window).decorView
+                    val input = checkNotNull(findView(root) { it.contentDescription == "试用秒数" } as? EditText)
+                    check(input.text.toString() == if (round == 0) "" else "47") {
+                        "RES-02.trial-draft: navigation lost seconds at round $round"
+                    }
+                    input.setText("47")
+                    // Synthetic authentication without a transport cannot confirm trial state.
+                    listOf("开始试用", "取消试用").forEach { label ->
+                        check(findView(root) { it is TextView && it.text.toString() == label }?.isEnabled == false)
+                    }
+                    dialog.dismiss()
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    check(field("trialEditor").get(activity) == null)
+                }
+            }
+            val monitor = ActivityMonitor(MainActivity::class.java.name, null, false)
+            instrumentation.addMonitor(monitor)
+            try {
+                onUi(instrumentation) { activity.recreate() }
+                activity = checkNotNull(monitor.waitForActivityWithTimeout(5000) as? MainActivity) {
+                    "RES-02.trial-draft: recreated Activity not observed"
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    check(field("companionSheet").get(activity) == null) { "Recreation reopened a device operation" }
+                    val restoredSession = MainActivity::class.java.getDeclaredMethod("getDirectSession")
+                        .apply { isAccessible = true }.invoke(activity) as DeviceControlSession
+                    state.set(restoredSession, DeviceControlSession.State(
+                        connection = DeviceControlSession.Connection.CONNECTED, authenticated = true,
+                        snapshotFresh = true, snapshot = DeviceControlProtocol.Snapshot(
+                            0, true, false, 50, 0, 0, 0, publicConfigSupported = true)))
+                    show.invoke(activity)
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    val dialog = checkNotNull(field("companionSheet").get(activity) as? android.app.Dialog)
+                    val input = checkNotNull(findView(checkNotNull(dialog.window).decorView) {
+                        it.contentDescription == "试用秒数"
+                    } as? EditText)
+                    check(input.text.toString() == "47") { "RES-02.trial-draft: recreation lost seconds" }
+                    dialog.dismiss()
+                }
+            } finally {
+                instrumentation.removeMonitor(monitor)
+            }
+        } finally {
+            onUi(instrumentation) { activity.finish() }
+            instrumentation.waitForIdleSync()
+        }
+    }
+
     /** UI-02 focus draft navigation. Synthetic admission only; no transport. */
     fun runFocusDraft(instrumentation: Instrumentation) {
         check(android.os.Build.FINGERPRINT.contains("generic") || android.os.Build.MODEL.contains("sdk")) {

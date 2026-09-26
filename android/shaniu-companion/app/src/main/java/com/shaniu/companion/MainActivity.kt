@@ -219,6 +219,9 @@ class MainActivity : Activity() {
     private var wakeSensitivityError: String? = null
     private var wakeSensitivityCanceling = false
     private enum class ConfigFlow { SETTINGS, NONE, CAPABILITIES, CLOUD, WAKE, RESPONSE, SENSITIVITY, EYES }
+    private var trialSecondsDraft = ""
+    private var trialExpressionDraft = 0
+    private var trialEditor: com.shaniu.companion.provision.ExpressionTrialController? = null
     private var focusMinutesDraft = "25"
     private var focusEditor: com.shaniu.companion.provision.FocusTimerController? = null
     private var settingsEditor: com.shaniu.companion.provision.DeviceSettingsEditor? = null
@@ -271,6 +274,8 @@ class MainActivity : Activity() {
         window.decorView.systemUiVisibility = if (design.dark) 0 else
             View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
         currentTab = savedInstanceState?.getInt("navigation", TAB_OVERVIEW) ?: TAB_OVERVIEW
+        trialSecondsDraft = savedInstanceState?.getString("trial_seconds_draft") ?: ""
+        trialExpressionDraft = (savedInstanceState?.getInt("trial_expression_draft", 0) ?: 0).coerceIn(0, 8)
         focusMinutesDraft = savedInstanceState?.getString("focus_minutes_draft") ?: "25"
         expressionPreview = savedInstanceState?.getInt("expression_preview", 0) ?: 0
         updateResources = savedInstanceState?.getBoolean("update_resources", false) ?: false
@@ -756,7 +761,7 @@ class MainActivity : Activity() {
         foreground && directSession.requestPayload(command, payload)
 
     private fun configAvailable(): Boolean = foreground && directSession.current().authenticated &&
-        directSnapshot?.publicConfigSupported == true && configFlow == ConfigFlow.NONE && focusEditor == null && !directPending &&
+        directSnapshot?.publicConfigSupported == true && configFlow == ConfigFlow.NONE && focusEditor == null && trialEditor == null && !directPending &&
         otaUpload == null && !otaVerificationPending && otaStatus?.state !in 1L..2L
 
     private fun requestConfigCapabilities() {
@@ -2186,6 +2191,7 @@ class MainActivity : Activity() {
         }
         refreshSelection()
         content.addView(expressions, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
+        page.settingsRow("在设备上限时试用", "指定时长，到期恢复；不更改默认", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "eye") { showExpressionTrial() }
         page.sectionTitle("专注与陪伴")
         page.settingsRow("专注计时", "由设备计时，手机可随时回读", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "spark") { showFocusTimer() }
         page.sectionTitle("声音与唤醒")
@@ -2296,6 +2302,66 @@ class MainActivity : Activity() {
                 }
             }
             refreshCompanionSheet?.invoke()
+        }
+    }
+
+    private fun showExpressionTrial() {
+        if (!configAvailable() || settingsEditor != null || factoryReset != null) return
+        showCompanionSheet("限时表情试用", "让她换个表情，陪你一小会儿。", onClosed = {
+            trialEditor?.close(); trialEditor = null
+        }) { body, _ ->
+            val page = CompanionPage(this, body)
+            val status = TextView(this).apply {
+                textSize = 16f; setTextColor(design.accent)
+                accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+            }
+            body.addView(status)
+            val expressions = android.widget.Spinner(this).apply {
+                contentDescription = "试用表情"
+                adapter = android.widget.ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item,
+                    listOf("日常", "开心", "害羞", "难过", "惊讶", "思考", "倾听", "说话", "晚安"))
+                setSelection(trialExpressionDraft)
+                onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+                    override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                        trialExpressionDraft = position
+                    }
+                    override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
+                }
+            }
+            body.addView(expressions, LinearLayout.LayoutParams(-1, dp(56)))
+            val seconds = EditText(this).apply {
+                hint = "试用秒数（例如 30）"; contentDescription = "试用秒数"
+                setText(trialSecondsDraft); setTextColor(design.ink)
+                inputType = android.text.InputType.TYPE_CLASS_NUMBER
+                addTextChangedListener(object : android.text.TextWatcher {
+                    override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                    override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                        trialSecondsDraft = s?.toString().orEmpty()
+                    }
+                    override fun afterTextChanged(s: android.text.Editable?) = Unit
+                })
+            }
+            body.addView(seconds, LinearLayout.LayoutParams(-1, -2))
+            page.notice("试用不设为默认。关闭此页或手机断开后，设备仍按时长结束；新的显示操作可能提前结束试用。")
+            val controls = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            body.addView(controls)
+            trialEditor = com.shaniu.companion.provision.ExpressionTrialController(directSession, changed = { state ->
+                val value = state.snapshot
+                status.text = state.message + (value?.remainingMs?.takeIf { value.state in 1..3 }?.let {
+                    "\n上次回读剩余 ${it / 1000} 秒"
+                } ?: "")
+                controls.removeAllViews()
+                val actions = CompanionPage(this, controls)
+                val ready = !state.busy && directSession.current().authenticated
+                actions.primaryButton("读取试用状态", ready) { trialEditor?.refresh() }
+                actions.primaryButton("开始试用", ready && value?.state in listOf(0, 6, 7, 8, 9)) {
+                    val count = seconds.text.toString().toLongOrNull()
+                    if (count == null || count !in 1L..4294967L) seconds.error = "请输入有效秒数"
+                    else trialEditor?.act(1, count * 1000, expressions.selectedItemPosition + 1)
+                }
+                actions.primaryButton("取消试用", ready && value?.state in listOf(1, 3, 4)) { trialEditor?.act(2) }
+            })
+            trialEditor?.refresh()
         }
     }
 
@@ -4017,6 +4083,8 @@ class MainActivity : Activity() {
     private val MUTED get() = design.muted
 
     override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString("trial_seconds_draft", trialSecondsDraft)
+        outState.putInt("trial_expression_draft", trialExpressionDraft)
         outState.putString("focus_minutes_draft", focusMinutesDraft)
         outState.putInt("navigation", currentTab)
         outState.putInt("expression_preview", expressionPreview)
