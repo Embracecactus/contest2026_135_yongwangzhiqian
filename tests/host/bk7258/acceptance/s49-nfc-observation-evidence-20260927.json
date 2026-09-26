@@ -1,0 +1,347 @@
+{
+  "slice": "S49",
+  "date": "2026-09-27",
+  "parent": "b0dfd40fa400986619bf6a3c49d9880e22f4f74d",
+  "counts": {
+    "PASS": 252,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 163,
+      "counts": {
+        "PASS": 163,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "mutations": [
+    {
+      "id": "watchdog-is-quiet",
+      "status": "DETECTED",
+      "exit_code": 1,
+      "sha256": "1bc55972530bd0d7dfc30fc97ca6c65f11348809b5f21ec42d1340ff72b081c8",
+      "restore": "PASS"
+    },
+    {
+      "id": "error-is-quiet",
+      "status": "DETECTED",
+      "exit_code": 1,
+      "sha256": "48258ded83b596ccd72d32579c80aa45562981eb6f30942051b7644e58853856",
+      "restore": "PASS"
+    }
+  ],
+  "existing_mutations": [
+    {
+      "id": "MSC-01.early-release",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.007728668977506459,
+      "source": "app/bk7258/bk7258_media_volume.c",
+      "original_sha256": "58ebb18ae63adccf21262253da18f153bbb7c680cc0b64719ca20e8a6d9681c8",
+      "mutant_sha256": "bf298373a95ac54d5587f93ece34a30a7f661a65a969c69db9e27c6570770c57",
+      "expected_assertion": "!mounted",
+      "evidence": "MSC-01.early-release.log"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.06412717700004578,
+      "source": "app/bk7258/bk7258_provision_config.c",
+      "original_sha256": "98f5100ca49ca44e45fe3e5da4bb2da0add7466f0e357a205ca8b1e307a5818e",
+      "mutant_sha256": "4c0c615b8ffc99247b0fd91bd934d3df0409a1180769cb939b2820f9e6f69427",
+      "expected_assertion": "bkcloud_config_decode",
+      "evidence": "CFG-01.wifi-clears-cloud.log"
+    }
+  ],
+  "sha256": {
+    "nuttx/drivers/contactless/mfrc522_rf.c": "6aadc163c5a5d981196ecf813693538f8cfd84cc74d7c8f8cc099e31d200e205",
+    "nuttx/include/nuttx/contactless/mfrc522_rf.h": "96593651dbade50a1f660be8c5e2b157d8a5528bf601ed7c34903ce744ac59e7",
+    "tests/host/bk7258/test_mfrc522_observation.py": "c73229727e27f3d57e5b617553b515d9e1fbf17065f673ebb4d7d62ef95e293b",
+    "tests/host/bk7258/test_mfrc522_deadline.py": "a07db00883448933d4c106a70bef86db07fce9629bab74727bbe2754da565fe7",
+    "tests/host/bk7258/test_mfrc522_rf.py": "a76f078ae9589eb5cf965bab41f722dd3b0690f9eccd885a095039cb5b3f16da",
+    "tests/host/bk7258/test_mfrc522_selection.py": "dadfa7fa0dbedeac683dc09ddb1150db7881d2bc0d8d509453d0f17d96cfc43a",
+    "tests/host/bk7258/test_shaniu_contracts.py": "b8729c45f03d18fe05ef968b904b32c5632438db5719bbcb1adbd624d61479b4",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "8c24ea656bfd61d0729c9f80333495b93376bee495b3969c3ab0080801340264"
+  },
+  "logs": {
+    "observation-final.log": {
+      "sha256": "7a0511b983282d78dae89d977f61b16589ea451ebacc7b75bdad1e0582222c8d",
+      "tail": [
+        "...........",
+        "----------------------------------------------------------------------",
+        "Ran 11 tests in 0.196s",
+        "",
+        "OK"
+      ]
+    },
+    "watchdog-is-quiet.log": {
+      "sha256": "9e6303c80220a837764d7538c41b973eddbce820d6d481b572cc165deda2b761",
+      "tail": [
+        "F",
+        "======================================================================",
+        "FAIL: test_watchdog (__main__.ObservationTest)",
+        "----------------------------------------------------------------------",
+        "Traceback (most recent call last):",
+        "  File \"/tmp/shaniu-observe-mutation-5yzug386/tests/host/bk7258/test_mfrc522_observation.py\", line 124, in test_watchdog",
+        "    def test_watchdog(self): self.run_case(\"watchdog\")",
+        "  File \"/tmp/shaniu-observe-mutation-5yzug386/tests/host/bk7258/test_mfrc522_observation.py\", line 121, in run_case",
+        "    self.assertEqual(result.returncode,0,result.stderr)",
+        "AssertionError: -6 != 0 : driver: /tmp/shaniu-nfc-observe-5ttbapuw/driver.c:514: main: Assertion `ret==(mode==1?-ESHUTDOWN:mode==2?0:mode==3||mode==6?-ETIMEDOUT:(mode==4||mode==10)?-EIO:-EPROTO)' failed.",
+        "",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.194s",
+        "",
+        "FAILED (failures=1)"
+      ]
+    },
+    "contracts.log": {
+      "sha256": "ab3a283dc3d5fe6409e60e69c92dfb3708f78528333fc3ee93d0adcb5f5d897a",
+      "tail": [
+        "STORE-02.restart-after-publish ... ok",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 192 tests in 11.681s",
+        "",
+        "OK",
+        "unittest.case.FunctionTestCase (run)",
+        "CFG-01.restored ... ok",
+        "unittest.case.FunctionTestCase (run)",
+        "MSC-01.restored ... ok",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 2 tests in 0.066s",
+        "",
+        "OK",
+        "{\"PASS\": 252, \"FAIL_ASSERTION\": 0, \"SETUP_ERROR\": 0, \"NOT_RUN\": 0} production_unchanged= True"
+      ]
+    },
+    "selection.log": {
+      "sha256": "acc85a36a70e993a351303fc128f1c311fe7e7859d63bf1e3615250b29c0d830",
+      "tail": [
+        "......",
+        "----------------------------------------------------------------------",
+        "Ran 6 tests in 0.177s",
+        "",
+        "OK"
+      ]
+    },
+    "error-is-quiet.log": {
+      "sha256": "cfbe9af0e64ef367a93232ee253d00e728ff4a8be5e6b8c25611ad25af2c5f6a",
+      "tail": [
+        "F",
+        "======================================================================",
+        "FAIL: test_residual_error (__main__.ObservationTest)",
+        "----------------------------------------------------------------------",
+        "Traceback (most recent call last):",
+        "  File \"/tmp/shaniu-observe-mutation-5yzug386/tests/host/bk7258/test_mfrc522_observation.py\", line 131, in test_residual_error",
+        "    def test_residual_error(self): self.run_case(\"residual-error\")",
+        "  File \"/tmp/shaniu-observe-mutation-5yzug386/tests/host/bk7258/test_mfrc522_observation.py\", line 121, in run_case",
+        "    self.assertEqual(result.returncode,0,result.stderr)",
+        "AssertionError: -6 != 0 : driver: /tmp/shaniu-nfc-observe-xm629ll6/driver.c:514: main: Assertion `ret==(mode==1?-ESHUTDOWN:mode==2?0:mode==3||mode==6?-ETIMEDOUT:(mode==4||mode==10)?-EIO:-EPROTO)' failed.",
+        "",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.196s",
+        "",
+        "FAILED (failures=1)"
+      ]
+    },
+    "deadline.log": {
+      "sha256": "320c38142f142b8cc35bcd5813d3f50c32da52e1b85c374cc59839c1424b9578",
+      "tail": [
+        "........",
+        "----------------------------------------------------------------------",
+        "Ran 8 tests in 0.184s",
+        "",
+        "OK"
+      ]
+    },
+    "mutation-restore.log": {
+      "sha256": "3cb9e54f220d5a3a0bd00366d7569312a7d296135d641616d736164bded60789",
+      "tail": [
+        "...........",
+        "----------------------------------------------------------------------",
+        "Ran 11 tests in 0.199s",
+        "",
+        "OK"
+      ]
+    },
+    "observation.log": {
+      "sha256": "dba06026013b420c9d1050c694f28c9fb46fa05731bc55a6fc3c61732dcbf4d3",
+      "tail": [
+        "E",
+        "======================================================================",
+        "ERROR: setUpClass (__main__.ObservationTest)",
+        "----------------------------------------------------------------------",
+        "Traceback (most recent call last):",
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_mfrc522_observation.py\", line 25, in setUpClass",
+        "    expanded = needed | set(re.findall(r\"\\b(?:MFRC522|PICC)_\\w+\", \"\\n\".join(definitions[n] for n in needed)))",
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_mfrc522_observation.py\", line 25, in <genexpr>",
+        "    expanded = needed | set(re.findall(r\"\\b(?:MFRC522|PICC)_\\w+\", \"\\n\".join(definitions[n] for n in needed)))",
+        "KeyError: 'PICC_TYPE_NOT_COMPLETE'",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 0 tests in 0.002s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "interface-missing.log": {
+      "sha256": "00fbd3d790252f558d59dc21e3b3d20c1254753d41d622ed8ce934a90f7654f1",
+      "tail": [
+        "======================================================================",
+        "ERROR: setUpClass (__main__.ObservationTest)",
+        "----------------------------------------------------------------------",
+        "Traceback (most recent call last):",
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_mfrc522_observation.py\", line 18, in setUpClass",
+        "    functions = \"\\n\".join(extract_function(source, name) for name in",
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_mfrc522_observation.py\", line 18, in <genexpr>",
+        "    functions = \"\\n\".join(extract_function(source, name) for name in",
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_mfrc522_read_errors.py\", line 14, in extract_function",
+        "    start = source.rindex(marker)",
+        "ValueError: substring not found",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 0 tests in 0.001s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "residual-before.log": {
+      "sha256": "ba32383b2d9cbe49dac9b17924304741d89f5ba108909f47c115fb91a5bc2459",
+      "tail": [
+        "      |                                                          ^~~~~~~~~~~~~~~~~~",
+        "E",
+        "======================================================================",
+        "ERROR: setUpClass (__main__.ObservationTest)",
+        "----------------------------------------------------------------------",
+        "Traceback (most recent call last):",
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_mfrc522_observation.py\", line 117, in setUpClass",
+        "    subprocess.run([\"cc\",\"-std=c11\",\"-Wall\",\"-Wextra\",\"-Werror\",\"-fsanitize=undefined\",",
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-fsanitize=undefined', '-fno-sanitize-recover=all', '/tmp/shaniu-nfc-observe-7h04ob7q/driver.c', '-o', '/tmp/shaniu-nfc-observe-7h04ob7q/driver']' returned non-zero exit status 1.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 0 tests in 0.055s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "verify-manifest.log": {
+      "sha256": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac",
+      "tail": [
+        "bk7258 verify build-manifest: PASS boot=mcuboot board=aidk_ai_toy layout=bk7258-510173147382a879 source=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    },
+    "rf.log": {
+      "sha256": "7de716788aef921bff6df0b2fbc0560da1717b0faadc5c99d163cda86aeacf03",
+      "tail": [
+        "....",
+        "----------------------------------------------------------------------",
+        "Ran 4 tests in 0.166s",
+        "",
+        "OK"
+      ]
+    },
+    "build-target.log": {
+      "sha256": "45f3943bd01b9a81949ae2bba76598ad15c3ba872366efd2b86e8b0f484d5b6d",
+      "tail": [
+        "[8/15] Linking CXX static library apps/libapps.a",
+        "[9/15] Performing build step for 'ffmpeg_out_tree'",
+        "[10/15] Performing install step for 'ffmpeg_out_tree'",
+        "[11/15] Completed 'ffmpeg_out_tree'",
+        "[12/15] Linking CXX executable nuttx",
+        "[13/15] Generating System.map",
+        "[14/15] Generating nuttx.bin",
+        "",
+        "#### build completed successfully (1 seconds) ####",
+        "bk7258 layer gate: PASS sources=528 kconfig=253 legacy-exceptions=2",
+        "bk7258 build: PASS layout=bk7258-510173147382a879",
+        "bl1 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.map",
+        "bl2 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.map copy_size=13632",
+        "cp elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.map identity=bk7258-role-9a0b5b6e466d063f seed=41811cb113e14cd5ce35630f0a6d42f0d32f88a10c512bb971734bce9a28c016 config=dd503376e1b5436c9221274dc5a9ff86bf2e49660dfad4d306292e1113d82bed",
+        "ap elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.map identity=bk7258-role-5a3061a4da19ae9f seed=9507a2073a35e2970300a150395dc4d8c48458a68cb24412497ab54c714a7fec config=4e73b6c67a5176a8136b7c46a43c46329f7ef19e5ec74e626937d64bdeddfcee",
+        "build manifest=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    },
+    "residual-wired.log": {
+      "sha256": "a8b773b2ceb22885810609f8aa98986a508a706af0fbc246e6e0a09142c1116c",
+      "tail": [
+        ".......F...",
+        "======================================================================",
+        "FAIL: test_residual_error (__main__.ObservationTest)",
+        "----------------------------------------------------------------------",
+        "Traceback (most recent call last):",
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_mfrc522_observation.py\", line 131, in test_residual_error",
+        "    def test_residual_error(self): self.run_case(\"residual-error\")",
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_mfrc522_observation.py\", line 121, in run_case",
+        "    self.assertEqual(result.returncode,0,result.stderr)",
+        "AssertionError: -6 != 0 : driver: /tmp/shaniu-nfc-observe-si0_h7zi/driver.c:513: main: Assertion `ret==(mode==1?-ESHUTDOWN:mode==2?0:mode==3||mode==6?-ETIMEDOUT:(mode==4||mode==10)?-EIO:-EPROTO)' failed.",
+        "",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 11 tests in 0.249s",
+        "",
+        "FAILED (failures=1)"
+      ]
+    },
+    "observation-wired.log": {
+      "sha256": "d7d21a25a0e23219678505675f249d7c115f32f95e74c9fcc5dcb58e0f66791b",
+      "tail": [
+        "..........",
+        "----------------------------------------------------------------------",
+        "Ran 10 tests in 0.278s",
+        "",
+        "OK"
+      ]
+    }
+  },
+  "test_first": {
+    "interface-missing.log": "BLOCKED_INTERFACE",
+    "observation.log": "SETUP_ERROR enum constant absent in fixture",
+    "residual-before.log": "SETUP_ERROR ioctl macro extraction",
+    "residual-wired.log": "FAIL_ASSERTION residual error cannot be quiet",
+    "observation-final.log": "11 PASS"
+  },
+  "layers": {
+    "L1": "Actual ioctl/observation/comm functions; external register bus/clock/selection result",
+    "L2": "Worker caller and scene path NOT_IMPLEMENTED",
+    "target": "Active RF driver build/manifest PASS",
+    "L3": "NOT_RUN"
+  },
+  "semantics": "present=0 only reports successful REQA hardware no-response with zero errors, not guaranteed physical absence; no negative outcome silently converted except explicitly qualified hardware REQA deadline",
+  "remaining": [
+    "worker-owned RF observation path",
+    "freshness and admission under cancel/stop",
+    "automatic scan schedule and binding startup load",
+    "physical false absence/voice coexistence",
+    "autonomous card-to-focus acceptance"
+  ],
+  "physical_actions": []
+}

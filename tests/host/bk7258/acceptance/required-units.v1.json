@@ -241,7 +241,18 @@
     "NFC-01.deadline-comm_wrap",
     "NFC-01.deadline-comm_success",
     "NFC-01.deadline-hardware",
-    "NFC-01.deadline-protocol"
+    "NFC-01.deadline-protocol",
+    "NFC-01.observe-off",
+    "NFC-01.observe-quiet",
+    "NFC-01.observe-watchdog",
+    "NFC-01.observe-timer_error",
+    "NFC-01.observe-partial",
+    "NFC-01.observe-selection_timeout",
+    "NFC-01.observe-invalid_uid",
+    "NFC-01.observe-collision",
+    "NFC-01.observe-present",
+    "NFC-01.observe-residual_error",
+    "NFC-01.observe-null"
   ],
   "baseline_ids": [
     "K2-01.release-2999",

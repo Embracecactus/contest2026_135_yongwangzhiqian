@@ -33,6 +33,7 @@ class RfDriverTest(unittest.TestCase):
 #define MFRC522_TX1_RF_EN 1
 #define MFRC522_TX2_RF_EN 2
 #define MFRC522IOC_SET_RF 0x240f
+#define MFRC522IOC_OBSERVE 0x2410
 #define MFRC522IOC_GET_PICC_UID 0x2401
 #define MFRC522IOC_GET_STATE 0x2402
 #define CLIOC_READ_MIFARE_DATA 0x240c
@@ -41,6 +42,8 @@ class RfDriverTest(unittest.TestCase):
 #define MFRC522_STATE_IDLE 1
 struct spi_dev_s { int unused; };
 struct mfrc522_dev_s { struct spi_dev_s *spi; int state; };
+struct mfrc522_observation_s;
+static int mfrc522_observe(struct mfrc522_dev_s *d, struct mfrc522_observation_s *o) {(void)d;(void)o;abort();}
 struct inode { void *i_private; };
 struct file { struct inode *f_inode; };
 struct picc_uid_s { uint8_t size, uid_data[10], sak; };

@@ -412,10 +412,11 @@ int mfrc522_calc_crc(FAR struct mfrc522_dev_s *dev, uint8_t *buffer,
  *
  ****************************************************************************/
 
-int mfrc522_comm_picc(FAR struct mfrc522_dev_s *dev, uint8_t command,
+static int mfrc522_comm_picc_ex(FAR struct mfrc522_dev_s *dev, uint8_t command,
                       uint8_t waitirq, uint8_t *send_data, uint8_t send_len,
                       uint8_t *back_data, uint8_t *back_len,
-                      uint8_t *validbits, uint8_t rxalign, bool checkcrc)
+                      uint8_t *validbits, uint8_t rxalign, bool checkcrc,
+                      bool *no_response)
 {
   int ret;
   uint8_t errors;
@@ -423,6 +424,8 @@ int mfrc522_comm_picc(FAR struct mfrc522_dev_s *dev, uint8_t command,
   uint8_t value;
   struct timespec tstart;
   struct timespec tend;
+
+  if (no_response != NULL) *no_response = false;
 
   /* Prepare values for BitFramingReg */
 
@@ -497,6 +500,16 @@ int mfrc522_comm_picc(FAR struct mfrc522_dev_s *dev, uint8_t command,
 
       if (irqsreg & MFRC522_TIMER_IRQ)
         {
+          /* 错误与定时器同时出现不能当作射频无响应。旧调用保持错误语义。 */
+          if (no_response != NULL)
+            {
+              errors = mfrc522_readu8(dev, MFRC522_ERROR_REG);
+              if (errors & MFRC522_PROTO_ERR) return -EPROTO;
+              if (errors & (MFRC522_PARITY_ERR | MFRC522_BUF_OVFL_ERR)) return -EIO;
+              if (errors & MFRC522_COLL_ERR) return -EBUSY;
+              if (errors != 0) return -EIO;
+              *no_response = true;
+            }
           return -ETIMEDOUT;
         }
 
@@ -607,6 +620,17 @@ int mfrc522_comm_picc(FAR struct mfrc522_dev_s *dev, uint8_t command,
     }
 
   return OK;
+}
+
+/* 旧接口保留返回契约；无响应细分只供显式观察接口使用。 */
+int mfrc522_comm_picc(FAR struct mfrc522_dev_s *dev, uint8_t command,
+                      uint8_t waitirq, uint8_t *send_data, uint8_t send_len,
+                      uint8_t *back_data, uint8_t *back_len,
+                      uint8_t *validbits, uint8_t rxalign, bool checkcrc)
+{
+  return mfrc522_comm_picc_ex(dev, command, waitirq, send_data, send_len,
+                             back_data, back_len, validbits, rxalign,
+                             checkcrc, NULL);
 }
 
 /****************************************************************************
@@ -1570,6 +1594,40 @@ static int mfrc522_set_rf(FAR struct mfrc522_dev_s *dev, unsigned long enabled)
  * Name: mfrc522_ioctl
  ****************************************************************************/
 
+/* 单一读卡所有者调用。这里只记录本轮REQA结果，不推断物理距离。 */
+static int mfrc522_observe(FAR struct mfrc522_dev_s *dev,
+                           FAR struct mfrc522_observation_s *observation)
+{
+  if (observation == NULL) return -EINVAL;
+  memset(observation, 0, sizeof(*observation));
+  uint8_t field = MFRC522_TX1_RF_EN | MFRC522_TX2_RF_EN;
+  if ((mfrc522_readu8(dev, MFRC522_TX_CTRL_REG) & field) != field)
+    return -ESHUTDOWN;
+  uint8_t command = PICC_CMD_REQA;
+  uint8_t atqa[2] = {0};
+  uint8_t length = sizeof(atqa);
+  uint8_t bits = 7;
+  bool quiet = false;
+  uint8_t coll = mfrc522_readu8(dev, MFRC522_COLL_REG);
+  mfrc522_writeu8(dev, MFRC522_COLL_REG, coll & MFRC522_VALUES_AFTER_COLL);
+  int ret = mfrc522_comm_picc_ex(dev, MFRC522_TRANSCV_CMD,
+                                MFRC522_RX_IRQ | MFRC522_IDLE_IRQ,
+                                &command, 1, atqa, &length, &bits, 0, false,
+                                &quiet);
+  if (ret == -ETIMEDOUT && quiet) return 0;
+  if (ret != 0 && ret != -EBUSY) return ret;
+  if (ret == 0 && (length != 2 || bits != 0)) return -EPROTO;
+  struct picc_uid_s selected = {0};
+  ret = mfrc522_picc_select(dev, &selected, 0);
+  if (ret < 0) return ret;
+  if (ret != 0 || (selected.sak & PICC_TYPE_NOT_COMPLETE) ||
+      (selected.size != 4 && selected.size != 7 && selected.size != 10))
+    return -EPROTO;
+  observation->uid = selected;
+  observation->present = 1;
+  return 0;
+}
+
 static int mfrc522_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 {
   FAR struct inode *inode;
@@ -1583,6 +1641,10 @@ static int mfrc522_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
   switch (cmd)
     {
+      case MFRC522IOC_OBSERVE:
+        ret = mfrc522_observe(dev, (FAR struct mfrc522_observation_s *)arg);
+        break;
+
       case MFRC522IOC_SET_RF:
         {
           ret = mfrc522_set_rf(dev, arg);

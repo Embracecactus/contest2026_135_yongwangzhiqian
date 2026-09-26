@@ -1434,3 +1434,38 @@ S47's scene still has no production worker caller. Distinguishing failed selecti
 reader watchdog and a trustworthy no-response observation, admission/cancellation,
 autonomous loading and card-to-focus L3 remain required. No physical action performed.
 See `acceptance/s48-20260927.json` and `s48-nfc-deadline-evidence-20260927.json`.
+
+
+## S49 — explicit RF observation without conflating failures with absence
+
+MFRC522IOC_OBSERVE (_CLIOC(0x0010), local driver ABI) accepts a writable observation.
+It requires TX1/TX2 control readback enabled and never enables RF itself. On success,
+present=1 carries a complete selected UID. Success/present=0 means REQA reached the
+hardware timer with a zero error register, not physical proof a card moved. Software
+watchdog, malformed ATQA, selection timeout and RF errors remain negative/unknown;
+output is zero on every failure. Collision can proceed through normal anticollision
+selection. No new wire/schema for BLE, no UID export to the App.
+
+The existing communication API is a wrapper passing no observation output; old
+GET_PICC_UID and generic timer return semantics are retained. A shared real helper
+collects the optional REQA timeout evidence. Eleven tests execute the production
+ioctl, observation and communication/CRC function bodies, replacing only bus/clock
+and the external selected-card result. The selection algorithm itself is not proved
+by this fixture. Existing RF/selection suites retain their cases and an aborting
+stub for their unexercised new ioctl; the new suite invokes the actual route.
+The S48 suite now follows the real wrapper into the helper, retaining all8 oracles.
+
+Missing API was BLOCKED_INTERFACE; enum/ioctl macro extraction setup errors are kept
+separately. The added residual-error test initially failed: hardware timer plus CRC
+error incorrectly appeared quiet. Requiring a zero residual error register fixes it.
+All11 pass; isolated software-timeout-as-quiet and omitted-error-check mutations
+fail then restore. Strict252 PASS include original63 unchanged. AP build and manifest
+verified. Stack-only bounded observations add no heap/thread/polling; actual stack,
+RF behavior, bus stalls and voice coexistence remain unmeasured. The original200ms
+software watchdog and hardware timer programming remain unchanged.
+
+NFC worker does not call this ioctl yet. It must hold RF/I/O ownership until release,
+reject shutdown/racing jobs, load authoritative bindings and feed only fresh results
+to the shared scene. Automatic scan timing and physical false absence need separate
+validation before claiming autonomous card-to-focus. No board flash/reset/scan was
+performed. See `acceptance/s49-20260927.json` and `s49-nfc-observation-evidence-20260927.json`.

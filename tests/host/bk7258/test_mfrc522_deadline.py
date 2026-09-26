@@ -16,7 +16,7 @@ class DeadlineTest(unittest.TestCase):
         cls.addClassCleanup(cls.tmp.cleanup)
         source = (ROOT / "nuttx/drivers/contactless/mfrc522_rf.c").read_text()
         functions = "\n".join(extract_function(source, name) for name in
-                             ("int mfrc522_calc_crc(", "int mfrc522_comm_picc("))
+                             ("int mfrc522_calc_crc(", "static int mfrc522_comm_picc_ex(", "int mfrc522_comm_picc("))
         header = (ROOT / "nuttx/drivers/contactless/mfrc522.h").read_text()
         definitions = {m.group(1): m.group(0) for m in re.finditer(
             r"^#\s*define\s+(MFRC522_\w+)\s+[^\n]+", header, re.M)}
