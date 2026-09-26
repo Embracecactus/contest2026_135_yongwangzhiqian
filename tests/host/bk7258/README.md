@@ -1337,3 +1337,35 @@ same compiled mutant fail. The corrected test and restored production pass;
 operation-correlation mutation also fails and restores. No business rule changed.
 Final strict rerun remains226 PASS; runner gate12 PASS. Initial and final mutation
 results/logs are separately retained in S45 evidence.
+
+
+## S46 — native NFC binding sheet and preserved drafts
+
+MainActivity now exposes the existing authenticated NCF1/NCS1 controller through
+native Canva components. Explicit load, enrollment, confirmed single-slot removal,
+status and targeted job cancellation keep the controller's actual result semantics.
+Unknown device state disables mutations; closing releases the subscription/staging,
+not an accepted device job. The page explicitly says automatic card-to-focus is
+not available. No new connection, worker, polling, dependency or default resource.
+
+`nfc_draft_probe=1` runs actual Views with synthetic admission and no BLE. It checks
+20 navigation rounds, Activity recreation, minutes/slot retention, disabled unknown
+mutations, input touch size, keyboard visibility and reachable bottom action. First
+missing method is BLOCKED_INTERFACE, not business Red. Three subsequent actual
+Reds found asynchronous Spinner selection lost at close, TextView minimum height
+reset by numeric input type, and large-font keyboard clipping. Capture at close/save,
+View.minimumHeight and parent-constrained sheet measurement fix these respectively;
+no assertion/threshold was relaxed. Shared sheets use resize for the IME.
+
+Final profiles: 360dp light/100% and 412dp dark/200%, with emulator size/density/font/
+night restored afterwards. Related focus/expression sheet probes are separately
+recorded. Strict226 PASS retain all original63 and two mutation/restoration pairs;
+UI scenarios/rounds are not silently added to that denominator. Debug APK/test APK
+builds are not release signing or physical acceptance. See `acceptance/s46-20260927.json`
+and `s46-native-nfc-ui-evidence-20260927.json` for logs, hashes and statuses.
+
+Interface: native page is wired; L1/L2 controller/session peer coverage remains
+available. Automatic dwell/reentry/scene dispatch is NOT_IMPLEMENTED; actual card,
+phone BLE, RF/audio coexistence and physical stop are NOT_RUN at L3. Actual UI memory,
+CPU and response percentiles are unmeasured; finite eight slots and stable View
+instances add no polling or persistent worker. This is not 56 requirements passed.

@@ -222,6 +222,10 @@ class MainActivity : Activity() {
     private var trialSecondsDraft = ""
     private var trialExpressionDraft = 0
     private var trialEditor: com.shaniu.companion.provision.ExpressionTrialController? = null
+    private var nfcMinutesDraft = "25"
+    private var nfcSlotDraft = 0
+    private var nfcDraftCapture: (() -> Unit)? = null
+    private var nfcEditor: com.shaniu.companion.provision.NfcBindingController? = null
     private var focusMinutesDraft = "25"
     private var focusEditor: com.shaniu.companion.provision.FocusTimerController? = null
     private var settingsEditor: com.shaniu.companion.provision.DeviceSettingsEditor? = null
@@ -277,6 +281,8 @@ class MainActivity : Activity() {
         trialSecondsDraft = savedInstanceState?.getString("trial_seconds_draft") ?: ""
         trialExpressionDraft = (savedInstanceState?.getInt("trial_expression_draft", 0) ?: 0).coerceIn(0, 8)
         focusMinutesDraft = savedInstanceState?.getString("focus_minutes_draft") ?: "25"
+        nfcMinutesDraft = savedInstanceState?.getString("nfc_minutes_draft") ?: "25"
+        nfcSlotDraft = (savedInstanceState?.getInt("nfc_slot_draft", 0) ?: 0).coerceIn(0, 7)
         expressionPreview = savedInstanceState?.getInt("expression_preview", 0) ?: 0
         updateResources = savedInstanceState?.getBoolean("update_resources", false) ?: false
         resourcesBackTab = savedInstanceState?.getInt("resources_back_tab", TAB_PERSONALITY) ?: TAB_PERSONALITY
@@ -761,7 +767,7 @@ class MainActivity : Activity() {
         foreground && directSession.requestPayload(command, payload)
 
     private fun configAvailable(): Boolean = foreground && directSession.current().authenticated &&
-        directSnapshot?.publicConfigSupported == true && configFlow == ConfigFlow.NONE && focusEditor == null && trialEditor == null && !directPending &&
+        directSnapshot?.publicConfigSupported == true && configFlow == ConfigFlow.NONE && focusEditor == null && trialEditor == null && nfcEditor == null && !directPending &&
         otaUpload == null && !otaVerificationPending && otaStatus?.state !in 1L..2L
 
     private fun requestConfigCapabilities() {
@@ -2194,6 +2200,7 @@ class MainActivity : Activity() {
         page.settingsRow("在设备上限时试用", "指定时长，到期恢复；不更改默认", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "eye") { showExpressionTrial() }
         page.sectionTitle("专注与陪伴")
         page.settingsRow("专注计时", "由设备计时，手机可随时回读", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "spark") { showFocusTimer() }
+        page.settingsRow("专注卡片", "登记卡片与专注时长", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "spark") { showNfcBindings() }
         page.sectionTitle("声音与唤醒")
         val currentWake = wakeStatus.takeIf { wakeStatusGeneration == directSession.current().generation && directSession.current().authenticated }
         page.settingsRow(currentWake?.active?.let(::wakeModelSummary) ?: "当前唤醒词", if (currentWake == null) "连接后回读设备当前模型" else "设备当前唤醒模型", iconName = "mic") { showWakeSheet() }
@@ -2413,6 +2420,100 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun showNfcBindings() {
+        if (!configAvailable() || settingsEditor != null || factoryReset != null) return
+        showCompanionSheet("专注卡片", "把卡片和想专注的时间放在一起。", done = false, onClosed = {
+            nfcDraftCapture?.invoke(); nfcDraftCapture = null
+            nfcEditor?.close(); nfcEditor = null
+        }) { body, dialog ->
+            val page = CompanionPage(this, body)
+            val status = TextView(this).apply {
+                textSize = 16f; setTextColor(design.accent)
+                accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+            }
+            body.addView(status)
+            page.sectionTitle("保存位置")
+            var selectionChanged: (() -> Unit)? = null
+            val slots = android.widget.Spinner(this).apply {
+                contentDescription = "卡片保存位置"; minimumHeight = dp(56)
+                adapter = android.widget.ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item,
+                    (1..8).map { "卡片 $it" })
+                setSelection(nfcSlotDraft)
+                onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+                    override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                        nfcSlotDraft = position; selectionChanged?.invoke()
+                    }
+                    override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
+                }
+            }
+            body.addView(slots, LinearLayout.LayoutParams(-1, -2))
+            page.sectionTitle("专注分钟数")
+            val minutes = EditText(this).apply {
+                contentDescription = "卡片专注分钟数"; hint = "例如 25"; setText(nfcMinutesDraft)
+                textSize = 16f; minimumHeight = dp(56); setTextColor(design.ink)
+                inputType = android.text.InputType.TYPE_CLASS_NUMBER
+                addTextChangedListener(object : android.text.TextWatcher {
+                    override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                    override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { nfcMinutesDraft = s?.toString().orEmpty() }
+                    override fun afterTextChanged(s: android.text.Editable?) = Unit
+                })
+            }
+            body.addView(minutes, LinearLayout.LayoutParams(-1, -2))
+            nfcDraftCapture = { nfcMinutesDraft = minutes.text.toString(); nfcSlotDraft = slots.selectedItemPosition.coerceIn(0, 7) }
+            val saved = TextView(this).apply { textSize = 14f; setTextColor(design.ink); setPadding(0, dp(12), 0, dp(8)) }
+            body.addView(saved)
+            page.notice("将兼容卡片贴近傻妞，再点登记；一次只放一张。此版本可保存绑定，刷卡自动开始专注尚未开放。关闭页面不会取消设备已受理的作业。")
+            fun button(label: String, primary: Boolean = false, action: () -> Unit): com.google.android.material.button.MaterialButton {
+                page.primaryButton(label, false, action)
+                return (body.getChildAt(body.childCount - 1) as com.google.android.material.button.MaterialButton).apply {
+                    if (!primary) { setTextColor(design.ink); backgroundTintList = android.content.res.ColorStateList.valueOf(design.selected) }
+                }
+            }
+            val reload = button("读取设备状态") { nfcEditor?.refresh() }
+            val load = button("加载已保存卡片") { nfcEditor?.act(1) }
+            val enroll = button("登记当前卡片", true) {
+                val count = minutes.text.toString().toLongOrNull()
+                if (count == null || count <= 0 || count > Long.MAX_VALUE / 60000) {
+                    minutes.error = "请输入有效分钟数"; minutes.requestFocus()
+                } else { minutes.error = null; nfcEditor?.act(2, slots.selectedItemPosition, count * 60000) }
+            }
+            val remove = button("删除此卡绑定") {
+                val slot = slots.selectedItemPosition
+                android.app.AlertDialog.Builder(this)
+                    .setTitle("删除卡片 ${slot + 1} 的绑定？")
+                    .setMessage("只删除这个保存位置，其他卡片不受影响。")
+                    .setNegativeButton("保留", null)
+                    .setPositiveButton("删除绑定") { _, _ -> nfcEditor?.act(3, slot) }.show()
+            }
+            selectionChanged = {
+                val state = nfcEditor?.current()
+                val value = state?.snapshot
+                remove.isEnabled = state?.busy == false && directSession.current().authenticated &&
+                    value?.phase == 4 && value.durations[slots.selectedItemPosition] > 0
+                remove.alpha = if (remove.isEnabled) 1f else 0.45f
+            }
+            val cancel = button("取消设备作业") { nfcEditor?.act(4) }
+            button("返回") { dialog.dismiss() }.apply { isEnabled = true; alpha = 1f }
+            nfcEditor = com.shaniu.companion.provision.NfcBindingController(directSession) { state ->
+                val value = state.snapshot
+                status.text = state.message
+                saved.text = if (value?.phase == 4) value.durations.mapIndexed { index, duration ->
+                    "卡片 ${index + 1}：" + if (duration == 0L) "未登记" else "${duration / 1000} 秒"
+                }.joinToString("\n") else "已保存卡片：尚未确认，请加载并回读"
+                val ready = !state.busy && directSession.current().authenticated
+                val terminal = value != null && value.phase in listOf(0, 4, 5, 6)
+                fun enable(view: View, enabled: Boolean) { view.isEnabled = enabled; view.alpha = if (enabled) 1f else 0.45f }
+                enable(reload, ready)
+                enable(load, ready && terminal)
+                enable(enroll, ready && terminal && value?.phase != 0)
+                enable(remove, ready && value?.phase == 4 && value.durations[slots.selectedItemPosition] > 0)
+                enable(cancel, ready && value?.phase in 1..2)
+                enroll.backgroundTintList = android.content.res.ColorStateList.valueOf(design.accent)
+            }
+            nfcEditor?.refresh()
+        }
+    }
+
     private fun dismissCompanionSheet() {
         val previous = companionSheet
         companionSheet = null; refreshCompanionSheet = null
@@ -2445,8 +2546,11 @@ class MainActivity : Activity() {
         if (done) CompanionPage(this, body).primaryButton("完成", true) { dialog.dismiss() }
         val scroll = object : ScrollView(this) {
             override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-                super.onMeasure(widthMeasureSpec, View.MeasureSpec.makeMeasureSpec(
-                    dp((resources.configuration.screenHeightDp - 48).coerceAtLeast(160)), View.MeasureSpec.AT_MOST))
+                val screenLimit = dp((resources.configuration.screenHeightDp - 48).coerceAtLeast(160))
+                // 键盘缩小窗口时遵守父布局约束，不能继续按全屏高度测量。
+                val available = if (View.MeasureSpec.getMode(heightMeasureSpec) == View.MeasureSpec.UNSPECIFIED)
+                    screenLimit else minOf(screenLimit, View.MeasureSpec.getSize(heightMeasureSpec))
+                super.onMeasure(widthMeasureSpec, View.MeasureSpec.makeMeasureSpec(available, View.MeasureSpec.AT_MOST))
             }
         }.apply { isFillViewport = false; addView(body); clipToOutline = true }
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
@@ -2455,6 +2559,7 @@ class MainActivity : Activity() {
             setBackgroundDrawable(design.shape(design.background, dp(30).toFloat()))
             setGravity(Gravity.BOTTOM); addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
             setDimAmount(0.32f)
+            setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         }
         dialog.setOnDismissListener {
             onClosed()
@@ -4083,9 +4188,12 @@ class MainActivity : Activity() {
     private val MUTED get() = design.muted
 
     override fun onSaveInstanceState(outState: Bundle) {
+        nfcDraftCapture?.invoke()
         outState.putString("trial_seconds_draft", trialSecondsDraft)
         outState.putInt("trial_expression_draft", trialExpressionDraft)
         outState.putString("focus_minutes_draft", focusMinutesDraft)
+        outState.putString("nfc_minutes_draft", nfcMinutesDraft)
+        outState.putInt("nfc_slot_draft", nfcSlotDraft)
         outState.putInt("navigation", currentTab)
         outState.putInt("expression_preview", expressionPreview)
         outState.putBoolean("update_resources", updateResources)

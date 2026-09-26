@@ -231,6 +231,138 @@ internal object DeviceUiAcceptance {
         }
     }
 
+    /** UI-02 focus draft navigation. Synthetic admission only; no transport. */
+    fun runNfcDraft(instrumentation: Instrumentation) {
+        check(android.os.Build.FINGERPRINT.contains("generic") || android.os.Build.MODEL.contains("sdk")) {
+            "NFC draft fixture is emulator-only"
+        }
+        var activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
+        fun field(name: String) = MainActivity::class.java.getDeclaredField(name).apply { isAccessible = true }
+        val session = MainActivity::class.java.getDeclaredMethod("getDirectSession").apply { isAccessible = true }
+            .invoke(activity) as DeviceControlSession
+        val state = DeviceControlSession::class.java.getDeclaredField("state").apply { isAccessible = true }
+        val show = MainActivity::class.java.getDeclaredMethod("showNfcBindings").apply { isAccessible = true }
+        try {
+            repeat(20) { round ->
+                onUi(instrumentation) {
+                    state.set(session, DeviceControlSession.State(
+                        connection = DeviceControlSession.Connection.CONNECTED, authenticated = true,
+                        snapshotFresh = true, snapshot = DeviceControlProtocol.Snapshot(
+                            0, true, false, 50, 0, 0, 0, publicConfigSupported = true)))
+                    show.invoke(activity)
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    val dialog = checkNotNull(field("companionSheet").get(activity) as? android.app.Dialog)
+                    val root = checkNotNull(dialog.window).decorView
+                    val input = checkNotNull(findView(root) { it.contentDescription == "卡片专注分钟数" } as? EditText)
+                    check(input.text.toString() == if (round == 0) "25" else "47") {
+                        "NFC-02.card-draft: navigation lost minutes at round $round"
+                    }
+                    input.setText("47")
+                    val slots = checkNotNull(findView(root) { it.contentDescription == "卡片保存位置" } as? android.widget.Spinner)
+                    check(slots.selectedItemPosition == if (round == 0) 0 else 3) { "NFC-02.card-draft: slot lost" }
+                    slots.setSelection(3)
+
+                    // Synthetic authentication without a transport cannot confirm timer state.
+                    listOf("登记当前卡片", "删除此卡绑定", "取消设备作业").forEach { label ->
+                        check(findView(root) { it is TextView && it.text.toString() == label }?.isEnabled == false)
+                    }
+                    dialog.dismiss()
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    check(field("nfcEditor").get(activity) == null)
+                }
+            }
+            val monitor = ActivityMonitor(MainActivity::class.java.name, null, false)
+            instrumentation.addMonitor(monitor)
+            try {
+                onUi(instrumentation) { activity.recreate() }
+                activity = checkNotNull(monitor.waitForActivityWithTimeout(5000) as? MainActivity) {
+                    "NFC-02.card-draft: recreated Activity not observed"
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    check(field("companionSheet").get(activity) == null) { "Recreation reopened a device operation" }
+                    val restoredSession = MainActivity::class.java.getDeclaredMethod("getDirectSession")
+                        .apply { isAccessible = true }.invoke(activity) as DeviceControlSession
+                    state.set(restoredSession, DeviceControlSession.State(
+                        connection = DeviceControlSession.Connection.CONNECTED, authenticated = true,
+                        snapshotFresh = true, snapshot = DeviceControlProtocol.Snapshot(
+                            0, true, false, 50, 0, 0, 0, publicConfigSupported = true)))
+                    show.invoke(activity)
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    val dialog = checkNotNull(field("companionSheet").get(activity) as? android.app.Dialog)
+                    val input = checkNotNull(findView(checkNotNull(dialog.window).decorView) {
+                        it.contentDescription == "卡片专注分钟数"
+                    } as? EditText)
+                    check(input.text.toString() == "47") { "NFC-02.card-draft: recreation lost minutes" }
+                    val slots = checkNotNull(findView(checkNotNull(dialog.window).decorView) { it.contentDescription == "卡片保存位置" } as? android.widget.Spinner)
+                    check(slots.selectedItemPosition == 3) { "NFC-02.card-draft: recreation lost slot" }
+                    input.requestFocus()
+                    (activity.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+                        .showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
+                }
+                instrumentation.waitForIdleSync()
+                Thread.sleep(600)
+                onUi(instrumentation) {
+                    val dialog = checkNotNull(field("companionSheet").get(activity) as? android.app.Dialog)
+                    val root = checkNotNull(dialog.window).decorView
+                    val input = checkNotNull(findView(root) { it.contentDescription == "卡片专注分钟数" } as? EditText)
+                    input.requestRectangleOnScreen(Rect(0, 0, input.width, input.height), true)
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    val dialog = checkNotNull(field("companionSheet").get(activity) as? android.app.Dialog)
+                    val root = checkNotNull(dialog.window).decorView
+                    val input = checkNotNull(findView(root) { it.contentDescription == "卡片专注分钟数" } as? EditText)
+                    val frame = Rect(); root.getWindowVisibleDisplayFrame(frame)
+                    val location = IntArray(2); input.getLocationOnScreen(location)
+                    check(input.width > 0 && input.height >= (48 * activity.resources.displayMetrics.density).toInt()) {
+                        "NFC input size=${input.width}x${input.height} density=${activity.resources.displayMetrics.density} min=${input.minHeight}/${input.minimumHeight} laid=${input.isLaidOut} requested=${input.isLayoutRequested} root=${root.width}x${root.height}"
+                    }
+                    check(location[1] >= frame.top && location[1] + input.height <= frame.bottom) {
+                        "NFC-02.card-draft: keyboard obscures input: top=${location[1]} height=${input.height} frame=$frame"
+                    }
+                    (activity.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+                        .hideSoftInputFromWindow(input.windowToken, 0)
+                }
+                instrumentation.waitForIdleSync()
+                Thread.sleep(300)
+                onUi(instrumentation) {
+                    val dialog = checkNotNull(field("companionSheet").get(activity) as? android.app.Dialog)
+                    val root = checkNotNull(dialog.window).decorView
+                    val back = checkNotNull(findView(root) { it is TextView && it.text.toString() == "返回" })
+                    back.requestRectangleOnScreen(Rect(0, 0, back.width, back.height), true)
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    val dialog = checkNotNull(field("companionSheet").get(activity) as? android.app.Dialog)
+                    val root = checkNotNull(dialog.window).decorView
+                    val back = checkNotNull(findView(root) { it is TextView && it.text.toString() == "返回" })
+                    val visible = Rect(); check(back.getGlobalVisibleRect(visible) && visible.height() == back.height) {
+                        "NFC-02.card-draft: bottom action clipped"
+                    }
+                    val image = Bitmap.createBitmap(root.width, root.height, Bitmap.Config.ARGB_8888)
+                    root.draw(Canvas(image))
+                    val paint = android.graphics.Paint().apply { color = android.graphics.Color.RED; textSize = 24f }
+                    Canvas(image).drawText("模拟状态 · 无真实设备连接", 16f, 28f, paint)
+                    File(activity.filesDir, "nfc-sheet-fixture.png").outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                    image.recycle(); dialog.dismiss()
+                }
+            } finally {
+                instrumentation.removeMonitor(monitor)
+            }
+        } finally {
+            onUi(instrumentation) { activity.finish() }
+            instrumentation.waitForIdleSync()
+        }
+    }
+
     /** Render real Views with isolated public fixtures; no production preview path. */
     fun runGallery(instrumentation: Instrumentation) {
         val activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, MainActivity::class.java)
