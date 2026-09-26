@@ -161,7 +161,13 @@
     "NFC-01.rf-registration",
     "NFC-01.rf-registration-failure",
     "NFC-01.rf-close",
-    "NFC-01.rf-open-cleanup"
+    "NFC-01.rf-open-cleanup",
+    "NFC-01.selection-probe_error",
+    "NFC-01.selection-timeout",
+    "NFC-01.selection-malformed",
+    "NFC-01.selection-select_error",
+    "NFC-01.selection-invalid",
+    "NFC-01.selection-valid"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -326,6 +332,12 @@
     "NFC-01.rf-registration",
     "NFC-01.rf-registration-failure",
     "NFC-01.rf-close",
-    "NFC-01.rf-open-cleanup"
+    "NFC-01.rf-open-cleanup",
+    "NFC-01.selection-probe_error",
+    "NFC-01.selection-timeout",
+    "NFC-01.selection-malformed",
+    "NFC-01.selection-select_error",
+    "NFC-01.selection-invalid",
+    "NFC-01.selection-valid"
   ]
 }

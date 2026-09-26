@@ -1043,3 +1043,37 @@ compatibility remain NOT_RUN. A failed RF-off reports an error, not physical
 safety. Authorized card bindings, dwell/reentry and scene dispatch remain
 unimplemented; L3 is BLOCKED_DEVICE, not evidence that those software gaps
 are complete. No firmware was flashed or phone app installed.
+
+### S37 NFC selection evidence before card bindings (2026-09-27)
+
+`test_mfrc522_selection.py` adds six L1 units around real REQA/request/ioctl
+functions: probe error, timeout, malformed ATQA, partial selection error,
+invalid argument/result, and valid 4/7/10-byte selection (including collision).
+The first run compiled and executed all six: four assertion aborts, one null
+argument signal fault in the controlled peer, and one PASS. This is a host
+ioctl-admission regression, not evidence of the historical board HardFault.
+
+Production now checks the argument before I/O, clears failed output, preserves
+probe/selection errors, permits collision to proceed to anticollision, rejects
+incomplete/invalid results and copies only successful selection. Bad ATQA is
+EPROTO rather than EAGAIN; neither malformed frames nor timeouts prove physical
+removal. The standard ioctl number and RPMsg v1 presence-only schema are intact.
+The old boolean detection helper remains for the unused legacy string-read
+entry; product uses GET_PICC_UID. These tests do not validate that legacy entry.
+
+The deterministic RF exchange and anticollision result are controlled peers;
+the transaction admission and publication code under test is production code.
+Thus these are L1 boundary tests, not full anticollision, transport or RF L2/L3.
+An extra pair of isolated mutations (bypass probe gate; publish partial UID)
+fail assertions; restores pass. S36 RF tests update only the unused peer
+signature to match the real call boundary; their behavior assertions remain.
+
+Strict result: 167 PASS, original 63 retained, six new IDs. Original two
+mutations and their two restores remain separately visible in that result;
+S37's two mutations/two restores are additional sensitivity evidence. Actual
+target build, configuration/ELF coexistence and manifest rehash pass. No new
+thread, heap allocation, persistent write or retry is added; temporary UID
+and ATQA occupy 14 source-level bytes plus compiler alignment/frame overhead.
+Actual stack high-water, CPU p95, transport time and physical card removal
+are NOT_RUN. Bindings, dwell/reentry and scene dispatch are still unimplemented.
+See `acceptance/s37-20260927.json` and `s37-selection-evidence-20260927.json`.

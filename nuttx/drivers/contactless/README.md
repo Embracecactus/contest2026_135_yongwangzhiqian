@@ -28,4 +28,9 @@ It does not implement EXCHANGE or enable ISO-DEP/HCE. Earlier frame-related
 text above describes an interface/conditional path, not current board capability.
 RF readback verifies register bits only; physical field/current and error recovery
 still require real-board measurement. The upstream SPI/UART register transport,
-selection and MIFARE implementation are preserved with their license.
+anticollision and MIFARE algorithms are preserved with their license.
+UID ioctl admission now preserves REQA errors, rejects malformed ATQA, and
+publishes only a complete selection. Failed output is cleared. Timeouts remain
+errors; they do not prove physical removal or authorize scene rearming. The
+legacy string read entry is not the product scan path and is not validated by
+these UID-ioctl tests.

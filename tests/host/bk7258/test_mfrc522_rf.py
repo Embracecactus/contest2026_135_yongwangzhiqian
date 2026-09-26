@@ -36,6 +36,7 @@ class RfDriverTest(unittest.TestCase):
 #define MFRC522IOC_GET_PICC_UID 0x2401
 #define MFRC522IOC_GET_STATE 0x2402
 #define CLIOC_READ_MIFARE_DATA 0x240c
+#define PICC_TYPE_NOT_COMPLETE 4
 #define MFRC522_STATE_NOT_INIT 0
 #define MFRC522_STATE_IDLE 1
 struct spi_dev_s { int unused; };
@@ -55,7 +56,9 @@ static uint8_t mfrc522_readu8(struct mfrc522_dev_s *d, uint8_t reg) {
 static void mfrc522_writeu8(struct mfrc522_dev_s *d, uint8_t reg, uint8_t v) {
  (void)d; assert(reg==MFRC522_TX_CTRL_REG); writes++; if(!stuck) rf=v;
 }
-static int mfrc522_picc_detect(struct mfrc522_dev_s *d) { (void)d; abort(); }
+static int mfrc522_picc_request_a(struct mfrc522_dev_s *d, uint8_t *b, uint8_t n) {
+ (void)d;(void)b;(void)n;abort();
+}
 static int mfrc522_picc_select(struct mfrc522_dev_s *d, struct picc_uid_s *u,
  uint8_t v) { (void)d;(void)u;(void)v;abort(); }
 static int mfrc522_mifare_read(struct mfrc522_dev_s *d,

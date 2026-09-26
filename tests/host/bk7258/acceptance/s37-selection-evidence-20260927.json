@@ -1,0 +1,269 @@
+{
+  "slice": "S37",
+  "date": "2026-09-27",
+  "parent": "427387799933fe0e6652c3b78042e17e88e84aa7",
+  "contract": {
+    "requirement": "NFC-01 / NFC-02 trusted new samples only; failure does not become absence, stale or partial UID",
+    "wire": "same standard ioctl ABI and RPMsg v1 presence-only schema; no UID exported",
+    "failure": "GET_PICC_UID null fails before I/O; negative probe/selection errors preserved; malformed ATQA EPROTO; zero output on failure",
+    "success": "complete UID sizes 4/7/10, incomplete SAK rejected, collision may proceed to selection",
+    "timeout": "ETIMEDOUT remains an error, not evidence of card removal"
+  },
+  "test_first": {
+    "collected": 6,
+    "compiled": true,
+    "PASS": 1,
+    "FAIL_ASSERTION": 4,
+    "host_signal_fault": 1,
+    "signal_context": "NULL forwarded to selection peer; SIGSEGV, not a board HardFault or diagnosis",
+    "log": "selection-red.log"
+  },
+  "counts": {
+    "PASS": 167,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 104,
+      "counts": {
+        "PASS": 104,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "existing_mutations": [
+    {
+      "id": "MSC-01.early-release",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.007629749015904963,
+      "source": "app/bk7258/bk7258_media_volume.c",
+      "original_sha256": "58ebb18ae63adccf21262253da18f153bbb7c680cc0b64719ca20e8a6d9681c8",
+      "mutant_sha256": "bf298373a95ac54d5587f93ece34a30a7f661a65a969c69db9e27c6570770c57",
+      "expected_assertion": "!mounted",
+      "evidence": "MSC-01.early-release.log"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.06440297496737912,
+      "source": "app/bk7258/bk7258_provision_config.c",
+      "original_sha256": "98f5100ca49ca44e45fe3e5da4bb2da0add7466f0e357a205ca8b1e307a5818e",
+      "mutant_sha256": "4c0c615b8ffc99247b0fd91bd934d3df0409a1180769cb939b2820f9e6f69427",
+      "expected_assertion": "bkcloud_config_decode",
+      "evidence": "CFG-01.wifi-clears-cloud.log"
+    }
+  ],
+  "additional_mutations": [
+    {
+      "name": "probe-gate",
+      "mutation": true,
+      "exit": 1,
+      "source_sha256": "f11c4f3de91134e78a702e410703d88b9ee251907c6ba6cee792172edfe33af7",
+      "log": "mutation-probe-gate-mutated.log",
+      "result": "DETECTED"
+    },
+    {
+      "name": "probe-gate",
+      "mutation": false,
+      "exit": 0,
+      "source_sha256": "58cfe89d65f182acf64849dd2b9164475ba833b8d089299af6c744f6a3e5d695",
+      "log": "mutation-probe-gate-restored.log",
+      "result": "PASS"
+    },
+    {
+      "name": "partial-output",
+      "mutation": true,
+      "exit": 1,
+      "source_sha256": "10a15935aee908dc3799a01fe641b5e8a93c439e3a5e84f4cca83955c821c513",
+      "log": "mutation-partial-output-mutated.log",
+      "result": "DETECTED"
+    },
+    {
+      "name": "partial-output",
+      "mutation": false,
+      "exit": 0,
+      "source_sha256": "58cfe89d65f182acf64849dd2b9164475ba833b8d089299af6c744f6a3e5d695",
+      "log": "mutation-partial-output-restored.log",
+      "result": "PASS"
+    }
+  ],
+  "test_boundary": "L1 actual REQA/request/ioctl production functions; external registers/RF exchange and anticollision results controlled. Does not validate full select state machine or actual transport.",
+  "checks": {
+    "build": "PASS",
+    "target": {
+      "status": "PASS",
+      "layer": "target-build",
+      "config": "../out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/.config",
+      "elf": "../out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx"
+    },
+    "manifest": "PASS",
+    "runner_gate": "12 PASS",
+    "black": "PASS"
+  },
+  "build_manifest": {
+    "sha256": "b743ed05b164a07bea9e6d3877da07f0eb0dedc360cfdf69cae4fcae860f5dc4",
+    "elfs": {
+      "ap": {
+        "kind": "elf",
+        "path": "roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx",
+        "sha256": "33fe9c77fa217b70569d12c2dff971a9c114ec0931b5a89b52e03506ea97223a",
+        "size": 6698144
+      },
+      "bl1": {
+        "kind": "elf",
+        "path": "releases/mcuboot/bl1/bl.elf",
+        "sha256": "39fb2051ed3a83ad08f41dcdc50d3ec9d6332a4232e9c6b8f9acf719fc2cdc87",
+        "size": 236724
+      },
+      "bl2": {
+        "kind": "elf",
+        "path": "releases/mcuboot/bl2/bl2.elf",
+        "sha256": "6246b367960053e00dda587170f189837e991e36fc1426838b8d8a01a1695847",
+        "size": 272476
+      },
+      "cp": {
+        "kind": "elf",
+        "path": "roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx",
+        "sha256": "96e162814742cc24202c773de3bf06554b0ae65737869fd7ba68bc61bb0d04c3",
+        "size": 11959520
+      }
+    },
+    "inputs": {
+      "ap": {
+        "kind": "raw-build",
+        "path": "roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.bin",
+        "sha256": "9e071dc63c67cd8a7c377b3d90c02e19579a9b22d134504c4084134c458120de",
+        "size": 1691168
+      },
+      "bl2": {
+        "kind": "raw-build",
+        "path": "releases/mcuboot/bl2/bl2.bin",
+        "sha256": "ffb36cdb89174bec06d12c817d2e97165f7d53e22d59b4e45ef63b66ed29e901",
+        "size": 13620
+      },
+      "boot": {
+        "kind": "raw-build",
+        "path": "releases/mcuboot/bl1/bl.bin",
+        "sha256": "d6d6789436a3c760f4a985d094129e2cfd789bdd9d2f2f3e2d577c20d7810443",
+        "size": 65376
+      },
+      "cp": {
+        "kind": "raw-build",
+        "path": "roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.bin",
+        "sha256": "ea3ae3010d527baa5a14fa97d58cd9f081b64b783d65408187b3bd1161041bc9",
+        "size": 1115240
+      }
+    }
+  },
+  "resources": {
+    "new_threads": 0,
+    "heap_allocations": 0,
+    "new_persistent_writes": 0,
+    "new_retry": 0,
+    "temporary_payload_bytes": 14,
+    "stack_frame_and_high_water": "NOT_MEASURED; alignment/register saving additional",
+    "cpu_p95_transport_latency_RF": "NOT_RUN"
+  },
+  "gaps": {
+    "interface": "bindings/reentry/scene dispatch NOT_IMPLEMENTED",
+    "L1_L2": "L1 admission passed; full anticollision/transport integration NOT_RUN",
+    "L3": "BLOCKED_DEVICE; no hardware operations",
+    "legacy_string_read": "unchanged, unused by product; not validated here"
+  },
+  "hashes": {
+    "nuttx/drivers/contactless/mfrc522_rf.c": "58cfe89d65f182acf64849dd2b9164475ba833b8d089299af6c744f6a3e5d695",
+    "nuttx/drivers/contactless/mfrc522.h": "76fc9f7d730ee91dc228ff8a4ceb74b63df67e896f38d0a0424c238e418e0f1d",
+    "nuttx/include/nuttx/contactless/mfrc522_rf.h": "b39bfabe13b596a2b4797728c9fe8716bedb1df6357b441c580b9f9c49dc9694",
+    "tests/host/bk7258/test_mfrc522_selection.py": "1b4be6b2553585e2f3a3c702c907659546ed62cf2901fb66753bb2d4aa5c611e",
+    "tests/host/bk7258/test_mfrc522_rf.py": "02604513167f1fe1409752f89e0bdc4cf4f88e81cd7b55770d688b4320b225ac",
+    "tests/host/bk7258/test_mfrc522_read_errors.py": "5dc3c14d3d49a334935e8adb89f40b360e84dd8b634fe4e256fd6f73f87f633e",
+    "tests/host/bk7258/test_shaniu_contracts.py": "6b154177d017666f96ef264f789fc8bf596b00e4e99f3ae3156233c11614cc92",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "a00a33226f7241563ae9385814d9f8f838a7b5310a7b3162bceaaea95715c2bb"
+  },
+  "logs": {
+    "mutation-probe-gate-mutated.log": {
+      "sha256": "35c2cdd108c328a77fb26306970c89c144b8a6c673ac6b6346c0f6ac81d5a4a2",
+      "bytes": 1073
+    },
+    "runner-gate.log": {
+      "sha256": "e6200ac859357c16c8cb8510b71eb578ea5a2b0b26026ee7cafd60dc78513c0c",
+      "bytes": 111
+    },
+    "contracts.log": {
+      "sha256": "73c0e7bc23b970f18e114e53bc86997d1fdaac6db503783a7d2c1628ba6f9916",
+      "bytes": 8102
+    },
+    "mutation-partial-output-restored.log": {
+      "sha256": "05ad26e36631de8131f12873f769dbb00171493c677c523443005184597b477b",
+      "bytes": 98
+    },
+    "rf-regression.log": {
+      "sha256": "2883683acc18ad75a5bc59a202565af534679f56218db3d1a66368e72cb40c45",
+      "bytes": 102
+    },
+    "mutation-probe-gate-restored.log": {
+      "sha256": "c3225ddfde34e105f30ecab99c3fa9e9c4702c24725636c2ec9827e8bc397d11",
+      "bytes": 98
+    },
+    "mutation-partial-output-mutated.log": {
+      "sha256": "a6254baaec4180ed52510315166fac428483f1603d88b3153698cb43b35c60ed",
+      "bytes": 1093
+    },
+    "selection-red.log": {
+      "sha256": "346cdec6f851c1aec6e13f3dfd964f475064841c712402141edea04e928d3a47",
+      "bytes": 4741
+    },
+    "build.log": {
+      "sha256": "57cc3dc1d9abc06c69cf3e492ac290e1fa8ce4396674ac3dd528602f69127362",
+      "bytes": 7351
+    },
+    "selection-green.log": {
+      "sha256": "3ffc55f6da65f12b319842cb24ef5a1a4c1cfd76ddab07020a41f42ed8aa72f8",
+      "bytes": 104
+    },
+    "manifest.log": {
+      "sha256": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac",
+      "bytes": 236
+    },
+    "lifecycle-regression.log": {
+      "sha256": "9904785a6c96f50e6df9ef094de489639dd8b15b1b00ef6a8de4c684d06acd2c",
+      "bytes": 100
+    }
+  },
+  "raw_evidence": {
+    "mutation-probe-gate-mutated.log": "test: /tmp/shaniu-nfc-selection-_mlfdf00/test.c:214: main: Assertion `get(&f,&uid)==-EIO' failed.\nE\n======================================================================\nERROR: test_probe_error (test_mfrc522_selection.SelectionTest)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_mfrc522_selection.py\", line 140, in test_probe_error\n    self.run_case(\"probe-error\")\n  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_mfrc522_selection.py\", line 137, in run_case\n    subprocess.run([str(self.binary), case], check=True)\n  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run\n    raise CalledProcessError(retcode, process.args,\nsubprocess.CalledProcessError: Command '['/tmp/shaniu-nfc-selection-_mlfdf00/test', 'probe-error']' died with <Signals.SIGABRT: 6>.\n\n----------------------------------------------------------------------\nRan 1 test in 0.173s\n\nFAILED (errors=1)\n",
+    "runner-gate.log": "............\n----------------------------------------------------------------------\nRan 12 tests in 0.024s\n\nOK\n",
+    "mutation-partial-output-restored.log": ".\n----------------------------------------------------------------------\nRan 1 test in 0.166s\n\nOK\n",
+    "rf-regression.log": "....\n----------------------------------------------------------------------\nRan 4 tests in 0.175s\n\nOK\n",
+    "mutation-probe-gate-restored.log": ".\n----------------------------------------------------------------------\nRan 1 test in 0.168s\n\nOK\n",
+    "mutation-partial-output-mutated.log": "test: /tmp/shaniu-nfc-selection-b93enumh/test.c:209: cleared: Assertion `!memcmp(uid,&zero,sizeof(zero))' failed.\nE\n======================================================================\nERROR: test_select_error (test_mfrc522_selection.SelectionTest)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_mfrc522_selection.py\", line 149, in test_select_error\n    self.run_case(\"select-error\")\n  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_mfrc522_selection.py\", line 137, in run_case\n    subprocess.run([str(self.binary), case], check=True)\n  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run\n    raise CalledProcessError(retcode, process.args,\nsubprocess.CalledProcessError: Command '['/tmp/shaniu-nfc-selection-b93enumh/test', 'select-error']' died with <Signals.SIGABRT: 6>.\n\n----------------------------------------------------------------------\nRan 1 test in 0.174s\n\nFAILED (errors=1)\n",
+    "selection-red.log": "Etest: /tmp/shaniu-nfc-selection-iaddpy3t/test.c:199: main: Assertion `get(&f,&uid)==-EPROTO' failed.\nEtest: /tmp/shaniu-nfc-selection-iaddpy3t/test.c:194: main: Assertion `get(&f,&uid)==-EIO' failed.\nEtest: /tmp/shaniu-nfc-selection-iaddpy3t/test.c:188: cleared: Assertion `!memcmp(uid,&zero,sizeof(zero))' failed.\nEtest: /tmp/shaniu-nfc-selection-iaddpy3t/test.c:196: main: Assertion `get(&f,&uid)==-ETIMEDOUT' failed.\nE.\n======================================================================\nERROR: test_invalid (__main__.SelectionTest)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_mfrc522_selection.py\", line 152, in test_invalid\n    self.run_case(\"invalid\")\n  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_mfrc522_selection.py\", line 137, in run_case\n    subprocess.run([str(self.binary), case], check=True)\n  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run\n    raise CalledProcessError(retcode, process.args,\nsubprocess.CalledProcessError: Command '['/tmp/shaniu-nfc-selection-iaddpy3t/test', 'invalid']' died with <Signals.SIGSEGV: 11>.\n\n======================================================================\nERROR: test_malformed (__main__.SelectionTest)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_mfrc522_selection.py\", line 146, in test_malformed\n    self.run_case(\"malformed\")\n  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_mfrc522_selection.py\", line 137, in run_case\n    subprocess.run([str(self.binary), case], check=True)\n  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run\n    raise CalledProcessError(retcode, process.args,\nsubprocess.CalledProcessError: Command '['/tmp/shaniu-nfc-selection-iaddpy3t/test', 'malformed']' died with <Signals.SIGABRT: 6>.\n\n======================================================================\nERROR: test_probe_error (__main__.SelectionTest)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_mfrc522_selection.py\", line 140, in test_probe_error\n    self.run_case(\"probe-error\")\n  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_mfrc522_selection.py\", line 137, in run_case\n    subprocess.run([str(self.binary), case], check=True)\n  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run\n    raise CalledProcessError(retcode, process.args,\nsubprocess.CalledProcessError: Command '['/tmp/shaniu-nfc-selection-iaddpy3t/test', 'probe-error']' died with <Signals.SIGABRT: 6>.\n\n======================================================================\nERROR: test_select_error (__main__.SelectionTest)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_mfrc522_selection.py\", line 149, in test_select_error\n    self.run_case(\"select-error\")\n  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_mfrc522_selection.py\", line 137, in run_case\n    subprocess.run([str(self.binary), case], check=True)\n  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run\n    raise CalledProcessError(retcode, process.args,\nsubprocess.CalledProcessError: Command '['/tmp/shaniu-nfc-selection-iaddpy3t/test', 'select-error']' died with <Signals.SIGABRT: 6>.\n\n======================================================================\nERROR: test_timeout (__main__.SelectionTest)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_mfrc522_selection.py\", line 143, in test_timeout\n    self.run_case(\"timeout\")\n  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_mfrc522_selection.py\", line 137, in run_case\n    subprocess.run([str(self.binary), case], check=True)\n  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run\n    raise CalledProcessError(retcode, process.args,\nsubprocess.CalledProcessError: Command '['/tmp/shaniu-nfc-selection-iaddpy3t/test', 'timeout']' died with <Signals.SIGABRT: 6>.\n\n----------------------------------------------------------------------\nRan 6 tests in 0.197s\n\nFAILED (errors=5)\n",
+    "selection-green.log": "......\n----------------------------------------------------------------------\nRan 6 tests in 0.180s\n\nOK\n",
+    "manifest.log": "bk7258 verify build-manifest: PASS boot=mcuboot board=aidk_ai_toy layout=bk7258-510173147382a879 source=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json\n",
+    "lifecycle-regression.log": "..\n----------------------------------------------------------------------\nRan 2 tests in 0.329s\n\nOK\n"
+  }
+}

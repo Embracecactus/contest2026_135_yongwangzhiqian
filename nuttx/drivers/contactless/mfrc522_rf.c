@@ -673,7 +673,7 @@ int mfrc522_picc_reqa_wupa(FAR struct mfrc522_dev_s *dev, uint8_t command,
 
   if (length != 2 || validbits != 0)
     {
-      return -EAGAIN;
+      return -EPROTO;
     }
 
   ctlsinfo("buffer[0]=0x%02X | buffer[1]=0x%02X\n", buffer[0], buffer[1]);
@@ -1587,23 +1587,43 @@ static int mfrc522_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
       case MFRC522IOC_GET_PICC_UID:
         {
           FAR struct picc_uid_s *uid = (FAR struct picc_uid_s *)arg;
+          struct picc_uid_s selected = {0};
+          uint8_t atqa[2];
 
-          /* Is a card near? */
+          if (uid == NULL)
+            {
+              ret = -EINVAL;
+              goto errout;
+            }
 
-          ret = mfrc522_picc_detect(dev);
+          memset(uid, 0, sizeof(*uid));
+
+          /* 探卡错误保留原错误域；碰撞仅允许进入防碰撞选择。 */
+
+          ret = mfrc522_picc_request_a(dev, atqa, sizeof(atqa));
+          if (ret != OK && ret != -EBUSY)
+            {
+              ret = ret < 0 ? ret : -EPROTO;
+              goto errout;
+            }
+
+          /* 仅发布完整选择结果，失败不得留下旧卡或半个UID。 */
+
+          ret = mfrc522_picc_select(dev, &selected, 0);
           if (ret < 0)
             {
               goto errout;
             }
 
-          /* Get UID and select card */
-
-          ret = mfrc522_picc_select(dev, uid, 0);
-          if (ret < 0)
+          if (ret != OK || (selected.sak & PICC_TYPE_NOT_COMPLETE) != 0 ||
+              (selected.size != 4 && selected.size != 7 &&
+               selected.size != 10))
             {
+              ret = -EPROTO;
               goto errout;
             }
 
+          memcpy(uid, &selected, sizeof(*uid));
           break;
         }
 

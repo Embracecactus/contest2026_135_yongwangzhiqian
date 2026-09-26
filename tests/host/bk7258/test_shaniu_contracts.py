@@ -551,6 +551,26 @@ def main():
         ],
         marker=False,
     )
+    for variant in (
+        "probe_error",
+        "timeout",
+        "malformed",
+        "select_error",
+        "invalid",
+        "valid",
+    ):
+        add(
+            suite,
+            "NFC-01.selection-" + variant,
+            "NFC-01",
+            "L1",
+            [
+                sys.executable,
+                HERE / "test_mfrc522_selection.py",
+                "SelectionTest.test_" + variant,
+            ],
+            marker=False,
+        )
     for variant in ("voice", "gate", "revision", "cancel", "invalid"):
         add(
             suite,
