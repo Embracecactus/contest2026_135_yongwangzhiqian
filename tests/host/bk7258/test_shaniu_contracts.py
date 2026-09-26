@@ -709,6 +709,11 @@ def main():
             [HERE / "build/test_shaniu_nfc_quiesce", variant],
             binaries["test_shaniu_nfc_quiesce"],
         )
+    for variant in ("busy", "failed", "other_failure", "resume_failure", "resume_rollback",
+                    "owner_resume_failure", "power_intent"):
+        add(suite, "RST-02.motion-" + variant, "RST-02", "L1",
+            [sys.executable, HERE / "test_shaniu_reset_nfc.py",
+             "ResetMotionTest.test_motion_" + variant], marker=False)
     for variant in ("prestart", "queued", "active", "idle", "close-error", "open-cleanup", "late"):
         add(suite, "MOT-01.quiesce-" + variant, "MOT-01", "L2",
             [HERE / "build/test_shaniu_motion_quiesce", variant],

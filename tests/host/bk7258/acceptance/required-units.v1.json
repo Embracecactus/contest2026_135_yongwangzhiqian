@@ -289,7 +289,14 @@
     "MOT-01.quiesce-open-cleanup",
     "MOT-01.quiesce-late",
     "LIFE-01.motion-busy",
-    "LIFE-01.motion-failed"
+    "LIFE-01.motion-failed",
+    "RST-02.motion-busy",
+    "RST-02.motion-failed",
+    "RST-02.motion-other_failure",
+    "RST-02.motion-resume_failure",
+    "RST-02.motion-resume_rollback",
+    "RST-02.motion-owner_resume_failure",
+    "RST-02.motion-power_intent"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -582,6 +589,13 @@
     "MOT-01.quiesce-open-cleanup",
     "MOT-01.quiesce-late",
     "LIFE-01.motion-busy",
-    "LIFE-01.motion-failed"
+    "LIFE-01.motion-failed",
+    "RST-02.motion-busy",
+    "RST-02.motion-failed",
+    "RST-02.motion-other_failure",
+    "RST-02.motion-resume_failure",
+    "RST-02.motion-resume_rollback",
+    "RST-02.motion-owner_resume_failure",
+    "RST-02.motion-power_intent"
   ]
 }

@@ -14,12 +14,20 @@ PREFIX = r"""
 #include <errno.h>
 #include <stdatomic.h>
 #define CONFIG_BK7258_NFC_SERVICE 1
+#define CONFIG_BK7258_MOTION_SERVICE 1
+static int motion_error, motion_resume_error, motion_stops, motion_resumes;
+static bool motion_closed;
+static int bk7258_motion_service_quiesce(bool stop) {
+ if(stop){motion_stops++;motion_closed=true;return motion_error;}
+ motion_resumes++;if(motion_resume_error)return motion_resume_error;motion_closed=false;return 0;
+}
 #define CONFIG_BK7258_PRODUCT_KEYS 1
 #define CONFIG_BK7258_PM_SOFT_OFF 1
 enum { PRODUCT_RESET_IDLE, PRODUCT_RESET_QUIESCING, PRODUCT_RESET_FINISHING };
 static int g_reset_phase, pending=1, nfc_error, resume_error, owner_error;
-static int stops, resumes, finishes, clears, owner_opens, g_identity;
+static int stops, resumes, finishes, clears, owner_opens, g_identity, owner_resume_error;
 static int g_config_revision;
+static bool owner_closed=true;
 static bool nfc_closed, g_shutdown_requested, g_shutdown_failed, g_power_pending;
 static bool g_identity_bound=true, g_control_bound=true, g_configured=true, g_cloud_loaded=true;
 static atomic_bool g_voice_initialized, g_trigger_prepare_pending;
@@ -30,7 +38,8 @@ static int bk7258_nfc_service_quiesce(bool stop) {
  resumes++;if(resume_error)return resume_error;nfc_closed=false;return 0;
 }
 static int bkprov_owner_quiesce(bool stop) {
- if(!stop){owner_opens++;return 0;}return owner_error;
+ if(!stop){owner_closed=false;owner_opens++;return owner_resume_error;}
+ owner_closed=true;return owner_error;
 }
 static int bkprov_network_cancel(void){return 0;}
 static void bkprov_network_step(void){}
@@ -111,6 +120,54 @@ class ResetNfcTest(unittest.TestCase):
  pending=1;g_shutdown_requested=true;assert(product_reset_step()==-EAGAIN);
  pending=0;assert(product_reset_step()==1);assert(!resumes && nfc_closed);"""
         )
+
+
+class ResetMotionTest(ResetNfcTest):
+    # Load this class by exact method name; inherited NFC cases retain their IDs.
+    def test_motion_busy(self):
+        self.run_case("""motion_error=-EBUSY;
+ assert(product_reset_step()==-EBUSY);assert(motion_closed && !finishes && !clears);
+ motion_error=0;assert(product_reset_step()==-EAGAIN);
+ pending=0;assert(product_reset_step()==1);
+ assert(motion_resumes==1 && !motion_closed && owner_opens==1);""")
+
+    def test_motion_failed(self):
+        self.run_case("""motion_error=-EIO;
+ for(int i=0;i<3;i++)assert(product_reset_step()==-EIO);
+ assert(motion_closed && nfc_closed && !finishes && !clears && !motion_resumes);""")
+
+    def test_motion_other_failure(self):
+        self.run_case("""owner_error=-EIO;
+ assert(product_reset_step()==-EIO);
+ assert(motion_closed && motion_stops==1 && nfc_closed && !finishes);""")
+
+    def test_motion_resume_failure(self):
+        self.run_case("""assert(product_reset_step()==-EAGAIN);
+ pending=0;motion_resume_error=-EIO;
+ assert(product_reset_step()==-EIO);assert(!owner_opens && motion_closed && nfc_closed);
+ motion_resume_error=0;assert(product_reset_step()==1);
+ assert(!motion_closed && !nfc_closed && owner_opens==1 && finishes==1);""")
+
+    def test_motion_resume_rollback(self):
+        self.run_case("""assert(product_reset_step()==-EAGAIN);
+ pending=0;resume_error=-EIO;
+ assert(product_reset_step()==-EIO);assert(!owner_opens && motion_closed && nfc_closed);
+ resume_error=0;assert(product_reset_step()==1);
+ assert(!motion_closed && !nfc_closed && finishes==1);""")
+
+    def test_motion_owner_resume_failure(self):
+        self.run_case("""assert(product_reset_step()==-EAGAIN);
+ pending=0;owner_resume_error=-EIO;
+ assert(product_reset_step()==-EIO);
+ assert(motion_closed && nfc_closed && owner_closed && g_reset_phase==PRODUCT_RESET_FINISHING);
+ owner_resume_error=0;assert(product_reset_step()==1);
+ assert(!motion_closed && !nfc_closed && finishes==1);""")
+
+    def test_motion_power_intent(self):
+        self.run_case("""pending=0;assert(product_reset_step()==0 && !motion_stops);
+ pending=1;g_shutdown_requested=true;assert(product_reset_step()==-EAGAIN);
+ pending=0;assert(product_reset_step()==1);
+ assert(motion_closed && motion_stops==1 && !motion_resumes && !owner_opens);""")
 
 
 if __name__ == "__main__":

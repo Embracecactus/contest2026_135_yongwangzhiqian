@@ -1644,3 +1644,37 @@ physical standby. Factory-reset coordination, actual uORB deactivation feedback,
 autonomous sampling/gesture/short-expression flow and L3 remain outstanding.
 No physical installation, flashing, K2/reset or data clearing. See
 `acceptance/s53-20260927.json` and `s53-motion-quiesce-evidence-20260927.json`.
+
+## S54: reset coordination includes motion and preserves stop intent
+
+The actual product reset coordinator closes motion sampling admission independently
+of NFC and the control owner. A busy/error motion participant prevents product
+clear and storage-finish submission. Cleanup completion alone does not reopen a
+resource that failed to resume. Motion resumes before NFC; a later NFC failure
+closes motion again. A failed control-owner resume closes the owner and both
+sensor admissions again and retains FINISHING for a retry, without redoing cleanup.
+An existing shutdown request/failure/pending CP request now also suppresses control
+owner reopening, in addition to sensor resumption. No reset gesture or timeout
+parameter, authentication, persistence layout or erase scope was changed.
+
+Seven selected cases compile the actual product_reset_step function verbatim,
+with external sensor, network, storage and owner participants substituted. Six
+initial new cases failed before connection; then stronger power-intent and new
+owner-resume-failure cases failed before the final admission fix. A partial-owner
+resume fault additionally verifies explicit reclosure. These are coordinator
+contract failures under controlled participants. Current bkprov_owner_quiesce(false)
+returns0 in real production: its injected error is resilience coverage, not a
+claim that such an error has occurred on a device. Service behavior remains covered
+separately by S53; this is not a fully combined reset/service/storage integration.
+The standalone unittest subclass inherits NFC cases, so its all-class discovery
+count is not the selected denominator; strict collection selects seven new method
+IDs exactly once and preserves previous NFC IDs.
+
+Final296PASS = original63 +233added.13 runner checks separate. Ignoring motion
+stop and omitting motion rollback are isolated detected mutants; both restore.
+The two existing suite mutants also remain detected/restored. AP build and final
+manifest verification pass. No new state/thread/queue/heap/DMA; added short service
+handshakes reuse existing locks. Real latency, stack peak, cleanup interruption,
+uORB hardware deactivation, actual reset/reclaim and N1 gesture feedback remain
+unverified or unimplemented. No physical reset, erase, install or flashing.
+See `acceptance/s54-20260927.json` and `s54-reset-motion-evidence-20260927.json`.
