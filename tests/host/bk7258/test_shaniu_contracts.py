@@ -919,12 +919,15 @@ def main():
             [sys.executable, HERE / "test_tls_test_identity.py", "IdentityTest.test_" + variant],
             marker=False, setup_exit_code=2)
     for variant in ("cancel", "expiry", "queued-cancel", "queued-expiry", "supersede", "missing", "invalid",
-                    "wire-cancel", "wire-expiry", "wire-invalid", "wire-missing"):
+                    "wire-cancel", "wire-expiry", "wire-invalid", "wire-missing",
+                    "pc-cancel", "pc-expiry", "pc-missing"):
         add(suite, "RES-02.pack-trial-" + variant, "RES-02", "L2",
             [sys.executable, HERE / "test_pack_trial.py", variant],
-            ready=binaries["test_display_upload"], setup_exit_code=2)
+            ready=binaries["test_display_upload"], marker=not variant.startswith("pc-"),
+            setup_exit_code=2)
     for cls, variants in (
-        ("TrialTest", ("golden", "invalid", "snapshot", "staging", "coherent_read", "no_replay", "cli_preflight")),
+        ("TrialTest", ("golden", "invalid", "snapshot", "staging", "coherent_read", "no_replay", "cli_preflight",
+                       "pack_golden", "pack_invalid", "pack_staging", "pack_old_firmware", "pack_cli_preflight")),
         ("WireTest", ("lifecycle", "retry_expiry", "stale_cancel")),
     ):
         for variant in variants:

@@ -285,19 +285,32 @@ class ControlClient:
             raise ControlError("Task read failed; result is unconfirmed") from None
 
     def trial_request(
-        self, action, expected_id, operation_id, expression=None, ttl_ms=None
+        self,
+        action,
+        expected_id,
+        operation_id,
+        expression=None,
+        ttl_ms=None,
+        *,
+        pack_filename=None,
     ):
         from . import workbench_trial
 
         record = workbench_trial.encode(
-            action, expected_id, operation_id, expression, ttl_ms
+            action,
+            expected_id,
+            operation_id,
+            expression,
+            ttl_ms,
+            pack_filename=pack_filename,
         )
         if self.closed or not self.authenticated:
             raise ControlError("PC authentication is required")
         try:
             deadline = self._now() + self._timeout
             self._exchange(16, struct.pack(">II", 11, len(record)), deadline)
-            self._exchange(17, record, deadline)
+            for offset in range(0, len(record), 32):
+                self._exchange(17, record[offset : offset + 32], deadline)
             self._exchange(18, b"", deadline)
             return dict(
                 accepted=True, operation_id=operation_id, completion_verified=False
@@ -502,6 +515,10 @@ def add_arguments(parser):
             "sleepy",
         ),
     )
+    parser.add_argument(
+        "--pack-filename",
+        help="Already installed .bkep name; trial only, never a local path/default",
+    )
     parser.add_argument("--port")
     parser.add_argument("--profile", type=Path)
     parser.add_argument("--certificate", type=Path)
@@ -611,6 +628,7 @@ def run(args):
                     args.operation_id,
                     args.expression,
                     args.ttl_ms,
+                    pack_filename=args.pack_filename,
                 )
             if resource_plan is not None:
                 return workbench_resources.perform(client, args, resource_plan)

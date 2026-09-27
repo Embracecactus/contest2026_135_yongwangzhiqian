@@ -510,8 +510,10 @@ pending; no board deployment is implied by these host commands/tests.
 ### Limited expression trials from the PC
 
 The existing independently authenticated PC profile needs `scenes` permission.
-`trial-start` tries an expression in the **currently selected pack**. It neither
-previews an uploaded pack nor persists a new default. TTL is explicitly supplied
+`trial-start` without a filename tries an expression in the **currently selected
+pack**. Add `--pack-filename shaniu-upload-v1.bkep` to temporarily try an already
+installed pack returned by a completed upload. This is an installed device name,
+not a local file path. Neither operation persists a new default. TTL is explicitly supplied
 by the caller, positive milliseconds up to the existing u32 protocol limit;
 it starts at acceptance and includes queue time. No duration is silently chosen.
 
@@ -534,3 +536,18 @@ physical screen measurement. Only `cancel_confirmed` reports CANCELED. Closing
 the local connection is not remote cancellation; the original TTL still applies.
 A read rechecks the header to reject mixed snapshots and reports an unknown clock
 as `remaining_ms: null`. Neither queries nor retries renew the trial's TTL.
+
+To try an installed pack, read `trial-status` first and supply that exact latest
+ID along with a fresh operation ID (the following ID0 is only an example):
+
+```sh
+python tools/bk7258/bk7258.py workbench trial-start --port NATIVE_CDC_PORT --profile pc.profile --expected-trial-id 0 --operation-id 0102030405060710 --expression happy --ttl-ms 5000 --pack-filename shaniu-upload-v1.bkep
+```
+
+This uses ETC2 on the existing authenticated scene channel. Canonical names
+are validated before credentials/port access, and72 bytes are staged in32-byte
+chunks. Use the same status/cancel commands as expression-only trials. Older
+firmware rejection remains unconfirmed/error; the client never falls back to
+the default pack, retries automatically, or activates an uploaded pack. A missing
+installed name can be accepted then report failed; check status, not only ACK.
+Host client-to-production-renderer tests do not prove physical USB/screens.

@@ -2856,3 +2856,22 @@ AP已链接trial_pack_checked；新增静态请求缓存/长度合计44B（32位
 完整TLS与权限原回归另测，不合并成实板链路通过。电脑命令/原生App包选择、
 版本化设默认与轻量界面继续待接，无设备操作。证据：
 `acceptance/s97-20260927.json`、`s97-pack-trial-wire-evidence-20260927.json`。
+
+### S98：电脑显式选择已安装包试用（2026-09-27）
+
+workbench trial-start 新增 --pack-filename，编码ETC2并按32/32/8分片；
+未传时保持ETC1。文件名预检在凭据/端口前；取消/查询拒绝包名参数，旧固件
+拒绝时不回退/重播/激活默认，沿用受理与渲染/取消确认的区别。用法见
+../../../tools/bk7258/README.md 的 Limited expression trials from the PC。
+
+先写5个客户端逻辑/CLI用例；首次缺新参数记BLOCKED_INTERFACE，不当业务Red。
+再接真实客户端_exchange→C Session/control→原试用/渲染/存储/卷，新增取消、
+到期、缺失包3项。只替换TLS/USB为主机管道及外部时钟/挂载/framebuffer；
+真实像素与默认写入在C观察器验证，不用成功mock代替状态机。
+错误替换用户包名的隔离变异检出，恢复通过；原2变异与额外1变异分列。
+
+冻结564PASS=原63（含2恢复复验）+501累计新增，19门禁、分层与Python样式通过，
+输入哈希全部一致。无固件改动，不重复AP构建；没有安装/刷写/操作设备。
+协议实现与主机集成完成不等于物理USB/屏幕通过。持久默认、App和轻量界面
+继续待接。证据：`acceptance/s98-20260927.json`、
+`s98-pc-pack-trial-evidence-20260927.json`。

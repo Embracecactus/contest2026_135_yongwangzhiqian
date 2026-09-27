@@ -1,0 +1,86 @@
+{
+  "parent": "9c69ef30379847747582354a9d58967a3b5f0cb1",
+  "counts": {
+    "selected": 564,
+    "PASS": 564,
+    "original_including_restores": 63,
+    "added": 501,
+    "new_ids": 8,
+    "runner_gates": 19,
+    "original_mutations": 2,
+    "extra_mutations": 1,
+    "extra_restore_runs": 1
+  },
+  "implementation": "Existing workbench trial-start optional --pack-filename emits ETC2 in32/32/8 staging chunks. Explicit installed filename validated before credential/port access; no filename retains ETC1. Cancel/status remain shared. Old-firmware rejection or transfer error closes client with unconfirmed outcome, no fallback/replay/default activation.",
+  "first_attempt": {
+    "status": "BLOCKED_INTERFACE",
+    "exit": 2,
+    "log": "first-interface.log",
+    "reason": "New keyword unavailable before implementation; missing client interface is not an existing business assertion Red."
+  },
+  "integration": {
+    "production": "Python encode/trial_request/_exchange with actual native SDC1/control/shared trial/renderer/cache/store/volume.",
+    "external": "Plaintext pipe replaces TLS/USB in new vertical fixture; mount/clock/framebuffer hardware sinks are external. No substitute production state machine.",
+    "oracle": "Independent ETC2 bytes and32/32/8 lengths; real renderer verifies every chosen-pack pixel0x07e0 and original default corner0x0842; file writes stay zero; client observes pending/active/cancel_pending/canceled, original deadline, and missing-pack failure.",
+    "limits": "Existing TLS/authorization regressions pass separately; this is not new combined physical USB/TLS/screen acceptance."
+  },
+  "validation": {
+    "input_hashes_match": true,
+    "production_unchanged_during_run": true,
+    "layers": "PASS sources548 kconfig253 legacy exceptions2",
+    "python_style": "black24.10.0 check PASS on4 changed Python implementation/fixture files",
+    "AP": "Not rebuilt; firmware source unchanged from S97 successful incremental build."
+  },
+  "mutation": {
+    "mutation": "PC encoder substitutes a different installed filename",
+    "status": "DETECTED",
+    "exit": 1,
+    "restored_exit": 0,
+    "source_sha256": "36be0a598790708946deae947e8b9cd614dc8a1a2e4844beb76c9680cc55747f",
+    "mutant_sha256": "a3252d9b8e6354f18f3c8ef9b4c71ece424690beb5c0d1c8fe50e5bde86ebb88",
+    "oracle": "Actual native renderer remains default after missing package; independent client assertion requires chosen pack rendered. No production state machine substitute."
+  },
+  "parent_gaps": {
+    "RES-02": {
+      "interface": "PC command and native authenticated pack trial implemented. Versioned persistent set-default and App/light UI remain pending.",
+      "L1_L2": "5new logical/CLI oracles plus3real client-to-renderer cases pass; wrong-name mutation detected.",
+      "L3": "NOT_RUN; no board/phone operations."
+    }
+  },
+  "resources": {
+    "PC": "72-byte record,40-byte filename field; sends at most32-byte per APPEND using existing deadline. Adds two command/ACK exchanges vs ETC1, no new worker/thread.",
+    "device": "No firmware/resource budget change this slice. Actual target CPU, stack, heap and end-to-end latency still unmeasured."
+  },
+  "remaining": [
+    "Versioned asynchronous set-default, native App/light UI, actual authorized USB/device flows.",
+    "COM9 identity and APK data-preserving installation approval remain pending; no implied action.",
+    "Historical TLS, physical resource budget, combination regression and final release still open; goal ACTIVE."
+  ],
+  "evidence_sha256": {
+    "tests/host/bk7258/acceptance/s98-evidence-20260927/CFG-01.wifi-clears-cloud.log": "3f661cf34c8e37a30b1e3b55e477535d578a321a893cfebc383030d74fa3ff30",
+    "tests/host/bk7258/acceptance/s98-evidence-20260927/MSC-01.early-release.log": "06806061dac5307fc7500494a5056ed0d14b037a2c4109b9f4989070130a9526",
+    "tests/host/bk7258/acceptance/s98-evidence-20260927/RES-02.pack-trial-pc-cancel.log": "301736d638ae9e2fecf73f6b69502b21a6bf52c06e769d034ae8ea2cd992dc03",
+    "tests/host/bk7258/acceptance/s98-evidence-20260927/RES-02.pack-trial-pc-expiry.log": "f39c0a527112f76869d4f040e8e57a21fc77d5be8a94c5a02f678425ef0d0ac2",
+    "tests/host/bk7258/acceptance/s98-evidence-20260927/RES-02.pack-trial-pc-missing.log": "7363bb7e72db412fc7b2853112d0ca072718ec538630f6124eacf45f47573dc3",
+    "tests/host/bk7258/acceptance/s98-evidence-20260927/RES-02.pc-trial-pack_cli_preflight.log": "029ffea800de8b615d434a11affb8be62f74eab8476ba4e8085fe0fb5b1c352d",
+    "tests/host/bk7258/acceptance/s98-evidence-20260927/RES-02.pc-trial-pack_golden.log": "03fdfac75db054b4eff48a18965c741143fd36c644f1ffd8096ffb2d07575410",
+    "tests/host/bk7258/acceptance/s98-evidence-20260927/RES-02.pc-trial-pack_invalid.log": "adc68732596427ded3a7d8f18b1f452ecb70dbdd27ad929be036694e1355e084",
+    "tests/host/bk7258/acceptance/s98-evidence-20260927/RES-02.pc-trial-pack_old_firmware.log": "edcf13e8891603816e3f7405086170baa09e98e530e51b39ac434aed5c56b724",
+    "tests/host/bk7258/acceptance/s98-evidence-20260927/RES-02.pc-trial-pack_staging.log": "8f9bf6c42f4850efb250b33ee2261c347e6a687ef730157f2e822393b3e6e4dd",
+    "tests/host/bk7258/acceptance/s98-evidence-20260927/cli-help.log": "87eaacd36144633f3682a3ce041c784dacca9ec197bb3d6f287eba17a2fac9c4",
+    "tests/host/bk7258/acceptance/s98-evidence-20260927/client-final.log": "4cf7f1d1a01e0a87de085e4e4242cda3c66c0ff89e95a7b50cce948ed3d375cf",
+    "tests/host/bk7258/acceptance/s98-evidence-20260927/client-first.log": "ddbc5bf15c26bf2c15a86c04aa1c4eb9dbb31a4d245c800b95a5282be426a476",
+    "tests/host/bk7258/acceptance/s98-evidence-20260927/first-interface.log": "97e34fd3ac1eeed6189178b1d22f055b1802354b221d6d1dd1e6cff9f9b640eb",
+    "tests/host/bk7258/acceptance/s98-evidence-20260927/full.log": "f726b3ad6405a2d87b82b9d9d2618bc40829a22351084cd5e576158c387374a6",
+    "tests/host/bk7258/acceptance/s98-evidence-20260927/gates.log": "95ce5e498de3a121fd6f7a0daaf7375dbf5c43f49be559d29c6ddebed6b336e2",
+    "tests/host/bk7258/acceptance/s98-evidence-20260927/layers.log": "710268dfb47cd80406e5e3114f8d4e9fa899ff333a4aa4b65452813f14a7ea7d",
+    "tests/host/bk7258/acceptance/s98-evidence-20260927/mutation-restored.log": "eb6841d8e089f8ddcbcaca4e33f38d92c63557f888468d7579d18361aab44a76",
+    "tests/host/bk7258/acceptance/s98-evidence-20260927/mutation-wrong-name.log": "f94d0f26a4e29bd90fc663299c65e36b61a9345e0b58c47c96b0cded1d0a444d",
+    "tests/host/bk7258/acceptance/s98-evidence-20260927/mutation.json": "b13da9ecb14f94fff4bc73d99d110022b5c363dd6a0a09cdd3f905fcd1539413",
+    "tests/host/bk7258/acceptance/s98-evidence-20260927/pc-cancel-first.log": "3e66768423f256177b2fb30ad05c1ce4e336834ac97b60c00abbbafb080fd807",
+    "tests/host/bk7258/acceptance/s98-evidence-20260927/pc-expiry.log": "ce5cd086bfc0d32b5f895864d005037b6609d3a78ea2e6d0fb934adbff4dd505",
+    "tests/host/bk7258/acceptance/s98-evidence-20260927/pc-missing.log": "c00c67aeb11435f38831e7c9bbfbb18e59607f9d34028d42024290d148e220b9",
+    "tests/host/bk7258/acceptance/s98-evidence-20260927/style-check.log": "26a5fd9505f2b5608a20c4fed4b4c4795e0783d03b72ade02a6af34dae8ad086",
+    "tests/host/bk7258/acceptance/s98-evidence-20260927/style.log": "18cdf78c0604f7ab4f16d31b32531f6e3f8d08c5c8f2dfd026016ba076c3384e"
+  }
+}

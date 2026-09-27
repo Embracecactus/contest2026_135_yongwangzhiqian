@@ -150,6 +150,44 @@ static void wire_case(struct bkdisplay_service_s *service,const char *variant)
     }
   bkcontrol_session_close(&wire);
 }
+/* Host transport peer only: protocol, trial, store and pixels stay real. */
+static void client_peer(struct bkdisplay_service_s *service)
+{
+  uint8_t key[32]={1};char line[513];
+  unsigned initial_writes=writes;
+  assert(bkcontrol_session_open(&wire,key,execute,NULL)==0);
+  assert(bkcontrol_session_set_config_handler(&wire,config)==0);
+  while(fgets(line,sizeof(line),stdin))
+    {
+      if(!strcmp(line,"step\n"))
+        {
+          struct bkdisplay_trial_status_s current;
+          assert(bk7258_display_trial_status(&current)==0);
+          expect_green=current.state==BKDISPLAY_TRIAL_PENDING;
+          if(!bkdisplay_intent_step(service,true))
+            (void)bkdisplay_trial_step(service,true);
+          selected("shaniu-default-v1");assert(writes==initial_writes);
+          printf("STEP %u %s %s\n",frames,service->status.pack_id,service->status.expression);
+        }
+      else if(!strncmp(line,"time ",5))
+        {
+          unsigned long long value;assert(sscanf(line+5,"%llu",&value)==1);
+          clock_ms=value;puts("TIME");
+        }
+      else
+        {
+          uint8_t bytes[80];size_t n=strcspn(line,"\n");
+          assert(n>0 && n%2==0 && n/2<=sizeof(bytes));
+          for(size_t i=0;i<n/2;i++)
+            {unsigned value;assert(sscanf(line+i*2,"%2x",&value)==1);bytes[i]=value;}
+          assert(bkcontrol_session_packet(&wire,bytes,n/2,response)==0);
+          for(size_t i=0;i<sizeof(response);i++)printf("%02x",response[i]);
+          putchar('\n');
+        }
+      fflush(stdout);
+    }
+  bkcontrol_session_close(&wire);
+}
 static int remove_entry(const char *p,const struct stat *s,int type,struct FTW *w)
 {(void)s;(void)type;(void)w;return remove(p);}
 int main(int argc,char **argv)
@@ -161,7 +199,9 @@ int main(int argc,char **argv)
   unsigned baseline_writes=writes,baseline_frames=frames,baseline_mounts=mounts;
   uint32_t id=0;
   const char *name=!strcmp(argv[3],"missing")?"missing.bkep":"shaniu-upload-v1.bkep";
-  if(!strncmp(argv[3],"wire-",5))
+  if(!strcmp(argv[3],"--peer"))
+    client_peer(&service);
+  else if(!strncmp(argv[3],"wire-",5))
     wire_case(&service,argv[3]);
   else if(!strcmp(argv[3],"invalid"))
     {

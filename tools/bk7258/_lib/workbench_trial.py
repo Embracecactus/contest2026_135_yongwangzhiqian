@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Existing ETC1/ETS1 expression trials, not pack activation or persistence."""
+"""ETC1/ETC2 temporary trials and ETS1 snapshots; no default persistence."""
 import re
 import struct
 
@@ -28,7 +28,15 @@ STATES = (
 )
 
 
-def encode(action, expected_id, operation_id, expression=None, ttl_ms=None):
+def encode(
+    action,
+    expected_id,
+    operation_id,
+    expression=None,
+    ttl_ms=None,
+    *,
+    pack_filename=None,
+):
     if (
         type(expected_id) is not int
         or not 0 <= expected_id <= 0xFFFFFFFF
@@ -57,15 +65,28 @@ def encode(action, expected_id, operation_id, expression=None, ttl_ms=None):
         action_code, expression_code, ttl_ms = 2, 0, 0
     else:
         raise ValueError("Unsupported trial operation")
-    return struct.pack(
-        ">4sIIIQII",
-        b"ETC1",
-        action_code,
-        expected_id,
-        ttl_ms,
-        int(operation_id, 16),
-        expression_code,
-        0,
+    filename = b""
+    if pack_filename is not None:
+        if (
+            action != "start"
+            or not isinstance(pack_filename, str)
+            or re.fullmatch(r"[a-z][a-z0-9._-]*\.bkep", pack_filename) is None
+            or len(pack_filename) >= 40
+        ):
+            raise ValueError("Pack trial requires a canonical installed .bkep filename")
+        filename = pack_filename.encode("ascii").ljust(40, b"\0")
+    return (
+        struct.pack(
+            ">4sIIIQII",
+            b"ETC2" if filename else b"ETC1",
+            action_code,
+            expected_id,
+            ttl_ms,
+            int(operation_id, 16),
+            expression_code,
+            0,
+        )
+        + filename
     )
 
 
@@ -94,7 +115,13 @@ def prepare(args):
     if args.operation == "trial-status":
         if any(
             getattr(args, k, None) is not None
-            for k in ("expected_trial_id", "operation_id", "expression", "ttl_ms")
+            for k in (
+                "expected_trial_id",
+                "operation_id",
+                "expression",
+                "ttl_ms",
+                "pack_filename",
+            )
         ):
             raise ValueError("Trial status does not accept mutation arguments")
         return
@@ -104,4 +131,5 @@ def prepare(args):
         args.operation_id,
         args.expression,
         args.ttl_ms,
+        pack_filename=getattr(args, "pack_filename", None),
     )

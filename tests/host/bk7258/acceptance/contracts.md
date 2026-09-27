@@ -762,3 +762,18 @@ is not restoration. No new thread, filesystem work in the control callback,
 persistent default, clock or default TTL is introduced. Old firmware rejects
 72-byte BEGIN; clients must report incompatibility, not fallback to a different
 pack or activate it. New wire inputs use explicit TTL and operation IDs.
+
+### S98 PC installed-pack trial client (2026-09-27)
+
+The existing trial-start adds optional --pack-filename, selecting ETC2 only
+when explicitly supplied. No filename retains byte-exact ETC1. A supplied
+filename must satisfy S97 wire syntax before credentials or port use. Cancel
+and status reject this mutation argument.72-byte requests use32/32/8 APPEND
+chunks within the existing conservative payload; acceptance remains unconfirmed
+rendering. BEGIN rejection by old firmware stops without fallback/replay.
+The actual client exchange/session/control/renderer path is exercised with
+plaintext host pipes replacing TLS/USB and external clock/mount/framebuffer
+only. Pixel/source/default-write observations remain in the real renderer
+fixture. Cancel/expiry restore default and missing packs report failure, not
+render success. Separate existing TLS/guard cases are not claimed as joint
+new pack-trial TLS or device proof. No persistent set-default is added here.

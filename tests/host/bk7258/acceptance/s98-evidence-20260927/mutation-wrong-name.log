@@ -1,0 +1,18 @@
+bk7258 package eye-pack: PASS output=/tmp/pack-trial-build-wy0e5a9t/green.bkep id=shaniu-upload-v1 revision=1 entries=11 size=10494 sha256=c0136ca3b702c15f41d15aed1e0a5e8714b851332024347c2bf13b1b7fea8e47
+PACK_TRIAL_INPUT_SHA256=c0136ca3b702c15f41d15aed1e0a5e8714b851332024347c2bf13b1b7fea8e47
+F
+======================================================================
+FAIL: test_cancel (__main__.PackWireTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/pc-pack-mutant-4zvy5yo1/client.py", line 374, in test_cancel
+    self.assertEqual(self.command("step"), "STEP 4 shaniu-upload-v1 happy")
+AssertionError: 'STEP 2 shaniu-default-v1 neutral' != 'STEP 4 shaniu-upload-v1 happy'
+- STEP 2 shaniu-default-v1 neutral
++ STEP 4 shaniu-upload-v1 happy
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.059s
+
+FAILED (failures=1)

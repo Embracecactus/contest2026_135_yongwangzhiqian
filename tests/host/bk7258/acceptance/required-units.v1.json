@@ -556,7 +556,15 @@
     "RES-02.pack-trial-wire-cancel",
     "RES-02.pack-trial-wire-expiry",
     "RES-02.pack-trial-wire-invalid",
-    "RES-02.pack-trial-wire-missing"
+    "RES-02.pack-trial-wire-missing",
+    "RES-02.pc-trial-pack_golden",
+    "RES-02.pc-trial-pack_invalid",
+    "RES-02.pc-trial-pack_staging",
+    "RES-02.pc-trial-pack_old_firmware",
+    "RES-02.pc-trial-pack_cli_preflight",
+    "RES-02.pack-trial-pc-cancel",
+    "RES-02.pack-trial-pc-expiry",
+    "RES-02.pack-trial-pc-missing"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1116,6 +1124,14 @@
     "RES-02.pack-trial-wire-cancel",
     "RES-02.pack-trial-wire-expiry",
     "RES-02.pack-trial-wire-invalid",
-    "RES-02.pack-trial-wire-missing"
+    "RES-02.pack-trial-wire-missing",
+    "RES-02.pc-trial-pack_golden",
+    "RES-02.pc-trial-pack_invalid",
+    "RES-02.pc-trial-pack_staging",
+    "RES-02.pc-trial-pack_old_firmware",
+    "RES-02.pc-trial-pack_cli_preflight",
+    "RES-02.pack-trial-pc-cancel",
+    "RES-02.pack-trial-pc-expiry",
+    "RES-02.pack-trial-pc-missing"
   ]
 }

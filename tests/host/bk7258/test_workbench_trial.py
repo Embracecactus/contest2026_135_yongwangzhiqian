@@ -72,6 +72,93 @@ class TrialTest(unittest.TestCase):
             with self.subTest(args=args), self.assertRaises(ValueError):
                 t.encode(*args)
 
+    def test_pack_golden(self):
+        expected = (
+            bytes.fromhex(
+                "455443320000000100000000000003e801020304050607080000000200000000"
+            )
+            + b"shaniu-upload-v1.bkep"
+            + bytes(19)
+        )
+        self.assertEqual(len(expected), 72)
+        self.assertEqual(
+            self.codec().encode(
+                "start",
+                0,
+                "0102030405060708",
+                "happy",
+                1000,
+                pack_filename="shaniu-upload-v1.bkep",
+            ),
+            expected,
+        )
+
+    def test_pack_invalid(self):
+        for name in (
+            "",
+            "../x.bkep",
+            "a/b.bkep",
+            "A.bkep",
+            "x.txt",
+            "a" * 35 + ".bkep",
+            "a\\b.bkep",
+            "a\x00.bkep",
+        ):
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                self.codec().encode(
+                    "start", 0, "0102030405060708", "happy", 1, pack_filename=name
+                )
+        with self.assertRaises(ValueError):
+            self.codec().encode("cancel", 1, "0102030405060708", pack_filename="x.bkep")
+
+    def test_pack_staging(self):
+        c, calls = self.client()
+        c.trial_request(
+            "start",
+            0,
+            "0102030405060708",
+            "happy",
+            1000,
+            pack_filename="shaniu-upload-v1.bkep",
+        )
+        self.assertEqual([cmd for cmd, _ in calls], [16, 17, 17, 17, 18])
+        self.assertEqual(calls[0][1], struct.pack(">II", 11, 72))
+        self.assertEqual([len(p) for cmd, p in calls if cmd == 17], [32, 32, 8])
+        expected = (
+            bytes.fromhex(
+                "455443320000000100000000000003e801020304050607080000000200000000"
+            )
+            + b"shaniu-upload-v1.bkep"
+            + bytes(19)
+        )
+        self.assertEqual(b"".join(p for cmd, p in calls if cmd == 17), expected)
+
+    def test_pack_old_firmware(self):
+        c, calls = self.client(fault=16)
+        with self.assertRaises(w.ControlError):
+            c.trial_request(
+                "start",
+                0,
+                "0102030405060708",
+                "happy",
+                1000,
+                pack_filename="shaniu-upload-v1.bkep",
+            )
+        self.assertEqual([cmd for cmd, _ in calls], [16])
+        self.assertTrue(c.closed)
+
+    def test_pack_cli_preflight(self):
+        parser = argparse.ArgumentParser()
+        w.add_arguments(parser)
+        for operation in ("trial-start", "trial-cancel", "trial-status"):
+            args = parser.parse_args([operation, "--pack-filename", "../bad.bkep"])
+            with patch.object(
+                w, "_credentials", side_effect=AssertionError("key access")
+            ) as borrow:
+                with self.assertRaises(ValueError):
+                    w.run(args)
+                borrow.assert_not_called()
+
     def test_snapshot(self):
         t = self.codec()
         r = t.decode(ACTIVE)
@@ -154,12 +241,15 @@ class TrialTest(unittest.TestCase):
             borrow.assert_not_called()
 
 
-class WireTest(unittest.TestCase):
+class WirePeerBase(unittest.TestCase):
+    def peer_command(self):
+        return [str(ROOT / "tests/host/bk7258/build/test_shaniu_trial_wire"), "--peer"]
+
     def setUp(self):
         import subprocess
 
         self.process = subprocess.Popen(
-            [str(ROOT / "tests/host/bk7258/build/test_shaniu_trial_wire"), "--peer"],
+            self.peer_command(),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -217,6 +307,8 @@ class WireTest(unittest.TestCase):
             self.process.stdout.close()
             self.process.stderr.close()
 
+
+class WireTest(WirePeerBase):
     def test_lifecycle(self):
         c = self.c
         self.assertEqual(c.trial_status()["state"], "idle")
@@ -260,6 +352,55 @@ class WireTest(unittest.TestCase):
             c.trial_request("cancel", 1, "0102030405060711")
         self.assertEqual(len(self.frames) - before, 3)
         self.assertEqual(self.command("step"), "STEP 1 sad")
+
+
+class PackWireTest(WirePeerBase):
+    def peer_command(self):
+        import json
+        import os
+
+        return json.loads(os.environ["SHANIU_PACK_TEST_PEER"])
+
+    def start_pack(self, filename="shaniu-upload-v1.bkep"):
+        self.assertEqual(self.c.trial_status()["state"], "idle")
+        result = self.c.trial_request(
+            "start", 0, "0102030405060708", "happy", 1000, pack_filename=filename
+        )
+        self.assertFalse(result["completion_verified"])
+        self.assertEqual(self.c.trial_status()["state"], "pending")
+
+    def test_cancel(self):
+        self.start_pack()
+        self.assertEqual(self.command("step"), "STEP 4 shaniu-upload-v1 happy")
+        self.assertTrue(self.c.trial_status()["device_reports_rendered"])
+        self.c.trial_request("cancel", 1, "0102030405060709")
+        self.assertEqual(self.c.trial_status()["state"], "cancel_pending")
+        self.assertEqual(self.command("step"), "STEP 6 shaniu-default-v1 neutral")
+        self.assertTrue(self.c.trial_status()["cancel_confirmed"])
+
+    def test_expiry(self):
+        self.start_pack()
+        self.assertEqual(self.command("step"), "STEP 4 shaniu-upload-v1 happy")
+        self.command("time 500")
+        self.c.trial_request(
+            "start",
+            0,
+            "0102030405060708",
+            "happy",
+            1000,
+            pack_filename="shaniu-upload-v1.bkep",
+        )
+        self.assertEqual(self.c.trial_status()["remaining_ms"], 600)
+        self.command("time 1100")
+        self.assertEqual(self.command("step"), "STEP 6 shaniu-default-v1 neutral")
+        self.assertEqual(self.c.trial_status()["state"], "expired")
+
+    def test_missing(self):
+        self.start_pack("missing.bkep")
+        self.assertEqual(self.command("step"), "STEP 2 shaniu-default-v1 neutral")
+        result = self.c.trial_status()
+        self.assertEqual(result["state"], "failed")
+        self.assertFalse(result["device_reports_rendered"])
 
 
 if __name__ == "__main__":

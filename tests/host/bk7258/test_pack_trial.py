@@ -3,6 +3,7 @@
 """Compile actual renderer/cache/volume bodies with external mount/FB peers."""
 from pathlib import Path
 import re
+import os
 import json
 import hashlib
 import subprocess
@@ -104,6 +105,23 @@ def main():
             ],
             check=True,
         )
+        if sys.argv[1].startswith("pc-"):
+            command = [
+                str(temp / "test"),
+                str(HERE / "build/shaniu-default-v1.bkep"),
+                str(fixture),
+                "--peer",
+            ]
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(HERE / "test_workbench_trial.py"),
+                    "PackWireTest.test_" + sys.argv[1].removeprefix("pc-"),
+                ],
+                env=dict(os.environ, SHANIU_PACK_TEST_PEER=json.dumps(command)),
+                timeout=20,
+            )
+            return result.returncode
         result = subprocess.run(
             [
                 str(temp / "test"),
