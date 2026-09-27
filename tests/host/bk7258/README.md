@@ -3274,3 +3274,26 @@ BrokenPipe。前者仅改成功标记，后者用超长Content-Length头直接�
 证据：`acceptance/s114-20260927.json`、`s114-catalog-job-evidence-20260927.json`
 及`s114-evidence-20260927/`（含首次报告、修正依据、逐例/变异日志和前后目标
 栈报告）。无实板操作，不将673主机单元视为56项产品全部验收。
+
+
+### S115：电源提示不等待显示资源锁
+
+`test_pack_trial.py power-request-{held-lock,coalesce,clear,catalog-running}`
+绑定实际公开电源函数、共用意图/目录状态机、存储与内置像素渲染；仅外部
+互斥锁/挂载/帧设备与确定性调度为夹具。原函数遇占用锁返回EBUSY，独立
+“请求应受理”断言Red；现改短元数据提交，原worker应用并渲染。返回0不代表
+已经画出提示或完成关机。非零立即门禁，零须worker确认，旧ready不能重开；
+新存储获取同步遵守门禁。阶段合并、不堆队列、不复活取消的旧作业。
+
+实际内置渲染检查双屏中心/轴线像素与帧数，不只查私有phase变量。
+目录readdir边界注入真实power请求，取消并释放真实卷状态；不是承诺中断
+正在执行的系统I/O或DMA。隔离去掉power门禁变异被业务断言检出，恢复通过。
+最初公开函数提取器错误和新增builtin主机编译告警属于SETUP_ERROR，单独保存；
+先修测试接线再得到真实Red，最终编译不禁用警告，像素几何不变。
+
+完整677PASS（原63含2恢复）保留原673ID，新4L2；19门禁、原2变异及额外
+门禁变异/恢复分别计数。AP增量/层检查通过。目标nm显示新增5B字段，无新
+线程队列；power入口静态栈16B/worker72B非运行时高水位。6144B栈配置未改。
+见`acceptance/s115-20260927.json`、`s115-power-request-evidence-20260927.json`
+及`s115-evidence-20260927/`。K2/CP/HardFault实板仍待验；onboarding仍可能
+等render mutex，未称所有显示入口已非阻塞；目录协议/App/网页继续接入。

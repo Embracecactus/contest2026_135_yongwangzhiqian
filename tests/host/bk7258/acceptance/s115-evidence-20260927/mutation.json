@@ -1,0 +1,8 @@
+{
+  "mutation": "stale worker readiness reopens power admission",
+  "compiled": true,
+  "detected": true,
+  "mutant_exit": 1,
+  "restored_exit": 0,
+  "production_modified": false
+}

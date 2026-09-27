@@ -595,6 +595,7 @@ out:
 static int bkdisplay_builtin_locked(struct bkdisplay_service_s *service,
                                     bool fallback)
 {
+  (void)fallback;
   int identity_ret = bkdisplay_identity_advance();
   if (identity_ret < 0) return identity_ret;
   uint16_t *pixels = calloc(BKDISPLAY_CANVAS_PIXELS, sizeof(*pixels));
@@ -634,8 +635,8 @@ static int bkdisplay_builtin_locked(struct bkdisplay_service_s *service,
       /* Ring/stem = power intent; iris = built-in fallback eyes. */
       int cx = BKDISPLAY_CANVAS_WIDTH / 2;
       int cy = BKDISPLAY_CANVAS_HEIGHT / 2;
-      for (int y = 0; y < BKDISPLAY_CANVAS_HEIGHT; y++)
-        for (int x = 0; x < BKDISPLAY_CANVAS_WIDTH; x++)
+      for (int y = 0; y < (int)BKDISPLAY_CANVAS_HEIGHT; y++)
+        for (int x = 0; x < (int)BKDISPLAY_CANVAS_WIDTH; x++)
           {
             pixels[y * BKDISPLAY_CANVAS_WIDTH + x] =
                 bkdisplay_power_pixel(service->power_overlay, x - cx, y - cy);
@@ -677,20 +678,35 @@ int bk7258_display_onboarding(const char *qr)
   return ret;
 }
 
-int bk7258_display_power(unsigned int phase)
+/* Display worker owns the rendering mutex. Requests only publish metadata;
+ * copy the latest phase before choosing a frame, with no queue to accumulate.
+ */
+static void bkdisplay_power_apply_locked(struct bkdisplay_service_s *service)
 {
-  if (phase > 3) return -EINVAL;
-  struct bkdisplay_service_s *service = &g_bkdisplay_service;
-  int ret = nxmutex_lock(&service->lock);
-  if (ret) return ret;
-  if (service->power_overlay != phase)
+  irqstate_t flags = spin_lock_irqsave(&g_bkdisplay_intent_lock);
+  if (service->power_overlay != g_bkdisplay_power_requested)
     {
-      service->power_overlay = phase;
+      service->power_overlay = g_bkdisplay_power_requested;
       service->overlay_dirty = true;
       service->status.state = BKDISPLAY_SERVICE_WAITING_ASSET;
     }
-  bkdisplay_intent_gate(service->started && !service->claim_qr[0] && !service->power_overlay);
-  bkdisplay_unlock(service);
+  g_bkdisplay_power_pending = false;
+  spin_unlock_irqrestore(&g_bkdisplay_intent_lock, flags);
+}
+
+int bk7258_display_power(unsigned int phase)
+{
+  irqstate_t flags;
+
+  if (phase > 3) return -EINVAL;
+  flags = spin_lock_irqsave(&g_bkdisplay_intent_lock);
+  if (g_bkdisplay_power_requested != phase) g_bkdisplay_power_pending = true;
+  g_bkdisplay_power_requested = phase;
+  if (phase != 0) bkdisplay_intent_gate_locked(false);
+  /* Clearing a hint does not reopen business here: only the worker can
+   * observe started/claim/power state together and reopen the gate.
+   */
+  spin_unlock_irqrestore(&g_bkdisplay_intent_lock, flags);
   return 0;
 }
 
@@ -714,6 +730,7 @@ static int bkdisplay_worker(int argc, char *argv[])
     {
       int ret = nxmutex_lock(&service->lock);
       if (ret < 0) { bkdisplay_intent_gate(false); return ret; }
+      bkdisplay_power_apply_locked(service);
       uint64_t now = bkdisplay_now_ms();
       unsigned focus = atomic_load(&g_focus_visual);
       if (atomic_load(&g_speaking)) service->focus_painted = 0;

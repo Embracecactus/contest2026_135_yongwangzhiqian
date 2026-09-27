@@ -40,7 +40,12 @@ struct bkdisplay_service_status_s
 /* 107-char native QR or NULL; never exported in public status/RPC. */
 int bk7258_display_onboarding(const char *qr);
 /* 0 normal, 1 long-hold/release hint, 2 saving/shutdown in progress,
- * 3 shutdown failed (resources remain stopped; explicit retry required). */
+ * 3 shutdown failed (resources remain stopped; explicit retry required).
+ * Metadata-only admission; returns before the display worker renders. Latest
+ * phase coalesces, nonzero closes ordinary admission immediately, and zero
+ * reopens only after the worker has applied it and checked other overlays.
+ * Never waits for the render mutex, storage or framebuffer.
+ */
 int bk7258_display_power(unsigned int phase);
 /* Nonblocking notification; only the display worker touches framebuffer. */
 void bk7258_display_speaking(bool active);

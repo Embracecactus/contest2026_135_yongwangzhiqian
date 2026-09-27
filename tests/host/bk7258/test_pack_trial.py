@@ -65,6 +65,13 @@ def main():
             flush=True,
         )
         from test_nfc_rf_lifecycle import function
+        power_start = source.index("int bk7258_display_power(")
+        power_end = source.index("\nstatic uint64_t bkdisplay_now_ms", power_start)
+        (temp / "power-request.inc").write_text(source[power_start:power_end])
+        (temp / "power-render.inc").write_text(
+            function(source, "bkdisplay_power_apply_locked") + "\n" +
+            function(source, "bkdisplay_builtin_locked") + "\n"
+        )
 
         product = (APP / "bk7258_agent_product.c").read_text()
         (temp / "selection-product.inc").write_text(

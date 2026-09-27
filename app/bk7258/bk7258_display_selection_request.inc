@@ -27,7 +27,8 @@ static char g_bkdisplay_catalog_after[BKDISPLAY_STORE_FILENAME_SIZE];
 static inline bool bkdisplay_selection_storage_blocked(void)
 {
   irqstate_t flags = spin_lock_irqsave(&g_bkdisplay_intent_lock);
-  bool blocked = g_bkdisplay_selection.release_error != 0;
+  bool blocked = g_bkdisplay_selection.release_error != 0 ||
+                 g_bkdisplay_power_requested != 0 || g_bkdisplay_power_pending;
   spin_unlock_irqrestore(&g_bkdisplay_intent_lock, flags);
   return blocked;
 }

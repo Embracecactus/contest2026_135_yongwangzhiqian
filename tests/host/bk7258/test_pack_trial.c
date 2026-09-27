@@ -15,6 +15,7 @@
 #include <syslog.h>
 #include <unistd.h>
 #include "bk7258_display_store.h"
+#include "bk7258_display_power_pixels.h"
 #include "bk7258_display_service.h"
 #include "bk7258_media_volume.h"
 #include "bk7258_display_trial_control.h"
@@ -30,6 +31,8 @@ static uint64_t clock_ms=100;
 static uint64_t bkdisplay_now_ms(void) { return clock_ms; }
 static unsigned mounts,unmounts,frames,writes;
 static bool expect_green;
+static unsigned expect_power_phase;
+static bool power_on_read;
 static bool cancel_on_mount, cancel_on_write, fail_frame, fail_unmount;
 static bool fail_directory_sync;
 static uint32_t selection_id;
@@ -37,6 +40,14 @@ static bool catalog_cancel_on_read;
 struct dirent *__real_readdir(DIR *dir);
 struct dirent *__wrap_readdir(DIR *dir)
 {
+  if (power_on_read)
+    {
+      power_on_read = false;
+      assert(bk7258_display_power(2) == 0);
+      struct bkdisplay_selection_status_s status;
+      assert(bk7258_display_selection_status(&status) == 0);
+      assert(status.state == BKDISPLAY_SELECTION_CANCEL_PENDING);
+    }
   if (catalog_cancel_on_read)
     {
       catalog_cancel_on_read = false;
@@ -75,7 +86,16 @@ static int test_umount(const char *p)
 static int bkdisplay_framebuffer_write(const char *path,const uint16_t *pixels)
 {
   assert(pixels && (!strcmp(path,"left")||!strcmp(path,"right")));
-  if(expect_green)
+  if (expect_power_phase)
+    {
+      unsigned center = 80 * 160 + 80;
+      if (expect_power_phase == 3)
+        { assert(pixels[center] == 0xf800 && pixels[center + 20 * 160] == 0); }
+      else
+        { assert(pixels[center] == 0 && pixels[center - 20 * 160] ==
+                   (expect_power_phase == 2 ? 0xfd20 : 0x07ff)); }
+    }
+  else if(expect_green)
     {for(size_t i=0;i<BKDISPLAY_CANVAS_PIXELS;i++)assert(pixels[i]==0x07e0);}
   else assert(pixels[0]==0x0842); /* Source palette background #090b13. */
   if(fail_frame){fail_frame=false;return -EIO;}
@@ -86,6 +106,16 @@ static inline bool bkdisplay_selection_storage_blocked(void);
 #include "bk7258_display_render_identity.inc"
 #include "bk7258_display_intent.inc"
 #include "bk7258_display_selection.inc"
+static struct bkdisplay_service_s *power_service;
+#define g_bkdisplay_service (*power_service)
+static unsigned power_lock_calls;
+int nxmutex_lock(mutex_t *lock)
+{ (void)lock; power_lock_calls++; return -EBUSY; }
+void bkdisplay_unlock(struct bkdisplay_service_s *service)
+{ (void)service; assert(false); }
+#include "power-request.inc"
+#include "power-render.inc"
+
 static void install(const char *path,bool activate)
 {
   FILE *f=fopen(path,"rb");assert(f);
@@ -587,6 +617,7 @@ static int remove_entry(const char *p,const struct stat *s,int type,struct FTW *
 {(void)s;(void)type;(void)w;return remove(p);}
 
 #include "catalog_job_cases.inc"
+#include "power_request_cases.inc"
 
 int main(int argc,char **argv)
 {
@@ -597,7 +628,12 @@ int main(int argc,char **argv)
   unsigned baseline_writes=writes,baseline_frames=frames,baseline_mounts=mounts;
   uint32_t id=0;
   const char *name=!strcmp(argv[3],"missing")?"missing.bkep":"shaniu-upload-v1.bkep";
-  if(!strncmp(argv[3],"catalog-job-",12))
+  if (!strncmp(argv[3], "power-request-", 14))
+    {
+      power_service = &service;
+      power_request_case(&service, argv[3]);
+    }
+  else if(!strncmp(argv[3],"catalog-job-",12))
     catalog_job_case(&service,argv[3]);
   else if(!strncmp(argv[3],"selection-",10))
     {selection_case(&service,argv[3]);baseline_writes=writes;}

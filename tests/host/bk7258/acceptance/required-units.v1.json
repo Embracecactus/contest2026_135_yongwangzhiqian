@@ -673,7 +673,11 @@
     "RES-02.catalog-job-mount-cancel",
     "RES-02.catalog-job-scan-cancel",
     "RES-02.catalog-job-release",
-    "RES-02.catalog-job-corrupt"
+    "RES-02.catalog-job-corrupt",
+    "LIFE-01.power-request-held-lock",
+    "LIFE-01.power-request-coalesce",
+    "LIFE-01.power-request-clear",
+    "LIFE-01.power-request-catalog-running"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1350,6 +1354,10 @@
     "RES-02.catalog-job-mount-cancel",
     "RES-02.catalog-job-scan-cancel",
     "RES-02.catalog-job-release",
-    "RES-02.catalog-job-corrupt"
+    "RES-02.catalog-job-corrupt",
+    "LIFE-01.power-request-held-lock",
+    "LIFE-01.power-request-coalesce",
+    "LIFE-01.power-request-clear",
+    "LIFE-01.power-request-catalog-running"
   ]
 }

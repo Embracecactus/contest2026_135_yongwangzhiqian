@@ -6,6 +6,8 @@ static spinlock_t g_bkdisplay_intent_lock = SP_UNLOCKED;
 static struct bkdisplay_expression_request_s g_bkdisplay_intent;
 static char g_bkdisplay_intent_expression[BKDISPLAY_EXPRESSION_SIZE];
 static bool g_bkdisplay_intent_allowed;
+static unsigned int g_bkdisplay_power_requested;
+static bool g_bkdisplay_power_pending;
 
 static struct bkdisplay_trial_status_s g_bkdisplay_trial;
 static uint64_t g_bkdisplay_trial_started;
@@ -59,9 +61,10 @@ int bk7258_display_cancel_trial(uint32_t id)
   return ret;
 }
 
-static void bkdisplay_intent_gate(bool allowed)
+static void bkdisplay_intent_gate_locked(bool allowed)
 {
-  irqstate_t flags = spin_lock_irqsave(&g_bkdisplay_intent_lock);
+  allowed = allowed && g_bkdisplay_power_requested == 0 &&
+            !g_bkdisplay_power_pending;
   g_bkdisplay_intent_allowed = allowed;
   if (!allowed) bkdisplay_trial_supersede();
   if (!allowed) bkdisplay_selection_cancel_locked();
@@ -70,6 +73,12 @@ static void bkdisplay_intent_gate(bool allowed)
       g_bkdisplay_intent.state = BKDISPLAY_EXPRESSION_CANCELED;
       g_bkdisplay_intent.error = -ECANCELED;
     }
+}
+
+static void bkdisplay_intent_gate(bool allowed)
+{
+  irqstate_t flags = spin_lock_irqsave(&g_bkdisplay_intent_lock);
+  bkdisplay_intent_gate_locked(allowed);
   spin_unlock_irqrestore(&g_bkdisplay_intent_lock, flags);
 }
 
