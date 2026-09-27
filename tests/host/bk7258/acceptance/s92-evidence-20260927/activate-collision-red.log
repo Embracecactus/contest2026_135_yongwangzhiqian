@@ -1,0 +1,1 @@
+test_display_upload: test_display_upload.c:230: main: Assertion `bkdisplay_store_activate(root, selected.filename, NULL) == -EEXIST' failed.

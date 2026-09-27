@@ -529,7 +529,9 @@
     "RES-03.native-tls-upload",
     "RES-03.native-tls-reconnect",
     "RES-03.native-tls-cancel",
-    "RES-03.native-tls-wrong_principal"
+    "RES-03.native-tls-wrong_principal",
+    "RES-02.activate-collision",
+    "RES-02.activate-directory-failure"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1062,6 +1064,8 @@
     "RES-03.native-tls-upload",
     "RES-03.native-tls-reconnect",
     "RES-03.native-tls-cancel",
-    "RES-03.native-tls-wrong_principal"
+    "RES-03.native-tls-wrong_principal",
+    "RES-02.activate-collision",
+    "RES-02.activate-directory-failure"
   ]
 }

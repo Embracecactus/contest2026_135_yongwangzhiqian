@@ -202,38 +202,12 @@ static int bkdisplay_store_write_all(int fd, const void *buffer, size_t size)
   return 0;
 }
 
-/* Request directory synchronization where the filesystem supports it.
+/* Require successful directory synchronization and propagate syscall errors.
  * Native NuttX FAT already writes directory changes during rename/unlink;
  * its directory fsync path can return success without a device flush.
- * This best-effort call is not evidence of power-loss durability and must
+ * Even a successful call is not evidence of power-loss durability and must
  * not be used to explain an earlier EIO without storage-level evidence.
  */
-
-static void bkdisplay_store_sync_directory(const char *path)
-{
-  int fd;
-  int ret;
-
-  fd = open(path, O_RDONLY);
-  if (fd < 0)
-    {
-      BKDISPLAY_STORE_DIAG(
-        "BKDISPLAY STORE stage=dir-open path=%s ret=%d\n", path, -errno);
-      return;
-    }
-
-  ret = fsync(fd) < 0 ? -errno : 0;
-  if (close(fd) < 0 && ret == 0)
-    {
-      ret = -errno;
-    }
-
-  if (ret < 0)
-    {
-      BKDISPLAY_STORE_DIAG(
-        "BKDISPLAY STORE stage=dir-sync path=%s ret=%d\n", path, ret);
-    }
-}
 
 static int bkdisplay_store_sync_directory_strict(const char *path)
 {
@@ -680,8 +654,11 @@ int bkdisplay_store_activate(const char *root, const char *filename,
       return ret;
     }
 
-  (void)unlink(temporary);
-  fd = open(temporary, O_WRONLY | O_CREAT | O_EXCL | O_TRUNC, 0644);
+  /* A remnant is not owned by this request. Preserve it for explicit
+   * recovery instead of silently discarding an interrupted selection.
+   */
+
+  fd = open(temporary, O_WRONLY | O_CREAT | O_EXCL, 0644);
   if (fd < 0)
     {
       return bkdisplay_store_errno();
@@ -707,10 +684,15 @@ int bkdisplay_store_activate(const char *root, const char *filename,
     {
       char base[BKDISPLAY_PACK_PATH_SIZE];
 
-      if (bkdisplay_store_path(base, sizeof(base), root,
-                               BKDISPLAY_STORE_BASE) == 0)
+      ret = bkdisplay_store_path(base, sizeof(base), root,
+                                 BKDISPLAY_STORE_BASE);
+      if (ret == 0)
         {
-          bkdisplay_store_sync_directory(base);
+          /* Rename may already be visible when sync fails. Report unknown
+           * durability; never manufacture a rollback or a success receipt.
+           */
+
+          ret = bkdisplay_store_sync_directory_strict(base);
         }
     }
 

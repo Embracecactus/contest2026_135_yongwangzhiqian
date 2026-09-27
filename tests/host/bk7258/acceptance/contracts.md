@@ -653,3 +653,21 @@ mode switch, owner claim, default activation or TTL renewal occurs. Cancellation
 is complete only at CANCELED; local close remains a transport action. Format/CRC
 and installation checks are the existing production device path; the host's
 initial magic/size filter is not a complete format verifier or signature claim.
+
+### S92 explicit default-selection storage failures (2026-09-27)
+
+RES-02 / STORE-02: selection runs under the existing exclusive mounted-volume
+owner. `.active.json.tmp` is created exclusively; a preexisting entry is not
+owned by this operation and yields EEXIST without deleting/truncating it or
+changing the prior default. Recovery of a previous-boot remnant remains an
+explicit operation, not an automatic cleanup on an ordinary select request.
+
+After validating the installed pack, file write/sync/close and marker rename,
+the parent directory synchronization must succeed before returning success or
+populating the caller's selection result. Errors propagate. A failure after
+rename can leave the new selection visible: this is uncertain durability, not
+a claim of rollback. No automatic retry/undo is added. Even successful fsync on
+NuttX FAT does not establish physical power-loss durability; L3 remains open.
+These are synchronous store primitives, not a new USB callback or async default
+job. Future desktop activation must preserve expected-revision, ownership and
+render-completion semantics before its entry is enabled.

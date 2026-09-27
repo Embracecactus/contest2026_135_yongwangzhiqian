@@ -111,11 +111,13 @@ int main(int argc, char **argv)
       struct bkdisplay_store_selection_s selected;
       size_t offset = 0;
       if (strcmp(argv[2], "preserve") == 0 ||
-          strcmp(argv[2], "corrupt") == 0)
+          strcmp(argv[2], "corrupt") == 0 ||
+          strncmp(argv[2], "activate-", 9) == 0)
         {
           assert(bkdisplay_store_import(root, bytes, size, NULL) == 0);
         }
-      if (strcmp(argv[2], "preserve") == 0)
+      if (strcmp(argv[2], "preserve") == 0 ||
+          strncmp(argv[2], "activate-", 9) == 0)
         {
           assert(argc == 4);
           fd = open(argv[3], O_RDONLY);
@@ -206,7 +208,8 @@ int main(int argc, char **argv)
               assert(bkdisplay_upload_finish(&upload, NULL) == -EALREADY);
               assert(bkdisplay_upload_cancel(&upload) == -EALREADY);
               snprintf(path, sizeof(path), "%s/shaniu/display/active.json", root);
-              if (strcmp(argv[2], "preserve") == 0)
+              if (strcmp(argv[2], "preserve") == 0 ||
+                  strncmp(argv[2], "activate-", 9) == 0)
                 {
                   struct bkdisplay_store_selection_s prior;
                   assert(bkdisplay_store_resolve(root, &prior) == 0);
@@ -216,13 +219,42 @@ int main(int argc, char **argv)
                 {
                   assert(access(path, F_OK) < 0 && errno == ENOENT);
                 }
+              if (strcmp(argv[2], "activate-collision") == 0)
+                {
+                  char temporary[512], kept[5];
+                  struct bkdisplay_store_selection_s prior;
+                  snprintf(temporary, sizeof(temporary),
+                           "%s/shaniu/display/.active.json.tmp", root);
+                  fd = open(temporary, O_CREAT | O_EXCL | O_WRONLY, 0600);
+                  assert(fd >= 0 && write(fd, "owned", 5) == 5 && close(fd) == 0);
+                  assert(bkdisplay_store_activate(root, selected.filename, NULL) == -EEXIST);
+                  fd = open(temporary, O_RDONLY);
+                  assert(fd >= 0 && read(fd, kept, 5) == 5 && close(fd) == 0);
+                  assert(memcmp(kept, "owned", 5) == 0);
+                  assert(bkdisplay_store_resolve(root, &prior) == 0);
+                  assert(strcmp(prior.filename, "shaniu-default-v1.bkep") == 0);
+                  assert(unlink(temporary) == 0); /* Explicit fixture cleanup. */
+                }
+              if (strcmp(argv[2], "activate-directory-failure") == 0)
+                {
+                  struct bkdisplay_store_selection_s result, unchanged;
+                  memset(&result, 0x5a, sizeof(result));
+                  unchanged = result;
+                  directory_fault = 1;
+                  assert(bkdisplay_store_activate(root, selected.filename, &result) == -EIO);
+                  assert(memcmp(&result, &unchanged, sizeof(result)) == 0);
+                  /* Rename already happened: do not claim rollback/durability. */
+                  assert(bkdisplay_store_resolve(root, &result) == 0);
+                  assert(strcmp(result.filename, selected.filename) == 0);
+                }
               assert(bkdisplay_store_activate(root, selected.filename, NULL) == 0);
               assert(access(path, R_OK) == 0);
               /* A duplicate import cannot replace the valid selected pack. */
               assert(bkdisplay_store_import(root, bytes, size, NULL) == -EEXIST);
               assert(bkdisplay_store_resolve(root, &selected) == 0);
               assert(strcmp(selected.filename,
-                            strcmp(argv[2], "preserve") == 0 ?
+                            (strcmp(argv[2], "preserve") == 0 ||
+                             strncmp(argv[2], "activate-", 9) == 0) ?
                             "shaniu-upload-v1.bkep" : "shaniu-default-v1.bkep") == 0);
             }
         }

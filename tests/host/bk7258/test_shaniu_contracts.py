@@ -516,6 +516,11 @@ def main():
             [HERE / "build/test_display_upload",
              HERE / "build/shaniu-default-v1.bkep", variant,
              HERE / "build/upload-second.bkep"], binaries["test_display_upload"])
+    for variant in ("activate-collision", "activate-directory-failure"):
+        add(suite, "RES-02." + variant, "RES-02", "L2",
+            [HERE / "build/test_display_upload",
+             HERE / "build/shaniu-default-v1.bkep", variant,
+             HERE / "build/upload-second.bkep"], binaries["test_display_upload"])
     for variant in ("queued-cancel", "expiry", "rollback", "blocked-cancel", "gate",
                     "release-failure", "cleanup-failure", "commit-cancel", "commit-busy", "success"):
         add(suite, "RES-01.job-" + variant, "RES-01", "L2",
