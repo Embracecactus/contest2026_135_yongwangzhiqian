@@ -11,6 +11,7 @@
  ****************************************************************************/
 
 #include "bk7258_pc_authorization.h"
+#include "bk7258_provision_storage.h"
 
 /****************************************************************************
  * Public Function Prototypes
@@ -28,5 +29,11 @@ int bkpc_authorization_current(enum bkcontrol_command_e command,
                                uint32_t offset, const uint8_t *record,
                                size_t size,
                                struct bkcontrol_status_s *status);
+/* Private source for a PC lease, on the same serialized product owner.
+ * Never publish view.key. Output is cleared on every failure.
+ */
+
+int bkpc_authorization_snapshot(void *context, uint64_t *binding,
+                                struct bkprov_pc_snapshot_s *view);
 void bkpc_authorization_unbind(void);
 #endif

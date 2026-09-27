@@ -12,18 +12,31 @@
 
 #include "bk7258_control_pair.h"
 #include "bk7258_pc_grants.h"
+#include "bk7258_provision_storage.h"
 
-/* One serialized owner holds grants, this lease, pair and transport. All
- * borrowed objects outlive close; grant mutations may occur between steps,
- * never concurrently with one. No filesystem I/O occurs in step or dispatch.
- * Every grant revision change invalidates the session, including exact
- * same-key regrants. Close releases only local TLS/staging; it cannot
- * cancel a previously accepted service job or prove transport/DMA shutdown.
+/* A bounded, coherent device-internal snapshot, never a filesystem read.
+ * The product owner and source context outlive close. Binding identifies the
+ * primary configuration and the grant revision. The consumer wipes private
+ * snapshot buffers on every path.
+ */
+
+struct bkpc_source_s
+{
+  void *context;
+  int (*snapshot)(void *context, uint64_t *binding,
+                  struct bkprov_pc_snapshot_s *view);
+};
+
+/* One serialized product owner steps the lease and reads the snapshot.
+ * The file worker's mutable grants object is never borrowed. Unavailable or
+ * changed snapshots close the session; closing cannot cancel an accepted job
+ * or prove transport/DMA shutdown.
  */
 
 struct bkpc_control_s
 {
-  const struct bkpc_grants_s *grants;
+  struct bkpc_source_s source;
+  uint64_t binding;
   struct bkcontrol_pair_s *pair;
   bkcontrol_execute_t execute;
   bkcontrol_config_t config;
@@ -44,7 +57,7 @@ struct bkpc_control_s
 
 int bkpc_control_start(struct bkpc_control_s *state,
                        struct bkcontrol_pair_s *pair,
-                       const struct bkpc_grants_s *grants,
+                       const struct bkpc_source_s *source,
                        uint32_t generation, mbedtls_x509_crt *certificate,
                        mbedtls_pk_context *key, uint64_t (*now_ms)(void *),
                        void *clock_context, bkcontrol_execute_t execute,

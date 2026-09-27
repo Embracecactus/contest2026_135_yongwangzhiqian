@@ -1,0 +1,11 @@
+make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'
+cc -std=gnu11 -pthread -Wall -Wextra -O2 -Werror -pthread -ffunction-sections -fdata-sections -I/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -I/home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/include test_pc_owner_binding.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_pc_authorization_owner.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_pc_authorization.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_owner.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_settings.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_cloud_config.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_voice_config.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_pc_grants.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_storage.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_store.c -Wl,--gc-sections,--wrap=fsync build/voice-ota-store-mbedtls/library/libmbedcrypto.a -o build/test_pc_owner_binding
+In file included from test_pc_storage.c:4,
+                 from test_pc_owner_binding.c:3:
+test_pc_owner_binding.c: In function ‘main’:
+test_pc_owner_binding.c:76:11: error: implicit declaration of function ‘bkpc_authorization_snapshot’; did you mean ‘bkpc_authorization_unbind’? [-Werror=implicit-function-declaration]
+   76 |    assert(bkpc_authorization_snapshot(NULL, &binding, &view) == 0);
+      |           ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+cc1: all warnings being treated as errors
+make: *** [Makefile:1991: build/test_pc_owner_binding] Error 1
+make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'

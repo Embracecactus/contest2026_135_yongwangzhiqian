@@ -19,9 +19,8 @@
 
 static int current(const struct bkpc_control_s *state)
 {
-  uint8_t client[16];
-  uint64_t revision;
-  uint32_t capabilities;
+  struct bkprov_pc_snapshot_s view;
+  uint64_t binding = 0;
   int ret;
 
   if (state == NULL || !state->open)
@@ -29,20 +28,22 @@ static int current(const struct bkpc_control_s *state)
       return -ENOTCONN;
     }
 
-  ret = bkpc_grants_snapshot(state->grants, &revision, client,
-                             &capabilities);
-  if (ret < 0)
+  memset(&view, 0, sizeof(view));
+  ret = state->source.snapshot(state->source.context, &binding, &view);
+  if (ret > 0)
     {
-      return ret;
+      ret = -EIO;
+    }
+  else if (ret == 0 &&
+           (binding != state->binding || view.revision != state->revision ||
+            view.capabilities != state->capabilities ||
+            memcmp(view.client, state->client, sizeof(view.client))))
+    {
+      ret = -ESTALE;
     }
 
-  if (revision != state->revision || capabilities != state->capabilities ||
-      capabilities == 0 || memcmp(client, state->client, sizeof(client)))
-    {
-      return -ESTALE;
-    }
-
-  return 0;
+  mbedtls_platform_zeroize(&view, sizeof(view));
+  return ret;
 }
 
 static int execute(void *context, enum bkcontrol_command_e command,
@@ -118,21 +119,21 @@ void bkpc_control_close(struct bkpc_control_s *state)
 
 int bkpc_control_start(struct bkpc_control_s *state,
                        struct bkcontrol_pair_s *pair,
-                       const struct bkpc_grants_s *grants,
+                       const struct bkpc_source_s *source,
                        uint32_t generation, mbedtls_x509_crt *certificate,
                        mbedtls_pk_context *key, uint64_t (*now_ms)(void *),
                        void *clock_context, bkcontrol_execute_t handler,
                        bkcontrol_config_t config_handler, void *context,
                        const struct bkprov_tls_transport_s *transport)
 {
-  uint8_t principal[32];
-  uint8_t client[16];
-  uint64_t revision;
-  uint32_t capabilities;
+  struct bkprov_pc_snapshot_s view;
+  uint64_t binding = 0;
+  uint8_t key_bits = 0;
+  uint8_t client_bits = 0;
   int ret;
 
-  if (state == NULL || pair == NULL || grants == NULL ||
-      handler == NULL || transport == NULL)
+  if (state == NULL || pair == NULL || source == NULL ||
+      source->snapshot == NULL || handler == NULL || transport == NULL)
     {
       return -EINVAL;
     }
@@ -142,32 +143,49 @@ int bkpc_control_start(struct bkpc_control_s *state,
       return -EBUSY;
     }
 
-  ret = bkpc_grants_snapshot(grants, &revision, client, &capabilities);
-  if (ret < 0)
+  memset(&view, 0, sizeof(view));
+  ret = source->snapshot(source->context, &binding, &view);
+  if (ret == 0)
     {
-      return ret;
+      for (size_t i = 0; i < sizeof(view.key); i++)
+        {
+          key_bits |= view.key[i];
+        }
+
+      for (size_t i = 0; i < sizeof(view.client); i++)
+        {
+          client_bits |= view.client[i];
+        }
+
+      if (binding == 0 || view.revision == 0 || key_bits == 0 ||
+          client_bits == 0 || view.capabilities == 0 ||
+          (view.capabilities & ~BKPC_CAP_ALL))
+        {
+          ret = view.capabilities == 0 ? -EACCES : -ENOKEY;
+        }
     }
 
-  ret = bkpc_grants_key(grants, revision, principal, &capabilities);
-  if (ret < 0)
+  if (ret != 0)
     {
-      return ret;
+      mbedtls_platform_zeroize(&view, sizeof(view));
+      return ret < 0 ? ret : -EIO;
     }
 
   memset(state, 0, sizeof(*state));
-  state->grants = grants;
+  state->source = *source;
+  state->binding = binding;
   state->pair = pair;
   state->execute = handler;
   state->config = config_handler;
   state->context = context;
-  state->revision = revision;
-  state->capabilities = capabilities;
-  memcpy(state->client, client, sizeof(client));
+  state->revision = view.revision;
+  state->capabilities = view.capabilities;
+  memcpy(state->client, view.client, sizeof(view.client));
   state->open = true;
   ret = bkcontrol_pair_start_transport(pair, generation, certificate, key,
-                                       principal, now_ms, clock_context,
+                                       view.key, now_ms, clock_context,
                                        execute, state, transport);
-  mbedtls_platform_zeroize(principal, sizeof(principal));
+  mbedtls_platform_zeroize(&view, sizeof(view));
   if (ret == 0)
     {
       ret = bkcontrol_session_set_config_handler(&pair->session, config);

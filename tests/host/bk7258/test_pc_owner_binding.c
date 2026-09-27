@@ -69,6 +69,31 @@ int main(int argc,char **argv)
    bkpc_authorization_unbind();assert(read_current()==-ENOKEY);
    assert(prepare(1)==0 && read_current()==0);
   }
+ else if(!strcmp(argv[1],"source"))
+  {
+   struct bkprov_pc_snapshot_s view;
+   uint64_t binding = 0;
+   assert(bkpc_authorization_snapshot(NULL, &binding, &view) == 0);
+   assert(binding == 1 && view.revision == 1 && view.capabilities == 3);
+   assert(!memcmp(view.client, client, 16) && !memcmp(view.key, pc, 32));
+   memset(&view, 0xa5, sizeof(view));
+   bkpc_authorization_unbind();
+   assert(bkpc_authorization_snapshot(NULL, &binding, &view) == -ENOKEY);
+   assert(binding == 0);
+   for(size_t i=0;i<sizeof(view);i++) assert(((uint8_t *)&view)[i] == 0);
+   assert(prepare(1)==0);
+  }
+ else if(!strcmp(argv[1],"source-revision"))
+  {
+   struct bkprov_pc_snapshot_s view;
+   uint64_t binding = 0;
+   assert(bkpc_authorization_snapshot(NULL, &binding, &view) == 0 && binding == 1);
+   uint64_t grant = view.revision;
+   assert(bkprov_storage_commit(1,next,bundle,bundle_size)==-EAGAIN);
+   assert(receipt(next)==1 && prepare(2)==0);
+   assert(bkpc_authorization_snapshot(NULL, &binding, &view) == 0);
+   assert(binding == 2 && view.revision == grant && !memcmp(view.key,pc,32));
+  }
  else assert(!strcmp(argv[1],"offline"));
  bkpc_authorization_unbind();
  assert(bkprov_storage_stop()==0);puts("CONTRACT_PASS");return 0;

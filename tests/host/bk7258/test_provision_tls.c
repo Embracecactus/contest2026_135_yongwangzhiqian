@@ -260,6 +260,24 @@ static int pc_config(void *context, enum bkcontrol_command_e command,
   else assert(command == BKCONTROL_CONFIG_BEGIN && size == 4);
   return 0;
 }
+static uint64_t pc_binding = 1;
+static int pc_source_error;
+static int pc_snapshot(void *context, uint64_t *binding,
+                         struct bkprov_pc_snapshot_s *view)
+{
+  assert(context == &pc_grants);
+  memset(view, 0, sizeof(*view));
+  *binding = 0;
+  if (pc_source_error) return pc_source_error;
+  int ret = bkpc_grants_snapshot(context, &view->revision, view->client,
+                                  &view->capabilities);
+  if (!ret && view->capabilities)
+    ret = bkpc_grants_key(context, view->revision, view->key, &view->capabilities);
+  if (!ret) *binding = pc_binding;
+  return ret;
+}
+static const struct bkpc_source_s pc_source = { &pc_grants, pc_snapshot };
+
 static int control_step(struct bkcontrol_pair_s *pair)
 {
   return pc_guarded ? bkpc_control_step(&pc_control) : bkcontrol_pair_step(pair);
@@ -314,9 +332,13 @@ static void control_handshake_on(struct bkcontrol_pair_s *control,
           selected_generation = transport.generation(transport.context);
         }
       if (pc_guarded)
-        assert(bkpc_control_start(&pc_control, control, &pc_grants,
-                   selected_generation, cert, key, clock_ms, NULL,
-                   pc_execute, pc_config, &pc_reads, &transport) == 0);
+        {
+          struct bkpc_source_s loaned = pc_source;
+          assert(bkpc_control_start(&pc_control, control, &loaned,
+                     selected_generation, cert, key, clock_ms, NULL,
+                     pc_execute, pc_config, &pc_reads, &transport) == 0);
+          memset(&loaned, 0, sizeof(loaned));
+        }
       else
         assert(bkcontrol_pair_start_transport(control, selected_generation, cert,
                  key, owner, clock_ms, NULL, control_execute, NULL,
@@ -672,7 +694,7 @@ static void pc_guard_tests(mbedtls_ssl_context *client,
   assert(pc_writes == 2);
   struct bkprov_tls_transport_s transport =
     { &stream_generation, stream_epoch, stream_read, stream_send, 64, 0 };
-  assert(bkpc_control_start(&pc_control, &control, &pc_grants,
+  assert(bkpc_control_start(&pc_control, &control, &pc_source,
              stream_generation, cert, key, clock_ms, NULL,
              pc_execute, pc_config, &pc_reads, &transport) == -EACCES);
   assert(!pc_control.open && !control.tls.initialized);
@@ -685,6 +707,17 @@ static void pc_guard_tests(mbedtls_ssl_context *client,
   control_terminal(&control, -ESTALE);
   control_handshake_on(&control, client, cert, key, true);
   pc_exchange(&control, client, 1, 0, auth, 32, 0);
+  /* Same persisted grant under a new primary configuration is a new lease. */
+  pc_binding++;
+  control_terminal(&control, -ESTALE);
+  control_handshake_on(&control, client, cert, key, true);
+  pc_exchange(&control, client, 1, 0, auth, 32, 0);
+  /* A worker publication interval is unavailable, never stale authorization. */
+  pc_source_error = -EAGAIN;
+  control_terminal(&control, -EAGAIN);
+  pc_source_error = 0;
+  control_handshake_on(&control, client, cert, key, true);
+  pc_exchange(&control, client, 1, 0, auth, 32, 0);
   pc_sync_fault = 1;
   pc_change_result(0, -EIO);
   pc_sync_fault = 0;
@@ -694,7 +727,7 @@ static void pc_guard_tests(mbedtls_ssl_context *client,
   pc_change_result(0, -EINPROGRESS);
   pc_sync_fault = 0;
   control_terminal(&control, -EINPROGRESS);
-  assert(bkpc_control_start(&pc_control, &control, &pc_grants,
+  assert(bkpc_control_start(&pc_control, &control, &pc_source,
              stream_generation, cert, key, clock_ms, NULL,
              pc_execute, pc_config, &pc_reads, &transport) == -EINPROGRESS);
   assert(pc_writes == 2 && !pc_control.open);
@@ -734,7 +767,7 @@ static int control_pipe_peer(const char *certificate, const char *private_key,
       assert(bkpc_grants_open(&pc_grants, pc_root, owner) == 0);
       assert(bkpc_grants_set(&pc_grants, 0, transaction, client, pc, 3) == 0);
       pc_guarded = true;
-      assert(bkpc_control_start(&pc_control, &control, &pc_grants,
+      assert(bkpc_control_start(&pc_control, &control, &pc_source,
                                stream_generation, &cert, &key, clock_ms, NULL,
                                pc_execute, pc_config, &pc_reads,
                                &transport) == 0);

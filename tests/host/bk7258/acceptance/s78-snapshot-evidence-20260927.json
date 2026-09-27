@@ -1,0 +1,95 @@
+{
+  "slice": "S78",
+  "parent": "f58b1fa06c89b2ed9c17a4aeaeea9cf8822b6355",
+  "result": "445 PASS; original 63 retained; not 56 product acceptances",
+  "prior_run": {
+    "path": "out/shaniu-s78/contracts/results.json",
+    "sha256": "6d497c2ad5cd20d6202d4f2cd47f04aef3753ffb7cbbf3f99f726b33c04224f8",
+    "counts": {
+      "PASS": 445,
+      "FAIL_ASSERTION": 0,
+      "SETUP_ERROR": 0,
+      "NOT_RUN": 0
+    }
+  },
+  "sequence": [
+    "Missing new callback: BLOCKED_INTERFACE, not business Red",
+    "Initial TLS assertion rejected introduced ENOKEY for absent grant; preserved EACCES contract without changing assertion",
+    "445 PASS before style cleanup; final 445 PASS after cleanup"
+  ],
+  "new_ids": [
+    "NET-03.pc-owner-source",
+    "NET-03.pc-owner-source-revision"
+  ],
+  "extra_tls_scenarios": [
+    "primary binding changes with unchanged PC grant",
+    "snapshot EAGAIN closes old lease",
+    "caller source descriptor lifetime independent of lease"
+  ],
+  "mutations": [
+    {
+      "id": "ignore-primary-binding",
+      "exit_code": -6,
+      "status": "DETECTED",
+      "source_sha256": "20fdd40cc095d35e37a08c29363e0bb1a1cf89f455f5a214400334186c955c55"
+    },
+    {
+      "id": "skip-step-lease",
+      "exit_code": -6,
+      "status": "DETECTED",
+      "source_sha256": "ac1ed3881f3c3e319b89dbdb839f4d135a6f16141fcc37922e26fea62b422301"
+    },
+    {
+      "id": "restored",
+      "exit_code": 0,
+      "status": "PASS",
+      "source_sha256": "8a4833676d708b90031ea8c1c445ed4afbb16f8d654324ce83931746bf59e230"
+    }
+  ],
+  "build": {
+    "AP_incremental": "PASS",
+    "log_sha256": "44be0ff4bd70c566aa54f7ae8559e33ea38fd5eceb3b25bc74d0cb4d236d497d",
+    "release_manifest": "Not refreshed or claimed as release verification"
+  },
+  "resources": {
+    "ARM_source_bytes": 8,
+    "ARM_lease_bytes": 64,
+    "ARM_snapshot_bytes": 80,
+    "new_threads": 0,
+    "new_DMA": 0,
+    "new_storage_writes": 0,
+    "runtime_latency_stack_highwater": "NOT_RUN"
+  },
+  "style": {
+    "nuttx": "76354c637858ecb0aa4601629327acb6f44a26bb",
+    "nxstyle": "4 production files PASS; temporary apps path/header mapping only",
+    "checkpatch": "same 4 files PASS",
+    "black_24_10_0": "existing runner formatting fails on parent and current; no whole-file rewrite",
+    "clang_format_14": "unavailable on PATH; no pass claimed"
+  },
+  "scope": {
+    "production": "Snapshot provider and primary binding implemented; no live USB lease owner activation",
+    "L1_L2": "Real owner/storage plus real TLS/SDC1 guard in separate existing fixtures; not complete product path",
+    "L3": "NOT_RUN; no phone install/board operation",
+    "open": [
+      "S66/S75/S76 TLS failure unresolved",
+      "Serialized USB product lifecycle binding",
+      "USB installer/task events/physical acceptance"
+    ]
+  },
+  "logs": {
+    "interface-before.log": "9343f3301e4bb2e96d63185be64a701852dcf8bea99027dcdfbd7ff565fcb5f0",
+    "tls-first.log": "f59cc82ed8216f06f75bace5913f39e18f342de534bbe85f79eac2b34593964e",
+    "tls-corrected.log": "60c016aa2cd217710f4c2f3a32e2bbf7b4ed6002ab9a34e13256e8133c0fb8d4",
+    "source.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "source-revision.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "runner-gate.log": "b8bd094830e47870d5cf90980e9a2c2e53905e1ccad336bec92e28887bc8169e",
+    "mutation-ignore-primary-binding.log": "7636710baf0b289972bab802bb0643657b415c0858daaca00fc51ef8aae0f42f",
+    "mutation-skip-step-lease.log": "7636710baf0b289972bab802bb0643657b415c0858daaca00fc51ef8aae0f42f",
+    "mutation-restored.log": "bc16ceacbbb8f63758a472e52ec2207db215ff7590ce941fa0630196b4eca201",
+    "arm-sizes.log": "9f517bc53f7364790d926fee08955682c9d7008b9222f2e82edd54a7eec2d397",
+    "style-checkpatch.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "style-python.log": "a0b67f3e8e95fb4f1fc053fff11b7409930f3bcdd456ae773f6c518d11824441",
+    "style-python-parent.log": "489fac432adfb3eee787ef38fc7781729ee943f800abace0d0794d1873f4bb6b"
+  }
+}

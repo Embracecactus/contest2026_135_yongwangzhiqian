@@ -786,6 +786,10 @@ def main():
             binaries["test_pc_owner_binding"])
         add(suite, "NET-03.pc-product-" + variant, "NET-03", "L2",
             [sys.executable, HERE / "test_pc_product_route.py", variant])
+    for variant in ("source", "source-revision"):
+        add(suite, "NET-03.pc-owner-" + variant, "NET-03", "L2",
+            [sys.executable, HERE / "test_pc_owner_binding.py", variant],
+            binaries["test_pc_owner_binding"])
     for variant in ("basic", "auth", "invalid", "cancel", "failure", "unknown", "pending", "reopen", "retry-error"):
         add(suite, "NET-03.pc-auth-" + variant, "NET-03", "L2",
             [sys.executable, HERE / "test_pc_authorization.py", variant],

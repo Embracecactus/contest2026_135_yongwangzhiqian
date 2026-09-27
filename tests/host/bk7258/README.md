@@ -2447,3 +2447,32 @@ TLS根因、原生USB产品owner、实际手机授权→导出→PC导入/鉴权
 
 逐例：`acceptance/s77-20260927.json`；补充：
 `acceptance/s77-native-pairing-evidence-20260927.json`；原始日志：`out/shaniu-s77/`。
+
+
+### S78 · PC 会话读取一致授权快照（2026-09-27）
+
+PC lease 不再借用文件工作线程的可变 grant 对象，改由有界快照回调读取；
+产品 owner 提供现有缓存/锁保护的存储快照，附主配置 revision。主配置变化
+即使 grant 未变也使旧会话失效；快照暂不可用立即关闭旧 lease，不沿用授权。
+回调描述符复制到 lease，私有快照每条使用路径清零；必须在同一串行 owner
+调用，不新增线程、存储写入、USB 启动或任意 Shell 路径。
+
+先补接口测试得到 BLOCKED_INTERFACE，不计业务失败。首次真实 TLS 回归捕获
+新实现把无授权的 EACCES 改为 ENOKEY；保留原断言并恢复错误语义，原日志单存。
+最终完整集合 **445 PASS**（原63＋新增累计382），新增独立 ID 为
+`NET-03.pc-owner-source` / `NET-03.pc-owner-source-revision`。
+主配置变更、快照 EAGAIN、描述符寿命是原 `USB-01.tls-transport` 的子场景，
+不另加分母。13 项运行器门禁通过；既有两项变异仍检出并恢复通过。
+另加两项隔离变异（忽略主绑定、跳过 step 授权复核）均检出，恢复 TLS 通过。
+
+AP 增量编译/链接通过。ARM sizeof：source 8 B、lease 64 B、临时快照80 B；
+运行时 CPU/时延/栈高水位未测。四个产品文件通过固定 NuttX nxstyle/checkpatch，
+仅在临时目录映射 apps 头路径；Python runner 的 black 检查在父版和当前均失败，
+未进行无关全文件格式化；clang-format14 不在 PATH，不报通过。
+
+逐例/输入哈希：`acceptance/s78-20260927.json`；附加证据：
+`acceptance/s78-snapshot-evidence-20260927.json`；公开失败与变异日志：
+`acceptance/s78-evidence-20260927/`；全量原始记录：`out/shaniu-s78/`。
+445 通过不覆盖 S66/S75/S76 原 TLS 故障，不关闭其门禁。生产授权 owner 与 lease
+各自真实路径已测，USB 串行产品生命周期尚未接入，不能宣称完整纵向集成。
+没有安装手机、刷板或实板验收；接口/L1-L2/L3 缺口继续分别保留。

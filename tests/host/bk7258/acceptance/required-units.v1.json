@@ -443,7 +443,9 @@
     "provision.PcAuthorizationControllerTest.pairingDeliveryRequiresSavedCiphertextAndDurableExactGrant",
     "provision.PcAuthorizationControllerTest.pairingSaveFailureCannotStartGrantAndClosedPreparationCannotReuseKey",
     "provision.PcAuthorizationControllerTest.restoredPairingOnlyQueriesAndCannotExportUnconfirmedOrWrongTarget",
-    "provision.PcAuthorizationControllerTest.pairingExpiredPreparationCannotSaveOrSendAndNonceIsNotReplaced"
+    "provision.PcAuthorizationControllerTest.pairingExpiredPreparationCannotSaveOrSendAndNonceIsNotReplaced",
+    "NET-03.pc-owner-source",
+    "NET-03.pc-owner-source-revision"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -890,6 +892,8 @@
     "provision.PcAuthorizationControllerTest.pairingDeliveryRequiresSavedCiphertextAndDurableExactGrant",
     "provision.PcAuthorizationControllerTest.pairingSaveFailureCannotStartGrantAndClosedPreparationCannotReuseKey",
     "provision.PcAuthorizationControllerTest.restoredPairingOnlyQueriesAndCannotExportUnconfirmedOrWrongTarget",
-    "provision.PcAuthorizationControllerTest.pairingExpiredPreparationCannotSaveOrSendAndNonceIsNotReplaced"
+    "provision.PcAuthorizationControllerTest.pairingExpiredPreparationCannotSaveOrSendAndNonceIsNotReplaced",
+    "NET-03.pc-owner-source",
+    "NET-03.pc-owner-source-revision"
   ]
 }
