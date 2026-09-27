@@ -259,6 +259,8 @@ class MainActivity : Activity() {
     private var wakeImportDeviceId = ""
     private var wakeImportDeadline = 0L
     private var wakeImportTicket = 0L
+    // Bounded local draft only. Never retain an install transaction/server.
+    private var eyeRestoreDraft: Pair<ByteArray, ByteArray>? = null
     private var selectedEyePack: EyePack? = null
     private var selectedEyeFile: java.io.File? = null
     private var selectedEyeAssetSha256: ByteArray? = null
@@ -360,6 +362,7 @@ class MainActivity : Activity() {
             if (foreground && !destroyed) render()
         }
         directSubscriptions += directSession.observeResults(::onDirectResult)
+        restoreEyeDraft(savedInstanceState)
         render()
     }
 
@@ -2945,14 +2948,30 @@ class MainActivity : Activity() {
             ?: "恢复前先读取设备保存的上一模型", enabled = configMutationReady) { restoreWakeModel() }
     }
 
-    private fun selectEyePack(uri: android.net.Uri) {
+    private fun restoreEyeDraft(saved: Bundle?) {
+        val bytes = saved?.getByteArray("eye_pack_draft") ?: return
+        val sha = saved.getByteArray("eye_pack_draft_sha256")
+        if (bytes.size !in 128..131072 || sha?.size != 32) {
+            eyeMessage = "保存的本地素材无效，请重新选择；设备未变更"
+            return
+        }
+        val draft = bytes.copyOf() to sha.copyOf()
+        // A second recreation can happen before asynchronous validation finishes.
+        eyeRestoreDraft = draft
+        loadEyePack({ draft.first.inputStream() }, draft.second)
+    }
+
+    private fun selectEyePack(uri: android.net.Uri) =
+        loadEyePack({ contentResolver.openInputStream(uri) })
+
+    private fun loadEyePack(open: () -> java.io.InputStream?, expectedSha: ByteArray? = null) {
         if (eyeImportPending) return
         eyeImportPending = true; eyeMessage = "正在检查眼睛素材包…"; render()
         ioExecutor.execute {
             val result = runCatching {
                 val file = java.io.File.createTempFile("eyes-selected-", ".bkep", cacheDir)
                 try {
-                    contentResolver.openInputStream(uri).use { input ->
+                    open().use { input ->
                         requireNotNull(input)
                         file.outputStream().use { output ->
                             val buffer = ByteArray(8192); var total = 0
@@ -2965,15 +2984,22 @@ class MainActivity : Activity() {
                         }
                     }
                     val bytes = file.readBytes()
+                    val sha = MessageDigest.getInstance("SHA-256").digest(bytes)
+                    require(expectedSha == null || MessageDigest.isEqual(sha, expectedSha))
                     val pack = requireNotNull(EyePack.parse(bytes))
-                    Triple(pack, file, MessageDigest.getInstance("SHA-256").digest(bytes))
+                    Triple(pack, file, sha)
                 } catch (error: Exception) { file.delete(); throw error }
             }
             mainHandler.post {
                 eyeImportPending = false
-                if (destroyed || !foreground) { result.getOrNull()?.second?.delete(); return@post }
+                eyeRestoreDraft = null
+                // Finishing a local file read in background does not start a
+                // device write. A destroyed Activity must release its own file.
+                if (destroyed) { result.getOrNull()?.second?.delete(); return@post }
                 val accepted = result.getOrNull()
-                if (accepted == null) eyeMessage = "眼睛素材包格式、长度或校验无效"
+                if (accepted == null) eyeMessage = if (expectedSha != null)
+                    "保存的本地素材无效，请重新选择；设备未变更"
+                    else "眼睛素材包格式、长度或校验无效"
                 else {
                     selectedEyeFile?.takeIf { it != accepted.second }?.delete()
                     selectedEyePack = accepted.first
@@ -4466,6 +4492,15 @@ class MainActivity : Activity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         nfcDraftCapture?.invoke()
+        val eyeDraft = selectedEyePack?.let { pack ->
+            selectedEyeAssetSha256?.let { pack.bytes to it }
+        } ?: eyeRestoreDraft
+        eyeDraft?.let { (bytes, sha) ->
+            // EyePack admission bounds this to 128 KiB; no credential or URI
+            // grant is stored, and no install/HTTP state is restored.
+            outState.putByteArray("eye_pack_draft", bytes.copyOf())
+            outState.putByteArray("eye_pack_draft_sha256", sha.copyOf())
+        }
         outState.putString("trial_seconds_draft", trialSecondsDraft)
         outState.putInt("trial_expression_draft", trialExpressionDraft)
         outState.putString("focus_minutes_draft", focusMinutesDraft)

@@ -1,0 +1,1 @@
+FAIL: IllegalStateException: UI-02.eye-draft: selected package is not visible in resource page at com.shaniu.companion.provision.DeviceUiAcceptance.runEyeDraft$checkSelection(DeviceUiAcceptance.kt:218)

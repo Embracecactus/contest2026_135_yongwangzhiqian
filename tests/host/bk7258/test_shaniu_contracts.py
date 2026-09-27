@@ -1582,6 +1582,8 @@ def main():
         ROOT / "android/shaniu-companion/app/src/androidTest/java/com/shaniu/companion/provision/DeviceUiAcceptance.kt",
         ROOT / "android/shaniu-companion/app/src/androidTest/java/com/shaniu/companion/provision/ControlKeyInstrumentation.kt",
         ROOT / "android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt",
+        ROOT / "android/shaniu-companion/app/build.gradle.kts",
+        ROOT / "android/shaniu-companion/app/src/androidTest/assets/shaniu-default-v1.bkep.hex",
         ROOT / "chips/bk7258/ap/bk7258_usbcdc.c",
         ROOT / "nuttx/drivers/sensors/sc7a20.c",
         ROOT / "nuttx/include/nuttx/sensors/sc7a20.h",

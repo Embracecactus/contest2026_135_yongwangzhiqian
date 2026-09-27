@@ -18,6 +18,7 @@ class ControlKeyInstrumentation : Instrumentation() {
     private var cloudProbe = false
     private var uiProbe = false
     private var settingsUnknownProbe = false
+    private var eyeDraftProbe = false
     private var defaultSelectionProbe = false
     private var expressionTrialProbe = false
     private var focusDraftProbe = false
@@ -34,6 +35,7 @@ class ControlKeyInstrumentation : Instrumentation() {
         cloudProbe = arguments?.getString("cloud_probe") == "1"
         uiProbe = arguments?.getString("ui_probe") == "1"
         settingsUnknownProbe = arguments?.getString("settings_unknown_probe") == "1"
+        eyeDraftProbe = arguments?.getString("eye_draft_probe") == "1"
         defaultSelectionProbe = arguments?.getString("default_selection_probe") == "1"
         expressionTrialProbe = arguments?.getString("expression_trial_probe") == "1"
         focusDraftProbe = arguments?.getString("focus_draft_probe") == "1"
@@ -54,6 +56,19 @@ class ControlKeyInstrumentation : Instrumentation() {
                 "PASS: UI-01.settings-unknown real editor controls; synthetic snapshots, no BLE"
             } catch (error: Throwable) {
                 "FAIL: " + generateSequence(error) { it.cause }.take(5).joinToString(" <- ") { "${it.javaClass.simpleName}: ${it.message}" }
+            }
+            finish(if (report.startsWith("PASS:")) Activity.RESULT_OK else Activity.RESULT_CANCELED,
+                Bundle().apply { putString("stream", report) })
+            return
+        }
+        if (eyeDraftProbe) {
+            val report = try {
+                DeviceUiAcceptance.runEyeDraft(this)
+                "PASS: UI-02.eye-draft real local import and three Activity recreations; no BLE/device write acceptance"
+            } catch (error: Throwable) {
+                "FAIL: " + generateSequence(error) { it.cause }.take(5).joinToString(" <- ") {
+                    "${it.javaClass.simpleName}: ${it.message} at ${it.stackTrace.firstOrNull()}"
+                }
             }
             finish(if (report.startsWith("PASS:")) Activity.RESULT_OK else Activity.RESULT_CANCELED,
                 Bundle().apply { putString("stream", report) })

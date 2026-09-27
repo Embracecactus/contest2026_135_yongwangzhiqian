@@ -189,6 +189,87 @@ internal object DeviceUiAcceptance {
 
     /** RES-02 expression trial UI navigation. Synthetic admission only; no transport. */
     /** Synthetic UI admission only; never a BLE or save acceptance result. */
+    fun runEyeDraft(instrumentation: Instrumentation) {
+        check(android.os.Build.FINGERPRINT.contains("generic") || android.os.Build.MODEL.contains("sdk"))
+        val bytes = instrumentation.context.assets.open("shaniu-default-v1.bkep.hex").bufferedReader().use { it.readText().trim() }
+            .chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+        val expected = checkNotNull(com.shaniu.companion.EyePack.parse(bytes))
+        var activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
+        val source = File(activity.cacheDir, "eye-draft-source-${UUID.randomUUID()}.bkep").apply { writeBytes(bytes) }
+        fun field(name: String) = MainActivity::class.java.getDeclaredField(name).apply { isAccessible = true }
+        fun selected() = field("selectedEyePack").get(activity) as? com.shaniu.companion.EyePack
+        fun showResources() {
+            field("updateResources").setBoolean(activity, true)
+            MainActivity::class.java.getDeclaredMethod("selectTab", Int::class.javaPrimitiveType)
+                .apply { isAccessible = true }.invoke(activity, 7)
+            MainActivity::class.java.getDeclaredMethod("render").apply { isAccessible = true }.invoke(activity)
+        }
+        fun checkSelection() {
+            val pack = checkNotNull(selected()) { "UI-02.eye-draft: recreation lost local selection" }
+            check(pack.bytes.contentEquals(bytes) && pack.packId == expected.packId)
+            val file = checkNotNull(field("selectedEyeFile").get(activity) as? File)
+            check(file.isFile && file.readBytes().contentEquals(bytes))
+            val digest = field("selectedEyeAssetSha256").get(activity) as? ByteArray
+            check(digest != null && digest.contentEquals(java.security.MessageDigest.getInstance("SHA-256").digest(bytes)))
+            check(field("eyeServer").get(activity) == null && field("eyeRecord").get(activity) == null)
+            check(field("configFlow").get(activity).toString() == "NONE")
+            showResources()
+            check(findView(activity.window.decorView) { it is TextView && it.text.toString().contains("${expected.packId} · 版本 ${expected.revision}") } != null) {
+                "UI-02.eye-draft: selected package is not visible in resource page"
+            }
+        }
+        try {
+            onUi(instrumentation) {
+                MainActivity::class.java.getDeclaredMethod("selectEyePack", android.net.Uri::class.java)
+                    .apply { isAccessible = true }.invoke(activity, android.net.Uri.fromFile(source))
+            }
+            awaitUi(instrumentation, activity) { !field("eyeImportPending").getBoolean(activity) }
+            onUi(instrumentation) { checkSelection() }
+            // Invalid imports must not replace the last validated selection.
+            for (invalid in listOf(byteArrayOf(0), ByteArray(131073))) {
+                source.writeBytes(invalid)
+                onUi(instrumentation) {
+                    MainActivity::class.java.getDeclaredMethod("selectEyePack", android.net.Uri::class.java)
+                        .apply { isAccessible = true }.invoke(activity, android.net.Uri.fromFile(source))
+                }
+                awaitUi(instrumentation, activity) { !field("eyeImportPending").getBoolean(activity) }
+                onUi(instrumentation) { checkSelection() }
+            }
+            // A header-only alteration can preserve the payload CRC. The saved
+            // whole-file digest must still reject it through the restore entry.
+            val changed = bytes.copyOf().apply { this[24] = (this[24].toInt() xor 1).toByte() }
+            check(com.shaniu.companion.EyePack.parse(changed) != null)
+            val saved = android.os.Bundle().apply {
+                putByteArray("eye_pack_draft", changed)
+                putByteArray("eye_pack_draft_sha256", java.security.MessageDigest.getInstance("SHA-256").digest(bytes))
+            }
+            onUi(instrumentation) {
+                MainActivity::class.java.getDeclaredMethod("restoreEyeDraft", android.os.Bundle::class.java)
+                    .apply { isAccessible = true }.invoke(activity, saved)
+            }
+            awaitUi(instrumentation, activity) { !field("eyeImportPending").getBoolean(activity) }
+            onUi(instrumentation) {
+                checkSelection()
+                check((field("eyeMessage").get(activity) as? String)?.contains("保存的本地素材无效") == true)
+            }
+            repeat(3) {
+                val monitor = ActivityMonitor(MainActivity::class.java.name, null, false)
+                instrumentation.addMonitor(monitor)
+                try {
+                    onUi(instrumentation) { activity.recreate() }
+                    activity = checkNotNull(monitor.waitForActivityWithTimeout(5000) as? MainActivity)
+                    awaitUi(instrumentation, activity) { !field("eyeImportPending").getBoolean(activity) }
+                    onUi(instrumentation) { checkSelection() }
+                } finally { instrumentation.removeMonitor(monitor) }
+            }
+        } finally {
+            source.delete()
+            onUi(instrumentation) { activity.finish() }
+            instrumentation.waitForIdleSync()
+        }
+    }
+
     fun runDefaultSelection(instrumentation: Instrumentation) {
         check(android.os.Build.FINGERPRINT.contains("generic") || android.os.Build.MODEL.contains("sdk"))
         val activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, MainActivity::class.java)
