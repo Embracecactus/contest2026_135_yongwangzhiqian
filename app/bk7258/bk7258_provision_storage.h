@@ -55,6 +55,34 @@ enum bkprov_storage_reset_receipt_e
   BKPROV_STORAGE_RESET_RECEIPT_COMPLETED = 2
 };
 int bkprov_storage_reset_receipt(const uint8_t transaction[16]);
+/* Device-internal PC authorization view, NEVER a public protocol response.
+ * The serialized product owner supplies a previously validated phone key and
+ * the exact current main configuration revision. Loading/setting are explicit
+ * asynchronous jobs on this worker; snapshot has no I/O and clears on error.
+ * Return -EAGAIN while accepted work is pending, not successful persistence.
+ * Exact repeated set returns the recorded result; a new transaction is needed
+ * after a known failure. An uncertain PC commit blocks reload/refresh/stop.
+ * Main configuration changes invalidate this binding even if owner is equal.
+ * Callers must close PC sessions before submitting changes and publish a fresh
+ * immutable view only after completion; this API is not authorization itself.
+ */
+struct bkprov_pc_snapshot_s
+{
+  uint64_t revision;
+  uint8_t transaction[16];
+  uint8_t client[16];
+  uint8_t key[32];
+  uint32_t capabilities;
+};
+int bkprov_storage_pc_load(uint64_t config_revision,
+                           const uint8_t owner_key[32]);
+int bkprov_storage_pc_set(uint64_t config_revision, uint64_t expected,
+                          const uint8_t transaction[16],
+                          const uint8_t client[16], const uint8_t key[32],
+                          uint32_t capabilities);
+int bkprov_storage_pc_snapshot(uint64_t config_revision,
+                               struct bkprov_pc_snapshot_s *view);
+
 /* Shutdown only an idle, determinate worker. -EBUSY/-EINPROGRESS leaves it
  * alive; stop/start cannot erase publication uncertainty. No I/O join. */
 int bkprov_storage_stop(void);

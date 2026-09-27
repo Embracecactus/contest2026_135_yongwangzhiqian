@@ -3,13 +3,16 @@
 """Actual product TLS over fragmented fake GATT, using workspace mbedTLS.
 
 Named host gate: python3 tests/host/bk7258/test_provision_tls.py.
-Builds crypto out of tree; ephemeral test-only identity is removed afterward.
+Builds crypto out of tree; successful runs remove the test-only identity.
+Failures retain synthetic inputs under ignored out/ with restricted permissions.
 MBEDTLS_SOURCE may select another checkout for upstream compatibility testing.
 """
 import hashlib
 import os
 from pathlib import Path
 import subprocess
+import shutil
+import time
 import tempfile
 import unittest
 
@@ -35,8 +38,24 @@ class ProvisionTlsTest(unittest.TestCase):
                         [str(a) for a in args], stdout=log, stderr=log, env=env
                     )
                     if result.returncode:
+                        # Retain synthetic inputs for the first exact failure;
+                        # never retry or erase its nonzero result.
+                        failure_root = Path(
+                            os.environ.get(
+                                "SHANIU_TLS_FAILURE_DIR", ROOT / "out/tls-failures"
+                            )
+                        ) / str(time.time_ns())
+                        failure_root.mkdir(parents=True, mode=0o700)
+                        for name in ("cert.pem", "key.pem"):
+                            if (temp / name).is_file():
+                                shutil.copyfile(temp / name, failure_root / name)
+                                (failure_root / name).chmod(0o600)
+                        log.flush()
+                        shutil.copyfile(temp / "build.log", failure_root / "build.log")
                         log.seek(0)
-                        self.fail(log.read()[-6000:])
+                        self.fail(
+                            log.read()[-6000:] + f"\nSynthetic inputs: {failure_root}"
+                        )
 
                 run(
                     [
@@ -292,6 +311,7 @@ class ProvisionTlsTest(unittest.TestCase):
                         ROOT / "tests/host/bk7258/test_provision_storage.c",
                         ROOT / "app/bk7258/bk7258_provision_store.c",
                         ROOT / "app/bk7258/bk7258_provision_storage.c",
+                        ROOT / "app/bk7258/bk7258_pc_grants.c",
                         "-Wl,--wrap=fsync,--wrap=rename",
                         build / "library/libmbedcrypto.a",
                         "-o",

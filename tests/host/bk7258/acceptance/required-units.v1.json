@@ -346,7 +346,13 @@
     "RST-01.pc-sync",
     "RST-01.pc-symlink",
     "RST-01.pc-absent",
-    "RST-01.pc-no-marker"
+    "RST-01.pc-no-marker",
+    "NET-03.pc-storage-blocked-copy",
+    "NET-03.pc-storage-revision",
+    "NET-03.pc-storage-reopen",
+    "NET-03.pc-storage-write-failure",
+    "NET-03.pc-storage-unknown",
+    "NET-03.pc-storage-reset"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -696,6 +702,12 @@
     "RST-01.pc-sync",
     "RST-01.pc-symlink",
     "RST-01.pc-absent",
-    "RST-01.pc-no-marker"
+    "RST-01.pc-no-marker",
+    "NET-03.pc-storage-blocked-copy",
+    "NET-03.pc-storage-revision",
+    "NET-03.pc-storage-reopen",
+    "NET-03.pc-storage-write-failure",
+    "NET-03.pc-storage-unknown",
+    "NET-03.pc-storage-reset"
   ]
 }

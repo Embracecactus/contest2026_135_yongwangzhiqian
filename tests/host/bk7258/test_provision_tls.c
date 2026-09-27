@@ -313,6 +313,18 @@ static void control_handshake_on(struct bkcontrol_pair_s *control,
       if (!ready)
         {
           int ret = mbedtls_ssl_handshake(client);
+          if (ret != 0 && ret != MBEDTLS_ERR_SSL_WANT_READ &&
+              ret != MBEDTLS_ERR_SSL_WANT_WRITE)
+            {
+              fprintf(stderr,
+                      "CONTROL_HANDSHAKE_ERROR ret=%d verify=%u "
+                      "independent=%d serial=%d pc=%d iteration=%d "
+                      "now=%llu server=%d inbound=%zu outbound=%zu\n",
+                      ret, (unsigned)mbedtls_ssl_get_verify_result(client),
+                      independent, serial_wire, pc_guarded, i,
+                      (unsigned long long)now, control->tls.established,
+                      inbound.size, outbound.size);
+            }
           assert(ret == 0 || ret == MBEDTLS_ERR_SSL_WANT_READ ||
                  ret == MBEDTLS_ERR_SSL_WANT_WRITE);
           ready = ret == 0;
