@@ -33,11 +33,18 @@ from _lib import sdk as sdk_domain  # noqa: E402
 from _lib import toolchain as toolchain_domain  # noqa: E402
 from _lib import trust as trust_domain  # noqa: E402
 from _lib import voice as voice_domain  # noqa: E402
+from _lib import workbench as workbench_domain  # noqa: E402
 
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="bk7258.py")
     commands = parser.add_subparsers(dest="command", required=True)
+
+    workbench_domain.add_arguments(
+        commands.add_parser(
+            "workbench", help="read status using an independently authorized PC credential"
+        )
+    )
 
     voice = commands.add_parser("voice", help="configure a BKVoice board session")
     voice_domain.add_arguments(
@@ -1243,6 +1250,8 @@ def main(argv: list[str] | None = None) -> int:
             _release(args)
         elif args.command == "voice":
             print(json.dumps(voice_domain.run(args), indent=2))
+        elif args.command == "workbench":
+            print(json.dumps(workbench_domain.run(args), indent=2))
         else:
             _verify(args)
     except (

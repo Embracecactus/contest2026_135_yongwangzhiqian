@@ -2239,3 +2239,35 @@ phase与result分开；底层已知失败即使返回EAGAIN也必须phase=3，�
   一条Session任务，无新增定时轮询；对象/框架额外开销和真实CPU/p95未测。
   USB运行owner、授权密钥交换、完整工作台、任务提醒及实板路径仍待接线/验收。
   S66偶发TLS失败保留，当前通过不关闭该问题。详见同目录acceptance下S70证据。
+
+### S71 电脑客户端与真实 PC TLS 互通（2026-09-27）
+
+- 新主机客户端位于tools/bk7258/_lib/workbench.py，由既有唯一CLI的workbench
+  status/info命令消费。固定证书SHA256先于串口打开检查，TLS继续使用CERT_REQUIRED，
+  握手后再核对实际leaf指纹，最后才发送独立PC凭据。合法证书链也不能替代精确pin。
+  没有另造加密实现、无设备身份/签名密钥生成、不复用手机Keystore。
+- 复用既有native串口打开器，新增可选日志label/output，旧OTA调用默认行为及文案
+  保持；新入口用stderr且不重定向整个进程stdout。只接受选定native VID/PID端口，
+  USB身份分类不是授权。只发送AUTH/STATUS/INFO，不发Shell、配网、OTA或模式转换。
+  原串口驱动同步read/write时限保留，主机操作期限不冒充实板响应SLA。
+- 13个USB-01.pc-client-* ID，每项独立执行生产客户端；外部TLS peer由Python
+  OpenSSL实现，覆盖分片/短写、停流/反压、错误序号/字段、设备拒绝、单调时钟倒退、
+  生命周期、CLI输出与串口分类/适配。临时测试CA显式设置CA属性，合法其他leaf
+  使用它签名；两种证书的公开DER SHA256写入各例日志，测试密钥不输出。
+- 既有USB-01.tls-transport集合内再执行两个跨语言子场景：真实mbedTLS、PC grant
+  持久化/权限和SDC1模块，外部字节流用管道替代USB，STATUS/INFO业务值由明确
+  的测试服务提供。独立PC凭据成功读取，手机owner凭据失败关闭。两例不额外冒充
+  顶层执行ID；日志独立标记。不是物理USB、真实版本回读或手机配对验收。
+- 缺Python接口和CLI路由分别为BLOCKED_INTERFACE/接线错误。第一次跨语言正例
+  已完成TLS/认证/状态读取，但测试服务未填INFO却断言0；现显式填0.7.14/build123/
+  counter661后核验，未将未初始化的UINT32_MAX改成需求答案。原失败和合成证书
+  保留在out/shaniu-s71/tls-failures，不作为产品TLS失败根因。一次无效的样本环境
+  变量未被运行器使用；实际继续固定20组，没有缩小TLS覆盖。
+- 隔离变异“跳过实际leaf指纹”和“忽略SDC1序号”均被可执行断言检出，恢复13项
+  通过；原两项存储变异/恢复继续保留。最终集合400=原63+新增337，本片新增13；
+  13运行器门禁、两项互通子场景、变异/恢复分别记数。冻结前后源文件哈希另存，
+  主机工具不借旧production_digest的固件/App范围假称无变化。
+- 本片不改固件/App/Agent，不编造上板结果。客户端一次只持有一个请求，固定40字节
+  回复，TLS调用/积压设64KiB上界和4096字节块；Python/OpenSSL额外内存及真实CPU、
+  OS串口阻塞、USB时延仍未实测。S66偶发TLS问题仍开放；手机授权交换、受保护的PC
+  凭据保存、USB产品owner、资源安装/网页/事件入口仍未完成，也未启用真实端口。

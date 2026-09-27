@@ -387,7 +387,20 @@
     "provision.PcAuthorizationControllerTest.disconnectLateAckAndRecreationNeverReplayWrite",
     "provision.PcAuthorizationControllerTest.closeBeforeApplyCancelsStagingButAfterApplyDoesNotClaimRemoteCancel",
     "provision.PcAuthorizationControllerTest.staleConfirmationAndOtherEditorsTransactionAreNotOverwritten",
-    "provision.PcAuthorizationControllerTest.unsupportedAndInvalidSnapshotsCannotEnableRevoke"
+    "provision.PcAuthorizationControllerTest.unsupportedAndInvalidSnapshotsCannotEnableRevoke",
+    "USB-01.pc-client-fragmented_tls_auth_status_and_info",
+    "USB-01.pc-client-certificate_pin_mismatch_sends_no_secret",
+    "USB-01.pc-client-valid_chain_with_wrong_leaf_never_receives_pc_key",
+    "USB-01.pc-client-wrong_principal_closes_without_status",
+    "USB-01.pc-client-malformed_authenticated_responses_close",
+    "USB-01.pc-client-stall_and_backpressure_have_absolute_deadlines",
+    "USB-01.pc-client-error_response_is_not_success_or_replayed",
+    "USB-01.pc-client-no_request_before_auth_or_after_close",
+    "USB-01.pc-client-cli_uses_real_client_without_printing_credentials",
+    "USB-01.pc-client-native_port_filter_rejects_uart_without_opening",
+    "USB-01.pc-client-cli_invalid_certificate_never_opens_port",
+    "USB-01.pc-client-clock_rollback_terminates_without_replay",
+    "USB-01.pc-client-native_adapter_preserves_partial_io_without_global_output_redirect"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -778,6 +791,19 @@
     "provision.PcAuthorizationControllerTest.disconnectLateAckAndRecreationNeverReplayWrite",
     "provision.PcAuthorizationControllerTest.closeBeforeApplyCancelsStagingButAfterApplyDoesNotClaimRemoteCancel",
     "provision.PcAuthorizationControllerTest.staleConfirmationAndOtherEditorsTransactionAreNotOverwritten",
-    "provision.PcAuthorizationControllerTest.unsupportedAndInvalidSnapshotsCannotEnableRevoke"
+    "provision.PcAuthorizationControllerTest.unsupportedAndInvalidSnapshotsCannotEnableRevoke",
+    "USB-01.pc-client-fragmented_tls_auth_status_and_info",
+    "USB-01.pc-client-certificate_pin_mismatch_sends_no_secret",
+    "USB-01.pc-client-valid_chain_with_wrong_leaf_never_receives_pc_key",
+    "USB-01.pc-client-wrong_principal_closes_without_status",
+    "USB-01.pc-client-malformed_authenticated_responses_close",
+    "USB-01.pc-client-stall_and_backpressure_have_absolute_deadlines",
+    "USB-01.pc-client-error_response_is_not_success_or_replayed",
+    "USB-01.pc-client-no_request_before_auth_or_after_close",
+    "USB-01.pc-client-cli_uses_real_client_without_printing_credentials",
+    "USB-01.pc-client-native_port_filter_rejects_uart_without_opening",
+    "USB-01.pc-client-cli_invalid_certificate_never_opens_port",
+    "USB-01.pc-client-clock_rollback_terminates_without_replay",
+    "USB-01.pc-client-native_adapter_preserves_partial_io_without_global_output_redirect"
   ]
 }

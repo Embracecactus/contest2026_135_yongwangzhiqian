@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import subprocess
 import shutil
+import sys
 import time
 import tempfile
 import unittest
@@ -408,6 +409,12 @@ class ProvisionTlsTest(unittest.TestCase):
                         flush=True,
                     )
                     if index == 0:
+                        run([
+                            sys.executable,
+                            ROOT / "tests/host/bk7258/test_workbench_client.py",
+                            "--pc-peer", temp / "test", temp / "cert.pem", temp / "key.pem",
+                        ])
+                        print("PC client interop: independent-principal=PASS owner-rejected=PASS STATUS/INFO=PASS", flush=True)
                         run(
                             [
                                 "openssl",

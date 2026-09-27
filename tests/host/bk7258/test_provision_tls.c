@@ -220,6 +220,10 @@ static int pc_execute(void *context, enum bkcontrol_command_e command,
   assert(command == BKCONTROL_STATUS || command == BKCONTROL_INFO);
   pc_reads++;
   status->flags = 1;
+  if (command == BKCONTROL_INFO)
+    {
+      status->device_info = (struct bkcontrol_device_info_s){0, 7, 14, 123, 661};
+    }
   return 0;
 }
 static int pc_config(void *context, enum bkcontrol_command_e command,
@@ -680,7 +684,8 @@ static void pc_guard_tests(mbedtls_ssl_context *client,
 /* Ciphertext pipe endpoint for the JVM production TLS/GATT client test.
  * Only synthetic owner key/state are used; no sockets or hardware are opened.
  */
-static int control_pipe_peer(const char *certificate, const char *private_key)
+static int control_pipe_peer(const char *certificate, const char *private_key,
+                             const char *pc_root)
 {
   struct bkcontrol_pair_s control = {0};
   mbedtls_x509_crt cert;
@@ -701,8 +706,24 @@ static int control_pipe_peer(const char *certificate, const char *private_key)
   signal(SIGPIPE, SIG_IGN);
   clock_gettime(CLOCK_MONOTONIC, &time);
   now = (uint64_t)time.tv_sec * 1000 + time.tv_nsec / 1000000;
-  assert(bkcontrol_pair_start(&control, generation, &cert, &key, owner,
-                             clock_ms, NULL, control_execute, NULL) == 0);
+  if (pc_root)
+    {
+      const uint8_t pc[32] = {84}, client[16] = {7}, transaction[16] = {99};
+      struct bkprov_tls_transport_s transport =
+        {&stream_generation, stream_epoch, stream_read, stream_send, 64, 0};
+      assert(bkpc_grants_open(&pc_grants, pc_root, owner) == 0);
+      assert(bkpc_grants_set(&pc_grants, 0, transaction, client, pc, 3) == 0);
+      pc_guarded = true;
+      assert(bkpc_control_start(&pc_control, &control, &pc_grants,
+                               stream_generation, &cert, &key, clock_ms, NULL,
+                               pc_execute, pc_config, &pc_reads,
+                               &transport) == 0);
+    }
+  else
+    {
+      assert(bkcontrol_pair_start(&control, generation, &cert, &key, owner,
+                                 clock_ms, NULL, control_execute, NULL) == 0);
+    }
   for (;;)
     {
       uint8_t bytes[20];
@@ -723,7 +744,8 @@ static int control_pipe_peer(const char *certificate, const char *private_key)
       struct timespec pause = {0, 1000000};
       nanosleep(&pause, NULL);
     }
-  bkcontrol_pair_close(&control);
+  if (pc_guarded) bkpc_control_close(&pc_control);
+  else bkcontrol_pair_close(&control);
   mbedtls_pk_free(&key); mbedtls_x509_crt_free(&cert);
   mbedtls_ctr_drbg_free(&random); mbedtls_entropy_free(&entropy);
   return result;
@@ -732,7 +754,9 @@ static int control_pipe_peer(const char *certificate, const char *private_key)
 int main(int argc, char **argv)
 {
   if (argc == 4 && !strcmp(argv[1], "--control-peer"))
-    return control_pipe_peer(argv[2], argv[3]);
+    return control_pipe_peer(argv[2], argv[3], NULL);
+  if (argc == 5 && !strcmp(argv[1], "--pc-peer"))
+    return control_pipe_peer(argv[2], argv[3], argv[4]);
   struct bkprov_pair_s pair = {0};
   mbedtls_ssl_context client;
   mbedtls_ssl_config config;

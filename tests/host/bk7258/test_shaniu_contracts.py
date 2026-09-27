@@ -799,6 +799,24 @@ def main():
         add(suite, "USB-02.serial-" + variant, "USB-02", "L2",
             [HERE / "build/test_control_serial", variant],
             binaries["test_control_serial"])
+    for variant in (
+        "fragmented_tls_auth_status_and_info",
+        "certificate_pin_mismatch_sends_no_secret",
+        "valid_chain_with_wrong_leaf_never_receives_pc_key",
+        "wrong_principal_closes_without_status",
+        "malformed_authenticated_responses_close",
+        "stall_and_backpressure_have_absolute_deadlines",
+        "error_response_is_not_success_or_replayed",
+        "no_request_before_auth_or_after_close",
+        "cli_uses_real_client_without_printing_credentials",
+        "native_adapter_preserves_partial_io_without_global_output_redirect",
+        "native_port_filter_rejects_uart_without_opening",
+        "cli_invalid_certificate_never_opens_port",
+        "clock_rollback_terminates_without_replay",
+    ):
+        add(suite, "USB-01.pc-client-" + variant, "USB-01", "L2",
+            [sys.executable, HERE / "test_workbench_client.py",
+             "WorkbenchClientTest.test_" + variant], marker=False)
     add(suite, "USB-01.tls-transport", "USB-01", "L2",
         [sys.executable, HERE / "test_provision_tls.py"], marker=False)
     for variant in (
@@ -1304,6 +1322,12 @@ def main():
         ROOT / "app/bk7258/bk7258_pc_authorization_owner.h",
         ROOT / "app/bk7258/bk7258_pc_authorization.c",
         ROOT / "app/bk7258/bk7258_pc_authorization.h",
+        ROOT / "tools/bk7258/_lib/workbench.py",
+        ROOT / "tools/bk7258/_lib/deploy_usb.py",
+        ROOT / "tools/bk7258/bk7258.py",
+        HERE / "test_workbench_client.py",
+        HERE / "test_provision_tls.c",
+        HERE / "test_provision_tls.py",
         ROOT / "android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/PcAuthorizationController.kt",
         ROOT / "android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/DeviceControlProtocol.kt",
         ROOT / "android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt",

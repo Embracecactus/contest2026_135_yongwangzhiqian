@@ -308,3 +308,43 @@ access files contain the same `device_id` and future `expires_at_ms`; the latter
 stores only the SHA-256 digest of the former's token. For a multi-device or
 rotated deployment, merge reviewed grants into an operator-owned registry
 outside this command rather than asking it to overwrite live authorization.
+
+## PC workbench control client (development)
+
+`workbench status` and `workbench info` are the first read-only product-client
+operations. They use TLS and the existing SDC1 protocol with an independently
+authorized PC key. The native USB product owner and phone-to-PC credential
+exchange are still being integrated; this is not a completed resource workbench
+or a currently verified physical-device workflow.
+
+```sh
+python3 tools/bk7258/bk7258.py workbench status \
+  --port NATIVE_PORT \
+  --certificate device-certificate.pem \
+  --certificate-sha256 TRUSTED_64_LOWERCASE_HEX \
+  --pc-key-file independent-pc-key.bin
+```
+
+The public certificate and SHA256 must match the owner's trusted device identity,
+not two unchecked values learned from the same new USB connection. The key input
+is exactly 32 binary bytes for the PC principal. The phone's owner key is a
+different identity and is rejected by the PC endpoint. These explicit developer
+inputs are not a finished credential-export or secure desktop-storage flow.
+Protect the key file; the tool reads it without writing it or printing its bytes.
+
+The client verifies the certificate chain using only the supplied trust anchor,
+then the exact negotiated leaf fingerprint before sending AUTH. USB VID/PID
+classification only rejects a wrong transport; it does not authorize a device.
+Only the selected native port is opened, with no UART/Shell fallback, mode switch,
+reset, claim, firmware update or automatic SDC1 replay. Pyserial 3.5 is the
+currently exercised adapter version. The Windows native handle path is reused
+from the maintained USB opener; its opening retries are bounded by the supplied
+opening deadline.
+
+Output is public JSON, with port diagnostics on stderr. TLS/protocol errors close
+the client and leave results unconfirmed. `--timeout` defaults to 10 seconds and
+is checked at I/O/TLS boundaries; the shared synchronous driver still has its
+existing 100-ms read and 5-second write bounds, so this is not a measured device
+response SLA. No raw serial port or physical USB device is touched by the host
+unit tests. Resource installation, scene operations, browser UI and task events
+will use this same authenticated client after their service bindings are ready.

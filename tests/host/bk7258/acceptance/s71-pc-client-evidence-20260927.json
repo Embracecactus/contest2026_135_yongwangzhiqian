@@ -1,0 +1,299 @@
+{
+  "schema_version": 1,
+  "slice": "S71",
+  "parent_commit": "52732f5b5719544dc98f767bf9eb5814527fc52d",
+  "agent_commit": "62a304ea69c4076f0f3ef7955a9af69a5ed35277",
+  "scope": "Production Python read-only PC TLS/SDC1 client and CLI; firmware and Android production unchanged",
+  "results": "s71-20260927.json",
+  "counts": {
+    "PASS": 400,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 337,
+      "counts": {
+        "PASS": 337,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "new_execution_units": [
+    {
+      "id": "USB-01.pc-client-fragmented_tls_auth_status_and_info",
+      "parent": "USB-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.11425787099869922,
+      "evidence": "USB-01.pc-client-fragmented_tls_auth_status_and_info.log",
+      "evidence_sha256": "60de17568b4594e17a1a1a0d5898f3cd8cf7f7b56a88efeacc2fad5a214b9c2e"
+    },
+    {
+      "id": "USB-01.pc-client-certificate_pin_mismatch_sends_no_secret",
+      "parent": "USB-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.11431872704997659,
+      "evidence": "USB-01.pc-client-certificate_pin_mismatch_sends_no_secret.log",
+      "evidence_sha256": "15db8c807bc8ac8adf82f5823dd4b898edddb8cc9e585ffe2348ba4d00fae77d"
+    },
+    {
+      "id": "USB-01.pc-client-valid_chain_with_wrong_leaf_never_receives_pc_key",
+      "parent": "USB-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.11443822202272713,
+      "evidence": "USB-01.pc-client-valid_chain_with_wrong_leaf_never_receives_pc_key.log",
+      "evidence_sha256": "7663b7a3cd7eb98fe2f4d409ecfbe49654a550304ee22e7aa9534a198acecc69"
+    },
+    {
+      "id": "USB-01.pc-client-wrong_principal_closes_without_status",
+      "parent": "USB-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.1142938649863936,
+      "evidence": "USB-01.pc-client-wrong_principal_closes_without_status.log",
+      "evidence_sha256": "da6bbfa6358f7032efafe8b6895b46c2b561d622d37250f51f4630ac26f35ffc"
+    },
+    {
+      "id": "USB-01.pc-client-malformed_authenticated_responses_close",
+      "parent": "USB-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.11430639901664108,
+      "evidence": "USB-01.pc-client-malformed_authenticated_responses_close.log",
+      "evidence_sha256": "a4bb2c68568bf43588b60b1175417af146621378280c93bf3f928d2e13f94d4a"
+    },
+    {
+      "id": "USB-01.pc-client-stall_and_backpressure_have_absolute_deadlines",
+      "parent": "USB-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.11431923997588456,
+      "evidence": "USB-01.pc-client-stall_and_backpressure_have_absolute_deadlines.log",
+      "evidence_sha256": "ac2367b2b164f0c955dc6760724fe4e10a0ea9c52235bf8b5dc41d7567c3b976"
+    },
+    {
+      "id": "USB-01.pc-client-error_response_is_not_success_or_replayed",
+      "parent": "USB-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.1145746519905515,
+      "evidence": "USB-01.pc-client-error_response_is_not_success_or_replayed.log",
+      "evidence_sha256": "e6d522b58e1c240a48563e4803335a633c196da40478deacc048ec6d6290482d"
+    },
+    {
+      "id": "USB-01.pc-client-no_request_before_auth_or_after_close",
+      "parent": "USB-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.11453911999706179,
+      "evidence": "USB-01.pc-client-no_request_before_auth_or_after_close.log",
+      "evidence_sha256": "46f55e5320c487303fb93f0786dd117a6d47e40af5c807fef0242ecc70a801d0"
+    },
+    {
+      "id": "USB-01.pc-client-cli_uses_real_client_without_printing_credentials",
+      "parent": "USB-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.11423901305533946,
+      "evidence": "USB-01.pc-client-cli_uses_real_client_without_printing_credentials.log",
+      "evidence_sha256": "02655096cd3c163297111f126af0d224f3d41122eadea7031bd8e12ddadc9272"
+    },
+    {
+      "id": "USB-01.pc-client-native_adapter_preserves_partial_io_without_global_output_redirect",
+      "parent": "USB-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.06410759995924309,
+      "evidence": "USB-01.pc-client-native_adapter_preserves_partial_io_without_global_output_redirect.log",
+      "evidence_sha256": "ef2c64ac47a042d5732feaaf42d4f288256b2a93b0ba572bcf5be24ceba1f3a2"
+    },
+    {
+      "id": "USB-01.pc-client-native_port_filter_rejects_uart_without_opening",
+      "parent": "USB-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.06407624995335937,
+      "evidence": "USB-01.pc-client-native_port_filter_rejects_uart_without_opening.log",
+      "evidence_sha256": "e49ce44974c6c6833afb028e3caaf42b9b753189fb6ca6f50d97c7f9b9c70908"
+    },
+    {
+      "id": "USB-01.pc-client-cli_invalid_certificate_never_opens_port",
+      "parent": "USB-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.06415199500042945,
+      "evidence": "USB-01.pc-client-cli_invalid_certificate_never_opens_port.log",
+      "evidence_sha256": "edd128abbdf950b26c527b842a59abc688677d350250149d5ba44749a525f651"
+    },
+    {
+      "id": "USB-01.pc-client-clock_rollback_terminates_without_replay",
+      "parent": "USB-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.11461854499066249,
+      "evidence": "USB-01.pc-client-clock_rollback_terminates_without_replay.log",
+      "evidence_sha256": "4b30169f19a382f57bbeac84c3db0a54d2c6cf064e4f224b4f1e7bd4d93276ce"
+    }
+  ],
+  "runner_gate": {
+    "collected": 13,
+    "PASS": 13
+  },
+  "cross_language_subcases": {
+    "count": 2,
+    "PASS": 2,
+    "included_in": "USB-01.tls-transport",
+    "external_boundary": "Pipe transport and board STATUS/INFO service fixture; real C TLS, PC grant and SDC1 state machines"
+  },
+  "existing_mutations": [
+    {
+      "id": "MSC-01.early-release",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.007820914033800364,
+      "source": "app/bk7258/bk7258_media_volume.c",
+      "original_sha256": "58ebb18ae63adccf21262253da18f153bbb7c680cc0b64719ca20e8a6d9681c8",
+      "mutant_sha256": "bf298373a95ac54d5587f93ece34a30a7f661a65a969c69db9e27c6570770c57",
+      "expected_assertion": "!mounted",
+      "evidence": "MSC-01.early-release.log"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.06418231996940449,
+      "source": "app/bk7258/bk7258_provision_config.c",
+      "original_sha256": "98f5100ca49ca44e45fe3e5da4bb2da0add7466f0e357a205ca8b1e307a5818e",
+      "mutant_sha256": "4c0c615b8ffc99247b0fd91bd934d3df0409a1180769cb939b2820f9e6f69427",
+      "expected_assertion": "bkcloud_config_decode",
+      "evidence": "CFG-01.wifi-clears-cloud.log"
+    }
+  ],
+  "new_mutations_and_restore": [
+    {
+      "id": "ignore-leaf-pin",
+      "status": "DETECTED",
+      "exit_code": 1,
+      "collected": 13,
+      "seconds": 0.164296711969655,
+      "source_sha256": "cb96a901a078fd33d49f50bde03346e2631c3db86cda266bb8227810968b181d",
+      "evidence": "ignore-leaf-pin-recorded.log"
+    },
+    {
+      "id": "ignore-sequence",
+      "status": "DETECTED",
+      "exit_code": 1,
+      "collected": 13,
+      "seconds": 0.16442685900256038,
+      "source_sha256": "16a8902b45da056fb1a493e926b9e2793c80d6a7ba45dada878a00cc008f75df",
+      "evidence": "ignore-sequence-recorded.log"
+    },
+    {
+      "id": "restored",
+      "status": "PASS",
+      "exit_code": 0,
+      "collected": 13,
+      "seconds": 0.1643195449723862,
+      "source_sha256": "8e5abf552cea46b31da3b1569bd624f9861d01317ebb6647132e0355f0b70ea3",
+      "evidence": "restored-recorded.log"
+    }
+  ],
+  "inputs_before": {
+    "tools/bk7258/_lib/workbench.py": "8e5abf552cea46b31da3b1569bd624f9861d01317ebb6647132e0355f0b70ea3",
+    "tools/bk7258/_lib/deploy_usb.py": "dc75c0c44e2a084166327b46bb83a65e2dc5cc8ff62c3ea869aca1df0f2c9947",
+    "tools/bk7258/bk7258.py": "907b39d9d2198c2c60595c9ff8ce580704949873fd815e61372292d04bbc6787",
+    "tests/host/bk7258/test_workbench_client.py": "3ee6cf0b6a3789fc0617f62160b0377dcdc4c2f025d1a2867758ad81230965fb",
+    "tests/host/bk7258/test_provision_tls.c": "32450e1099fea9451b29d7eed2bf7afb36754729b5a93e1cede956722cc283c8",
+    "tests/host/bk7258/test_provision_tls.py": "2c4f47bf6000c9ca4925680866584335de795d0ecd07c029c230ce093d408eca",
+    "tests/host/bk7258/test_shaniu_contracts.py": "cb5bfd6c9f72204592a34b2b9c0aec59d7d0bec1a9367388952b6901ef642a1f",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "0034332b1b6e1d70301c6e6c594e21dbb2cd48936edb3cb2f16fa58b9001ffa8"
+  },
+  "inputs_after": {
+    "tools/bk7258/_lib/workbench.py": "8e5abf552cea46b31da3b1569bd624f9861d01317ebb6647132e0355f0b70ea3",
+    "tools/bk7258/_lib/deploy_usb.py": "dc75c0c44e2a084166327b46bb83a65e2dc5cc8ff62c3ea869aca1df0f2c9947",
+    "tools/bk7258/bk7258.py": "907b39d9d2198c2c60595c9ff8ce580704949873fd815e61372292d04bbc6787",
+    "tests/host/bk7258/test_workbench_client.py": "3ee6cf0b6a3789fc0617f62160b0377dcdc4c2f025d1a2867758ad81230965fb",
+    "tests/host/bk7258/test_provision_tls.c": "32450e1099fea9451b29d7eed2bf7afb36754729b5a93e1cede956722cc283c8",
+    "tests/host/bk7258/test_provision_tls.py": "2c4f47bf6000c9ca4925680866584335de795d0ecd07c029c230ce093d408eca",
+    "tests/host/bk7258/test_shaniu_contracts.py": "cb5bfd6c9f72204592a34b2b9c0aec59d7d0bec1a9367388952b6901ef642a1f",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "0034332b1b6e1d70301c6e6c594e21dbb2cd48936edb3cb2f16fa58b9001ffa8"
+  },
+  "inputs_unchanged": true,
+  "production_digest_scope": "Existing runner digest covers firmware/App/manifest; host client and test sources are separately frozen above",
+  "environment": {
+    "platform": "Linux-5.15.167.4-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+    "python": "3.10.12",
+    "cc": "cc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0",
+    "cmake": "cmake version 4.0.2",
+    "java": "openjdk version \"21.0.6\" 2025-01-21 LTS"
+  },
+  "raw_evidence": {
+    "out/shaniu-s71/strict-recorded.log": "ca05841e331e24f96fb004af1f166272ce6ad37c80e372c82fccac5b846a6100",
+    "out/shaniu-s71/strict-recorded/USB-01.tls-transport.log": "cd458c920118d6f93002031b32b10131c5cd06445a63c4d4edf6e5da1ee856f9",
+    "out/shaniu-s71/runner-gate-final.log": "70dda53ed6532662b4a5d5937db093045a2f33eb20893e23b1621d64667776ac",
+    "out/shaniu-s71/fixture-final.log": "487c81cdf81580be63ab922f97fef7c8b400fdec48836781c745a3439a7ad230",
+    "out/shaniu-s71/serial-adapter-red.log": "e8299a6b60e408d61b93043632548232ba7f9674476ab4cc4b7104e584d2345c",
+    "out/shaniu-s71/interop-first.log": "35dea24f43fd2d3717c4aac1cf327da8eef39acab6da50c4d5b7958d6362c495",
+    "out/shaniu-s71/interop-corrected.log": "1d2e811ff2313720323e7f609abffc70de0c7a4a8b4617ad93550bee3c2ae80a",
+    "out/shaniu-s71/ignore-leaf-pin-recorded.log": "0b684323bde5c4407693f1eff1dfab1bcd656f38d69dacd90bca04318464b2b4",
+    "out/shaniu-s71/ignore-sequence-recorded.log": "4e1513bcdc9980d9bb11d62af9ea4cb671158b5d88ad0b0e5413790c6e1dcc42",
+    "out/shaniu-s71/restored-recorded.log": "a64a046a5452ecdb22d58b318a2f21446aea857fb5020e9d2c9bf586830f3304"
+  },
+  "fixture_corrections": [
+    {
+      "evidence": "interop-first.log",
+      "reason": "External pc_execute INFO fixture left fields unknown; populate explicit 0.7.14/build123/counter661 and assert counter661. No production TLS fix or relaxed assertion."
+    },
+    {
+      "reason": "SHANIU_TLS_SAMPLES=1 on first attempt was unsupported and ignored; existing fixed 20-sample loop was retained. Corrected and final bundles completed all 20 samples."
+    }
+  ],
+  "test_first": {
+    "missing_interface": "BLOCKED_INTERFACE, not business failure",
+    "serial_adapter": "Positive external-adapter wiring assertion failed before optional stderr parameter was added; passes after fix"
+  },
+  "limits": [
+    "L1/L2 host evidence only; no serial device opened, phone installed, board flashed, reset or power action",
+    "No finished phone-to-PC grant exchange, protected desktop credential storage, native USB runtime owner, resource import, browser UI or event sender",
+    "S66 intermittent TLS failure remains unresolved; passing reruns are not root-cause closure",
+    "400 units do not establish completion of the 56 acceptance specifications",
+    "Python/OpenSSL copies are not claimed securely erased; buffer bounds are not total process memory limits; I/O-boundary deadlines are not a hardware responsiveness SLA"
+  ]
+}
