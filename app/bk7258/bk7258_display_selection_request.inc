@@ -131,7 +131,8 @@ int bk7258_display_selection_cancel(uint32_t id)
   if (id == 0) return -EINVAL;
   flags = spin_lock_irqsave(&g_bkdisplay_intent_lock);
   if (id != g_bkdisplay_selection.id) ret = -ESTALE;
-  else if (g_bkdisplay_selection.state == BKDISPLAY_SELECTION_COMMITTING ||
+  else if (g_bkdisplay_selection.recovery_pending ||
+           g_bkdisplay_selection.state == BKDISPLAY_SELECTION_COMMITTING ||
            g_bkdisplay_selection.state == BKDISPLAY_SELECTION_RENDERING)
     ret = -EBUSY;
   else if (g_bkdisplay_selection.state == BKDISPLAY_SELECTION_PENDING ||
@@ -140,6 +141,34 @@ int bk7258_display_selection_cancel(uint32_t id)
   else if (g_bkdisplay_selection.state != BKDISPLAY_SELECTION_CANCELED &&
            g_bkdisplay_selection.state != BKDISPLAY_SELECTION_CANCEL_PENDING)
     ret = -EALREADY;
+  spin_unlock_irqrestore(&g_bkdisplay_intent_lock, flags);
+  return ret;
+}
+
+int bk7258_display_selection_recover(uint32_t id)
+{
+  irqstate_t flags;
+  int ret = 0;
+
+  if (id == 0)
+    {
+      return -EINVAL;
+    }
+
+  flags = spin_lock_irqsave(&g_bkdisplay_intent_lock);
+  if (id != g_bkdisplay_selection.id)
+    {
+      ret = -ESTALE;
+    }
+  else if (!g_bkdisplay_selection.release_error)
+    {
+      ret = -EALREADY;
+    }
+  else
+    {
+      g_bkdisplay_selection.recovery_pending = true;
+    }
+
   spin_unlock_irqrestore(&g_bkdisplay_intent_lock, flags);
   return ret;
 }

@@ -582,7 +582,10 @@
     "RES-02.selection-job-stale",
     "RES-02.selection-job-supersede",
     "RES-02.selection-job-stale-job",
-    "RES-02.selection-job-commit-unknown"
+    "RES-02.selection-job-commit-unknown",
+    "RES-02.selection-recover-success",
+    "RES-02.selection-recover-gate",
+    "RES-02.selection-recover-failure"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1168,6 +1171,9 @@
     "RES-02.selection-job-stale",
     "RES-02.selection-job-supersede",
     "RES-02.selection-job-stale-job",
-    "RES-02.selection-job-commit-unknown"
+    "RES-02.selection-job-commit-unknown",
+    "RES-02.selection-recover-success",
+    "RES-02.selection-recover-gate",
+    "RES-02.selection-recover-failure"
   ]
 }

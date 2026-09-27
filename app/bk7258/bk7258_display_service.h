@@ -156,6 +156,7 @@ struct bkdisplay_selection_status_s
   bool version_known;
   bool save_confirmed;
   bool render_confirmed;
+  bool recovery_pending;
   uint64_t expected_revision;
   struct bkdisplay_selection_version_s version;
 };
@@ -166,6 +167,14 @@ int bk7258_display_selection_refresh(uint32_t expected_id, uint32_t *id);
 int bk7258_display_selection_status(
   struct bkdisplay_selection_status_s *status);
 int bk7258_display_selection_cancel(uint32_t id);
+
+/* Explicit close-only retry for this job's uncertain volume release. The
+ * original outcome stays UNKNOWN; release success does not confirm rendering
+ * or durability. Duplicate pending requests coalesce. Cleanup remains allowed
+ * with the business gate closed, and cannot be canceled once requested.
+ */
+
+int bk7258_display_selection_recover(uint32_t id);
 
 int bk7258_display_set_expression(const char *expression);
 /* Atomic acquisition/conditional update under the rendering mutex. A nonzero

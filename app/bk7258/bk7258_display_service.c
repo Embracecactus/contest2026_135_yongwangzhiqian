@@ -721,6 +721,7 @@ static int bkdisplay_worker(int argc, char *argv[])
                                bkdisplay_service_node(BKDISPLAY_FB1, false);
       bkdisplay_intent_gate(service->started && !service->claim_qr[0] &&
                             !service->power_overlay);
+      (void)bkdisplay_selection_recover_step(service);
       if (!service->devices_ready)
         {
           service->status.state = BKDISPLAY_SERVICE_WAITING_DEVICES;

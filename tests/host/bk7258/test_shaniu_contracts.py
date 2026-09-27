@@ -923,6 +923,10 @@ def main():
     add(suite, "RES-02.selection-version-legacy-recovery", "RES-02", "L2",
         [HERE / "build/test_bk7258_display_pack", HERE / "build/shaniu-default-v1.bkep"],
         ready=binaries["test_bk7258_display_pack"], marker=False)
+    for variant in ("success", "gate", "failure"):
+        add(suite, "RES-02.selection-recover-" + variant, "RES-02", "L2",
+            [sys.executable, HERE / "test_pack_trial.py", "selection-recover-" + variant],
+            ready=binaries["test_display_upload"], setup_exit_code=2)
     for variant in ("refresh", "cancel", "gate", "preparing-cancel", "commit-cancel",
                     "render-failure", "release-failure", "stale", "supersede", "stale-job", "commit-unknown"):
         add(suite, "RES-02.selection-job-" + variant, "RES-02", "L2",

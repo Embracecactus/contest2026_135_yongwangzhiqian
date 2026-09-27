@@ -12,6 +12,34 @@
  * Private Functions
  ****************************************************************************/
 
+/* Called before overlays and device readiness checks by the same owner.
+ * Clearing a release latch requires actual close confirmation.
+ * A timer cannot establish release.
+ */
+
+static bool bkdisplay_selection_recover_step(
+  struct bkdisplay_service_s *service)
+{
+  irqstate_t flags;
+  int ret;
+
+  flags = spin_lock_irqsave(&g_bkdisplay_intent_lock);
+  if (!g_bkdisplay_selection.recovery_pending)
+    {
+      spin_unlock_irqrestore(&g_bkdisplay_intent_lock, flags);
+      return false;
+    }
+
+  spin_unlock_irqrestore(&g_bkdisplay_intent_lock, flags);
+  ret = bkdisplay_volume_close(service);
+
+  flags = spin_lock_irqsave(&g_bkdisplay_intent_lock);
+  g_bkdisplay_selection.release_error = ret;
+  g_bkdisplay_selection.recovery_pending = false;
+  spin_unlock_irqrestore(&g_bkdisplay_intent_lock, flags);
+  return true;
+}
+
 static bool bkdisplay_selection_step(struct bkdisplay_service_s *service,
                                      bool devices_ready)
 {

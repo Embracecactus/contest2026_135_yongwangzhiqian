@@ -211,8 +211,60 @@ static void client_peer(struct bkdisplay_service_s *service)
     }
   bkcontrol_session_close(&wire);
 }
+/* Recovery retries release only; the original save/render outcome is immutable. */
+static void recovery_case(struct bkdisplay_service_s *service,const char *mode)
+{
+  struct bkdisplay_selection_status_s before,after;
+  uint32_t next=0;
+  assert(bk7258_display_selection_recover(0)==-EINVAL);
+  assert(bk7258_display_selection_recover(1)==-ESTALE);
+  assert(bk7258_display_selection_request("shaniu-upload-v1.bkep",1,0,&selection_id)==0);
+  fail_unmount=true;
+  assert(bkdisplay_selection_step(service,true));
+  assert(bk7258_display_selection_status(&before)==0);
+  assert(before.state==BKDISPLAY_SELECTION_UNKNOWN && before.release_error==-EIO);
+  assert(before.save_confirmed && !before.render_confirmed);
+  unsigned io=mounts,stored=writes,painted=frames,closed=unmounts;
+  assert(bk7258_display_selection_recover(selection_id+1)==-ESTALE);
+  assert(bk7258_display_selection_recover(selection_id)==0);
+  assert(bk7258_display_selection_recover(selection_id)==0);
+  assert(bk7258_display_selection_status(&after)==0 && after.recovery_pending);
+  assert(after.release_error==-EIO && writes==stored && mounts==io && unmounts==closed);
+  assert(bk7258_display_selection_cancel(selection_id)==-EBUSY);
+  assert(bk7258_display_selection_refresh(selection_id,&next)==-EBUSY);
+  if(!strcmp(mode,"selection-recover-gate")) bkdisplay_intent_gate(false);
+  if(!strcmp(mode,"selection-recover-failure")) fail_unmount=true;
+  assert(bkdisplay_selection_recover_step(service));
+  assert(bk7258_display_selection_status(&after)==0 && !after.recovery_pending);
+  assert(after.id==before.id && after.state==before.state && after.error==before.error);
+  assert(after.version.revision==before.version.revision && after.save_confirmed);
+  assert(!after.render_confirmed && writes==stored && frames==painted && mounts==io);
+  if(!strcmp(mode,"selection-recover-failure"))
+    {
+      assert(after.release_error==-EIO && unmounts==closed);
+      assert(bkdisplay_volume_open(service)==-EBUSY);
+      assert(!bkdisplay_selection_recover_step(service)); /* No automatic retry. */
+      assert(bk7258_display_selection_recover(selection_id)==0);
+      assert(bkdisplay_selection_recover_step(service));
+    }
+  assert(bk7258_display_selection_status(&after)==0 && after.release_error==0);
+  assert(!service->volume_leased && !service->volume_mounted && unmounts==closed+1);
+  assert(bk7258_display_selection_recover(selection_id)==-EALREADY);
+  assert(!bkdisplay_selection_recover_step(service));
+  if(!strcmp(mode,"selection-recover-gate"))
+    {assert(bk7258_display_selection_refresh(selection_id,&next)==-EBUSY);bkdisplay_intent_gate(true);}
+  assert(bk7258_display_selection_refresh(selection_id,&next)==0);
+  assert(next==selection_id+1);
+  assert(bk7258_display_selection_recover(selection_id)==-ESTALE);
+  assert(bkdisplay_selection_step(service,true));
+  assert(bk7258_display_selection_status(&after)==0);
+  assert(after.state==BKDISPLAY_SELECTION_DONE && after.version.revision==2);
+  assert(!after.save_confirmed && !after.render_confirmed);
+  assert(writes==stored && frames==painted);
+}
 static void selection_case(struct bkdisplay_service_s *service,const char *mode)
 {
+  if(!strncmp(mode,"selection-recover-",18)){recovery_case(service,mode);return;}
   struct bkdisplay_selection_status_s state;
   unsigned io=mounts,painted=frames,stored=writes;
   uint32_t trial=0;

@@ -835,3 +835,26 @@ Read/refresh results are volatile observations, not power-loss durability proof.
 The last operation result is volatile; old boot/authorization sessions must not
 be replayed as new writes. Remote protocol/authorization and UI are separate
 bindings still required after this native worker slice.
+
+### S101: explicit selection release recovery
+
+RES-02 / MSC-01 resource invariant: an unsuccessful unmount cannot grant a new
+storage user access. A failed selection job may explicitly retry release on the
+same display owner, without rewriting its saved default or replaying rendering.
+`selection_recover(id)` requires the current nonzero job ID and an outstanding
+release error; stale/zero IDs fail, and an already released job returns EALREADY.
+Request and status perform no I/O. Pending duplicate recovery coalesces; cancel
+is EBUSY while cleanup is pending. The business admission gate does not cancel
+necessary cleanup. The worker attempts one real close before overlays/readiness
+branches, clears the latch only on close success, and never retries on its own.
+The original UNKNOWN state, error, saved revision and save/render confirmations
+remain unchanged. A later explicit refresh is a new job and reads current state.
+
+Three independently collected cases use the actual request/recovery functions,
+volume owner, store and render implementation: successful release, closed-gate
+cleanup, and repeated unmount failure followed by explicit retry. External
+umount failure and framebuffer peers are controlled; no replacement production
+state machine. The first missing API compilation is BLOCKED_INTERFACE, not an
+assertion Red. A compiled isolated mutant that clears the latch on failed close
+must be detected. These tests invoke the worker step directly; RTOS scheduling,
+physical unmount, remote authorization and a product UI remain separate gaps.

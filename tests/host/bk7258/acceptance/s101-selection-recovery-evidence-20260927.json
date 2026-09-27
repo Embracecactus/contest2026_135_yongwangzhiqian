@@ -1,0 +1,101 @@
+{
+  "parent": "04765fbb4d6dbcc7e73a0265dcc937ee9ca0a83e",
+  "counts": {
+    "selected": 585,
+    "PASS": 585,
+    "original_including_restores": 63,
+    "added": 522,
+    "new_ids": 3,
+    "runner_gates": 19,
+    "original_mutations": 2,
+    "extra_mutations": 1,
+    "extra_restore_runs": 1
+  },
+  "contract": "Explicit same-job close-only recovery; stale/zero IDs rejected, duplicate pending requests coalesce, cancel busy, necessary cleanup permitted with business gate closed. One close attempt per request; failed release remains pinned. Original UNKNOWN/error/version/save/render outcome preserved after successful release.",
+  "first_attempt": {
+    "status": "BLOCKED_INTERFACE",
+    "evidence": "interface-before.log",
+    "business_red": false
+  },
+  "collection_gate": "First full run exit1 with585 passing assertions but3 unexpected IDs; raw log and summary retained. Required ids/added_ids corrected, baseline63 unchanged; final full exit0, no collection errors.",
+  "integration": {
+    "production": "Real recovery request/step, volume owner, versioned store and render functions. Worker invokes cleanup before overlays/readiness branches.",
+    "external": "Controlled mount/umount and framebuffer peers; failed real-owner unmount route and retry.",
+    "limits": "Host invokes production step, not RTOS scheduler. No remote authorization/client/UI caller yet; public request not yet linked into AP. No physical SD/USB or screen acceptance."
+  },
+  "mutation": {
+    "status": "DETECTED",
+    "exit_code": 1,
+    "source_sha256": "8ed0e8671db82cf2bd90c9d1b6ce2032fdbadd94ae5c655db9841dd75b3cbb8c",
+    "mutant_sha256": "7b5f9aa2cc1d5c4f9e7a5f887da6b3c7d3216e75fa8c6f384c0125e96a8784a7",
+    "assertion": "after.release_error==-EIO",
+    "restored_log": "mutation-restored-final.log"
+  },
+  "validation": {
+    "inputs_match": true,
+    "production_unchanged_during_full": true,
+    "AP": "PASS incremental; native public recovery has no protocol caller yet",
+    "layers": "PASS sources548 kconfig253 legacy-exceptions2",
+    "style": {
+      "bk7258_display_service.c": {
+        "added_diagnostic_types": [],
+        "legacy_diagnostics_remain": true
+      },
+      "bk7258_display_service.h": {
+        "added_diagnostic_types": [],
+        "legacy_diagnostics_remain": true
+      }
+    },
+    "inc_style": "Pinned nxstyle on C projections: only projection path/header mismatch. Direct .inc checking silently skips; not used as proof. Existing C/header diagnostics remain.",
+    "nxstyle_nuttx_commit": "76354c637858ecb0aa4601629327acb6f44a26bb"
+  },
+  "resources": {
+    "selection_static_bytes": 80,
+    "incremental_static_bytes": 0,
+    "threads_heap": "No new thread or heap allocation; boolean fits existing target padding",
+    "blocking": "One explicit close on existing display owner, outside metadata lock. Actual kernel I/O bound unknown.",
+    "not_measured": [
+      "CPU mean/p95",
+      "stack high-water",
+      "DMA/IRQ interference",
+      "voice/USB contention",
+      "physical media durability"
+    ]
+  },
+  "parent_gaps": {
+    "RES-02": {
+      "interface": "Native default/refresh/recovery available; remote boot/auth-scoped protocol and PC/App UI pending",
+      "L1_L2": "Three recovery cases pass, failed-close latch mutant detected and restored; original63 retained",
+      "L3": "NOT_RUN; no device operation"
+    }
+  },
+  "remaining": [
+    "Authenticated versioned selection protocol and client/UI",
+    "S99 active/2 downgrade/migration contract before device deployment",
+    "COM9 identity and APK installation approval still pending",
+    "Historical TLS evidence, physical resource budgets, combination and final delivery"
+  ],
+  "evidence_sha256": {
+    "tests/host/bk7258/acceptance/s101-evidence-20260927/CFG-01.wifi-clears-cloud.log": "143fbccedfeed1f8c6df37260e4deb8477fee72b715b9dd9e9d8637e2f9fc11b",
+    "tests/host/bk7258/acceptance/s101-evidence-20260927/MSC-01.early-release.log": "4ce5fbe26a6dbaa82471a72d7542d1494aec243087d407014c8f498b5d1432d8",
+    "tests/host/bk7258/acceptance/s101-evidence-20260927/RES-02.selection-recover-failure.log": "601ebd2ef56ae2d2a817e4d1099d6acce852ead0108a31d4fd4e8809cb6ac2ec",
+    "tests/host/bk7258/acceptance/s101-evidence-20260927/RES-02.selection-recover-gate.log": "93108189fe3aee8c58129521b00f91c61685e37d20cbdc2de69aea8884957c55",
+    "tests/host/bk7258/acceptance/s101-evidence-20260927/RES-02.selection-recover-success.log": "79d19e96ac03b1141d50fa4542fab05cb8c813481215e9619122bbc850e089f4",
+    "tests/host/bk7258/acceptance/s101-evidence-20260927/ap.log": "10eedfa72d1617099621e1f949d822ec914f7b5c0660e2051a15329f61112a12",
+    "tests/host/bk7258/acceptance/s101-evidence-20260927/collection-before-summary.json": "d85352d56c1b2b9c97b31316e91932b5f456b36b42a60fe74c3d28c504cc1ecb",
+    "tests/host/bk7258/acceptance/s101-evidence-20260927/collection-before.log": "3598a892b0154686e3b1aa199417185e46a9471783c1b31c79c4da6523c2f4bd",
+    "tests/host/bk7258/acceptance/s101-evidence-20260927/early-release-mutant-final.log": "a3998a92d6f14f673858b31197f4021b518d848e77838a586db312b97a689dac",
+    "tests/host/bk7258/acceptance/s101-evidence-20260927/full.log": "80ba8a3f572fab861b15423b5ef50121d7900c62d4cf19b8b1c20c71e1edc6a3",
+    "tests/host/bk7258/acceptance/s101-evidence-20260927/gates-final.log": "51e0afdaa1c0cacbe3c4a33aeaa333561d8cead537dc9b565c9010aff3eac5f0",
+    "tests/host/bk7258/acceptance/s101-evidence-20260927/interface-before.log": "9075fd907d9717ba8d86d08643f576a8b8e07f812c92e452eef91f79a37807ab",
+    "tests/host/bk7258/acceptance/s101-evidence-20260927/layers.log": "710268dfb47cd80406e5e3114f8d4e9fa899ff333a4aa4b65452813f14a7ea7d",
+    "tests/host/bk7258/acceptance/s101-evidence-20260927/mutation-restored-final.log": "5f03036a567af1d8dca1526c4721382767887b12c942f42c6a0db0a277cecc5a",
+    "tests/host/bk7258/acceptance/s101-evidence-20260927/mutation.json": "0d0b688a79b3be87f44605f7a61e48470af3487b478c5d1b40e03e2355db86b6",
+    "tests/host/bk7258/acceptance/s101-evidence-20260927/recover-failure.log": "cfd3f103d59b7453926b276280d631bfcfe4e24f2acebd4c0ae7003c0b1f7587",
+    "tests/host/bk7258/acceptance/s101-evidence-20260927/recover-gate.log": "a07fb5d34f1f39f6349e6397af41510533faa565a3f728e7b735c1bcede29fb1",
+    "tests/host/bk7258/acceptance/s101-evidence-20260927/recover-success.log": "b86de51b78352cae87a7a8554185f3d59df8ad36643c52e8f9c0477f16444d38",
+    "tests/host/bk7258/acceptance/s101-evidence-20260927/style-final.log": "12df228b5b13a41a0649b23a5ba071191bf7dacc0d014b84492758528cac1b10",
+    "tests/host/bk7258/acceptance/s101-evidence-20260927/style.json": "cd318b850b31455caf0dfb8420c36e2661d205b30864ba12ddf3bd5d325eeb8f",
+    "tests/host/bk7258/acceptance/s101-evidence-20260927/target-symbols.log": "152dc049d884499574eef97539bf7aa792f975cf1a3a6c46ed971b5b0a60ce49"
+  }
+}
