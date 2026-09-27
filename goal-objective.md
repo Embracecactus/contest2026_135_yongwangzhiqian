@@ -458,3 +458,11 @@
   初始缺接口及Gradle参数归属失败留档。首次授权UI/可信PC交换未接通，下一片继续
   实际配对交接、安全保存与USB运行路径，不把grant API完成称为首用流程完成；
   S66 TLS及实板/发布门槛仍保留，不等待新goal。
+
+- S73：PC加密配置进入真实CLI status/info路径；Windows CurrentUser DPAPI绑定
+  独立key、可信证书与pin，先加密再独占发布/回读，不覆盖旧文件、不失败降级。
+  明确离线import不等于设备授权，原明文开发输入只保留显式使用。11新主机ID使总数
+  417PASS（原63+354），门禁13与真实Windows DPAPI 3项单列。系统桥接ReadToEnd
+  错误先由真实OS检出后修正，原失败留存；2隔离变异检出/恢复11PASS。未调用真实
+  串口/手机/板；首次配对交换、非Windows vault、USB owner及资源/网页/事件仍缺，
+  S66 TLS门槛不关闭。继续可信手机-PC交接与完整用户流程，不等待新goal。

@@ -8,6 +8,7 @@ key. No shell, provisioning claim, OTA, mode switch or automatic replay.
 """
 from __future__ import annotations
 
+from contextlib import contextmanager
 import hashlib
 import hmac
 import math
@@ -275,11 +276,12 @@ class SerialChannel:
 
 
 def add_arguments(parser):
-    parser.add_argument("operation", choices=("status", "info"))
-    parser.add_argument("--port", required=True)
-    parser.add_argument("--certificate", required=True, type=Path)
-    parser.add_argument("--certificate-sha256", required=True)
-    parser.add_argument("--pc-key-file", required=True, type=Path)
+    parser.add_argument("operation", choices=("status", "info", "save-profile"))
+    parser.add_argument("--port")
+    parser.add_argument("--profile", type=Path)
+    parser.add_argument("--certificate", type=Path)
+    parser.add_argument("--certificate-sha256")
+    parser.add_argument("--pc-key-file", type=Path)
     parser.add_argument("--timeout", type=float, default=10)
 
 
@@ -294,33 +296,65 @@ def _read_file(path, limit):
     return data
 
 
-def run(args):
+@contextmanager
+def _credentials(args):
+    from . import workbench_profile
+
+    profile_path = getattr(args, "profile", None)
+    legacy = (args.certificate, args.certificate_sha256, args.pc_key_file)
+    if profile_path is not None and args.operation != "save-profile":
+        if any(value is not None for value in legacy):
+            raise ControlError(
+                "A profile cannot be combined with plaintext credentials"
+            )
+        with workbench_profile.use(profile_path) as material:
+            yield material
+        return
+    if not all(value is not None for value in legacy):
+        raise ControlError("A profile or complete credential inputs are required")
     key = _read_file(args.pc_key_file, 32)
-    client = None
     try:
         certificate = _read_file(args.certificate, 16384).decode("ascii")
         _context(certificate, args.certificate_sha256)
-        if (
-            len(key) != 32
-            or not any(key)
-            or not math.isfinite(args.timeout)
-            or not 0 < args.timeout <= 120
-        ):
-            raise ControlError("Invalid PC credential or deadline")
-        client = ControlClient(
-            SerialChannel(args.port, args.timeout),
-            certificate,
-            args.certificate_sha256,
-            timeout=args.timeout,
-        )
-        client.start(key)
-        key[:] = b"\x00" * len(key)
-        return client.status() if args.operation == "status" else client.info()
+        if len(key) != 32 or not any(key):
+            raise ControlError("Invalid independent PC credential")
+        yield certificate, args.certificate_sha256, key
+    finally:
+        key[:] = bytes(len(key))
+
+
+def run(args):
+    from . import workbench_profile
+
+    client = None
+    try:
+        with _credentials(args) as (certificate, pin, key):
+            if args.operation == "save-profile":
+                if getattr(args, "profile", None) is None or args.port is not None:
+                    raise ControlError(
+                        "Offline profile import requires only a profile destination"
+                    )
+                workbench_profile.create(args.profile, certificate, pin, key)
+                return dict(profile_saved=True, device_authorization_verified=False)
+            if (
+                not args.port
+                or not math.isfinite(args.timeout)
+                or not 0 < args.timeout <= 120
+            ):
+                raise ControlError("Invalid port or deadline")
+            client = ControlClient(
+                SerialChannel(args.port, args.timeout),
+                certificate,
+                pin,
+                timeout=args.timeout,
+            )
+            client.start(key)
+            key[:] = bytes(len(key))
+            return client.status() if args.operation == "status" else client.info()
     except Exception:
         raise ControlError(
-            "USB control failed; no command replay or console fallback"
+            "Workbench operation failed; no credential fallback or command replay"
         ) from None
     finally:
-        key[:] = b"\x00" * len(key)
         if client is not None:
             client.close()

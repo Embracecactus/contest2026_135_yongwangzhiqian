@@ -406,7 +406,18 @@
     "provision.PcAuthorizationControllerTest.invalidGrantInputsNeverBeginOrChangeBorrowedKey",
     "provision.PcAuthorizationControllerTest.grantCloseAndDisconnectDoNotReplayOrExposeCredential",
     "provision.PcAuthorizationControllerTest.restoredPublicTargetConfirmsOnlyMatchingGrantWithoutReplaying",
-    "provision.PcAuthorizationControllerTest.restoredRevokeTargetAndInvalidMetadataStaySeparate"
+    "provision.PcAuthorizationControllerTest.restoredRevokeTargetAndInvalidMetadataStaySeparate",
+    "USB-01.pc-profile-profile_binds_pin_certificate_key_and_clears_borrowed_plaintext",
+    "USB-01.pc-profile-tampered_truncated_and_unknown_profiles_fail_closed",
+    "USB-01.pc-profile-existing_profile_and_symlink_are_never_overwritten",
+    "USB-01.pc-profile-invalid_material_and_os_failure_never_create_profile",
+    "USB-01.pc-profile-cli_profile_reaches_real_tls_client_without_plaintext_file",
+    "USB-01.pc-profile-cli_invalid_profile_never_opens_port_or_falls_back",
+    "USB-01.pc-profile-cli_save_profile_is_offline_and_preserves_import_source",
+    "USB-01.pc-profile-io_failures_do_not_publish_success_or_overwrite",
+    "USB-01.pc-profile-cli_mixed_profile_credentials_never_downgrade",
+    "USB-01.pc-profile-os_bridge_uses_stdin_current_user_and_generic_failure",
+    "USB-01.pc-profile-authenticated_profile_with_wrong_trust_binding_is_rejected"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -816,6 +827,17 @@
     "provision.PcAuthorizationControllerTest.invalidGrantInputsNeverBeginOrChangeBorrowedKey",
     "provision.PcAuthorizationControllerTest.grantCloseAndDisconnectDoNotReplayOrExposeCredential",
     "provision.PcAuthorizationControllerTest.restoredPublicTargetConfirmsOnlyMatchingGrantWithoutReplaying",
-    "provision.PcAuthorizationControllerTest.restoredRevokeTargetAndInvalidMetadataStaySeparate"
+    "provision.PcAuthorizationControllerTest.restoredRevokeTargetAndInvalidMetadataStaySeparate",
+    "USB-01.pc-profile-profile_binds_pin_certificate_key_and_clears_borrowed_plaintext",
+    "USB-01.pc-profile-tampered_truncated_and_unknown_profiles_fail_closed",
+    "USB-01.pc-profile-existing_profile_and_symlink_are_never_overwritten",
+    "USB-01.pc-profile-invalid_material_and_os_failure_never_create_profile",
+    "USB-01.pc-profile-cli_profile_reaches_real_tls_client_without_plaintext_file",
+    "USB-01.pc-profile-cli_invalid_profile_never_opens_port_or_falls_back",
+    "USB-01.pc-profile-cli_save_profile_is_offline_and_preserves_import_source",
+    "USB-01.pc-profile-io_failures_do_not_publish_success_or_overwrite",
+    "USB-01.pc-profile-cli_mixed_profile_credentials_never_downgrade",
+    "USB-01.pc-profile-os_bridge_uses_stdin_current_user_and_generic_failure",
+    "USB-01.pc-profile-authenticated_profile_with_wrong_trust_binding_is_rejected"
   ]
 }

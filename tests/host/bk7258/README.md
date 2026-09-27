@@ -2302,3 +2302,38 @@ phase与result分开；底层已知失败即使返回EAGAIN也必须phase=3，�
 
 逐例结果：`acceptance/s72-20260927.json`；补充证据：
 `acceptance/s72-pc-grant-evidence-20260927.json`；原始日志：`out/shaniu-s72/`。
+
+### S73 · PC 加密凭据配置与实际 DPAPI 接线（2026-09-27）
+
+基于 S72 `ea93d693`，先写配置/客户端行为用例，再实现 `workbench_profile.py` 与
+唯一 CLI 的 `save-profile` / `status|info --profile`。不是新认领流程：保存成功明确
+返回 `device_authorization_verified=false`，可信配对交换仍缺。
+
+私有文件格式 SPC1 包含精确密文长度；DPAPI 保护的 PCI1 内同时保存证书指纹、独立
+PC key、证书长度及 PEM。证书≤16KiB、保护输入/输出≤32KiB；版本、长度、证书/指纹、
+32字节非零 key 都校验。密文临时文件 fsync 后独占发布，旧文件不替换，再解密回读。
+文件提交后检查失败保留未知结果，不谎报成功。该文件格式不是设备协议；无需改固件。
+
+- 本片新增 11 个独立主机 ID，验证真实配置格式/文件处理/CLI/TLS客户端，只有系统
+  保护边界与串口 peer 被替换。替身 AES-GCM 来自已固定的 `cryptography==44.0.0`
+  （`tools/bk7258/sdk-python-requirements.txt`），未升级依赖；不是生产加密实现。
+- 最早缺模块为 `BLOCKED_INTERFACE`；接模块但未接 CLI 时 3 个设置错误保留。
+  当时直接导入已有 TestCase 导致 unittest 额外收集原13项，已改为模块引用和显式
+  ProfileTest 选择；这些历史重复执行不计作新增覆盖。
+- 实际 WSL→Windows DPAPI 先出现 3 个 setup 错误，定位为错误调用不存在的
+  `Console.ReadToEnd`。固定合成输入证实系统 DPAPI 本身可用，改为
+  `Console.In.ReadToEnd` 后 3 项真实 OS 检查通过：回读、上下文/篡改拒绝、解密后
+  CLI→真实 TLS peer。原日志 `dpapi-live.log` 留存，修正结果另存。
+- 实际 OS 检查只处理临时合成数据，通过当前 Windows 用户执行。文件操作在 WSL
+  文件系统；不是另一 Windows 用户隔离实验，也不是原生 Windows Python 文件接口、
+  真实 USB、BLE 或设备授权验收。操作系统语义依据官方文档，实验范围不扩大。
+- 最终 **417 PASS** = 原63（含2恢复）+ 累计新增354，本片11；门禁13另计。
+  实际 DPAPI 的3项单列，不混入跨平台主机必选集合。覆盖旧文件、忽略解密后信任
+  校验两项隔离变异均被断言检出，恢复后11PASS。原2项卷/配置变异及恢复仍保留。
+- 子进程期限10秒，运行完退出；数据不放argv/日志，拥有的明文数组使用后清除。
+  未承诺整个Python/PowerShell进程内存有界于32KiB，也未声称内部副本完全擦除。
+  没有 Linux/macOS vault 后端或 OS 服务时拒绝；不降级存明文。未改变固件、APK、
+  模型/“我在”或 Agent；没有真实串口/刷板/安装动作，S66 TLS缺口继续保留。
+
+结果：`acceptance/s73-20260927.json` 与
+`acceptance/s73-profile-evidence-20260927.json`；原始记录：`out/shaniu-s73/`。

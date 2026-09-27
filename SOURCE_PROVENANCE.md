@@ -493,3 +493,14 @@ Only register facts are used; no manual text or document is redistributed here.
 New implementation/test code remains Apache-2.0. Existing SDK provenance above
 continues to apply to identity, scaling and bus binding. BDU holds byte pairs,
 not a claim of atomic simultaneous three-axis conversion or physical calibration.
+
+### PC 配置保护接口（2026-09-27）
+
+`tools/bk7258/_lib/workbench_profile.py` 为本项目 Apache-2.0 原创适配，没有复制第三方
+实现或示例代码。系统调用契约依据 Microsoft
+[ProtectedData](https://learn.microsoft.com/en-us/dotnet/api/system.security.cryptography.protecteddata)、
+[CryptProtectData](https://learn.microsoft.com/en-us/windows/win32/api/dpapi/nf-dpapi-cryptprotectdata)
+与 [CryptUnprotectData](https://learn.microsoft.com/en-us/windows/win32/api/dpapi/nf-dpapi-cryptunprotectdata)
+官方 API 文档：当前用户保护、可选应用上下文、解密完整性验证、Windows 平台范围。
+使用宿主机 Windows PowerShell/.NET 的系统服务，不随仓库分发 Microsoft 二进制。
+测试外部保护替身复用已固定 `cryptography==44.0.0` 的 AESGCM；生产路径不使用此替身。

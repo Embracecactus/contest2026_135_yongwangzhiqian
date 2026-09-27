@@ -817,6 +817,22 @@ def main():
         add(suite, "USB-01.pc-client-" + variant, "USB-01", "L2",
             [sys.executable, HERE / "test_workbench_client.py",
              "WorkbenchClientTest.test_" + variant], marker=False)
+    for variant in (
+        'profile_binds_pin_certificate_key_and_clears_borrowed_plaintext',
+        'tampered_truncated_and_unknown_profiles_fail_closed',
+        'existing_profile_and_symlink_are_never_overwritten',
+        'invalid_material_and_os_failure_never_create_profile',
+        'cli_profile_reaches_real_tls_client_without_plaintext_file',
+        'cli_invalid_profile_never_opens_port_or_falls_back',
+        'cli_save_profile_is_offline_and_preserves_import_source',
+        'io_failures_do_not_publish_success_or_overwrite',
+        'cli_mixed_profile_credentials_never_downgrade',
+        'os_bridge_uses_stdin_current_user_and_generic_failure',
+        'authenticated_profile_with_wrong_trust_binding_is_rejected',
+    ):
+        add(suite, "USB-01.pc-profile-" + variant, "USB-01", "L2",
+            [sys.executable, HERE / "test_workbench_profile.py",
+             "ProfileTest.test_" + variant], marker=False)
     add(suite, "USB-01.tls-transport", "USB-01", "L2",
         [sys.executable, HERE / "test_provision_tls.py"], marker=False)
     for variant in (
@@ -1323,6 +1339,8 @@ def main():
         ROOT / "app/bk7258/bk7258_pc_authorization.c",
         ROOT / "app/bk7258/bk7258_pc_authorization.h",
         ROOT / "tools/bk7258/_lib/workbench.py",
+        ROOT / "tools/bk7258/_lib/workbench_profile.py",
+        HERE / "test_workbench_profile.py",
         ROOT / "tools/bk7258/_lib/deploy_usb.py",
         ROOT / "tools/bk7258/bk7258.py",
         HERE / "test_workbench_client.py",

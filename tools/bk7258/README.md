@@ -348,3 +348,38 @@ existing 100-ms read and 5-second write bounds, so this is not a measured device
 response SLA. No raw serial port or physical USB device is touched by the host
 unit tests. Resource installation, scene operations, browser UI and task events
 will use this same authenticated client after their service bindings are ready.
+
+### 电脑端加密凭据配置（Windows / WSL→Windows）
+
+开发者已通过独立授权流程取得 PC 凭据时，可以将 Key、可信设备证书与指纹一起保存到
+当前 Windows 用户的 DPAPI 配置。此入口不生成 owner、不复制手机 Keystore、不验证
+设备是否已接受授权；首次配对交换仍待接通。导入的原 Key 文件不会自动删除或修改。
+
+```bash
+python3 tools/bk7258/bk7258.py workbench save-profile \
+  --profile /path/to/new-device.spc \
+  --certificate /path/to/device.pem \
+  --certificate-sha256 TRUSTED_LOWERCASE_SHA256 \
+  --pc-key-file /path/to/independent-pc-key.bin
+
+python3 tools/bk7258/bk7258.py workbench status \
+  --port NATIVE_PORT --profile /path/to/new-device.spc
+python3 tools/bk7258/bk7258.py workbench info \
+  --port NATIVE_PORT --profile /path/to/new-device.spc
+```
+
+目录须存在，目标配置须不存在；不会覆盖旧配置。写入前先加密，临时文件也只有密文；
+发布后解密回读核对。若发布后回读失败，文件保留且返回失败，不自动删除或重试覆盖；
+该机制不承诺任意掉电下持久化。只有后续真实认证/命令成功，才获得设备接受凭据的证据。
+
+`--profile` 不可与状态查询的明文凭据选项混用。配置过大、损坏、身份不匹配或系统
+保护不可用时，命令在打开串口前失败，不回退明文，也不访问 UART/切换 USB 模式。
+现有明确指定三项凭据的开发查询入口保留，未作为自动降级路径。
+
+系统保护由 Windows PowerShell 的固定非交互脚本调用
+[ProtectedData/DPAPI](https://learn.microsoft.com/en-us/dotnet/api/system.security.cryptography.protecteddata)
+实现，使用 `CurrentUser` 和固定应用上下文，非 `LocalMachine`。数据只经过标准输入/
+捕获的标准输出，不放命令行参数或诊断。当前无独立 Linux/macOS 系统密钥库后端；
+WSL 可调用当前 Windows 用户的 PowerShell。没有 Windows 保护服务就明确失败。
+这属于登录用户的保护边界，不抵御同一账户内恶意进程或管理员；Python/.NET 内部副本
+不承诺完全擦除。文件系统需要支持同目录硬链接的独占发布，不支持时失败而非覆盖。
