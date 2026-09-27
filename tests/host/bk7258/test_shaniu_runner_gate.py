@@ -134,5 +134,75 @@ class SelectedCollectionGateTest(unittest.TestCase):
         self.assertTrue(runner.collection_errors([], []))
 
 
+class NestedTlsGateTest(unittest.TestCase):
+    def test_compiler_failure_is_error_not_assertion(self):
+        import subprocess
+        import test_provision_tls as tls
+
+        with tempfile.TemporaryDirectory(prefix="tls-gate-") as directory:
+            root = Path(directory)
+            (root / "CMakeLists.txt").write_text("")
+
+            def external(args, **kwargs):
+                failed = args[0] == "cc"
+                if failed:
+                    kwargs["stdout"].write("compiler error: Assertion symbol missing\n")
+                return subprocess.CompletedProcess(args, 1 if failed else 0)
+
+            with patch.dict(os.environ, {
+                "MBEDTLS_SOURCE": str(root),
+                "SHANIU_TLS_FAILURE_DIR": str(root / "failures"),
+            }), patch.object(tls.subprocess, "run", side_effect=external):
+                result = unittest.TestResult()
+                tls.ProvisionTlsTest(
+                    "test_real_tls_fragmentation_and_teardown"
+                ).run(result)
+            self.assertEqual(len(result.errors), 1)
+            self.assertEqual(len(result.failures), 0)
+
+    def test_nested_setup_exit_overrides_assertion_text(self):
+        with tempfile.TemporaryDirectory(prefix="tls-gate-") as directory:
+            out = Path(directory)
+            (out / "nested.log").write_text("compiler: Assertion symbol missing\n")
+            with patch.object(runner, "OUT", out), patch.object(runner, "RESULTS", []), \
+                 patch.object(runner, "command", return_value=(2, 0.1)):
+                with self.assertRaises(RuntimeError):
+                    runner.case("nested", "NET-03", "L2", [], marker=False,
+                                setup_exit_code=2)
+                self.assertEqual(runner.RESULTS[0]["status"], "SETUP_ERROR")
+
+
+    def test_missing_tls_source_process_returns_setup_code(self):
+        import subprocess
+        import sys
+        with tempfile.TemporaryDirectory(prefix="tls-missing-") as directory:
+            result = subprocess.run(
+                [sys.executable, str(Path(__file__).with_name("test_provision_tls.py"))],
+                env={**os.environ, "MBEDTLS_SOURCE": directory},
+                capture_output=True, text=True,
+            )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("mbedTLS source is unavailable", result.stderr)
+
+    def test_nested_assertion_and_success_keep_their_status(self):
+        for code, output, expected in (
+            (1, "AssertionError: product invariant", "FAIL_ASSERTION"),
+            (0, "OK", "PASS"),
+        ):
+            with self.subTest(code=code), tempfile.TemporaryDirectory() as directory:
+                out = Path(directory)
+                (out / "nested.log").write_text(output)
+                with patch.object(runner, "OUT", out), patch.object(runner, "RESULTS", []), \
+                     patch.object(runner, "command", return_value=(code, 0.1)):
+                    if code:
+                        with self.assertRaises(AssertionError):
+                            runner.case("nested", "NET-03", "L2", [], marker=False,
+                                        setup_exit_code=2)
+                    else:
+                        runner.case("nested", "NET-03", "L2", [], marker=False,
+                                    setup_exit_code=2)
+                    self.assertEqual(runner.RESULTS[0]["status"], expected)
+
+
 if __name__ == "__main__":
     unittest.main()

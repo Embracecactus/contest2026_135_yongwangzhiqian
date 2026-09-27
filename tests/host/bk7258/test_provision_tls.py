@@ -28,7 +28,8 @@ class ProvisionTlsTest(unittest.TestCase):
                 "MBEDTLS_SOURCE", ROOT.parent / "apps/crypto/mbedtls/mbedtls"
             )
         )
-        self.assertTrue((source / "CMakeLists.txt").is_file())
+        if not (source / "CMakeLists.txt").is_file():
+            raise RuntimeError("mbedTLS source is unavailable")
         with tempfile.TemporaryDirectory(prefix="bkprov-tls-test-") as directory:
             temp = Path(directory)
             (temp / "include/nuttx").mkdir(parents=True)
@@ -111,9 +112,11 @@ class ProvisionTlsTest(unittest.TestCase):
                         log.flush()
                         shutil.copyfile(temp / "build.log", failure_root / "build.log")
                         log.seek(0)
-                        self.fail(
-                            log.read()[-6000:] + f"\nSynthetic inputs: {failure_root}"
-                        )
+                        detail = log.read()[-6000:] + f"\nSynthetic inputs: {failure_root}"
+                        # Build/fixture tools cannot establish a product failure.
+                        if str(args[0]) in ("cc", "cmake", "openssl"):
+                            raise RuntimeError(detail)
+                        self.fail(detail)
 
                 run(
                     [
@@ -572,4 +575,7 @@ class ProvisionTlsTest(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    program = unittest.main(exit=False)
+    # Preserve setup errors through the outer contract collector, even when a
+    # compiler diagnostic contains the word Assertion.
+    sys.exit(2 if program.result.errors else int(not program.result.wasSuccessful()))

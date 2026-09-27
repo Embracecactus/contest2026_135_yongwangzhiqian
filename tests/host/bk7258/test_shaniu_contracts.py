@@ -85,7 +85,7 @@ def build(args, label):
     return code == 0
 
 
-def case(case_id, parent, layer, args, ready=True, marker=True):
+def case(case_id, parent, layer, args, ready=True, marker=True, setup_exit_code=None):
     log = case_id.replace("/", "_") + ".log"
     if not ready:
         RESULTS.append(
@@ -110,6 +110,8 @@ def case(case_id, parent, layer, args, ready=True, marker=True):
             else "SETUP_ERROR"
         )
     )
+    if setup_exit_code is not None and code == setup_exit_code:
+        status = "SETUP_ERROR"
     RESULTS.append(
         dict(
             id=case_id,
@@ -128,9 +130,9 @@ def case(case_id, parent, layer, args, ready=True, marker=True):
         raise RuntimeError(case_id + ": see " + log)
 
 
-def add(suite, case_id, parent, layer, args, ready=True, marker=True):
+def add(suite, case_id, parent, layer, args, ready=True, marker=True, setup_exit_code=None):
     def run():
-        case(case_id, parent, layer, args, ready, marker)
+        case(case_id, parent, layer, args, ready, marker, setup_exit_code)
 
     suite.addTest(unittest.FunctionTestCase(run, description=case_id))
 
@@ -869,7 +871,8 @@ def main():
             [sys.executable, HERE / "test_workbench_pairing.py",
              "PairingTest.test_" + variant], marker=False)
     add(suite, "USB-01.tls-transport", "USB-01", "L2",
-        [sys.executable, HERE / "test_provision_tls.py"], marker=False)
+        [sys.executable, HERE / "test_provision_tls.py"], marker=False,
+        setup_exit_code=2)
     for variant in (
         "fast_reader", "slow_reader", "partial", "upper_backpressure",
         "arm_failure", "reset", "duplicate_callback",

@@ -2639,3 +2639,21 @@ ARM静态owner120B，活动pair69016B，另有TLS动态堆；失败分配可退�
 完整集后只补注释空白行，非空白内容一致；11串口例与AP重编译通过。旧文件
 nxstyle的章节/头部问题仍存在，未宣称完整样式通过。没有实板/串口/手机操作。
 报告：`acceptance/s85-20260927.json`、`s85-serial-cleanup-evidence-20260927.json`。
+
+
+### S86：TLS 内层构建错误分型（2026-09-27）
+
+S83 曾观察到 TLS 夹具编译失败被 `self.fail()` 转成 FAIL_ASSERTION。
+本片先在外部编译进程边界注入失败，确认旧实现错误分类；另一个先行检查
+因新参数尚不存在产生 TypeError，单列为测试接线错误，不称业务 Red。
+
+TLS runner 对 cc/cmake/openssl 构建或夹具准备失败、缺失 mbedTLS 源码及
+未捕获运行错误保留 unittest error，并以 2 退出。外层仅在明确声明该退出
+契约的 TLS 目标使用此分类，优先于输出中的 Assertion 字样；断言仍为
+FAIL_ASSERTION，成功仍为 PASS，不改变其他程序的退出码契约。
+
+新增四个门禁方法，总计 17；完整执行集合仍为 472（原 63＋新增 409），
+本片没有新增产品执行 ID。结果见 `acceptance/s86-20260927.json` 与
+`s86-runner-evidence-20260927.json`。这仅修复报告语义，不修复历史 TLS
+握手问题，也不将嵌套 Gradle 的所有内部错误自动视为已精确分类。
+生产源码、模型、manifest 及历史报告未改；本片无需重新构建固件或操作设备。
