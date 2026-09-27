@@ -203,7 +203,7 @@ class ControlKeyInstrumentation : Instrumentation() {
                 check(endpoint.address.size == 4 && endpoint.caDer.size in 1..4096)
             }
             result = Activity.RESULT_OK
-            report = "PASS: Android Keystore non-exportable key, encrypted pending recovery, authenticated certificate pin, plaintext wipe, Android provider TLS fragmentation and pin rejection"
+            report = "PASS: Android Keystore non-exportable key, encrypted pending recovery, authenticated certificate pin, plaintext wipe, Android provider TLS fragmentation and pin rejection; authenticated peer certificate export and close clearing"
             if (uiProbe) report += "; synthetic bound UI, memory control gates and Wi-Fi state"
             if (cloudProbe) report += "; cloud endpoint TLS 1.2 and system trust anchor"
         } catch (error: Exception) {

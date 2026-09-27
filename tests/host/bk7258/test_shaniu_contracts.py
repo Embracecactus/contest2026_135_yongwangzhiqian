@@ -261,6 +261,7 @@ def mutations(temp, config_temp, cert):
 def run_jvm():
     classes = [
         "provision.DeviceControlSessionTest",
+        "provision.ProvisionTlsTest",
         "provision.ProvisionSettingsTest",
         "provision.FocusTimerControllerTest",
         "provision.SceneControlProtocolTest",
@@ -353,6 +354,10 @@ def run_jvm():
                 "configCancelWaitsForInFlightAckAndPreventsOtherWriters": "NET-03",
                 "failedConfigAckDoesNotReleaseStagingUntilExplicitCancel": "NET-03",
                 "identityReleaseRejectsLateConfigResultAndDoesNotReplayIt": "UI-03",
+                "peerCertificateCannotAuthenticateSessionOrAppearBeforeStatus": "USB-01",
+                "disconnectAndOldIdentityCannotContaminateNewGeneration": "UI-03",
+                "delayedCurrentIdentityPublishesWithoutAdditionalCommands": "NET-02",
+                "peerIdentityRejectsMalformedAndOversizedCertificates": "USB-01",
             }
             parent = (
                 "TIMER-01"
@@ -373,6 +378,8 @@ def run_jvm():
                 parent = "NFC-02"
             if "ExpressionTrial" in name:
                 parent = "RES-02"
+            if name == "provision.ProvisionTlsTest":
+                parent = "USB-01"
             RESULTS.append(
                 dict(
                     id=name + "." + node.attrib["name"],
@@ -1346,6 +1353,15 @@ def main():
         HERE / "test_workbench_client.py",
         HERE / "test_provision_tls.c",
         HERE / "test_provision_tls.py",
+        ROOT / "android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/ProvisionTls.kt",
+        ROOT / "android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/ProvisionTlsChannel.kt",
+        ROOT / "android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/ProvisionGattSession.kt",
+        ROOT / "android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/AndroidProvisionGatt.kt",
+        ROOT / "android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/DeviceControlConnection.kt",
+        ROOT / "android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/AndroidDeviceControlTransport.kt",
+        ROOT / "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/ProvisionTlsTest.kt",
+        ROOT / "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DeviceControlTlsInteropTest.kt",
+        ROOT / "android/shaniu-companion/app/src/test/resources/pc-identity.pem",
         ROOT / "android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/PcAuthorizationController.kt",
         ROOT / "android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/DeviceControlProtocol.kt",
         ROOT / "android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt",

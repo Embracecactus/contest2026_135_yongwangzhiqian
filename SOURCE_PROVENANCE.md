@@ -504,3 +504,11 @@ not a claim of atomic simultaneous three-axis conversion or physical calibration
 官方 API 文档：当前用户保护、可选应用上下文、解密完整性验证、Windows 平台范围。
 使用宿主机 Windows PowerShell/.NET 的系统服务，不随仓库分发 Microsoft 二进制。
 测试外部保护替身复用已固定 `cryptography==44.0.0` 的 AESGCM；生产路径不使用此替身。
+
+### PC 身份解析公开夹具（2026-09-27）
+
+`android/shaniu-companion/app/src/test/resources/pc-identity.pem` 是本轮通过 OpenSSL
+生成的合成公开 X.509 解析夹具，主题为 `synthetic-peer-identity-parser`；对应临时私钥
+生成于临时目录并已删除，没有提交私钥。该文件不属于任何设备身份、签名信任链或
+发布资源，只用于 Session 元数据与有界DER解析测试；真实TLS测试另生成各自短期
+合成身份并执行握手。新增生产导出/生命周期适配为本项目原创，没有复制第三方代码。

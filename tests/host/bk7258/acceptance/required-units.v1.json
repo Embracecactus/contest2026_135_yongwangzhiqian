@@ -417,7 +417,17 @@
     "USB-01.pc-profile-io_failures_do_not_publish_success_or_overwrite",
     "USB-01.pc-profile-cli_mixed_profile_credentials_never_downgrade",
     "USB-01.pc-profile-os_bridge_uses_stdin_current_user_and_generic_failure",
-    "USB-01.pc-profile-authenticated_profile_with_wrong_trust_binding_is_rejected"
+    "USB-01.pc-profile-authenticated_profile_with_wrong_trust_binding_is_rejected",
+    "provision.DeviceControlSessionTest.peerCertificateCannotAuthenticateSessionOrAppearBeforeStatus",
+    "provision.DeviceControlSessionTest.disconnectAndOldIdentityCannotContaminateNewGeneration",
+    "provision.DeviceControlSessionTest.delayedCurrentIdentityPublishesWithoutAdditionalCommands",
+    "provision.DeviceControlSessionTest.peerIdentityRejectsMalformedAndOversizedCertificates",
+    "provision.ProvisionTlsTest.rejectsWrongPinAndInvalidDatesAcrossTrustOverloads",
+    "provision.ProvisionTlsTest.gattSessionsSerializeAcknowledgedWritesAcrossMtuChanges",
+    "provision.ProvisionTlsTest.gattDeadlinesAndQueueLimitsFailClosed",
+    "provision.ProvisionTlsTest.engineChannelHandlesTwentyByteFragmentsAndRejectsCorruption",
+    "provision.ProvisionTlsTest.channelRefusesEarlyWritesAndFailsClosedOnBackpressure",
+    "provision.ProvisionTlsTest.realTlsAllowsApplicationBytesOnlyWithMatchingPin"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -838,6 +848,16 @@
     "USB-01.pc-profile-io_failures_do_not_publish_success_or_overwrite",
     "USB-01.pc-profile-cli_mixed_profile_credentials_never_downgrade",
     "USB-01.pc-profile-os_bridge_uses_stdin_current_user_and_generic_failure",
-    "USB-01.pc-profile-authenticated_profile_with_wrong_trust_binding_is_rejected"
+    "USB-01.pc-profile-authenticated_profile_with_wrong_trust_binding_is_rejected",
+    "provision.DeviceControlSessionTest.peerCertificateCannotAuthenticateSessionOrAppearBeforeStatus",
+    "provision.DeviceControlSessionTest.disconnectAndOldIdentityCannotContaminateNewGeneration",
+    "provision.DeviceControlSessionTest.delayedCurrentIdentityPublishesWithoutAdditionalCommands",
+    "provision.DeviceControlSessionTest.peerIdentityRejectsMalformedAndOversizedCertificates",
+    "provision.ProvisionTlsTest.rejectsWrongPinAndInvalidDatesAcrossTrustOverloads",
+    "provision.ProvisionTlsTest.gattSessionsSerializeAcknowledgedWritesAcrossMtuChanges",
+    "provision.ProvisionTlsTest.gattDeadlinesAndQueueLimitsFailClosed",
+    "provision.ProvisionTlsTest.engineChannelHandlesTwentyByteFragmentsAndRejectsCorruption",
+    "provision.ProvisionTlsTest.channelRefusesEarlyWritesAndFailsClosedOnBackpressure",
+    "provision.ProvisionTlsTest.realTlsAllowsApplicationBytesOnlyWithMatchingPin"
   ]
 }

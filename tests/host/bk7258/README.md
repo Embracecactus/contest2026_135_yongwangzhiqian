@@ -2337,3 +2337,38 @@ PC key、证书长度及 PEM。证书≤16KiB、保护输入/输出≤32KiB；�
 
 结果：`acceptance/s73-20260927.json` 与
 `acceptance/s73-profile-evidence-20260927.json`；原始记录：`out/shaniu-s73/`。
+
+### S74 · 配对交接所需的可信设备证书路径（2026-09-27）
+
+基于 S73 `b7fd2d01`，先补行为断言，再把生产 TLS 提供者中已经校验过的公开叶证书
+接到共享控制会话：`ProvisionTlsChannel → ProvisionGattSession → AndroidProvisionGatt
+→ DeviceControlConnection → AndroidDeviceControlFactory → DeviceControlSession`。
+这是首次 PC 配对的身份数据前置路径，不是已经实现加密配对交换或新增授权 UI。
+
+- 叶证书仅在客户端 TLS 已建立且未关闭时导出为不可变 PEM/SHA256；DER 接受范围
+  1..8192 字节，拒绝尾随数据/无效结构。导出失败是缺少交接能力，不使已有手机控制
+  失效。该上限不是 SSLEngine 内部内存上限；解析/编码在 GATT worker 上运行并缓存，
+  没有新增线程或 I/O。缓存与共享会话引用在退出时清除。
+- 生产连接只在 SDC1 AUTH 成功后发送身份事件。共享会话收到身份事件本身不会认证，
+  仍待既有控制就绪结果才发布。事件受 generation 限制，重复事件不发新命令；断开、
+  身份释放和旧回调不能恢复旧证书。同一代出现矛盾身份时连接失效。
+  `fromDer` 是有界格式解析，不独立证明信任；信任来自现有 TLS pin/日期/握手路径。
+- 新增 4 项 Session 测试；把原有 6 项 TLS 测试纳入本轮必选集合，并在真实 TLS/GATT
+  测试里增加导出 DER/指纹、握手前空值与关闭清理断言。计数新增10个收集标识，不是
+  新增10个测试函数。最早缺接口为 BLOCKED_INTERFACE，未冒充业务断言 Red。
+- 完整集合 **427 PASS** = 原63（含2恢复）+ 新增累计364；运行器门禁另计13PASS。
+  `SHANIU_ANDROID_INTEROP=1` 的原有 C/JVM 入口另取得232项JVM通过，无跳过；其中
+  真实C mbedTLS→JVM生产TLS/GATT的证书与对端原始DER一致，错误pin仍拒绝。
+  232与427有重叠，不相加作为独立覆盖率。原20个TLS样本和PC互通子场景也保留。
+- 两项隔离变异分别移除旧代过滤、保留退出缓存，均被业务断言检出；恢复后定向
+  24项通过。变异与恢复不重复加入427。当前源码哈希另核对，主工作树未接受变异。
+- 模拟器安装本轮debug APK/测试APK，用Android实际TLS提供者检查导出身份及关闭
+  清理、原pin拒绝与分片。首次instrumentation自身输出PASS，但外层采集脚本误要求
+  普通输出含原始结束码；保留输出，使用`am instrument -r -w`核验原始结果-1后通过，
+  未改业务断言。两次运行同一复合检查，不当作两组独立用例。仅使用临时合成证书/
+  独有测试Keystore与偏好；Mi10在线但未安装或操作，没有真实BLE/USB/板操作。
+- Android定向构建通过；固件、模型/“我在”、Agent pin不变。配对请求/加密响应、
+  手机确认与PC导入的完整串联仍缺，S66偶发TLS失败仍未定位，不能关闭实板/发布门槛。
+
+逐例清单：`acceptance/s74-20260927.json`；跨层与模拟器证据：
+`acceptance/s74-peer-identity-evidence-20260927.json`；原始日志：`out/shaniu-s74/`。

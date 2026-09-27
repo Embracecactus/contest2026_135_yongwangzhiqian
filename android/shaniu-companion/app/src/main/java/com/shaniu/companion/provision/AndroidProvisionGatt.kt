@@ -60,6 +60,9 @@ class AndroidProvisionGatt(
     private val transportStartedAtMs = System.nanoTime() / 1_000_000
     private val session = ProvisionGattSession(tls, ::deliverPlaintext)
 
+    /** Read only on the GATT worker, after control AUTH. */
+    val peerIdentity: ProvisionPeerIdentity? get() = if (stopping.get()) null else session.peerIdentity
+
     private fun deliverPlaintext(bytes: ByteArray) {
         if (stopping.get()) return
         if (!reportedReady) {

@@ -22,6 +22,7 @@ internal class DeviceControlSession(
     interface Events {
         fun result(command: DeviceControlProtocol.Command, snapshot: DeviceControlProtocol.Snapshot)
         fun closed(reason: String)
+        fun peerIdentity(identity: ProvisionPeerIdentity) {}
     }
     enum class Connection { DISCONNECTED, CONNECTING, CONNECTED, RECONNECT_WAIT, SUSPENDED }
     data class State(
@@ -36,6 +37,7 @@ internal class DeviceControlSession(
         val operationMessage: String? = null,
         val firmwareInfo: DeviceControlProtocol.FirmwareInfo? = null,
         val generation: Long = 0,
+        val peerIdentity: ProvisionPeerIdentity? = null,
     )
     private data class Request(val command: DeviceControlProtocol.Command, val value: Int = 0,
                                val payload: ByteArray? = null, val verification: Boolean = false) {
@@ -60,6 +62,7 @@ internal class DeviceControlSession(
     private var inFlight: Request? = null
     private var confirmation: Confirmation? = null
     private var requestToken = 0L
+    private var pendingIdentity: ProvisionPeerIdentity? = null
     private var infoNeeded = false
     private var configTransaction = false
     private var configCancelRequested = false
@@ -164,6 +167,16 @@ internal class DeviceControlSession(
                 post { received(generation, command, snapshot) }
             }
             override fun closed(reason: String) { post { lost(generation, reason) } }
+            override fun peerIdentity(identity: ProvisionPeerIdentity) { post {
+                if (generation == state.generation && transport != null) {
+                    if (pendingIdentity != null && pendingIdentity?.sha256 != identity.sha256) {
+                        lost(generation, "peer_identity_changed")
+                    } else {
+                        pendingIdentity = identity
+                        if (state.authenticated) publish(state.copy(peerIdentity = identity))
+                    }
+                }
+            } }
         }
         try { transport = value.open(events) }
         catch (_: Exception) { lost(generation, "connection_open_failed") }
@@ -176,7 +189,7 @@ internal class DeviceControlSession(
         inFlight = null
         requestToken++
         request?.clear()
-        var next = state.copy(connection = Connection.CONNECTED, authenticated = true)
+        var next = state.copy(connection = Connection.CONNECTED, authenticated = true, peerIdentity = pendingIdentity)
         if (initial) infoNeeded = snapshot.infoSupported
         when (command) {
             DeviceControlProtocol.Command.STATUS -> {
@@ -308,9 +321,10 @@ internal class DeviceControlSession(
         configTransaction = false; configCancelRequested = false
         requestToken++
         val old = transport
+        pendingIdentity = null
         transport = null
         publish(state.copy(generation = state.generation + 1, connection = connection,
-            authenticated = false, snapshotFresh = false, error = null, operationMessage = null))
+            authenticated = false, snapshotFresh = false, peerIdentity = null, error = null, operationMessage = null))
         old?.close()
     }
     private fun publish(next: State) {

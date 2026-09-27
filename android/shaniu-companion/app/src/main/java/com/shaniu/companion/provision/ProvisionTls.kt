@@ -75,3 +75,23 @@ internal class PinnedDeviceTrust(
     override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?, engine: SSLEngine?) = checkClientTrusted(chain, authType)
     override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
 }
+
+/** Immutable public identity copied from an authenticated TLS peer. It contains
+ * no owner/PC credential and does not itself grant control authorization.
+ */
+class ProvisionPeerIdentity private constructor(val certificatePem: String, val sha256: String) {
+    companion object {
+        internal fun fromDer(encoded: ByteArray): ProvisionPeerIdentity {
+            try {
+                require(encoded.size in 1..8192)
+                val cert = java.security.cert.CertificateFactory.getInstance("X.509")
+                    .generateCertificate(encoded.inputStream()) as X509Certificate
+                require(cert.encoded.contentEquals(encoded))
+                val pin = MessageDigest.getInstance("SHA-256").digest(encoded)
+                    .joinToString("") { "%02x".format(it.toInt() and 255) }
+                val body = java.util.Base64.getMimeEncoder(64, byteArrayOf(10)).encodeToString(encoded)
+                return ProvisionPeerIdentity("-----BEGIN CERTIFICATE-----\n$body\n-----END CERTIFICATE-----\n", pin)
+            } catch (_: Exception) { throw IllegalArgumentException("Invalid public peer certificate") }
+        }
+    }
+}

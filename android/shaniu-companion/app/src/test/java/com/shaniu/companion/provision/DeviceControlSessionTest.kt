@@ -261,4 +261,48 @@ class DeviceControlSessionTest {
         observer.cancel(); f.session.disconnect()
     }
 
+    private fun peerIdentity(): ProvisionPeerIdentity {
+        val cert = javaClass.getResourceAsStream("/pc-identity.pem")!!.use {
+            java.security.cert.CertificateFactory.getInstance("X.509").generateCertificate(it)
+        }
+        return ProvisionPeerIdentity.fromDer(cert.encoded)
+    }
+    @Test fun peerCertificateCannotAuthenticateSessionOrAppearBeforeStatus() {
+        val f = Fixture(); f.session.setForeground(true); f.session.connect(f.factory)
+        f.peer.events.peerIdentity(peerIdentity())
+        assertFalse(f.session.current().authenticated)
+        assertNull(f.session.current().peerIdentity)
+        f.peer.reply(DeviceControlProtocol.Command.STATUS, status)
+        assertEquals(peerIdentity().sha256, f.session.current().peerIdentity!!.sha256)
+    }
+    @Test fun disconnectAndOldIdentityCannotContaminateNewGeneration() {
+        val f = Fixture(); f.connect(); val old = f.peer
+        old.events.peerIdentity(peerIdentity()); assertNotNull(f.session.current().peerIdentity)
+        f.session.disconnect(); assertNull(f.session.current().peerIdentity)
+        f.connect(); old.events.peerIdentity(peerIdentity())
+        assertNull(f.session.current().peerIdentity)
+        f.peer.events.peerIdentity(peerIdentity()); assertNotNull(f.session.current().peerIdentity)
+        f.session.releaseIdentity(); assertNull(f.session.current().peerIdentity)
+    }
+    @Test fun delayedCurrentIdentityPublishesWithoutAdditionalCommands() {
+        val f = Fixture(); f.connect(); val before = f.peer.sent.size
+        val identity = peerIdentity(); f.peer.events.peerIdentity(identity)
+        assertEquals(identity.certificatePem, f.session.current().peerIdentity!!.certificatePem)
+        assertEquals(before, f.peer.sent.size)
+        f.peer.events.peerIdentity(identity)
+        assertEquals(before, f.peer.sent.size)
+    }
+    @Test fun peerIdentityRejectsMalformedAndOversizedCertificates() {
+        for (bytes in listOf(byteArrayOf(), byteArrayOf(1, 2, 3), ByteArray(8193))) {
+            assertThrows(IllegalArgumentException::class.java) { ProvisionPeerIdentity.fromDer(bytes) }
+        }
+        val identity = peerIdentity()
+        val cert = java.security.cert.CertificateFactory.getInstance("X.509")
+            .generateCertificate(identity.certificatePem.byteInputStream())
+        val expected = java.security.MessageDigest.getInstance("SHA-256").digest(cert.encoded)
+            .joinToString("") { "%02x".format(it.toInt() and 255) }
+        assertEquals(expected, identity.sha256)
+        assertThrows(IllegalArgumentException::class.java) { ProvisionPeerIdentity.fromDer(cert.encoded + byteArrayOf(0)) }
+    }
+
 }
