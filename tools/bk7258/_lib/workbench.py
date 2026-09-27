@@ -240,6 +240,50 @@ class ControlClient:
             )
         )
 
+    def task_event(self, task_id, sequence, state, ttl_ms, progress=None):
+        from . import workbench_tasks
+
+        record = workbench_tasks.encode(task_id, sequence, state, ttl_ms, progress)
+        if self.closed or not self.authenticated:
+            raise ControlError("PC authentication is required")
+        try:
+            deadline = self._now() + self._timeout
+            self._exchange(16, struct.pack(">II", 15, len(record)), deadline)
+            for offset in range(0, len(record), 32):
+                self._exchange(17, record[offset : offset + 32], deadline)
+            self._exchange(18, b"", deadline)
+            return dict(accepted=True, event_sequence=sequence, feedback_verified=False)
+        except Exception:
+            self.close()
+            raise ControlError(
+                "Task event unconfirmed; query before any manual retry"
+            ) from None
+
+    def task_status(self):
+        from . import workbench_tasks
+
+        if self.closed or not self.authenticated:
+            raise ControlError("PC authentication is required")
+        try:
+            deadline = self._now() + self._timeout
+
+            def chunk(offset):
+                total, *words = self._exchange(
+                    15, struct.pack(">I", 15 << 16 | offset), deadline
+                )
+                if total != 48:
+                    raise ControlError("Invalid task snapshot size")
+                return struct.pack(">4I", *words)
+
+            data = b"".join(chunk(offset) for offset in (0, 16, 32))
+            # Check the event identity again; TTL may count down during reads.
+            if chunk(0) + chunk(16) != data[:32]:
+                raise ControlError("Task changed during read; no coherent snapshot")
+            return workbench_tasks.decode(data)
+        except Exception:
+            self.close()
+            raise ControlError("Task read failed; result is unconfirmed") from None
+
     def close(self):
         if not self.closed:
             self.closed = True
@@ -278,7 +322,32 @@ class SerialChannel:
 def add_arguments(parser):
     parser.add_argument(
         "operation",
-        choices=("status", "info", "save-profile", "pair-start", "pair-finish"),
+        choices=(
+            "status",
+            "info",
+            "save-profile",
+            "pair-start",
+            "pair-finish",
+            "task-event",
+            "task-status",
+        ),
+    )
+    parser.add_argument(
+        "--task-id", help="32 hex digits; never reuse within an authorization binding"
+    )
+    parser.add_argument(
+        "--event-sequence",
+        type=int,
+        help="Monotonic across tasks for this authorization",
+    )
+    parser.add_argument(
+        "--state", choices=("start", "progress", "success", "failure", "canceled")
+    )
+    parser.add_argument(
+        "--ttl-ms", type=int, help="Remaining receiver TTL; subtract caller queue age"
+    )
+    parser.add_argument(
+        "--progress", type=int, help="0..100; omit for unknown, start requires 0"
     )
     parser.add_argument("--port")
     parser.add_argument("--profile", type=Path)
@@ -334,6 +403,13 @@ def _credentials(args):
 
 
 def run(args):
+    if args.operation == "task-event":
+        from . import workbench_tasks
+
+        # Validate before opening a device or borrowing any private material.
+        workbench_tasks.encode(
+            args.task_id, args.event_sequence, args.state, args.ttl_ms, args.progress
+        )
     if args.operation in ("pair-start", "pair-finish"):
         from . import workbench_pairing
 
@@ -364,7 +440,21 @@ def run(args):
             )
             client.start(key)
             key[:] = bytes(len(key))
-            return client.status() if args.operation == "status" else client.info()
+            if args.operation == "task-event":
+                return client.task_event(
+                    args.task_id,
+                    args.event_sequence,
+                    args.state,
+                    args.ttl_ms,
+                    args.progress,
+                )
+            if args.operation == "task-status":
+                return client.task_status()
+            if args.operation == "status":
+                return client.status()
+            if args.operation == "info":
+                return client.info()
+            raise ControlError("Unknown workbench operation")
     except Exception:
         raise ControlError(
             "Workbench operation failed; no credential fallback or command replay"

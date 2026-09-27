@@ -252,9 +252,10 @@ static int pc_config(void *context, enum bkcontrol_command_e command,
                       uint32_t kind, uint32_t offset, const uint8_t *record,
                       size_t size, struct bkcontrol_status_s *status)
 {
-  assert(context == &pc_reads && offset == 0);
+  assert(context == &pc_reads);
   if (kind == BKCONTROL_CONFIG_PC_TASK)
     return bkpc_tasks_control(&pc_tasks, command, offset, record, size, status, now);
+  assert(offset == 0);
   assert(kind == BKCONTROL_CONFIG_FOCUS || kind == BKCONTROL_CONFIG_EXPRESSION_TRIAL ||
          kind == BKCONTROL_CONFIG_EYE_PACK);
   if (command == BKCONTROL_CONFIG_READ)
@@ -803,7 +804,8 @@ static int control_pipe_peer(const char *certificate, const char *private_key,
       struct bkprov_tls_transport_s transport =
         {&stream_generation, stream_epoch, stream_read, stream_send, 64, 0};
       assert(bkpc_grants_open(&pc_grants, pc_root, owner) == 0);
-      assert(bkpc_grants_set(&pc_grants, 0, transaction, client, pc, 3) == 0);
+      assert(bkpc_grants_set(&pc_grants, 0, transaction, client, pc, 7) == 0);
+      bkpc_tasks_bind(&pc_tasks, pc_binding, 1);
       pc_guarded = true;
       assert(bkpc_control_start(&pc_control, &control, &pc_source,
                                stream_generation, &cert, &key, clock_ms, NULL,

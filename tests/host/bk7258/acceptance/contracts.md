@@ -354,3 +354,25 @@ READ无副作用；客户端分片读后须回读含ID/sequence的头确认一�
 本片仅接收、状态、准入/取消边界，**尚无显示消费者和电脑发送工具**，flag4
 不是已渲染回执。不调用喇叭、电机或LLM。后续显示必须在语音忙时延后/合并，
 只消费未过期事件并核对实际渲染结果；USB运行入口和实板门槛仍单独开放。
+
+### S81 PC task sender binding (2026-09-27)
+
+The maintained Python workbench now binds PTE1/PTS1 to authenticated SDC1 config
+kind 15. Independent golden byte strings cover encoding/decoding; client tests
+replace only external responses and exercise production staging and readback.
+The external C TLS peer uses real grant storage, PC authorization, SDC1 staging
+and `bkpc_tasks`; its synthetic principal now explicitly receives TASKS alongside
+its prior capabilities. The separate missing-TASKS rejection test is retained.
+READ offset 16/32 is delegated to the real task module, not an offset-zero mock.
+
+The sender has no automatic replay, process monitoring, implicit pairing, mode
+switch or arbitrary shell execution. Its input result is caller supplied; it
+cannot establish that the caller's build actually succeeded. A single operation
+has an absolute deadline; task reads recheck the first 32 bytes after collecting
+48 bytes and reject a changed ID/sequence/state. ACK means accepted only. Invalid
+local event arguments fail before credentials or hardware are opened.
+
+PC-01 software binding remains partial: live USB ownership, device reminder
+consumption/arbitration and physical output are still missing. TTL is receiver
+remaining lifetime supplied explicitly; callers subtract pre-existing queue age.
+This slice does not add durable event replay or a background process supervisor.

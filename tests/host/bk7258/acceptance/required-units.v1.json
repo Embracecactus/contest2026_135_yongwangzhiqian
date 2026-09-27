@@ -455,7 +455,13 @@
     "PC-01.task-invalid",
     "PC-01.task-quiesce",
     "PC-01.task-rate",
-    "PC-01.task-product"
+    "PC-01.task-product",
+    "PC-01.sender-golden",
+    "PC-01.sender-invalid",
+    "PC-01.sender-staging",
+    "PC-01.sender-readback",
+    "PC-01.sender-failure",
+    "PC-01.sender-cli"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -914,6 +920,12 @@
     "PC-01.task-invalid",
     "PC-01.task-quiesce",
     "PC-01.task-rate",
-    "PC-01.task-product"
+    "PC-01.task-product",
+    "PC-01.sender-golden",
+    "PC-01.sender-invalid",
+    "PC-01.sender-staging",
+    "PC-01.sender-readback",
+    "PC-01.sender-failure",
+    "PC-01.sender-cli"
   ]
 }

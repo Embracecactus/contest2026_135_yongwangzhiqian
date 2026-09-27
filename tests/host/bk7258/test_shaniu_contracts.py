@@ -835,6 +835,10 @@ def main():
         add(suite, "USB-01.pc-client-" + variant, "USB-01", "L2",
             [sys.executable, HERE / "test_workbench_client.py",
              "WorkbenchClientTest.test_" + variant], marker=False)
+    for variant in ("golden", "invalid", "staging", "readback", "failure", "cli"):
+        add(suite, "PC-01.sender-" + variant, "PC-01", "L1",
+            [sys.executable, HERE / "test_workbench_tasks.py",
+             "TasksTest.test_" + variant], marker=False)
     for variant in (
         'profile_binds_pin_certificate_key_and_clears_borrowed_plaintext',
         'tampered_truncated_and_unknown_profiles_fail_closed',
@@ -1377,6 +1381,8 @@ def main():
         ROOT / "tools/bk7258/_lib/deploy_usb.py",
         ROOT / "tools/bk7258/bk7258.py",
         HERE / "test_workbench_client.py",
+        HERE / "test_workbench_tasks.py",
+        ROOT / "tools/bk7258/_lib/workbench_tasks.py",
         HERE / "test_provision_tls.c",
         HERE / "test_provision_tls.py",
         HERE / "tls_entropy_tape.c",

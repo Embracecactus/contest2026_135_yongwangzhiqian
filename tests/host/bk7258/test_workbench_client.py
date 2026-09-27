@@ -438,6 +438,25 @@ def pc_interop(executable, certificate, private_key):
                         self.assertTrue(client.status()["ready"])
                         self.assertIsNone(client.status()["volume"])
                         self.assertEqual(client.info()["security_counter"], 661)
+                        task = "00112233445566778899aabbccddeeff"
+                        self.assertEqual(client.task_status()["state"], "none")
+                        self.assertTrue(
+                            client.task_event(task, 1, "start", 60000, 0)["accepted"]
+                        )
+                        self.assertEqual(client.task_status()["state"], "start")
+                        client.task_event(task, 2, "success", 60000, 100)
+                        terminal = client.task_status()
+                        self.assertEqual(terminal["state"], "success")
+                        self.assertTrue(terminal["feedback_pending"])
+                        client.task_event(task, 2, "success", 60000, 100)
+                        duplicate = client.task_status()
+                        self.assertEqual(duplicate["event_sequence"], 2)
+                        self.assertLessEqual(
+                            duplicate["remaining_ms"], terminal["remaining_ms"]
+                        )
+                        with self.assertRaises(workbench.ControlError):
+                            client.task_event(task, 3, "progress", 60000, 20)
+                        self.assertTrue(client.closed)
                     else:
                         with self.assertRaises(workbench.ControlError):
                             client.start(key)

@@ -420,3 +420,47 @@ python3 tools/bk7258/bk7258.py workbench pair-finish \
 后再配对，不能假设关掉页面或删除文件已撤销。S77未安装到真实手机；上述原生接线
 仅有生产 Session/协议主机测试及模拟器文件确认/取消证据。实际授权→导出→PC导入→
 原生USB鉴权仍待纵向实板验收，USB产品owner与S66 TLS门槛仍未关闭。
+
+### Explicit task events and status (PTE1 / PTS1)
+
+`workbench task-event` sends a caller-supplied task result through the same
+pinned TLS connection and independent PC credential. The device must have granted
+`tasks`; a profile alone does not grant access. This is an explicit sender, not a
+background process monitor: the invoking build/training/render program determines
+its real exit result. No command text, source files or raw logs are transmitted.
+
+The native USB product owner and physical notification path are not yet bound or
+verified. These commands currently have host Python-to-production-C TLS evidence;
+they are not instructions to use the CH340 debug port or enable MSC.
+
+Once that product transport is available, the intended sequence is:
+
+```sh
+python3 tools/bk7258/bk7258.py workbench task-status --port COM_NATIVE --profile pc.profile
+python3 tools/bk7258/bk7258.py workbench task-event --port COM_NATIVE --profile pc.profile \
+  --task-id 00112233445566778899aabbccddeeff --event-sequence 1 \
+  --state start --ttl-ms 60000 --progress 0
+# Only after the caller's actual task succeeds:
+python3 tools/bk7258/bk7258.py workbench task-event --port COM_NATIVE --profile pc.profile \
+  --task-id 00112233445566778899aabbccddeeff --event-sequence 2 \
+  --state success --ttl-ms 60000 --progress 100
+python3 tools/bk7258/bk7258.py workbench task-status --port COM_NATIVE --profile pc.profile
+```
+
+The example ID and sequence are illustrative. Generate a fresh 128-bit ID per
+new task; read the current event sequence and choose a larger value across all
+tasks of this authorization. Conflicts are rejected, not silently retried.
+`--state` also accepts `progress`, `failure`, `canceled`; missing progress means
+unknown (except `start`, which requires zero). TTL is remaining receiver lifetime
+in milliseconds, 1..4294967295; subtract caller-side queue age before sending.
+Progress updates are limited by the device to at most one per second after the
+first progress. Ensure a live task is refreshed before its TTL expires; expiration
+is not success and cannot be undone by late progress. Do not reuse old task IDs.
+
+Each operation has one absolute timeout across all fragments. Failed writes close
+the connection and leave the outcome unconfirmed; reconnect and query before a
+manual retry. An exact duplicate last event is idempotent and does not renew TTL.
+The client never replays a write automatically. Transfer cancellation and a task's
+`canceled` event have different meanings. `accepted: true` is only the event ACK;
+`feedback_pending` in the snapshot is not a rendered/displayed receipt. Snapshot
+reads recheck the event identity and reject concurrent mixed snapshots.

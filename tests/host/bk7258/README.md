@@ -2542,3 +2542,26 @@ CPU/p95、最长阻塞、栈/内存峰值与板端延迟仍待实测。新产品
 本片的可复放-71是测试序号错误，不是其根因。完整结果：`acceptance/s80-20260927.json`；
 初轮保留：`acceptance/s80-first-20260927.json`；补充：
 `acceptance/s80-task-evidence-20260927.json`；原始日志：`out/shaniu-s80/`。
+
+### S81 · 电脑任务事件发送与 C 接收端互通（2026-09-27）
+
+现有认证工作台增加 `task-event` / `task-status`，实际发送 PTE1，按 32 字节
+上限分片；PTS1 回读后重新核对 ID/序号/状态，拒绝混合快照。单操作绝对期限，
+本地非法参数在读取凭据/打开端口前拒绝，传输失败关闭而不重发。
+`accepted` 只表示 ACK，`feedback_pending` 不表示屏幕已提醒。
+
+先写6项独立golden/非法输入/分片/回读/失败/CLI规格，首次因接口不存在记
+BLOCKED_INTERFACE，不算业务Red。之后真实Python TLS客户端连到生产C授权/
+配置事务/任务账本：开始→成功→重复成功不续期→终态后进度拒绝通过。C夹具
+只给合成PC新增TASKS授权，原缺权限拒绝用例保留；分块读取由真实模块处理。
+
+本次完整461PASS（原63＋新增398，其中本片6）；原2变异检出/恢复保留，13门禁
+单列。额外2隔离变异（认证绕过、混合快照接受）检出，分别恢复6PASS，不并入
+461。门禁初次错误文件模式收集0，原输出保留为SETUP_ERROR，改用已存在的
+`test_shaniu_runner_gate.py`后13PASS。新增PC工具已字节编译，C主机TLS编译通过；
+未改固件源码，无需重复AP构建，未安装/刷板。
+
+生产发送器只发送调用方主动给出的结果，尚无进程监控包装器；真实USB产品owner、
+提醒渲染/语音避让及L3仍缺。S66/S75/S76历史TLS问题仍OPEN；本轮通过不销项。
+用法见`tools/bk7258/README.md`；报告`acceptance/s81-20260927.json`、
+`acceptance/s81-task-sender-evidence-20260927.json`及`s81-evidence-20260927/`。
