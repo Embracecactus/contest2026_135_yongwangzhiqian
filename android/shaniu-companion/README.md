@@ -3,7 +3,7 @@
 [项目与视频](../../README.md) · [技术报告](../../docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md) · [实际验收](../../docs/platforms/bk7258/shaniu-master-plan.md)
 
 原生 Kotlin 工程，包名 `com.shaniu.companion`。当前源码版本
-`0.7.16-shaniu-eye-draft`（versionCode 46），Android 10+（minSdk 29），
+`0.7.17-shaniu-pack-trial`（versionCode 47），Android 10+（minSdk 29），
 compile/target SDK 35。App 只承担配置和控制：设备完成配置后独立运行语音，
 关闭 App 不等于结束设备端交互会话。
 
@@ -193,3 +193,8 @@ App 工程与固件适配在同一团队仓版本管理，不额外建立 App Gi
 URI 授权或安装事务。恢复选择不会自动上传或设为设备默认；损坏/超长输入
 不会覆盖上一份有效选择。退出后重新冷启动、系统主动丢弃任务状态时仍需
 重新选文件，不把 Activity 状态保存承诺为永久素材库。
+
+“限时表情试用”可选择设备当前默认素材，或设备上与本地所选文件同名的
+已安装素材。试用名称不代表已上传或版本一致；设备缺包时明确失败，不自动
+回退试用默认包。选择来源与时长草稿可跨页面和 Activity 重建；试用仍由
+设备计时，取消须等待恢复确认，新默认会使旧试用失效。

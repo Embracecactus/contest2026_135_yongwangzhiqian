@@ -1,0 +1,69 @@
+["./gradlew", ":app:testDebugUnitTest", "--offline", "--rerun-tasks", "--tests", "com.shaniu.companion.provision.DeviceControlSessionTest", "--tests", "com.shaniu.companion.provision.ProvisionTlsTest", "--tests", "com.shaniu.companion.provision.ProvisionSettingsTest", "--tests", "com.shaniu.companion.provision.FocusTimerControllerTest", "--tests", "com.shaniu.companion.provision.SceneControlProtocolTest", "--tests", "com.shaniu.companion.provision.PcAuthorizationControllerTest", "--tests", "com.shaniu.companion.provision.PcPairingExchangeTest", "--tests", "com.shaniu.companion.provision.NfcBindingControllerTest", "--tests", "com.shaniu.companion.provision.ExpressionTrialControllerTest", "--tests", "com.shaniu.companion.provision.DefaultSelectionControllerTest", "--tests", "com.shaniu.companion.ota.OtaControlUploadTest", "--tests", "com.shaniu.companion.ota.OtaSessionContractTest"]
+WARNING: platform-tools package is not installed.
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:generateDebugBuildConfig
+> Task :app:generateDebugResValues
+> Task :app:checkDebugAarMetadata
+> Task :app:mapDebugSourceSetPaths
+> Task :app:generateDebugResources
+> Task :app:packageDebugResources
+> Task :app:createDebugCompatibleScreenManifests
+> Task :app:extractDeepLinksDebug
+> Task :app:parseDebugLocalResources
+> Task :app:processDebugMainManifest
+> Task :app:processDebugManifest
+> Task :app:preDebugUnitTestBuild UP-TO-DATE
+> Task :app:javaPreCompileDebug
+> Task :app:javaPreCompileDebugUnitTest
+> Task :app:processDebugManifestForPackage
+> Task :app:mergeDebugResources
+> Task :app:processDebugResources
+
+> Task :app:compileDebugKotlin
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:286:16 'var statusBarColor: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:287:16 'var navigationBarColor: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:288:16 'var isStatusBarContrastEnforced: Boolean' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:289:26 'var systemUiVisibility: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:290:18 'static field SYSTEM_UI_FLAG_LIGHT_STATUS_BAR: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:290:58 'static field SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:2856:70 'static field SOFT_INPUT_ADJUST_RESIZE: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:4559:16 'var statusBarColor: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:4560:16 'var navigationBarColor: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:4561:26 'var systemUiVisibility: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:4562:18 'static field SYSTEM_UI_FLAG_LIGHT_STATUS_BAR: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:4562:58 'static field SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/ota/BkpackInspector.kt:79:64 Unchecked cast of 'kotlin.Any?' to 'kotlin.collections.Map<kotlin.String, kotlin.Any>'.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/ota/OtaPackageServer.kt:393:38 'val allNetworks: (Array<Network!>..Array<out Network!>)' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/AndroidProvisionGatt.kt:153:68 'var value: ByteArray!' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/DeviceSettingsEditor.kt:159:86 'static field SOFT_INPUT_ADJUST_RESIZE: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/DeviceSettingsEditor.kt:174:85 'static field SOFT_INPUT_ADJUST_RESIZE: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/ProvisionActivity.kt:141:16 'var statusBarColor: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/ProvisionActivity.kt:142:16 'var navigationBarColor: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/ProvisionActivity.kt:143:16 'var isStatusBarContrastEnforced: Boolean' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/ProvisionActivity.kt:144:26 'var systemUiVisibility: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/ProvisionActivity.kt:144:76 'static field SYSTEM_UI_FLAG_LIGHT_STATUS_BAR: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/ProvisionActivity.kt:144:116 'static field SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/ProvisionActivity.kt:167:54 'constructor(p0: Activity!): IntentIntegrator' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/ProvisionActivity.kt:168:84 'class IntentIntegrator : Any' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/ProvisionActivity.kt:371:60 'class IntentIntegrator : Any' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/ProvisionActivity.kt:371:77 'static fun parseActivityResult(p0: Int, p1: Int, p2: Intent!): IntentResult!' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/ProvisionGattSession.kt:127:69 Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver of type 'kotlin.ByteArray?'.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/ProvisionGattSession.kt:128:43 Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver of type 'kotlin.ByteArray?'.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/ProvisionGattSession.kt:144:27 Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver of type 'kotlin.ByteArray?'.
+
+> Task :app:compileDebugJavaWithJavac
+> Task :app:processDebugJavaRes
+> Task :app:bundleDebugClassesToRuntimeJar
+> Task :app:bundleDebugClassesToCompileJar
+
+> Task :app:compileDebugUnitTestKotlin
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/PcPairingExchangeTest.kt:78:19 Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver of type 'kotlin.String?'.
+
+> Task :app:compileDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :app:processDebugUnitTestJavaRes
+> Task :app:testDebugUnitTest
+
+BUILD SUCCESSFUL in 12s
+24 actionable tasks: 24 executed

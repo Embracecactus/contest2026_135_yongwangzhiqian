@@ -318,6 +318,7 @@ internal object DeviceUiAcceptance {
             .invoke(activity) as DeviceControlSession
         val state = DeviceControlSession::class.java.getDeclaredField("state").apply { isAccessible = true }
         val show = MainActivity::class.java.getDeclaredMethod("showExpressionTrial").apply { isAccessible = true }
+        var importedFile: File? = null
         try {
             repeat(20) { round ->
                 onUi(instrumentation) {
@@ -335,11 +336,27 @@ internal object DeviceUiAcceptance {
                     check(input.text.toString() == if (round == 0) "" else "47") {
                         "RES-02.trial-draft: navigation lost seconds at round $round"
                     }
+                    val source = checkNotNull(findView(root) { it.contentDescription == "试用素材" } as? android.widget.Spinner)
+                    check(source.selectedItemPosition == if (round == 0) 0 else 1) {
+                        "RES-02.trial-draft: navigation lost pack choice"
+                    }
+                    source.setSelection(1)
                     input.setText("47")
                     // Synthetic authentication without a transport cannot confirm trial state.
                     listOf("开始试用", "取消试用").forEach { label ->
                         check(findView(root) { it is TextView && it.text.toString() == label }?.isEnabled == false)
                     }
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    val dialog = checkNotNull(field("companionSheet").get(activity) as? android.app.Dialog)
+                    val root = checkNotNull(dialog.window).decorView
+                    val controller = checkNotNull(field("trialEditor").get(activity))
+                    controller.javaClass.getDeclaredField("snapshot").apply { isAccessible = true }
+                        .set(controller, ExpressionTrialController.Snapshot(0, 0, 0, 0, 0))
+                    controller.javaClass.getDeclaredMethod("publish").apply { isAccessible = true }.invoke(controller)
+                    // Even an idle synthetic device cannot trial a missing local choice.
+                    check(findView(root) { it is TextView && it.text.toString() == "开始试用" }?.isEnabled == false)
                     dialog.dismiss()
                 }
                 instrumentation.waitForIdleSync()
@@ -372,12 +389,42 @@ internal object DeviceUiAcceptance {
                         it.contentDescription == "试用秒数"
                     } as? EditText)
                     check(input.text.toString() == "47") { "RES-02.trial-draft: recreation lost seconds" }
+                    val source = checkNotNull(findView(checkNotNull(dialog.window).decorView) {
+                        it.contentDescription == "试用素材"
+                    } as? android.widget.Spinner)
+                    check(source.selectedItemPosition == 1) { "RES-02.trial-draft: recreation lost pack choice" }
                     dialog.dismiss()
                 }
             } finally {
                 instrumentation.removeMonitor(monitor)
             }
+            val bytes = instrumentation.context.assets.open("shaniu-default-v1.bkep.hex").bufferedReader().use { it.readText().trim() }
+                .chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+            importedFile = File(activity.cacheDir, "trial-source-${UUID.randomUUID()}.bkep").apply { writeBytes(bytes) }
+            onUi(instrumentation) {
+                MainActivity::class.java.getDeclaredMethod("selectEyePack", android.net.Uri::class.java)
+                    .apply { isAccessible = true }.invoke(activity, android.net.Uri.fromFile(importedFile))
+            }
+            awaitUi(instrumentation, activity) { !field("eyeImportPending").getBoolean(activity) }
+            onUi(instrumentation) { show.invoke(activity) }
+            instrumentation.waitForIdleSync()
+            onUi(instrumentation) {
+                val dialog = checkNotNull(field("companionSheet").get(activity) as? android.app.Dialog)
+                val root = checkNotNull(dialog.window).decorView
+                val source = checkNotNull(findView(root) { it.contentDescription == "试用素材" } as? android.widget.Spinner)
+                check(source.selectedItemPosition == 1 && source.selectedItem.toString().contains("shaniu-default-v1"))
+                check(findView(root) { it is TextView && it.text.toString() == "开始试用" }?.isEnabled == false)
+                val controller = checkNotNull(field("trialEditor").get(activity))
+                controller.javaClass.getDeclaredField("snapshot").apply { isAccessible = true }
+                    .set(controller, ExpressionTrialController.Snapshot(0,0,0,0,0))
+                controller.javaClass.getDeclaredMethod("publish").apply { isAccessible = true }.invoke(controller)
+                check(findView(root) { it is TextView && it.text.toString() == "开始试用" }?.isEnabled == true) {
+                    "Valid selected name and idle synthetic state did not enable trial"
+                }
+                dialog.dismiss()
+            }
         } finally {
+            importedFile?.delete()
             onUi(instrumentation) { activity.finish() }
             instrumentation.waitForIdleSync()
         }

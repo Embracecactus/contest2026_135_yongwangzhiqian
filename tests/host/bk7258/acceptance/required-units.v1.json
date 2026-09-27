@@ -625,7 +625,17 @@
     "provision.DefaultSelectionControllerTest.unsupportedAndMalformedSnapshotNeverEnableWrites",
     "RES-02.android-default-tls-save",
     "RES-02.android-default-tls-cancel",
-    "RES-02.android-default-tls-recovery"
+    "RES-02.android-default-tls-recovery",
+    "provision.ExpressionTrialControllerTest.realProtocolAcceptsPackTrialLengthWithoutWeakeningOtherKinds",
+    "provision.ExpressionTrialControllerTest.installedPackUsesGoldenEtc2AndThreeBoundedChunks",
+    "provision.ExpressionTrialControllerTest.invalidInstalledNameNeverAcquiresStaging",
+    "provision.ExpressionTrialControllerTest.failedPackAppendCancelsOwnedStageWithoutApply",
+    "provision.ExpressionTrialControllerTest.disconnectedPackAppendCannotReviveAndCancelRemainsEtc1",
+    "RES-02.android-trial-tls-expiry",
+    "RES-02.android-trial-tls-cancel",
+    "RES-02.android-trial-tls-missing",
+    "RES-02.android-trial-tls-supersede",
+    "provision.ExpressionTrialControllerTest.unsupportedPackFormatNeverFallsBackToBuiltinTrial"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1254,6 +1264,16 @@
     "provision.DefaultSelectionControllerTest.unsupportedAndMalformedSnapshotNeverEnableWrites",
     "RES-02.android-default-tls-save",
     "RES-02.android-default-tls-cancel",
-    "RES-02.android-default-tls-recovery"
+    "RES-02.android-default-tls-recovery",
+    "provision.ExpressionTrialControllerTest.realProtocolAcceptsPackTrialLengthWithoutWeakeningOtherKinds",
+    "provision.ExpressionTrialControllerTest.installedPackUsesGoldenEtc2AndThreeBoundedChunks",
+    "provision.ExpressionTrialControllerTest.invalidInstalledNameNeverAcquiresStaging",
+    "provision.ExpressionTrialControllerTest.failedPackAppendCancelsOwnedStageWithoutApply",
+    "provision.ExpressionTrialControllerTest.disconnectedPackAppendCannotReviveAndCancelRemainsEtc1",
+    "RES-02.android-trial-tls-expiry",
+    "RES-02.android-trial-tls-cancel",
+    "RES-02.android-trial-tls-missing",
+    "RES-02.android-trial-tls-supersede",
+    "provision.ExpressionTrialControllerTest.unsupportedPackFormatNeverFallsBackToBuiltinTrial"
   ]
 }

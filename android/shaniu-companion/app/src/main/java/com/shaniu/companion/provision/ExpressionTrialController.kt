@@ -21,6 +21,7 @@ internal class ExpressionTrialController(
     private var first: ByteArray? = null
     private var last: ByteArray? = null
     private var request: ByteArray? = null
+    private var requestOffset = 0
     private var expectedOperation: Long? = null
     private var ownsTransaction = false
     private var active = true
@@ -43,23 +44,28 @@ internal class ExpressionTrialController(
         phase = Phase.FIRST; message = "正在读取设备试用"; publish()
         return read(0)
     }
-    fun act(action: Int, durationMs: Long = 0, expression: Int = 0): Boolean {
+    fun act(action: Int, durationMs: Long = 0, expression: Int = 0, packFilename: String? = null): Boolean {
         val value = snapshot ?: return false
         if (!active || phase != Phase.IDLE || !session.current().authenticated ||
             generation != session.current().generation || action !in 1..2 ||
             (action == 1 && (durationMs !in 1L..0xffffffffL || expression !in 1..9)) ||
-            (action == 2 && (durationMs != 0L || expression != 0))) return false
+            (action == 2 && (durationMs != 0L || expression != 0 || packFilename != null)) ||
+            (packFilename != null && (packFilename.length >= 40 ||
+                !Regex("[a-z][a-z0-9._-]*\\.bkep").matches(packFilename)))) return false
         val allowed = if (action == 1) value.state in listOf(0, 6, 7, 8, 9) else value.state in listOf(1, 3, 4)
         if (!allowed) return false
         val id = operationId()
         if (id <= 0) return false
         expectedOperation = id
-        request = ByteBuffer.allocate(32).put("ETC1".toByteArray(Charsets.US_ASCII))
+        val record = ByteBuffer.allocate(if (packFilename == null) 32 else 72)
+            .put((if (packFilename == null) "ETC1" else "ETC2").toByteArray(Charsets.US_ASCII))
             .putInt(action).putInt(value.id.toInt()).putInt(durationMs.toInt())
-            .putLong(id).putInt(expression).putInt(0).array()
+            .putLong(id).putInt(expression).putInt(0)
+        if (packFilename != null) record.put(packFilename.toByteArray(Charsets.US_ASCII))
+        request = record.array(); requestOffset = 0
         snapshot = null; phase = Phase.BEGIN; ownsTransaction = true
         message = "正在提交设备操作"; publish()
-        return send(DeviceControlProtocol.Command.CONFIG_BEGIN, ByteBuffer.allocate(8).putInt(11).putInt(32).array())
+        return send(DeviceControlProtocol.Command.CONFIG_BEGIN, ByteBuffer.allocate(8).putInt(11).putInt(request!!.size).array())
     }
     private fun read(offset: Int) = send(DeviceControlProtocol.Command.CONFIG_READ,
         ByteBuffer.allocate(4).putInt((11 shl 16) or offset).array())
@@ -92,8 +98,16 @@ internal class ExpressionTrialController(
             return
         }
         when (phase) {
-            Phase.BEGIN -> { phase = Phase.APPEND; send(DeviceControlProtocol.Command.CONFIG_APPEND, request!!) }
-            Phase.APPEND -> { phase = Phase.APPLY; send(DeviceControlProtocol.Command.CONFIG_APPLY, byteArrayOf()) }
+            Phase.BEGIN, Phase.APPEND -> {
+                val record = request!!
+                if (requestOffset < record.size) {
+                    val end = minOf(requestOffset + 32, record.size)
+                    val chunk = record.copyOfRange(requestOffset, end); requestOffset = end
+                    phase = Phase.APPEND; send(DeviceControlProtocol.Command.CONFIG_APPEND, chunk)
+                } else {
+                    phase = Phase.APPLY; send(DeviceControlProtocol.Command.CONFIG_APPLY, byteArrayOf())
+                }
+            }
             Phase.APPLY -> {
                 request = null; ownsTransaction = false; phase = Phase.IDLE
                 session.finishConfigTransaction("设备已受理，正在读取试用状态")

@@ -82,6 +82,20 @@ static void selection_tls_peer(struct bkdisplay_service_s *service)
               tls_input[tls_received++] = value;
             }
         }
+      else if (!strncmp(line, "time ", 5))
+        {
+          unsigned long long value;
+          assert(sscanf(line + 5, "%llu", &value) == 1);
+          clock_ms = value;
+        }
+      else if (!strcmp(line, "trial-step\n"))
+        {
+          struct bkdisplay_trial_status_s current;
+          assert(bk7258_display_trial_status(&current) == 0);
+          expect_green = current.state == BKDISPLAY_TRIAL_PENDING;
+          if (!bkdisplay_intent_step(service, true))
+            (void)bkdisplay_trial_step(service, true);
+        }
       else if (!strcmp(line, "step\n"))
         {
           struct bkdisplay_selection_status_s current;

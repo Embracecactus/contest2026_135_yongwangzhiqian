@@ -102,7 +102,7 @@ def main():
             + hashlib.sha256(fixture.read_bytes()).hexdigest(),
             flush=True,
         )
-        tls = sys.argv[1].startswith("android-default-tls-")
+        tls = sys.argv[1].startswith(("android-default-tls-", "android-trial-tls-"))
         tls_flags = []
         if tls:
             from tls_test_identity import issue
@@ -193,11 +193,25 @@ def main():
         if tls:
             import time
 
-            method = {
-                "save": "authenticatedNativeSavePreservesAckAndRenderBoundary",
-                "cancel": "confirmedNativeCancelDoesNotWriteOrRender",
-                "recovery": "nativeReleaseFailureRemainsUnknownAfterRecovery",
-            }[sys.argv[1].removeprefix("android-default-tls-")]
+            trial = sys.argv[1].startswith("android-trial-tls-")
+            method = (
+                {
+                    "expiry": "packExpiryRestoresDefaultWithoutPersistence",
+                    "cancel": "packCancellationWaitsForActualRestore",
+                    "missing": "missingInstalledPackFailsWithoutFallback",
+                    "supersede": "newDefaultSupersedesOldTrialAndLateExpiry",
+                }
+                if trial
+                else {
+                    "save": "authenticatedNativeSavePreservesAckAndRenderBoundary",
+                    "cancel": "confirmedNativeCancelDoesNotWriteOrRender",
+                    "recovery": "nativeReleaseFailureRemainsUnknownAfterRecovery",
+                }
+            )[
+                sys.argv[1].removeprefix(
+                    "android-trial-tls-" if trial else "android-default-tls-"
+                )
+            ]
             command = [
                 str(temp / "test"),
                 str(HERE / "build/shaniu-default-v1.bkep"),
@@ -205,7 +219,11 @@ def main():
                 "--selection-tls-peer",
             ]
             app = ROOT / "android/shaniu-companion"
-            name = "com.shaniu.companion.provision.DefaultSelectionNativeTlsTest"
+            name = "com.shaniu.companion.provision." + (
+                "ExpressionTrialNativeTlsTest"
+                if trial
+                else "DefaultSelectionNativeTlsTest"
+            )
             start = time.time()
             result = subprocess.run(
                 [

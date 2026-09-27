@@ -221,6 +221,7 @@ class MainActivity : Activity() {
     private enum class ConfigFlow { SETTINGS, NONE, CAPABILITIES, CLOUD, WAKE, RESPONSE, SENSITIVITY, EYES }
     private var trialSecondsDraft = ""
     private var trialExpressionDraft = 0
+    private var trialPackDraft = false
     private var defaultEditor: com.shaniu.companion.provision.DefaultSelectionController? = null
     private var trialEditor: com.shaniu.companion.provision.ExpressionTrialController? = null
     private var nfcMinutesDraft = "25"
@@ -290,6 +291,7 @@ class MainActivity : Activity() {
         currentTab = savedInstanceState?.getInt("navigation", TAB_OVERVIEW) ?: TAB_OVERVIEW
         trialSecondsDraft = savedInstanceState?.getString("trial_seconds_draft") ?: ""
         trialExpressionDraft = (savedInstanceState?.getInt("trial_expression_draft", 0) ?: 0).coerceIn(0, 8)
+        trialPackDraft = savedInstanceState?.getBoolean("trial_pack_draft", false) ?: false
         focusMinutesDraft = savedInstanceState?.getString("focus_minutes_draft") ?: "25"
         pcReceiptDevice = savedInstanceState?.getString("pc_receipt_device").orEmpty()
         pcReceiptTransaction = savedInstanceState?.getString("pc_receipt_transaction")
@@ -2382,13 +2384,35 @@ class MainActivity : Activity() {
         if (!configAvailable() || settingsEditor != null || factoryReset != null) return
         showCompanionSheet("限时表情试用", "让她换个表情，陪你一小会儿。", onClosed = {
             trialEditor?.close(); trialEditor = null
-        }) { body, _ ->
+        }) { body, dialog ->
             val page = CompanionPage(this, body)
             val status = TextView(this).apply {
                 textSize = 16f; setTextColor(design.accent)
                 accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
             }
             body.addView(status)
+            val filename = selectedEyePack?.packId?.let { "$it.bkep" }
+                ?.takeIf { it.length < 40 && Regex("[a-z][a-z0-9._-]*\\.bkep").matches(it) }
+            var refreshActions: () -> Unit = {}
+            val sources = android.widget.Spinner(this).apply {
+                contentDescription = "试用素材"
+                adapter = android.widget.ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item,
+                    listOf("设备当前默认素材", selectedEyePack?.let { "所选素材：${it.packId}" } ?: "所选素材（尚未选择）"))
+                setSelection(if (trialPackDraft) 1 else 0)
+                onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+                    override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                        trialPackDraft = position == 1; refreshActions()
+                    }
+                    override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
+                }
+            }
+            body.addView(sources, LinearLayout.LayoutParams(-1, dp(56)))
+            page.notice("所选素材按设备上同名已安装的包试用，不上传本地文件，也不核对本地版本。可先在资源更新中选择素材。")
+            page.settingsRow("去选择素材", "打开资源更新", iconName = "download") {
+                dialog.dismiss(); updateResources = true; selectTab(TAB_UPDATE); render()
+            }
+            if (selectedEyePack != null && filename == null)
+                page.notice("所选素材的名称暂不支持试用，请选择其他素材。")
             val expressions = android.widget.Spinner(this).apply {
                 contentDescription = "试用表情"
                 adapter = android.widget.ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item,
@@ -2418,22 +2442,27 @@ class MainActivity : Activity() {
             page.notice("试用不设为默认。关闭此页或手机断开后，设备仍按时长结束；新的显示操作可能提前结束试用。")
             val controls = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
             body.addView(controls)
-            trialEditor = com.shaniu.companion.provision.ExpressionTrialController(directSession, changed = { state ->
-                val value = state.snapshot
-                status.text = state.message + (value?.remainingMs?.takeIf { value.state in 1..3 }?.let {
+            refreshActions = {
+                val state = trialEditor?.current()
+                val value = state?.snapshot
+                status.text = (state?.message ?: "尚未读取设备试用") + (value?.remainingMs?.takeIf { value.state in 1..3 }?.let {
                     "\n上次回读剩余 ${it / 1000} 秒"
                 } ?: "")
                 controls.removeAllViews()
                 val actions = CompanionPage(this, controls)
-                val ready = !state.busy && directSession.current().authenticated
+                val ready = state?.busy == false && directSession.current().authenticated
+                sources.isEnabled = state?.busy != true
                 actions.primaryButton("读取试用状态", ready) { trialEditor?.refresh() }
-                actions.primaryButton("开始试用", ready && value?.state in listOf(0, 6, 7, 8, 9)) {
+                actions.primaryButton("开始试用", ready && value?.state in listOf(0, 6, 7, 8, 9) && (!trialPackDraft || filename != null)) {
                     val count = seconds.text.toString().toLongOrNull()
                     if (count == null || count !in 1L..4294967L) seconds.error = "请输入有效秒数"
-                    else trialEditor?.act(1, count * 1000, expressions.selectedItemPosition + 1)
+                    else trialEditor?.act(1, count * 1000, expressions.selectedItemPosition + 1,
+                        if (trialPackDraft) filename else null)
                 }
                 actions.primaryButton("取消试用", ready && value?.state in listOf(1, 3, 4)) { trialEditor?.act(2) }
-            })
+            }
+            trialEditor = com.shaniu.companion.provision.ExpressionTrialController(directSession, changed = { refreshActions() })
+            refreshActions()
             trialEditor?.refresh()
         }
     }
@@ -4503,6 +4532,7 @@ class MainActivity : Activity() {
         }
         outState.putString("trial_seconds_draft", trialSecondsDraft)
         outState.putInt("trial_expression_draft", trialExpressionDraft)
+        outState.putBoolean("trial_pack_draft", trialPackDraft)
         outState.putString("focus_minutes_draft", focusMinutesDraft)
         outState.putString("pc_receipt_device", pcReceiptDevice)
         outState.putString("pc_receipt_transaction", pcReceiptTransaction)

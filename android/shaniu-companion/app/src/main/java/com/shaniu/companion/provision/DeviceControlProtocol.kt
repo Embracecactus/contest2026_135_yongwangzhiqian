@@ -103,7 +103,7 @@ internal class DeviceControlProtocol(
                     ((kind == 4 || kind == 6 || kind == 0x7fff) && offset == 0) }
             Command.CONFIG_BEGIN -> payload.size == 8 && ByteBuffer.wrap(payload).let {
                 val kind = it.int; val size = it.int
-                when (kind) { 1 -> size in 15..393; 2 -> size in 137..65676; 3 -> size == 4; 4 -> size == 12; 5 -> size in 44..3371; 6 -> size == 12; 7 -> size in 52..9216; RESET_TRANSFER_KIND, 10, 11 -> size == 32; 12 -> size == 40; 14 -> size == 88; 17 -> size == 96; else -> false } }
+                when (kind) { 1 -> size in 15..393; 2 -> size in 137..65676; 3 -> size == 4; 4 -> size == 12; 5 -> size in 44..3371; 6 -> size == 12; 7 -> size in 52..9216; RESET_TRANSFER_KIND, 10 -> size == 32; 11 -> size == 32 || size == 72; 12 -> size == 40; 14 -> size == 88; 17 -> size == 96; else -> false } }
             Command.CONFIG_APPEND -> payload.size in 1..512
             Command.CONFIG_APPLY, Command.CONFIG_CANCEL -> payload.isEmpty()
             else -> false

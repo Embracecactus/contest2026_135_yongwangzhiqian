@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.shaniu.companion.provision.ExpressionTrialControllerTest" tests="14" skipped="0" failures="0" errors="0" timestamp="2026-09-27T12:33:15.702Z" hostname="DESKTOP-0B20O0K" time="0.012">
+  <properties/>
+  <testcase name="unsupportedPackFormatNeverFallsBackToBuiltinTrial" classname="com.shaniu.companion.provision.ExpressionTrialControllerTest" time="0.004"/>
+  <testcase name="rejectedBeginCannotCancelAnotherEditorsTransaction" classname="com.shaniu.companion.provision.ExpressionTrialControllerTest" time="0.002"/>
+  <testcase name="failedPackAppendCancelsOwnedStageWithoutApply" classname="com.shaniu.companion.provision.ExpressionTrialControllerTest" time="0.0"/>
+  <testcase name="realProtocolAcceptsPackTrialLengthWithoutWeakeningOtherKinds" classname="com.shaniu.companion.provision.ExpressionTrialControllerTest" time="0.002"/>
+  <testcase name="invalidInstalledNameNeverAcquiresStaging" classname="com.shaniu.companion.provision.ExpressionTrialControllerTest" time="0.0"/>
+  <testcase name="installedPackUsesGoldenEtc2AndThreeBoundedChunks" classname="com.shaniu.companion.provision.ExpressionTrialControllerTest" time="0.001"/>
+  <testcase name="acceptedTrialUsesGoldenRecordAndDeviceReadback" classname="com.shaniu.companion.provision.ExpressionTrialControllerTest" time="0.0"/>
+  <testcase name="invalidDurationAndMismatchedReceiptCannotClaimSuccess" classname="com.shaniu.companion.provision.ExpressionTrialControllerTest" time="0.001"/>
+  <testcase name="cancellationAcceptanceIsNotRestoredCompletion" classname="com.shaniu.companion.provision.ExpressionTrialControllerTest" time="0.0"/>
+  <testcase name="changedHeaderCannotProduceMixedSnapshot" classname="com.shaniu.companion.provision.ExpressionTrialControllerTest" time="0.001"/>
+  <testcase name="unsupportedDeviceDoesNotPretendToTrial" classname="com.shaniu.companion.provision.ExpressionTrialControllerTest" time="0.0"/>
+  <testcase name="closingActiveTrialDoesNotSendRemoteCancel" classname="com.shaniu.companion.provision.ExpressionTrialControllerTest" time="0.001"/>
+  <testcase name="disconnectAndLateAckNeverReplayMutation" classname="com.shaniu.companion.provision.ExpressionTrialControllerTest" time="0.0"/>
+  <testcase name="disconnectedPackAppendCannotReviveAndCancelRemainsEtc1" classname="com.shaniu.companion.provision.ExpressionTrialControllerTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

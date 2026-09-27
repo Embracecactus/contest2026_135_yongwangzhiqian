@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.shaniu.companion.provision.DeviceControlProtocolTest" tests="14" skipped="0" failures="0" errors="0" timestamp="2026-09-27T12:28:31.941Z" hostname="DESKTOP-0B20O0K" time="0.049">
+  <properties/>
+  <testcase name="infoIsCapabilityGatedAndUsesItsOwnPayload" classname="com.shaniu.companion.provision.DeviceControlProtocolTest" time="0.016"/>
+  <testcase name="eyeApplyStillHasAHardDeadlineWithoutReplay" classname="com.shaniu.companion.provision.DeviceControlProtocolTest" time="0.002"/>
+  <testcase name="otaRequestsEnforceCommandAndPayloadBoundariesAndScrubBorrowedFrames" classname="com.shaniu.companion.provision.DeviceControlProtocolTest" time="0.004"/>
+  <testcase name="eyeApplyAllowsInstallationThenRestoresOrdinaryCommandDeadline" classname="com.shaniu.companion.provision.DeviceControlProtocolTest" time="0.002"/>
+  <testcase name="otaRepliesUseOnlyOtaStatusAndSupportFragmentsAndUnsignedValues" classname="com.shaniu.companion.provision.DeviceControlProtocolTest" time="0.006"/>
+  <testcase name="timeoutAndSendFailureNeverReplayMutation" classname="com.shaniu.companion.provision.DeviceControlProtocolTest" time="0.001"/>
+  <testcase name="malformedOtaReplyClosesWithoutReplay" classname="com.shaniu.companion.provision.DeviceControlProtocolTest" time="0.001"/>
+  <testcase name="authenticatesThenAcceptsOnlyConfirmedFragmentedState" classname="com.shaniu.companion.provision.DeviceControlProtocolTest" time="0.005"/>
+  <testcase name="authenticatedScanReadAcceptsBoundedRecordsButCannotWriteScanKind" classname="com.shaniu.companion.provision.DeviceControlProtocolTest" time="0.001"/>
+  <testcase name="memoryMutationDistinguishesPendingConfirmedAndUncertain" classname="com.shaniu.companion.provision.DeviceControlProtocolTest" time="0.001"/>
+  <testcase name="incompleteEyeApplyRetainsItsBudgetButAppendDoesNotExtendItsDeadline" classname="com.shaniu.companion.provision.DeviceControlProtocolTest" time="0.001"/>
+  <testcase name="onlyAnAcceptedEyeTransactionExtendsApplyDeadline" classname="com.shaniu.companion.provision.DeviceControlProtocolTest" time="0.006"/>
+  <testcase name="wifiStatusPreservesUnknownOfflineAndReady" classname="com.shaniu.companion.provision.DeviceControlProtocolTest" time="0.002"/>
+  <testcase name="wrongSequenceMalformedStatusAndReplayedAuthCloseConnection" classname="com.shaniu.companion.provision.DeviceControlProtocolTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
