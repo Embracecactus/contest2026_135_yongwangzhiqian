@@ -62,11 +62,19 @@ int bkcontrol_serial_close(struct bkcontrol_serial_s *serial)
   int fd;
   if (serial == NULL) return -EINVAL;
   serial->live = false;
+  if (serial->close_error) return serial->close_error;
   if (!serial->opened) return 0;
   fd = serial->fd;
   serial->opened = false;
   serial->fd = -1;
-  return close(fd) == 0 ? 0 : -errno;
+  if (close(fd) < 0) serial->close_error = -errno;
+  return serial->close_error;
+}
+
+static int serial_rollback(struct bkcontrol_serial_s *serial, int error)
+{
+  int closed = bkcontrol_serial_close(serial);
+  return closed < 0 ? closed : error;
 }
 
 int bkcontrol_serial_open(struct bkcontrol_serial_s *serial,
@@ -77,16 +85,23 @@ int bkcontrol_serial_open(struct bkcontrol_serial_s *serial,
   int ret;
 
   if (serial == NULL || transport == NULL) return -EINVAL;
+  if (serial->close_error) return serial->close_error;
   if (serial->opened) return -EBUSY;
   if (serial->epoch == UINT32_MAX) return -EOVERFLOW;
   fd = open("/dev/ttyGS0", O_RDWR | O_NONBLOCK | O_NOCTTY | O_CLOEXEC);
   if (fd < 0) return -errno;
+  /* Acquire cleanup ownership immediately, before any setup can fail.
+   * No callback is published and live remains false until setup completes.
+   */
+
+  serial->fd = fd;
+  serial->opened = true;
+  serial->live = false;
   memset(&raw, 0, sizeof(raw));
   if (tcgetattr(fd, &raw) < 0)
     {
       ret = -errno;
-      close(fd);
-      return ret;
+      return serial_rollback(serial, ret);
     }
   /* Preserve the virtual port's hardware settings, disable all byte/signal
    * translations. Never drain/flush or toggle DTR as part of authentication.
@@ -99,8 +114,7 @@ int bkcontrol_serial_open(struct bkcontrol_serial_s *serial,
   if (tcsetattr(fd, TCSANOW, &raw) < 0)
     {
       ret = -errno;
-      close(fd);
-      return ret;
+      return serial_rollback(serial, ret);
     }
   serial->fd = fd;
   serial->epoch++;
@@ -108,8 +122,7 @@ int bkcontrol_serial_open(struct bkcontrol_serial_s *serial,
   serial->live = true;
   if (serial_generation(serial) == 0)
     {
-      bkcontrol_serial_close(serial);
-      return -ENOTCONN;
+      return serial_rollback(serial, -ENOTCONN);
     }
   const struct bkprov_tls_transport_s selected =
     { serial, serial_generation, serial_read, serial_send, 64, 0 };

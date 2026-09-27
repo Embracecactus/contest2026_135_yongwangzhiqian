@@ -1971,7 +1971,7 @@ $(BUILD)/test_control_serial: $(REPOSITORY_ROOT)/app/bk7258/bk7258_control_seria
                               $(REPOSITORY_ROOT)/app/bk7258/bk7258_control_serial.h \
                               $(REPOSITORY_ROOT)/app/bk7258/bk7258_provision_tls.h
 	@mkdir -p $(BUILD)
-	$(CC) $(CFLAGS) -Werror -I$(REPOSITORY_ROOT)/app/bk7258 -I$(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/include $(filter %.c,$^) -Wl,--wrap=open -o $@
+	$(CC) $(CFLAGS) -Werror -I$(REPOSITORY_ROOT)/app/bk7258 -I$(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/include $(filter %.c,$^) -Wl,--wrap=open,--wrap=close,--wrap=tcgetattr,--wrap=tcsetattr -o $@
 
 $(BUILD)/test_pc_grants: test_pc_grants.c $(VOICE_PACK_ROOT)/bk7258_pc_grants.c $(VOICE_PACK_ROOT)/bk7258_pc_grants.h $(VOICE_PACK_ROOT)/bk7258_provision_store.c $(VOICE_OTA_MBEDCRYPTO) | $(BUILD)
 	$(CC) $(CFLAGS) -Werror -I$(VOICE_PACK_ROOT) -I$(VOICE_OTA_MBEDTLS_SOURCE)/include $(filter %.c,$^) -Wl,--wrap=fsync $(VOICE_OTA_MBEDCRYPTO) -o $@

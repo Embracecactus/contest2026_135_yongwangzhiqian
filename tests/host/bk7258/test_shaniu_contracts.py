@@ -821,7 +821,8 @@ def main():
         add(suite, "NET-03.pc-grant-" + variant, "NET-03", "L2",
             [HERE / "build/test_pc_grants", variant],
             binaries["test_pc_grants"])
-    for variant in ("binary", "backpressure", "disconnect", "invalid", "failed-open"):
+    for variant in ("binary", "backpressure", "disconnect", "invalid", "failed-open",
+                    "cleanup-get", "cleanup-set", "close-get", "close-set", "close-hangup", "close-lost"):
         add(suite, "USB-02.serial-" + variant, "USB-02", "L2",
             [HERE / "build/test_control_serial", variant],
             binaries["test_control_serial"])

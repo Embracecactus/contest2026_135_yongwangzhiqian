@@ -1,0 +1,22 @@
+{
+  "HEAD": {
+    "bk7258_control_serial.c": {
+      "exit": 1,
+      "diagnostics": 12
+    },
+    "bk7258_control_serial.h": {
+      "exit": 1,
+      "diagnostics": 7
+    }
+  },
+  "working": {
+    "bk7258_control_serial.c": {
+      "exit": 1,
+      "diagnostics": 13
+    },
+    "bk7258_control_serial.h": {
+      "exit": 1,
+      "diagnostics": 7
+    }
+  }
+}

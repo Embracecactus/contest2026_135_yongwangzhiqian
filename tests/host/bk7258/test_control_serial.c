@@ -11,8 +11,8 @@
 #include <termios.h>
 #include <unistd.h>
 
-/* Only redirect the device node to a real POSIX pseudo-terminal. All terminal,
- * poll, read and write behavior comes from the host kernel, not a success mock.
+/* Real PTY/kernel I/O. Only the native path and explicit syscall failures
+ * are external peers; production descriptor/epoch ownership is not mocked.
  */
 static const char *slave;
 static int master;
@@ -28,6 +28,39 @@ int __wrap_open(const char *path, int flags, ...)
   if (open_error) { errno = open_error; return -1; }
   opened_fd = __real_open(slave, flags);
   return opened_fd;
+}
+
+static int get_error, set_error, close_error;
+static bool close_released, hangup_on_set;
+static unsigned closes;
+int __real_close(int);
+int __real_tcgetattr(int, struct termios *);
+int __real_tcsetattr(int, int, const struct termios *);
+int __wrap_close(int fd)
+{
+  if (fd == opened_fd)
+    {
+      closes++;
+      if (close_error)
+        {
+          if (close_released) assert(__real_close(fd)==0);
+          errno=close_error;return -1;
+        }
+    }
+  return __real_close(fd);
+}
+int __wrap_tcgetattr(int fd, struct termios *value)
+{
+  if (fd==opened_fd && get_error) { errno=get_error;return -1; }
+  return __real_tcgetattr(fd,value);
+}
+int __wrap_tcsetattr(int fd, int action, const struct termios *value)
+{
+  if (fd==opened_fd && set_error) { errno=set_error;return -1; }
+  int ret=__real_tcsetattr(fd,action,value);
+  if (fd==opened_fd && !ret && hangup_on_set)
+    { assert(__real_close(master)==0);master=-1; }
+  return ret;
 }
 
 static void peer(void)
@@ -46,6 +79,56 @@ int main(int argc, char **argv)
   size_t count = 0;
   assert(argc == 2);
   peer();
+  if (!strncmp(argv[1],"cleanup-",8) || !strncmp(argv[1],"close-",6))
+    {
+      if (!strcmp(argv[1],"close-lost"))
+        {
+          assert(bkcontrol_serial_open(&serial,&transport)==0);
+          uint32_t epoch=transport.generation(transport.context);
+          close_error=EINTR;close_released=true;
+          assert(bkcontrol_serial_close(&serial)==-EINTR);
+          close_error=0;
+          int reused=__real_open("/dev/null",O_RDONLY);
+          assert(reused==opened_fd);
+          assert(bkcontrol_serial_close(&serial)==-EINTR);
+          assert(bkcontrol_serial_open(&serial,&transport)==-EINTR);
+          assert(opens==1 && closes==1 && fcntl(reused,F_GETFD)>=0);
+          assert(transport.generation(transport.context)==0);
+          assert(transport.send(transport.context,epoch,sent,1)==-ESTALE);
+          assert(__real_close(reused)==0);
+        }
+      else
+        {
+          bool failure=!strncmp(argv[1],"close-",6);
+          get_error=strstr(argv[1],"get") ? ENOTTY : 0;
+          set_error=strstr(argv[1],"set") ? EINVAL : 0;
+          hangup_on_set=strstr(argv[1],"hangup")!=NULL;
+          close_error=failure ? EIO : 0;
+          memset(&transport,0x5a,sizeof(transport));
+          struct bkprov_tls_transport_s original=transport;
+          int expected=failure ? -EIO : get_error ? -get_error : -set_error;
+          assert(bkcontrol_serial_open(&serial,&transport)==expected);
+          assert(!memcmp(&transport,&original,sizeof(transport)));
+          assert(!serial.live && closes==1);
+          if(failure)
+            {
+              assert(bkcontrol_serial_close(&serial)==-EIO);
+              assert(bkcontrol_serial_open(&serial,&transport)==-EIO);
+              assert(opens==1 && closes==1);
+              assert(__real_close(opened_fd)==0);
+            }
+          else
+            {
+              assert(bkcontrol_serial_close(&serial)==0);
+              assert(fcntl(opened_fd,F_GETFD)<0 && errno==EBADF);
+              get_error=set_error=0;
+              assert(bkcontrol_serial_open(&serial,&transport)==0);
+              assert(bkcontrol_serial_close(&serial)==0);
+            }
+        }
+      if(master>=0)assert(__real_close(master)==0);
+      puts("CONTRACT_PASS");return 0;
+    }
   if (!strcmp(argv[1], "failed-open"))
     {
       open_error = ENODEV;

@@ -461,3 +461,23 @@ mock. The PTY adapter now represents a missing external device as ENODEV instead
 of asserting that a test master must always exist. Code is linked into AP but
 not deployed in this slice; initial claim, USB enumeration/authorization and
 actual paired phone/PC competition remain L3.
+
+### S85 serial open rollback and uncertain close (2026-09-27)
+
+The native adapter owns cleanup immediately after open, before termios setup.
+Failed get/set attributes or initial link check use the same close path. On
+successful cleanup the original setup error remains; if cleanup close fails,
+its error takes precedence and stays latched. No descriptor/epoch callback is
+published on a failed setup. Live callbacks become stale before close.
+
+A close error is never retried, even if the underlying OS already released the
+fd. That integer might now belong to another file. Repeated close/open returns
+the latched error without touching the kernel; the product owner therefore
+cannot mistake uncertain release for successful shutdown/reconnect. A normal
+successful setup failure cleanup still allows a fresh epoch on later open.
+
+Six cases use a real PTY and controlled external syscall errors. The fd reuse
+case actually releases it, opens an unrelated /dev/null handle with that number,
+and verifies the unrelated handle remains live. This is deterministic host
+fault injection, not a claim that the target kernel physically reproduced EINTR.
+No new thread or heap buffer; linked product owner remains 120 bytes.

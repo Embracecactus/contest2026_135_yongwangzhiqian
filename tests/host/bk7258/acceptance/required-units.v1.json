@@ -466,7 +466,13 @@
     "LIFE-02.power-usb-failed",
     "LIFE-02.power-usb-close",
     "RST-02.usb_failed",
-    "RST-02.usb_before_identity"
+    "RST-02.usb_before_identity",
+    "USB-02.serial-cleanup-get",
+    "USB-02.serial-cleanup-set",
+    "USB-02.serial-close-get",
+    "USB-02.serial-close-set",
+    "USB-02.serial-close-hangup",
+    "USB-02.serial-close-lost"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -936,6 +942,12 @@
     "LIFE-02.power-usb-failed",
     "LIFE-02.power-usb-close",
     "RST-02.usb_failed",
-    "RST-02.usb_before_identity"
+    "RST-02.usb_before_identity",
+    "USB-02.serial-cleanup-get",
+    "USB-02.serial-cleanup-set",
+    "USB-02.serial-close-get",
+    "USB-02.serial-close-set",
+    "USB-02.serial-close-hangup",
+    "USB-02.serial-close-lost"
   ]
 }

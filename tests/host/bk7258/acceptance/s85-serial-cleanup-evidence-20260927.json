@@ -1,0 +1,86 @@
+{
+  "parent": "1cd5dab6e790597460c740837df05818a7c09e86",
+  "red": "close-get: tcgetattr fails and cleanup close fails; original code returned setup error and forgot unknown close state.",
+  "counts": {
+    "selected": 472,
+    "original": 63,
+    "added": 409,
+    "new_ids": 6,
+    "runner_gates": 13,
+    "extra_mutations": 1,
+    "extra_restores": 1
+  },
+  "fault_boundary": "Real PTY/normal kernel I/O; explicit tcgetattr/tcsetattr/close failures injected. close-lost releases the real fd then reuses its number for /dev/null and observes no second close/reopen.",
+  "format_after_full": {
+    "file": "app/bk7258/bk7258_control_serial.c",
+    "before": "2e4fb6521dae4fed5704672ca149f9557fec72a118eefd19fb55eef218b27462",
+    "after": "ec8661b1ae3bc18928c6c2b7cd6a587daeafcf80bb1ea9b74cd256c62eb5a475",
+    "nonwhitespace_identical": true
+  },
+  "final_verification": "Added comment blank line only, nonwhitespace identical; all 11 serial cases and AP rebuilt afterward.",
+  "style": {
+    "HEAD": {
+      "bk7258_control_serial.c": {
+        "exit": 1,
+        "diagnostics": 12
+      },
+      "bk7258_control_serial.h": {
+        "exit": 1,
+        "diagnostics": 7
+      }
+    },
+    "working": {
+      "bk7258_control_serial.c": {
+        "exit": 1,
+        "diagnostics": 13
+      },
+      "bk7258_control_serial.h": {
+        "exit": 1,
+        "diagnostics": 7
+      }
+    }
+  },
+  "style_limit": "Whole-file nxstyle fails on existing section/header style; one new comment blank line corrected. No full style-pass claim.",
+  "resource": "Actual linked g_pc_usb_owner remains 120 bytes; no new worker or heap buffer",
+  "hardware": "NOT_RUN",
+  "remaining": [
+    "Actual native USB driver/IRQ/DMA and paired phone/PC stress",
+    "Runtime peak heap and crypto latency",
+    "USB file-level resource installer and workbench",
+    "S66/S75/S76 historical TLS faults",
+    "Nested compile-failure classification"
+  ],
+  "evidence": {
+    "ap-build.log": "6ef4608dc3d60ef4d3fdf854b003fb3728659d545c076d4abf9d3ad65c13bac9",
+    "ap-compile.log": "7483bd84d2e3f9a8c35d36da2c8cd0d1ca1d64e188c4ca41f9a830cb5171463b",
+    "ap-final.log": "6ef4608dc3d60ef4d3fdf854b003fb3728659d545c076d4abf9d3ad65c13bac9",
+    "arm-owner-size.log": "a10b995dddb39e5e9cd2926d4b2ef4f1a968204474cb5e871cbdb580ea610b19",
+    "backpressure.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "before.log": "5bf38ef98ad59d1656c910046194a19f30ddef916a19e81fb44fd882f29b2688",
+    "binary.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "build-before.log": "cd5093f0087ce9a532ec99438684e9eee2a0cf7ba62731679bed437e930e2b2e",
+    "build-final.log": "cd5093f0087ce9a532ec99438684e9eee2a0cf7ba62731679bed437e930e2b2e",
+    "build.log": "cd5093f0087ce9a532ec99438684e9eee2a0cf7ba62731679bed437e930e2b2e",
+    "cleanup-get.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "cleanup-set.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "close-get.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "close-hangup.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "close-lost.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "close-set.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "disconnect.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "failed-open.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "format-only.json": "30c1b75f77e187b81bb518153cad9672a808c5507131bb96acd00a6f6ade94a4",
+    "full.log": "ef80c7f2c4713aff0d8ce7b7141e2fb0b1a80218638b7a9c778c1cb79202dbac",
+    "invalid.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "mutation-forgotten-close.log": "9d72b3f3030ec3e781281b2c2a12e1c6a0a67d011c638c46e925360c723a0591",
+    "mutations.json": "2ebeb20ee4b4432372c2e1cd2d2c45360622fc4489d22261eeb3f90ed5051f26",
+    "restored.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "runner-gates.log": "9566d3dc8c1530ceb6814da988f7ad7f8fe3dce2d0a4f43eb50f34b061261faf",
+    "serial-final.log": "26778791cf4791eaf216422be9731d0cc8b9c38550aedc00aa09b806210da9a1",
+    "style-HEAD-bk7258_control_serial.c.log": "8bbea8304914b36caad2bfba7088777bbc3fb9218aab08ab6421e1e6f6ef59d1",
+    "style-HEAD-bk7258_control_serial.h.log": "83bbd9be1e305f710cde4dbee6a48c50b95d30c4e52c9d420736e2c57a3f2bd9",
+    "style-working-bk7258_control_serial.c.log": "0f1c1074f591b555ed105d8fbb2c7a9572ed84b0d0a09a46ba53562169668acc",
+    "style-working-bk7258_control_serial.h.log": "5a019e026d6b63ef23ba918a58f2b01607a90aab8c1499bcdf8e9bd1bf358213",
+    "style.json": "572bc77f6ab7cb902ff0d0c6c89495673daab4fd6eb5689acf6a34d3e84ebc21"
+  }
+}

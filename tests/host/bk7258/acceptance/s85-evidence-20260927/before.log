@@ -1,0 +1,1 @@
+test_control_serial: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_control_serial.c:110: main: Assertion `bkcontrol_serial_open(&serial,&transport)==expected' failed.

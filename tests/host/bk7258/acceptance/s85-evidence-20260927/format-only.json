@@ -1,0 +1,6 @@
+{
+  "file": "app/bk7258/bk7258_control_serial.c",
+  "before": "2e4fb6521dae4fed5704672ca149f9557fec72a118eefd19fb55eef218b27462",
+  "after": "ec8661b1ae3bc18928c6c2b7cd6a587daeafcf80bb1ea9b74cd256c62eb5a475",
+  "nonwhitespace_identical": true
+}
