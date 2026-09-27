@@ -55,6 +55,9 @@ internal object DeviceUiAcceptance {
                 val root = checkNotNull(dialog.window).decorView
                 val revoke = checkNotNull(findView(root) { it is TextView && it.text.toString() == "撤销电脑授权" })
                 check(!revoke.isEnabled) { "Unknown snapshot enabled revoke" }
+                val pairImport = checkNotNull(findView(root) { it is TextView && it.text.toString() == "导入电脑配对请求" })
+                val pairExport = checkNotNull(findView(root) { it is TextView && it.text.toString() == "导出加密配对响应" })
+                check(!pairImport.isEnabled && !pairExport.isEnabled) { "Unknown identity enabled pairing" }
                 val controller = checkNotNull(field("pcEditor").get(activity))
                 val type = controller.javaClass
                 // UI-only state fixture; production Session/codec behavior is tested on JVM.
@@ -64,6 +67,7 @@ internal object DeviceUiAcceptance {
                 type.getDeclaredField("snapshot").apply { isAccessible = true }.set(controller, snapshot)
                 type.getDeclaredMethod("publish").apply { isAccessible = true }.invoke(controller)
                 check(revoke.isEnabled)
+                check(!pairImport.isEnabled && !pairExport.isEnabled) { "Snapshot without trusted certificate enabled pairing" }
                 revoke.performClick()
                 val confirm = checkNotNull(field("pcConfirmation").get(activity) as? android.app.AlertDialog)
                 check(confirm.isShowing)
@@ -80,6 +84,62 @@ internal object DeviceUiAcceptance {
                 check(field("pcEditor").get(activity) == null)
             }
         } finally { onUi(instrumentation) { session.disconnect(); activity.finish() } }
+    }
+
+    /** Actual file parse/confirmation/cancel; only the authenticated snapshot is synthetic. */
+    fun runPcPairingImportCancellation(instrumentation: Instrumentation) {
+        check(android.os.Build.MODEL.contains("sdk"))
+        val activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
+        fun field(name: String) = MainActivity::class.java.getDeclaredField(name).apply { isAccessible = true }
+        val session = MainActivity::class.java.getDeclaredMethod("getDirectSession").apply { isAccessible = true }
+            .invoke(activity) as DeviceControlSession
+        val device = "pc-ui-" + UUID.randomUUID()
+        val requestFile = java.io.File(activity.cacheDir, "$device.spq")
+        val identity = instrumentation.context.assets.open("pc-identity.pem").use {
+            ProvisionPeerIdentity.fromDer(java.security.cert.CertificateFactory.getInstance("X.509").generateCertificate(it).encoded)
+        }
+        val der = java.security.KeyPairGenerator.getInstance("RSA").apply { initialize(3072) }.generateKeyPair().public.encoded
+        val now = System.currentTimeMillis()
+        val raw = java.nio.ByteBuffer.allocate(60 + der.size).putInt(0x53505131).putInt(3).putLong(now).putLong(now + 600000)
+            .put(ByteArray(16) { 9 }).put(ByteArray(16) { 7 }).putInt(der.size).put(der).array()
+        requestFile.writeBytes(raw)
+        val fingerprint = java.security.MessageDigest.getInstance("SHA-256").digest(raw).joinToString("") { "%02x".format(it.toInt() and 255) }
+        try {
+            onUi(instrumentation) {
+                field("provisionedDeviceId").set(activity, device)
+                DeviceControlSession::class.java.getDeclaredField("state").apply { isAccessible = true }.set(session,
+                    DeviceControlSession.State(connection = DeviceControlSession.Connection.CONNECTED, authenticated = true,
+                        peerIdentity = identity, snapshotFresh = true, snapshot = DeviceControlProtocol.Snapshot(0, true, false, 50, 0, 0, 0, publicConfigSupported = true)))
+                MainActivity::class.java.getDeclaredMethod("showPcAuthorization").apply { isAccessible = true }.invoke(activity)
+                val controller = checkNotNull(field("pcEditor").get(activity))
+                val type = controller.javaClass
+                type.getDeclaredField("snapshot").apply { isAccessible = true }.set(controller,
+                    PcAuthorizationController.Snapshot(true, 3u, 5u, 3, "09".repeat(16), "00".repeat(16)))
+                type.getDeclaredMethod("publish").apply { isAccessible = true }.invoke(controller)
+                @Suppress("UNCHECKED_CAST")
+                val selected = field("pcRequestSelected").get(activity) as (android.net.Uri) -> Unit
+                selected(android.net.Uri.fromFile(requestFile))
+            }
+            var shown = false
+            val deadline = android.os.SystemClock.uptimeMillis() + 5000
+            while (!shown && android.os.SystemClock.uptimeMillis() < deadline) {
+                onUi(instrumentation) { shown = (field("pcConfirmation").get(activity) as? android.app.AlertDialog)?.isShowing == true }
+                if (!shown) Thread.sleep(20)
+            }
+            check(shown) { "Pairing request did not reach native confirmation" }
+            onUi(instrumentation) {
+                val confirmation = field("pcConfirmation").get(activity) as android.app.AlertDialog
+                val message = confirmation.findViewById<TextView>(android.R.id.message).text.toString()
+                check(message.contains(fingerprint) && message.contains("资源管理") && message.contains("场景"))
+                confirmation.getButton(android.app.AlertDialog.BUTTON_NEGATIVE).performClick()
+                val controller = field("pcEditor").get(activity) as PcAuthorizationController
+                check(controller.current().transaction == null)
+                val file = MainActivity::class.java.getDeclaredMethod("pcDeliveryFile", String::class.java)
+                    .apply { isAccessible = true }.invoke(activity, device) as android.util.AtomicFile
+                check(!file.baseFile.exists()) { "Canceled confirmation saved or submitted a grant" }
+            }
+        } finally { requestFile.delete(); onUi(instrumentation) { session.disconnect(); activity.finish() } }
     }
 
     /** UI-01: real editor controls; synthetic public snapshots, no BLE evidence. */

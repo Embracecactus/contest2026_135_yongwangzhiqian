@@ -227,6 +227,8 @@ class MainActivity : Activity() {
     private var nfcDraftCapture: (() -> Unit)? = null
     private var pcEditor: com.shaniu.companion.provision.PcAuthorizationController? = null
     private var pcConfirmation: android.app.AlertDialog? = null
+    private var pcRequestSelected: ((android.net.Uri) -> Unit)? = null
+    private var pcResponseSelected: ((android.net.Uri) -> Unit)? = null
     private var pcReceiptDevice = ""
     private var pcReceiptTransaction: String? = null
     private var pcReceiptTarget: com.shaniu.companion.provision.PcAuthorizationController.Target? = null
@@ -420,6 +422,8 @@ class MainActivity : Activity() {
             FIRMWARE_PACKAGE_REQUEST -> inspectFirmwarePackage(data?.data)
             WAKE_MODEL_REQUEST -> data?.data?.let(::selectWakeModel)
             EYE_PACK_REQUEST -> data?.data?.let(::selectEyePack)
+            PC_PAIR_REQUEST -> data?.data?.let { pcRequestSelected?.invoke(it) }
+            PC_PAIR_RESPONSE -> data?.data?.let { pcResponseSelected?.invoke(it) }
             PROVISION_REQUEST -> {
                 directSession.releaseIdentity()
                 val deviceId = ProvisionBootstrap.validDeviceId(
@@ -2215,7 +2219,7 @@ class MainActivity : Activity() {
         page.sectionTitle("专注与陪伴")
         page.settingsRow("专注计时", "由设备计时，手机可随时回读", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "spark") { showFocusTimer() }
         page.settingsRow("专注卡片", "登记卡片与专注时长", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "spark") { showNfcBindings() }
-        page.settingsRow("电脑授权", "查看或撤销电脑的访问权限", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "settings") { showPcAuthorization() }
+        page.settingsRow("电脑授权", "配对、查看或撤销电脑的访问权限", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "settings") { showPcAuthorization() }
         page.sectionTitle("声音与唤醒")
         val currentWake = wakeStatus.takeIf { wakeStatusGeneration == directSession.current().generation && directSession.current().authenticated }
         page.settingsRow(currentWake?.active?.let(::wakeModelSummary) ?: "当前唤醒词", if (currentWake == null) "连接后回读设备当前模型" else "设备当前唤醒模型", iconName = "mic") { showWakeSheet() }
@@ -2435,6 +2439,22 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun pcDeliveryFile(device: String): android.util.AtomicFile {
+        val name = java.security.MessageDigest.getInstance("SHA-256").digest(device.toByteArray())
+            .joinToString("") { "%02x".format(it.toInt() and 255) }
+        return android.util.AtomicFile(java.io.File(filesDir, "pc-pair-$name.spd"))
+    }
+    private fun readPcBytes(input: java.io.InputStream, limit: Int): ByteArray {
+        val bytes = ByteArray(limit + 1); var count = 0
+        while (count < bytes.size) {
+            val n = input.read(bytes, count, bytes.size - count)
+            if (n < 0) break
+            require(n > 0); count += n
+        }
+        require(count in 1..limit)
+        return bytes.copyOf(count)
+    }
+
     private fun showPcAuthorization() {
         if (!configAvailable() || settingsEditor != null || factoryReset != null) return
         val device = provisionedDeviceId
@@ -2442,6 +2462,7 @@ class MainActivity : Activity() {
         showCompanionSheet("电脑授权", "由你决定，谁可以和傻妞协作。", done = false, onClosed = {
             pcConfirmation?.dismiss(); pcConfirmation = null
             pcEditor?.close(); pcEditor = null
+            pcRequestSelected = null; pcResponseSelected = null
         }) { body, dialog ->
             val page = CompanionPage(this, body)
             val status = TextView(this).apply {
@@ -2453,11 +2474,119 @@ class MainActivity : Activity() {
                 textSize = 14f; setTextColor(design.ink); setPadding(0, dp(12), 0, dp(12))
             }
             body.addView(details)
-            page.notice("当前可查看与撤销已有授权。新增电脑授权尚未开放。撤销完成后，电脑需要重新获得授权；关闭本页不会撤回已提交的操作。")
+            val deliveryFile = pcDeliveryFile(device)
+            var delivery = runCatching {
+                if (deliveryFile.baseFile.exists()) com.shaniu.companion.provision.PcPairingDelivery.decode(
+                    deliveryFile.openRead().use { readPcBytes(it, 8716) }) else null
+            }.getOrNull()
+            var preparingPair = false
+            if (delivery == null && deliveryFile.baseFile.exists()) page.notice("本机配对记录无法读取；不会重发授权。可读取设备状态后明确移除本机记录。")
+            delivery?.let { pcReceiptTransaction = it.transaction; pcReceiptTarget = it.target }
+            page.notice("从电脑导入配对请求，核对摘要和权限后确认。设备保存授权并回读确认后，才能导出加密响应。关闭本页不会撤回已提交的操作。")
             fun button(label: String, action: () -> Unit): com.google.android.material.button.MaterialButton {
                 page.primaryButton(label, false, action)
                 return (body.getChildAt(body.childCount - 1) as com.google.android.material.button.MaterialButton).apply {
                     setTextColor(design.ink); backgroundTintList = android.content.res.ColorStateList.valueOf(design.selected)
+                }
+            }
+            val importRequest = button("导入电脑配对请求") {
+                startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                    type = "*/*"; addCategory(Intent.CATEGORY_OPENABLE)
+                }, PC_PAIR_REQUEST)
+            }
+            val export = button("导出加密配对响应") {
+                startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                    type = "application/octet-stream"; addCategory(Intent.CATEGORY_OPENABLE)
+                    putExtra(Intent.EXTRA_TITLE, "shaniu-pc-response.spr")
+                }, PC_PAIR_RESPONSE)
+            }
+            button("复制设备证书摘要") {
+                val identity = directSession.current().peerIdentity
+                if (directSession.current().authenticated && identity != null) {
+                    (getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager)
+                        .setPrimaryClip(android.content.ClipData.newPlainText("设备证书 SHA256", identity.sha256))
+                    status.text = "已复制当前已认证设备的证书摘要，请在电脑导入时核对"
+                }
+            }.apply { isEnabled = true; alpha = 1f }
+            button("移除本机配对记录") {
+                android.app.AlertDialog.Builder(this).setTitle("移除本机记录？")
+                    .setMessage("这不会撤销设备上的电脑授权。移除后不能用本机记录重新导出响应；授权结果未知时请先查询。")
+                    .setNegativeButton("保留", null).setPositiveButton("移除记录") { _, _ ->
+                        if (preparingPair || pcEditor?.current()?.busy != false) return@setPositiveButton
+                        deliveryFile.delete(); delivery = null
+                        pcReceiptTransaction = null; pcReceiptTarget = null
+                        dialog.dismiss(); showPcAuthorization()
+                    }.show()
+            }.apply { isEnabled = true; alpha = 1f }
+            pcRequestSelected = requestSelected@{ uri ->
+                val controller = pcEditor ?: return@requestSelected
+                if (preparingPair || deliveryFile.baseFile.exists()) { status.text = "已有配对记录，请先查询或明确移除"; return@requestSelected }
+                val identity = directSession.current().peerIdentity ?: return@requestSelected
+                val expected = controller.current().snapshot ?: return@requestSelected
+                val generation = directSession.current().generation
+                status.text = "正在读取配对请求"
+                ioExecutor.execute {
+                    val request = runCatching { contentResolver.openInputStream(uri)!!.use {
+                        com.shaniu.companion.provision.PcPairingExchange.parse(readPcBytes(it, 1024), System.currentTimeMillis())
+                    } }
+                    mainHandler.post {
+                        if (pcEditor !== controller || provisionedDeviceId != device || directSession.current().generation != generation) return@post
+                        val value = request.getOrNull()
+                        if (value == null) { status.text = "配对请求无效或已过期，设备未变更"; return@post }
+                        val permissions = listOf(1 to "资源管理", 2 to "场景", 4 to "任务提醒", 8 to "有限诊断")
+                            .filter { value.capabilities and it.first != 0 }.joinToString("、") { it.second }
+                        pcConfirmation?.dismiss()
+                        pcConfirmation = android.app.AlertDialog.Builder(this)
+                            .setTitle("允许这台电脑连接？")
+                            .setMessage("请与电脑显示的请求摘要逐项核对：\n${value.fingerprint}\n允许：$permissions\n当前已有授权将被替换。")
+                            .setNegativeButton("取消", null).setPositiveButton("摘要一致，确认授权") { _, _ ->
+                                if (pcEditor !== controller || !directSession.current().authenticated || directSession.current().generation != generation ||
+                                    directSession.current().peerIdentity?.sha256 != identity.sha256 || controller.current().snapshot != expected) {
+                                    status.text = "连接或授权状态已变化，请重新读取"; return@setPositiveButton
+                                }
+                                if (preparingPair) return@setPositiveButton
+                                preparingPair = true
+                                importRequest.isEnabled = false
+                                ioExecutor.execute {
+                                    val prepared = runCatching {
+                                        com.shaniu.companion.provision.PcPairingDelivery.prepare(value, identity, expected, System.currentTimeMillis())
+                                    }.getOrNull()
+                                    val saved = prepared != null && runCatching {
+                                        check(!deliveryFile.baseFile.exists())
+                                        val bytes = prepared.delivery.encode(); val output = deliveryFile.startWrite()
+                                        try { output.write(bytes); output.fd.sync(); deliveryFile.finishWrite(output) }
+                                        catch (error: Exception) { deliveryFile.failWrite(output); throw error }
+                                        check(deliveryFile.openRead().use { readPcBytes(it, 8716) }.contentEquals(bytes))
+                                        true
+                                    }.getOrDefault(false)
+                                    mainHandler.post {
+                                        preparingPair = false
+                                        if (prepared == null) { if (pcEditor === controller) status.text = "无法准备配对响应，设备未变更"; return@post }
+                                        try {
+                                            if (!saved || pcEditor !== controller || provisionedDeviceId != device ||
+                                                !directSession.current().authenticated || directSession.current().generation != generation ||
+                                                directSession.current().peerIdentity?.sha256 != identity.sha256 || System.currentTimeMillis() >= value.expiresAtMs) {
+                                                if (pcEditor === controller) status.text = "配对准备未确认；请读取已保存记录，不会自动重发"
+                                                return@post
+                                            }
+                                            delivery = prepared.delivery
+                                            if (!prepared.submit(controller, System.currentTimeMillis()) { it.encode().contentEquals(prepared.delivery.encode()) })
+                                                status.text = "授权未发出，请查询或重新读取；已保存记录不会自动重发"
+                                        } finally { prepared.close() }
+                                    }
+                                }
+                            }.create().also { it.show() }
+                    }
+                }
+            }
+            pcResponseSelected = responseSelected@{ uri ->
+                val controller = pcEditor ?: return@responseSelected
+                val state = directSession.current()
+                val bytes = delivery?.response(controller.current(), state.peerIdentity.takeIf { state.authenticated }, System.currentTimeMillis())
+                if (bytes == null) { status.text = "授权未确认、连接已变化或请求过期，请先查询"; return@responseSelected }
+                ioExecutor.execute {
+                    val saved = runCatching { contentResolver.openOutputStream(uri, "wt")!!.use { it.write(bytes); it.flush() } }.isSuccess
+                    mainHandler.post { if (pcEditor === controller) status.text = if (saved) "加密响应已导出；电脑仍需完成导入与设备鉴权" else "导出未确认，可在有效期内重试" }
                 }
             }
             val reload = button("读取授权状态") { pcEditor?.refresh() }
@@ -2490,6 +2619,9 @@ class MainActivity : Activity() {
                     }
                     val ready = !state.busy && directSession.current().authenticated
                     fun enable(view: View, enabled: Boolean) { view.isEnabled = enabled; view.alpha = if (enabled) 1f else 0.45f }
+                    enable(importRequest, ready && !preparingPair && value != null && directSession.current().peerIdentity != null && !deliveryFile.baseFile.exists() &&
+                        state.outcome !in listOf(com.shaniu.companion.provision.PcAuthorizationController.Outcome.PENDING, com.shaniu.companion.provision.PcAuthorizationController.Outcome.UNKNOWN))
+                    enable(export, delivery?.response(state, directSession.current().peerIdentity, System.currentTimeMillis()) != null)
                     enable(reload, ready)
                     enable(query, ready && state.transaction != null)
                     enable(revoke, ready && value?.active == true && state.outcome !in listOf(
@@ -4353,6 +4485,8 @@ class MainActivity : Activity() {
         private const val FIRMWARE_PACKAGE_REQUEST = 6043
         private const val WAKE_MODEL_REQUEST = 6044
         private const val EYE_PACK_REQUEST = 6045
+        private const val PC_PAIR_REQUEST = 6046
+        private const val PC_PAIR_RESPONSE = 6047
         private const val TAB_SETTINGS = 5
         private const val TAB_SERVICES = 6
         private const val TAB_RESOURCES = 7

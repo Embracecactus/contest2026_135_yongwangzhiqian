@@ -439,7 +439,11 @@
     "provision.PcPairingExchangeTest.requestOwnsInputAndReturnsIndependentPublicIdentifiers",
     "provision.PcPairingExchangeTest.malformedExpiredAndUnauthorizedRequestsAreRejected",
     "provision.PcPairingExchangeTest.encryptionRechecksExpiryAndRejectsEmptyCredentials",
-    "provision.PcPairingExchangeTest.hostInteropUsesProductionCodecWhenExplicitlySelected"
+    "provision.PcPairingExchangeTest.hostInteropUsesProductionCodecWhenExplicitlySelected",
+    "provision.PcAuthorizationControllerTest.pairingDeliveryRequiresSavedCiphertextAndDurableExactGrant",
+    "provision.PcAuthorizationControllerTest.pairingSaveFailureCannotStartGrantAndClosedPreparationCannotReuseKey",
+    "provision.PcAuthorizationControllerTest.restoredPairingOnlyQueriesAndCannotExportUnconfirmedOrWrongTarget",
+    "provision.PcAuthorizationControllerTest.pairingExpiredPreparationCannotSaveOrSendAndNonceIsNotReplaced"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -882,6 +886,10 @@
     "provision.PcPairingExchangeTest.requestOwnsInputAndReturnsIndependentPublicIdentifiers",
     "provision.PcPairingExchangeTest.malformedExpiredAndUnauthorizedRequestsAreRejected",
     "provision.PcPairingExchangeTest.encryptionRechecksExpiryAndRejectsEmptyCredentials",
-    "provision.PcPairingExchangeTest.hostInteropUsesProductionCodecWhenExplicitlySelected"
+    "provision.PcPairingExchangeTest.hostInteropUsesProductionCodecWhenExplicitlySelected",
+    "provision.PcAuthorizationControllerTest.pairingDeliveryRequiresSavedCiphertextAndDurableExactGrant",
+    "provision.PcAuthorizationControllerTest.pairingSaveFailureCannotStartGrantAndClosedPreparationCannotReuseKey",
+    "provision.PcAuthorizationControllerTest.restoredPairingOnlyQueriesAndCannotExportUnconfirmedOrWrongTarget",
+    "provision.PcAuthorizationControllerTest.pairingExpiredPreparationCannotSaveOrSendAndNonceIsNotReplaced"
   ]
 }

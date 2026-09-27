@@ -74,16 +74,16 @@ internal class PcAuthorizationController(
      * caller must obtain explicit confirmation for the principal/capabilities;
      * this method does not create, transfer or persist desktop credentials.
      */
-    fun grant(expected: Snapshot, client: ByteArray, key: ByteArray, capabilities: Int): Boolean {
+    fun grant(expected: Snapshot, client: ByteArray, key: ByteArray, capabilities: Int, pairingTransaction: ByteArray? = null): Boolean {
         if (client.size != 16 || client.all { it == 0.toByte() } ||
             key.size != 32 || key.all { it == 0.toByte() } ||
             capabilities !in 1..15) return false
-        return submit(expected, client, key, capabilities)
+        return submit(expected, client, key, capabilities, pairingTransaction)
     }
-    private fun submit(expected: Snapshot, client: ByteArray, key: ByteArray, capabilities: Int): Boolean {
+    private fun submit(expected: Snapshot, client: ByteArray, key: ByteArray, capabilities: Int, pairingTransaction: ByteArray? = null): Boolean {
         if (!available() || snapshot != expected || expected.grantRevision == ULong.MAX_VALUE ||
             outcome in listOf(Outcome.PENDING, Outcome.UNKNOWN)) return false
-        val id = transactionId()
+        val id = pairingTransaction?.copyOf() ?: transactionId()
         if (id.size != 16 || id.all { it == 0.toByte() }) { id.fill(0); return false }
         val record = ByteBuffer.allocate(88).put("PCW1".toByteArray(Charsets.US_ASCII))
             .putLong(expected.configRevision.toLong()).putLong(expected.grantRevision.toLong()).put(id)

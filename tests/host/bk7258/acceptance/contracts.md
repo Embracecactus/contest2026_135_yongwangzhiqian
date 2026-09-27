@@ -296,3 +296,31 @@ nonempty label. Synthetic TLS peers are not connected-board acceptance. Required
 IDs add seven Python and five JVM cases; the explicitly selected cross-language
 subscenario, two mutants, seven restored tests and DPAPI three are separate and
 must not be added again to the required-case denominator.
+
+### S77 phone grant delivery (USB-01 / NET-03 / UI-01)
+
+The native phone receives SPQ1 through the system file picker and confirms its
+full request digest and requested capability names. It creates the independent
+key in memory, saves only the encrypted SPR1 response plus public metadata, and
+verifies saved bytes before starting PCW1. The request's transaction ID is used
+unchanged; default transaction generation remains for other authorization calls.
+Failure to save, expiry before submit, stale authorization state or connection
+change does not send a grant or replay an earlier grant. Prepared key buffers
+are wiped on submit/failure/close. A restart resumes receipt queries only.
+
+Internal SPD1 is magic(4), created(u64), expires(u64), expected grant revision(u64),
+capabilities(u32), client(16), transaction(16), certificate DER SHA256(32), response
+size(u32), SPR1 response. Total is exactly 100 + response size and bounded <=8716.
+The private app file is selected by device ID hash. Atomic publication, explicit
+file sync and readback precede submission. This is not proof of physical storage
+power-loss behavior. Export requires CONFIRMED, exact transaction/target/current
+view, matching authenticated certificate and validity window; a locally saved
+response or matching snapshot without the durable receipt is insufficient.
+
+Export writes ciphertext to a user-selected document. It does not install a PC
+profile or authenticate a USB session. Deleting the local delivery record needs
+explicit confirmation and never claims to revoke the remote grant. Existing
+unknown/pending jobs remain queryable; chooser return cannot implicitly confirm,
+repeat authorization or restore a closed session. UI file I/O uses the existing
+worker; no new BLE owner or service is introduced. No raw PC key is written to
+Bundle/preferences/files/clipboard. Certificate pin and request digest are public.

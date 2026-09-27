@@ -1,0 +1,168 @@
+{
+  "schema_version": 1,
+  "slice": "S77",
+  "parent_commit": "d8eef12f383e3b007877222ff47dc70659c3ee58",
+  "counts": {
+    "PASS": 443,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 380,
+      "counts": {
+        "PASS": 380,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "collection_errors": [],
+  "new_required_ids": 4,
+  "separate": {
+    "runner_gate_pass": 13,
+    "mutants_detected": 2,
+    "restored_pass": 19,
+    "emulator_native_file_confirm_cancel": "PASS, synthetic authenticated state, no BLE",
+    "pc_fixed_certificate_trials": 30,
+    "wrapped_rng_seeds": 128,
+    "wrapped_rng_modes": [
+      "gatt",
+      "stream"
+    ]
+  },
+  "source_evidence": "Actual controller, Session, SDC1 and crypto; only external device peer replaced in JVM tests",
+  "limitations": [
+    "S66 and S75/S76 failures remain OPEN; later passes do not erase history",
+    "Native USB owner not activated",
+    "No actual phone installation or device command",
+    "Physical grant/export/PC import/auth end-to-end not yet verified",
+    "RNG wrapper is host-only; all internal entropy paths not proven deterministic",
+    "Atomic file sync/readback is not physical power-cut acceptance"
+  ],
+  "setup_history": [
+    "First test-file edit used an Android-relative path from Android cwd; edit failed and subsequent test selection collected no matching test",
+    "Missing PcPairingDelivery compile was BLOCKED_INTERFACE",
+    "Initial combined Gradle command attached --tests to assembleDebug; SETUP_ERROR; corrected task ordering passed"
+  ],
+  "logs": [
+    {
+      "path": "out/shaniu-s77/pc-fixed.log",
+      "sha256": "90fc098421b2652cdfc64d91a610b5112d4dc95d299f668e05e9d433c54f1eee"
+    },
+    {
+      "path": "out/shaniu-s77/pc-fixed-results.json",
+      "sha256": "c26db71165fb2ce4a3f4604d176629dd2e170f7eec4699d739f70e5d153b803c"
+    },
+    {
+      "path": "out/shaniu-s77/seeded.log",
+      "sha256": "0eddc842263a35e30ed9e40e2896065757989476a57d5da9941429b7fc230bc4"
+    },
+    {
+      "path": "out/shaniu-s77/seeded-results.json",
+      "sha256": "934d00235e0763e165f000b8946144354910a3bce6f35ff0be79511d4bc5661f"
+    },
+    {
+      "path": "out/shaniu-s77/seed-build.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "out/shaniu-s77/fixed-rng.c",
+      "sha256": "26bdbce7e20b469c5ed39370940493563c497699236ecff599bddaba0b1dcd6f"
+    },
+    {
+      "path": "out/shaniu-s77/interface-before.log",
+      "sha256": "0cf26a5c75457c21b367e99e74c505d823415491208bbd302b8d8c9bacfd22b7"
+    },
+    {
+      "path": "out/shaniu-s77/missing-interface.log",
+      "sha256": "1e6a0b97212a07f06306de1b78ca04d6f45eb9d7c28818f6348cdce83e22e00f"
+    },
+    {
+      "path": "out/shaniu-s77/delivery-first.log",
+      "sha256": "ac585f7241941628dcdf1aee0726000d4a89eac8f9ea58a931f7df30cad5281c"
+    },
+    {
+      "path": "out/shaniu-s77/native-first.log",
+      "sha256": "6488c3176c418b4ef711fb10408155b5af65e8115ec8fbe7361cd3613686caca"
+    },
+    {
+      "path": "out/shaniu-s77/native-build.log",
+      "sha256": "8ff4c48ba2c54f096f9b2c1979cc2a7d572d97e5786589bee178973136c7ba1e"
+    },
+    {
+      "path": "out/shaniu-s77/native-final-build.log",
+      "sha256": "d5e5af2301fe2eef9cc4ae42dfc35dfd60cb7ec192484b0e41ec823117c635d0"
+    },
+    {
+      "path": "out/shaniu-s77/emulator-build.log",
+      "sha256": "00da487db2502f72aeef0fabe0446818ba99e71de9d8f15ca25e8817365eba5a"
+    },
+    {
+      "path": "out/shaniu-s77/emulator.log",
+      "sha256": "e001e21b8663fe5e6eb2647236d3d4deb90caed9444548d82c2da9a8712601b9"
+    },
+    {
+      "path": "out/shaniu-s77/contracts-run.log",
+      "sha256": "17930cc06c103c2fffd9adf994c4b3fe01ac3817e8ef3fc1ee9ae219020fffd5"
+    },
+    {
+      "path": "out/shaniu-s77/contracts-final-run.log",
+      "sha256": "b644823fd1336fca0642d08beb8c75287fcf10375ae39ad7f36279c59a16e840"
+    },
+    {
+      "path": "out/shaniu-s77/runner-gate.log",
+      "sha256": "1a3749a3d3fd8b608c60936eba4594f2494db9aa26be9248c6c5f4e9b3ec15a0"
+    },
+    {
+      "path": "out/shaniu-s77/mutations.json",
+      "sha256": "f92c5e679d7c6d5fe2594a2827f66bcf3987e2960377ead13453ea3ee6ff8ae4"
+    },
+    {
+      "path": "out/shaniu-s77/mutation-export-without-receipt.log",
+      "sha256": "060c2d09e50ac545770625bb8fcd9646f8cd88e239261c4a013899426973aa8a"
+    },
+    {
+      "path": "out/shaniu-s77/mutation-grant-before-save.log",
+      "sha256": "368f0292efa5465081defd7d77231ebd2947106f88e6171cf2b4ba11f74be319"
+    },
+    {
+      "path": "out/shaniu-s77/mutation-restored.log",
+      "sha256": "8df085d8cfcd9f7420caed5bf90e4f80dd10c49e02bccff752d1b0f834359576"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "android/shaniu-companion/app/build/outputs/apk/debug/app-debug.apk",
+      "sha256": "dd6164300578001357f1b47c845e6073fb047119da14afb8acda80b0d4cf7f56"
+    },
+    {
+      "path": "android/shaniu-companion/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk",
+      "sha256": "1143a56c2902ce7afe45538a9383ed148349d9d10e16535c276f8ee795e94445"
+    },
+    {
+      "path": "android/shaniu-companion/app/src/androidTest/assets/pc-identity.pem",
+      "sha256": "3f3f09dcf613f524644efe368ec214fd6044531f9c133e2f41fc3f6cd392e8ac"
+    }
+  ]
+}

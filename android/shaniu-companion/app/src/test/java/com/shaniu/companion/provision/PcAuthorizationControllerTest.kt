@@ -244,6 +244,75 @@ class PcAuthorizationControllerTest {
         assertEquals(PcAuthorizationController.Outcome.CONFIRMED, restored.controller.current().outcome)
         assertFalse(restored.frames.any { ByteBuffer.wrap(it).getInt(4) in 16..18 })
     }
+    private fun pairingRequest(): PcPairingExchange.Request {
+        val pair = java.security.KeyPairGenerator.getInstance("RSA").apply { initialize(3072) }.generateKeyPair()
+        val der = pair.public.encoded
+        return PcPairingExchange.parse(ByteBuffer.allocate(60 + der.size).putInt(0x53505131).putInt(3)
+            .putLong(1800000000000L).putLong(1800000600000L).put(ByteArray(16) { 9 })
+            .put(ByteArray(16) { 7 }).putInt(der.size).put(der).array(), 1800000000000L)
+    }
+    private fun pairingIdentity(): ProvisionPeerIdentity = javaClass.getResourceAsStream("/pc-identity.pem")!!.use {
+        ProvisionPeerIdentity.fromDer(java.security.cert.CertificateFactory.getInstance("X.509").generateCertificate(it).encoded)
+    }
+    @Test fun pairingDeliveryRequiresSavedCiphertextAndDurableExactGrant() {
+        val f = Fixture(); f.loaded(); val identity = pairingIdentity()
+        var delivery: PcPairingDelivery? = null
+        PcPairingDelivery.prepare(pairingRequest(), identity, f.controller.current().snapshot!!, 1800000000000L).use { prepared ->
+            assertTrue(prepared.submit(f.controller, 1800000000001L) { delivery = PcPairingDelivery.decode(it.encode()); true })
+            assertFalse(prepared.submit(f.controller, 1800000000001L) { fail("must not resubmit"); true })
+        }
+        val saved = delivery!!
+        assertNull(saved.response(f.controller.current(), identity, 1800000000001L))
+        f.reply(); repeat(3) { f.reply() }; f.reply(); f.receipt(2)
+        assertNull(saved.response(f.controller.current(), identity, 1800000000001L))
+        f.read(f.view(true, 6, f.tx))
+        assertNotNull(saved.response(f.controller.current(), identity, 1800000000001L))
+        val confirmed = f.controller.current()
+        assertNull(saved.response(confirmed.copy(target = confirmed.target!!.copy(revision = 7u)), identity, 1800000000001L))
+        assertNull(saved.response(confirmed.copy(snapshot = confirmed.snapshot!!.copy(capabilities = 1)), identity, 1800000000001L))
+        assertNull(saved.response(f.controller.current(), null, 1800000000001L))
+        assertNull(saved.response(f.controller.current(), identity, 1800000600000L))
+        assertNull(saved.response(f.controller.current(), identity, 1799999999999L))
+        f.events.closed("lost"); assertNull(saved.response(f.controller.current(), identity, 1800000000001L))
+    }
+    @Test fun pairingSaveFailureCannotStartGrantAndClosedPreparationCannotReuseKey() {
+        val f = Fixture(); f.loaded(); val before = f.frames.size
+        val prepared = PcPairingDelivery.prepare(pairingRequest(), pairingIdentity(), f.controller.current().snapshot!!, 1800000000000L)
+        assertFalse(prepared.submit(f.controller, 1800000000001L) { false })
+        assertEquals(before, f.frames.size)
+        prepared.close()
+        assertFalse(prepared.submit(f.controller, 1800000000001L) { fail("closed key must not return"); true })
+    }
+    @Test fun restoredPairingOnlyQueriesAndCannotExportUnconfirmedOrWrongTarget() {
+        val f = Fixture(); f.loaded(); val identity = pairingIdentity(); var delivery: PcPairingDelivery? = null
+        PcPairingDelivery.prepare(pairingRequest(), identity, f.controller.current().snapshot!!, 1800000000000L).use {
+            assertTrue(it.submit(f.controller, 1800000000001L) { value -> delivery = PcPairingDelivery.decode(value.encode()); true })
+        }
+        f.reply(); repeat(3) { f.reply() }; f.controller.close()
+        val saved = delivery!!; val restored = Fixture(saved.transaction, saved.target)
+        assertTrue(restored.controller.refresh()); restored.read(restored.view(true, 6, restored.tx))
+        assertNull(saved.response(restored.controller.current(), identity, 1800000000001L))
+        assertTrue(restored.controller.query()); restored.receipt(2); restored.read(restored.view(true, 6, restored.tx))
+        assertNotNull(saved.response(restored.controller.current(), identity, 1800000000001L))
+        assertFalse(restored.frames.any { ByteBuffer.wrap(it).getInt(4) in 16..18 })
+        val raw = saved.encode()
+        for (invalid in listOf(raw.copyOf(10), raw + byteArrayOf(0), raw.copyOf().also { it[0] = 0 }))
+            assertThrows(IllegalArgumentException::class.java) { PcPairingDelivery.decode(invalid) }
+    }
+    @Test fun pairingExpiredPreparationCannotSaveOrSendAndNonceIsNotReplaced() {
+        val f = Fixture(); f.loaded(); val before = f.frames.size
+        PcPairingDelivery.prepare(pairingRequest(), pairingIdentity(), f.controller.current().snapshot!!, 1800000000000L).use {
+            assertFalse(it.submit(f.controller, 1800000600000L) { fail("expired delivery cannot be saved"); true })
+        }
+        assertEquals(before, f.frames.size)
+        val nonce = ByteArray(16) { 8 }
+        assertTrue(f.controller.grant(f.controller.current().snapshot!!, ByteArray(16) { 9 }, ByteArray(32) { 84 }, 3, nonce))
+        nonce.fill(0); f.reply()
+        val record = mutableListOf<Byte>()
+        repeat(3) { record += f.frames.last().drop(16); f.reply() }
+        assertArrayEquals(ByteArray(16) { 8 }, record.subList(20, 36).toByteArray())
+        f.controller.close()
+    }
     @Test fun restoredRevokeTargetAndInvalidMetadataStaySeparate() {
         val f = Fixture(); f.loaded(); f.apply(); val pending = f.controller.current()
         val restored = Fixture(pending.transaction, pending.target)

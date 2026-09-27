@@ -1357,6 +1357,7 @@ def main():
         HERE / "test_workbench_pairing.py",
         HERE / "test_workbench_pairing_interop.py",
         ROOT / "android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/PcPairingExchange.kt",
+        ROOT / "android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/PcPairingDelivery.kt",
         ROOT / "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/PcPairingExchangeTest.kt",
         ROOT / "tools/bk7258/_lib/deploy_usb.py",
         ROOT / "tools/bk7258/bk7258.py",

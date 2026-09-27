@@ -86,7 +86,8 @@ class ControlKeyInstrumentation : Instrumentation() {
         if (pcAuthorizationProbe) {
             val report = try {
                 DeviceUiAcceptance.runPcAuthorization(this)
-                "PASS: UI-01.pc-authorization native unknown/confirmation/close; synthetic snapshots, no BLE"
+                DeviceUiAcceptance.runPcPairingImportCancellation(this)
+                "PASS: UI-01.pc-authorization native unknown/confirmation/close and actual pairing file/cancel; synthetic snapshots, no BLE"
             } catch (error: Throwable) {
                 "FAIL: " + generateSequence(error) { it.cause }.take(5).joinToString(" <- ") {
                     "${it.javaClass.simpleName}: ${it.message} at ${it.stackTrace.firstOrNull()}"
