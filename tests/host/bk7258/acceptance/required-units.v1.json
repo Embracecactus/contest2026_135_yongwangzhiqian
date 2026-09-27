@@ -571,7 +571,18 @@
     "RES-02.selection-version-malformed",
     "RES-02.selection-version-overflow",
     "RES-02.selection-version-directory-failure",
-    "RES-02.selection-version-legacy-recovery"
+    "RES-02.selection-version-legacy-recovery",
+    "RES-02.selection-job-refresh",
+    "RES-02.selection-job-cancel",
+    "RES-02.selection-job-gate",
+    "RES-02.selection-job-preparing-cancel",
+    "RES-02.selection-job-commit-cancel",
+    "RES-02.selection-job-render-failure",
+    "RES-02.selection-job-release-failure",
+    "RES-02.selection-job-stale",
+    "RES-02.selection-job-supersede",
+    "RES-02.selection-job-stale-job",
+    "RES-02.selection-job-commit-unknown"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1146,6 +1157,17 @@
     "RES-02.selection-version-malformed",
     "RES-02.selection-version-overflow",
     "RES-02.selection-version-directory-failure",
-    "RES-02.selection-version-legacy-recovery"
+    "RES-02.selection-version-legacy-recovery",
+    "RES-02.selection-job-refresh",
+    "RES-02.selection-job-cancel",
+    "RES-02.selection-job-gate",
+    "RES-02.selection-job-preparing-cancel",
+    "RES-02.selection-job-commit-cancel",
+    "RES-02.selection-job-render-failure",
+    "RES-02.selection-job-release-failure",
+    "RES-02.selection-job-stale",
+    "RES-02.selection-job-supersede",
+    "RES-02.selection-job-stale-job",
+    "RES-02.selection-job-commit-unknown"
   ]
 }

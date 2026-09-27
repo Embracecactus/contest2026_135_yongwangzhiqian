@@ -809,3 +809,29 @@ This is a recorded stronger precondition, not deletion/relaxation of an assertio
 Directory-sync error after rename remains failure/uncertain durability even if
 the new marker is readable; old expected revision is then stale. New remote
 asynchronous worker/protocol/default UI are still subsequent integration work.
+
+### S100 asynchronous default selection on the display owner (2026-09-27)
+
+A single bounded selection job shares the existing display owner/short metadata
+lock and mounted-volume lease. Explicit refresh queues a marker read; plain
+status copies only the last result and never mounts or reads storage. Explicit
+set-default carries an exact expected persistent revision and latest job ID.
+No new permanent thread, default TTL, unbounded queue or arbitrary path exists.
+Admission has no I/O. Pending cancels immediately; preparing/reading cancel is
+accepted but confirmed only after resource release; committing/rendering reject
+cancellation. Gate closure rejects new jobs and cancels precommit work.
+
+The worker opens the volume, rechecks cancellation atomically before marking
+COMMITTING, executes the real checked store operation, and closes the volume.
+Store success records save_confirmed plus version independently of rendering.
+Only then may the same owner render the new default. A successful save supersedes
+an older volatile trial even if display later fails. DONE for set-default means
+save+render confirmed; refresh DONE means a marker snapshot, not a save/render.
+Store I/O/commit ambiguity is UNKNOWN, not canceled or rolled back. Release
+failure pins the job busy/UNKNOWN and blocks new work until explicit recovery;
+no timeout or terminal label authorizes exporting a still-owned volume.
+
+Read/refresh results are volatile observations, not power-loss durability proof.
+The last operation result is volatile; old boot/authorization sessions must not
+be replayed as new writes. Remote protocol/authorization and UI are separate
+bindings still required after this native worker slice.

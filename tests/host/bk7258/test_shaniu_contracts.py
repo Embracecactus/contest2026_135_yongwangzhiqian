@@ -923,6 +923,11 @@ def main():
     add(suite, "RES-02.selection-version-legacy-recovery", "RES-02", "L2",
         [HERE / "build/test_bk7258_display_pack", HERE / "build/shaniu-default-v1.bkep"],
         ready=binaries["test_bk7258_display_pack"], marker=False)
+    for variant in ("refresh", "cancel", "gate", "preparing-cancel", "commit-cancel",
+                    "render-failure", "release-failure", "stale", "supersede", "stale-job", "commit-unknown"):
+        add(suite, "RES-02.selection-job-" + variant, "RES-02", "L2",
+            [sys.executable, HERE / "test_pack_trial.py", "selection-" + variant],
+            ready=binaries["test_display_upload"], setup_exit_code=2)
     for variant in ("migration", "stale", "local-writer", "malformed", "overflow", "directory-failure"):
         add(suite, "RES-02.selection-version-" + variant, "RES-02", "L2",
             [HERE / "build/test_display_selection", HERE / "build/shaniu-default-v1.bkep", variant],
@@ -1510,6 +1515,8 @@ def main():
         ROOT / "app/bk7258/bk7258_display_trial_control.c",
         ROOT / "app/bk7258/bk7258_display_trial_control.h",
         ROOT / "app/bk7258/bk7258_display_intent.inc",
+        ROOT / "app/bk7258/bk7258_display_selection_request.inc",
+        ROOT / "app/bk7258/bk7258_display_selection.inc",
         ROOT / "app/bk7258/bk7258_display_render_identity.inc",
         ROOT / "tools/bk7258/_lib/workbench_tasks.py",
         HERE / "test_provision_tls.c",

@@ -127,6 +127,46 @@ int bk7258_display_trial_pack_checked(const char *filename,
 int bk7258_display_trial_status(struct bkdisplay_trial_status_s *status);
 int bk7258_display_cancel_trial(uint32_t id);
 
+/* One asynchronous default-selection job on the existing display worker.
+ * Status is a metadata-only read. Refresh explicitly queues storage I/O.
+ * Store confirmation and renderer completion are separate outcomes.
+ */
+
+enum bkdisplay_selection_state_e
+{
+  BKDISPLAY_SELECTION_IDLE = 0,
+  BKDISPLAY_SELECTION_PENDING,
+  BKDISPLAY_SELECTION_PREPARING,
+  BKDISPLAY_SELECTION_COMMITTING,
+  BKDISPLAY_SELECTION_RENDERING,
+  BKDISPLAY_SELECTION_CANCEL_PENDING,
+  BKDISPLAY_SELECTION_DONE,
+  BKDISPLAY_SELECTION_CANCELED,
+  BKDISPLAY_SELECTION_FAILED,
+  BKDISPLAY_SELECTION_UNKNOWN
+};
+
+struct bkdisplay_selection_status_s
+{
+  uint32_t id;
+  enum bkdisplay_selection_state_e state;
+  int error;
+  int release_error;
+  bool refresh;
+  bool version_known;
+  bool save_confirmed;
+  bool render_confirmed;
+  uint64_t expected_revision;
+  struct bkdisplay_selection_version_s version;
+};
+
+int bk7258_display_selection_request(const char *filename,
+  uint64_t expected_revision, uint32_t expected_id, uint32_t *id);
+int bk7258_display_selection_refresh(uint32_t expected_id, uint32_t *id);
+int bk7258_display_selection_status(
+  struct bkdisplay_selection_status_s *status);
+int bk7258_display_selection_cancel(uint32_t id);
+
 int bk7258_display_set_expression(const char *expression);
 /* Atomic acquisition/conditional update under the rendering mutex. A nonzero
  * identity owns the attempted render even on I/O failure. Zero means no lease.

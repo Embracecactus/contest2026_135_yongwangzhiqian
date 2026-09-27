@@ -28,12 +28,32 @@ static uint64_t clock_ms=100;
 static uint64_t bkdisplay_now_ms(void) { return clock_ms; }
 static unsigned mounts,unmounts,frames,writes;
 static bool expect_green;
+static bool cancel_on_mount, cancel_on_write, fail_frame, fail_unmount;
+static bool fail_directory_sync;
+static uint32_t selection_id;
 ssize_t __real_write(int fd,const void *p,size_t n);
 ssize_t __wrap_write(int fd,const void *p,size_t n)
-{ writes++;return __real_write(fd,p,n); }
+{ writes++;
+  if (cancel_on_write)
+    { cancel_on_write=false;assert(bk7258_display_selection_cancel(selection_id)==-EBUSY); }
+  return __real_write(fd,p,n); }
+int __real_fsync(int fd);
+int __wrap_fsync(int fd)
+{
+  struct stat info;
+  if(fail_directory_sync && fstat(fd,&info)==0 && S_ISDIR(info.st_mode))
+    {fail_directory_sync=false;errno=EIO;return -1;}
+  return __real_fsync(fd);
+}
 static int test_mount(const char *a,const char *b,const char *c,unsigned long d,const void *e)
-{ (void)a;(void)b;(void)c;(void)d;(void)e;mounts++;return 0; }
-static int test_umount(const char *p) { (void)p;unmounts++;return 0; }
+{ (void)a;(void)b;(void)c;(void)d;(void)e;mounts++;
+  if(cancel_on_mount)
+    {cancel_on_mount=false;assert(bk7258_display_selection_cancel(selection_id)==0);
+     struct bkdisplay_selection_status_s s;assert(bk7258_display_selection_status(&s)==0);
+     assert(s.state==BKDISPLAY_SELECTION_CANCEL_PENDING);}
+  return 0; }
+static int test_umount(const char *p)
+{(void)p;if(fail_unmount){fail_unmount=false;errno=EIO;return -1;}unmounts++;return 0;}
 #define mount test_mount
 #define umount test_umount
 static int bkdisplay_framebuffer_write(const char *path,const uint16_t *pixels)
@@ -42,11 +62,14 @@ static int bkdisplay_framebuffer_write(const char *path,const uint16_t *pixels)
   if(expect_green)
     {for(size_t i=0;i<BKDISPLAY_CANVAS_PIXELS;i++)assert(pixels[i]==0x07e0);}
   else assert(pixels[0]==0x0842); /* Source palette background #090b13. */
+  if(fail_frame){fail_frame=false;return -EIO;}
   frames++;return 0;
 }
+static inline bool bkdisplay_selection_storage_blocked(void);
 #include "pack-trial-render.inc"
 #include "bk7258_display_render_identity.inc"
 #include "bk7258_display_intent.inc"
+#include "bk7258_display_selection.inc"
 static void install(const char *path,bool activate)
 {
   FILE *f=fopen(path,"rb");assert(f);
@@ -188,6 +211,90 @@ static void client_peer(struct bkdisplay_service_s *service)
     }
   bkcontrol_session_close(&wire);
 }
+static void selection_case(struct bkdisplay_service_s *service,const char *mode)
+{
+  struct bkdisplay_selection_status_s state;
+  unsigned io=mounts,painted=frames,stored=writes;
+  uint32_t trial=0;
+  if(!strcmp(mode,"selection-supersede"))
+    {assert(bk7258_display_trial_checked("happy",30,0,&trial)==0);
+     assert(bkdisplay_intent_step(service,true));io=mounts;painted=frames;}
+  if(!strcmp(mode,"selection-refresh"))
+    assert(bk7258_display_selection_refresh(0,&selection_id)==0);
+  else
+    assert(bk7258_display_selection_request("shaniu-upload-v1.bkep",
+      !strcmp(mode,"selection-stale")?0:1,0,&selection_id)==0);
+  assert(selection_id==1 && writes==stored && frames==painted && mounts==io);
+  assert(bk7258_display_selection_status(&state)==0 && state.state==BKDISPLAY_SELECTION_PENDING);
+  assert(writes==stored && mounts==io);
+  if(!strcmp(mode,"selection-cancel"))
+    {assert(bk7258_display_selection_cancel(selection_id)==0);
+     assert(!bkdisplay_selection_step(service,true));}
+  else if(!strcmp(mode,"selection-gate"))
+    {bkdisplay_intent_gate(false);assert(!bkdisplay_selection_step(service,true));}
+  else
+    {
+      if(!strcmp(mode,"selection-stale-job"))
+        {uint32_t old=selection_id,ignored;
+         assert(bk7258_display_selection_cancel(old)==0);
+         assert(bk7258_display_selection_request("shaniu-upload-v1.bkep",1,old,&selection_id)==0);
+         assert(selection_id==old+1);
+         assert(bk7258_display_selection_cancel(old)==-ESTALE);
+         assert(bk7258_display_selection_refresh(old,&ignored)==-ESTALE);}
+      cancel_on_mount=!strcmp(mode,"selection-preparing-cancel");
+      cancel_on_write=!strcmp(mode,"selection-commit-cancel");
+      fail_frame=!strcmp(mode,"selection-render-failure");
+      fail_unmount=!strcmp(mode,"selection-release-failure");
+      fail_directory_sync=!strcmp(mode,"selection-commit-unknown");
+      expect_green=true;
+      assert(bkdisplay_selection_step(service,true));
+    }
+  assert(bk7258_display_selection_status(&state)==0);
+  if(!strcmp(mode,"selection-cancel") || !strcmp(mode,"selection-gate") ||
+     !strcmp(mode,"selection-preparing-cancel"))
+    {assert(state.state==BKDISPLAY_SELECTION_CANCELED && !state.save_confirmed);
+     assert(writes==stored && frames==painted);selected("shaniu-default-v1");}
+  else if(!strcmp(mode,"selection-refresh"))
+    {assert(state.state==BKDISPLAY_SELECTION_DONE && state.version_known);
+     assert(state.version.revision==1 && !state.save_confirmed && !state.render_confirmed);
+     assert(!strcmp(state.version.filename,"shaniu-default-v1.bkep"));
+     assert(writes==stored && frames==painted);}
+  else if(!strcmp(mode,"selection-commit-unknown"))
+    {assert(state.state==BKDISPLAY_SELECTION_UNKNOWN && state.error==-EIO);
+     assert(!state.save_confirmed && !state.render_confirmed && frames==painted);
+     selected("shaniu-upload-v1"); /* Visible rename is not confirmed durability. */
+     assert(bk7258_display_selection_refresh(selection_id,&selection_id)==0);
+     assert(bkdisplay_selection_step(service,true));
+     assert(bk7258_display_selection_status(&state)==0);
+     assert(state.state==BKDISPLAY_SELECTION_DONE && state.version_known);
+     assert(state.version.revision==2 && !state.save_confirmed && !state.render_confirmed);}
+  else if(!strcmp(mode,"selection-stale"))
+    {assert(state.state==BKDISPLAY_SELECTION_FAILED && state.error==-ESTALE);
+     assert(!state.save_confirmed && writes==stored && frames==painted);}
+  else
+    {
+      assert(state.save_confirmed && state.version_known && state.version.revision==2);
+      selected("shaniu-upload-v1");assert(writes>stored);
+      if(!strcmp(mode,"selection-render-failure"))
+        {assert(state.state==BKDISPLAY_SELECTION_FAILED && state.error==-EIO);
+         assert(!state.render_confirmed && frames==painted);}
+      else if(!strcmp(mode,"selection-release-failure"))
+        {assert(state.state==BKDISPLAY_SELECTION_UNKNOWN && state.release_error==-EIO);
+         assert(!state.render_confirmed && frames==painted && bkdisplay_intent_pending());
+         uint32_t next;
+         assert(bk7258_display_selection_refresh(selection_id,&next)==-EBUSY);
+         assert(bkdisplay_volume_open(service)==-EBUSY);
+         assert(bkdisplay_volume_close(service)==0); /* Explicit fixture cleanup only. */}
+      else
+        {assert(state.state==BKDISPLAY_SELECTION_DONE && state.render_confirmed);
+         assert(frames==painted+2);
+         if(trial){clock_ms=130;assert(!bkdisplay_trial_step(service,true));
+                   expect(BKDISPLAY_TRIAL_SUPERSEDED);assert(frames==painted+2);}}
+    }
+  unsigned stable=writes;
+  if(!state.release_error)assert(!bkdisplay_selection_step(service,true));
+  assert(writes==stable);
+}
 static int remove_entry(const char *p,const struct stat *s,int type,struct FTW *w)
 {(void)s;(void)type;(void)w;return remove(p);}
 int main(int argc,char **argv)
@@ -199,7 +306,9 @@ int main(int argc,char **argv)
   unsigned baseline_writes=writes,baseline_frames=frames,baseline_mounts=mounts;
   uint32_t id=0;
   const char *name=!strcmp(argv[3],"missing")?"missing.bkep":"shaniu-upload-v1.bkep";
-  if(!strcmp(argv[3],"--peer"))
+  if(!strncmp(argv[3],"selection-",10))
+    {selection_case(&service,argv[3]);baseline_writes=writes;}
+  else if(!strcmp(argv[3],"--peer"))
     client_peer(&service);
   else if(!strncmp(argv[3],"wire-",5))
     wire_case(&service,argv[3]);
@@ -249,7 +358,7 @@ int main(int argc,char **argv)
         }
     }
   assert(writes==baseline_writes && mounts==unmounts);
-  assert(!bkdisplay_intent_pending());
+  if(strcmp(argv[3],"selection-release-failure"))assert(!bkdisplay_intent_pending());
   bkdisplay_intent_supersede();
   for(unsigned i=0;i<5;i++)free(service.frames[i]);
   free(service.speaking_frame);

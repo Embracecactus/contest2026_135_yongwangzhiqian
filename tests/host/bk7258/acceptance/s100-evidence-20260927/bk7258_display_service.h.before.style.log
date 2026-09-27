@@ -1,0 +1,36 @@
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:2:1: error: Relative file path does not match actual file
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:12:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:13:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:15:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:16:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:40:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:43:75: error: Block comment terminator must be on a separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:43:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:45:1: error: Missing blank line before comment found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:45:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:47:1: error: Missing blank line before comment found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:47:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:60:78: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:62:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:79:84: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:83:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:87:80: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:88:82: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:89:78: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:91:79: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:92:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:113:85: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:114:1: error: Missing blank line before comment found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:114:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:115:78: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:132:79: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:133:80: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:134:80: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:135:75: error: Block comment terminator must be on a separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:135:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:136:84: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:143:1: error: Missing blank line before comment found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:143:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:145:79: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:146:64: error: Block comment terminator must be on a separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s100/before-bk7258_display_service.h:146:1: error: Missing blank line after comment

@@ -27,6 +27,8 @@ static void bkdisplay_trial_supersede(void)
       g_bkdisplay_trial.error = -ESTALE;
     }
 }
+#include "bk7258_display_selection_request.inc"
+
 int bk7258_display_trial_status(struct bkdisplay_trial_status_s *status)
 {
   if (status == NULL) return -EINVAL;
@@ -62,6 +64,7 @@ static void bkdisplay_intent_gate(bool allowed)
   irqstate_t flags = spin_lock_irqsave(&g_bkdisplay_intent_lock);
   g_bkdisplay_intent_allowed = allowed;
   if (!allowed) bkdisplay_trial_supersede();
+  if (!allowed) bkdisplay_selection_cancel_locked();
   if (!allowed && g_bkdisplay_intent.state == BKDISPLAY_EXPRESSION_PENDING)
     {
       g_bkdisplay_intent.state = BKDISPLAY_EXPRESSION_CANCELED;
@@ -76,7 +79,8 @@ static void bkdisplay_intent_gate(bool allowed)
 static bool bkdisplay_intent_pending(void)
 {
   irqstate_t flags = spin_lock_irqsave(&g_bkdisplay_intent_lock);
-  bool pending = g_bkdisplay_intent.state == BKDISPLAY_EXPRESSION_PENDING ||
+  bool pending = bkdisplay_selection_busy_locked() ||
+                 g_bkdisplay_intent.state == BKDISPLAY_EXPRESSION_PENDING ||
                  g_bkdisplay_intent.state == BKDISPLAY_EXPRESSION_RUNNING;
   spin_unlock_irqrestore(&g_bkdisplay_intent_lock, flags);
   return pending;
@@ -149,7 +153,8 @@ static int bkdisplay_request(const char *expression, uint32_t *id,
 
   irqstate_t flags = spin_lock_irqsave(&g_bkdisplay_intent_lock);
   if (check_id && expected_id != g_bkdisplay_trial.id) ret = -ESTALE;
-  else if ((duration_ms && bkdisplay_trial_busy()) || !g_bkdisplay_intent_allowed ||
+  else if (bkdisplay_selection_busy_locked() ||
+      (duration_ms && bkdisplay_trial_busy()) || !g_bkdisplay_intent_allowed ||
       g_bkdisplay_intent.state == BKDISPLAY_EXPRESSION_PENDING ||
       g_bkdisplay_intent.state == BKDISPLAY_EXPRESSION_RUNNING)
     ret = -EBUSY;

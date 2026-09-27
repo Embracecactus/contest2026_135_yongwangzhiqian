@@ -99,7 +99,7 @@ def main():
                 str(APP / "bk7258_media_volume.c"),
                 str(APP / "bk7258_display_trial_control.c"),
                 str(APP / "bk7258_control_session.c"),
-                "-Wl,--wrap=write",
+                "-Wl,--wrap=write,--wrap=fsync",
                 "-o",
                 str(temp / "test"),
             ],

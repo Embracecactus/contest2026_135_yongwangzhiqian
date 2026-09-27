@@ -204,6 +204,11 @@ static int bkdisplay_volume_open(struct bkdisplay_service_s *service)
 {
   int ret;
 
+  if (bkdisplay_selection_storage_blocked())
+    {
+      return -EBUSY;
+    }
+
   if (service->volume_mounted)
     {
       return 0;
@@ -698,6 +703,8 @@ static uint64_t bkdisplay_now_ms(void)
 
 #include "bk7258_display_focus.inc"
 
+#include "bk7258_display_selection.inc"
+
 static int bkdisplay_worker(int argc, char *argv[])
 {
   struct bkdisplay_service_s *service = &g_bkdisplay_service;
@@ -717,6 +724,7 @@ static int bkdisplay_worker(int argc, char *argv[])
       if (!service->devices_ready)
         {
           service->status.state = BKDISPLAY_SERVICE_WAITING_DEVICES;
+          (void)bkdisplay_selection_step(service, false);
           (void)bkdisplay_intent_step(service, false);
           (void)bkdisplay_trial_step(service, false);
         }
@@ -730,6 +738,12 @@ static int bkdisplay_worker(int argc, char *argv[])
               if (!ret) service->overlay_dirty = false;
               else service->status.last_error = ret;
             }
+          next = now;
+        }
+      else if (bkdisplay_selection_step(service, true))
+        {
+          service->focus_painted = 0;
+          service->speaking_painted = false;
           next = now;
         }
       else if (bkdisplay_intent_step(service, true))

@@ -1,0 +1,10 @@
+{
+  "bk7258_display_service.c": {
+    "added_diagnostic_types": []
+  },
+  "bk7258_display_service.h": {
+    "added_diagnostic_types": []
+  },
+  "includes": "nxstyle skips .inc extensions. C projections of both new includes were checked; only deliberate projection/header path mismatch remains. Do not treat the direct .inc exit0 as a style pass.",
+  "limit": "Existing C/header diagnostics remain; no whole-file style PASS."
+}

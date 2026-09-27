@@ -1934,10 +1934,10 @@ $(BUILD)/test_shaniu_focus_render: test_shaniu_focus_render.c $(VOICE_PACK_ROOT)
 $(BUILD)/test_shaniu_display_snapshot: test_shaniu_display_snapshot.c $(VOICE_PACK_ROOT)/bk7258_display_snapshot.inc $(VOICE_PACK_ROOT)/bk7258_display_service.h | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(MOCKS) -I $(VOICE_PACK_ROOT) $< -o $@
 
-$(BUILD)/test_shaniu_display_intent: test_shaniu_display_intent.c $(VOICE_PACK_ROOT)/bk7258_display_intent.inc $(VOICE_PACK_ROOT)/bk7258_display_service.h | $(BUILD)
+$(BUILD)/test_shaniu_display_intent: test_shaniu_display_intent.c $(VOICE_PACK_ROOT)/bk7258_display_intent.inc $(VOICE_PACK_ROOT)/bk7258_display_selection_request.inc $(VOICE_PACK_ROOT)/bk7258_display_service.h | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(MOCKS) -I $(VOICE_PACK_ROOT) $< -o $@
 
-$(BUILD)/test_shaniu_expression_cancel: test_shaniu_expression_cancel.c $(VOICE_PACK_ROOT)/bk7258_display_intent.inc $(VOICE_PACK_ROOT)/bk7258_agent_display_control.inc $(VOICE_PACK_ROOT)/bk7258_display_service.h | $(BUILD)
+$(BUILD)/test_shaniu_expression_cancel: test_shaniu_expression_cancel.c $(VOICE_PACK_ROOT)/bk7258_display_intent.inc $(VOICE_PACK_ROOT)/bk7258_display_selection_request.inc $(VOICE_PACK_ROOT)/bk7258_agent_display_control.inc $(VOICE_PACK_ROOT)/bk7258_display_service.h | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(MOCKS) -I $(VOICE_PACK_ROOT) $< -o $@
 
 $(BUILD)/test_shaniu_models_durability: test_shaniu_models_durability.c $(VOICE_PACK_ROOT)/bk7258_preferences.c $(VOICE_PACK_ROOT)/bk7258_cloud_config.c $(VOICE_PACK_ROOT)/bk7258_provision_store.c $(VOICE_OTA_MBEDCRYPTO) | $(BUILD)
@@ -1950,7 +1950,7 @@ $(BUILD)/test_shaniu_models_durability: test_shaniu_models_durability.c $(VOICE_
 
 # Extract exact production command bodies; never maintain a test copy of their
 # state/replace logic. Rendering and NuttX synchronization stay at the boundary.
-$(BUILD)/test_shaniu_expression_ownership: test_shaniu_expression_ownership.c $(VOICE_PACK_ROOT)/bk7258_display_render_identity.inc $(VOICE_PACK_ROOT)/bk7258_display_service.c $(VOICE_PACK_ROOT)/bk7258_display_intent.inc $(VOICE_PACK_ROOT)/bk7258_vision_feedback.c | $(BUILD)
+$(BUILD)/test_shaniu_expression_ownership: test_shaniu_expression_ownership.c $(VOICE_PACK_ROOT)/bk7258_display_render_identity.inc $(VOICE_PACK_ROOT)/bk7258_display_service.c $(VOICE_PACK_ROOT)/bk7258_display_intent.inc $(VOICE_PACK_ROOT)/bk7258_display_selection_request.inc $(VOICE_PACK_ROOT)/bk7258_vision_feedback.c | $(BUILD)
 	python3 -c 'from pathlib import Path; s=Path("$(VOICE_PACK_ROOT)/bk7258_display_service.c").read_text(); a=s.index("int bk7258_display_set_expression("); b=s.index("int bk7258_display_show_mapping_test(",a); Path("$(BUILD)/display-commands.inc").write_text(s[a:b])'
 	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(MOCKS) -I $(VOICE_PACK_ROOT) -I $(BUILD) $< $(VOICE_PACK_ROOT)/bk7258_vision_feedback.c -o $@
 
@@ -1958,13 +1958,13 @@ $(BUILD)/test_shaniu_expression_ownership: test_shaniu_expression_ownership.c $(
 run-expression-ownership: $(BUILD)/test_shaniu_expression_ownership
 	./$(BUILD)/test_shaniu_expression_ownership
 
-$(BUILD)/test_shaniu_expression_trial: test_shaniu_expression_trial.c $(VOICE_PACK_ROOT)/bk7258_display_intent.inc $(VOICE_PACK_ROOT)/bk7258_display_render_identity.inc $(VOICE_PACK_ROOT)/bk7258_display_service.h | $(BUILD)
+$(BUILD)/test_shaniu_expression_trial: test_shaniu_expression_trial.c $(VOICE_PACK_ROOT)/bk7258_display_intent.inc $(VOICE_PACK_ROOT)/bk7258_display_selection_request.inc $(VOICE_PACK_ROOT)/bk7258_display_render_identity.inc $(VOICE_PACK_ROOT)/bk7258_display_service.h | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(MOCKS) -I $(VOICE_PACK_ROOT) $< -o $@
 .PHONY: run-expression-trial
 run-expression-trial: $(BUILD)/test_shaniu_expression_trial
 	./$(BUILD)/test_shaniu_expression_trial
 
-$(BUILD)/test_shaniu_trial_wire: test_shaniu_trial_wire.c $(VOICE_PACK_ROOT)/bk7258_display_trial_control.c $(VOICE_PACK_ROOT)/bk7258_control_session.c $(VOICE_PACK_ROOT)/bk7258_display_intent.inc $(VOICE_PACK_ROOT)/bk7258_display_render_identity.inc | $(BUILD)
+$(BUILD)/test_shaniu_trial_wire: test_shaniu_trial_wire.c $(VOICE_PACK_ROOT)/bk7258_display_trial_control.c $(VOICE_PACK_ROOT)/bk7258_control_session.c $(VOICE_PACK_ROOT)/bk7258_display_intent.inc $(VOICE_PACK_ROOT)/bk7258_display_selection_request.inc $(VOICE_PACK_ROOT)/bk7258_display_render_identity.inc | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(MOCKS) -I $(VOICE_PACK_ROOT) $< $(VOICE_PACK_ROOT)/bk7258_display_trial_control.c $(VOICE_PACK_ROOT)/bk7258_control_session.c -o $@
 .PHONY: run-trial-wire
 run-trial-wire: $(BUILD)/test_shaniu_trial_wire
