@@ -531,7 +531,17 @@
     "RES-03.native-tls-cancel",
     "RES-03.native-tls-wrong_principal",
     "RES-02.activate-collision",
-    "RES-02.activate-directory-failure"
+    "RES-02.activate-directory-failure",
+    "RES-02.pc-trial-golden",
+    "RES-02.pc-trial-invalid",
+    "RES-02.pc-trial-snapshot",
+    "RES-02.pc-trial-staging",
+    "RES-02.pc-trial-coherent_read",
+    "RES-02.pc-trial-no_replay",
+    "RES-02.pc-trial-cli_preflight",
+    "RES-02.pc-trial-lifecycle",
+    "RES-02.pc-trial-retry_expiry",
+    "RES-02.pc-trial-stale_cancel"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1066,6 +1076,16 @@
     "RES-03.native-tls-cancel",
     "RES-03.native-tls-wrong_principal",
     "RES-02.activate-collision",
-    "RES-02.activate-directory-failure"
+    "RES-02.activate-directory-failure",
+    "RES-02.pc-trial-golden",
+    "RES-02.pc-trial-invalid",
+    "RES-02.pc-trial-snapshot",
+    "RES-02.pc-trial-staging",
+    "RES-02.pc-trial-coherent_read",
+    "RES-02.pc-trial-no_replay",
+    "RES-02.pc-trial-cli_preflight",
+    "RES-02.pc-trial-lifecycle",
+    "RES-02.pc-trial-retry_expiry",
+    "RES-02.pc-trial-stale_cancel"
   ]
 }

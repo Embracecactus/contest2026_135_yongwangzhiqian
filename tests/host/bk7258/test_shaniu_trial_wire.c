@@ -67,8 +67,57 @@ static void read_header(unsigned state, unsigned id)
   assert(!memcmp(reply+24,"ETS1",4));
   assert(get(reply+28)==state && get(reply+32)==id);
 }
-int main(void)
+/* Host-only external wire and renderer clock controls. The protocol/session
+ * and trial transitions are the production implementations above.
+ */
+static int peer(void)
 {
+  struct bkdisplay_service_s service = {0};
+  uint8_t key[32] = {1};
+  char line[513];
+  strcpy(service.status.expression, "neutral");
+  bkdisplay_intent_gate(true);
+  assert(bkcontrol_session_open(&session, key, execute, NULL) == 0);
+  assert(bkcontrol_session_set_config_handler(&session, config) == 0);
+  while (fgets(line, sizeof(line), stdin))
+    {
+      if (!strcmp(line, "step\n"))
+        {
+          if (!bkdisplay_intent_step(&service, true))
+            (void)bkdisplay_trial_step(&service, true);
+          printf("STEP %u %s\n", renders, service.status.expression);
+        }
+      else if (!strncmp(line, "time ", 5))
+        {
+          unsigned long long value;
+          assert(sscanf(line + 5, "%llu", &value) == 1);
+          now_ms = value;
+          puts("TIME");
+        }
+      else
+        {
+          uint8_t frame[80];
+          size_t n = strcspn(line, "\n");
+          assert(n > 0 && n % 2 == 0 && n / 2 <= sizeof(frame));
+          for (size_t i = 0; i < n / 2; i++)
+            {
+              unsigned byte;
+              assert(sscanf(line + i * 2, "%2x", &byte) == 1);
+              frame[i] = byte;
+            }
+          assert(bkcontrol_session_packet(&session, frame, n / 2, reply) == 0);
+          for (size_t i = 0; i < sizeof(reply); i++) printf("%02x", reply[i]);
+          putchar('\n');
+        }
+      fflush(stdout);
+    }
+  bkcontrol_session_close(&session);
+  return 0;
+}
+
+int main(int argc, char **argv)
+{
+  if (argc == 2 && !strcmp(argv[1], "--peer")) return peer();
   struct bkdisplay_service_s service={0};strcpy(service.status.expression,"neutral");
   bkdisplay_intent_gate(true);
   uint8_t key[32]={1}, begin[8]={0,0,0,11,0,0,0,32};

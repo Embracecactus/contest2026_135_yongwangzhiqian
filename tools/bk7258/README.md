@@ -506,3 +506,31 @@ worker and installer, with test TLS server/mount/scheduling boundaries. Embedded
 TLS/PC-grant guard tests remain separate. Physical USB, a browser workbench,
 default activation, persistent device receipts and production throughput remain
 pending; no board deployment is implied by these host commands/tests.
+
+### Limited expression trials from the PC
+
+The existing independently authenticated PC profile needs `scenes` permission.
+`trial-start` tries an expression in the **currently selected pack**. It neither
+previews an uploaded pack nor persists a new default. TTL is explicitly supplied
+by the caller, positive milliseconds up to the existing u32 protocol limit;
+it starts at acceptance and includes queue time. No duration is silently chosen.
+
+```sh
+python tools/bk7258/bk7258.py workbench trial-status --port NATIVE_CDC_PORT --profile pc.profile
+# Use the exact latest id from that read; 0 below is only a fresh-device example.
+python tools/bk7258/bk7258.py workbench trial-start --port NATIVE_CDC_PORT --profile pc.profile --expected-trial-id 0 --operation-id 0102030405060708 --expression happy --ttl-ms 5000
+python tools/bk7258/bk7258.py workbench trial-status --port NATIVE_CDC_PORT --profile pc.profile
+# Replace 1 with the actual active trial id; use a new nonzero operation id.
+python tools/bk7258/bk7258.py workbench trial-cancel --port NATIVE_CDC_PORT --profile pc.profile --expected-trial-id 1 --operation-id 0102030405060709
+```
+
+Use a fresh nonzero 16-digit lowercase hex operation ID for each new intent;
+retain it for an explicit retry of the exact same request after querying. No
+request is automatically replayed. A stale expected trial ID is rejected.
+`accepted` / `completion_verified: false` only acknowledges the request;
+`trial-status` reports pending/rendering/active/restoring/terminal states.
+`device_reports_rendered` means the service reports ACTIVE, not an independent
+physical screen measurement. Only `cancel_confirmed` reports CANCELED. Closing
+the local connection is not remote cancellation; the original TTL still applies.
+A read rechecks the header to reject mixed snapshots and reports an unknown clock
+as `remaining_ms: null`. Neither queries nor retries renew the trial's TTL.

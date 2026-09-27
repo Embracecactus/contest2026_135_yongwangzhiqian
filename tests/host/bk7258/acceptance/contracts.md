@@ -671,3 +671,22 @@ NuttX FAT does not establish physical power-loss durability; L3 remains open.
 These are synchronous store primitives, not a new USB callback or async default
 job. Future desktop activation must preserve expected-revision, ownership and
 render-completion semantics before its entry is enabled.
+
+### S94 PC expression trial client (2026-09-27)
+
+RES-02/N2/N3: consume the existing kind11 ETC1/ETS1 contract from the PC client,
+without a firmware schema change. Caller provides explicit expected latest ID,
+nonzero u64 operation identity, supported expression and positive u32 TTL. This
+selects an expression within the current pack, not a temporary pack/default.
+CLI rejects invalid mutation parameters before borrowing credentials/opening a
+port. Apply ACK is accepted only; current readback separately reports rendered
+or confirmed cancellation. Mixed two-chunk snapshots are rejected by rereading
+the header; remaining UINT64_MAX maps to unknown, not an enormous valid time.
+
+No automatic retries, new claim, TTL renewal, persistence or staging-CANCEL
+substitution. An uncertain mutation closes the local session; the device TTL
+continues and remote state is queried before explicit retry. Real C SDC1 and
+trial transitions are tested through a host pipe with external renderer sink
+and monotonic clock; this layer intentionally does not claim TLS/PC grant/USB or
+actual pixels. Existing TLS/guard suites remain separate. Future pack-specific
+trial/default, light UI and physical combination acceptance remain open.

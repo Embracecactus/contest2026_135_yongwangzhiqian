@@ -914,6 +914,15 @@ def main():
         add(suite, "USB-01.pc-pairing-" + variant, "USB-01", "L2",
             [sys.executable, HERE / "test_workbench_pairing.py",
              "PairingTest.test_" + variant], marker=False)
+    for cls, variants in (
+        ("TrialTest", ("golden", "invalid", "snapshot", "staging", "coherent_read", "no_replay", "cli_preflight")),
+        ("WireTest", ("lifecycle", "retry_expiry", "stale_cancel")),
+    ):
+        for variant in variants:
+            add(suite, "RES-02.pc-trial-" + variant, "RES-02", "L2" if cls == "WireTest" else "L1",
+                [sys.executable, HERE / "test_workbench_trial.py", cls + ".test_" + variant],
+                ready=binaries["test_shaniu_trial_wire"] if cls == "WireTest" else True,
+                marker=False, setup_exit_code=2)
     for variant in ("upload", "reconnect", "cancel", "wrong_principal"):
         add(suite, "RES-03.native-tls-" + variant, "RES-03", "L2",
             [sys.executable, HERE / "test_provision_tls.py", "--resource-case", variant],
@@ -1466,6 +1475,13 @@ def main():
         HERE / "test_workbench_resources.py",
         HERE / "test_workbench_resource_flow.py",
         ROOT / "tools/bk7258/_lib/workbench_resources.py",
+        ROOT / "tools/bk7258/_lib/workbench_trial.py",
+        HERE / "test_workbench_trial.py",
+        HERE / "test_shaniu_trial_wire.c",
+        ROOT / "app/bk7258/bk7258_display_trial_control.c",
+        ROOT / "app/bk7258/bk7258_display_trial_control.h",
+        ROOT / "app/bk7258/bk7258_display_intent.inc",
+        ROOT / "app/bk7258/bk7258_display_render_identity.inc",
         ROOT / "tools/bk7258/_lib/workbench_tasks.py",
         HERE / "test_provision_tls.c",
         HERE / "test_pack_native_fixture.c",

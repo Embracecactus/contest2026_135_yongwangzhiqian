@@ -284,6 +284,55 @@ class ControlClient:
             self.close()
             raise ControlError("Task read failed; result is unconfirmed") from None
 
+    def trial_request(
+        self, action, expected_id, operation_id, expression=None, ttl_ms=None
+    ):
+        from . import workbench_trial
+
+        record = workbench_trial.encode(
+            action, expected_id, operation_id, expression, ttl_ms
+        )
+        if self.closed or not self.authenticated:
+            raise ControlError("PC authentication is required")
+        try:
+            deadline = self._now() + self._timeout
+            self._exchange(16, struct.pack(">II", 11, len(record)), deadline)
+            self._exchange(17, record, deadline)
+            self._exchange(18, b"", deadline)
+            return dict(
+                accepted=True, operation_id=operation_id, completion_verified=False
+            )
+        except Exception:
+            self.close()
+            raise ControlError(
+                "Trial request unconfirmed; query before manual retry"
+            ) from None
+
+    def trial_status(self):
+        from . import workbench_trial
+
+        if self.closed or not self.authenticated:
+            raise ControlError("PC authentication is required")
+        try:
+            deadline = self._now() + self._timeout
+
+            def chunk(offset):
+                total, *words = self._exchange(
+                    15, struct.pack(">I", 11 << 16 | offset), deadline
+                )
+                if total != 32:
+                    raise ControlError("Invalid trial snapshot size")
+                return struct.pack(">4I", *words)
+
+            header = chunk(0)
+            data = header + chunk(16)
+            if chunk(0) != header:
+                raise ControlError("Trial changed during snapshot read")
+            return workbench_trial.decode(data)
+        except Exception:
+            self.close()
+            raise ControlError("Trial read unconfirmed; no request replayed") from None
+
     def _resource_deadline(self, deadline):
         now = self._now()
         if deadline is not None and (
@@ -400,6 +449,9 @@ def add_arguments(parser):
             "pair-finish",
             "task-event",
             "task-status",
+            "trial-start",
+            "trial-status",
+            "trial-cancel",
             "resource-status",
             "resource-upload",
             "resource-resume",
@@ -428,6 +480,27 @@ def add_arguments(parser):
     )
     parser.add_argument(
         "--receipt", type=Path, help="Exclusive local public job receipt"
+    )
+    parser.add_argument(
+        "--expected-trial-id", type=int, help="Exact latest ID read from this device"
+    )
+    parser.add_argument(
+        "--operation-id",
+        help="Nonzero 16 lowercase hex digits; retain across a manual exact retry",
+    )
+    parser.add_argument(
+        "--expression",
+        choices=(
+            "neutral",
+            "happy",
+            "shy",
+            "sad",
+            "surprised",
+            "thinking",
+            "listening",
+            "speaking",
+            "sleepy",
+        ),
     )
     parser.add_argument("--port")
     parser.add_argument("--profile", type=Path)
@@ -484,6 +557,10 @@ def _credentials(args):
 
 def run(args):
     resource_plan = None
+    if args.operation.startswith("trial-"):
+        from . import workbench_trial
+
+        workbench_trial.prepare(args)
     if args.operation.startswith("resource-"):
         from . import workbench_resources
 
@@ -525,6 +602,16 @@ def run(args):
             )
             client.start(key)
             key[:] = bytes(len(key))
+            if args.operation == "trial-status":
+                return client.trial_status()
+            if args.operation in ("trial-start", "trial-cancel"):
+                return client.trial_request(
+                    args.operation.removeprefix("trial-"),
+                    args.expected_trial_id,
+                    args.operation_id,
+                    args.expression,
+                    args.ttl_ms,
+                )
             if resource_plan is not None:
                 return workbench_resources.perform(client, args, resource_plan)
             if args.operation == "task-event":
