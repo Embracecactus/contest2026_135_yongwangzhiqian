@@ -13,6 +13,12 @@
  ****************************************************************************/
 
 static struct bkdisplay_selection_status_s g_bkdisplay_selection;
+/* Worker writes the page only while PREPARING/CANCEL_PENDING. Admission
+ * cannot clear it then, and getters never read it until DONE is published
+ * under the metadata lock. This avoids a second page on the worker stack.
+ */
+static struct bkdisplay_catalog_page_s g_bkdisplay_catalog_page;
+static char g_bkdisplay_catalog_after[BKDISPLAY_STORE_FILENAME_SIZE];
 
 /****************************************************************************
  * Private Functions
@@ -48,7 +54,8 @@ static void bkdisplay_selection_cancel_locked(void)
 
 static int bkdisplay_selection_request(const char *filename,
                                        uint64_t revision,
-                                       uint32_t expected_id, uint32_t *id)
+                                       uint32_t expected_id, uint32_t *id,
+                                       bool catalog)
 {
   size_t length = 0;
   irqstate_t flags;
@@ -85,10 +92,17 @@ static int bkdisplay_selection_request(const char *filename,
       memset(&g_bkdisplay_selection, 0, sizeof(g_bkdisplay_selection));
       g_bkdisplay_selection.id = next;
       g_bkdisplay_selection.state = BKDISPLAY_SELECTION_PENDING;
-      g_bkdisplay_selection.refresh = filename == NULL;
+      memset(&g_bkdisplay_catalog_page, 0, sizeof(g_bkdisplay_catalog_page));
+      memset(g_bkdisplay_catalog_after, 0, sizeof(g_bkdisplay_catalog_after));
+      g_bkdisplay_selection.catalog = catalog;
+      g_bkdisplay_selection.refresh = !catalog && filename == NULL;
       g_bkdisplay_selection.expected_revision = revision;
       if (filename != NULL)
-        memcpy(g_bkdisplay_selection.version.filename, filename, length + 1);
+        {
+          char *target = catalog ? g_bkdisplay_catalog_after :
+                                    g_bkdisplay_selection.version.filename;
+          memcpy(target, filename, length + 1);
+        }
       *id = next;
     }
 
@@ -105,12 +119,12 @@ int bk7258_display_selection_request(const char *filename,
 {
   if (filename == NULL) return -EINVAL;
   return bkdisplay_selection_request(filename, expected_revision,
-                                      expected_id, id);
+                                      expected_id, id, false);
 }
 
 int bk7258_display_selection_refresh(uint32_t expected_id, uint32_t *id)
 {
-  return bkdisplay_selection_request(NULL, 0, expected_id, id);
+  return bkdisplay_selection_request(NULL, 0, expected_id, id, false);
 }
 
 int bk7258_display_selection_status(
@@ -169,6 +183,48 @@ int bk7258_display_selection_recover(uint32_t id)
       g_bkdisplay_selection.recovery_pending = true;
     }
 
+  spin_unlock_irqrestore(&g_bkdisplay_intent_lock, flags);
+  return ret;
+}
+
+int bk7258_display_catalog_request(const char *after,
+                                    uint32_t expected_id, uint32_t *id)
+{
+  return bkdisplay_selection_request(after != NULL && after[0] ? after : NULL,
+                                      0, expected_id, id, true);
+}
+
+int bk7258_display_catalog_page(uint32_t id,
+                                 struct bkdisplay_catalog_page_s *page)
+{
+  irqstate_t flags;
+  int ret = 0;
+
+  if (page == NULL)
+    {
+      return -EINVAL;
+    }
+
+  memset(page, 0, sizeof(*page));
+  if (!id)
+    {
+      return -EINVAL;
+    }
+
+  flags = spin_lock_irqsave(&g_bkdisplay_intent_lock);
+  if (id != g_bkdisplay_selection.id)
+    ret = -ESTALE;
+  else if (!g_bkdisplay_selection.catalog)
+    ret = -ENODATA;
+  else if (g_bkdisplay_selection.state == BKDISPLAY_SELECTION_DONE)
+    *page = g_bkdisplay_catalog_page;
+  else if (g_bkdisplay_selection.state == BKDISPLAY_SELECTION_CANCELED)
+    ret = -ECANCELED;
+  else if (g_bkdisplay_selection.state == BKDISPLAY_SELECTION_FAILED ||
+           g_bkdisplay_selection.state == BKDISPLAY_SELECTION_UNKNOWN)
+    ret = g_bkdisplay_selection.error < 0 ? g_bkdisplay_selection.error : -EIO;
+  else
+    ret = -EAGAIN;
   spin_unlock_irqrestore(&g_bkdisplay_intent_lock, flags);
   return ret;
 }

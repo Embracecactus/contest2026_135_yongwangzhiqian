@@ -177,13 +177,32 @@ class WebTest(unittest.TestCase):
 
     def test_invalid_upload_does_not_open_device(self):
         with patch.object(self.m.workbench, "run") as run:
-            for data in ["!", "YQ==", "A" * 200000]:
+            for data in ["!", "YQ=="]:
                 body = {
                     "id": "06" * 16,
                     "operation": "resource-upload",
                     "params": {"data": data, "ttl_ms": 5000},
                 }
                 self.assertIn(self.request("POST", "/api/start", body)[0], (400, 413))
+            # The server rejects an oversized declared body before consuming
+            # it. Send headers only so an intentional early close cannot race
+            # HTTPConnection.sendall and replace the HTTP rejection observation.
+            connection = http.client.HTTPConnection(
+                "127.0.0.1", self.server.server_port, timeout=3
+            )
+            try:
+                connection.putrequest("POST", "/api/start")
+                connection.putheader("Authorization", "Bearer " + self.server.token)
+                connection.putheader("Origin", self.server.origin)
+                connection.putheader("Content-Type", "application/json")
+                connection.putheader("Content-Length", "200000")
+                connection.endheaders()
+                response = connection.getresponse()
+                self.assertEqual(response.status, 413)
+                response.read()
+            finally:
+                connection.close()
+            self.assertEqual(list(self.service.directory.iterdir()), [])
             run.assert_not_called()
 
     def test_http_upload_reaches_tls_and_native_installer(self):

@@ -1,0 +1,13 @@
+{
+  "app/bk7258/bk7258_display_store.c": "8a57aa1f2c6a405a782a995738587af91992590990adb9bd14bc2451182f16b3",
+  "app/bk7258/bk7258_display_selection.inc": "11e91260bf89b036697dc2006b255d0fd6ed8e0e227bae6ad4d1569b4de262aa",
+  "app/bk7258/bk7258_display_selection_request.inc": "79003b0f4e6ec52fc97dca74147dd54af4ba8c918a3844276554422430df127a",
+  "app/bk7258/bk7258_display_service.h": "e1d64d293a81c98e57e5efe41d9cb1a4a3d6860bfd216ac300f07b0f62dc729c",
+  "tests/host/bk7258/catalog_job_cases.inc": "a27c18ca7ffee0d0382f4ade6b3b37bb4cb63b1918ce4738e3dbd4fdfe63c514",
+  "tests/host/bk7258/test_display_catalog.c": "018951c40a5fbe1df83d7df9ce299d1399a77d7ceefc981134eaee010255f1a9",
+  "tests/host/bk7258/test_pack_trial.c": "65d064aaff09da592167fa979d7e5587b002cac3aaad0e3e2c705869e93aeab3",
+  "tests/host/bk7258/test_pack_trial.py": "be112210dccbbea59ee03a131cbe2ff78765234c319c323601399f3f6eeeb101",
+  "tests/host/bk7258/test_workbench_web.py": "449177f8b1935f96e46d720fcf7fa614dd1ed5b1560f8593199de9c3798e7a98",
+  "tests/host/bk7258/test_shaniu_contracts.py": "bfd9273269cda246cd0501b8375d3ea6a215442f22338baaf05e1d5ba6c91eb9",
+  "tests/host/bk7258/acceptance/required-units.v1.json": "409c2152a83e80777260692b16fdbdab831ad0c7a4a3150008febcba9389b9a0"
+}

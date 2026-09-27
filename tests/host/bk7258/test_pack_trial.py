@@ -186,7 +186,7 @@ def main():
                 str(APP / "bk7258_display_selection_control.c"),
                 str(APP / "bk7258_control_session.c"),
                 *tls_flags,
-                "-Wl,--wrap=write,--wrap=fsync",
+                "-Wl,--wrap=write,--wrap=fsync,--wrap=readdir",
                 "-o",
                 str(temp / "test"),
             ],

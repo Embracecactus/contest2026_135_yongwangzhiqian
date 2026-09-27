@@ -978,6 +978,11 @@ def main():
         add(suite, "RES-02.selection-job-" + variant, "RES-02", "L2",
             [sys.executable, HERE / "test_pack_trial.py", "selection-" + variant],
             ready=binaries["test_display_upload"], setup_exit_code=2)
+    for variant in ("normal", "conflict", "queued-cancel", "gate", "mount-cancel",
+                    "scan-cancel", "release", "corrupt"):
+        add(suite, "RES-02.catalog-job-" + variant, "RES-02", "L2",
+            [sys.executable, HERE / "test_pack_trial.py", "catalog-job-" + variant],
+            ready=binaries["test_display_upload"], setup_exit_code=2)
     for variant in ("migration", "stale", "local-writer", "malformed", "overflow", "directory-failure"):
         add(suite, "RES-02.selection-version-" + variant, "RES-02", "L2",
             [HERE / "build/test_display_selection", HERE / "build/shaniu-default-v1.bkep", variant],

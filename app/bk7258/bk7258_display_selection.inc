@@ -40,6 +40,19 @@ static bool bkdisplay_selection_recover_step(
   return true;
 }
 
+static bool bkdisplay_catalog_canceled(void *context)
+{
+  irqstate_t flags;
+  bool canceled;
+
+  (void)context;
+  flags = spin_lock_irqsave(&g_bkdisplay_intent_lock);
+  canceled = !g_bkdisplay_intent_allowed ||
+             g_bkdisplay_selection.state == BKDISPLAY_SELECTION_CANCEL_PENDING;
+  spin_unlock_irqrestore(&g_bkdisplay_intent_lock, flags);
+  return canceled;
+}
+
 static bool bkdisplay_selection_step(struct bkdisplay_service_s *service,
                                      bool devices_ready)
 {
@@ -74,27 +87,37 @@ static bool bkdisplay_selection_step(struct bkdisplay_service_s *service,
   canceled =
     g_bkdisplay_selection.state == BKDISPLAY_SELECTION_CANCEL_PENDING ||
              !g_bkdisplay_intent_allowed;
-  if (ret == 0 && !canceled && !request.refresh)
+  if (ret == 0 && !canceled && !request.refresh && !request.catalog)
     g_bkdisplay_selection.state = BKDISPLAY_SELECTION_COMMITTING;
   spin_unlock_irqrestore(&g_bkdisplay_intent_lock, flags);
 
   if (ret == 0 && !canceled)
     {
-      attempted = !request.refresh;
-      ret = request.refresh ?
-        bkdisplay_store_selection_version(BKDISPLAY_MOUNTPOINT, &version) :
-        bkdisplay_store_activate_checked(BKDISPLAY_MOUNTPOINT,
-          request.version.filename, request.expected_revision, &version);
-      committed = !request.refresh && ret == 0;
+      attempted = !request.refresh && !request.catalog;
+      if (request.catalog)
+        {
+          ret = bkdisplay_store_catalog_page(BKDISPLAY_MOUNTPOINT,
+            g_bkdisplay_catalog_after, bkdisplay_catalog_canceled, NULL,
+            &g_bkdisplay_catalog_page);
+        }
+      else
+        {
+          ret = request.refresh ?
+            bkdisplay_store_selection_version(BKDISPLAY_MOUNTPOINT, &version) :
+            bkdisplay_store_activate_checked(BKDISPLAY_MOUNTPOINT,
+              request.version.filename, request.expected_revision, &version);
+        }
+
+      committed = attempted && ret == 0;
     }
 
   release_error = bkdisplay_volume_close(service);
 
   flags = spin_lock_irqsave(&g_bkdisplay_intent_lock);
-  if (request.refresh &&
+  if ((request.refresh || request.catalog) &&
       (g_bkdisplay_selection.state == BKDISPLAY_SELECTION_CANCEL_PENDING ||
        !g_bkdisplay_intent_allowed)) canceled = true;
-  if (ret == 0 && !canceled)
+  if (ret == 0 && !canceled && !request.catalog)
     {
       g_bkdisplay_selection.version = version;
       g_bkdisplay_selection.version_known = true;
@@ -128,13 +151,18 @@ static bool bkdisplay_selection_step(struct bkdisplay_service_s *service,
       g_bkdisplay_selection.error = -ECANCELED;
     }
   else if (ret == 0)
-    g_bkdisplay_selection.state = BKDISPLAY_SELECTION_DONE;
+    {
+      g_bkdisplay_selection.state = BKDISPLAY_SELECTION_DONE;
+    }
   else if (attempted && !committed && ret != -ESTALE && ret != -EINVAL &&
            ret != -EOVERFLOW && ret != -EPROTO && ret != -EEXIST &&
            ret != -EBADMSG && ret != -ENOENT && ret != -ENAMETOOLONG)
     g_bkdisplay_selection.state = BKDISPLAY_SELECTION_UNKNOWN;
   else
     g_bkdisplay_selection.state = BKDISPLAY_SELECTION_FAILED;
+  if (request.catalog &&
+      g_bkdisplay_selection.state != BKDISPLAY_SELECTION_DONE)
+    memset(&g_bkdisplay_catalog_page, 0, sizeof(g_bkdisplay_catalog_page));
   spin_unlock_irqrestore(&g_bkdisplay_intent_lock, flags);
   return true;
 }

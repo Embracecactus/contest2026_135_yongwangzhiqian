@@ -3,6 +3,7 @@
 #define _XOPEN_SOURCE 700
 #include <assert.h>
 #include <errno.h>
+#include <dirent.h>
 #include <fcntl.h>
 #include <ftw.h>
 #include <stdbool.h>
@@ -32,6 +33,20 @@ static bool expect_green;
 static bool cancel_on_mount, cancel_on_write, fail_frame, fail_unmount;
 static bool fail_directory_sync;
 static uint32_t selection_id;
+static bool catalog_cancel_on_read;
+struct dirent *__real_readdir(DIR *dir);
+struct dirent *__wrap_readdir(DIR *dir)
+{
+  if (catalog_cancel_on_read)
+    {
+      catalog_cancel_on_read = false;
+      assert(bk7258_display_selection_cancel(selection_id) == 0);
+      struct bkdisplay_selection_status_s status;
+      assert(bk7258_display_selection_status(&status) == 0);
+      assert(status.state == BKDISPLAY_SELECTION_CANCEL_PENDING);
+    }
+  return __real_readdir(dir);
+}
 ssize_t __real_write(int fd,const void *p,size_t n);
 ssize_t __wrap_write(int fd,const void *p,size_t n)
 { writes++;
@@ -570,6 +585,9 @@ static void selection_case(struct bkdisplay_service_s *service,const char *mode)
 }
 static int remove_entry(const char *p,const struct stat *s,int type,struct FTW *w)
 {(void)s;(void)type;(void)w;return remove(p);}
+
+#include "catalog_job_cases.inc"
+
 int main(int argc,char **argv)
 {
   assert(argc==4 && mkdtemp(root));install(argv[1],true);install(argv[2],false);
@@ -579,7 +597,9 @@ int main(int argc,char **argv)
   unsigned baseline_writes=writes,baseline_frames=frames,baseline_mounts=mounts;
   uint32_t id=0;
   const char *name=!strcmp(argv[3],"missing")?"missing.bkep":"shaniu-upload-v1.bkep";
-  if(!strncmp(argv[3],"selection-",10))
+  if(!strncmp(argv[3],"catalog-job-",12))
+    catalog_job_case(&service,argv[3]);
+  else if(!strncmp(argv[3],"selection-",10))
     {selection_case(&service,argv[3]);baseline_writes=writes;}
   else if(!strcmp(argv[3],"--peer"))
     client_peer(&service,false);

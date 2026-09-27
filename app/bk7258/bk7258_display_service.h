@@ -153,6 +153,7 @@ struct bkdisplay_selection_status_s
   int error;
   int release_error;
   bool refresh;
+  bool catalog;
   bool version_known;
   bool save_confirmed;
   bool render_confirmed;
@@ -167,6 +168,20 @@ int bk7258_display_selection_refresh(uint32_t expected_id, uint32_t *id);
 int bk7258_display_selection_status(
   struct bkdisplay_selection_status_s *status);
 int bk7258_display_selection_cancel(uint32_t id);
+
+/* Explicit read-only catalog job on the same worker, admission and ID space
+ * as default selection. NULL/empty cursor starts a page. Status and page reads
+ * perform no I/O. Only DONE for this exact catalog ID returns a page; errors
+ * zero the output. Cancel/recover use the selection APIs above/below.
+ * No framebuffer is required and no render/default side effect is permitted.
+ * Each page is an independent observation, not a cross-page atomic snapshot.
+ */
+
+int bk7258_display_catalog_request(const char *after,
+                                    uint32_t expected_id, uint32_t *id);
+int bk7258_display_catalog_page(uint32_t id,
+                                 struct bkdisplay_catalog_page_s *page);
+
 
 /* Explicit close-only retry for this job's uncertain volume release. The
  * original outcome stays UNKNOWN; release success does not confirm rendering

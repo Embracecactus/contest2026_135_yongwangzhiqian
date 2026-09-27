@@ -665,7 +665,15 @@
     "RES-02.catalog-file-close",
     "RES-02.catalog-scan-limit",
     "RES-02.catalog-symlink",
-    "RES-02.catalog-corrupt"
+    "RES-02.catalog-corrupt",
+    "RES-02.catalog-job-normal",
+    "RES-02.catalog-job-conflict",
+    "RES-02.catalog-job-queued-cancel",
+    "RES-02.catalog-job-gate",
+    "RES-02.catalog-job-mount-cancel",
+    "RES-02.catalog-job-scan-cancel",
+    "RES-02.catalog-job-release",
+    "RES-02.catalog-job-corrupt"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1334,6 +1342,14 @@
     "RES-02.catalog-file-close",
     "RES-02.catalog-scan-limit",
     "RES-02.catalog-symlink",
-    "RES-02.catalog-corrupt"
+    "RES-02.catalog-corrupt",
+    "RES-02.catalog-job-normal",
+    "RES-02.catalog-job-conflict",
+    "RES-02.catalog-job-queued-cancel",
+    "RES-02.catalog-job-gate",
+    "RES-02.catalog-job-mount-cancel",
+    "RES-02.catalog-job-scan-cancel",
+    "RES-02.catalog-job-release",
+    "RES-02.catalog-job-corrupt"
   ]
 }

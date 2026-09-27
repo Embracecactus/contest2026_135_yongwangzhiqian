@@ -161,5 +161,5 @@ checked:
       assert(fd >= 0 && read(fd, marker, 9) == 8 && close(fd) == 0 && !strcmp(marker, "sentinel"));
     }
   assert(nftw(root, remove_entry, 16, FTW_DEPTH | FTW_PHYS) == 0);
-  puts("PASS"); return 0;
+  puts("CONTRACT_PASS installed catalog"); return 0;
 }

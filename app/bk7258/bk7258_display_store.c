@@ -128,6 +128,33 @@ static bool bkdisplay_store_filename(const char *filename)
          strcmp(filename + length - (sizeof(suffix) - 1u), suffix) == 0;
 }
 
+/* Shared canonical identity check without another path/selection copy. */
+static int bkdisplay_store_open_checked(const char *path, const char *filename,
+                                        struct bkdisplay_pack_s **pack,
+                                        struct bkdisplay_pack_info_s *info)
+{
+  char expected[BKDISPLAY_STORE_FILENAME_SIZE];
+  int written;
+  int ret;
+
+  ret = bkdisplay_pack_open(path, pack, info);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  written = snprintf(expected, sizeof(expected), "%s.bkep", info->pack_id);
+  if (written < 0 || (size_t)written >= sizeof(expected) ||
+      strcmp(expected, filename) != 0)
+    {
+      ret = bkdisplay_pack_close(*pack);
+      *pack = NULL;
+      return ret < 0 ? ret : -EPROTO;
+    }
+
+  return 0;
+}
+
 static int bkdisplay_store_validate(const char *path, const char *filename,
                                     struct bkdisplay_store_selection_s *result,
                                     bool fallback,
@@ -135,8 +162,6 @@ static int bkdisplay_store_validate(const char *path, const char *filename,
 {
   struct bkdisplay_pack_info_s info;
   struct bkdisplay_pack_s *pack = NULL;
-  char expected[BKDISPLAY_STORE_FILENAME_SIZE];
-  int written;
   int close_ret;
   int ret;
 
@@ -145,19 +170,7 @@ static int bkdisplay_store_validate(const char *path, const char *filename,
       *result_pack = NULL;
     }
 
-  ret = bkdisplay_pack_open(path, &pack, &info);
-  if (ret < 0)
-    {
-      return ret;
-    }
-
-  written = snprintf(expected, sizeof(expected), "%s.bkep", info.pack_id);
-  if (written < 0 || (size_t)written >= sizeof(expected) ||
-      strcmp(expected, filename) != 0)
-    {
-      ret = -EPROTO;
-    }
-
+  ret = bkdisplay_store_open_checked(path, filename, &pack, &info);
   if (ret == 0 && result != NULL)
     {
       memset(result, 0, sizeof(*result));
@@ -1313,11 +1326,9 @@ int bkdisplay_store_catalog_page(
   bool (*canceled)(void *context), void *context,
   struct bkdisplay_catalog_page_s *page)
 {
-  struct bkdisplay_catalog_page_s result = {0};
   char names[BKDISPLAY_CATALOG_PAGE_MAX + 1][BKDISPLAY_STORE_FILENAME_SIZE] = {{0}};
   char directory[BKDISPLAY_PACK_PATH_SIZE];
   char path[BKDISPLAY_PACK_PATH_SIZE];
-  struct bkdisplay_store_selection_s selection;
   struct bkdisplay_pack_s *pack;
   struct stat st;
   struct dirent *entry;
@@ -1420,52 +1431,60 @@ int bkdisplay_store_catalog_page(
       return ret;
     }
 
-  result.more = names[BKDISPLAY_CATALOG_PAGE_MAX][0] != '\0';
+  page->more = names[BKDISPLAY_CATALOG_PAGE_MAX][0] != '\0';
   for (unsigned int i = 0; i < BKDISPLAY_CATALOG_PAGE_MAX && names[i][0]; i++)
     {
       if (canceled != NULL && canceled(context))
         {
-          return -ECANCELED;
+          ret = -ECANCELED;
+          goto failed;
         }
 
       if (snprintf(path, sizeof(path), "%s/%s", directory, names[i]) >=
           (int)sizeof(path))
         {
-          return -ENAMETOOLONG;
+          ret = -ENAMETOOLONG;
+          goto failed;
         }
 
       if (lstat(path, &st) < 0)
         {
-          return bkdisplay_store_errno();
+          ret = bkdisplay_store_errno();
+          goto failed;
         }
 
       if (!S_ISREG(st.st_mode))
         {
-          return S_ISLNK(st.st_mode) ? -ELOOP : -EINVAL;
+          ret = S_ISLNK(st.st_mode) ? -ELOOP : -EINVAL;
+          goto failed;
         }
 
-      ret = bkdisplay_store_open_installed(root, names[i], &selection, &pack);
+      ret = bkdisplay_store_open_checked(path, names[i], &pack,
+                                         &page->entries[i].info);
       if (ret < 0)
         {
-          return ret;
+          goto failed;
         }
 
       ret = bkdisplay_pack_close(pack);
       if (ret < 0)
         {
-          return ret;
+          goto failed;
         }
 
-      memcpy(result.entries[i].filename, names[i], sizeof(names[i]));
-      result.entries[i].info = selection.info;
-      result.count++;
+      memcpy(page->entries[i].filename, names[i], sizeof(names[i]));
+      page->count++;
     }
 
   if (canceled != NULL && canceled(context))
     {
-      return -ECANCELED;
+      ret = -ECANCELED;
+      goto failed;
     }
 
-  *page = result;
   return 0;
+
+failed:
+  memset(page, 0, sizeof(*page));
+  return ret;
 }

@@ -3247,3 +3247,30 @@ directory-close、file-close、scan-limit、symlink、corrupt。已接入原合�
 和`s113-catalog-store-evidence-20260927.json`。无产品目录入口/真实USB/SD验收。
 主机函数栈估计1968字节不是板端高水位；新函数尚无生产调用者，链接可能
 裁除，下一步接入共享异步显示所有者与协议前必须验证整个调用链预算及退出。
+
+
+### S114：目录异步作业与共享资源退出
+
+`test_pack_trial.py catalog-job-{normal,conflict,queued-cancel,gate,mount-cancel,scan-cancel,release,corrupt}`
+执行真实显示选择作业与store，替身仅挂载、帧输出和可控文件I/O边界。新增
+catalog_request/catalog_page复用选择作业ID、元数据锁、取消和close-only恢复。
+状态查询不挂SD、不扫描，确切DONE作业才可取页；旧ID返回ESTALE；卸载未知
+不发布结果，恢复只确认退出不改成成功。读目录不渲染、不改默认、不要求FB。
+
+本轮完整673PASS＝原63（含2恢复）＋610累计新增；保留上轮665登记标识，
+新增8目录作业。19门禁、原2变异及额外“忽略目录卸载错误”变异检出，额外
+恢复单列。首次全量661PASS/12SETUP_ERROR原样另存：S113目录11例成功输出
+缺CONTRACT_PASS标记；浏览器超大请求被提前413/close时客户端sendall遇到
+BrokenPipe。前者仅改成功标记，后者用超长Content-Length头直接观察413及
+零落盘/零worker；非法小包和128KiB边界实体请求保留。未降低接受门槛。
+
+目标编译发现目录调用链静态小计6656B超过6144B栈配置，先去掉页与重复路径
+副本，共享同一规范身份校验，降到4624B；新增全局页504B+cursor40B，无新线程
+或提高栈预算。此数不包含OS/libc/IRQ，更不是实板高水位。AP增量通过，原
+资源校验范围保留。页是独立观察，不承诺跨页原子快照；source_sha256不是文件
+字节摘要。认证协议/USB/App/网页目录未绑定。已有public power/onboarding
+取render mutex，内部gate用例不证明K2迟滞已经解决，开放目录入口前须补边界。
+
+证据：`acceptance/s114-20260927.json`、`s114-catalog-job-evidence-20260927.json`
+及`s114-evidence-20260927/`（含首次报告、修正依据、逐例/变异日志和前后目标
+栈报告）。无实板操作，不将673主机单元视为56项产品全部验收。
