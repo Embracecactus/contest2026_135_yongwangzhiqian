@@ -465,6 +465,8 @@ def main():
         "test_shaniu_focus_pixels",
         "test_shaniu_focus_render",
         "test_display_upload",
+        "test_display_selection",
+        "test_bk7258_display_pack",
         "test_display_job",
         "test_display_job_service",
         "test_display_job_control",
@@ -918,6 +920,13 @@ def main():
         add(suite, "USB-01.fixture-validity-" + variant, "USB-01", "L1",
             [sys.executable, HERE / "test_tls_test_identity.py", "IdentityTest.test_" + variant],
             marker=False, setup_exit_code=2)
+    add(suite, "RES-02.selection-version-legacy-recovery", "RES-02", "L2",
+        [HERE / "build/test_bk7258_display_pack", HERE / "build/shaniu-default-v1.bkep"],
+        ready=binaries["test_bk7258_display_pack"], marker=False)
+    for variant in ("migration", "stale", "local-writer", "malformed", "overflow", "directory-failure"):
+        add(suite, "RES-02.selection-version-" + variant, "RES-02", "L2",
+            [HERE / "build/test_display_selection", HERE / "build/shaniu-default-v1.bkep", variant],
+            ready=binaries["test_display_selection"])
     for variant in ("cancel", "expiry", "queued-cancel", "queued-expiry", "supersede", "missing", "invalid",
                     "wire-cancel", "wire-expiry", "wire-invalid", "wire-missing",
                     "pc-cancel", "pc-expiry", "pc-missing"):
@@ -1493,6 +1502,8 @@ def main():
         HERE / "test_workbench_trial.py",
         HERE / "test_pack_trial.py",
         HERE / "test_pack_trial.c",
+        HERE / "test_display_selection.c",
+        HERE / "test_bk7258_display_pack.c",
         ROOT / "app/bk7258/bk7258_display_service.c",
         ROOT / "app/bk7258/bk7258_display_service.h",
         HERE / "test_shaniu_trial_wire.c",

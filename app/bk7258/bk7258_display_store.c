@@ -13,6 +13,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -39,6 +40,9 @@
 #define BKDISPLAY_STORE_LEGACY_ACTIVE BKDISPLAY_STORE_LEGACY_BASE "/active.json"
 #define BKDISPLAY_ACTIVE_PREFIX    \
   "{\"format\":\"shaniu-display-active/1\",\"pack\":\""
+#define BKDISPLAY_ACTIVE_PREFIX_V2 \
+  "{\"format\":\"shaniu-display-active/2\",\"pack\":\""
+#define BKDISPLAY_ACTIVE_REVISION "\",\"revision\":\""
 #define BKDISPLAY_ACTIVE_SUFFIX    "\"}\n"
 #define BKDISPLAY_ACTIVE_MAX       128u
 
@@ -253,7 +257,7 @@ int bkdisplay_store_reset_selection(const char *root)
 }
 
 static int bkdisplay_store_read_active(const char *path, char *filename,
-                                       size_t capacity)
+                                       size_t capacity, uint64_t *revision)
 {
   char data[BKDISPLAY_ACTIVE_MAX];
   size_t prefix = strlen(BKDISPLAY_ACTIVE_PREFIX);
@@ -262,6 +266,8 @@ static int bkdisplay_store_read_active(const char *path, char *filename,
   int read_errno = 0;
   size_t length;
   size_t name_length;
+  uint64_t parsed_revision = 0;
+  bool versioned;
   int fd;
 
   fd = open(path, O_RDONLY);
@@ -289,13 +295,68 @@ static int bkdisplay_store_read_active(const char *path, char *filename,
 
   length = (size_t)nread;
   if (length >= sizeof(data) || length <= prefix + suffix ||
-      memcmp(data, BKDISPLAY_ACTIVE_PREFIX, prefix) != 0 ||
       memcmp(data + length - suffix, BKDISPLAY_ACTIVE_SUFFIX, suffix) != 0)
     {
       return -EPROTO;
     }
 
+  versioned = memcmp(data, BKDISPLAY_ACTIVE_PREFIX_V2, prefix) == 0;
+  if (!versioned && memcmp(data, BKDISPLAY_ACTIVE_PREFIX, prefix) != 0)
+    {
+      return -EPROTO;
+    }
+
   name_length = length - prefix - suffix;
+  if (versioned)
+    {
+      size_t separator = strlen(BKDISPLAY_ACTIVE_REVISION);
+      size_t position;
+
+      if (name_length <= separator + 16)
+        {
+          return -EPROTO;
+        }
+
+      name_length -= separator + 16;
+      position = prefix + name_length;
+      if (memcmp(data + position, BKDISPLAY_ACTIVE_REVISION, separator))
+        {
+          return -EPROTO;
+        }
+
+      position += separator;
+      for (unsigned int i = 0; i < 16; i++)
+        {
+          unsigned char c = data[position + i];
+          unsigned int digit;
+
+          if (c >= '0' && c <= '9')
+            {
+              digit = c - '0';
+            }
+          else if (c >= 'a' && c <= 'f')
+            {
+              digit = c - 'a' + 10;
+            }
+          else
+            {
+              return -EPROTO;
+            }
+
+          parsed_revision = (parsed_revision << 4) | digit;
+        }
+
+      if (parsed_revision == 0)
+        {
+          return -EPROTO;
+        }
+    }
+
+  if (memchr(data + prefix, '\0', name_length) != NULL)
+    {
+      return -EPROTO;
+    }
+
   if (name_length + 1u > capacity)
     {
       return -ENAMETOOLONG;
@@ -303,7 +364,71 @@ static int bkdisplay_store_read_active(const char *path, char *filename,
 
   memcpy(filename, data + prefix, name_length);
   filename[name_length] = '\0';
-  return bkdisplay_store_filename(filename) ? 0 : -EPROTO;
+  if (!bkdisplay_store_filename(filename))
+    {
+      return -EPROTO;
+    }
+
+  if (revision != NULL)
+    {
+      *revision = parsed_revision;
+    }
+
+  return 0;
+}
+
+int bkdisplay_store_selection_version(
+  const char *root, struct bkdisplay_selection_version_s *version)
+{
+  struct bkdisplay_selection_version_s current =
+  {
+    {0}, 0
+  };
+  char path[BKDISPLAY_PACK_PATH_SIZE];
+  int ret;
+
+  if (version == NULL)
+    {
+      return -EINVAL;
+    }
+
+  ret = bkdisplay_store_path(path, sizeof(path), root, BKDISPLAY_STORE_ACTIVE);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  ret = bkdisplay_store_read_active(path, current.filename,
+                                    sizeof(current.filename),
+                                    &current.revision);
+  if (ret == -ENOENT)
+    {
+      ret = bkdisplay_store_path(path, sizeof(path), root,
+                                 BKDISPLAY_STORE_LEGACY_ACTIVE);
+      if (ret < 0)
+        {
+          return ret;
+        }
+
+      ret = bkdisplay_store_read_active(path, current.filename,
+                                        sizeof(current.filename),
+                                        &current.revision);
+    }
+
+  if (ret == -ENOENT)
+    {
+      snprintf(current.filename, sizeof(current.filename), "%s",
+               BKDISPLAY_STORE_DEFAULT_PACK);
+      current.revision = 0;
+      ret = 0;
+    }
+
+  if (ret == 0)
+    {
+      *version = current;
+    }
+
+  return ret;
 }
 
 int bkdisplay_store_ensure(const char *root)
@@ -415,7 +540,7 @@ static int bkdisplay_store_resolve_layout(
       return ret;
     }
 
-  ret = bkdisplay_store_read_active(active, filename, sizeof(filename));
+  ret = bkdisplay_store_read_active(active, filename, sizeof(filename), NULL);
   if (ret < 0 && ret != -ENOENT)
     {
       BKDISPLAY_STORE_DIAG(
@@ -626,10 +751,13 @@ int bkdisplay_store_resolve(const char *root,
   return ret;
 }
 
-int bkdisplay_store_activate(const char *root, const char *filename,
-                             struct bkdisplay_store_selection_s *selection)
+static int bkdisplay_store_activate_versioned(
+  const char *root, const char *filename, bool check_revision,
+  uint64_t expected_revision, struct bkdisplay_store_selection_s *selection,
+  struct bkdisplay_selection_version_s *version)
 {
   struct bkdisplay_store_selection_s selected;
+  struct bkdisplay_selection_version_s current;
   char directory[BKDISPLAY_PACK_PATH_SIZE];
   char path[BKDISPLAY_PACK_PATH_SIZE];
   char marker[BKDISPLAY_ACTIVE_MAX];
@@ -643,6 +771,24 @@ int bkdisplay_store_activate(const char *root, const char *filename,
     {
       return -EINVAL;
     }
+
+  ret = bkdisplay_store_selection_version(root, &current);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (check_revision && current.revision != expected_revision)
+    {
+      return -ESTALE;
+    }
+
+  if (current.revision == UINT64_MAX)
+    {
+      return -EOVERFLOW;
+    }
+
+  current.revision++;
 
   ret = bkdisplay_store_ensure(root);
   if (ret < 0)
@@ -669,8 +815,9 @@ int bkdisplay_store_activate(const char *root, const char *filename,
       return ret;
     }
 
-  marker_length = snprintf(marker, sizeof(marker), "%s%s%s",
-                           BKDISPLAY_ACTIVE_PREFIX, filename,
+  marker_length = snprintf(marker, sizeof(marker), "%s%s%s%016" PRIx64 "%s",
+                           BKDISPLAY_ACTIVE_PREFIX_V2, filename,
+                           BKDISPLAY_ACTIVE_REVISION, current.revision,
                            BKDISPLAY_ACTIVE_SUFFIX);
   if (marker_length < 0 || (size_t)marker_length >= sizeof(marker))
     {
@@ -744,7 +891,28 @@ int bkdisplay_store_activate(const char *root, const char *filename,
       *selection = selected;
     }
 
+  if (version != NULL)
+    {
+      snprintf(current.filename, sizeof(current.filename), "%s", filename);
+      *version = current;
+    }
+
   return 0;
+}
+
+int bkdisplay_store_activate(const char *root, const char *filename,
+                             struct bkdisplay_store_selection_s *selection)
+{
+  return bkdisplay_store_activate_versioned(root, filename, false, 0,
+                                            selection, NULL);
+}
+
+int bkdisplay_store_activate_checked(
+  const char *root, const char *filename, uint64_t expected_revision,
+  struct bkdisplay_selection_version_s *version)
+{
+  return bkdisplay_store_activate_versioned(root, filename, true,
+                                            expected_revision, NULL, version);
 }
 
 static int bkdisplay_store_publish(

@@ -343,6 +343,13 @@ $(BUILD)/test_display_upload: test_display_upload.c \
 		$(VOICE_PACK_ROOT)/bk7258_display_pack.c $(VOICE_PACK_ROOT)/bk7258_display_store.c \
 		-I $(VOICE_PACK_ROOT) -Wl,--wrap=write,--wrap=fsync,--wrap=close -o $@
 
+$(BUILD)/test_display_selection: test_display_selection.c \
+	$(VOICE_PACK_ROOT)/bk7258_display_store.c $(VOICE_PACK_ROOT)/bk7258_display_store.h \
+	$(VOICE_PACK_ROOT)/bk7258_display_pack.c $(DISPLAY_PACK_FIXTURE) | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) $< $(VOICE_PACK_ROOT)/bk7258_display_pack.c \
+		$(VOICE_PACK_ROOT)/bk7258_display_store.c -I $(VOICE_PACK_ROOT) \
+		-Wl,--wrap=write,--wrap=fsync -o $@
+
 $(BUILD)/test_display_job: test_display_job.c $(VOICE_PACK_ROOT)/bk7258_display_job.c \
 	$(VOICE_PACK_ROOT)/bk7258_display_job.h $(VOICE_PACK_ROOT)/bk7258_display_store.c \
 	$(VOICE_PACK_ROOT)/bk7258_display_store.h $(VOICE_PACK_ROOT)/bk7258_display_pack.c \

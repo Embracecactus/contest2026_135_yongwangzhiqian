@@ -564,7 +564,14 @@
     "RES-02.pc-trial-pack_cli_preflight",
     "RES-02.pack-trial-pc-cancel",
     "RES-02.pack-trial-pc-expiry",
-    "RES-02.pack-trial-pc-missing"
+    "RES-02.pack-trial-pc-missing",
+    "RES-02.selection-version-migration",
+    "RES-02.selection-version-stale",
+    "RES-02.selection-version-local-writer",
+    "RES-02.selection-version-malformed",
+    "RES-02.selection-version-overflow",
+    "RES-02.selection-version-directory-failure",
+    "RES-02.selection-version-legacy-recovery"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1132,6 +1139,13 @@
     "RES-02.pc-trial-pack_cli_preflight",
     "RES-02.pack-trial-pc-cancel",
     "RES-02.pack-trial-pc-expiry",
-    "RES-02.pack-trial-pc-missing"
+    "RES-02.pack-trial-pc-missing",
+    "RES-02.selection-version-migration",
+    "RES-02.selection-version-stale",
+    "RES-02.selection-version-local-writer",
+    "RES-02.selection-version-malformed",
+    "RES-02.selection-version-overflow",
+    "RES-02.selection-version-directory-failure",
+    "RES-02.selection-version-legacy-recovery"
   ]
 }

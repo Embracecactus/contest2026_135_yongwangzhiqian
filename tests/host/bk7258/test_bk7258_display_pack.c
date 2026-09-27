@@ -203,6 +203,14 @@ int main(int argc, char **argv)
 
   write_text(active, "{\"pack\":\"../escape.bkep\"}\n");
   assert(bkdisplay_store_resolve(root, &selection) == -EPROTO);
+  /* A corrupt marker has no trustworthy revision. Preserve it until the
+   * explicit selection reset, then exercise recovery with a new selection.
+   */
+
+  assert(bkdisplay_store_activate(root, BKDISPLAY_STORE_DEFAULT_PACK,
+                                  &selection) == -EPROTO);
+  assert(bkdisplay_store_resolve(root, &selection) == -EPROTO);
+  assert(bkdisplay_store_reset_selection(root) == 0);
   assert(bkdisplay_store_activate(root, BKDISPLAY_STORE_DEFAULT_PACK,
                                   &selection) == 0);
   assert(bkdisplay_store_install(root, "../escape.bkep", NULL) == -EINVAL);

@@ -777,3 +777,35 @@ only. Pixel/source/default-write observations remain in the real renderer
 fixture. Cancel/expiry restore default and missing packs report failure, not
 render success. Separate existing TLS/guard cases are not claimed as joint
 new pack-trial TLS or device proof. No persistent set-default is added here.
+
+### S99 durable default-selection version (2026-09-27)
+
+RES-02/CFG-02: a saved default name and its revision must be one atomic marker
+commit. The exclusive mounted-volume owner serializes all mutations. Existing
+active/1 markers read as revision0; absent markers name the factory default at0
+without claiming that its pack is installed. New commits write active/2:
+`{"format":"shaniu-display-active/2","pack":"a.bkep","revision":"0000000000000001"}\n`.
+Revision is16 lowercase hexadecimal digits, nonzero u64; each explicit default
+write increments even if the filename matches. Checked writes require the exact
+current revision; stale requests and exhaustion are rejected before writes.
+Name+revision survive reopen in a new process. No second authoritative file.
+Queries parse the marker only; render validation remains separate.
+
+Malformed/unknown markers and media errors cannot silently become revision0.
+Read accepts v1 but does not migrate until an explicit mutation. Existing local
+activation also increments a valid revision, preventing a bypass around checked
+writes. Reset removes selection only through the existing explicit privileged
+reset path; that path must invalidate prior authorization/job scope. No new
+automatic repair/format/recovery is introduced. Old firmware cannot parse v2;
+a downgrade that needs old data format requires explicit scoped migration, never
+automatic counter rollback. No device deployment is authorized by this format.
+
+Test expectation adjustment: test_bk7258_display_pack previously required
+unconditional activate to replace malformed active.json successfully. That
+would silently reset an unknowable revision and contradict this stale-write
+contract. Preserve its read-EPROTO assertion, require activate-EPROTO and unchanged
+marker, then use explicit reset_selection before testing recovery activation.
+This is a recorded stronger precondition, not deletion/relaxation of an assertion.
+Directory-sync error after rename remains failure/uncertain durability even if
+the new marker is readable; old expected revision is then stale. New remote
+asynchronous worker/protocol/default UI are still subsequent integration work.

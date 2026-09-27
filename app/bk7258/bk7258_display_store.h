@@ -24,6 +24,27 @@ struct bkdisplay_store_selection_s
   struct bkdisplay_pack_info_s info;
 };
 
+/* Durable desired selection, independent of rendered/fallback pack metadata.
+ * Revision zero denotes a legacy or absent marker, not successful rendering.
+ */
+
+struct bkdisplay_selection_version_s
+{
+  char filename[BKDISPLAY_STORE_FILENAME_SIZE];
+  uint64_t revision;
+};
+
+/* Mounted-volume operations: caller must serialize all reads and mutations
+ * with the same exclusive owner used by local activation. No authentication
+ * or arbitrary concurrent filesystem-writer arbitration happens here.
+ */
+
+int bkdisplay_store_selection_version(
+  const char *root, struct bkdisplay_selection_version_s *version);
+int bkdisplay_store_activate_checked(
+  const char *root, const char *filename, uint64_t expected_revision,
+  struct bkdisplay_selection_version_s *version);
+
 /* A single worker owns this zero-initialized object and the mounted volume
  * for its complete lifetime. Append performs I/O; never call it from a short
  * control callback. No operation here authenticates a remote peer.
