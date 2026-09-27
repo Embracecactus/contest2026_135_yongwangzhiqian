@@ -100,7 +100,8 @@ int bkcontrol_session_packet(struct bkcontrol_session_s *s, const uint8_t *p,
               if (payload == 20 &&
                   (argument >> 16) != BKCONTROL_CONFIG_RESET_TRANSFER &&
                   (argument >> 16) != BKCONTROL_CONFIG_PC_AUTHORIZATION &&
-                  (argument >> 16) != BKCONTROL_CONFIG_RESOURCE_JOB)
+                  (argument >> 16) != BKCONTROL_CONFIG_RESOURCE_JOB &&
+                  (argument >> 16) != BKCONTROL_CONFIG_DEFAULT_SELECTION)
                 goto fail;
             }
           if (s->quiescing && command == BKCONTROL_CONFIG_READ &&
@@ -113,7 +114,8 @@ int bkcontrol_session_packet(struct bkcontrol_session_s *s, const uint8_t *p,
               (argument >> 16) != BKCONTROL_CONFIG_NFC_SCENE &&
               (argument >> 16) != BKCONTROL_CONFIG_PC_AUTHORIZATION &&
               (argument >> 16) != BKCONTROL_CONFIG_PC_TASK &&
-              (argument >> 16) != BKCONTROL_CONFIG_RESOURCE_JOB)
+              (argument >> 16) != BKCONTROL_CONFIG_RESOURCE_JOB &&
+              (argument >> 16) != BKCONTROL_CONFIG_DEFAULT_SELECTION)
             { ret = -EBUSY; goto config_done; }
           if (s->config == NULL) { ret = -ENOTSUP; goto config_done; }
           if (command == BKCONTROL_CONFIG_READ)

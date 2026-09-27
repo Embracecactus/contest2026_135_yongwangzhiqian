@@ -17,6 +17,7 @@
 #include "bk7258_display_service.h"
 #include "bk7258_media_volume.h"
 #include "bk7258_display_trial_control.h"
+#include "bk7258_display_selection_control.h"
 typedef int mutex_t; /* Extracted service layout only; no mutex operations. */
 static char root[]="/tmp/pack-trial-XXXXXX";
 #define BKDISPLAY_MOUNTROOT root
@@ -90,6 +91,8 @@ static void expect(enum bkdisplay_trial_state_e state)
 static void selected(const char *name)
 {struct bkdisplay_store_selection_s s;assert(bkdisplay_store_resolve(root,&s)==0);assert(!strcmp(s.info.pack_id,name));}
 static struct bkcontrol_session_s wire;
+static struct bkselection_control_s selection_control;
+static uint32_t wire_kind=11;
 static uint32_t sequence;
 static uint8_t response[BKCONTROL_RESPONSE_SIZE];
 static void put32(uint8_t *p,uint32_t v)
@@ -98,9 +101,49 @@ static uint32_t get32(const uint8_t *p)
 {return (uint32_t)p[0]<<24|(uint32_t)p[1]<<16|(uint32_t)p[2]<<8|p[3];}
 static int execute(void *c,enum bkcontrol_command_e cmd,uint32_t arg,struct bkcontrol_status_s *s)
 {(void)c;(void)cmd;(void)arg;(void)s;return 0;}
+#ifdef TEST_SELECTION_PRODUCT
+#include "bk7258_pc_usb.h"
+#include "bk7258_display_job_control.h"
+#define CONFIG_BK7258_DISPLAY_SERVICE 1
+#define g_pc_selection selection_control
+static uint64_t g_pc_selection_binding,g_pc_selection_grant;
+static uint8_t g_pc_selection_client[16];
+static struct bkpc_usb_owner_s g_pc_usb_owner;
+static struct bkcontrol_pair_s pair_fixture;
+static struct bkpack_control_s g_pc_pack;
+static bool g_identity_bound=true,g_control_bound=true;
+static uint64_t source_grant=2;
+static int bkpc_authorization_snapshot(void *ctx,uint64_t *binding,struct bkprov_pc_snapshot_s *view)
+{(void)ctx;memset(view,0,sizeof(*view));*binding=1;view->revision=source_grant;
+ view->capabilities=BKPC_CAP_RESOURCES;return 0;}
+#define bkpack_control_invalidate(...) (assert(false))
+#define bk7258_display_job_quiesce(stop) ((void)(stop),0)
+#define mbedtls_platform_zeroize(p,n) ((void)memset(p,0,n))
+#define bkagent_ota_busy() false
+#define bkvoice_config_now_ms(ctx) clock_ms
+/* Installer and entropy are outside this default-route fixture. They must
+ * not be invoked: resource authority is already bound and tested separately. */
+#define bkpack_control_bind(...) (assert(false),-ENOTSUP)
+#define bkpack_control_read(...) (assert(false),-ENOTSUP)
+#define bkpack_control_apply(...) (assert(false),-ENOTSUP)
+static int selection_entropy(void *ctx,uint8_t *p,size_t n)
+{static uint8_t epoch=7;assert(ctx==&pair_fixture.tls.random && n==16);memset(p,0,n);p[0]=epoch++;return 0;}
+#define mbedtls_ctr_drbg_random selection_entropy
+static int product_config(void *c,enum bkcontrol_command_e cmd,uint32_t kind,uint32_t off,
+                          const uint8_t *p,size_t n,struct bkcontrol_status_s *s)
+{(void)c;(void)cmd;(void)kind;(void)off;(void)p;(void)n;(void)s;return -ENOTSUP;}
+#include "selection-product.inc"
+#endif
 static int config(void *c,enum bkcontrol_command_e cmd,uint32_t kind,uint32_t off,
                   const uint8_t *p,size_t n,struct bkcontrol_status_s *s)
-{(void)c;return kind==11?bkdisplay_trial_control(cmd,off,p,n,s,clock_ms):-ENOTSUP;}
+{
+#ifdef TEST_SELECTION_PRODUCT
+  return product_pc_config(c,cmd,kind,off,p,n,s);
+#else
+  (void)c;return kind==17?bkselection_control(&selection_control,cmd,off,p,n,s):
+    kind==11?bkdisplay_trial_control(cmd,off,p,n,s,clock_ms):-ENOTSUP;
+#endif
+}
 static int packet(enum bkcontrol_command_e cmd,const uint8_t *p,size_t n)
 {
   uint8_t bytes[80]={0};assert(n<=64);memcpy(bytes,"SDC1",4);
@@ -120,7 +163,7 @@ static void connect_wire(void)
 }
 static int wire_apply(const uint8_t *record,size_t size)
 {
-  uint8_t begin[8]={0};put32(begin,11);put32(begin+4,size);
+  uint8_t begin[8]={0};put32(begin,wire_kind);put32(begin+4,size);
   int ret=packet(BKCONTROL_CONFIG_BEGIN,begin,8);if(ret)return ret;
   for(size_t off=0;off<size;)
     {size_t n=size-off;if(n>13)n=13;ret=packet(BKCONTROL_CONFIG_APPEND,record+off,n);if(ret)return ret;off+=n;}
@@ -212,6 +255,114 @@ static void client_peer(struct bkdisplay_service_s *service)
   bkcontrol_session_close(&wire);
 }
 /* Recovery retries release only; the original save/render outcome is immutable. */
+static void selection_wire_case(struct bkdisplay_service_s *service,const char *mode)
+{
+  uint8_t epoch[16]={7},record[96]={'E','S','C','1',0,0,0,1};
+  uint8_t query[20]={0},snapshot[128],older[16];
+  struct bkdisplay_selection_status_s state;
+  unsigned io=mounts,stored=writes,painted=frames;
+  memcpy(record+8,epoch,16);record[24]=1;record[55]=1;
+  strcpy((char *)record+56,"shaniu-upload-v1.bkep");
+  wire_kind=17;connect_wire();
+  assert(wire_apply(record,96)==-EACCES);
+#ifdef TEST_SELECTION_PRODUCT
+  g_pc_pack.bound=false;g_pc_pack.binding=1;g_pc_pack.grant=2;
+  g_pc_usb_owner.pair=&pair_fixture;
+  memcpy(g_pc_pack.epoch,epoch,16);
+  g_pc_usb_owner.usb.lease.open=true;
+  g_pc_usb_owner.usb.lease.capabilities=BKPC_CAP_SCENES;
+  g_pc_usb_owner.usb.lease.binding=1;g_pc_usb_owner.usb.lease.revision=2;
+  assert(wire_apply(record,96)==-EACCES);
+  g_pc_usb_owner.usb.lease.capabilities=BKPC_CAP_RESOURCES;
+
+#else
+  assert(bkselection_control_bind(&selection_control,epoch)==0);
+#endif
+  put32(query,17u<<16);query[4]=3;
+  assert(packet(BKCONTROL_CONFIG_READ,query,20)==0);
+  assert(!memcmp(response+24,"ESS1",4));memcpy(older,response+24,16);
+#ifdef TEST_SELECTION_PRODUCT
+  assert(!g_pc_pack.bound); /* Query must not touch the installer lifecycle. */
+  g_pc_usb_owner.usb.lease.revision=3;
+  assert(wire_apply(record,96)==-ESTALE);
+  g_pc_usb_owner.usb.lease.revision=2;
+#endif
+  assert(mounts==io && writes==stored);
+  if(!strcmp(mode,"selection-wire-invalid"))
+    {
+      record[8]^=1;assert(wire_apply(record,96)==-ESTALE);record[8]^=1;
+      record[44]=1;assert(wire_apply(record,96)==-EINVAL);record[44]=0;
+      record[95]=1;assert(wire_apply(record,96)==-EINVAL);record[95]=0;
+      record[24]=0;assert(wire_apply(record,96)==-EINVAL);record[24]=1;
+      strcpy((char *)record+56,"../a.bkep");assert(wire_apply(record,96)==-EINVAL);
+      assert(writes==stored && frames==painted && mounts==io);return;
+    }
+  if(!strcmp(mode,"selection-wire-refresh"))
+    {
+      record[7]=2;memset(record+48,0,48);
+      assert(wire_apply(record,96)==0);assert(bkdisplay_selection_step(service,true));
+      assert(bk7258_display_selection_status(&state)==0 && state.version_known);
+      assert(state.version.revision==1 && !state.save_confirmed && !state.render_confirmed);
+      assert(mounts==io+1 && frames==painted && writes==stored);return;
+    }
+  assert(wire_apply(record,96)==0);
+  assert(bk7258_display_selection_status(&state)==0 && state.state==BKDISPLAY_SELECTION_PENDING);
+  assert(wire_apply(record,96)==0);
+  record[55]=2;assert(wire_apply(record,96)==-EEXIST);record[55]=1;
+  assert(mounts==io && writes==stored && frames==painted);
+  if(!strcmp(mode,"selection-wire-revoke"))
+    {
+      bkselection_control_invalidate(&selection_control);
+      assert(!bkdisplay_selection_step(service,true));
+      assert(bk7258_display_selection_status(&state)==0 && state.state==BKDISPLAY_SELECTION_CANCELED);
+      assert(wire_apply(record,96)==-EACCES);epoch[0]++;
+      assert(bkselection_control_bind(&selection_control,epoch)==0);
+      assert(wire_apply(record,96)==-ESTALE);
+      assert(writes==stored && frames==painted && mounts==io);return;
+    }
+  if(!strcmp(mode,"selection-wire-cancel"))
+    {
+      memset(record+48,0,48);record[7]=3;record[24]=2;put32(record+40,1);
+      assert(wire_apply(record,96)==0);assert(!bkdisplay_selection_step(service,true));
+      assert(bk7258_display_selection_status(&state)==0 && state.state==BKDISPLAY_SELECTION_CANCELED);
+      assert(writes==stored && frames==painted);return;
+    }
+  if(!strcmp(mode,"selection-wire-recover"))
+    {
+      fail_unmount=true;assert(bkdisplay_selection_step(service,true));
+      assert(bk7258_display_selection_status(&state)==0 && state.release_error==-EIO);
+      unsigned committed=writes;
+      record[7]=4;record[24]=2;put32(record+40,1);memset(record+48,0,48);
+      assert(wire_apply(record,96)==0);assert(wire_apply(record,96)==0);
+      assert(bkdisplay_selection_recover_step(service));
+      assert(wire_apply(record,96)==0);assert(!bkdisplay_selection_recover_step(service));
+      assert(bk7258_display_selection_status(&state)==0 && state.release_error==0);
+      assert(state.state==BKDISPLAY_SELECTION_UNKNOWN && state.save_confirmed && !state.render_confirmed);
+      assert(frames==painted && writes==committed);return;
+    }
+  expect_green=true;assert(bkdisplay_selection_step(service,true));
+  assert(bk7258_display_selection_status(&state)==0 && state.state==BKDISPLAY_SELECTION_DONE);
+  assert(state.save_confirmed && state.render_confirmed && state.version.revision==2);
+  assert(wire_apply(record,96)==0);selected("shaniu-upload-v1");
+  assert(packet(BKCONTROL_CONFIG_READ,query,20)==0);
+  assert(!memcmp(response+24,older,16)); /* Same query retains pre-write state. */
+  query[4]=4;put32(query,(17u<<16)|16);assert(packet(BKCONTROL_CONFIG_READ,query,20)==-ESTALE);
+  for(unsigned off=0;off<128;off+=16)
+    {put32(query,(17u<<16)|off);assert(packet(BKCONTROL_CONFIG_READ,query,20)==0);
+     memcpy(snapshot+off,response+24,16);}
+  assert(!memcmp(snapshot,"ESS1",4) && get32(snapshot+4)==BKDISPLAY_SELECTION_DONE);
+  assert(get32(snapshot+24)==1 && get32(snapshot+36)==7 && snapshot[47]==2);
+  assert(!memcmp(snapshot+56,record+24,16) && !strcmp((char *)snapshot+72,"shaniu-upload-v1.bkep"));
+  assert(frames==painted+2);
+#ifdef TEST_SELECTION_PRODUCT
+  source_grant=3;product_pc_pack_step(true);
+  assert(!selection_control.bound && !g_pc_pack.bound);
+  g_pc_usb_owner.usb.lease.revision=3;
+  assert(wire_apply(record,96)==-ESTALE);
+  assert(bk7258_display_selection_status(&state)==0 && state.save_confirmed);
+  assert(state.version.revision==2 && state.state==BKDISPLAY_SELECTION_DONE);
+#endif
+}
 static void recovery_case(struct bkdisplay_service_s *service,const char *mode)
 {
   struct bkdisplay_selection_status_s before,after;
@@ -264,6 +415,7 @@ static void recovery_case(struct bkdisplay_service_s *service,const char *mode)
 }
 static void selection_case(struct bkdisplay_service_s *service,const char *mode)
 {
+  if(!strncmp(mode,"selection-wire-",15)){selection_wire_case(service,mode);return;}
   if(!strncmp(mode,"selection-recover-",18)){recovery_case(service,mode);return;}
   struct bkdisplay_selection_status_s state;
   unsigned io=mounts,painted=frames,stored=writes;

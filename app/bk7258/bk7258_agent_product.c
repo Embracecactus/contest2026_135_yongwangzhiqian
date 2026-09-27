@@ -63,6 +63,7 @@
 #include "bk7258_display_service.h"
 #include "bk7258_display_job_service.h"
 #include "bk7258_display_job_control.h"
+#include "bk7258_display_selection_control.h"
 #include "bk7258_control_ota_request.h"
 #include "bk7258_cloud_http.h"
 #include "bk7258_voice_tls.h"
@@ -1504,6 +1505,10 @@ static int product_config(void *context, enum bkcontrol_command_e command,
 #ifdef CONFIG_BK7258_USBCDC
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
 static struct bkpack_control_s g_pc_pack;
+static struct bkselection_control_s g_pc_selection;
+static uint64_t g_pc_selection_binding;
+static uint64_t g_pc_selection_grant;
+static uint8_t g_pc_selection_client[16];
 
 static void product_pc_pack_step(bool admitted)
 {
@@ -1520,6 +1525,15 @@ static void product_pc_pack_step(bool admitted)
       bkpack_control_invalidate(&g_pc_pack);
     }
 
+  changed = valid && g_pc_selection.bound &&
+    (g_pc_selection_binding != binding ||
+     g_pc_selection_grant != view.revision ||
+     memcmp(g_pc_selection_client, view.client, sizeof(view.client)));
+  if (changed || (!valid && ret != -EAGAIN))
+    {
+      bkselection_control_invalidate(&g_pc_selection);
+    }
+
   mbedtls_platform_zeroize(&view, sizeof(view));
   (void)bk7258_display_job_quiesce(!admitted || !valid || !g_pc_pack.bound);
 }
@@ -1534,6 +1548,38 @@ static int product_pc_config(void *context, enum bkcontrol_command_e command,
   struct bkcontrol_status_s *status)
 {
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
+  if (kind == BKCONTROL_CONFIG_DEFAULT_SELECTION)
+    {
+      const struct bkpc_control_s *lease = &g_pc_usb_owner.usb.lease;
+      bool admitted = g_identity_bound && g_control_bound &&
+                      !bkagent_ota_busy();
+      int ret;
+
+      if (!lease->open || (lease->capabilities & BKPC_CAP_RESOURCES) == 0)
+        return -EACCES;
+      if (!g_pc_selection.bound)
+        {
+          uint8_t epoch[16];
+          if (!admitted || g_pc_usb_owner.pair == NULL) return -EBUSY;
+          ret = mbedtls_ctr_drbg_random(&g_pc_usb_owner.pair->tls.random,
+                                        epoch, sizeof(epoch));
+          if (ret != 0) return -EIO;
+          ret = bkselection_control_bind(&g_pc_selection, epoch);
+          if (ret < 0) return ret;
+          g_pc_selection_binding = lease->binding;
+          g_pc_selection_grant = lease->revision;
+          memcpy(g_pc_selection_client, lease->client, sizeof(lease->client));
+        }
+
+      if (g_pc_selection_binding != lease->binding ||
+          g_pc_selection_grant != lease->revision ||
+          memcmp(g_pc_selection_client, lease->client, sizeof(lease->client)))
+        return -ESTALE;
+      if (command != BKCONTROL_CONFIG_READ && !admitted) return -EBUSY;
+      return bkselection_control(&g_pc_selection, command, offset,
+                                  record, size, status);
+    }
+
   if (kind == BKCONTROL_CONFIG_RESOURCE_JOB)
     {
       const struct bkpc_control_s *lease = &g_pc_usb_owner.usb.lease;

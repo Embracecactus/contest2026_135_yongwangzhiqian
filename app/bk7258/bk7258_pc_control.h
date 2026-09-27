@@ -49,8 +49,9 @@ struct bkpc_control_s
 
 /* Zero-init lease and pair. Uses only the independent persisted PC key.
  * All valid grants may read STATUS/INFO and parser CAP1. SCENES permits
- * FOCUS/EXPRESSION_TRIAL read/begin/apply; RESOURCES currently permits only
- * EYE_PACK read. The legacy HTTPS import is not the USB file installer.
+ * FOCUS/EXPRESSION_TRIAL read/begin/apply. RESOURCES permits EYE_PACK read,
+ * RESOURCE_JOB installation and DEFAULT_SELECTION jobs. Legacy HTTPS import
+ * is not the USB file installer.
  * All other config/basic mutations are denied, no OTA handler or SPV1 entry
  * is installed. TASKS permits PTE1/PTS1 only. DIAGNOSTICS is unbound.
  */

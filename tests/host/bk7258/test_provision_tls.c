@@ -264,6 +264,12 @@ static int pc_config(void *context, enum bkcontrol_command_e command,
   assert(context == &pc_reads);
   if (kind == BKCONTROL_CONFIG_PC_TASK)
     return bkpc_tasks_control(&pc_tasks, command, offset, record, size, status, now);
+  if (kind == BKCONTROL_CONFIG_DEFAULT_SELECTION)
+    {
+      /* Permission boundary only. Never fabricate native save success. */
+      assert(command == BKCONTROL_CONFIG_READ || command == BKCONTROL_CONFIG_BEGIN);
+      return -ENOTSUP;
+    }
   if (kind == BKCONTROL_CONFIG_RESOURCE_JOB)
     {
       if (resource_peer)
@@ -750,6 +756,10 @@ static void pc_guard_tests(mbedtls_ssl_context *client,
   pc_exchange(&control, client, 15, seq++, eye, 4, 0);
   const uint8_t resource_query[20] = {0,16,0,0,1};
   pc_exchange(&control, client, 15, seq++, resource_query, 20, -ENOTSUP);
+  const uint8_t selection_query[20]={0,17,0,0,1};
+  const uint8_t selection_begin[8]={0,0,0,17,0,0,0,96};
+  pc_exchange(&control,client,15,seq++,selection_query,20,-ENOTSUP);
+  pc_exchange(&control,client,16,seq++,selection_begin,8,-ENOTSUP);
   pc_exchange(&control, client, 16, seq++, begin, 8, 0);
   pc_exchange(&control, client, 17, seq++, (const uint8_t *)"TEST", 4, 0);
   pc_exchange(&control, client, 18, seq++, NULL, 0, 0);
@@ -772,13 +782,17 @@ static void pc_guard_tests(mbedtls_ssl_context *client,
   pc_exchange(&control, client, 15, 1, focus, 4, -EACCES);
   pc_exchange(&control, client, 16, 2, begin, 8, -EACCES);
   pc_exchange(&control, client, 15, 3, resource_query, 20, -EACCES);
+  pc_exchange(&control,client,15,4,selection_query,20,-EACCES);
+  pc_exchange(&control,client,16,5,selection_begin,8,-EACCES);
   assert(pc_reads == 4 && pc_writes == 1);
   pc_change(BKPC_CAP_SCENES); /* Changing scope also invalidates current AUTH. */
   control_terminal(&control, -ESTALE);
   control_handshake_on(&control, client, cert, key, true);
   pc_exchange(&control, client, 1, 0, auth, 32, 0);
-  pc_exchange(&control, client, 16, 1, begin, 8, 0);
-  pc_exchange(&control, client, 17, 2, (const uint8_t *)"TEST", 4, 0);
+  pc_exchange(&control,client,15,1,selection_query,20,-EACCES);
+  pc_exchange(&control,client,16,2,selection_begin,8,-EACCES);
+  pc_exchange(&control, client, 16, 3, begin, 8, 0);
+  pc_exchange(&control, client, 17, 4, (const uint8_t *)"TEST", 4, 0);
   pc_change(0); /* In-flight staging is destroyed, not applied on reconnect. */
   control_terminal(&control, -ESTALE);
   assert(pc_writes == 1);

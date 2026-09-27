@@ -1,0 +1,13 @@
+{
+  "counts": {
+    "PASS": 592,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "collection_errors": [],
+  "production_unchanged": true,
+  "source_report_sha256": "61c41938fda5af21adbc7417139a688d0e0183a352bfd9dee35c4f465ec7ea84",
+  "source_report": "out/shaniu-s102/before-scope/results.json",
+  "limit": "Passing suite preceded the added no-installer-initialization assertion. Final report supersedes this for current source."
+}

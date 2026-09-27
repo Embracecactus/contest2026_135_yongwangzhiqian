@@ -53,6 +53,13 @@ def main():
     with tempfile.TemporaryDirectory(prefix="pack-trial-build-") as d:
         temp = Path(d)
         (temp / "pack-trial-render.inc").write_text("\n".join(fragments))
+        from test_nfc_rf_lifecycle import function
+
+        product = (APP / "bk7258_agent_product.c").read_text()
+        (temp / "selection-product.inc").write_text(
+            function(product, "product_pc_pack_step")
+            + function(product, "product_pc_config")
+        )
         # Every palette entry is green: expected RGB565 is independently 0x07e0
         # for every rendered pixel, regardless of expression geometry.
         spec = json.loads((APP / "assets/display/shaniu-default-v1.json").read_text())
@@ -87,6 +94,15 @@ def main():
                 "-Wextra",
                 "-Werror",
                 "-pthread",
+                *(
+                    [
+                        "-DTEST_SELECTION_PRODUCT",
+                        "-I",
+                        str(ROOT.parent / "apps/crypto/mbedtls/mbedtls/include"),
+                    ]
+                    if sys.argv[1] == "selection-wire-product"
+                    else []
+                ),
                 "-I",
                 str(temp),
                 "-I",
@@ -98,6 +114,7 @@ def main():
                 str(APP / "bk7258_display_pack.c"),
                 str(APP / "bk7258_media_volume.c"),
                 str(APP / "bk7258_display_trial_control.c"),
+                str(APP / "bk7258_display_selection_control.c"),
                 str(APP / "bk7258_control_session.c"),
                 "-Wl,--wrap=write,--wrap=fsync",
                 "-o",

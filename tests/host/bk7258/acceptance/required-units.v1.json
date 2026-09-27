@@ -585,7 +585,14 @@
     "RES-02.selection-job-commit-unknown",
     "RES-02.selection-recover-success",
     "RES-02.selection-recover-gate",
-    "RES-02.selection-recover-failure"
+    "RES-02.selection-recover-failure",
+    "RES-02.selection-wire-success",
+    "RES-02.selection-wire-invalid",
+    "RES-02.selection-wire-revoke",
+    "RES-02.selection-wire-cancel",
+    "RES-02.selection-wire-refresh",
+    "RES-02.selection-wire-recover",
+    "RES-02.selection-wire-product"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1174,6 +1181,13 @@
     "RES-02.selection-job-commit-unknown",
     "RES-02.selection-recover-success",
     "RES-02.selection-recover-gate",
-    "RES-02.selection-recover-failure"
+    "RES-02.selection-recover-failure",
+    "RES-02.selection-wire-success",
+    "RES-02.selection-wire-invalid",
+    "RES-02.selection-wire-revoke",
+    "RES-02.selection-wire-cancel",
+    "RES-02.selection-wire-refresh",
+    "RES-02.selection-wire-recover",
+    "RES-02.selection-wire-product"
   ]
 }

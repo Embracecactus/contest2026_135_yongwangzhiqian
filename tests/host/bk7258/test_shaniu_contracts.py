@@ -923,6 +923,10 @@ def main():
     add(suite, "RES-02.selection-version-legacy-recovery", "RES-02", "L2",
         [HERE / "build/test_bk7258_display_pack", HERE / "build/shaniu-default-v1.bkep"],
         ready=binaries["test_bk7258_display_pack"], marker=False)
+    for variant in ("success", "invalid", "revoke", "cancel", "refresh", "recover", "product"):
+        add(suite, "RES-02.selection-wire-" + variant, "RES-02", "L2",
+            [sys.executable, HERE / "test_pack_trial.py", "selection-wire-" + variant],
+            ready=binaries["test_display_upload"], setup_exit_code=2)
     for variant in ("success", "gate", "failure"):
         add(suite, "RES-02.selection-recover-" + variant, "RES-02", "L2",
             [sys.executable, HERE / "test_pack_trial.py", "selection-recover-" + variant],
@@ -1517,6 +1521,8 @@ def main():
         ROOT / "app/bk7258/bk7258_display_service.h",
         HERE / "test_shaniu_trial_wire.c",
         ROOT / "app/bk7258/bk7258_display_trial_control.c",
+        ROOT / "app/bk7258/bk7258_display_selection_control.c",
+        ROOT / "app/bk7258/bk7258_display_selection_control.h",
         ROOT / "app/bk7258/bk7258_display_trial_control.h",
         ROOT / "app/bk7258/bk7258_display_intent.inc",
         ROOT / "app/bk7258/bk7258_display_selection_request.inc",

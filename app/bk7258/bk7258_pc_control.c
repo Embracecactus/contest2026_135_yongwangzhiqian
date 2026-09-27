@@ -85,7 +85,8 @@ static int config(void *context, enum bkcontrol_command_e command,
              kind == BKCONTROL_CONFIG_EYE_PACK &&
              command == BKCONTROL_CONFIG_READ;
   allowed |= (state->capabilities & BKPC_CAP_RESOURCES) != 0 &&
-             kind == BKCONTROL_CONFIG_RESOURCE_JOB;
+             (kind == BKCONTROL_CONFIG_RESOURCE_JOB ||
+              kind == BKCONTROL_CONFIG_DEFAULT_SELECTION);
   allowed |= (state->capabilities & BKPC_CAP_TASKS) != 0 &&
              kind == BKCONTROL_CONFIG_PC_TASK;
   if (!allowed)

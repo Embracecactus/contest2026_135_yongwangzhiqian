@@ -858,3 +858,33 @@ state machine. The first missing API compilation is BLOCKED_INTERFACE, not an
 assertion Red. A compiled isolated mutant that clears the latch on failed close
 must be detected. These tests invoke the worker step directly; RTOS scheduling,
 physical unmount, remote authorization and a product UI remain separate gaps.
+
+### S102: ESC1 / ESS1 authenticated default selection
+
+Config kind17 uses the existing authenticated SDC1 staging path. Resource
+permission is required on PC; SCENES alone cannot persist a default. The native
+service is shared with future phone callers; this slice binds PC, not phone UI.
+The authority owner supplies a fresh nonzero 16-byte epoch after boot or grant
+invalidation. Only the latest volatile operation receipt is retained. Reconnect
+within unchanged authority retains the epoch and never automatically replays.
+
+ESC1 is exactly96 bytes, big endian: magic0, action4 (1 select,2 refresh,
+3 cancel,4 release recovery), epoch8..23, nonzero operation nonce24..39,
+expected job ID40..43, zero44..47, expected durable revision48..55,
+canonical zero-padded installed .bkep filename56..95. Only select has a filename
+or nonzero revision; other operations require zero in these fields. Same nonce
+and exact bytes return acceptance only while its resulting job is current;
+changed bytes conflict. Native revision checking remains in the real worker.
+Accepted does not mean persisted/rendered/canceled/released. CONFIG_CANCEL
+only discards staging. New retry after failed release needs a new nonce.
+
+READ requires a nonzero16-byte query nonce after the argument. Offset0 captures
+an immutable128-byte ESS1 snapshot for that nonce, offsets0..112 in16-byte steps;
+a new query must begin at0. No I/O occurs during capture. ESS1: magic0,state4,
+epoch8..23,jobID24,error28,releaseError32,flags36 (1 version known,2 save confirmed,
+4 render confirmed,8 refresh,16 recovery pending), revision40(u64),expected48(u64),
+last operation nonce56..71 (zero unless job matches latest accepted operation),
+filename72..111,snapshot sequence112(u64),reserved120..127 zero. All receipts
+are volatile. Snapshot is global device public resource state, not credentials.
+Invalidation cancels this authority's latest queued/preparing job where possible;
+it cannot undo an already committing save, and does not claim to do so.
