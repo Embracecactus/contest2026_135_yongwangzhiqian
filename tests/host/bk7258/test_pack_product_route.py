@@ -23,12 +23,13 @@ def main():
     prefix = r"""
 #include "bk7258_pc_usb.h"
 #include "bk7258_display_selection_control.h"
-/* This fixture verifies the installer route, not default selection. */
+/* This fixture verifies the installer route, not selection/catalog. */
 static struct bkselection_control_s g_pc_selection;
 static uint64_t g_pc_selection_binding,g_pc_selection_grant;
 static uint8_t g_pc_selection_client[16];
 #define bkselection_control_bind(...) (-ENOTSUP)
 #define bkselection_control(...) (-ENOTSUP)
+#define bkcatalog_control(...) (assert(!"unexpected catalog route"), -ENOTSUP)
 #define bkselection_control_invalidate(s) memset((s),0,sizeof(*(s)))
 #define CONFIG_BK7258_DISPLAY_SERVICE 1
 #define g_pc_pack wire

@@ -196,11 +196,12 @@ static int config(void *c,enum bkcontrol_command_e cmd,uint32_t kind,uint32_t of
                   const uint8_t *p,size_t n,struct bkcontrol_status_s *s)
 {
 #ifdef TEST_PHONE_SELECTION
-  (void)c;return kind==17?product_phone_selection_config(cmd,off,p,n,s):-ENOTSUP;
+  (void)c;return (kind==17||kind==18)?product_phone_selection_config(cmd,kind,off,p,n,s):-ENOTSUP;
 #elif defined(TEST_SELECTION_PRODUCT)
   return product_pc_config(c,cmd,kind,off,p,n,s);
 #else
   (void)c;return kind==17?bkselection_control(&selection_control,cmd,off,p,n,s):
+    kind==18?bkcatalog_control(&selection_control,cmd,off,p,n,s):
     kind==11?bkdisplay_trial_control(cmd,off,p,n,s,clock_ms):-ENOTSUP;
 #endif
 }
@@ -617,6 +618,7 @@ static int remove_entry(const char *p,const struct stat *s,int type,struct FTW *
 {(void)s;(void)type;(void)w;return remove(p);}
 
 #include "catalog_job_cases.inc"
+#include "catalog_wire_cases.inc"
 #include "power_request_cases.inc"
 
 int main(int argc,char **argv)
@@ -628,7 +630,9 @@ int main(int argc,char **argv)
   unsigned baseline_writes=writes,baseline_frames=frames,baseline_mounts=mounts;
   uint32_t id=0;
   const char *name=!strcmp(argv[3],"missing")?"missing.bkep":"shaniu-upload-v1.bkep";
-  if (!strncmp(argv[3], "power-request-", 14))
+  if (!strncmp(argv[3], "catalog-wire-", 13))
+    catalog_wire_case(&service, argv[3]);
+  else if (!strncmp(argv[3], "power-request-", 14))
     {
       power_service = &service;
       power_request_case(&service, argv[3]);

@@ -100,6 +100,8 @@ enum bkcontrol_command_e
 #define BKCONTROL_CONFIG_RESOURCE_JOB 16u
 /* ESC1/ESS1 versioned default selection, refresh and release recovery. */
 #define BKCONTROL_CONFIG_DEFAULT_SELECTION 17u
+/* ECC1/ECL1 explicit asynchronous installed-catalog pages. */
+#define BKCONTROL_CONFIG_RESOURCE_CATALOG 18u
 #define BKCONTROL_CONFIG_CAPABILITIES 0x7fffu
 #define BKCONTROL_CONFIG_RECORD_MAX (140u + 65536u) /* WKM2 显式前端字段 */
 struct bkcontrol_device_info_s

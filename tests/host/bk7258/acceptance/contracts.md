@@ -911,3 +911,42 @@ and real Python _exchange -> native SDC1/controller/worker/store/renderer. The
 native peer replaces TLS/USB transport with pipes and uses synthetic credentials;
 separate existing TLS/guard regressions remain required. No single physical or
 production-TLS-to-default-renderer path is claimed by the pipe integration.
+
+### S116: ECC1/ECL1 installed catalog protocol (kind18)
+
+Kind18 uses authenticated SDC1 staging and the existing resource authority epoch,
+shared with kind17. PC requires RESOURCES; phone requires its actual owner scope.
+No filesystem I/O in READ/BEGIN/APPLY: page action queues the existing catalog
+job, status captures its metadata/result only. Old firmware returns unsupported;
+clients must not interpret that as an empty catalog or replay a mutation.
+
+ECC1 is96 bytes BE: magic0,action4(1 page,2 cancel,3 close recovery),epoch8..23,
+nonzero operation nonce24..39,expected shared job ID40,zero44..55,canonical
+zero-padded cursor56..95. Empty cursor starts a page; only action1 accepts it.
+Actions2/3 require a current catalog job. Same nonce+exact bytes is idempotent
+only while its resulting job is current; another operation with the nonce is a
+conflict. CONFIG_CANCEL discards staging only, not an accepted job.
+
+READ carries nonzero16-byte query nonce after kind/offset. Offset0 captures an
+immutable608-byte ECL1; offsets0..592 are16-byte aligned. New query starts at0;
+repeating a query sees the captured result, not a partially changed live page.
+Header: magic0,state4,epoch8..23,shared job ID24,error28,release error32,flags36
+(1 catalog job,2 recovery pending,4 page available,8 more),last operation nonce40,
+sequence56(u64 nonzero),count64(u32<=4),zero68..95. No entries unless a catalog job
+is DONE with no errors and its exact-ID page read succeeds. A raced job ID returns
+ESTALE; never publish mixed fields. Each capture/page is an observation, not an
+atomic multi-page directory snapshot. No full-file digest is claimed.
+
+Four128-byte entry slots begin at96. Per slot: filename0..39,pack ID40..71,
+revision72(u32),renderer API76(u16),width78(u16),height80(u16),entry count82(u16),
+palette count84(u16),zero86..87,total file bytes88(u32),declared source SHA256
+92..123,zero124..127. All unused slots and string padding are zero. Source SHA is
+source metadata, not the file hash. Gate/validation/exit failure returns no page.
+Close-only recovery preserves UNKNOWN; ACK is not catalog completion.
+
+ESS1 keeps128 bytes and adds catalog flag32 for its shared-job view. A catalog
+job has no default version/name/save/render/refresh flags. DONE catalog must not
+be presented as a saved/rendered default. Current PC/Android decoders must accept
+this distinction before this firmware is deployed with catalog enabled; older
+strict ESS1 decoders reject the extension. Matching APK/firmware is a release
+gate; no on-device compatibility is inferred from host decoding.

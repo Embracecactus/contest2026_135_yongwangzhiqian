@@ -1,0 +1,12 @@
+["/usr/bin/python3", "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_product_route.py", "revoke"]
+/usr/bin/ld: /tmp/ccTptrXZ.o: in function `product_pc_config.constprop.0':
+route.c:(.text.product_pc_config.constprop.0+0x2c2): undefined reference to `bkcatalog_control'
+collect2: error: ld returned 1 exit status
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_product_route.py", line 168, in <module>
+    main()
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_product_route.py", line 154, in main
+    subprocess.run(args, cwd=here, check=True)
+  File "/usr/lib/python3.10/subprocess.py", line 526, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['cc', '-std=gnu11', '-Wall', '-Wextra', '-Werror', '-O2', '-pthread', '-ffunction-sections', '-fdata-sections', '-Wl,--gc-sections', '-DTEST_PACK_CONTROL', '/tmp/pack-route-xvhdnesl/route.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_job_control.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_control_session.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_job.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_pack.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_media_volume.c', '/home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/library/sha256.c', '/home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/library/platform_util.c', '/home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/library/constant_time.c', '-I', '/home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/include', '-I', 'mocks', '-I', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258', '-o', '/tmp/pack-route-xvhdnesl/route']' returned non-zero exit status 1.

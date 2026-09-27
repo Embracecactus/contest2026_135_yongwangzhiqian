@@ -677,7 +677,17 @@
     "LIFE-01.power-request-held-lock",
     "LIFE-01.power-request-coalesce",
     "LIFE-01.power-request-clear",
-    "LIFE-01.power-request-catalog-running"
+    "LIFE-01.power-request-catalog-running",
+    "RES-02.catalog-wire-normal",
+    "RES-02.catalog-wire-invalid",
+    "RES-02.catalog-wire-revoke",
+    "RES-02.catalog-wire-cancel",
+    "RES-02.catalog-wire-recovery",
+    "RES-02.catalog-wire-product",
+    "RES-02.catalog-wire-phone-normal",
+    "RES-02.catalog-wire-phone-revoke",
+    "RES-02.pc-default-catalog_is_not_default_completion",
+    "provision.DefaultSelectionControllerTest.catalogCompletionNeverClaimsDefaultSavedOrEnablesDefaultMutation"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1358,6 +1368,16 @@
     "LIFE-01.power-request-held-lock",
     "LIFE-01.power-request-coalesce",
     "LIFE-01.power-request-clear",
-    "LIFE-01.power-request-catalog-running"
+    "LIFE-01.power-request-catalog-running",
+    "RES-02.catalog-wire-normal",
+    "RES-02.catalog-wire-invalid",
+    "RES-02.catalog-wire-revoke",
+    "RES-02.catalog-wire-cancel",
+    "RES-02.catalog-wire-recovery",
+    "RES-02.catalog-wire-product",
+    "RES-02.catalog-wire-phone-normal",
+    "RES-02.catalog-wire-phone-revoke",
+    "RES-02.pc-default-catalog_is_not_default_completion",
+    "provision.DefaultSelectionControllerTest.catalogCompletionNeverClaimsDefaultSavedOrEnablesDefaultMutation"
   ]
 }

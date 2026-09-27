@@ -949,7 +949,7 @@ def main():
     add(suite, "RES-02.selection-version-legacy-recovery", "RES-02", "L2",
         [HERE / "build/test_bk7258_display_pack", HERE / "build/shaniu-default-v1.bkep"],
         ready=binaries["test_bk7258_display_pack"], marker=False)
-    for variant in ("golden", "invalid", "decode", "malformed", "staging", "unconfirmed_no_replay", "snapshot_identity", "cli_validation"):
+    for variant in ("golden", "invalid", "decode", "malformed", "staging", "unconfirmed_no_replay", "snapshot_identity", "cli_validation", "catalog_is_not_default_completion"):
         add(suite, "RES-02.pc-default-" + variant, "RES-02", "L1",
             [sys.executable, HERE / "test_workbench_selection.py", "SelectionTest.test_" + variant],
             marker=False, setup_exit_code=2)
@@ -977,6 +977,10 @@ def main():
                     "render-failure", "release-failure", "stale", "supersede", "stale-job", "commit-unknown"):
         add(suite, "RES-02.selection-job-" + variant, "RES-02", "L2",
             [sys.executable, HERE / "test_pack_trial.py", "selection-" + variant],
+            ready=binaries["test_display_upload"], setup_exit_code=2)
+    for variant in ("normal", "invalid", "revoke", "cancel", "recovery", "product", "phone-normal", "phone-revoke"):
+        add(suite, "RES-02.catalog-wire-" + variant, "RES-02", "L2",
+            [sys.executable, HERE / "test_pack_trial.py", "catalog-wire-" + variant],
             ready=binaries["test_display_upload"], setup_exit_code=2)
     for variant in ("held-lock", "coalesce", "clear", "catalog-running"):
         add(suite, "LIFE-01.power-request-" + variant, "LIFE-01", "L2",

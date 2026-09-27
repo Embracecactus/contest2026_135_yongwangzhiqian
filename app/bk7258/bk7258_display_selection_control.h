@@ -23,6 +23,9 @@ struct bkselection_control_s
   uint8_t request[96];
   uint8_t query[16];
   uint8_t snapshot[128];
+  uint8_t catalog_query[16];
+  uint8_t catalog_snapshot[608];
+  bool catalog_captured;
   uint64_t sequence;
   uint32_t id;
   bool bound;
@@ -41,4 +44,8 @@ int bkselection_control(struct bkselection_control_s *state,
                         enum bkcontrol_command_e command, uint32_t offset,
                         const uint8_t *record, size_t size,
                         struct bkcontrol_status_s *status);
+int bkcatalog_control(struct bkselection_control_s *state,
+                      enum bkcontrol_command_e command, uint32_t offset,
+                      const uint8_t *record, size_t size,
+                      struct bkcontrol_status_s *status);
 #endif

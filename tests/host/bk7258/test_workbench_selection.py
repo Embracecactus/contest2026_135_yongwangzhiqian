@@ -138,6 +138,33 @@ class SelectionTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.codec().decode(data)
 
+    def test_catalog_is_not_default_completion(self):
+        data = bytearray(128)
+        data[:4] = b"ESS1"
+        struct.pack_into(">I", data, 4, 6)
+        data[8:24] = bytes.fromhex(EPOCH)
+        struct.pack_into(">IiiI", data, 24, 2, 0, 0, 32)
+        struct.pack_into(">Q", data, 112, 1)
+        value = self.codec().decode(data)
+        self.assertTrue(value["catalog"])
+        self.assertEqual(value["snapshot_of"], "latest_catalog_job")
+        for field in (
+            "selection_complete",
+            "refresh_complete",
+            "device_reports_saved",
+            "device_reports_rendered",
+        ):
+            self.assertFalse(value[field])
+        self.assertIsNone(value["revision"])
+        self.assertIsNone(value["filename"])
+        for offset, number in ((36, 33), (36, 34), (36, 40), (4, 3), (4, 4), (48, 1)):
+            bad = bytearray(data)
+            struct.pack_into(">I", bad, offset, number)
+            with self.subTest(offset=offset, number=number), self.assertRaises(
+                ValueError
+            ):
+                self.codec().decode(bad)
+
     def test_staging(self):
         c, calls = self.client()
         result = c.selection_request("set", EPOCH, NONCE, 1, 1, NAME)

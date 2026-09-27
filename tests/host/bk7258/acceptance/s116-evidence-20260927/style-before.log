@@ -1,0 +1,6 @@
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_selection_control.c:2:1: error: Path relative to repository other than "nuttx" must begin with the root directory
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_selection_control.c:176:7: error: Right brace must be followed by a blank line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_selection_control.c:196:1: error: Missing blank line before comment found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_selection_control.c:196:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_selection_control.c:207:7: error: Right brace must be followed by a blank line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_selection_control.c:210:3: error: Right brace must be followed by a blank line

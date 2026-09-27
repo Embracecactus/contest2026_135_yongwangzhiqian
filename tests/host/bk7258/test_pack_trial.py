@@ -65,12 +65,15 @@ def main():
             flush=True,
         )
         from test_nfc_rf_lifecycle import function
+
         power_start = source.index("int bk7258_display_power(")
         power_end = source.index("\nstatic uint64_t bkdisplay_now_ms", power_start)
         (temp / "power-request.inc").write_text(source[power_start:power_end])
         (temp / "power-render.inc").write_text(
-            function(source, "bkdisplay_power_apply_locked") + "\n" +
-            function(source, "bkdisplay_builtin_locked") + "\n"
+            function(source, "bkdisplay_power_apply_locked")
+            + "\n"
+            + function(source, "bkdisplay_builtin_locked")
+            + "\n"
         )
 
         product = (APP / "bk7258_agent_product.c").read_text()
@@ -78,7 +81,7 @@ def main():
             function(product, "product_pc_pack_step")
             + function(product, "product_pc_config")
         )
-        if sys.argv[1].startswith("selection-wire-phone-"):
+        if sys.argv[1].startswith(("selection-wire-phone-", "catalog-wire-phone-")):
             (temp / "selection-phone.inc").write_text(
                 function(product, "product_phone_selection_step")
                 + function(product, "product_phone_selection_config")
@@ -171,12 +174,14 @@ def main():
                         "-I",
                         str(ROOT.parent / "apps/crypto/mbedtls/mbedtls/include"),
                     ]
-                    if sys.argv[1] == "selection-wire-product"
+                    if sys.argv[1] in ("selection-wire-product", "catalog-wire-product")
                     else []
                 ),
                 *(
                     ["-DTEST_PHONE_SELECTION"]
-                    if sys.argv[1].startswith("selection-wire-phone-")
+                    if sys.argv[1].startswith(
+                        ("selection-wire-phone-", "catalog-wire-phone-")
+                    )
                     else []
                 ),
                 "-I",

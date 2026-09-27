@@ -1342,7 +1342,7 @@ static void product_phone_selection_step(void)
 }
 
 static int product_phone_selection_config(enum bkcontrol_command_e command,
-  uint32_t offset, const uint8_t *record, size_t size,
+  uint32_t kind, uint32_t offset, const uint8_t *record, size_t size,
   struct bkcontrol_status_s *status)
 {
   uint8_t epoch[16];
@@ -1375,8 +1375,9 @@ static int product_phone_selection_config(enum bkcontrol_command_e command,
         }
     }
 
-  return bkselection_control(&g_phone_selection, command, offset,
-                              record, size, status);
+  return kind == BKCONTROL_CONFIG_RESOURCE_CATALOG ?
+    bkcatalog_control(&g_phone_selection, command, offset, record, size, status) :
+    bkselection_control(&g_phone_selection, command, offset, record, size, status);
 }
 #endif
 
@@ -1385,9 +1386,10 @@ static int product_config(void *context, enum bkcontrol_command_e command,
   struct bkcontrol_status_s *status)
 {
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
-  if (kind == BKCONTROL_CONFIG_DEFAULT_SELECTION)
+  if (kind == BKCONTROL_CONFIG_DEFAULT_SELECTION ||
+      kind == BKCONTROL_CONFIG_RESOURCE_CATALOG)
     {
-      return product_phone_selection_config(command, offset, record,
+      return product_phone_selection_config(command, kind, offset, record,
                                               size, status);
     }
 #endif
@@ -1615,7 +1617,8 @@ static int product_pc_config(void *context, enum bkcontrol_command_e command,
   struct bkcontrol_status_s *status)
 {
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
-  if (kind == BKCONTROL_CONFIG_DEFAULT_SELECTION)
+  if (kind == BKCONTROL_CONFIG_DEFAULT_SELECTION ||
+      kind == BKCONTROL_CONFIG_RESOURCE_CATALOG)
     {
       const struct bkpc_control_s *lease = &g_pc_usb_owner.usb.lease;
       bool admitted = g_identity_bound && g_control_bound &&
@@ -1643,8 +1646,9 @@ static int product_pc_config(void *context, enum bkcontrol_command_e command,
           memcmp(g_pc_selection_client, lease->client, sizeof(lease->client)))
         return -ESTALE;
       if (command != BKCONTROL_CONFIG_READ && !admitted) return -EBUSY;
-      return bkselection_control(&g_pc_selection, command, offset,
-                                  record, size, status);
+      return kind == BKCONTROL_CONFIG_RESOURCE_CATALOG ?
+        bkcatalog_control(&g_pc_selection, command, offset, record, size, status) :
+        bkselection_control(&g_pc_selection, command, offset, record, size, status);
     }
 
   if (kind == BKCONTROL_CONFIG_RESOURCE_JOB)

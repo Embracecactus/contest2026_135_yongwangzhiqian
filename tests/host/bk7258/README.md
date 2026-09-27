@@ -3297,3 +3297,24 @@ BrokenPipe。前者仅改成功标记，后者用超长Content-Length头直接�
 见`acceptance/s115-20260927.json`、`s115-power-request-evidence-20260927.json`
 及`s115-evidence-20260927/`。K2/CP/HardFault实板仍待验；onboarding仍可能
 等render mutex，未称所有显示入口已非阻塞；目录协议/App/网页继续接入。
+
+
+### S116：目录认证协议与默认状态类型隔离
+
+`test_pack_trial.py catalog-wire-{normal,invalid,revoke,cancel,recovery,product,phone-normal,phone-revoke}`
+执行真实SDC1、目录控制器、worker/store及手机/电脑产品适配。新kind18请求
+为ECC1/96B，快照ECL1/608B，最多4项，查询nonce固定快照。源摘要只是包声明
+source_sha256，不冒充完整文件校验。手机owner和电脑RESOURCES授权沿用现有边界。
+查询零扫描，显式请求才入队；重复/冲突、旧epoch、取消和卸载恢复分别断言。
+
+目录与默认选择共用作业ID，因此ESS1增加catalog位32；新增Python/JVM用例先
+复现旧解码失败，再验证目录DONE不会显示“默认已保存并显示”。默认页面从
+目录状态只允许终态后的显式默认刷新。旧严格APK不识别此扩展，部署须配套
+客户端；当前没有目录列表页面，也未宣称真实BLE/USB目录流程完成。
+
+完整687PASS保留原677/原63，新增8原生L2、1Python、1JVM；19运行器门禁、原2
+变异、额外漏目录位变异和恢复分开记录。缺接口和错误Gradle选项的原始日志
+单独保存，不计业务Red。AP增量、Android单测/Debug构建、层检查通过；目标
+每个控制器904B，共2个；控制函数静态栈640B非实板高水位，没有新增线程队列。
+证据见`acceptance/s116-20260927.json`、`s116-catalog-wire-evidence-20260927.json`
+及`s116-evidence-20260927/`。未刷板、安装真机或改变设备数据。

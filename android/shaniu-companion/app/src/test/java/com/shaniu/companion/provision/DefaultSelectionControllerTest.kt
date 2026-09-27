@@ -80,6 +80,20 @@ class DefaultSelectionControllerTest {
         assertThrows(IllegalStateException::class.java) { protocol.receive(response(127)) }
         assertTrue(protocol.closed)
     }
+    @Test fun catalogCompletionNeverClaimsDefaultSavedOrEnablesDefaultMutation() {
+        val f = Fixture(); assertTrue(f.controller.refresh()); f.read(snapshot(6,1,32))
+        val value = f.controller.current().snapshot
+        assertNotNull(value)
+        assertFalse(value!!.saved || value.rendered || value.refresh)
+        assertNull(value.revision); assertNull(value.filename)
+        assertTrue(f.controller.current().message.contains("目录"))
+        assertFalse(f.controller.current().message.contains("已保存并显示"))
+        for (action in listOf(1,3,4)) assertFalse(f.controller.canAct(action))
+        assertTrue(f.controller.canAct(2))
+        for (bad in listOf(snapshot(6,1,33), snapshot(6,1,34), snapshot(6,1,40), snapshot(3,1,32), snapshot(4,1,32))) {
+            assertThrows(IllegalArgumentException::class.java) { DefaultSelectionController.decode(bad) }
+        }
+    }
     @Test fun goldenRecordPreservesUnsignedRevisionAndCanonicalName() {
         val data = DefaultSelectionController.encode(1, ByteArray(16) { 7 }, ByteArray(16) { 11 }, 0xffffffffL, ULong.MAX_VALUE, "green.bkep")
         assertEquals(96, data.size)

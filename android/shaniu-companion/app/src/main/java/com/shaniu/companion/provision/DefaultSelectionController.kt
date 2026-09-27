@@ -16,6 +16,7 @@ internal class DefaultSelectionController(
     data class Snapshot(val state: Int, val epoch: ByteArray, val id: Long,
         val error: Int, val releaseError: Int, val flags: Int, val revision: ULong?,
         val operation: ByteArray, val filename: String?, val sequence: Long) {
+        val catalog get() = flags and 32 != 0
         val saved get() = flags and 2 != 0
         val rendered get() = flags and 4 != 0
         val refresh get() = flags and 8 != 0
@@ -58,7 +59,7 @@ internal class DefaultSelectionController(
     }
     fun canAct(action: Int): Boolean {
         val value = snapshot ?: return false
-        if (!ready()) return false
+        if (!ready() || (value.catalog && action != 2)) return false
         return when (action) {
             1 -> value.state in listOf(0,6,7,8,9) && value.revision != null && value.releaseError == 0
             2 -> value.state in listOf(0,6,7,8,9) && value.releaseError == 0
@@ -143,6 +144,7 @@ internal class DefaultSelectionController(
                     snapshot = value; phase = Phase.IDLE
                     message = if (expected?.let { !it.first.contentEquals(value.epoch) || !it.second.contentEquals(value.operation) } == true)
                         "已读取设备当前状态；未确认本次操作，请核对后继续"
+                    else if (value.catalog) "当前为资源目录任务；请刷新设备默认后再操作"
                     else when (value.state) {
                         0 -> "尚无选择任务；请刷新设备默认后再设置"
                         1,2 -> if (value.refresh) "设备已受理，刷新待完成" else "设备已受理，尚未保存"
@@ -186,18 +188,20 @@ internal class DefaultSelectionController(
             val error=b.int; val release=b.int; val flags=b.int; val revision=b.long.toULong(); val expected=b.long
             val operation=ByteArray(16).also { b.get(it) }; val name=ByteArray(40).also { b.get(it) }
             val sequence=b.long; val reserved=b.long; val end=name.indexOf(0)
-            require(state in 0..9 && validToken(epoch) && error <= 0 && release <= 0 && flags and 31 == flags)
+            require(state in 0..9 && validToken(epoch) && error <= 0 && release <= 0 && flags and 63 == flags)
             require(sequence != 0L && reserved == 0L && end >= 0 && name.drop(end).all { it == 0.toByte() })
             val filename=if (end==0) null else String(name,0,end,Charsets.US_ASCII)
             require(filename == null || validName(filename))
             val known=flags and 1 != 0; val saved=flags and 2 != 0; val rendered=flags and 4 != 0
             val refresh=flags and 8 != 0; val recovering=flags and 16 != 0
+            val catalog=flags and 32 != 0
+            require(!catalog || (!known && !saved && !rendered && !refresh && filename==null && revision==0uL && expected==0L && state !in listOf(3,4)))
             require((state==0)==(id==0L) && (!saved || (known && !refresh)) && (!rendered || saved))
             require(!saved || state !in listOf(1,2,5))
             require(state != 4 || saved)
             require((!known || filename!=null) && (known || revision==0uL))
             require((release==0 || state==9) && (!recovering || (release!=0 && state==9)))
-            require(state!=6 || (error==0 && release==0 && known && (refresh || rendered)))
+            require(state!=6 || (error==0 && release==0 && (catalog || (known && (refresh || rendered)))))
             require(state!=7 || (error!=0 && release==0 && !saved && !rendered))
             require(state!=0 || (flags==0 && error==0 && release==0 && revision==0uL && expected==0L && filename==null && operation.all { it==0.toByte() }))
             return Snapshot(state,epoch,id,error,release,flags,revision.takeIf { known },operation,filename,sequence)

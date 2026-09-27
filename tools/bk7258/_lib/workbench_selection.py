@@ -98,7 +98,7 @@ def decode(data):
         state >= len(STATES)
         or error > 0
         or release > 0
-        or flags & ~31
+        or flags & ~63
         or not sequence
         or any(data[120:])
         or not separator
@@ -108,8 +108,8 @@ def decode(data):
     filename = name.decode("ascii") if name else None
     if filename is not None:
         _filename(filename)
-    known, saved, rendered, refresh, recovering = (
-        bool(flags & (1 << i)) for i in range(5)
+    known, saved, rendered, refresh, recovering, catalog = (
+        bool(flags & (1 << i)) for i in range(6)
     )
     if (
         (state == 0) != (job_id == 0)
@@ -121,7 +121,27 @@ def decode(data):
         or (not known and revision != 0)
         or (release and state != 9)
         or (recovering and (not release or state != 9))
-        or (state == 6 and (error or release or not known or not (refresh or rendered)))
+        or (
+            catalog
+            and (
+                known
+                or saved
+                or rendered
+                or refresh
+                or filename
+                or revision
+                or expected
+                or state in (3, 4)
+            )
+        )
+        or (
+            state == 6
+            and (
+                error
+                or release
+                or (not catalog and (not known or not (refresh or rendered)))
+            )
+        )
         or (state == 7 and (not error or release or saved or rendered))
         or (
             state == 0
@@ -150,12 +170,17 @@ def decode(data):
         operation_nonce=data[56:72].hex() if any(data[56:72]) else None,
         snapshot_sequence=sequence,
         volatile=True,
-        snapshot_of="latest_selection_job",
+        snapshot_of="latest_catalog_job" if catalog else "latest_selection_job",
+        catalog=catalog,
         device_reports_saved=saved,
         device_reports_rendered=rendered,
         refresh=refresh,
         refresh_complete=state == 6 and refresh,
-        selection_complete=state == 6 and not refresh and saved and rendered,
+        selection_complete=state == 6
+        and not catalog
+        and not refresh
+        and saved
+        and rendered,
         cancel_confirmed=state == 7,
         recovery_pending=recovering,
     )
