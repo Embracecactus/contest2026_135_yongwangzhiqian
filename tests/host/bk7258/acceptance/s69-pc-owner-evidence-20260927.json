@@ -1,0 +1,270 @@
+{
+  "slice": "S69",
+  "date": "2026-09-27",
+  "parent": "13ec348f0a6413fb07ae9f4939c3ee8aa268eef0",
+  "counts": {
+    "PASS": 371,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 308,
+      "counts": {
+        "PASS": 308,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "new_execution_units": [
+    {
+      "id": "NET-03.pc-owner-offline",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.1141989630414173,
+      "evidence": "NET-03.pc-owner-offline.log",
+      "evidence_sha256": "9bd77b55178e47a92f835f6603b90b795cee7e3c97c7208590153c8dec6b181d"
+    },
+    {
+      "id": "NET-03.pc-product-offline",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.8209101980319247,
+      "evidence": "NET-03.pc-product-offline.log",
+      "evidence_sha256": "6645eee777ef9602694d2277c2e03de5ee0343ce2891f2c2d4b904ac9e6fdf50"
+    },
+    {
+      "id": "NET-03.pc-owner-revision",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.1143618900096044,
+      "evidence": "NET-03.pc-owner-revision.log",
+      "evidence_sha256": "2aee5e0827dabeb58647d50fc7170a622824fb9231d861853a204f90f683e934"
+    },
+    {
+      "id": "NET-03.pc-product-revision",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.8689965690136887,
+      "evidence": "NET-03.pc-product-revision.log",
+      "evidence_sha256": "d8eb8f734c7409f8b903856a1ce32f88dbd0c73b6f7dc692bec8d402e1be21e6"
+    },
+    {
+      "id": "NET-03.pc-owner-owner",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.11420917900977656,
+      "evidence": "NET-03.pc-owner-owner.log",
+      "evidence_sha256": "f453b384111147fc8d377f58e1b1f383b2ecb424dadf4090b9e8aff504904bfe"
+    },
+    {
+      "id": "NET-03.pc-product-owner",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.8664351199986413,
+      "evidence": "NET-03.pc-product-owner.log",
+      "evidence_sha256": "652e84049ab13203d04700c35e8efe747446749bd6be52be92abab0b8a9a92b4"
+    },
+    {
+      "id": "NET-03.pc-owner-invalid",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.06414625904290006,
+      "evidence": "NET-03.pc-owner-invalid.log",
+      "evidence_sha256": "e30932313ffb02ea1f84b7307cd7b4317fbe598656f7e48757b8179473588637"
+    },
+    {
+      "id": "NET-03.pc-product-invalid",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.867845387023408,
+      "evidence": "NET-03.pc-product-invalid.log",
+      "evidence_sha256": "e5a492e4577ffc998033ac322dfa0705c92bc4504c51125af1103aac8af23a97"
+    },
+    {
+      "id": "NET-03.pc-owner-unbind",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.11423928296426311,
+      "evidence": "NET-03.pc-owner-unbind.log",
+      "evidence_sha256": "6ff89c141644124d35134713c9a4e48e53439206f8161e1910041a43eb867267"
+    },
+    {
+      "id": "NET-03.pc-product-unbind",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.8177871559746563,
+      "evidence": "NET-03.pc-product-unbind.log",
+      "evidence_sha256": "3606807ed278c73122b041b4901ffe513ef3f4b1e25495e7424a97ed08a4cedc"
+    }
+  ],
+  "source_hashes": {
+    "app/bk7258/CMakeLists.txt": "aa9066f5ac46ecdd1799064a2fe10b8e097dd9bd989905bad41a5809fb5c23c3",
+    "app/bk7258/Makefile": "094f2453cbeadaf3c41b8d5de847f0b014bcea02c87fcff1583bd3c861ddad90",
+    "app/bk7258/bk7258_agent_product.c": "2c9dfa830bdb8503053baf4b9f2af1bb04d34667e8e17f63abad4c90da2636fb",
+    "app/bk7258/bk7258_pc_authorization.h": "139a2b2bbf9bf8f44cdda042d00fc15bab4ce5734eaba20eea59db54dae90f1c",
+    "app/bk7258/bk7258_provision_owner.c": "db2fad7bf6c988e9b0bb1a8eefcc7565d812a2864ab0076b46aa766a95d5d378",
+    "app/bk7258/bk7258_provision_owner.h": "2bf87d28d8565714c046f545bf100a3466cf7e78d6d8759eb0bcd2b6062b5c4d",
+    "goal-objective.md": "7e1db3e83e9891cdc60fcefa08f3ea679a34936372a3a544b10aaef0f4ecbb2a",
+    "tests/host/bk7258/Makefile": "8a88bdb7678a5fd79acf685fb9042775443a0c950e1f67c27f08aff1eef1975f",
+    "tests/host/bk7258/README.md": "b36a3a0f4c474f2b9d3792d79471ec93051c310d85012b2fa50233ee8a677199",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "02a403a3fa2737ec0fefc64a9ff8349b99c96e2c1d9da7976c36aa27206dbb91",
+    "tests/host/bk7258/test_shaniu_contracts.py": "a91a7d644e2eb6fa8c21afb324f61b42976dbb8b8a68f21f4639b0b83763921f",
+    "tests/host/bk7258/test_shaniu_reset_nfc.py": "e5e1b1797085c34da00c6e1d72693262a86758e80ab5a42d5a39a989bfb547f9",
+    "app/bk7258/bk7258_pc_authorization_owner.c": "ddf6559b35c21540e18d5b6c04d71f8d583bccc2712c4575e5453c87e334a88b",
+    "app/bk7258/bk7258_pc_authorization_owner.h": "c7326d0e105b866d9fcbf3c042ef05172f4cb48a43201fe08e6cc2ed2deebe30",
+    "tests/host/bk7258/test_pc_owner_binding.c": "8d99e1ab35ef9e74182d4a9cd2fdb67400d259777c2a2d1e1fa23fc56eb472cd",
+    "tests/host/bk7258/test_pc_owner_binding.py": "336905684ddb964b5c10e02a4998ff4f758ae50a0cbe07ae53c03c48a6830730",
+    "tests/host/bk7258/test_pc_product_route.py": "bd8504f7ae44c0c852318b6fa532b62cfa3c6b251cc101223d6b7932ae576164"
+  },
+  "evidence_root": "out/shaniu-s69",
+  "evidence_sha256": {
+    "interface-before.log": "505c87dc498cbe0c2d01879634924112b601d9c1baf4f64d095b6acc88247b67",
+    "first.json": "cac9e59ae575c6f976f3872e0d142a88d9848a830b8b51fd78a663ec1a4a7578",
+    "offline-first.log": "8f7522dfaac3d9b3ddeee927546cc0fd27c2ad84d53a6af0fe2beb8c0496e7ba",
+    "fixture.json": "c3139c1482294f021f42bf9c666b63b0fbec845b08439ae8c41788a37f00eef8",
+    "route-red.log": "60643e6247b38a32da87629114d8e8bfa3affe9a7652cf76ba5917d8f8d2c6a0",
+    "route-green.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "activation-first.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "activation-mutant.log": "ee81640882c83e67efe7942fa12dd00e126902b4c7e24353a477ccbc495b7f28",
+    "activation-restored.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "contracts/results.json": "d219f50d6167a139767cb8e1cf4524469d430eb72fe756c6df831d986ac26a70",
+    "contracts-final/results.json": "08e4359d86640c9f1df3d6926b2cf1938fd570d589e216103351549b2743aba5",
+    "mutations/mutations.json": "ae5512e2ed0636204824ff85df3973866ffc6d09cf0db3f8a8ef6cb5ca5be578",
+    "runner-gate.log": "333f6160055fc5d4174795216b2bb3de4553c8732fd16f7ebc2bc619e0f5a61f",
+    "build-ap-final.log": "1cfbadf3b483d4cd631318dc7b5367d5247869bec7a0592b1994fbca2d422e0c",
+    "manifest.log": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac",
+    "arm-state.log": "f6b982814dc7e2cc27e2b90fd047ac7feb3cde93d7ef81b10ed5cd44c48c702c",
+    "style-c-final.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "style-h-final.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "initial_interface": "BLOCKED_INTERFACE",
+  "fixture_correction": {
+    "affected_ids": "all five owner fixture variants before collection",
+    "failure": "SCB encoder rejected UTC1700000000 (2023) before the system under test was reached",
+    "status": "SETUP_ERROR",
+    "correction": "Use fixed valid UTC1750000000 (2025); production format and time limits unchanged",
+    "evidence": "offline-first.log"
+  },
+  "behavior_red": "Exact production product_config returned unsupported for kind14; connecting it passed the same observable query/admission assertion.",
+  "mutations": [
+    {
+      "mutation": "skip-owner-match",
+      "case": "owner",
+      "mode": "mutated",
+      "exit_code": -6,
+      "detected": true,
+      "log": "skip-owner-match-mutated.log",
+      "sha256": "e468c5bd60f10f31e5e3d6e05886647a16796b5b0e994e0a0d4f3a07052eba50"
+    },
+    {
+      "mutation": "skip-owner-match",
+      "case": "owner",
+      "mode": "restored",
+      "exit_code": 0,
+      "detected": false,
+      "log": "skip-owner-match-restored.log",
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4"
+    },
+    {
+      "mutation": "stale-bound-revision",
+      "case": "revision",
+      "mode": "mutated",
+      "exit_code": -6,
+      "detected": true,
+      "log": "stale-bound-revision-mutated.log",
+      "sha256": "ad4b1a53dc2cfe0b978f875e8debb7e4ede17910192642cf39cc1e455fe97173"
+    },
+    {
+      "mutation": "stale-bound-revision",
+      "case": "revision",
+      "mode": "restored",
+      "exit_code": 0,
+      "detected": false,
+      "log": "stale-bound-revision-restored.log",
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4"
+    },
+    {
+      "mutation": "unbind-keeps-authority",
+      "case": "unbind",
+      "mode": "mutated",
+      "exit_code": -6,
+      "detected": true,
+      "log": "unbind-keeps-authority-mutated.log",
+      "sha256": "8a5deb66c92690180b93dbe7f73a7d9484a2b5c82ed531deae877668c8764f86"
+    },
+    {
+      "mutation": "unbind-keeps-authority",
+      "case": "unbind",
+      "mode": "restored",
+      "exit_code": 0,
+      "detected": false,
+      "log": "unbind-keeps-authority-restored.log",
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4"
+    }
+  ],
+  "additional_mutation": {
+    "name": "remove-real-startup-prepare",
+    "detected": true,
+    "failure": "ready==0 && g_control_bound && !g_configured",
+    "log": "activation-mutant.log",
+    "restored": "activation-restored.log",
+    "restored_exit_code": 0
+  },
+  "layers": {
+    "implementation": "Production configuration activation calls preparation after validating/binding owner and before SSID/Agent/cloud admission; kind14 phone dispatcher connected; reset clears binding.",
+    "L1_L2": "Actual owner, settings codec, storage, grants, authorization and exact extracted activation/dispatcher bodies. Existing TLS identity is prebound; GATT idle and unrelated cloud/OTA/display endpoints are external substitutes.",
+    "L3": "NOT_RUN; no new phone installation, flash, reset or physical action",
+    "missing": "Native phone authorization UI and independent PC enrollment/USB runtime owner/workbench still missing."
+  },
+  "resource_budget": {
+    "new_thread": false,
+    "new_dma": false,
+    "resident_revision_bytes": 8,
+    "resident_error_bytes": 4,
+    "cpu_p95_stack_high_water": "NOT_MEASURED",
+    "evidence": "ARM object symbols; source has no second retained key, file IO stays in worker"
+  },
+  "open_tls_failure": "S66 remains UNRESOLVED despite this run passing; no publication acceptance or USB activation clearance."
+}

@@ -361,7 +361,17 @@
     "NET-03.pc-auth-unknown",
     "NET-03.pc-auth-pending",
     "NET-03.pc-auth-reopen",
-    "NET-03.pc-auth-retry-error"
+    "NET-03.pc-auth-retry-error",
+    "NET-03.pc-owner-offline",
+    "NET-03.pc-product-offline",
+    "NET-03.pc-owner-revision",
+    "NET-03.pc-product-revision",
+    "NET-03.pc-owner-owner",
+    "NET-03.pc-product-owner",
+    "NET-03.pc-owner-invalid",
+    "NET-03.pc-product-invalid",
+    "NET-03.pc-owner-unbind",
+    "NET-03.pc-product-unbind"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -726,6 +736,16 @@
     "NET-03.pc-auth-unknown",
     "NET-03.pc-auth-pending",
     "NET-03.pc-auth-reopen",
-    "NET-03.pc-auth-retry-error"
+    "NET-03.pc-auth-retry-error",
+    "NET-03.pc-owner-offline",
+    "NET-03.pc-product-offline",
+    "NET-03.pc-owner-revision",
+    "NET-03.pc-product-revision",
+    "NET-03.pc-owner-owner",
+    "NET-03.pc-product-owner",
+    "NET-03.pc-owner-invalid",
+    "NET-03.pc-product-invalid",
+    "NET-03.pc-owner-unbind",
+    "NET-03.pc-product-unbind"
   ]
 }

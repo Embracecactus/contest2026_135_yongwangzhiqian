@@ -89,6 +89,7 @@
 #endif
 #include "bk7258_display_trial_control.h"
 #include "bk7258_provision_config.h"
+#include "bk7258_pc_authorization_owner.h"
 #include "bk7258_provision_storage.h"
 #include "bk7258_provision_time.h"
 #include "bk7258_provision_owner.h"
@@ -1281,6 +1282,12 @@ static int product_config(void *context, enum bkcontrol_command_e command,
   uint32_t kind, uint32_t offset, const uint8_t *record, size_t size,
   struct bkcontrol_status_s *status)
 {
+  if (kind == BKCONTROL_CONFIG_PC_AUTHORIZATION &&
+      command == BKCONTROL_CONFIG_READ)
+    {
+      return bkpc_authorization_current(command, offset, record, size, status);
+    }
+
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
   if (kind == BKCONTROL_CONFIG_EXPRESSION_TRIAL && command == BKCONTROL_CONFIG_READ)
     return bkdisplay_trial_control(command, offset, record, size, status,
@@ -1306,6 +1313,11 @@ static int product_config(void *context, enum bkcontrol_command_e command,
     return bkdisplay_trial_control(command, offset, record, size, status,
                                    bkvoice_config_now_ms(NULL));
 #endif
+
+  if (kind == BKCONTROL_CONFIG_PC_AUTHORIZATION)
+    {
+      return bkpc_authorization_current(command, offset, record, size, status);
+    }
 
   if (kind == BKCONTROL_CONFIG_FOCUS)
     {
@@ -2006,6 +2018,7 @@ static int product_reset_step(void)
   bkprov_identity_clear(&g_identity);
   g_identity_bound = false;
   g_control_bound = false;
+  bkpc_authorization_unbind();
   g_configured = false;
   g_cloud_loaded = false;
   g_config_revision = 0;
@@ -2204,6 +2217,15 @@ static int bk7258_agent_activate_cloud(bool *storage_waiting)
 
       g_control_bound = true;
     }
+
+  /* Local PC authorization is independent of cloud and Wi-Fi activation.
+   * This owner is serialized with phone dispatch; storage copies the key.
+   * Preparation errors remain visible through the PC query, not cloud state.
+   * No USB product owner exists yet: adding one requires closing its session
+   * before authorization mutation and handing it immutable completed views.
+   */
+
+  (void)bkpc_authorization_prepare(revision, work->bundle, size);
 
 #ifdef CONFIG_BK7258_PREFERENCES
   (void)bkagent_memory_bind(work->settings.control_key);

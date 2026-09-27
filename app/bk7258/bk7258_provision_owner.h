@@ -21,6 +21,8 @@ bool bkprov_owner_busy(void);
 /* A daily authenticated session is busy for identity replacement, but does
  * not own the physical PTT input or prevent volume/persona commands. */
 bool bkprov_owner_pairing(void);
+/* Read-only comparison with the currently bound phone control principal. */
+bool bkprov_owner_control_matches(const uint8_t key[32]);
 int bkprov_owner_control(const uint8_t key[32], bkcontrol_execute_t execute,
                          void *context);
 /* Optional SDC1 OTA handler installed before AUTH on each control session.

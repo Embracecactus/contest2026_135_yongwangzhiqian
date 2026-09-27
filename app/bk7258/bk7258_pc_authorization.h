@@ -18,7 +18,8 @@
 
 /* Authenticated phone-only adapter. Caller supplies the validated current
  * main configuration revision and must stop PC admission/session ownership
- * before APPLY. No runtime caller is installed until that owner exists.
+ * before APPLY. The phone product caller is bound; no USB runtime owner
+ * exists yet. Any USB consumer must join that close-before-mutation gate.
  * PCW1 is 88 bytes; PCS1 public snapshot is 64 bytes; PCR1 receipt is 32.
  * APPLY -EAGAIN requires transaction query, never a successful grant claim.
  * CANCEL only discards Session staging; it cannot cancel worker durability.

@@ -67,6 +67,14 @@ bool bkprov_owner_pairing(void)
          (g_owner.control == NULL && !g_owner.control_closing && !bkprov_gatt_idle());
 }
 
+bool bkprov_owner_control_matches(const uint8_t key[32])
+{
+  uint8_t difference = 0;
+  if (key == NULL || g_owner.execute == NULL) return false;
+  for (size_t i = 0; i < 32; i++) difference |= key[i] ^ g_owner.control_key[i];
+  return difference == 0;
+}
+
 int bkprov_owner_control(const uint8_t key[32], bkcontrol_execute_t execute,
                          void *context)
 {

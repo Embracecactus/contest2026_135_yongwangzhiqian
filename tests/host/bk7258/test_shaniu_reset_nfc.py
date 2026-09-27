@@ -52,6 +52,7 @@ static int product_reset_cleanup(void){return 0;}
 static int bkprov_storage_reset_finish(int (*cleanup)(void)) {
  assert(nfc_closed && nfc_error==0);finishes++;return cleanup();
 }
+static void bkpc_authorization_unbind(void){}
 static int bkprov_owner_unbind(void){return 0;}
 static int bkprov_network_unbind(void){return 0;}
 static void bkprov_identity_clear(int *p){*p=0;}

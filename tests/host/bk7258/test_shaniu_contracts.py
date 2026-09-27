@@ -422,6 +422,7 @@ def main():
         "test_pc_reset",
         "test_pc_storage",
         "test_pc_authorization",
+        "test_pc_owner_binding",
         "test_shaniu_key_contract",
         "test_shaniu_volume_contract",
         "test_shaniu_volume_transition",
@@ -766,6 +767,12 @@ def main():
         add(suite, "NFC-01.deadline-" + variant, "NFC-01", "L1",
             [sys.executable, HERE / "test_mfrc522_deadline.py",
              "DeadlineTest.test_" + variant], marker=False)
+    for variant in ("offline", "revision", "owner", "invalid", "unbind"):
+        add(suite, "NET-03.pc-owner-" + variant, "NET-03", "L2",
+            [sys.executable, HERE / "test_pc_owner_binding.py", variant],
+            binaries["test_pc_owner_binding"])
+        add(suite, "NET-03.pc-product-" + variant, "NET-03", "L2",
+            [sys.executable, HERE / "test_pc_product_route.py", variant])
     for variant in ("basic", "auth", "invalid", "cancel", "failure", "unknown", "pending", "reopen", "retry-error"):
         add(suite, "NET-03.pc-auth-" + variant, "NET-03", "L2",
             [sys.executable, HERE / "test_pc_authorization.py", variant],
@@ -1285,6 +1292,11 @@ def main():
         HERE / "test_pc_storage.py",
         HERE / "test_pc_authorization.c",
         HERE / "test_pc_authorization.py",
+        HERE / "test_pc_owner_binding.c",
+        HERE / "test_pc_owner_binding.py",
+        HERE / "test_pc_product_route.py",
+        ROOT / "app/bk7258/bk7258_pc_authorization_owner.c",
+        ROOT / "app/bk7258/bk7258_pc_authorization_owner.h",
         ROOT / "app/bk7258/bk7258_pc_authorization.c",
         ROOT / "app/bk7258/bk7258_pc_authorization.h",
         ROOT / "chips/bk7258/ap/bk7258_usbcdc.c",
