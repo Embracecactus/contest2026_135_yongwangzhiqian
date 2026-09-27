@@ -1321,10 +1321,77 @@ static void product_pc_task_step(uint64_t now, bool admitted)
   bkpc_tasks_step(&g_pc_tasks, now, ret == 0);
 }
 
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+static struct bkselection_control_s g_phone_selection;
+
+/* Transport loss is not credential revocation. The phone owner retains its
+ * public operation scope until actual credentials or identity are replaced.
+ */
+
+static void product_phone_selection_step(void)
+{
+  uint8_t epoch[16];
+  int ret = bkprov_owner_control_scope(epoch, false);
+
+  if (g_phone_selection.bound &&
+      (ret < 0 || !g_identity_bound || !g_control_bound ||
+       memcmp(epoch, g_phone_selection.epoch, sizeof(epoch)) != 0))
+    {
+      bkselection_control_invalidate(&g_phone_selection);
+    }
+}
+
+static int product_phone_selection_config(enum bkcontrol_command_e command,
+  uint32_t offset, const uint8_t *record, size_t size,
+  struct bkcontrol_status_s *status)
+{
+  uint8_t epoch[16];
+  bool admitted = g_identity_bound && g_control_bound && !bkagent_ota_busy();
+  int ret;
+
+  product_phone_selection_step();
+  if (command != BKCONTROL_CONFIG_READ && !admitted)
+    {
+      return -EBUSY;
+    }
+
+  ret = bkprov_owner_control_scope(epoch, true);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (!g_phone_selection.bound)
+    {
+      if (!admitted)
+        {
+          return -EBUSY;
+        }
+
+      ret = bkselection_control_bind(&g_phone_selection, epoch);
+      if (ret < 0)
+        {
+          return ret;
+        }
+    }
+
+  return bkselection_control(&g_phone_selection, command, offset,
+                              record, size, status);
+}
+#endif
+
 static int product_config(void *context, enum bkcontrol_command_e command,
   uint32_t kind, uint32_t offset, const uint8_t *record, size_t size,
   struct bkcontrol_status_s *status)
 {
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+  if (kind == BKCONTROL_CONFIG_DEFAULT_SELECTION)
+    {
+      return product_phone_selection_config(command, offset, record,
+                                              size, status);
+    }
+#endif
+
   if (kind == BKCONTROL_CONFIG_PC_TASK && command == BKCONTROL_CONFIG_READ)
     {
       struct bkprov_pc_snapshot_s view;
@@ -2564,6 +2631,9 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
       product_scan_step();
       uint64_t now = bkvoice_config_now_ms(NULL);
       int reset = product_reset_step();
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+      product_phone_selection_step();
+#endif
       if (reset)
         {
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE

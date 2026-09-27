@@ -1,0 +1,27 @@
+["/usr/bin/python3", "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_provision_tls.py"]
+TLS sample=0 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=988c8d27633bde9e100e33c122da82ca82ae217918bae56ade918f940d50a068
+PC client interop: independent-principal=PASS owner-rejected=PASS STATUS/INFO=PASS
+TLS sample=1 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=a4abbb820abd3a38183e04b32f6aec03e505a8e99a797f518b4fbc2f058323f8
+TLS sample=2 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=d7e772a1db34217c358466e441c4ce555f163368a63833b240b80f167c99b1cc
+TLS sample=3 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=ff1b5a233b6449a3f76f2983187bf127592e015b50d09fa61eeb83ce28a8285c
+TLS sample=4 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=30628c9e54d90611ff3eef674d450a83cee8a9ff15e4b29cefec5cf1f9c9acbf
+TLS sample=5 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=d81b0aa1bc27dc4a1554477d944829efce52cac56f258c831f531972ae50d9dd
+TLS sample=6 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=64967f64d68db82fac2831b523209743713436c0e6aac27612367ff92bdf7218
+TLS sample=7 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=9d986d5dbcd124834ad01e415daf0a3e93828f3a37fa8f801bd40ff96039a8c3
+TLS sample=8 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=e99b2a6f7dcb2e22e223f5e0d299e202c9b16e6407199317e0998ecdaea6ca6e
+TLS sample=9 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=4565a5b7a0ab7d30d63ddea7d6ec0385041219c1b2a8799b26c5ed6ca447badb
+TLS sample=10 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=6ce928edcc55a42d2ec913c5902f13197fa97f3d009861ed4f082ae521d718c5
+TLS sample=11 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=c846fb5715bd182d4cda2a934d7355fa59c8e902bcd63e03556f156b9e82e039
+TLS sample=12 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=6f846b9c950422e9b7c132b7ee2c5dbdb44dd02a1e5500302b23f9fab1b3f58e
+TLS sample=13 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=36099b3df81ed1d4defc62b97fd30d08ecde161eddeb0b7c06442c963237e534
+TLS sample=14 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=a0475ca9e01c18bd221df6f71dd5fcb2c1ac5434757e6a2b1cc04e4864e34d5e
+TLS sample=15 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=a7ed7a941f77036bb14b3efdea069fe73a670b3de1c3a5f298128b24f83b3a0e
+TLS sample=16 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=96f6f6cf52edd53a4a31d2d7feb4251e7e144edb4ed9273edbfd277bbc59ad7f
+TLS sample=17 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=e5026d60a4a14578efc4c4541c330b013c4b8c1d169b3e564bde28f958cc1d54
+TLS sample=18 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=df45ef9a1de66c1e5a4cd00082fb1e87b89d5fa55041460234fc08d0fcd6e3cd
+TLS sample=19 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=45ed16ae4743f9cde056a3bb2b2892164e336fac09a7093ad05efffcd6aaa86d
+.
+----------------------------------------------------------------------
+Ran 1 test in 15.218s
+
+OK

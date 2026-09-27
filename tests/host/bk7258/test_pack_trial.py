@@ -60,6 +60,11 @@ def main():
             function(product, "product_pc_pack_step")
             + function(product, "product_pc_config")
         )
+        if sys.argv[1].startswith("selection-wire-phone-"):
+            (temp / "selection-phone.inc").write_text(
+                function(product, "product_phone_selection_step")
+                + function(product, "product_phone_selection_config")
+            )
         # Every palette entry is green: expected RGB565 is independently 0x07e0
         # for every rendered pixel, regardless of expression geometry.
         spec = json.loads((APP / "assets/display/shaniu-default-v1.json").read_text())
@@ -101,6 +106,11 @@ def main():
                         str(ROOT.parent / "apps/crypto/mbedtls/mbedtls/include"),
                     ]
                     if sys.argv[1] == "selection-wire-product"
+                    else []
+                ),
+                *(
+                    ["-DTEST_PHONE_SELECTION"]
+                    if sys.argv[1].startswith("selection-wire-phone-")
                     else []
                 ),
                 "-I",

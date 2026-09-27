@@ -1,0 +1,3 @@
+bk7258 package eye-pack: PASS output=/tmp/pack-trial-build-3h9bir8t/green.bkep id=shaniu-upload-v1 revision=1 entries=11 size=10494 sha256=c0136ca3b702c15f41d15aed1e0a5e8714b851332024347c2bf13b1b7fea8e47
+PACK_TRIAL_INPUT_SHA256=c0136ca3b702c15f41d15aed1e0a5e8714b851332024347c2bf13b1b7fea8e47
+test: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.c:348: selection_wire_case: Assertion `bk7258_display_selection_status(&state)==0 && state.state==BKDISPLAY_SELECTION_CANCELED' failed.

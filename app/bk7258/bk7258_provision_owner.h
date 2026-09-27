@@ -29,6 +29,13 @@ int bkprov_owner_control(const uint8_t key[32], bkcontrol_execute_t execute,
  * Set only after control credentials are bound; clear automatically on
  * credential removal or owner unbind.
  */
+/* Public, volatile async-operation scope, never an authentication credential.
+ * A first creation requires the current authenticated phone connection and
+ * TLS entropy. Read-only retrieval survives transport closure. Rebinding or
+ * removing control credentials/identity invalidates the scope. Output is
+ * zero on failure; read before creation returns -ENODATA. Worker-only.
+ */
+int bkprov_owner_control_scope(uint8_t out[16], bool create);
 int bkprov_owner_control_ota(bkcontrol_ota_t ota);
 int bkprov_owner_control_config(bkcontrol_config_t config);
 int bkprov_owner_error(void);

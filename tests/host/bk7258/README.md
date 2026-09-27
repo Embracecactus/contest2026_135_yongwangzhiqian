@@ -2991,3 +2991,27 @@ Python对象实际峰值/CPU与物理吞吐未测，不把定长协议大小当�
 使用步骤见tools/bk7258/README.md；手机接线、原生UI/浏览器工作台、active/2
 迁移、现场/组合/发布仍开放。证据：`acceptance/s103-20260927.json`、
 `s103-pc-selection-evidence-20260927.json`。
+
+### S104：手机授权范围与共用默认选择服务（2026-09-27）
+
+手机 kind17 接到既有 ESC1/ESS1 与原生异步选择服务。独立 phone scope 是公开
+操作身份，不能代替 SDC1 认证；首次创建需当前已认证连接和该 TLS DRBG。
+普通断线/暂停保留它，凭据/身份重绑或清除则失效。产品维护循环及请求入口
+检查撤销；排队任务取消，已提交保存仍保留真实结果。PC授权与安装器不被借用。
+selection_control 的编译不再要求 USB，使手机通道可独立构建。
+
+先写7项真实 owner/SDC1 测试和3项真实协议/worker/store/renderer 适配用例；
+接口缺失分别记 BLOCKED_INTERFACE，不冒充业务Red。外部替身限于 TLS传输/
+随机源/GATT、scope提供者、mount/framebuffer。owner与原生适配是分开接线，
+不是完整真实 BLE/TLS→屏幕纵向流程。Android协议/控制器/UI尚未支持kind17。
+
+最终614PASS=原63（含2恢复）+551累计新增；本片新增10，19运行器门禁和原2
+变异保持。另2个可编译变异（不清旧scope、不处理撤销）检出，恢复2次通过。
+产品变异最初在不应发生的渲染处失败，补充worker前的CANCELED断言后完整复跑；
+原614通过快照保留。临时变异启动器曾忽略main返回值，修正后只计实际非零退出。
+没有弱化断言或改写原始Red。输入哈希一致，运行期间生产源未变。
+
+AP增量链接、分层检查通过；新增常驻288B=scope16B+控制对象272B，无新线程/堆。
+目标CPU/p95、栈、DMA/音频竞争未测。现有C文件保留遗留nxstyle诊断，新增函数
+无新增诊断；Python适配器使用black24.10.0。未刷板、安装App或改设备数据。
+证据：`acceptance/s104-20260927.json`、`s104-phone-selection-evidence-20260927.json`。

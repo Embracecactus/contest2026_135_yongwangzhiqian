@@ -101,7 +101,10 @@ ifeq ($(CONFIG_BK7258_DISPLAY_SERVICE),y)
 		bk7258_display_pack.c bk7258_display_rpc.c \
 		bk7258_display_rpc_core.c
 ifeq ($(CONFIG_BK7258_VOICE_TLS)$(CONFIG_BK7258_USBCDC),yy)
-CSRCS += bk7258_display_job_control.c bk7258_display_selection_control.c
+CSRCS += bk7258_display_job_control.c
+endif
+ifeq ($(CONFIG_BK7258_VOICE_TLS),y)
+CSRCS += bk7258_display_selection_control.c
 endif
 endif
 

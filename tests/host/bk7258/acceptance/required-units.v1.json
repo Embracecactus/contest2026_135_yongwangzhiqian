@@ -604,7 +604,17 @@
     "RES-02.pc-default-native-lifecycle",
     "RES-02.pc-default-native-cancel",
     "RES-02.pc-default-native-stale",
-    "RES-02.pc-default-native-recover"
+    "RES-02.pc-default-native-recover",
+    "NET-03.phone-scope-unauthenticated",
+    "NET-03.phone-scope-entropy",
+    "NET-03.phone-scope-stale",
+    "NET-03.phone-scope-reconnect",
+    "NET-03.phone-scope-revoke",
+    "NET-03.phone-scope-replace",
+    "NET-03.phone-scope-identity",
+    "RES-02.phone-default-native-revoke",
+    "RES-02.phone-default-native-replace",
+    "RES-02.phone-default-native-reconnect"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1212,6 +1222,16 @@
     "RES-02.pc-default-native-lifecycle",
     "RES-02.pc-default-native-cancel",
     "RES-02.pc-default-native-stale",
-    "RES-02.pc-default-native-recover"
+    "RES-02.pc-default-native-recover",
+    "NET-03.phone-scope-unauthenticated",
+    "NET-03.phone-scope-entropy",
+    "NET-03.phone-scope-stale",
+    "NET-03.phone-scope-reconnect",
+    "NET-03.phone-scope-revoke",
+    "NET-03.phone-scope-replace",
+    "NET-03.phone-scope-identity",
+    "RES-02.phone-default-native-revoke",
+    "RES-02.phone-default-native-replace",
+    "RES-02.phone-default-native-reconnect"
   ]
 }

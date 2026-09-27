@@ -25,6 +25,7 @@ static struct
   struct bkprov_pair_s *pair;
   struct bkcontrol_pair_s *control;
   uint8_t control_key[32];
+  uint8_t control_scope[16];
   bkcontrol_execute_t execute;
   bkcontrol_ota_t ota;
   bkcontrol_config_t config;
@@ -83,6 +84,7 @@ int bkprov_owner_control(const uint8_t key[32], bkcontrol_execute_t execute,
   if (key == NULL && execute == NULL)
     {
       mbedtls_platform_zeroize(g_owner.control_key, 32);
+      mbedtls_platform_zeroize(g_owner.control_scope, 16);
       g_owner.execute = NULL;
       g_owner.ota = NULL;
       g_owner.config = NULL;
@@ -92,11 +94,77 @@ int bkprov_owner_control(const uint8_t key[32], bkcontrol_execute_t execute,
   if (key == NULL || execute == NULL || g_owner.certificate == NULL) return -EINVAL;
   for (size_t i = 0; i < 32; i++) bits |= key[i];
   if (bits == 0) return -EINVAL;
+  mbedtls_platform_zeroize(g_owner.control_scope, 16);
   memcpy(g_owner.control_key, key, 32);
   g_owner.execute = execute;
   g_owner.ota = NULL;
   g_owner.config = NULL;
   g_owner.control_context = context;
+  return 0;
+}
+
+int bkprov_owner_control_scope(uint8_t out[16], bool create)
+{
+  uint8_t candidate[16] = {0};
+  uint8_t bits = 0;
+  int ret;
+  size_t i;
+
+  if (out == NULL)
+    {
+      return -EINVAL;
+    }
+
+  memset(out, 0, 16);
+  if (g_owner.execute == NULL)
+    {
+      return -EACCES;
+    }
+
+  for (i = 0; i < 16; i++)
+    {
+      bits |= g_owner.control_scope[i];
+    }
+
+  if (bits != 0)
+    {
+      memcpy(out, g_owner.control_scope, 16);
+      return 0;
+    }
+
+  if (!create)
+    {
+      return -ENODATA;
+    }
+
+  if (g_owner.control == NULL || g_owner.control_closing ||
+      !g_owner.control->session.open ||
+      !g_owner.control->session.authenticated || !bkprov_gatt_open())
+    {
+      return -EACCES;
+    }
+
+  if (g_owner.control->tls.generation != bkprov_gatt_generation())
+    {
+      return -ESTALE;
+    }
+
+  ret = mbedtls_ctr_drbg_random(&g_owner.control->tls.random,
+                                candidate, sizeof(candidate));
+  for (i = 0; i < sizeof(candidate); i++)
+    {
+      bits |= candidate[i];
+    }
+
+  if (ret != 0 || bits == 0)
+    {
+      mbedtls_platform_zeroize(candidate, sizeof(candidate));
+      return -EIO;
+    }
+
+  memcpy(g_owner.control_scope, candidate, sizeof(candidate));
+  memcpy(out, candidate, sizeof(candidate));
+  mbedtls_platform_zeroize(candidate, sizeof(candidate));
   return 0;
 }
 
@@ -146,6 +214,7 @@ int bkprov_owner_bind(mbedtls_x509_crt *certificate, mbedtls_pk_context *key,
   g_owner.armed = false;
   g_owner.down = false;
   mbedtls_platform_zeroize(g_owner.control_key, 32);
+  mbedtls_platform_zeroize(g_owner.control_scope, 16);
   g_owner.execute = NULL;
   g_owner.ota = NULL;
   g_owner.config = NULL;
@@ -176,6 +245,7 @@ int bkprov_owner_unbind(void)
   g_owner.armed = false;
   g_owner.down = false;
   mbedtls_platform_zeroize(g_owner.control_key, 32);
+  mbedtls_platform_zeroize(g_owner.control_scope, 16);
   g_owner.execute = NULL;
   g_owner.ota = NULL;
   g_owner.config = NULL;

@@ -1,0 +1,23 @@
+[
+  {
+    "file": "app/bk7258/bk7258_provision_owner.c",
+    "exit_code": 1,
+    "baseline_exit_code": 1,
+    "new_diagnostic_types": [],
+    "note": "Existing files retain legacy diagnostics; new function ranges add no nxstyle diagnostics. No block comments found also exists at baseline; paths normalized."
+  },
+  {
+    "file": "app/bk7258/bk7258_provision_owner.h",
+    "exit_code": 1,
+    "baseline_exit_code": 1,
+    "new_diagnostic_types": [],
+    "note": "Existing files retain legacy diagnostics; new function ranges add no nxstyle diagnostics. No block comments found also exists at baseline; paths normalized."
+  },
+  {
+    "file": "app/bk7258/bk7258_agent_product.c",
+    "exit_code": 1,
+    "baseline_exit_code": 1,
+    "new_diagnostic_types": [],
+    "note": "Existing files retain legacy diagnostics; new function ranges add no nxstyle diagnostics. No block comments found also exists at baseline; paths normalized."
+  }
+]

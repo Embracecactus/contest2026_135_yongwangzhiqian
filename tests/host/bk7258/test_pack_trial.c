@@ -134,10 +134,25 @@ static int product_config(void *c,enum bkcontrol_command_e cmd,uint32_t kind,uin
 {(void)c;(void)cmd;(void)kind;(void)off;(void)p;(void)n;(void)s;return -ENOTSUP;}
 #include "selection-product.inc"
 #endif
+#ifdef TEST_PHONE_SELECTION
+#define g_phone_selection selection_control
+static int phone_scope_error=-EACCES;
+static uint8_t phone_epoch=7;
+static bool phone_admitted=true;
+#define g_identity_bound phone_admitted
+#define g_control_bound phone_admitted
+#define bkagent_ota_busy() false
+static int bkprov_owner_control_scope(uint8_t out[16],bool create)
+{(void)create;memset(out,0,16);if(phone_scope_error)return phone_scope_error;
+ out[0]=phone_epoch;return 0;}
+#include "selection-phone.inc"
+#endif
 static int config(void *c,enum bkcontrol_command_e cmd,uint32_t kind,uint32_t off,
                   const uint8_t *p,size_t n,struct bkcontrol_status_s *s)
 {
-#ifdef TEST_SELECTION_PRODUCT
+#ifdef TEST_PHONE_SELECTION
+  (void)c;return kind==17?product_phone_selection_config(cmd,off,p,n,s):-ENOTSUP;
+#elif defined(TEST_SELECTION_PRODUCT)
   return product_pc_config(c,cmd,kind,off,p,n,s);
 #else
   (void)c;return kind==17?bkselection_control(&selection_control,cmd,off,p,n,s):
@@ -289,6 +304,8 @@ static void selection_wire_case(struct bkdisplay_service_s *service,const char *
   assert(wire_apply(record,96)==-EACCES);
   g_pc_usb_owner.usb.lease.capabilities=BKPC_CAP_RESOURCES;
 
+#elif defined(TEST_PHONE_SELECTION)
+  phone_scope_error=0;
 #else
   assert(bkselection_control_bind(&selection_control,epoch)==0);
 #endif
@@ -324,6 +341,33 @@ static void selection_wire_case(struct bkdisplay_service_s *service,const char *
   assert(wire_apply(record,96)==0);
   record[55]=2;assert(wire_apply(record,96)==-EEXIST);record[55]=1;
   assert(mounts==io && writes==stored && frames==painted);
+#ifdef TEST_PHONE_SELECTION
+  if(!strcmp(mode,"selection-wire-phone-revoke"))
+    {
+      phone_scope_error=-EACCES;product_phone_selection_step();
+      assert(bk7258_display_selection_status(&state)==0 && state.state==BKDISPLAY_SELECTION_CANCELED);
+      assert(!bkdisplay_selection_step(service,true));
+      assert(bk7258_display_selection_status(&state)==0 && state.state==BKDISPLAY_SELECTION_CANCELED);
+      assert(wire_apply(record,96)==-EACCES);
+      phone_scope_error=0;phone_epoch++;
+      assert(wire_apply(record,96)==-ESTALE);
+      assert(writes==stored && frames==painted && mounts==io);return;
+    }
+  if(!strcmp(mode,"selection-wire-phone-reconnect"))
+    {
+      bkcontrol_session_close(&wire);product_phone_selection_step();
+      assert(bk7258_display_selection_status(&state)==0 && state.state==BKDISPLAY_SELECTION_PENDING);
+      connect_wire();assert(wire_apply(record,96)==0);
+    }
+  if(!strcmp(mode,"selection-wire-phone-replace"))
+    {
+      /* A new authenticated principal must not inherit the old staged job. */
+      phone_epoch++;product_phone_selection_step();
+      assert(bk7258_display_selection_status(&state)==0 && state.state==BKDISPLAY_SELECTION_CANCELED);
+      assert(wire_apply(record,96)==-ESTALE);
+      assert(writes==stored && frames==painted && mounts==io);return;
+    }
+#endif
   if(!strcmp(mode,"selection-wire-revoke"))
     {
       bkselection_control_invalidate(&selection_control);
@@ -368,6 +412,14 @@ static void selection_wire_case(struct bkdisplay_service_s *service,const char *
   assert(get32(snapshot+24)==1 && get32(snapshot+36)==7 && snapshot[47]==2);
   assert(!memcmp(snapshot+56,record+24,16) && !strcmp((char *)snapshot+72,"shaniu-upload-v1.bkep"));
   assert(frames==painted+2);
+#ifdef TEST_PHONE_SELECTION
+  phone_scope_error=-EACCES;product_phone_selection_step();
+  assert(!selection_control.bound);
+  assert(bk7258_display_selection_status(&state)==0 && state.save_confirmed);
+  assert(state.state==BKDISPLAY_SELECTION_DONE && state.version.revision==2);
+  selected("shaniu-upload-v1");
+  assert(frames==painted+2);
+#endif
 #ifdef TEST_SELECTION_PRODUCT
   source_grant=3;product_pc_pack_step(true);
   assert(!selection_control.bound && !g_pc_pack.bound);

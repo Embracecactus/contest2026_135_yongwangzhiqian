@@ -17,6 +17,16 @@ static enum bkprov_claim_state_e next_state = BKPROV_AUTH;
 static mbedtls_x509_crt certificate;
 static mbedtls_pk_context key;
 static uint8_t secret[32] = {1};
+/* External entropy is deterministic; authentication uses production SDC1. */
+static int random_error, random_calls;
+static unsigned char random_value = 7;
+int mbedtls_ctr_drbg_random(void *context, unsigned char *out, size_t size)
+{
+  assert(context != NULL);
+  random_calls++;
+  memset(out, random_value, size);
+  return random_error;
+}
 static int control_starts, control_steps, control_pair_error;
 static bool protocol_peer, authenticate_peer;
 static unsigned int executed;
@@ -230,8 +240,109 @@ static void test_power_queries(const char *variant)
   puts("CONTRACT_PASS");
 }
 
+static void scope_fails(int expected, bool create)
+{
+  uint8_t out[16];
+  memset(out, 0xa5, sizeof(out));
+  assert(bkprov_owner_control_scope(out, create) == expected);
+  for (size_t i = 0; i < sizeof(out); i++) assert(out[i] == 0);
+}
+
+static void test_scope(const char *variant)
+{
+  uint8_t first[16], after[16], owner_key[32] = {99};
+  assert(bkprov_owner_control_scope(NULL, false) == -EINVAL);
+  scope_fails(-EACCES, false);
+  assert(bkprov_owner_bind(&certificate, &key, secret, &ops, (void *)&ops) == 0);
+  assert(bkprov_owner_control(owner_key, control_execute, &control_steps) == 0);
+  scope_fails(-ENODATA, false);
+  scope_fails(-EACCES, true);
+  assert(random_calls == 0);
+  protocol_peer = true;
+  authenticate_peer = strcmp(variant, "unauthenticated") != 0;
+  (void)sample(1, false, true);
+  generation = 1;
+  (void)sample(1, false, true);
+  assert(window && peer);
+  if (!authenticate_peer)
+    {
+      scope_fails(-EACCES, true);
+      assert(random_calls == 0);
+      puts("CONTRACT_PASS");
+      return;
+    }
+  if (!strcmp(variant, "entropy"))
+    {
+      random_error = -1;
+      scope_fails(-EIO, true);
+      scope_fails(-ENODATA, false);
+      random_error = 0;
+      random_value = 0;
+      scope_fails(-EIO, true);
+      scope_fails(-ENODATA, false);
+      random_value = 7;
+    }
+  if (!strcmp(variant, "stale"))
+    {
+      generation++;
+      scope_fails(-ESTALE, true);
+      assert(random_calls == 0);
+      puts("CONTRACT_PASS");
+      return;
+    }
+  assert(bkprov_owner_control_scope(first, true) == 0);
+  for (size_t i = 0; i < sizeof(first); i++) assert(first[i] == 7);
+  int before = random_calls;
+  assert(bkprov_owner_control_scope(after, true) == 0);
+  assert(!memcmp(first, after, sizeof(first)) && random_calls == before);
+  assert(bkprov_owner_quiesce(true) == 0);
+  assert(bkprov_owner_control_scope(after, false) == 0);
+  assert(!memcmp(first, after, sizeof(first)) && random_calls == before);
+  /* An idempotent key comparison and rejected replacement preserve scope. */
+  assert(bkprov_owner_control_matches(owner_key));
+  assert(bkprov_owner_control(NULL, control_execute, NULL) == -EINVAL);
+  assert(bkprov_owner_control_scope(after, false) == 0);
+  assert(!memcmp(first, after, sizeof(first)));
+  if (!strcmp(variant, "revoke"))
+    {
+      assert(bkprov_owner_control(NULL, NULL, NULL) == 0);
+      scope_fails(-EACCES, false);
+      assert(bkprov_owner_control(owner_key, control_execute, &control_steps) == 0);
+      scope_fails(-ENODATA, false);
+    }
+  else if (!strcmp(variant, "replace"))
+    {
+      owner_key[1] = 1;
+      assert(bkprov_owner_control(owner_key, control_execute, &control_steps) == 0);
+      scope_fails(-ENODATA, false);
+    }
+  else if (!strcmp(variant, "identity"))
+    {
+      assert(bkprov_owner_unbind() == 0);
+      scope_fails(-EACCES, false);
+      assert(bkprov_owner_bind(&certificate, &key, secret, &ops, (void *)&ops) == 0);
+      assert(bkprov_owner_control(owner_key, control_execute, &control_steps) == 0);
+      scope_fails(-ENODATA, false);
+    }
+  random_value = 9;
+  assert(bkprov_owner_quiesce(false) == 0);
+  (void)sample(5000, false, true);
+  generation = 2;
+  sequence = 0;
+  (void)sample(1, false, true);
+  assert(window && peer->session.authenticated);
+  assert(bkprov_owner_control_scope(after, true) == 0);
+  bool changed = !strcmp(variant, "revoke") || !strcmp(variant, "replace") ||
+                 !strcmp(variant, "identity");
+  assert((memcmp(first, after, sizeof(first)) != 0) == changed);
+  assert(random_calls == before + (changed ? 1 : 0));
+  puts("CONTRACT_PASS");
+}
+
 int main(int argc, char **argv)
 {
+  if (argc == 2 && !strncmp(argv[1], "scope-", 6))
+    { test_scope(argv[1] + 6); return 0; }
   if (argc == 2) { test_power_queries(argv[1]); return 0; }
   assert(argc == 1);
   (void)sample(1, false, true);

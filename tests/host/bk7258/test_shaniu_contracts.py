@@ -1141,6 +1141,14 @@ def main():
             [HERE / "build/test_shaniu_control_quiesce", variant],
             binaries["test_shaniu_control_quiesce"],
         )
+    for variant in ("unauthenticated", "entropy", "stale", "reconnect", "revoke", "replace", "identity"):
+        add(suite, "NET-03.phone-scope-" + variant, "NET-03", "L2",
+            [HERE / "build/test_shaniu_owner", "scope-" + variant],
+            binaries["test_shaniu_owner"])
+    for variant in ("revoke", "replace", "reconnect"):
+        add(suite, "RES-02.phone-default-native-" + variant, "RES-02", "L2",
+            [sys.executable, HERE / "test_pack_trial.py", "selection-wire-phone-" + variant],
+            ready=binaries["test_display_upload"], setup_exit_code=2)
     for variant in ("queries", "unauthenticated", "invalid-sequence"):
         add(
             suite,
