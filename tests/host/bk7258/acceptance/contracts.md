@@ -741,3 +741,24 @@ sequences and request timeouts are unchanged. Outside the explicit fixture
 interval setup fails rather than silently extending dates. A test-review
 correction is recorded here under the user's permission to fix erroneous tests;
 no new product behavior or external parameter approval is inferred.
+
+### S97 installed-pack trial wire contract (2026-09-27)
+
+Config kind 11 gains ETC2 (72 bytes) alongside unchanged ETC1 (32 bytes).
+ETC2 is start-only: the first32 bytes use ETC1 fields with magic ETC2; bytes
+32..71 are a nonempty ASCII installed filename, NUL terminated and zero padded.
+The name begins a-z, contains only a-z/0-9/underscore/hyphen/dot and ends .bkep;
+no slash, traversal or arbitrary path is accepted. It selects an already installed
+pack, never imports or persists a default. Malformed input is rejected before
+queue/render/I/O. A missing valid filename may be accepted then fail in the real
+worker, with no fallback. Authorization remains the existing scene permission;
+this read-only resource trial grants no resource-write or ownership permission.
+
+ETC1 cancel targets the same current trial ID. Both versions share the single
+last accepted operation record: exact repeated bytes do not renew TTL or render;
+changed length/version/filename under the same operation is EEXIST; stale trial
+ID is ESTALE. Readback remains ETS1, acceptance is not rendering, and cancel ACK
+is not restoration. No new thread, filesystem work in the control callback,
+persistent default, clock or default TTL is introduced. Old firmware rejects
+72-byte BEGIN; clients must report incompatibility, not fallback to a different
+pack or activate it. New wire inputs use explicit TTL and operation IDs.

@@ -9,6 +9,11 @@
  * 28 reserved zero. Cancel has duration/expression zero, nonzero target ID.
  * Expressions 1..9: neutral/happy/shy/sad/surprised/thinking/listening/speaking/sleepy.
  * Trial duration is positive u32; no default is chosen by this protocol.
+ * ETC2 72 bytes: start-only, same fields with magic ETC2, followed by a
+ * 40-byte NUL-terminated/zero-padded installed filename. Lowercase a-z first,
+ * then a-z/0-9/dot/underscore/hyphen; suffix .bkep. No paths or import/default
+ * mutation. Missing packs fail asynchronously without fallback. Cancel uses
+ * ETC1 and the same trial ID; both versions share the operation replay slot.
  * ETS1 32 bytes: magic/state/id/error(u32 each), remaining ms(u64),
  * last accepted operation(u64, zero if latest trial belongs to another caller).
  * State uses bkdisplay_trial_state_e. Remaining UINT64_MAX means clock unknown.

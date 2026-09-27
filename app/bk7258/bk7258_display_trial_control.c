@@ -5,8 +5,9 @@
 #include <string.h>
 
 /* Serialized product owner; no credential, persistence or renderer ownership. */
-static uint8_t g_trial_last_request[32];
+static uint8_t g_trial_last_request[72];
 static uint32_t g_trial_last_id;
+static size_t g_trial_last_size;
 static bool g_trial_have_request;
 static uint32_t trial_get32(const uint8_t *p)
 { return (uint32_t)p[0]<<24 | (uint32_t)p[1]<<16 | (uint32_t)p[2]<<8 | p[3]; }
@@ -16,6 +17,29 @@ static void trial_put32(uint8_t *p, uint32_t n)
 { p[0]=n>>24; p[1]=n>>16; p[2]=n>>8; p[3]=n; }
 static void trial_put64(uint8_t *p, uint64_t n)
 { trial_put32(p,n>>32); trial_put32(p+4,n); }
+
+/* Bounded wire syntax only; existence and package validation belong to the
+ * display worker. Canonical zero padding makes operation replay unambiguous.
+ */
+
+static bool trial_filename(const uint8_t *name)
+{
+  size_t length = 0;
+
+  if (name[0] < 'a' || name[0] > 'z') return false;
+  while (length < 40 && name[length] != 0)
+    {
+      uint8_t c = name[length++];
+      if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
+            c == '-' || c == '_' || c == '.')) return false;
+    }
+
+  if (length <= 5 || length == 40 ||
+      memcmp(name + length - 5, ".bkep", 5)) return false;
+  for (size_t i = length; i < 40; i++)
+    if (name[i] != 0) return false;
+  return true;
+}
 
 int bkdisplay_trial_control(enum bkcontrol_command_e command, uint32_t offset,
   const uint8_t *record, size_t size, struct bkcontrol_status_s *status,
@@ -27,7 +51,7 @@ int bkdisplay_trial_control(enum bkcontrol_command_e command, uint32_t offset,
   };
   if (status == NULL) return -EINVAL;
   if (command == BKCONTROL_CONFIG_BEGIN)
-    return size == 32 && offset == 0 ? 0 : -EMSGSIZE;
+    return (size == 32 || size == 72) && offset == 0 ? 0 : -EMSGSIZE;
   struct bkdisplay_trial_status_s current;
   int ret = bk7258_display_trial_status(&current);
   if (ret < 0) return ret;
@@ -50,7 +74,9 @@ int bkdisplay_trial_control(enum bkcontrol_command_e command, uint32_t offset,
       return 0;
     }
   if (command != BKCONTROL_CONFIG_APPLY || offset || record == NULL ||
-      size != 32 || memcmp(record,"ETC1",4) || trial_get32(record+28) ||
+      !((size == 32 && !memcmp(record,"ETC1",4)) ||
+        (size == 72 && !memcmp(record,"ETC2",4))) ||
+      trial_get32(record+28) ||
       !trial_get64(record+16)) return -EINVAL;
   uint32_t action = trial_get32(record+4);
   uint32_t expected = trial_get32(record+8);
@@ -59,17 +85,25 @@ int bkdisplay_trial_control(enum bkcontrol_command_e command, uint32_t offset,
   if ((action != 1 && action != 2) ||
       (action == 1 && (!duration || expression < 1 || expression > 9)) ||
       (action == 2 && (!expected || duration || expression))) return -EINVAL;
+  if (size == 72 && (action != 1 || !trial_filename(record + 32)))
+    return -EINVAL;
   if (g_trial_have_request && !memcmp(record+16,g_trial_last_request+16,8))
     {
-      if (memcmp(record,g_trial_last_request,32)) return -EEXIST;
+      if (size != g_trial_last_size ||
+          memcmp(record, g_trial_last_request, size)) return -EEXIST;
       return current.id == g_trial_last_id ? 0 : -ESTALE;
     }
   if (expected != current.id) return -ESTALE;
   uint32_t id = expected;
-  ret = action == 1 ? bk7258_display_trial_checked(expressions[expression-1],
+  if (size == 72)
+    ret = bk7258_display_trial_pack_checked((const char *)record + 32,
+            expressions[expression - 1], duration, expected, &id);
+  else
+    ret = action == 1 ? bk7258_display_trial_checked(expressions[expression-1],
                          duration, expected, &id) : bk7258_display_cancel_trial(expected);
   if (ret < 0) return ret;
-  memcpy(g_trial_last_request,record,32);
+  memcpy(g_trial_last_request, record, size);
+  g_trial_last_size = size;
   g_trial_last_id = id;
   g_trial_have_request = true;
   return 0;

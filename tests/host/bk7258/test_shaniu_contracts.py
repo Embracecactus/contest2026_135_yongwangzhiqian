@@ -918,7 +918,8 @@ def main():
         add(suite, "USB-01.fixture-validity-" + variant, "USB-01", "L1",
             [sys.executable, HERE / "test_tls_test_identity.py", "IdentityTest.test_" + variant],
             marker=False, setup_exit_code=2)
-    for variant in ("cancel", "expiry", "queued-cancel", "queued-expiry", "supersede", "missing", "invalid"):
+    for variant in ("cancel", "expiry", "queued-cancel", "queued-expiry", "supersede", "missing", "invalid",
+                    "wire-cancel", "wire-expiry", "wire-invalid", "wire-missing"):
         add(suite, "RES-02.pack-trial-" + variant, "RES-02", "L2",
             [sys.executable, HERE / "test_pack_trial.py", variant],
             ready=binaries["test_display_upload"], setup_exit_code=2)

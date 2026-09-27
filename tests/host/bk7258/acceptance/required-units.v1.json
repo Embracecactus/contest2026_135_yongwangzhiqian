@@ -552,7 +552,11 @@
     "USB-01.fixture-validity-dates",
     "USB-01.fixture-validity-not_yet_valid",
     "USB-01.fixture-validity-valid",
-    "USB-01.fixture-validity-expired"
+    "USB-01.fixture-validity-expired",
+    "RES-02.pack-trial-wire-cancel",
+    "RES-02.pack-trial-wire-expiry",
+    "RES-02.pack-trial-wire-invalid",
+    "RES-02.pack-trial-wire-missing"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1108,6 +1112,10 @@
     "USB-01.fixture-validity-dates",
     "USB-01.fixture-validity-not_yet_valid",
     "USB-01.fixture-validity-valid",
-    "USB-01.fixture-validity-expired"
+    "USB-01.fixture-validity-expired",
+    "RES-02.pack-trial-wire-cancel",
+    "RES-02.pack-trial-wire-expiry",
+    "RES-02.pack-trial-wire-invalid",
+    "RES-02.pack-trial-wire-missing"
   ]
 }

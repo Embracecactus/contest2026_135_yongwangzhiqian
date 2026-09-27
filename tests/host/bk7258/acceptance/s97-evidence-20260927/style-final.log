@@ -1,0 +1,82 @@
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c: error: No block comments found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:2:0: error: Relative file path does not match actual file
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:2:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:3:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:4:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:5:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:7:80: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:7:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:13:23: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:13:24: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:13:44: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:13:45: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:13:65: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:13:66: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:13:77: error: Right bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:15:33: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:15:34: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:15:52: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:15:58: error: Right bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:17:6: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:17:6: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:17:8: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:17:9: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:17:18: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:17:18: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:17:20: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:17:21: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:17:30: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:17:30: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:17:32: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:17:33: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:17:41: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:17:41: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:17:45: error: Right bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:19:15: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:19:17: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:19:18: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:19:36: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:19:39: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:19:44: error: Right bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:20:1: error: Blank line follows left brace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:48:43: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:61:30: error: Multiple data definitions
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:61:25: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:61:29: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:61:33: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:61:37: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:63:94: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:65:84: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:66:21: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:66:24: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:67:21: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:67:24: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:68:21: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:68:25: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:69:21: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:69:25: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:71:18: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:71:22: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:71:42: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:71:46: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:73:33: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:73:37: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:73:45: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:77:37: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:77:44: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:78:37: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:78:44: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:79:23: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:80:24: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:81:37: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:82:39: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:83:39: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:84:41: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:90:43: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:90:47: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:90:67: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:90:71: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:102:74: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:102:79: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:103:90: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c:110:1: error: "Private/Public Functions" not found! File will not be checked
