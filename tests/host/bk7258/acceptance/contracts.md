@@ -635,3 +635,21 @@ Latest result only, volatile across reboot. Loss of the server epoch or
 superseding result means outcome unknown: no automatic resubmission or claim
 of durable receipts. Persistent history, default/preview operations, desktop
 file sender, real USB and physical rendering are separate pending gates.
+
+### S90: desktop file sender and local receipt
+
+RES-03/USB-02 client contract: validate finite absolute deadlines; authenticate
+before every public operation; read a coherent RJS1 using one fresh query nonce;
+never treat an enqueue ACK as installed. New upload first freezes the selected
+bounded eye-pack input, then exclusively writes/syncs a public local receipt
+before BEGIN. The receipt binds certificate SHA256, server epoch, client nonce,
+previous device generation, length, input SHA256 and original TTL. It carries
+no credential and is never silently replaced. It is not a durable device receipt.
+
+Resume is a separate explicit operation: require the same file hash and current
+device/job identity, query written progress, and issue no BEGIN. Unknown/lost or
+superseded results produce a failure requiring review; no automatic re-upload,
+mode switch, owner claim, default activation or TTL renewal occurs. Cancellation
+is complete only at CANCELED; local close remains a transport action. Format/CRC
+and installation checks are the existing production device path; the host's
+initial magic/size filter is not a complete format verifier or signature claim.

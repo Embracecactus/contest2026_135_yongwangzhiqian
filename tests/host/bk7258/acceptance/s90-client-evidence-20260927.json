@@ -1,0 +1,119 @@
+{
+  "parent": "7753031f09593a43d77f8046618e67149e2a1721",
+  "counts": {
+    "selected": 525,
+    "original_including_restores": 63,
+    "added": 462,
+    "new_ids": 15,
+    "runner_gates": 17,
+    "original_mutations": 2,
+    "extra_mutations": 2,
+    "extra_restore_runs": 2
+  },
+  "red": [
+    "Nonfinite/expired client deadline accepted before correction; NaN could defeat comparison-based wait bounds.",
+    "Non-eye bytes passed preparation and reached the credential boundary before correction."
+  ],
+  "interface_before": "New codec/methods/CLI initially absent: BLOCKED_INTERFACE, not business assertion Red.",
+  "implementation": "Host CLI and bounded file preparation/receipt workflow only; firmware production sources unchanged.",
+  "integration": {
+    "client": "Actual ControlClient framing, state, certificate pin and TLS with OpenSSL test server in CLI upload.",
+    "device": "Actual C SDC1 session/authenticator, async native worker, mailbox, store, parser and volume; external mount/task/root transport peers.",
+    "separate": "Actual embedded TLS/PC grant guard tested by existing TLS fixture; not combined with complete native upload here.",
+    "limits": [
+      "Lost-ACK test retains same worker/connection while retrying a client operation; physical disconnect/re-auth not claimed.",
+      "Fresh-process test loses the volatile receipt with a fixed fixture epoch; it is not a randomness quality test.",
+      "Host magic/size preflight is not full pack verification; actual device parser/CRC remains required.",
+      "Receipt SHA256 is local input identity, not a remote returned hash."
+    ]
+  },
+  "parent_gaps": {
+    "RES-03": {
+      "interface": "PARTIAL: command-line sender/query/resume/cancel present; browser/default activation pending",
+      "L1_L2": "PARTIAL:15 new collected units plus existing guard/store cases; full native embedded TLS upload chain pending",
+      "L3": "BLOCKED_DEVICE: no firmware deployment/USB traffic this slice"
+    },
+    "USB-02": {
+      "interface": "PARTIAL: explicit resume bounded by original deadline and latest receipt",
+      "L1_L2": "PARTIAL: no automatic re-BEGIN and local receipt before mutation; actual unplug/reconnect plus performance pending",
+      "L3": "BLOCKED_DEVICE: no real USB or coexistence test"
+    }
+  },
+  "resources": {
+    "host_copy_chunk_bytes": 65536,
+    "upload_chunk_bytes": 4096,
+    "wire_append_bytes": 32,
+    "max_input_bytes": 33554432,
+    "host_disk": "One frozen temporary input copy plus public JSON receipt; no full input kept in Python memory.",
+    "device_delta": "No firmware code or model/App/Agent change in this slice.",
+    "measurements": "CPU/p95, physical USB throughput, target peak heap/stack and wireless/audio impact NOT_MEASURED."
+  },
+  "mutations": [
+    {
+      "name": "automatic-rebegin",
+      "case": "RES-03.flow-unknown_epoch_no_replay",
+      "status": "DETECTED",
+      "exit": 1,
+      "original_sha256": "4c8fc6da5f523bb0cae9b77a3e02bfeb6502498b0d253abde3b24ef104ffd075",
+      "mutant_sha256": "c1f628b9222561424c986e46b067214cdda858d1dc2003462de3ce78385af1a1"
+    },
+    {
+      "name": "receipt-after-begin",
+      "case": "RES-03.flow-receipt_precedes_begin",
+      "status": "DETECTED",
+      "exit": 1,
+      "original_sha256": "4c8fc6da5f523bb0cae9b77a3e02bfeb6502498b0d253abde3b24ef104ffd075",
+      "mutant_sha256": "f3cf44d987d03837cd3579c86a14b79eac1022db293984e35a74d8ef6f240879"
+    },
+    {
+      "case": "RES-03.flow-unknown_epoch_no_replay",
+      "status": "PASS_RESTORED",
+      "exit": 0
+    },
+    {
+      "case": "RES-03.flow-receipt_precedes_begin",
+      "status": "PASS_RESTORED",
+      "exit": 0
+    }
+  ],
+  "remaining": [
+    "Original full M0-M5 goal remains ACTIVE.",
+    "Physical USB, full embedded TLS/native install chain, browser/light UI, default/trial workflows, persistent device history, resource budgets and release acceptance remain open.",
+    "Historical S66/S75/S76 TLS failures are not closed by this green run."
+  ],
+  "evidence_sha256": {
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/RES-03.client-cli.log": "8f94327a46b8fc58ba5d3400bddd6ca0b6fb5c86943d97a226a839fd15944b70",
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/RES-03.client-deadline.log": "357b8da198fec5ec8a8a65254a0a4244a1e286754d55cb47b2a1f4f42b3db1d0",
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/RES-03.client-failure.log": "904b59e4ca0326386e8df7f510f20bf3e8c4be65f7a94ce20e9354942e84e8f0",
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/RES-03.client-golden.log": "1cd7d8cab1f2b10070f712640ed95b99039825be186218f736cbcdec5e46f34c",
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/RES-03.client-invalid.log": "90b6d18f4e1c50d182932967aec04b379e81c895bc9b2668b02b383f3d983402",
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/RES-03.client-snapshot.log": "0af3dd6009f3c4d017477e73c231c10cc13bbaf7ea6e0851e0ee5eb798279a57",
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/RES-03.client-staging.log": "a976f018cf50a8dc327c11eb45ec9c364a865a0cbf791c1d7c303b079e99aaea",
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/RES-03.flow-cancel_and_no_default.log": "67f8048c9d9988c1d69a8572bfd27ce164ae95d3c161a0f2e68bb72b8474babb",
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/RES-03.flow-changed_file_and_existing_receipt.log": "42b7b00891bf8235d10d5abd97c54d08cd262e5cd102cf8cf9e42bb858ce15e2",
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/RES-03.flow-cli_tls_upload.log": "7e5311769e92ea6cc8fdd5dc028286c9af30e356c60001d7c9e93338916f87cf",
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/RES-03.flow-lost_ack_resume.log": "d62073b88a7aa94a753aad7a2843c9894575ac47a1a3402dc6e1a7c83ffb4312",
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/RES-03.flow-non_pack_rejected_before_connect.log": "b01f332bf5796f33dca328cbaffb8490673e97ab64cd74f93874cc5505238c42",
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/RES-03.flow-receipt_precedes_begin.log": "5e523eff8ee1c4c81ac338cdeb7fe1138325aae050b1a2dac53a65301f26727f",
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/RES-03.flow-unknown_epoch_no_replay.log": "b3aaf31b9f82c032323586120889fa214774d07235408cf9098105fa33998b9e",
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/RES-03.flow-upload.log": "8d3951bf344df85c4b33ef6b0c42c7653f1e0c101f1e0d7051d900fe1e3ae9b6",
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/automatic-rebegin.log": "bd41d097e9f2b12746ddeedf6302d334b4f45a5a90583e68889d9e0a19cc5cdc",
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/client-final.log": "0d6653413f55f7cf64dbfab59b6b29c640ade8e63585414ab2a44a0892a5ed0a",
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/client-first.log": "1e43b905e11ca028139fe5078016515111aaf7cebf8d6a3e224b7d03b9cb6ac9",
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/deadline-red.log": "de5cad538665db46be16ddd0fd2747d28bc47bc2425822e887be4abccae05aa6",
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/flow-final.log": "3b4fd69f473202e8dfb30a05fca346b581dcb50ec8c15e1bb94d971373b8b20e",
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/flow-first.log": "1d29e94626362fac5a437020c86a513d2ec28ac51f5898b4605e790b5fb85a0e",
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/full.log": "69768ccce004117000a8442580eb362a05dd4ce4ed666ad2b28ab61d02f2dc88",
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/gates.log": "32970371e0f0125bce0460102ea198a25d2cf61d55d3195edfbd4cf365719610",
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/help.log": "03275a8b3e84931f155b93abc7c4eceef48ada2c5f801074d4e60304c6398926",
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/interface-before.log": "c48024c38a6e9051e7225bfbc4f6fa1b7f3e639d405af939e56616263ca20dee",
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/mutations.json": "2d4b8852db369f3764f12d4c4b9e8c8fc5d998b3afd5096e8e251a5a378077f1",
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/non-pack-red.log": "805d18d54a517a0bba1d5a45629638582913f0de2d85d08ef708a42f168f13ce",
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/peer-build.log": "7592263f6c334165a3fb02004434ab8d814c3c2d52a21976a3d5fa8a82983e1b",
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/receipt-after-begin.log": "7fcdca701b176282f410eaf7949619ef13423512e89ad74fe3f6ce55bb8a3147",
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/restored-test_receipt_precedes_begin.log": "c3dc4ce80790d0a5a68dcff2d3009be59564c24dfe01144e0f6b50051e539cc3",
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/restored-test_unknown_epoch_no_replay.log": "61a359b33668d78f8c0ffce569884985c0c852b162d11bd082661867440b5244",
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/style.log": "0f59cf83a5b82558eaa544f6fa7d8a08c760e48b7cb20f5ca030aa5b14e380db",
+    "tests/host/bk7258/acceptance/s90-evidence-20260927/tls-flow.log": "873fac6227cf05db3e3d6eb65bc6905d649184c8cf92054dbf23241fdbb3d4e6"
+  }
+}

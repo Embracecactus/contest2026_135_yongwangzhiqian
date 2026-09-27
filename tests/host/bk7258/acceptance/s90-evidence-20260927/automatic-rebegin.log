@@ -1,0 +1,17 @@
+test_unknown_epoch_no_replay (test_workbench_resource_flow.ResourceFlow) ... FAIL
+
+======================================================================
+FAIL: test_unknown_epoch_no_replay (test_workbench_resource_flow.ResourceFlow)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_resource_flow.py", line 259, in test_unknown_epoch_no_replay
+    send.assert_not_called()
+  File "/usr/lib/python3.10/unittest/mock.py", line 890, in assert_not_called
+    raise AssertionError(msg)
+AssertionError: Expected 'resource_request' to not have been called. Called 1 times.
+Calls: [call('begin', '01020304000000000000000000000000', 'c696e8dad5564174b0d51374475c9dc5', 0, 10494, 5000, deadline=319307.831856024)].
+
+----------------------------------------------------------------------
+Ran 1 test in 0.142s
+
+FAILED (failures=1)

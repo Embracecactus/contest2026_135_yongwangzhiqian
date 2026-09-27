@@ -1,0 +1,28 @@
+[
+  {
+    "name": "automatic-rebegin",
+    "case": "RES-03.flow-unknown_epoch_no_replay",
+    "status": "DETECTED",
+    "exit": 1,
+    "original_sha256": "4c8fc6da5f523bb0cae9b77a3e02bfeb6502498b0d253abde3b24ef104ffd075",
+    "mutant_sha256": "c1f628b9222561424c986e46b067214cdda858d1dc2003462de3ce78385af1a1"
+  },
+  {
+    "name": "receipt-after-begin",
+    "case": "RES-03.flow-receipt_precedes_begin",
+    "status": "DETECTED",
+    "exit": 1,
+    "original_sha256": "4c8fc6da5f523bb0cae9b77a3e02bfeb6502498b0d253abde3b24ef104ffd075",
+    "mutant_sha256": "f3cf44d987d03837cd3579c86a14b79eac1022db293984e35a74d8ef6f240879"
+  },
+  {
+    "case": "RES-03.flow-unknown_epoch_no_replay",
+    "status": "PASS_RESTORED",
+    "exit": 0
+  },
+  {
+    "case": "RES-03.flow-receipt_precedes_begin",
+    "status": "PASS_RESTORED",
+    "exit": 0
+  }
+]

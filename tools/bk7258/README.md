@@ -464,3 +464,45 @@ The client never replays a write automatically. Transfer cancellation and a task
 `canceled` event have different meanings. `accepted: true` is only the event ACK;
 `feedback_pending` in the snapshot is not a rendered/displayed receipt. Snapshot
 reads recheck the event identity and reject concurrent mixed snapshots.
+
+## PC eye-pack jobs (RJI1 firmware required)
+
+The existing `workbench` entry now supports file-level installation over the
+native CDC connection. Use the independently authorized PC profile and a
+RESOURCES grant. Replace `NATIVE_CDC_PORT` with the verified native device
+port; the CH340/UART maintenance port is not this product channel. A protected
+profile must be opened on its supported OS/account; no phone Keystore is copied.
+
+```text
+python tools/bk7258/bk7258.py workbench resource-upload --port NATIVE_CDC_PORT --profile pc.profile --file eyes.bkep --receipt eyes-job.json --ttl-ms 60000 --timeout 30
+python tools/bk7258/bk7258.py workbench resource-status --port NATIVE_CDC_PORT --profile pc.profile --receipt eyes-job.json
+python tools/bk7258/bk7258.py workbench resource-resume --port NATIVE_CDC_PORT --profile pc.profile --file eyes.bkep --receipt eyes-job.json --timeout 30
+python tools/bk7258/bk7258.py workbench resource-cancel --port NATIVE_CDC_PORT --profile pc.profile --receipt eyes-job.json
+```
+
+The first command validates size/type, freezes an input copy, and saves a new
+local receipt before BEGIN. The receipt contains public device/job identifiers
+and a local file SHA256, never a credential. Existing receipt files are not
+overwritten. Its successful write/sync is a precondition to sending; filesystem
+and OS power-loss durability is not promised. Device format/CRC validation is
+still authoritative; the local SHA256 is not a returned device hash.
+
+A command's `--timeout` is an absolute host-operation budget (existing maximum
+120 seconds). `--ttl-ms` applies only to a new job; resume/query never renews it.
+The examples are caller budgets, not measured device throughput guarantees.
+One 4-KiB chunk is queued at a time, in compatible 32-byte SDC1 APPEND frames.
+
+`installed: true` is reported only from DONE after actual device installation;
+upload does not set the default or confirm rendering. An ACK only accepts work.
+On interruption, query the saved receipt, then explicitly resume the same file
+if appropriate. Resume uses the device's confirmed written offset and never
+sends another BEGIN. A different device, epoch, file or superseded volatile
+receipt fails closed. Device reboot can lose the result: unknown is not success
+and does not trigger automatic re-upload. Local program exit does not confirm
+remote cancellation; query for CANCELED. A committing job may reject cancellation.
+
+Host coverage includes the actual Python TLS client, SDC1 session, native job
+worker and installer, with test TLS server/mount/scheduling boundaries. Embedded
+TLS/PC-grant guard tests remain separate. Physical USB, a browser workbench,
+default activation, persistent device receipts and production throughput remain
+pending; no board deployment is implied by these host commands/tests.

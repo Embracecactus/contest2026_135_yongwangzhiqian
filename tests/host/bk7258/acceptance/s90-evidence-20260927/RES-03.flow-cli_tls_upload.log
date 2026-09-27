@@ -1,0 +1,7 @@
+["/usr/bin/python3", "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_resource_flow.py", "ResourceFlow.test_cli_tls_upload"]
+{"fixture": "synthetic-workbench-tls", "certificate_sha256": "423573d52a475c87df1bd8180d8c13c9aa509a37e6a73c3eb20fe47c429504f5", "alternate_certificate_sha256": "5c78bb44065d6e644d5bc1cf22f4ca44ab5f6acab21aba542a068a226d230f9a", "openssl": "OpenSSL 3.0.2 15 Mar 2022"}
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.174s
+
+OK

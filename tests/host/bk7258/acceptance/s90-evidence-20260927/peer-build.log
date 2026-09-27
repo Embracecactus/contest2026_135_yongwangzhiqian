@@ -1,0 +1,15 @@
+make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'
+cc -std=gnu11 -Wall -Wextra -Werror -O2 -pthread test_display_job_service.c \
+	/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_job.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c \
+	/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_pack.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_media_volume.c \
+	-I mocks -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -o build/test_display_job_service
+cc -std=gnu11 -Wall -Wextra -Werror -O2 -pthread -ffunction-sections -fdata-sections -Wl,--gc-sections -DTEST_PACK_CONTROL test_display_job_service.c \
+	/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_job_control.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_control_session.c \
+	/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_job.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c \
+	/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_pack.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_media_volume.c \
+	/home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/library/sha256.c \
+	/home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/library/platform_util.c \
+	/home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/library/constant_time.c \
+	-I /home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/include \
+	-I mocks -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -o build/test_display_job_control
+make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'

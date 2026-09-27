@@ -1,0 +1,106 @@
+usage: test_workbench_resources.py [-h] [--task-id TASK_ID]
+                                   [--event-sequence EVENT_SEQUENCE]
+                                   [--state {start,progress,success,failure,canceled}]
+                                   [--ttl-ms TTL_MS] [--progress PROGRESS]
+                                   [--port PORT] [--profile PROFILE]
+                                   [--certificate CERTIFICATE]
+                                   [--certificate-sha256 CERTIFICATE_SHA256]
+                                   [--pc-key-file PC_KEY_FILE]
+                                   [--timeout TIMEOUT] [--request REQUEST]
+                                   [--pending PENDING] [--response RESPONSE]
+                                   [--confirm-device-sha256 CONFIRM_DEVICE_SHA256]
+                                   [--allow {resources,scenes,tasks,diagnostics} [{resources,scenes,tasks,diagnostics} ...]]
+                                   {status,info,save-profile,pair-start,pair-finish,task-event,task-status}
+test_workbench_resources.py: error: argument operation: invalid choice: 'resource-status' (choose from 'status', 'info', 'save-profile', 'pair-start', 'pair-finish', 'task-event', 'task-status')
+EEEEEE
+======================================================================
+ERROR: test_cli (__main__.ResourcesTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/usr/lib/python3.10/argparse.py", line 1878, in parse_known_args
+    namespace, args = self._parse_known_args(args, namespace)
+  File "/usr/lib/python3.10/argparse.py", line 2094, in _parse_known_args
+    stop_index = consume_positionals(start_index)
+  File "/usr/lib/python3.10/argparse.py", line 2050, in consume_positionals
+    take_action(action, args)
+  File "/usr/lib/python3.10/argparse.py", line 1939, in take_action
+    argument_values = self._get_values(action, argument_strings)
+  File "/usr/lib/python3.10/argparse.py", line 2475, in _get_values
+    self._check_value(action, value)
+  File "/usr/lib/python3.10/argparse.py", line 2531, in _check_value
+    raise ArgumentError(action, msg % args)
+argparse.ArgumentError: argument operation: invalid choice: 'resource-status' (choose from 'status', 'info', 'save-profile', 'pair-start', 'pair-finish', 'task-event', 'task-status')
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_resources.py", line 109, in test_cli
+    args=parser.parse_args(["resource-status"])
+  File "/usr/lib/python3.10/argparse.py", line 1845, in parse_args
+    args, argv = self.parse_known_args(args, namespace)
+  File "/usr/lib/python3.10/argparse.py", line 1881, in parse_known_args
+    self.error(str(err))
+  File "/usr/lib/python3.10/argparse.py", line 2606, in error
+    self.exit(2, _('%(prog)s: error: %(message)s\n') % args)
+  File "/usr/lib/python3.10/argparse.py", line 2593, in exit
+    _sys.exit(status)
+SystemExit: 2
+
+======================================================================
+ERROR: test_failure (__main__.ResourcesTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_resources.py", line 99, in test_failure
+    with self.assertRaises(w.ControlError):c.resource_request("begin",EPOCH,NONCE,7,128,5000)
+AttributeError: 'ControlClient' object has no attribute 'resource_request'
+
+======================================================================
+ERROR: test_golden (__main__.ResourcesTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_resources.py", line 29, in test_golden
+    m = self.module()
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_resources.py", line 26, in module
+    return importlib.import_module("_lib.workbench_resources")
+  File "/usr/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1004, in _find_and_load_unlocked
+ModuleNotFoundError: No module named '_lib.workbench_resources'
+
+======================================================================
+ERROR: test_invalid (__main__.ResourcesTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_resources.py", line 39, in test_invalid
+    m = self.module()
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_resources.py", line 26, in module
+    return importlib.import_module("_lib.workbench_resources")
+  File "/usr/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1004, in _find_and_load_unlocked
+ModuleNotFoundError: No module named '_lib.workbench_resources'
+
+======================================================================
+ERROR: test_snapshot (__main__.ResourcesTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_resources.py", line 81, in test_snapshot
+    result=c.resource_status()
+AttributeError: 'ControlClient' object has no attribute 'resource_status'
+
+======================================================================
+ERROR: test_staging (__main__.ResourcesTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_resources.py", line 91, in test_staging
+    result=c.resource_request("begin",EPOCH,NONCE,7,128,5000)
+AttributeError: 'ControlClient' object has no attribute 'resource_request'
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.003s
+
+FAILED (errors=6)

@@ -510,7 +510,22 @@
     "RES-03.job-wire-success",
     "RES-03.job-wire-session",
     "RES-03.product-job-route-session",
-    "RES-03.product-job-route-revoke"
+    "RES-03.product-job-route-revoke",
+    "RES-03.client-golden",
+    "RES-03.client-invalid",
+    "RES-03.client-snapshot",
+    "RES-03.client-staging",
+    "RES-03.client-failure",
+    "RES-03.client-deadline",
+    "RES-03.client-cli",
+    "RES-03.flow-upload",
+    "RES-03.flow-cli_tls_upload",
+    "RES-03.flow-lost_ack_resume",
+    "RES-03.flow-receipt_precedes_begin",
+    "RES-03.flow-unknown_epoch_no_replay",
+    "RES-03.flow-cancel_and_no_default",
+    "RES-03.flow-changed_file_and_existing_receipt",
+    "RES-03.flow-non_pack_rejected_before_connect"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1024,6 +1039,21 @@
     "RES-03.job-wire-success",
     "RES-03.job-wire-session",
     "RES-03.product-job-route-session",
-    "RES-03.product-job-route-revoke"
+    "RES-03.product-job-route-revoke",
+    "RES-03.client-golden",
+    "RES-03.client-invalid",
+    "RES-03.client-snapshot",
+    "RES-03.client-staging",
+    "RES-03.client-failure",
+    "RES-03.client-deadline",
+    "RES-03.client-cli",
+    "RES-03.flow-upload",
+    "RES-03.flow-cli_tls_upload",
+    "RES-03.flow-lost_ack_resume",
+    "RES-03.flow-receipt_precedes_begin",
+    "RES-03.flow-unknown_epoch_no_replay",
+    "RES-03.flow-cancel_and_no_default",
+    "RES-03.flow-changed_file_and_existing_receipt",
+    "RES-03.flow-non_pack_rejected_before_connect"
   ]
 }

@@ -256,6 +256,23 @@ int main(int argc, char **argv)
   assert(sem_init(&g_job_wake,0,0)==0);
   assert(bk7258_display_job_quiesce(false)==0);
   assert(bkpack_control_bind(&wire,7,8,client,epoch)==0);
+  if(!strcmp(argv[1],"peer"))
+    {
+      uint8_t key[32]={42}, frame[BKCONTROL_REQUEST_MAX], out[40];
+      assert(bkcontrol_session_open(&session,key,execute_peer,&wire)==0);
+      assert(bkcontrol_session_set_config_handler(&session,config_route)==0);
+      while(fread(frame,1,16,stdin)==16)
+        {
+          size_t size=u32(frame+12);
+          if(size>BKCONTROL_CONFIG_APPEND_MAX || fread(frame+16,1,size,stdin)!=size)break;
+          if(bkcontrol_session_packet(&session,frame,16+size,out)<0)break;
+          assert(fwrite(out,1,40,stdout)==40 && fflush(stdout)==0);
+        }
+      (void)bk7258_display_job_quiesce(true);
+      if(created){(void)wait_state(-1);assert(pthread_join(worker,NULL)==0);}
+      assert(nftw(fixture_root,remove_entry,16,FTW_DEPTH|FTW_PHYS)==0);
+      return 0;
+    }
   use_session=!strcmp(argv[1],"session");
   if(use_session) connect_session();
   uint8_t before[128], after[128];

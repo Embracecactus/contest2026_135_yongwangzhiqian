@@ -1,0 +1,17 @@
+test_receipt_precedes_begin (test_workbench_resource_flow.ResourceFlow) ... FAIL
+
+======================================================================
+FAIL: test_receipt_precedes_begin (test_workbench_resource_flow.ResourceFlow)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_resource_flow.py", line 234, in test_receipt_precedes_begin
+    send.assert_not_called()
+  File "/usr/lib/python3.10/unittest/mock.py", line 890, in assert_not_called
+    raise AssertionError(msg)
+AssertionError: Expected 'resource_request' to not have been called. Called 1 times.
+Calls: [call('begin', '01020304000000000000000000000000', '1ed621a4b7b44d6fb02380661517d036', 0, 10494, 5000, deadline=319307.904473858)].
+
+----------------------------------------------------------------------
+Ran 1 test in 0.004s
+
+FAILED (failures=1)

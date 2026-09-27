@@ -875,6 +875,16 @@ def main():
         add(suite, "USB-01.pc-client-" + variant, "USB-01", "L2",
             [sys.executable, HERE / "test_workbench_client.py",
              "WorkbenchClientTest.test_" + variant], marker=False)
+    for variant in ("golden", "invalid", "snapshot", "staging", "failure", "deadline", "cli"):
+        add(suite, "RES-03.client-" + variant, "RES-03", "L1",
+            [sys.executable, HERE / "test_workbench_resources.py",
+             "ResourcesTest.test_" + variant], marker=False)
+    for variant in ("upload", "cli_tls_upload", "lost_ack_resume", "receipt_precedes_begin",
+                    "unknown_epoch_no_replay", "cancel_and_no_default",
+                    "changed_file_and_existing_receipt", "non_pack_rejected_before_connect"):
+        add(suite, "RES-03.flow-" + variant, "RES-03", "L2",
+            [sys.executable, HERE / "test_workbench_resource_flow.py",
+             "ResourceFlow.test_" + variant], marker=False)
     for variant in ("golden", "invalid", "staging", "readback", "failure", "cli"):
         add(suite, "PC-01.sender-" + variant, "PC-01", "L1",
             [sys.executable, HERE / "test_workbench_tasks.py",
@@ -1442,6 +1452,9 @@ def main():
         ROOT / "tools/bk7258/bk7258.py",
         HERE / "test_workbench_client.py",
         HERE / "test_workbench_tasks.py",
+        HERE / "test_workbench_resources.py",
+        HERE / "test_workbench_resource_flow.py",
+        ROOT / "tools/bk7258/_lib/workbench_resources.py",
         ROOT / "tools/bk7258/_lib/workbench_tasks.py",
         HERE / "test_provision_tls.c",
         HERE / "test_control_serial_peer.c",

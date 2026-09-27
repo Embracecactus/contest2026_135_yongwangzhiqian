@@ -1,0 +1,27 @@
+F
+======================================================================
+FAIL: test_deadline (__main__.ResourcesTest) (deadline=nan)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_resources.py", line 110, in test_deadline
+    with self.subTest(deadline=invalid), self.assertRaises(w.ControlError):
+AssertionError: ControlError not raised
+
+======================================================================
+FAIL: test_deadline (__main__.ResourcesTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_resources.py", line 112, in test_deadline
+    self.assertEqual(calls, [])
+AssertionError: Lists differ: [(15, b"\x00\x10\x00\x00;'\xdc\x08\xcb\x01[567 chars]nan)] != []
+
+First list contains 8 additional elements.
+First extra element 0:
+(15, b"\x00\x10\x00\x00;'\xdc\x08\xcb\x01M\x1d\x81\xd5\xfc\\R\x9aU\xff", nan)
+
+Diff is 643 characters long. Set self.maxDiff to None to see it.
+
+----------------------------------------------------------------------
+Ran 1 test in 0.003s
+
+FAILED (failures=2)

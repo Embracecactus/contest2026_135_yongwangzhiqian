@@ -284,6 +284,76 @@ class ControlClient:
             self.close()
             raise ControlError("Task read failed; result is unconfirmed") from None
 
+    def _resource_deadline(self, deadline):
+        now = self._now()
+        if deadline is not None and (
+            type(deadline) not in (int, float)
+            or not math.isfinite(deadline)
+            or deadline <= now
+        ):
+            raise ControlError("Invalid resource deadline")
+        return (
+            min(deadline, now + self._timeout)
+            if deadline is not None
+            else now + self._timeout
+        )
+
+    def resource_status(self, *, deadline=None):
+        from . import workbench_resources
+        import uuid
+
+        if self.closed or not self.authenticated:
+            raise ControlError("PC authentication is required")
+        try:
+            deadline = self._resource_deadline(deadline)
+            query = uuid.uuid4().bytes
+            data = bytearray()
+            for offset in range(0, 128, 16):
+                total, *words = self._exchange(
+                    15, struct.pack(">I", 16 << 16 | offset) + query, deadline
+                )
+                if total != 128:
+                    raise ControlError("Invalid resource snapshot size")
+                data.extend(struct.pack(">4I", *words))
+            return workbench_resources.decode(data)
+        except Exception:
+            self.close()
+            raise ControlError(
+                "Resource read unconfirmed; no request replayed"
+            ) from None
+
+    def resource_request(
+        self,
+        operation,
+        epoch,
+        nonce,
+        job_id,
+        argument=0,
+        ttl_ms=0,
+        data=b"",
+        *,
+        deadline=None,
+    ):
+        from . import workbench_resources
+
+        record = workbench_resources.encode(
+            operation, epoch, nonce, job_id, argument, ttl_ms, data
+        )
+        if self.closed or not self.authenticated:
+            raise ControlError("PC authentication is required")
+        try:
+            deadline = self._resource_deadline(deadline)
+            self._exchange(16, struct.pack(">II", 16, len(record)), deadline)
+            for offset in range(0, len(record), 32):
+                self._exchange(17, record[offset : offset + 32], deadline)
+            self._exchange(18, b"", deadline)
+            return dict(accepted=True, completion_verified=False)
+        except Exception:
+            self.close()
+            raise ControlError(
+                "Resource request unconfirmed; query saved receipt before manual resume"
+            ) from None
+
     def close(self):
         if not self.closed:
             self.closed = True
@@ -330,6 +400,10 @@ def add_arguments(parser):
             "pair-finish",
             "task-event",
             "task-status",
+            "resource-status",
+            "resource-upload",
+            "resource-resume",
+            "resource-cancel",
         ),
     )
     parser.add_argument(
@@ -348,6 +422,12 @@ def add_arguments(parser):
     )
     parser.add_argument(
         "--progress", type=int, help="0..100; omit for unknown, start requires 0"
+    )
+    parser.add_argument(
+        "--file", type=Path, help="Public eye pack; never activated by upload"
+    )
+    parser.add_argument(
+        "--receipt", type=Path, help="Exclusive local public job receipt"
     )
     parser.add_argument("--port")
     parser.add_argument("--profile", type=Path)
@@ -403,6 +483,11 @@ def _credentials(args):
 
 
 def run(args):
+    resource_plan = None
+    if args.operation.startswith("resource-"):
+        from . import workbench_resources
+
+        resource_plan = workbench_resources.prepare(args)
     if args.operation == "task-event":
         from . import workbench_tasks
 
@@ -440,6 +525,8 @@ def run(args):
             )
             client.start(key)
             key[:] = bytes(len(key))
+            if resource_plan is not None:
+                return workbench_resources.perform(client, args, resource_plan)
             if args.operation == "task-event":
                 return client.task_event(
                     args.task_id,
@@ -462,3 +549,5 @@ def run(args):
     finally:
         if client is not None:
             client.close()
+        if resource_plan is not None:
+            resource_plan.close()
