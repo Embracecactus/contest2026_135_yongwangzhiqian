@@ -716,3 +716,28 @@ framebuffer writes are external peers. An independently specified all-green
 source requires RGB565 0x07e0 at every pixel on both sinks; ordinary default
 background is checked separately. File writes are counted after setup. This
 proves host behavior, not DMA/SD power-loss/physical pixels or target latency.
+
+### S96 positive TLS fixture validity correction (2026-09-27, tests only)
+
+Affected execution: USB-01.tls-transport, its PC interop, four RES-03.native-tls
+cases and existing workbench client fixture. Former positive certificates used
+OpenSSL's issuing instant for notBefore and one/two days for notAfter. S95's
+retained failure reported not-yet-valid before AUTH; capture time was about
+0.16 seconds before notBefore. This invalidates that run as evidence about the
+PC key decision, not its original FAIL_ASSERTION record. It does not establish
+the source of host-clock disagreement or retrospectively explain older failures.
+
+The positive synthetic identity now explicitly uses 2024-01-01T00:00:00Z through
+2030-01-01T00:00:00Z, independent of the issuing process's current second. Fresh
+keys/serials still vary. This is a correction to test setup, not a product trust
+or timing-contract relaxation. The generation helper runs ordinary OpenSSL
+verification at the current host time before launching protocol stimuli; an
+invalid fixture stops as SETUP_ERROR. There is no sleep/retry or clock adjustment.
+
+Independent fixed-time oracles require rejection before validity and after
+expiry, and acceptance at the captured S95 time with the corrected positive
+fixture. Product certificate pinning/chain/time checks, defaults, protocol
+sequences and request timeouts are unchanged. Outside the explicit fixture
+interval setup fails rather than silently extending dates. A test-review
+correction is recorded here under the user's permission to fix erroneous tests;
+no new product behavior or external parameter approval is inferred.

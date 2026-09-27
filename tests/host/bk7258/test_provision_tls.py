@@ -18,6 +18,8 @@ import time
 import tempfile
 import unittest
 
+from tls_test_identity import issue as issue_test_identity
+
 ROOT = Path(__file__).resolve().parents[3]
 RESOURCE_CASE = None
 
@@ -299,28 +301,7 @@ class ProvisionTlsTest(unittest.TestCase):
                     ]
                 )
                 if RESOURCE_CASE is not None:
-                    run(
-                        [
-                            "openssl",
-                            "req",
-                            "-x509",
-                            "-newkey",
-                            "ec",
-                            "-pkeyopt",
-                            "ec_paramgen_curve:P-256",
-                            "-nodes",
-                            "-keyout",
-                            temp / "key.pem",
-                            "-out",
-                            temp / "cert.pem",
-                            "-subj",
-                            "/CN=localhost",
-                            "-days",
-                            "1",
-                            "-addext",
-                            "subjectAltName=DNS:localhost",
-                        ]
-                    )
+                    issue_test_identity(run, temp)
                     run(
                         [
                             sys.executable,
@@ -488,28 +469,7 @@ class ProvisionTlsTest(unittest.TestCase):
                 run([temp / "claim", private])
                 # Vary both certificate and ephemeral handshake lengths.
                 for index in range(20):
-                    run(
-                        [
-                            "openssl",
-                            "req",
-                            "-x509",
-                            "-newkey",
-                            "ec",
-                            "-pkeyopt",
-                            "ec_paramgen_curve:P-256",
-                            "-nodes",
-                            "-keyout",
-                            temp / "key.pem",
-                            "-out",
-                            temp / "cert.pem",
-                            "-subj",
-                            "/CN=localhost",
-                            "-days",
-                            "1",
-                            "-addext",
-                            "subjectAltName=DNS:localhost",
-                        ]
-                    )
+                    issue_test_identity(run, temp)
                     pair_store = temp / f"pair-{index}"
                     pair_store.mkdir(mode=0o700)
                     run(

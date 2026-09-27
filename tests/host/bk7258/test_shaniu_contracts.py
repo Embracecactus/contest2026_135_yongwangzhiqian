@@ -914,6 +914,10 @@ def main():
         add(suite, "USB-01.pc-pairing-" + variant, "USB-01", "L2",
             [sys.executable, HERE / "test_workbench_pairing.py",
              "PairingTest.test_" + variant], marker=False)
+    for variant in ("dates", "not_yet_valid", "valid", "expired"):
+        add(suite, "USB-01.fixture-validity-" + variant, "USB-01", "L1",
+            [sys.executable, HERE / "test_tls_test_identity.py", "IdentityTest.test_" + variant],
+            marker=False, setup_exit_code=2)
     for variant in ("cancel", "expiry", "queued-cancel", "queued-expiry", "supersede", "missing", "invalid"):
         add(suite, "RES-02.pack-trial-" + variant, "RES-02", "L2",
             [sys.executable, HERE / "test_pack_trial.py", variant],
@@ -1408,6 +1412,8 @@ def main():
         HERE / "test_shaniu_usbcdc_tx.py",
         HERE / "test_shaniu_usbcdc_lifecycle.py",
         HERE / "test_provision_tls.py",
+        HERE / "tls_test_identity.py",
+        HERE / "test_tls_test_identity.py",
         HERE / "tls_entropy_tape.c",
         HERE / "test_tls_entropy_tape.py",
         HERE / "test_provision_tls.c",

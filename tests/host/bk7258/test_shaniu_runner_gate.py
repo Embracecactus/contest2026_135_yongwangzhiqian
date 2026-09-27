@@ -160,6 +160,32 @@ class NestedTlsGateTest(unittest.TestCase):
             self.assertEqual(len(result.errors), 1)
             self.assertEqual(len(result.failures), 0)
 
+    def test_invalid_positive_certificate_stops_before_peer(self):
+        import subprocess
+        import test_provision_tls as tls
+        with tempfile.TemporaryDirectory(prefix="tls-time-gate-") as directory:
+            root = Path(directory)
+            (root / "CMakeLists.txt").write_text("")
+            verify_calls, peer_calls = [], []
+            def external(args, **kwargs):
+                if str(args[0]) == "openssl" and str(args[1]) == "verify":
+                    verify_calls.append(args)
+                    kwargs["stdout"].write("certificate is not yet valid\n")
+                    return subprocess.CompletedProcess(args, 1)
+                if len(args) > 1 and str(args[1]).endswith("test_workbench_native_tls.py"):
+                    peer_calls.append(args)
+                return subprocess.CompletedProcess(args, 0)
+            with patch.dict(os.environ, {"MBEDTLS_SOURCE": str(root),
+                "SHANIU_TLS_FAILURE_DIR": str(root / "failures")}), \
+                patch.object(tls, "RESOURCE_CASE", "upload"), \
+                patch.object(tls.subprocess, "run", side_effect=external):
+                result = unittest.TestResult()
+                tls.ProvisionTlsTest("test_real_tls_fragmentation_and_teardown").run(result)
+            self.assertEqual(len(verify_calls), 1)
+            self.assertEqual(peer_calls, [])
+            self.assertEqual(len(result.errors), 1)
+            self.assertEqual(len(result.failures), 0)
+
     def test_native_peer_setup_error_remains_setup_error(self):
         import subprocess
         import test_provision_tls as tls

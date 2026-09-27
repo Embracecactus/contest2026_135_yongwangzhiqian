@@ -119,76 +119,22 @@ class WorkbenchClientTest(unittest.TestCase):
     def setUpClass(cls):
         cls.temp = tempfile.TemporaryDirectory(prefix="shaniu-pc-client-")
         root = Path(cls.temp.name)
-        cls.cert, cls.key = root / "cert.pem", root / "key.pem"
-        subprocess.run(
-            [
-                "openssl",
-                "req",
-                "-x509",
-                "-newkey",
-                "ec",
-                "-pkeyopt",
-                "ec_paramgen_curve:P-256",
-                "-nodes",
-                "-subj",
-                "/CN=synthetic-pc-peer",
-                "-days",
-                "2",
-                "-addext",
-                "basicConstraints=critical,CA:TRUE",
-                "-keyout",
-                cls.key,
-                "-out",
-                cls.cert,
-            ],
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        cls.alt_cert, cls.alt_key = root / "alt.pem", root / "alt-key.pem"
-        csr = root / "alt.csr"
-        subprocess.run(
-            [
-                "openssl",
-                "req",
-                "-new",
-                "-newkey",
-                "ec",
-                "-pkeyopt",
-                "ec_paramgen_curve:P-256",
-                "-nodes",
-                "-subj",
-                "/CN=other-leaf",
-                "-keyout",
-                cls.alt_key,
-                "-out",
-                csr,
-            ],
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        subprocess.run(
-            [
-                "openssl",
-                "x509",
-                "-req",
-                "-in",
-                csr,
-                "-CA",
-                cls.cert,
-                "-CAkey",
-                cls.key,
-                "-set_serial",
-                "2",
-                "-days",
-                "2",
-                "-out",
-                cls.alt_cert,
-            ],
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+        from tls_test_identity import issue
+
+        def run(args):
+            subprocess.run(
+                args, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+
+        cls.cert, cls.key = issue(run, root, common_name="synthetic-pc-peer")
+        cls.alt_cert, cls.alt_key = issue(
+            run,
+            root,
+            certificate="alt.pem",
+            key="alt-key.pem",
+            common_name="other-leaf",
+            issuer=(cls.cert, cls.key),
+            is_ca=False,
         )
         cls.pem = cls.cert.read_text()
         cls.pin = hashlib.sha256(ssl.PEM_cert_to_DER_cert(cls.pem)).hexdigest()
