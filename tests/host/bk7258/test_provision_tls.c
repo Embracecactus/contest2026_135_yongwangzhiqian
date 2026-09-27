@@ -123,7 +123,8 @@ static ssize_t stream_send(void *context, uint32_t epoch, const void *data,
   return ret;
 }
 
-static struct bkcontrol_serial_s serial;
+#include "bk7258_pc_usb.h"
+static struct bkpc_usb_s pc_usb;
 static bool serial_wire;
 
 /* Preserve the first unexpected return at every handshake site, including
@@ -230,7 +231,7 @@ int __wrap_fsync(int fd)
     { errno = EIO; return -1; }
   return __real_fsync(fd);
 }
-static struct bkpc_control_s pc_control;
+#define pc_control pc_usb.lease
 static bool pc_guarded;
 static unsigned pc_reads, pc_writes;
 static int pc_execute(void *context, enum bkcontrol_command_e command,
@@ -285,7 +286,8 @@ static const struct bkpc_source_s pc_source = { &pc_grants, pc_snapshot };
 
 static int control_step(struct bkcontrol_pair_s *pair)
 {
-  return pc_guarded ? bkpc_control_step(&pc_control) : bkcontrol_pair_step(pair);
+  return pc_guarded ? (serial_wire ? bkpc_usb_step(&pc_usb) :
+    bkpc_control_step(&pc_control)) : bkcontrol_pair_step(pair);
 }
 static unsigned control_calls;
 static unsigned control_cancels;
@@ -311,7 +313,7 @@ static void control_handshake_on(struct bkcontrol_pair_s *control,
                               bool independent)
 {
   uint8_t owner[32] = {42};
-  assert(bkcontrol_serial_close(&serial) == 0);
+  assert(bkpc_usb_close(&pc_usb) == 0);
   test_serial_peer_close();
   serial_wire = independent && getenv("SHANIU_TLS_SERIAL") != NULL;
   generation++;
@@ -333,15 +335,28 @@ static void control_handshake_on(struct bkcontrol_pair_s *control,
       if (serial_wire)
         {
           test_serial_peer_open();
-          assert(bkcontrol_serial_open(&serial, &transport) == 0);
-          selected_generation = transport.generation(transport.context);
+          if (!pc_guarded)
+            {
+              assert(bkcontrol_serial_open(&pc_usb.serial, &transport) == 0);
+              selected_generation = transport.generation(transport.context);
+            }
         }
       if (pc_guarded)
         {
           struct bkpc_source_s loaned = pc_source;
-          assert(bkpc_control_start(&pc_control, control, &loaned,
-                     selected_generation, cert, key, clock_ms, NULL,
-                     pc_execute, pc_config, &pc_reads, &transport) == 0);
+          if (serial_wire)
+            {
+              uint32_t previous = pc_usb.serial.epoch;
+              assert(bkpc_usb_open(&pc_usb, control, &loaned, cert, key,
+                       clock_ms, NULL, pc_execute, pc_config, &pc_reads)==0);
+              assert(pc_usb.serial.opened && pc_usb.serial.epoch == previous+1);
+              assert(bkpc_usb_open(&pc_usb, control, &loaned, cert, key,
+                       clock_ms, NULL, pc_execute, pc_config, &pc_reads)==-EBUSY);
+            }
+          else
+            assert(bkpc_control_start(&pc_control, control, &loaned,
+                       selected_generation, cert, key, clock_ms, NULL,
+                       pc_execute, pc_config, &pc_reads, &transport) == 0);
           memset(&loaned, 0, sizeof(loaned));
         }
       else
@@ -469,6 +484,7 @@ static void control_terminal(struct bkcontrol_pair_s *control, int expected)
   const unsigned char *bytes = (const unsigned char *)control;
   for (size_t i = 0; i < sizeof(*control); i++) assert(bytes[i] == 0);
   assert(control_step(control) == -ENOTCONN);
+  if (pc_guarded && serial_wire) assert(!pc_usb.serial.opened);
 }
 
 static void control_stream_tests(mbedtls_ssl_context *client,
@@ -549,7 +565,7 @@ static void control_stream_tests(mbedtls_ssl_context *client,
   assert(mbedtls_ssl_write(client, auth, sizeof(auth)) == sizeof(auth));
   control_response(&control, client, 1, 0, 255);
   assert(mbedtls_ssl_write(client, volume, sizeof(volume)) == sizeof(volume));
-  if (serial_wire) assert(bkcontrol_serial_close(&serial) == 0);
+  if (serial_wire) assert(bkcontrol_serial_close(&pc_usb.serial) == 0);
   else stream_generation++;
   control_terminal(&control, -ESTALE);
   assert(control_calls == before + 1);
@@ -712,6 +728,13 @@ static void pc_guard_tests(mbedtls_ssl_context *client,
              stream_generation, cert, key, clock_ms, NULL,
              pc_execute, pc_config, &pc_reads, &transport) == -EACCES);
   assert(!pc_control.open && !control.tls.initialized);
+  if (serial_wire)
+    {
+      assert(bkpc_usb_open(&pc_usb,&control,&pc_source,cert,key,clock_ms,NULL,
+                           pc_execute,pc_config,&pc_reads)==-EACCES);
+      assert(!pc_usb.serial.opened && !pc_control.open && !control.tls.initialized);
+      assert(bkpc_usb_close(&pc_usb)==0 && bkpc_usb_close(&pc_usb)==0);
+    }
   /* A failed revoke is not a successful revoke. Unknown durability instead
    * closes the active connection and forbids a fresh AUTH in this process. */
   pc_change(BKPC_CAP_SCENES);
@@ -770,6 +793,19 @@ static void pc_guard_tests(mbedtls_ssl_context *client,
              stream_generation, cert, key, clock_ms, NULL,
              pc_execute, pc_config, &pc_reads, &transport) == -EINPROGRESS);
   assert(pc_writes == 2 && !pc_control.open);
+  if (serial_wire)
+    {
+      /* External descriptor loss: real close reports EBADF. The lifecycle
+       * cannot turn uncertain ownership into successful close or reopen. */
+      struct bkpc_usb_s failed={0};
+      assert(bkcontrol_serial_open(&failed.serial,&transport)==0);
+      assert(close(failed.serial.fd)==0);
+      assert(bkpc_usb_close(&failed)==-EBADF);
+      assert(bkpc_usb_close(&failed)==-EBADF);
+      assert(bkpc_usb_open(&failed,&control,&pc_source,cert,key,clock_ms,NULL,
+                           pc_execute,pc_config,&pc_reads)==-EBADF);
+      assert(!failed.serial.opened && !control.tls.initialized);
+    }
   pc_guarded = false;
 }
 

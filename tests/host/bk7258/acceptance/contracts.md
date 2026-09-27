@@ -401,3 +401,29 @@ arithmetic with no allocation; renderer reuses the existing single transient
 160x160 RGB565 buffer (50 KiB), freed after writes. No additional permanent
 buffer/DMA or worker is introduced. CPU p95, stack high-water and real output
 latency are NOT_MEASURED, not inferred from host success.
+
+
+### S83 native serial connection lifetime (2026-09-27)
+
+The PC connection lifecycle now owns its serial descriptor alongside the actual
+PC authorization lease, while the caller still owns the control pair and device
+identity. Open/step/close remain serialized; this module does not start a thread,
+select USB mode, invoke a shell, toggle DTR or automatically reopen. Terminal
+TLS/auth/authorization/source/transport errors destroy the pair before closing
+the descriptor. Repeated close is idempotent on success. Close failure is latched
+and blocks future opens rather than assuming descriptor ownership is known.
+An open with an active pair/descriptor is rejected; failed authorization after
+serial open releases it without processing product commands.
+
+Real host PTY plus production TLS, PC guard, parser and config/task modules
+exercise this lifecycle. The initial terminal test found TLS cleared but fd still
+open. Hardware USB driver IRQ/DMA exit, all lower-level open rollback failures,
+exclusive native port use and product reset/power wiring remain separate gates.
+This module is compiled for AP but is not yet called by the startup loop; no
+physical USB capability is claimed from the host adapter tests.
+
+ARM sizeof: connection wrapper 88 bytes, external full control pair 69016 bytes,
+plus TLS dynamic allocations. The latter is not hidden within the 88-byte figure.
+No new resident thread/heap allocation comes from the wrapper itself. Actual heap
+headroom/peak crypto cost remain unmeasured; production admission must account
+for both phone and PC lifetimes, and close both before freeing shared identity.

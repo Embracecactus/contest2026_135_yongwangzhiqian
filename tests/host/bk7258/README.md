@@ -2585,3 +2585,23 @@ BLOCKED_INTERFACE，不算业务Red。之后真实Python TLS客户端连到生�
 实板/原生USB/实际语音竞争与p95待验，历史TLS问题OPEN。
 见`acceptance/s82-20260927.json`、`s82-first-20260927.json`及
 `s82-task-visual-evidence-20260927.json`。
+
+### S83 · 原生串口与 PC TLS 的共同连接生命周期（2026-09-27）
+
+新增 bkpc_usb 统一持有串口与独立 PC lease。终止先清 TLS/解析缓冲再关 fd；
+拒绝重复open，正常close幂等，close错误保留且禁止再次open，不自动重连或改USB
+模式。它已进入AP构建，尚未接入产品启动线程，不称原生USB产品功能已完成。
+
+先在真实PTY/TLS终止场景复现 `!serial.opened` 失败。补封装后认证失败、撤权、
+source不可用和协议终止均释放描述符；额外真实EBADF验证关闭错误不被当成功。
+原解析器/PC授权/任务状态机仍实际执行，未换成成功mock。既有TLS执行单元扩展，
+无新增ID；完整462PASS、原63与两项既有变异恢复保留，13门禁单列；AP增量通过。
+首轮完整集合的1个FAIL_ASSERTION来自TLS unittest包装器，其内层其实是夹具宏
+冲突导致的编译SETUP_ERROR；后续修正误改include也保留。内层编译失败分类缺口
+仍待修，不将这些称为业务Red；最初串口未关闭断言才是有效Red。
+
+ARM封装88B，另需调用方完整control pair 69016B和TLS动态堆；不以88B隐瞒总成本。
+映射后新c/h的固定NuttX nxstyle通过。接线仍须核对身份借用、重置/电源顺序、
+内存预算及真实DMA/IRQ退出；lower serial的open回滚close失败另待覆盖。没有
+操作手机、串口或板子。报告：`acceptance/s83-20260927.json`、
+`s83-first-20260927.json`、`s83-usb-lifetime-evidence-20260927.json`。
