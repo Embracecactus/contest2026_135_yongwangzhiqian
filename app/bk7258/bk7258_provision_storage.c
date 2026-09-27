@@ -810,3 +810,33 @@ int bkprov_storage_pc_snapshot(uint64_t revision,
   pthread_mutex_unlock(&g_lock);
   return ret;
 }
+
+int bkprov_storage_pc_receipt(uint64_t revision,
+                              const uint8_t transaction[16], int *result)
+{
+  if (!result) return -EINVAL;
+  *result = 0;
+  if (!transaction || pc_zero(transaction, 16)) return -EINVAL;
+  pthread_mutex_lock(&g_lock);
+  struct storage_s *s = g_storage;
+  int ret;
+  if (!s) ret = -ENODEV;
+  else if (s->job != JOB_IDLE && s->job != JOB_PC_SET) ret = -EBUSY;
+  else if (s->status != 0) ret = s->status;
+  else if (revision != s->revision || revision != s->pc_config_revision)
+    ret = -ESTALE;
+  else if (!memcmp(transaction, s->pc_transaction, 16))
+    {
+      *result = s->pc_result;
+      ret = !s->pc_completed ? BKPROV_PC_PENDING :
+            s->pc_result == 0 ? BKPROV_PC_SUCCEEDED :
+            s->pc_result == -EINPROGRESS ? BKPROV_PC_UNKNOWN : BKPROV_PC_FAILED;
+    }
+  else if (s->job != JOB_IDLE) ret = -EBUSY;
+  else if (s->pc_status != 0) ret = s->pc_status;
+  else if (!memcmp(transaction, s->pc.transaction, 16))
+    ret = BKPROV_PC_SUCCEEDED;
+  else ret = -ENODATA;
+  pthread_mutex_unlock(&g_lock);
+  return ret;
+}

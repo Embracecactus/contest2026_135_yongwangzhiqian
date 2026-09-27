@@ -421,6 +421,7 @@ def main():
         "test_pc_grants",
         "test_pc_reset",
         "test_pc_storage",
+        "test_pc_authorization",
         "test_shaniu_key_contract",
         "test_shaniu_volume_contract",
         "test_shaniu_volume_transition",
@@ -765,6 +766,10 @@ def main():
         add(suite, "NFC-01.deadline-" + variant, "NFC-01", "L1",
             [sys.executable, HERE / "test_mfrc522_deadline.py",
              "DeadlineTest.test_" + variant], marker=False)
+    for variant in ("basic", "auth", "invalid", "cancel", "failure", "unknown", "pending", "reopen", "retry-error"):
+        add(suite, "NET-03.pc-auth-" + variant, "NET-03", "L2",
+            [sys.executable, HERE / "test_pc_authorization.py", variant],
+            binaries["test_pc_authorization"])
     for variant in ("blocked-copy", "revision", "reopen", "write-failure", "unknown", "reset"):
         add(suite, "NET-03.pc-storage-" + variant, "NET-03", "L2",
             [sys.executable, HERE / "test_pc_storage.py", variant],
@@ -1278,6 +1283,10 @@ def main():
         HERE / "test_pc_reset.py",
         HERE / "test_pc_storage.c",
         HERE / "test_pc_storage.py",
+        HERE / "test_pc_authorization.c",
+        HERE / "test_pc_authorization.py",
+        ROOT / "app/bk7258/bk7258_pc_authorization.c",
+        ROOT / "app/bk7258/bk7258_pc_authorization.h",
         ROOT / "chips/bk7258/ap/bk7258_usbcdc.c",
         ROOT / "nuttx/drivers/sensors/sc7a20.c",
         ROOT / "nuttx/include/nuttx/sensors/sc7a20.h",

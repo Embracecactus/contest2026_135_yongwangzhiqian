@@ -352,7 +352,16 @@
     "NET-03.pc-storage-reopen",
     "NET-03.pc-storage-write-failure",
     "NET-03.pc-storage-unknown",
-    "NET-03.pc-storage-reset"
+    "NET-03.pc-storage-reset",
+    "NET-03.pc-auth-basic",
+    "NET-03.pc-auth-auth",
+    "NET-03.pc-auth-invalid",
+    "NET-03.pc-auth-cancel",
+    "NET-03.pc-auth-failure",
+    "NET-03.pc-auth-unknown",
+    "NET-03.pc-auth-pending",
+    "NET-03.pc-auth-reopen",
+    "NET-03.pc-auth-retry-error"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -708,6 +717,15 @@
     "NET-03.pc-storage-reopen",
     "NET-03.pc-storage-write-failure",
     "NET-03.pc-storage-unknown",
-    "NET-03.pc-storage-reset"
+    "NET-03.pc-storage-reset",
+    "NET-03.pc-auth-basic",
+    "NET-03.pc-auth-auth",
+    "NET-03.pc-auth-invalid",
+    "NET-03.pc-auth-cancel",
+    "NET-03.pc-auth-failure",
+    "NET-03.pc-auth-unknown",
+    "NET-03.pc-auth-pending",
+    "NET-03.pc-auth-reopen",
+    "NET-03.pc-auth-retry-error"
   ]
 }

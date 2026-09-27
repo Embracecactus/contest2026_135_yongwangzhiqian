@@ -416,3 +416,12 @@
   未重跑/覆盖352集合，S66的351PASS/1FAIL仍是最新完整报告。原失败保持
   未闭环并阻挡发布/USB启用；停止无信息的扩大随机试跑，不暂停独立的软件
   切片，下一步手机授权协议与真实存储集成先测试，之后再接产品。
+
+- S68：手机PC授权协议适配复用SDC1与真实storage/grant，公开快照不含key，
+  按transaction查询区分pending/success/known-failure/unknown；CANCEL只清暂存。
+  syscall EAGAIN终态先Red再修；补pending阶段断言后3新变异检出/恢复。首次
+  Make接线错误造成6SETUP_ERROR，保留原报告；修复后361PASS含原63+新增298，
+  本片9例，13运行器门禁另计。AP/manifest验证，不新增线程、常驻状态或DMA。
+  本次TLS通过不注销S66偶发失败；手机UI、当前owner绑定/主循环、USB所有权
+  接线仍缺，未启用运行入口或刷写。下一片绑定当前已验证配置与只读授权视图，
+  同时保持旧会话失效、离线管理及电源门禁，不把模块通过当整机验收。

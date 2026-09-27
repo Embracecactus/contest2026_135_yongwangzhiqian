@@ -1981,3 +1981,8 @@ $(BUILD)/test_pc_reset: test_pc_reset.c $(VOICE_PACK_ROOT)/bk7258_pc_grants.c $(
 
 $(BUILD)/test_pc_storage: test_pc_storage.c $(VOICE_PACK_ROOT)/bk7258_pc_grants.c $(VOICE_PACK_ROOT)/bk7258_provision_storage.c $(VOICE_PACK_ROOT)/bk7258_provision_store.c $(VOICE_PACK_ROOT)/bk7258_provision_storage.h $(VOICE_PACK_ROOT)/bk7258_pc_grants.h $(VOICE_OTA_MBEDCRYPTO) | $(BUILD)
 	$(CC) $(CFLAGS) -Werror -pthread -I$(VOICE_PACK_ROOT) -I$(VOICE_OTA_MBEDTLS_SOURCE)/include $(filter %.c,$^) -Wl,--wrap=fsync $(VOICE_OTA_MBEDCRYPTO) -o $@
+
+$(BUILD)/test_pc_authorization: test_pc_authorization.c $(VOICE_PACK_ROOT)/bk7258_pc_authorization.h $(VOICE_PACK_ROOT)/bk7258_provision_storage.h $(VOICE_PACK_ROOT)/bk7258_pc_authorization.c $(VOICE_PACK_ROOT)/bk7258_control_session.c $(VOICE_PACK_ROOT)/bk7258_pc_grants.c $(VOICE_PACK_ROOT)/bk7258_provision_storage.c $(VOICE_PACK_ROOT)/bk7258_provision_store.c $(VOICE_OTA_MBEDCRYPTO) | $(BUILD)
+	$(CC) $(CFLAGS) -Werror -pthread -I$(VOICE_PACK_ROOT) -I$(VOICE_OTA_MBEDTLS_SOURCE)/include $(filter-out test_pc_storage.c,$(filter %.c,$^)) -Wl,--wrap=fsync $(VOICE_OTA_MBEDCRYPTO) -o $@
+
+$(BUILD)/test_pc_authorization: test_pc_storage.c

@@ -33,6 +33,8 @@ int __wrap_fsync(int fd)
   if ((atomic_load(&failure) == 1 && S_ISREG(st.st_mode)) ||
       (atomic_load(&failure) == 2 && S_ISDIR(st.st_mode)))
     { errno = EIO; return -1; }
+  if (atomic_load(&failure) == 3 && S_ISREG(st.st_mode))
+    { errno = EAGAIN; return -1; }
   return __real_fsync(fd);
 }
 static void tick(void)

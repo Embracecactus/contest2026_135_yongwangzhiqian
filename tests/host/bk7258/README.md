@@ -2140,3 +2140,43 @@ CPU/文件系统时延待实测。环境缺clang-format14，不声称C格式检�
 - 仍缺手机授权协议/确认UI、产品主循环初始化与授权视图发布、USB worker及
   服务仲裁/工作台。当前API由主机测试调用，未启用产品电脑授权入口，也未
   把内部密钥结构接到公开协议；没有刷写、安装、按键或清理实物数据。
+
+### S68 手机管理电脑授权的协议适配（2026-09-27）
+
+本片定义并测试 kind=14，复用真实 SDC1 Session、storage worker、PC grant/store。
+它不是新的认证入口：只有原 Session 认证成功才分派；PC 的 S65 权限分派仍拒绝
+kind 14。当前生产主循环、手机UI和USB owner 尚未绑定此适配器，不报告为可用能力。
+产品调用者必须提供当前已验证 owner 对应的配置 revision，提交前关闭 PC 准入与
+旧会话；不能把本片测试中的薄路由当作真实设备已接线。原 TLS 偶发失败仍未闭环。
+
+线格式 v1 均为大端，固定长度，保留字节为零：
+
+| 格式 | 偏移与内容 |
+| --- | --- |
+| PCW1，88字节写请求 | 0 magic；4 主配置revision u64；12 预期PC revision u64；20 transaction[16]；36 client[16]；52 PC key[32]；84 capabilities u32 |
+| PCS1，64字节只读快照 | 0 magic；4 active u32；8 主配置revision u64；16 PC revision u64；24 capabilities u32；28 reserved；32 client[16]；48 持久transaction[16] |
+| PCR1，32字节只读回执 | 0 magic；4 result i32；8 phase u32；12 reserved；16 请求的transaction[16] |
+
+PCW1 capabilities=0 为撤销，client/key 必须全零；非零授权沿用 S63 的四个已知位，
+client/key/transaction 必须非零，独立PC key不能等于owner key。未知位/错误长度/
+魔数/旧revision拒绝，禁止原样公开内部80字节带密钥结构。PCS1从不包含密钥。
+BEGIN/APPEND只暂存，APPLY消耗暂存并返回存储受理结果；-EAGAIN不表示已持久化。
+CANCEL只清Session暂存，APPLY后不能撤销正在提交的worker，也不能假报远端取消。
+
+READ现有4字节kind/offset读PCS1；20字节kind/offset+transaction读PCR1。每次16字节，
+offset必须对齐且在记录内。PCR1 phase=0为查询未能确定（result给出ENOENT/ENODATA/
+ESTALE/EBUSY等实际原因），1处理中，2持久成功，3已知失败，4持久结果未知。
+phase与result分开；底层已知失败即使返回EAGAIN也必须phase=3，不能无限显示处理中。
+停止新写入期间允许结果查询。查询不加载卷/提交工作/取消写入。单槽只保证当前
+持久事务及本进程最后尝试的回执；更早事务查询未知，不能将未知说成执行失败。
+跨分片读取PCS1的客户端必须复核头部revision，若变化则重新读取，不能拼接旧新字段。
+
+9个新增NET-03.pc-auth-*执行ID覆盖认证/序号、非法输入、取消、成功/撤销、已知失败、
+未知提交、受阻写入及重开回执。初次缺接口为BLOCKED_INTERFACE。EAGAIN终态用例
+先FAIL_ASSERTION后修复；原始Red留out/shaniu-s68/receipt-red.log。第一次集合因Make
+依赖误删旧test_pc_storage入口产生6 SETUP_ERROR，355PASS，不当产品Red；已修接线。
+首次变异还暴露pending phase断言缺失，补断言后3项变异（泄密/假成功/失败当等待）
+均检出、恢复通过。既有完整报告不覆盖；最终逐例结果及限制在S68证据JSON中。
+
+实现没有新增线程、常驻状态、DMA或FS同步调用；局部公共快照64字节与内部view80字节，
+真实栈高水位/CPU/p95仍待测。仅主机与AP构建，不是手机授权或USB实板验收。

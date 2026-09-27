@@ -80,6 +80,18 @@ int bkprov_storage_pc_set(uint64_t config_revision, uint64_t expected,
                           const uint8_t transaction[16],
                           const uint8_t client[16], const uint8_t key[32],
                           uint32_t capabilities);
+/* Read-only receipt: positive phase, negative lookup error. A completed
+ * syscall failure may itself be -EAGAIN; it is never the pending phase.
+ * result is zeroed on a lookup error; no key or side effect is exposed. */
+enum bkprov_pc_receipt_e
+{
+  BKPROV_PC_PENDING = 1,
+  BKPROV_PC_SUCCEEDED = 2,
+  BKPROV_PC_FAILED = 3,
+  BKPROV_PC_UNKNOWN = 4
+};
+int bkprov_storage_pc_receipt(uint64_t config_revision,
+                              const uint8_t transaction[16], int *result);
 int bkprov_storage_pc_snapshot(uint64_t config_revision,
                                struct bkprov_pc_snapshot_s *view);
 

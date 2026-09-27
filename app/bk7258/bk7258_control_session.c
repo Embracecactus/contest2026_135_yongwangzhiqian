@@ -98,7 +98,8 @@ int bkcontrol_session_packet(struct bkcontrol_session_s *s, const uint8_t *p,
               if (payload != 4 && payload != 20) goto fail;
               argument = get32(p + 16);
               if (payload == 20 &&
-                  (argument >> 16) != BKCONTROL_CONFIG_RESET_TRANSFER)
+                  (argument >> 16) != BKCONTROL_CONFIG_RESET_TRANSFER &&
+                  (argument >> 16) != BKCONTROL_CONFIG_PC_AUTHORIZATION)
                 goto fail;
             }
           if (s->quiescing && command == BKCONTROL_CONFIG_READ &&
@@ -108,7 +109,8 @@ int bkcontrol_session_packet(struct bkcontrol_session_s *s, const uint8_t *p,
               (argument >> 16) != BKCONTROL_CONFIG_FOCUS &&
               (argument >> 16) != BKCONTROL_CONFIG_EXPRESSION_TRIAL &&
               (argument >> 16) != BKCONTROL_CONFIG_NFC_BINDINGS &&
-              (argument >> 16) != BKCONTROL_CONFIG_NFC_SCENE)
+              (argument >> 16) != BKCONTROL_CONFIG_NFC_SCENE &&
+              (argument >> 16) != BKCONTROL_CONFIG_PC_AUTHORIZATION)
             { ret = -EBUSY; goto config_done; }
           if (s->config == NULL) { ret = -ENOTSUP; goto config_done; }
           if (command == BKCONTROL_CONFIG_READ)
