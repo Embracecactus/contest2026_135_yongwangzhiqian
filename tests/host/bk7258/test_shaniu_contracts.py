@@ -263,6 +263,8 @@ def run_jvm():
         "provision.DeviceControlSessionTest",
         "provision.ProvisionSettingsTest",
         "provision.FocusTimerControllerTest",
+        "provision.SceneControlProtocolTest",
+        "provision.PcAuthorizationControllerTest",
         "provision.NfcBindingControllerTest",
         "provision.ExpressionTrialControllerTest",
         "ota.OtaControlUploadTest",
@@ -365,6 +367,8 @@ def run_jvm():
                     )
                 )
             )
+            if "PcAuthorization" in name or "SceneControl" in name:
+                parent = "NET-03"
             if "NfcBinding" in name:
                 parent = "NFC-02"
             if "ExpressionTrial" in name:
@@ -382,6 +386,7 @@ def run_jvm():
                                 "FocusTimer",
                                 "ExpressionTrial",
                                 "NfcBinding",
+                                "PcAuthorization",
                             )
                         )
                         else "L1"
@@ -1299,6 +1304,9 @@ def main():
         ROOT / "app/bk7258/bk7258_pc_authorization_owner.h",
         ROOT / "app/bk7258/bk7258_pc_authorization.c",
         ROOT / "app/bk7258/bk7258_pc_authorization.h",
+        ROOT / "android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/PcAuthorizationController.kt",
+        ROOT / "android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/DeviceControlProtocol.kt",
+        ROOT / "android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt",
         ROOT / "chips/bk7258/ap/bk7258_usbcdc.c",
         ROOT / "nuttx/drivers/sensors/sc7a20.c",
         ROOT / "nuttx/include/nuttx/sensors/sc7a20.h",

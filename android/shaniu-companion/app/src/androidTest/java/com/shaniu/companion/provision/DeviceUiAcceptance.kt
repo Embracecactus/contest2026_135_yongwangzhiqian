@@ -32,6 +32,56 @@ import java.util.concurrent.atomic.AtomicReference
  * mutation. Reflection keeps fixture injection out of the production APK API.
  */
 internal object DeviceUiAcceptance {
+    /** UI-01/NET-03: native confirmation and unknown states; emulator-only snapshots. */
+    fun runPcAuthorization(instrumentation: Instrumentation) {
+        check(android.os.Build.FINGERPRINT.contains("generic") || android.os.Build.MODEL.contains("sdk"))
+        val activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
+        fun field(name: String) = MainActivity::class.java.getDeclaredField(name).apply { isAccessible = true }
+        val session = MainActivity::class.java.getDeclaredMethod("getDirectSession").apply { isAccessible = true }
+            .invoke(activity) as DeviceControlSession
+        var second: android.app.AlertDialog? = null
+        try {
+            onUi(instrumentation) {
+                DeviceControlSession::class.java.getDeclaredField("state").apply { isAccessible = true }.set(session,
+                    DeviceControlSession.State(connection = DeviceControlSession.Connection.CONNECTED, authenticated = true,
+                        snapshotFresh = true, snapshot = DeviceControlProtocol.Snapshot(0, true, false, 50, 0, 0, 0,
+                            publicConfigSupported = true)))
+                MainActivity::class.java.getDeclaredMethod("showPcAuthorization").apply { isAccessible = true }.invoke(activity)
+            }
+            instrumentation.waitForIdleSync()
+            onUi(instrumentation) {
+                val dialog = checkNotNull(field("companionSheet").get(activity) as? android.app.Dialog)
+                val root = checkNotNull(dialog.window).decorView
+                val revoke = checkNotNull(findView(root) { it is TextView && it.text.toString() == "撤销电脑授权" })
+                check(!revoke.isEnabled) { "Unknown snapshot enabled revoke" }
+                val controller = checkNotNull(field("pcEditor").get(activity))
+                val type = controller.javaClass
+                // UI-only state fixture; production Session/codec behavior is tested on JVM.
+                val snapshotType = Class.forName("com.shaniu.companion.provision.PcAuthorizationController\$Snapshot")
+                val constructor = snapshotType.declaredConstructors.first { it.parameterTypes.size == 6 }.apply { isAccessible = true }
+                val snapshot = constructor.newInstance(true, 3L, 5L, 3, "09".repeat(16), "00".repeat(16))
+                type.getDeclaredField("snapshot").apply { isAccessible = true }.set(controller, snapshot)
+                type.getDeclaredMethod("publish").apply { isAccessible = true }.invoke(controller)
+                check(revoke.isEnabled)
+                revoke.performClick()
+                val confirm = checkNotNull(field("pcConfirmation").get(activity) as? android.app.AlertDialog)
+                check(confirm.isShowing)
+                check(type.getDeclaredMethod("current").invoke(controller).toString().contains("transaction=null"))
+                confirm.getButton(android.app.AlertDialog.BUTTON_NEGATIVE).performClick()
+                check(type.getDeclaredMethod("current").invoke(controller).toString().contains("transaction=null"))
+                revoke.performClick()
+                second = checkNotNull(field("pcConfirmation").get(activity) as? android.app.AlertDialog)
+                dialog.dismiss()
+            }
+            instrumentation.waitForIdleSync()
+            onUi(instrumentation) {
+                check(second?.isShowing == false) { "Confirmation survived closed sheet" }
+                check(field("pcEditor").get(activity) == null)
+            }
+        } finally { onUi(instrumentation) { session.disconnect(); activity.finish() } }
+    }
+
     /** UI-01: real editor controls; synthetic public snapshots, no BLE evidence. */
     fun runSettingsUnknown(instrumentation: Instrumentation) {
         check(android.os.Build.FINGERPRINT.contains("generic") || android.os.Build.MODEL.contains("sdk"))

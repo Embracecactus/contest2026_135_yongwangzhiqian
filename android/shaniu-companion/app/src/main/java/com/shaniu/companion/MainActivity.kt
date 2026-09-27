@@ -225,6 +225,10 @@ class MainActivity : Activity() {
     private var nfcMinutesDraft = "25"
     private var nfcSlotDraft = 0
     private var nfcDraftCapture: (() -> Unit)? = null
+    private var pcEditor: com.shaniu.companion.provision.PcAuthorizationController? = null
+    private var pcConfirmation: android.app.AlertDialog? = null
+    private var pcReceiptDevice = ""
+    private var pcReceiptTransaction: String? = null
     private var nfcEditor: com.shaniu.companion.provision.NfcBindingController? = null
     private var focusMinutesDraft = "25"
     private var focusEditor: com.shaniu.companion.provision.FocusTimerController? = null
@@ -281,6 +285,8 @@ class MainActivity : Activity() {
         trialSecondsDraft = savedInstanceState?.getString("trial_seconds_draft") ?: ""
         trialExpressionDraft = (savedInstanceState?.getInt("trial_expression_draft", 0) ?: 0).coerceIn(0, 8)
         focusMinutesDraft = savedInstanceState?.getString("focus_minutes_draft") ?: "25"
+        pcReceiptDevice = savedInstanceState?.getString("pc_receipt_device").orEmpty()
+        pcReceiptTransaction = savedInstanceState?.getString("pc_receipt_transaction")
         nfcMinutesDraft = savedInstanceState?.getString("nfc_minutes_draft") ?: "25"
         nfcSlotDraft = (savedInstanceState?.getInt("nfc_slot_draft", 0) ?: 0).coerceIn(0, 7)
         expressionPreview = savedInstanceState?.getInt("expression_preview", 0) ?: 0
@@ -767,7 +773,7 @@ class MainActivity : Activity() {
         foreground && directSession.requestPayload(command, payload)
 
     private fun configAvailable(): Boolean = foreground && directSession.current().authenticated &&
-        directSnapshot?.publicConfigSupported == true && configFlow == ConfigFlow.NONE && focusEditor == null && trialEditor == null && nfcEditor == null && !directPending &&
+        directSnapshot?.publicConfigSupported == true && configFlow == ConfigFlow.NONE && focusEditor == null && trialEditor == null && nfcEditor == null && pcEditor == null && !directPending &&
         otaUpload == null && !otaVerificationPending && otaStatus?.state !in 1L..2L
 
     private fun requestConfigCapabilities() {
@@ -2201,6 +2207,7 @@ class MainActivity : Activity() {
         page.sectionTitle("专注与陪伴")
         page.settingsRow("专注计时", "由设备计时，手机可随时回读", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "spark") { showFocusTimer() }
         page.settingsRow("专注卡片", "登记卡片与专注时长", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "spark") { showNfcBindings() }
+        page.settingsRow("电脑授权", "查看或撤销电脑的访问权限", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "settings") { showPcAuthorization() }
         page.sectionTitle("声音与唤醒")
         val currentWake = wakeStatus.takeIf { wakeStatusGeneration == directSession.current().generation && directSession.current().authenticated }
         page.settingsRow(currentWake?.active?.let(::wakeModelSummary) ?: "当前唤醒词", if (currentWake == null) "连接后回读设备当前模型" else "设备当前唤醒模型", iconName = "mic") { showWakeSheet() }
@@ -2417,6 +2424,71 @@ class MainActivity : Activity() {
                 actions.primaryButton("取消计时", ready && value?.state in 1..2) { focusEditor?.act(4) }
             })
             focusEditor?.refresh()
+        }
+    }
+
+    private fun showPcAuthorization() {
+        if (!configAvailable() || settingsEditor != null || factoryReset != null) return
+        val device = provisionedDeviceId
+        if (pcReceiptDevice != device) { pcReceiptDevice = device; pcReceiptTransaction = null }
+        showCompanionSheet("电脑授权", "由你决定，谁可以和傻妞协作。", done = false, onClosed = {
+            pcConfirmation?.dismiss(); pcConfirmation = null
+            pcEditor?.close(); pcEditor = null
+        }) { body, dialog ->
+            val page = CompanionPage(this, body)
+            val status = TextView(this).apply {
+                textSize = 16f; setTextColor(design.accent)
+                accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+            }
+            body.addView(status)
+            val details = TextView(this).apply {
+                textSize = 14f; setTextColor(design.ink); setPadding(0, dp(12), 0, dp(12))
+            }
+            body.addView(details)
+            page.notice("当前可查看与撤销已有授权。新增电脑授权尚未开放。撤销完成后，电脑需要重新获得授权；关闭本页不会撤回已提交的操作。")
+            fun button(label: String, action: () -> Unit): com.google.android.material.button.MaterialButton {
+                page.primaryButton(label, false, action)
+                return (body.getChildAt(body.childCount - 1) as com.google.android.material.button.MaterialButton).apply {
+                    setTextColor(design.ink); backgroundTintList = android.content.res.ColorStateList.valueOf(design.selected)
+                }
+            }
+            val reload = button("读取授权状态") { pcEditor?.refresh() }
+            val query = button("查询上次操作") { pcEditor?.query() }
+            val revoke = button("撤销电脑授权") {
+                val controller = pcEditor ?: return@button
+                val expected = controller.current().snapshot ?: return@button
+                pcConfirmation?.dismiss()
+                pcConfirmation = android.app.AlertDialog.Builder(this)
+                    .setTitle("撤销这台电脑的授权？")
+                    .setMessage("电脑标识：${expected.client}\n设备确认保存后，这台电脑将不能继续访问傻妞。")
+                    .setNegativeButton("保留授权", null)
+                    .setPositiveButton("确认撤销") { _, _ ->
+                        if (pcEditor === controller && provisionedDeviceId == device && !controller.revoke(expected)) {
+                            status.text = "状态已变化或设备正忙，请重新读取后确认"
+                        }
+                    }.create().also { it.show() }
+            }
+            button("返回") { dialog.dismiss() }.apply { isEnabled = true; alpha = 1f }
+            pcEditor = com.shaniu.companion.provision.PcAuthorizationController(directSession,
+                resumeTransaction = pcReceiptTransaction, changed = { state ->
+                    pcReceiptDevice = device; pcReceiptTransaction = state.transaction
+                    status.text = state.message
+                    val value = state.snapshot
+                    details.text = when {
+                        value == null -> "当前授权：尚未确认"
+                        !value.active -> "当前没有有效电脑授权"
+                        else -> "电脑标识：${value.client}\n允许：" + listOf(1 to "资源管理", 2 to "场景", 4 to "任务提醒", 8 to "有限诊断")
+                            .filter { value.capabilities and it.first != 0 }.joinToString("、") { it.second }
+                    }
+                    val ready = !state.busy && directSession.current().authenticated
+                    fun enable(view: View, enabled: Boolean) { view.isEnabled = enabled; view.alpha = if (enabled) 1f else 0.45f }
+                    enable(reload, ready)
+                    enable(query, ready && state.transaction != null)
+                    enable(revoke, ready && value?.active == true && state.outcome !in listOf(
+                        com.shaniu.companion.provision.PcAuthorizationController.Outcome.PENDING,
+                        com.shaniu.companion.provision.PcAuthorizationController.Outcome.UNKNOWN))
+                })
+            if (pcReceiptTransaction != null) pcEditor?.query() else pcEditor?.refresh()
         }
     }
 
@@ -4213,6 +4285,8 @@ class MainActivity : Activity() {
         outState.putString("trial_seconds_draft", trialSecondsDraft)
         outState.putInt("trial_expression_draft", trialExpressionDraft)
         outState.putString("focus_minutes_draft", focusMinutesDraft)
+        outState.putString("pc_receipt_device", pcReceiptDevice)
+        outState.putString("pc_receipt_transaction", pcReceiptTransaction)
         outState.putString("nfc_minutes_draft", nfcMinutesDraft)
         outState.putInt("nfc_slot_draft", nfcSlotDraft)
         outState.putInt("navigation", currentTab)

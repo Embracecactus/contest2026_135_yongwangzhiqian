@@ -93,12 +93,16 @@ internal class DeviceControlProtocol(
             Command.CONFIG_READ -> (payload.size == 4 || payload.size == 20) && ByteBuffer.wrap(payload).let {
                 val argument = it.int
                 val kind = argument ushr 16; val offset = argument and 0xffff
-                if (payload.size == 20) kind == RESET_TRANSFER_KIND && offset % 16 == 0
+                if (payload.size == 20) (kind == RESET_TRANSFER_KIND && offset % 16 == 0) ||
+                    (kind == 14 && offset in 0..16 && offset % 16 == 0)
+                else if (kind in 10..14) offset % 16 == 0 && offset < when (kind) {
+                    10, 11 -> 32; 12 -> 112; 13 -> 16; else -> 64
+                }
                 else ((kind in 1..2 || kind == 5 || kind == 7 || kind == 8) && offset % 16 == 0) ||
                     ((kind == 4 || kind == 6 || kind == 0x7fff) && offset == 0) }
             Command.CONFIG_BEGIN -> payload.size == 8 && ByteBuffer.wrap(payload).let {
                 val kind = it.int; val size = it.int
-                when (kind) { 1 -> size in 15..393; 2 -> size in 137..65676; 3 -> size == 4; 4 -> size == 12; 5 -> size in 44..3371; 6 -> size == 12; 7 -> size in 52..9216; RESET_TRANSFER_KIND -> size == 32; else -> false } }
+                when (kind) { 1 -> size in 15..393; 2 -> size in 137..65676; 3 -> size == 4; 4 -> size == 12; 5 -> size in 44..3371; 6 -> size == 12; 7 -> size in 52..9216; RESET_TRANSFER_KIND, 10, 11 -> size == 32; 12 -> size == 40; 14 -> size == 88; else -> false } }
             Command.CONFIG_APPEND -> payload.size in 1..512
             Command.CONFIG_APPLY, Command.CONFIG_CANCEL -> payload.isEmpty()
             else -> false
@@ -110,9 +114,13 @@ internal class DeviceControlProtocol(
     }
 
     private var pendingReadKind = 0
+    private var pendingReadReceipt = false
 
     private fun transmit(command: Command, payload: ByteArray) {
-        if (command == Command.CONFIG_READ) pendingReadKind = ByteBuffer.wrap(payload).int ushr 16
+        if (command == Command.CONFIG_READ) {
+            pendingReadKind = ByteBuffer.wrap(payload).int ushr 16
+            pendingReadReceipt = payload.size == 20
+        }
         if (command == Command.CONFIG_BEGIN) pendingBeginKind = ByteBuffer.wrap(payload).int
         check(sequence < Int.MAX_VALUE)
         val frame = ByteBuffer.allocate(16 + payload.size).putInt(0x53444331)
@@ -180,6 +188,9 @@ internal class DeviceControlProtocol(
                     if (command == Command.CONFIG_READ) {
                         require(error <= 0)
                         val chunk = if (error == 0) {
+                            if (pendingReadKind in 10..14) require(flags == when (pendingReadKind) {
+                                10, 11 -> 32; 12 -> 112; 13 -> 16; else -> if (pendingReadReceipt) 32 else 64
+                            })
                             require(flags in 12..(when (pendingReadKind) { 7 -> 824; 8 -> 876; RESET_TRANSFER_KIND -> 28; else -> 393 }))
                             ConfigChunk(flags, input.copyOfRange(24, 40))
                         } else null

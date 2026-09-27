@@ -1,0 +1,174 @@
+// SPDX-License-Identifier: Apache-2.0
+package com.shaniu.companion.provision
+
+import java.nio.ByteBuffer
+import org.junit.Assert.*
+import org.junit.Test
+
+/** Real controller + Session + SDC1 codec. Only the remote device is a peer. */
+class PcAuthorizationControllerTest {
+    private class Fixture(resume: String? = null) {
+        lateinit var events: DeviceControlSession.Events
+        lateinit var protocol: DeviceControlProtocol
+        val frames = mutableListOf<ByteArray>()
+        val session = DeviceControlSession({ 1000L }, { it() }, { _, _ -> object : DeviceControlSession.Cancel { override fun cancel() {} } })
+        val controller: PcAuthorizationController
+        val tx = ByteArray(16) { 7 }
+        val observed = mutableListOf<PcAuthorizationController.State>()
+        init {
+            session.setForeground(true)
+            session.connect(object : DeviceControlSession.Factory {
+                override fun open(e: DeviceControlSession.Events): DeviceControlSession.Transport {
+                    events = e
+                    protocol = DeviceControlProtocol(ByteArray(32) { 42 }, { frames += it.copyOf() }, { c, s ->
+                        if (c != DeviceControlProtocol.Command.AUTH) e.result(c, s)
+                    })
+                    return object : DeviceControlSession.Transport {
+                        override fun request(c: DeviceControlProtocol.Command, v: Int, a: (Boolean) -> Unit) { a(protocol.request(c, v)) }
+                        override fun requestOta(c: DeviceControlProtocol.Command, p: ByteArray, a: (Boolean) -> Unit) { error("not OTA") }
+                        override fun requestPayload(c: DeviceControlProtocol.Command, p: ByteArray, a: (Boolean) -> Unit) { a(protocol.requestPayload(c, p)) }
+                        override fun close() { protocol.close() }
+                    }
+                }
+            })
+            protocol.start(); reply()
+            protocol.request(DeviceControlProtocol.Command.STATUS); reply()
+            controller = PcAuthorizationController(session, { tx.copyOf() }, resume) { observed += it }
+        }
+        fun command() = ByteBuffer.wrap(frames.last()).getInt(4)
+        fun reply(error: Int = 0, total: Int = 0, chunk: ByteArray? = null) {
+            val request = ByteBuffer.wrap(frames.last())
+            val frame = ByteBuffer.allocate(40).putInt(0x53444331)
+                .putInt(request.getInt(4) or Int.MIN_VALUE).putInt(request.getInt(8)).putInt(24)
+                .putInt(error).putInt(total)
+            if (chunk != null) frame.put(chunk)
+            else frame.putInt(-1).putInt(-1).putInt(-1).putInt(0)
+            frame.array().toList().chunked(5).forEach { protocol.receive(it.toByteArray()) }
+        }
+        fun view(active: Boolean = true, revision: Long = 5, transaction: ByteArray = ByteArray(16)) =
+            ByteBuffer.allocate(64).put("PCS1".toByteArray()).putInt(if (active) 1 else 0)
+                .putLong(3).putLong(revision).putInt(if (active) 3 else 0).putInt(0)
+                .put(ByteArray(16) { if (active) 9 else 0 }).put(transaction).array()
+        fun read(value: ByteArray = view()) {
+            for (offset in listOf(0, 16, 32, 48, 0, 16)) {
+                assertEquals(15, command())
+                assertEquals((14 shl 16) or offset, ByteBuffer.wrap(frames.last()).getInt(16))
+                reply(total = 64, chunk = value.copyOfRange(offset, offset + 16))
+            }
+        }
+        fun loaded() { assertTrue(controller.refresh()); read() }
+        fun apply() {
+            val snapshot = controller.current().snapshot!!
+            assertTrue(controller.revoke(snapshot)); assertEquals(16, command())
+            assertNull(controller.current().transaction) // Saved state must not retain unsubmitted staging.
+            assertNull(observed.last().transaction)
+            reply()
+            val record = mutableListOf<Byte>()
+            repeat(3) { assertEquals(17, command()); record += frames.last().drop(16); reply() }
+            assertEquals(88, record.size)
+            assertEquals("PCW1", String(record.take(4).toByteArray()))
+            assertEquals(3L, ByteBuffer.wrap(record.toByteArray()).getLong(4))
+            assertEquals(5L, ByteBuffer.wrap(record.toByteArray()).getLong(12))
+            assertArrayEquals(tx, record.subList(20, 36).toByteArray())
+            assertTrue(record.drop(36).all { it == 0.toByte() })
+            assertEquals(18, command())
+            assertEquals("07".repeat(16), observed.last().transaction) // Save before an APPLY response can be lost.
+            reply(error = -11)
+        }
+        fun receipt(phase: Int, error: Int = 0, id: ByteArray = tx) {
+            val data = ByteBuffer.allocate(32).put("PCR1".toByteArray()).putInt(error).putInt(phase).putInt(0).put(id).array()
+            for (offset in listOf(0, 16)) {
+                assertEquals(15, command()); assertEquals(36, frames.last().size)
+                assertArrayEquals(tx, frames.last().copyOfRange(20, 36))
+                reply(total = 32, chunk = data.copyOfRange(offset, offset + 16))
+            }
+        }
+    }
+    @Test fun revokeNeedsDurableReceiptAndMatchingReadback() {
+        val f = Fixture(); f.loaded(); f.apply()
+        f.receipt(1, -11)
+        assertEquals(PcAuthorizationController.Outcome.PENDING, f.controller.current().outcome)
+        assertFalse(f.controller.current().busy)
+        assertTrue(f.controller.query()); f.receipt(2)
+        assertTrue(f.controller.current().busy)
+        assertNotEquals(PcAuthorizationController.Outcome.CONFIRMED, f.controller.current().outcome)
+        f.read(f.view(false, 6, f.tx))
+        assertEquals(PcAuthorizationController.Outcome.CONFIRMED, f.controller.current().outcome)
+        assertFalse(f.controller.current().snapshot!!.active)
+    }
+    @Test fun knownEagainFailureDoesNotBecomePendingOrReplay() {
+        val f = Fixture(); f.loaded(); f.apply(); val count = f.frames.size
+        f.receipt(3, -11)
+        assertEquals(PcAuthorizationController.Outcome.FAILED, f.controller.current().outcome)
+        assertFalse(f.controller.current().busy)
+        assertEquals(count + 1, f.frames.size)
+    }
+    @Test fun uncertainReceiptAndMismatchedReadbackCannotConfirm() {
+        val f = Fixture(); f.loaded(); f.apply(); f.receipt(4, -115)
+        assertEquals(PcAuthorizationController.Outcome.UNKNOWN, f.controller.current().outcome)
+        assertTrue(f.controller.query()); f.receipt(2); f.read(f.view(true, 6, f.tx))
+        assertEquals(PcAuthorizationController.Outcome.UNKNOWN, f.controller.current().outcome)
+    }
+    @Test fun mismatchedReceiptCannotConfirmAnotherTransaction() {
+        val f = Fixture(); f.loaded(); f.apply(); f.receipt(2, id = ByteArray(16) { 8 })
+        assertEquals(PcAuthorizationController.Outcome.UNKNOWN, f.controller.current().outcome)
+        assertNull(f.controller.current().snapshot)
+        assertFalse(f.controller.current().busy) // A wrong transaction must be rejected, not followed by a view read.
+    }
+    @Test fun changingEitherRevisionRejectsMixedSnapshot() {
+        for (field in listOf(8, 16)) {
+            val f = Fixture(); assertTrue(f.controller.refresh())
+            val data = f.view()
+            for (offset in listOf(0, 16, 32, 48)) f.reply(total = 64, chunk = data.copyOfRange(offset, offset + 16))
+            ByteBuffer.wrap(data).putLong(field, 99)
+            f.reply(total = 64, chunk = data.copyOfRange(0, 16))
+            if (field == 16) f.reply(total = 64, chunk = data.copyOfRange(16, 32))
+            assertNull(f.controller.current().snapshot)
+            assertFalse(f.controller.current().busy)
+        }
+    }
+    @Test fun disconnectLateAckAndRecreationNeverReplayWrite() {
+        val unstaged = Fixture(); unstaged.loaded()
+        assertTrue(unstaged.controller.revoke(unstaged.controller.current().snapshot!!))
+        unstaged.events.closed("lost before APPLY")
+        assertNull(unstaged.controller.current().transaction)
+        assertEquals(PcAuthorizationController.Outcome.NONE, unstaged.controller.current().outcome)
+        val f = Fixture(); f.loaded(); f.apply(); val id = f.controller.current().transaction!!
+        f.events.closed("lost"); val count = f.frames.size
+        f.events.result(DeviceControlProtocol.Command.CONFIG_APPLY, DeviceControlProtocol.Snapshot(0, false, false, null, null, null, null))
+        assertEquals(count, f.frames.size)
+        assertEquals(PcAuthorizationController.Outcome.UNKNOWN, f.controller.current().outcome)
+        f.controller.close()
+        val reopened = Fixture(id); assertTrue(reopened.controller.query()); reopened.receipt(1, -11)
+        assertFalse(reopened.frames.any { ByteBuffer.wrap(it).getInt(4) in 16..18 })
+    }
+    @Test fun closeBeforeApplyCancelsStagingButAfterApplyDoesNotClaimRemoteCancel() {
+        val f = Fixture(); f.loaded(); assertTrue(f.controller.revoke(f.controller.current().snapshot!!))
+        f.controller.close(); assertNull(f.controller.current().transaction)
+        f.reply(); assertEquals(19, f.command())
+        val committed = Fixture(); committed.loaded(); committed.apply(); val count = committed.frames.size
+        committed.controller.close(); assertEquals(count, committed.frames.size)
+        assertFalse(committed.frames.any { ByteBuffer.wrap(it).getInt(4) == 19 })
+    }
+    @Test fun staleConfirmationAndOtherEditorsTransactionAreNotOverwritten() {
+        val f = Fixture(); f.loaded(); val original = f.controller.current().snapshot!!
+        assertTrue(f.controller.refresh()); f.read(f.view(revision = 6))
+        assertFalse(f.controller.revoke(original))
+        assertTrue(f.session.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN, ByteBuffer.allocate(8).putInt(10).putInt(32).array()))
+        assertFalse(f.controller.revoke(f.controller.current().snapshot!!))
+        assertNull(f.controller.current().transaction) // Rejected BEGIN never reached the device.
+        f.reply()
+        assertFalse(f.frames.any { ByteBuffer.wrap(it).getInt(4) == 19 })
+        assertTrue(f.session.requestPayload(DeviceControlProtocol.Command.CONFIG_APPEND, ByteArray(32)))
+    }
+    @Test fun unsupportedAndInvalidSnapshotsCannotEnableRevoke() {
+        val f = Fixture(); assertTrue(f.controller.refresh()); f.reply(error = -95)
+        assertNull(f.controller.current().snapshot)
+        assertFalse(f.controller.current().busy)
+        for (field in listOf(4, 24, 28)) {
+            val p = Fixture(); assertTrue(p.controller.refresh())
+            val data = p.view(); ByteBuffer.wrap(data).putInt(field, 99)
+            p.read(data); assertNull(p.controller.current().snapshot)
+        }
+    }
+}

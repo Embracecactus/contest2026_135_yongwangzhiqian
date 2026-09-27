@@ -371,7 +371,23 @@
     "NET-03.pc-owner-invalid",
     "NET-03.pc-product-invalid",
     "NET-03.pc-owner-unbind",
-    "NET-03.pc-product-unbind"
+    "NET-03.pc-product-unbind",
+    "provision.SceneControlProtocolTest.sceneKindsCanReadAndWriteThroughProductionCodec",
+    "provision.SceneControlProtocolTest.sceneCapabilityRemainsReadOnly",
+    "provision.SceneControlProtocolTest.pcSnapshotReceiptAndWriteUseTheirOwnBoundedShapes",
+    "provision.SceneControlProtocolTest.newKindsRejectWrongLengthsOffsetsAndUnknownKindsBeforeSending",
+    "provision.SceneControlProtocolTest.pcReceiptAndSnapshotCannotBeInterchanged",
+    "provision.SceneControlProtocolTest.newReadKindsRejectMalformedResponseSize",
+    "provision.SceneControlProtocolTest.newKindsPreserveAuthenticationAndSequenceValidation",
+    "provision.PcAuthorizationControllerTest.revokeNeedsDurableReceiptAndMatchingReadback",
+    "provision.PcAuthorizationControllerTest.knownEagainFailureDoesNotBecomePendingOrReplay",
+    "provision.PcAuthorizationControllerTest.uncertainReceiptAndMismatchedReadbackCannotConfirm",
+    "provision.PcAuthorizationControllerTest.mismatchedReceiptCannotConfirmAnotherTransaction",
+    "provision.PcAuthorizationControllerTest.changingEitherRevisionRejectsMixedSnapshot",
+    "provision.PcAuthorizationControllerTest.disconnectLateAckAndRecreationNeverReplayWrite",
+    "provision.PcAuthorizationControllerTest.closeBeforeApplyCancelsStagingButAfterApplyDoesNotClaimRemoteCancel",
+    "provision.PcAuthorizationControllerTest.staleConfirmationAndOtherEditorsTransactionAreNotOverwritten",
+    "provision.PcAuthorizationControllerTest.unsupportedAndInvalidSnapshotsCannotEnableRevoke"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -746,6 +762,22 @@
     "NET-03.pc-owner-invalid",
     "NET-03.pc-product-invalid",
     "NET-03.pc-owner-unbind",
-    "NET-03.pc-product-unbind"
+    "NET-03.pc-product-unbind",
+    "provision.SceneControlProtocolTest.sceneKindsCanReadAndWriteThroughProductionCodec",
+    "provision.SceneControlProtocolTest.sceneCapabilityRemainsReadOnly",
+    "provision.SceneControlProtocolTest.pcSnapshotReceiptAndWriteUseTheirOwnBoundedShapes",
+    "provision.SceneControlProtocolTest.newKindsRejectWrongLengthsOffsetsAndUnknownKindsBeforeSending",
+    "provision.SceneControlProtocolTest.pcReceiptAndSnapshotCannotBeInterchanged",
+    "provision.SceneControlProtocolTest.newReadKindsRejectMalformedResponseSize",
+    "provision.SceneControlProtocolTest.newKindsPreserveAuthenticationAndSequenceValidation",
+    "provision.PcAuthorizationControllerTest.revokeNeedsDurableReceiptAndMatchingReadback",
+    "provision.PcAuthorizationControllerTest.knownEagainFailureDoesNotBecomePendingOrReplay",
+    "provision.PcAuthorizationControllerTest.uncertainReceiptAndMismatchedReadbackCannotConfirm",
+    "provision.PcAuthorizationControllerTest.mismatchedReceiptCannotConfirmAnotherTransaction",
+    "provision.PcAuthorizationControllerTest.changingEitherRevisionRejectsMixedSnapshot",
+    "provision.PcAuthorizationControllerTest.disconnectLateAckAndRecreationNeverReplayWrite",
+    "provision.PcAuthorizationControllerTest.closeBeforeApplyCancelsStagingButAfterApplyDoesNotClaimRemoteCancel",
+    "provision.PcAuthorizationControllerTest.staleConfirmationAndOtherEditorsTransactionAreNotOverwritten",
+    "provision.PcAuthorizationControllerTest.unsupportedAndInvalidSnapshotsCannotEnableRevoke"
   ]
 }

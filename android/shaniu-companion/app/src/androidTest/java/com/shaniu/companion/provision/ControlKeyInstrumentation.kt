@@ -20,6 +20,7 @@ class ControlKeyInstrumentation : Instrumentation() {
     private var settingsUnknownProbe = false
     private var expressionTrialProbe = false
     private var focusDraftProbe = false
+    private var pcAuthorizationProbe = false
     private var nfcDraftProbe = false
     private var uiGallery = false
     private var provisionInputProbe = false
@@ -34,6 +35,7 @@ class ControlKeyInstrumentation : Instrumentation() {
         settingsUnknownProbe = arguments?.getString("settings_unknown_probe") == "1"
         expressionTrialProbe = arguments?.getString("expression_trial_probe") == "1"
         focusDraftProbe = arguments?.getString("focus_draft_probe") == "1"
+        pcAuthorizationProbe = arguments?.getString("pc_authorization_probe") == "1"
         nfcDraftProbe = arguments?.getString("nfc_draft_probe") == "1"
         uiGallery = arguments?.getString("ui_gallery") == "1"
         provisionInputProbe = arguments?.getString("provision_input_probe") == "1"
@@ -72,6 +74,19 @@ class ControlKeyInstrumentation : Instrumentation() {
             val report = try {
                 DeviceUiAcceptance.runFocusDraft(this)
                 "PASS: UI-02.focus-draft 20 real View navigation rounds and Activity recreation; synthetic admission, no BLE"
+            } catch (error: Throwable) {
+                "FAIL: " + generateSequence(error) { it.cause }.take(5).joinToString(" <- ") {
+                    "${it.javaClass.simpleName}: ${it.message} at ${it.stackTrace.firstOrNull()}"
+                }
+            }
+            finish(if (report.startsWith("PASS:")) Activity.RESULT_OK else Activity.RESULT_CANCELED,
+                Bundle().apply { putString("stream", report) })
+            return
+        }
+        if (pcAuthorizationProbe) {
+            val report = try {
+                DeviceUiAcceptance.runPcAuthorization(this)
+                "PASS: UI-01.pc-authorization native unknown/confirmation/close; synthetic snapshots, no BLE"
             } catch (error: Throwable) {
                 "FAIL: " + generateSequence(error) { it.cause }.take(5).joinToString(" <- ") {
                     "${it.javaClass.simpleName}: ${it.message} at ${it.stackTrace.firstOrNull()}"
