@@ -752,6 +752,14 @@ def main():
         add(suite, "LIFE-01." + variant, "LIFE-01", "L1",
             [HERE / "build/test_shaniu_power_contract", variant],
             binaries["test_shaniu_power_contract"])
+    for variant in ("usb-failed", "usb-close"):
+        add(suite, "LIFE-02.power-" + variant, "LIFE-02", "L1",
+            [HERE / "build/test_shaniu_power_contract", variant],
+            binaries["test_shaniu_power_contract"])
+    for variant in ("usb_failed", "usb_before_identity"):
+        add(suite, "RST-02." + variant, "RST-02", "L1",
+            [sys.executable, HERE / "test_shaniu_reset_nfc.py",
+             "ResetNfcTest.test_" + variant], marker=False)
     for variant in ("nfc-busy", "nfc-failed"):
         add(
             suite,
@@ -1338,6 +1346,7 @@ def main():
         HERE / "tls_entropy_tape.c",
         HERE / "test_tls_entropy_tape.py",
         HERE / "test_provision_tls.c",
+        HERE / "test_control_serial_peer.c",
         HERE / "test_provision_tls_transport.c",
         ROOT / "app/bk7258/bk7258_provision_tls.c",
         ROOT / "app/bk7258/bk7258_provision_tls.h",
@@ -1386,6 +1395,7 @@ def main():
         HERE / "test_workbench_tasks.py",
         ROOT / "tools/bk7258/_lib/workbench_tasks.py",
         HERE / "test_provision_tls.c",
+        HERE / "test_control_serial_peer.c",
         HERE / "test_provision_tls.py",
         HERE / "tls_entropy_tape.c",
         HERE / "test_tls_entropy_tape.py",

@@ -2605,3 +2605,24 @@ ARM封装88B，另需调用方完整control pair 69016B和TLS动态堆；不以8
 内存预算及真实DMA/IRQ退出；lower serial的open回滚close失败另待覆盖。没有
 操作手机、串口或板子。报告：`acceptance/s83-20260927.json`、
 `s83-first-20260927.json`、`s83-usb-lifetime-evidence-20260927.json`。
+
+### S84 · 原生 USB 接入真实产品线程与退出门禁（2026-09-27）
+
+既有产品线程现在驱动独立 PC USB owner；身份/控制绑定、授权快照和非OTA为
+准入条件，新连接还等语音空闲。授权缺失或断线不阻断本地产品；无新增线程/
+Shell/DTR或模式切换。失败open/分配每1000ms最多一次，不重放业务命令。pair
+按需分配，连接失败/终止释放；关机和重置先退出USB，失败不得进入最终CP请求
+或身份清理。正常PC权限变化继续由实际guard逐条检查。
+
+先复现电源、重置的USB参与者缺口Red，再实施。新增4ID使完整466PASS（原63＋
+新增403）；真实PTY/TLS覆盖实际owner的准入、语音禁止新开、EAGAIN授权快照、
+重连节流、重复步进、停止、时钟倒退和设备不存在。13门禁及原2变异恢复保留。
+首次电源编译括号警告后误运行旧二进制的输出不计行为结果；PTY夹具缺设备分支
+先断言后修为ENODEV，均保留日志。完整集后仅调整新C块缩进，非空白字节一致；
+重跑TLS和AP通过。新c/h映射nxstyle通过。AP map证实owner符号已实际链接。
+
+ARM静态owner120B，活动pair69016B，另有TLS动态堆；失败分配可退出，但峰值/
+语音实时性仍须实测。不把PSRAM总容量当空闲。没有安装/刷板，实际USB枚举/
+双客户端/IRQ-DMA和资源文件导入尚未验收。历史TLS故障、内层编译失败分类及
+底层serial open回滚close错误仍留缺口。
+报告：`acceptance/s84-20260927.json`、`s84-usb-product-evidence-20260927.json`。

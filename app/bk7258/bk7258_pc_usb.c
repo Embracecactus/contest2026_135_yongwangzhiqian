@@ -10,6 +10,9 @@
 
 #include "bk7258_pc_usb.h"
 #include <errno.h>
+#include <stdlib.h>
+#include <string.h>
+#include <mbedtls/platform_util.h>
 
 /****************************************************************************
  * Public Functions
@@ -108,5 +111,132 @@ int bkpc_usb_step(struct bkpc_usb_s *usb)
       return closed < 0 ? closed : ret;
     }
 
+  return ret;
+}
+
+int bkpc_usb_owner_stop(struct bkpc_usb_owner_s *owner)
+{
+  int ret;
+
+  if (owner == NULL)
+    {
+      return -EINVAL;
+    }
+
+  ret = bkpc_usb_close(&owner->usb);
+  free(owner->pair);
+  owner->pair = NULL;
+  owner->result = ret;
+  return ret;
+}
+
+int bkpc_usb_owner_step(struct bkpc_usb_owner_s *owner,
+                        const struct bkpc_usb_config_s *config,
+                        bool admitted, bool start_allowed)
+{
+  struct bkprov_pc_snapshot_s view;
+  uint64_t binding = 0;
+  uint64_t now;
+  int ret;
+
+  if (owner == NULL)
+    {
+      return -EINVAL;
+    }
+
+  if (!admitted)
+    {
+      return bkpc_usb_owner_stop(owner);
+    }
+
+  if (config == NULL || config->source == NULL ||
+      config->source->snapshot == NULL || config->certificate == NULL ||
+      config->key == NULL || config->now_ms == NULL ||
+      config->execute == NULL)
+    {
+      ret = bkpc_usb_owner_stop(owner);
+      return ret < 0 ? ret : -EINVAL;
+    }
+
+  now = config->now_ms(config->clock_context);
+  if (now < owner->last)
+    {
+      ret = bkpc_usb_owner_stop(owner);
+      return ret < 0 ? ret : -ETIMEDOUT;
+    }
+
+  owner->last = now;
+  if (owner->usb.close_error)
+    {
+      return owner->usb.close_error;
+    }
+
+  if (owner->pair)
+    {
+      ret = bkpc_usb_step(&owner->usb);
+      if (ret >= 0)
+        {
+          owner->result = 0;
+          return ret;
+        }
+
+      goto failed;
+    }
+
+  if (!start_allowed || now < owner->retry_at)
+    {
+      return owner->result;
+    }
+
+  memset(&view, 0, sizeof(view));
+  ret = config->source->snapshot(config->source->context, &binding, &view);
+  if (ret > 0)
+    {
+      ret = -EIO;
+    }
+  else if (ret == 0 && (binding == 0 || view.revision == 0 ||
+                       view.capabilities == 0))
+    {
+      ret = -EACCES;
+    }
+
+  mbedtls_platform_zeroize(&view, sizeof(view));
+  if (ret < 0)
+    {
+      goto failed;
+    }
+
+  owner->pair = calloc(1, sizeof(*owner->pair));
+  if (owner->pair == NULL)
+    {
+      ret = -ENOMEM;
+      goto failed;
+    }
+
+  ret = bkpc_usb_open(&owner->usb, owner->pair, config->source,
+                      config->certificate, config->key, config->now_ms,
+                      config->clock_context, config->execute, config->config,
+                      config->context);
+  if (ret == 0)
+    {
+      owner->result = 0;
+      return 0;
+    }
+
+failed:
+    {
+      int closed = bkpc_usb_owner_stop(owner);
+      if (closed < 0)
+        {
+          ret = closed;
+        }
+    }
+
+  /* At most one failed open/allocation per second; protocol deadlines never
+   * grow. The caller continues local work and never replays a command.
+   */
+
+  owner->retry_at = now > UINT64_MAX - 1000 ? UINT64_MAX : now + 1000;
+  owner->result = ret;
   return ret;
 }

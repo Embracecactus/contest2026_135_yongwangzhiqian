@@ -427,3 +427,37 @@ plus TLS dynamic allocations. The latter is not hidden within the 88-byte figure
 No new resident thread/heap allocation comes from the wrapper itself. Actual heap
 headroom/peak crypto cost remain unmeasured; production admission must account
 for both phone and PC lifetimes, and close both before freeing shared identity.
+
+
+### S84 product-owned USB admission and exit (2026-09-27)
+
+The existing product thread now owns the native serial PC lifecycle. It admits
+only when identity/control are bound, OTA is inactive and a coherent independent
+PC grant is available. New opens require voice idle; existing connections keep
+bounded SDC1 service during voice activity. The same serialized thread steps
+phone and PC TLS, and must stop PC before resetting/freeing the shared identity.
+No USB mode selection, Shell, DTR toggle, auto replay or new resident thread.
+
+Before implementation, the retry budget was fixed at one failed open/allocation
+per 1000 monotonic milliseconds (at most one per second, not every 20-ms product
+tick). Existing TLS deadlines remain unchanged. Clock rollback closes the active
+pair. The full pair is allocated lazily only after a valid grant and is freed on
+open failure, terminal transport/auth/source error, OTA admission closure or
+explicit stop. Allocation failure leaves local product operation available;
+actual heap high-water and crypto latency remain unmeasured, not claimed safe
+by total PSRAM size. ARM static owner is 120B; active external pair is 69016B plus
+TLS allocations. This cost is additional to a simultaneous phone connection.
+
+Shutdown attempts stop USB along with other participants; failed USB exit cannot
+reach the final CP request. Reset stops USB before cleanup/identity release;
+errors leave reset pending and admission closed. The product loop closes PC on
+terminal wait errors and on reset read uncertainty too. Controller DMA shutdown
+is separate from descriptor/TLS exit and still needs real-board verification.
+
+Host validation runs the production owner, PC guard, TLS and serial adapter
+against a real PTY, and the exact production power/reset coordinators against
+external participant outcomes. No product-state machine is replaced by a success
+mock. The PTY adapter now represents a missing external device as ENODEV instead
+of asserting that a test master must always exist. Code is linked into AP but
+not deployed in this slice; initial claim, USB enumeration/authorization and
+actual paired phone/PC competition remain L3.

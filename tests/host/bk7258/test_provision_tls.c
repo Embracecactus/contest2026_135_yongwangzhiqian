@@ -650,6 +650,44 @@ static void pc_change(uint32_t caps)
 {
   pc_change_result(caps, 0);
 }
+static void pc_owner_lifecycle_tests(mbedtls_x509_crt *cert, mbedtls_pk_context *key)
+{
+  if (!getenv("SHANIU_TLS_SERIAL")) return;
+  struct bkpc_usb_owner_s owner={0};
+  const struct bkpc_usb_config_s cfg={&pc_source,cert,key,clock_ms,NULL,
+                                     pc_execute,pc_config,&pc_reads};
+  test_serial_peer_open();
+  assert(bkpc_usb_owner_step(&owner,&cfg,false,true)==0);
+  assert(!owner.pair && !owner.usb.serial.opened);
+  assert(bkpc_usb_owner_step(&owner,&cfg,true,false)==0);
+  assert(!owner.pair && !owner.usb.serial.opened);
+  assert(bkpc_usb_owner_step(&owner,&cfg,true,true)==0);
+  assert(owner.pair && owner.pair->tls.initialized && owner.usb.serial.opened);
+  uint32_t epoch=owner.usb.serial.epoch;
+  assert(bkpc_usb_owner_step(&owner,&cfg,true,true)==0);
+  assert(owner.usb.serial.epoch==epoch);
+  pc_source_error=-EAGAIN;
+  assert(bkpc_usb_owner_step(&owner,&cfg,true,true)==-EAGAIN);
+  assert(!owner.pair && !owner.usb.serial.opened);
+  pc_source_error=0;
+  assert(bkpc_usb_owner_step(&owner,&cfg,true,true)==-EAGAIN);
+  assert(!owner.pair && owner.usb.serial.epoch==epoch);
+  now+=1000;
+  assert(bkpc_usb_owner_step(&owner,&cfg,true,true)==0);
+  assert(owner.pair && owner.usb.serial.epoch==epoch+1);
+  assert(bkpc_usb_owner_step(&owner,NULL,false,false)==0);
+  assert(!owner.pair && !owner.usb.serial.opened);
+  assert(bkpc_usb_owner_stop(&owner)==0);
+  now--;
+  assert(bkpc_usb_owner_step(&owner,&cfg,true,true)==-ETIMEDOUT);
+  assert(!owner.pair && !owner.usb.serial.opened);
+  now+=2000;
+  test_serial_peer_close();
+  assert(bkpc_usb_owner_step(&owner,&cfg,true,true)<0);
+  assert(!owner.pair && !owner.usb.serial.opened);
+  assert(bkpc_usb_owner_stop(&owner)==0);
+}
+
 static void pc_guard_tests(mbedtls_ssl_context *client,
                             mbedtls_x509_crt *cert, mbedtls_pk_context *key)
 {
@@ -658,6 +696,7 @@ static void pc_guard_tests(mbedtls_ssl_context *client,
   const uint8_t focus[4] = {0,10,0,0}, eye[4] = {0,5,0,0};
   const uint8_t begin[8] = {0,0,0,10,0,0,0,4};
   const uint8_t denied_kinds[] = {1,2,3,4,6,7,8,9,12,13,14,15};
+  pc_owner_lifecycle_tests(cert,key);
   pc_guarded = true;
   control_handshake_on(&control, client, cert, key, true);
   pc_exchange(&control, client, 1, 0, auth, 32, 0);

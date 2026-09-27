@@ -462,7 +462,11 @@
     "PC-01.sender-readback",
     "PC-01.sender-failure",
     "PC-01.sender-cli",
-    "PC-01.task-visual"
+    "PC-01.task-visual",
+    "LIFE-02.power-usb-failed",
+    "LIFE-02.power-usb-close",
+    "RST-02.usb_failed",
+    "RST-02.usb_before_identity"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -928,6 +932,10 @@
     "PC-01.sender-readback",
     "PC-01.sender-failure",
     "PC-01.sender-cli",
-    "PC-01.task-visual"
+    "PC-01.task-visual",
+    "LIFE-02.power-usb-failed",
+    "LIFE-02.power-usb-close",
+    "RST-02.usb_failed",
+    "RST-02.usb_before_identity"
   ]
 }

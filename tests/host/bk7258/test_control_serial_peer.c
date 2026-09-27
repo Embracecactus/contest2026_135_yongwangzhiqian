@@ -15,7 +15,7 @@ int __wrap_open(const char *path, int flags, ...)
 {
   if (!strcmp(path, "/dev/ttyGS0"))
     {
-      assert(master >= 0 && slave != NULL);
+      if (master < 0 || slave == NULL) { errno = ENODEV; return -1; }
       return __real_open(slave, flags);
     }
   if (flags & O_CREAT)

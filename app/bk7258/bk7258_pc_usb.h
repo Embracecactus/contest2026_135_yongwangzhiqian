@@ -26,6 +26,31 @@ struct bkpc_usb_s
   int close_error;
 };
 
+/* The product thread owns these objects. Config pointers are borrowed only
+ * during step; an active TLS pair keeps its identity borrowed until stop.
+ */
+
+struct bkpc_usb_config_s
+{
+  const struct bkpc_source_s *source;
+  mbedtls_x509_crt *certificate;
+  mbedtls_pk_context *key;
+  uint64_t (*now_ms)(void *);
+  void *clock_context;
+  bkcontrol_execute_t execute;
+  bkcontrol_config_t config;
+  void *context;
+};
+
+struct bkpc_usb_owner_s
+{
+  struct bkpc_usb_s usb;
+  struct bkcontrol_pair_s *pair;
+  uint64_t last;
+  uint64_t retry_at;
+  int result;
+};
+
 /****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
@@ -38,4 +63,8 @@ int bkpc_usb_open(struct bkpc_usb_s *usb, struct bkcontrol_pair_s *pair,
                   void *context);
 int bkpc_usb_step(struct bkpc_usb_s *usb);
 int bkpc_usb_close(struct bkpc_usb_s *usb);
+int bkpc_usb_owner_stop(struct bkpc_usb_owner_s *owner);
+int bkpc_usb_owner_step(struct bkpc_usb_owner_s *owner,
+                        const struct bkpc_usb_config_s *config,
+                        bool admitted, bool start_allowed);
 #endif

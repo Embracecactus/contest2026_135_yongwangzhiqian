@@ -18,6 +18,11 @@ unsigned int test_owner_executed(void);
 void test_owner_write(void);
 int test_owner_reply(void);
 #endif
+#define CONFIG_BK7258_USBCDC 1
+static int usb_error, usb_stops;
+static bool usb_closed;
+static int product_pc_usb_stop(void)
+{ usb_stops++; usb_closed=!usb_error; return usb_error; }
 #define CONFIG_BK7258_PRODUCT_KEYS 1
 #define CONFIG_BK7258_PM_SOFT_OFF 1
 #define CONFIG_BK7258_VISION_SERVICE 1
@@ -241,6 +246,21 @@ int main(int argc, char **argv)
       assert(config_steps > before && cp_calls == 0 && reopens == 0);
       puts("CONTRACT_PASS");
       return 0;
+    }
+  if (!strcmp(argv[1], "usb-failed"))
+    {
+      (void)product_pc_usb_stop;
+      usb_error=-EIO;
+      assert(product_keys_step(0));
+      assert(usb_stops==1 && !usb_closed && cp_calls==0);
+      assert(g_shutdown_failed && trigger_closed && motion_closed);
+      puts("CONTRACT_PASS");return 0;
+    }
+  if (!strcmp(argv[1], "usb-close"))
+    {
+      assert(product_keys_step(0));
+      assert(usb_stops==1 && usb_closed && cp_calls==1);
+      puts("CONTRACT_PASS");return 0;
     }
   bool unpublished = !strcmp(argv[1], "unpublished-trigger");
   if (unpublished) g_trigger_started = false;

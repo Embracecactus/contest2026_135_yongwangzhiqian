@@ -80,6 +80,9 @@
 #include "bk7258_provision_settings.h"
 #include "bk7258_focus.h"
 #include "bk7258_pc_tasks.h"
+#ifdef CONFIG_BK7258_USBCDC
+#include "bk7258_pc_usb.h"
+#endif
 #include "bk7258_pc_grants.h"
 #include "bk7258_focus_intent.h"
 #ifdef CONFIG_BK7258_NFC_SERVICE
@@ -150,6 +153,10 @@
  */
 
 static struct bkprov_identity_s g_identity;
+#ifdef CONFIG_BK7258_USBCDC
+static struct bkpc_usb_owner_s g_pc_usb_owner;
+static int product_pc_usb_stop(void);
+#endif
 static bool g_identity_bound;
 static bool g_control_bound;
 static bool g_save_first;
@@ -1492,6 +1499,33 @@ static int product_config(void *context, enum bkcontrol_command_e command,
                                      record, size, status);
 }
 
+#ifdef CONFIG_BK7258_USBCDC
+static int product_pc_usb_stop(void)
+{
+  return bkpc_usb_owner_stop(&g_pc_usb_owner);
+}
+
+static void product_pc_usb_step(void)
+{
+  static const struct bkpc_source_s source =
+    { NULL, bkpc_authorization_snapshot };
+  const struct bkpc_usb_config_s config =
+    {
+      &source, &g_identity.certificate, &g_identity.key,
+      bkvoice_config_now_ms, NULL, product_control, product_config, NULL
+    };
+
+  /* Same owner as phone dispatch; no key/certificate use after reset stop.
+   * Do not begin expensive handshakes during a live voice interaction.
+   * Existing sessions retain bounded control service while voice is busy.
+   */
+
+  (void)bkpc_usb_owner_step(&g_pc_usb_owner, &config,
+    g_identity_bound && g_control_bound && !bkagent_ota_busy(),
+    !atomic_load(&g_voice_initialized) || voice_channel_is_idle());
+}
+#endif
+
 #ifdef BKAGENT_APP_OTA_ENABLED
 static int product_ota(void *context, enum bkcontrol_command_e command,
   const uint8_t *record, size_t size, struct bkcontrol_status_s *status)
@@ -2023,6 +2057,9 @@ static int product_reset_step(void)
   if (g_reset_phase != PRODUCT_RESET_FINISHING)
     {
       g_reset_phase = PRODUCT_RESET_QUIESCING;
+#ifdef CONFIG_BK7258_USBCDC
+      int usb = product_pc_usb_stop();
+#endif
 #ifdef CONFIG_BK7258_MOTION_SERVICE
       int motion = bk7258_motion_service_quiesce(true);
 #endif
@@ -2037,6 +2074,9 @@ static int product_reset_step(void)
 #endif
 #ifdef CONFIG_BK7258_NFC_SERVICE
       if (nfc < 0) return nfc;
+#endif
+#ifdef CONFIG_BK7258_USBCDC
+      if (usb < 0) return usb;
 #endif
       ret = bkprov_network_cancel();
       if (ret < 0 && ret != -EAGAIN) return ret;
@@ -2280,8 +2320,8 @@ static int bk7258_agent_activate_cloud(bool *storage_waiting)
   /* Local PC authorization is independent of cloud and Wi-Fi activation.
    * This owner is serialized with phone dispatch; storage copies the key.
    * Preparation errors remain visible through the PC query, not cloud state.
-   * No USB product owner exists yet: adding one requires closing its session
-   * before authorization mutation and handing it immutable completed views.
+   * The USB consumer checks the same coherent snapshot before each command;
+   * changed or unavailable grants invalidate its authenticated connection.
    */
 
   (void)bkpc_authorization_prepare(revision, work->bundle, size);
@@ -2383,7 +2423,11 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
 
       if (waited < 0 && errno != ETIMEDOUT)
         {
-          return -errno;
+          int error = errno;
+#ifdef CONFIG_BK7258_USBCDC
+          (void)product_pc_usb_stop();
+#endif
+          return -error;
         }
 
       unsigned int events = atomic_exchange(&g_product_events, 0);
@@ -2393,6 +2437,9 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
       int reset = product_reset_step();
       if (reset)
         {
+#ifdef CONFIG_BK7258_USBCDC
+          (void)product_pc_usb_stop();
+#endif
           product_nfc_scene_gate(false);
           product_pc_task_step(now, false);
           if (reset > 0 || g_reset_phase != PRODUCT_RESET_IDLE)
@@ -2676,6 +2723,9 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
 
       (void)bkprov_owner_step(bkvoice_config_now_ms(NULL), 0, false, false,
         !bkagent_ota_busy());
+#ifdef CONFIG_BK7258_USBCDC
+      product_pc_usb_step();
+#endif
       if (!atomic_load(&g_agent_core_ready) ||
           !atomic_load(&g_voice_initialized) || bkagent_ota_busy())
         {

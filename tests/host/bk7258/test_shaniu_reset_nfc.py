@@ -15,6 +15,10 @@ PREFIX = r"""
 #include <stdatomic.h>
 #include "bk7258_pc_tasks.h"
 static struct bkpc_tasks_s g_pc_tasks;
+#define CONFIG_BK7258_USBCDC 1
+static int usb_error, usb_stops;
+static bool usb_closed;
+static int product_pc_usb_stop(void) { usb_stops++;usb_closed=!usb_error;return usb_error; }
 #define CONFIG_BK7258_NFC_SERVICE 1
 #define CONFIG_BK7258_MOTION_SERVICE 1
 static int motion_error, motion_resume_error, motion_stops, motion_resumes;
@@ -65,7 +69,11 @@ class ResetNfcTest(unittest.TestCase):
     def run_case(self, body):
         source = (ROOT / "app/bk7258/bk7258_agent_product.c").read_text()
         code = PREFIX + function(source, "product_reset_step")
-        code += "\nint main(void){bkpc_tasks_bind(&g_pc_tasks,1,1);" + body + "\nif(!g_control_bound)assert(g_pc_tasks.binding==0);\nreturn 0;}\n"
+        code += (
+            "\nint main(void){bkpc_tasks_bind(&g_pc_tasks,1,1);"
+            + body
+            + "\nif(!g_control_bound)assert(g_pc_tasks.binding==0);\nreturn 0;}\n"
+        )
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)
             (path / "case.c").write_text(code)
@@ -90,6 +98,21 @@ class ResetNfcTest(unittest.TestCase):
                 check=True,
             )
             subprocess.run([str(path / "case")], check=True)
+
+    def test_usb_failed(self):
+        self.run_case(
+            """usb_error=-EIO;
+ assert(product_reset_step()==-EIO);
+ assert(usb_stops==1 && !finishes && !clears && !resumes);
+ assert(nfc_closed && motion_closed);"""
+        )
+
+    def test_usb_before_identity(self):
+        self.run_case(
+            """assert(product_reset_step()==-EAGAIN);
+ assert(usb_stops==1 && usb_closed);pending=0;
+ assert(product_reset_step()==1 && usb_closed && !g_identity_bound);"""
+        )
 
     def test_busy(self):
         self.run_case(
@@ -131,49 +154,63 @@ class ResetNfcTest(unittest.TestCase):
 class ResetMotionTest(ResetNfcTest):
     # Load this class by exact method name; inherited NFC cases retain their IDs.
     def test_motion_busy(self):
-        self.run_case("""motion_error=-EBUSY;
+        self.run_case(
+            """motion_error=-EBUSY;
  assert(product_reset_step()==-EBUSY);assert(motion_closed && !finishes && !clears);
  motion_error=0;assert(product_reset_step()==-EAGAIN);
  pending=0;assert(product_reset_step()==1);
- assert(motion_resumes==1 && !motion_closed && owner_opens==1);""")
+ assert(motion_resumes==1 && !motion_closed && owner_opens==1);"""
+        )
 
     def test_motion_failed(self):
-        self.run_case("""motion_error=-EIO;
+        self.run_case(
+            """motion_error=-EIO;
  for(int i=0;i<3;i++)assert(product_reset_step()==-EIO);
- assert(motion_closed && nfc_closed && !finishes && !clears && !motion_resumes);""")
+ assert(motion_closed && nfc_closed && !finishes && !clears && !motion_resumes);"""
+        )
 
     def test_motion_other_failure(self):
-        self.run_case("""owner_error=-EIO;
+        self.run_case(
+            """owner_error=-EIO;
  assert(product_reset_step()==-EIO);
- assert(motion_closed && motion_stops==1 && nfc_closed && !finishes);""")
+ assert(motion_closed && motion_stops==1 && nfc_closed && !finishes);"""
+        )
 
     def test_motion_resume_failure(self):
-        self.run_case("""assert(product_reset_step()==-EAGAIN);
+        self.run_case(
+            """assert(product_reset_step()==-EAGAIN);
  pending=0;motion_resume_error=-EIO;
  assert(product_reset_step()==-EIO);assert(!owner_opens && motion_closed && nfc_closed);
  motion_resume_error=0;assert(product_reset_step()==1);
- assert(!motion_closed && !nfc_closed && owner_opens==1 && finishes==1);""")
+ assert(!motion_closed && !nfc_closed && owner_opens==1 && finishes==1);"""
+        )
 
     def test_motion_resume_rollback(self):
-        self.run_case("""assert(product_reset_step()==-EAGAIN);
+        self.run_case(
+            """assert(product_reset_step()==-EAGAIN);
  pending=0;resume_error=-EIO;
  assert(product_reset_step()==-EIO);assert(!owner_opens && motion_closed && nfc_closed);
  resume_error=0;assert(product_reset_step()==1);
- assert(!motion_closed && !nfc_closed && finishes==1);""")
+ assert(!motion_closed && !nfc_closed && finishes==1);"""
+        )
 
     def test_motion_owner_resume_failure(self):
-        self.run_case("""assert(product_reset_step()==-EAGAIN);
+        self.run_case(
+            """assert(product_reset_step()==-EAGAIN);
  pending=0;owner_resume_error=-EIO;
  assert(product_reset_step()==-EIO);
  assert(motion_closed && nfc_closed && owner_closed && g_reset_phase==PRODUCT_RESET_FINISHING);
  owner_resume_error=0;assert(product_reset_step()==1);
- assert(!motion_closed && !nfc_closed && finishes==1);""")
+ assert(!motion_closed && !nfc_closed && finishes==1);"""
+        )
 
     def test_motion_power_intent(self):
-        self.run_case("""pending=0;assert(product_reset_step()==0 && !motion_stops);
+        self.run_case(
+            """pending=0;assert(product_reset_step()==0 && !motion_stops);
  pending=1;g_shutdown_requested=true;assert(product_reset_step()==-EAGAIN);
  pending=0;assert(product_reset_step()==1);
- assert(motion_closed && motion_stops==1 && !motion_resumes && !owner_opens);""")
+ assert(motion_closed && motion_stops==1 && !motion_resumes && !owner_opens);"""
+        )
 
 
 if __name__ == "__main__":
