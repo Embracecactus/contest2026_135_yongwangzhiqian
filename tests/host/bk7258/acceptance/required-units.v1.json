@@ -652,7 +652,9 @@
     "RES-02.web-display-tls-trial_cancel",
     "RES-02.web-display-tls-missing_pack",
     "RES-02.web-display-tls-default_supersedes_trial",
-    "RES-02.web-display-tls-release_recovery_stays_unknown"
+    "RES-02.web-display-tls-release_recovery_stays_unknown",
+    "USB-02.browser-upload_exact_128k_boundary",
+    "USB-02.browser-upload_128k_plus_one_rejected_before_spool_or_worker"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1308,6 +1310,8 @@
     "RES-02.web-display-tls-trial_cancel",
     "RES-02.web-display-tls-missing_pack",
     "RES-02.web-display-tls-default_supersedes_trial",
-    "RES-02.web-display-tls-release_recovery_stays_unknown"
+    "RES-02.web-display-tls-release_recovery_stays_unknown",
+    "USB-02.browser-upload_exact_128k_boundary",
+    "USB-02.browser-upload_128k_plus_one_rejected_before_spool_or_worker"
   ]
 }

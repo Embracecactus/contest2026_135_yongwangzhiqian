@@ -77,7 +77,7 @@ class WebTest(unittest.TestCase):
                         "POST",
                         "/api/start",
                         {"id": "01" * 16, "operation": "status", "params": {}},
-                        **headers
+                        **headers,
                     )[0],
                     403,
                 )
@@ -261,6 +261,43 @@ class WebTest(unittest.TestCase):
         finally:
             peer.close()
             WorkbenchClientTest.tearDownClass()
+
+    def test_upload_exact_128k_boundary(self):
+        import base64
+
+        with patch.object(
+            self.m.workbench, "run", return_value={"accepted": True}
+        ) as run:
+            # HTTP admission budget, independent of later pack validation.
+            data = base64.b64encode(bytes(131072)).decode()
+            body = {
+                "id": "09" * 16,
+                "operation": "resource-upload",
+                "params": {"data": data, "ttl_ms": 5000},
+            }
+            self.assertEqual(self.request("POST", "/api/start", body)[0], 202)
+            self.assertEqual(self.wait_result()["phase"], "returned")
+            self.assertEqual(run.call_count, 1)
+            self.assertEqual(
+                (self.service.directory / ("09" * 16 + ".bkep")).stat().st_size, 131072
+            )
+
+    def test_upload_128k_plus_one_rejected_before_spool_or_worker(self):
+        import base64
+
+        with patch.object(self.m.workbench, "run") as run:
+            for number, size in enumerate((131073, 131250), 10):
+                body = {
+                    "id": f"{number:032x}",
+                    "operation": "resource-upload",
+                    "params": {
+                        "data": base64.b64encode(bytes(size)).decode(),
+                        "ttl_ms": 5000,
+                    },
+                }
+                self.assertEqual(self.request("POST", "/api/start", body)[0], 400)
+            run.assert_not_called()
+            self.assertEqual(list(self.service.directory.iterdir()), [])
 
     def test_large_counters_preserve_exact_value(self):
         with patch.object(

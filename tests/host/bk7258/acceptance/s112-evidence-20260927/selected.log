@@ -1,0 +1,14 @@
+test_cancel_is_intent_not_remote_completion (test_workbench_web.WebTest) ... ok
+test_http_authority_rejects_before_operation (test_workbench_web.WebTest) ... ok
+test_http_upload_reaches_tls_and_native_installer (test_workbench_web.WebTest) ... ok
+test_invalid_upload_does_not_open_device (test_workbench_web.WebTest) ... ok
+test_large_counters_preserve_exact_value (test_workbench_web.WebTest) ... ok
+test_page_headers_and_no_credential_paths (test_workbench_web.WebTest) ... ok
+test_polling_is_local_and_duplicate_is_not_replayed (test_workbench_web.WebTest) ... ok
+test_upload_128k_plus_one_rejected_before_spool_or_worker (test_workbench_web.WebTest) ... ok
+test_upload_exact_128k_boundary (test_workbench_web.WebTest) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 5.032s
+
+OK

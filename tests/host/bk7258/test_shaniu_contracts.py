@@ -891,7 +891,7 @@ def main():
         add(suite, "USB-01.pc-client-" + variant, "USB-01", "L2",
             [sys.executable, HERE / "test_workbench_client.py",
              "WorkbenchClientTest.test_" + variant], marker=False)
-    for variant in ('http_authority_rejects_before_operation', 'polling_is_local_and_duplicate_is_not_replayed', 'cancel_is_intent_not_remote_completion', 'page_headers_and_no_credential_paths', 'invalid_upload_does_not_open_device', 'http_upload_reaches_tls_and_native_installer', 'large_counters_preserve_exact_value'):
+    for variant in ('http_authority_rejects_before_operation', 'polling_is_local_and_duplicate_is_not_replayed', 'cancel_is_intent_not_remote_completion', 'page_headers_and_no_credential_paths', 'invalid_upload_does_not_open_device', 'http_upload_reaches_tls_and_native_installer', 'large_counters_preserve_exact_value', 'upload_exact_128k_boundary', 'upload_128k_plus_one_rejected_before_spool_or_worker'):
         add(suite, "USB-02.browser-" + variant, "USB-02", "L2",
             [sys.executable, HERE / "test_workbench_web.py", "WebTest.test_" + variant], marker=False)
     for variant in ('trial_expiry', 'trial_cancel', 'missing_pack', 'default_supersedes_trial', 'release_recovery_stays_unknown'):

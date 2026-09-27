@@ -15,6 +15,8 @@ from . import workbench, workbench_resources, workbench_selection, workbench_tri
 
 ASSETS = Path(__file__).with_name("workbench_web")
 LIMIT = 190000
+MAX_BROWSER_PACK = 128 * 1024
+MAX_BROWSER_BASE64 = 4 * ((MAX_BROWSER_PACK + 2) // 3)
 READS = {
     "status",
     "info",
@@ -131,10 +133,10 @@ class Service:
             raise ValueError("Saved receipt required")
         if operation in ("resource-upload", "resource-resume"):
             encoded = params.get("data")
-            if not isinstance(encoded, str) or len(encoded) > 175000:
+            if not isinstance(encoded, str) or len(encoded) > MAX_BROWSER_BASE64:
                 raise ValueError("Bounded eye pack required")
             data = base64.b64decode(encoded, validate=True)
-            if not 128 <= len(data) <= workbench_resources.MAX_FILE:
+            if not 128 <= len(data) <= MAX_BROWSER_PACK:
                 raise ValueError("Invalid eye pack length")
             args.file = self.directory / (request_id + ".bkep")
             with args.file.open("xb") as stream:
