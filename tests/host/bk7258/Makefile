@@ -1991,3 +1991,6 @@ $(BUILD)/test_pc_owner_binding: test_pc_owner_binding.c $(VOICE_PACK_ROOT)/bk725
 	$(CC) $(CFLAGS) -Werror -pthread -ffunction-sections -fdata-sections -I$(VOICE_PACK_ROOT) -I$(VOICE_OTA_MBEDTLS_SOURCE)/include $(filter-out test_pc_storage.c,$(filter %.c,$^)) -Wl,--gc-sections,--wrap=fsync $(VOICE_OTA_MBEDCRYPTO) -o $@
 
 $(BUILD)/test_pc_owner_binding: test_pc_storage.c $(VOICE_PACK_ROOT)/bk7258_pc_authorization_owner.h $(VOICE_PACK_ROOT)/bk7258_provision_owner.h
+
+$(BUILD)/test_pc_tasks: test_pc_tasks.c $(VOICE_PACK_ROOT)/bk7258_pc_tasks.c $(VOICE_PACK_ROOT)/bk7258_pc_tasks.h | $(BUILD)
+	$(CC) $(CFLAGS) -Werror -I$(VOICE_PACK_ROOT) $(filter %.c,$^) -o $@

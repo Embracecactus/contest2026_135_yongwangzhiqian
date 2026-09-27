@@ -11,7 +11,9 @@ ROOT = Path(__file__).resolve().parents[3]
 
 
 def function(source, name):
-    match = re.search(r"static int " + re.escape(name) + r"\([^;{}]*\)\s*\{", source)
+    match = re.search(
+        r"static (?:int|void) " + re.escape(name) + r"\([^;{}]*\)\s*\{", source
+    )
     if match is None:
         raise ValueError("production function missing: " + name)
     start = match.start()

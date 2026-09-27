@@ -79,6 +79,8 @@
 #include "bk7258_provision_claim.h"
 #include "bk7258_provision_settings.h"
 #include "bk7258_focus.h"
+#include "bk7258_pc_tasks.h"
+#include "bk7258_pc_grants.h"
 #include "bk7258_focus_intent.h"
 #ifdef CONFIG_BK7258_NFC_SERVICE
 #include "bk7258_nfc_service.h"
@@ -1278,10 +1280,59 @@ static int product_install_eyes(const uint8_t *record, size_t size)
 }
 #endif
 
+/* The serialized product owner owns this bounded volatile task ledger.
+ * No notification is issued until a display feedback consumer is bound.
+ */
+static struct bkpc_tasks_s g_pc_tasks;
+
+static void product_pc_task_step(uint64_t now, bool admitted)
+{
+  struct bkprov_pc_snapshot_s view;
+  uint64_t binding = 0;
+  int ret;
+
+  if (!admitted)
+    {
+      bkpc_tasks_step(&g_pc_tasks, now, false);
+      return;
+    }
+
+  ret = bkpc_authorization_snapshot(NULL, &binding, &view);
+  if (ret == 0 && (view.capabilities & BKPC_CAP_TASKS) != 0)
+    {
+      bkpc_tasks_bind(&g_pc_tasks, binding, view.revision);
+    }
+  else if (ret != -EAGAIN)
+    {
+      bkpc_tasks_bind(&g_pc_tasks, 0, 0);
+    }
+
+  mbedtls_platform_zeroize(&view, sizeof(view));
+  bkpc_tasks_step(&g_pc_tasks, now, ret == 0);
+}
+
 static int product_config(void *context, enum bkcontrol_command_e command,
   uint32_t kind, uint32_t offset, const uint8_t *record, size_t size,
   struct bkcontrol_status_s *status)
 {
+  if (kind == BKCONTROL_CONFIG_PC_TASK && command == BKCONTROL_CONFIG_READ)
+    {
+      struct bkprov_pc_snapshot_s view;
+      uint64_t binding = 0;
+      int ret = bkpc_authorization_snapshot(NULL, &binding, &view);
+      if (ret == 0 && (binding != g_pc_tasks.binding ||
+                       view.revision != g_pc_tasks.grant ||
+                       (view.capabilities & BKPC_CAP_TASKS) == 0))
+        {
+          ret = -ESTALE;
+        }
+
+      mbedtls_platform_zeroize(&view, sizeof(view));
+      return ret < 0 ? ret :
+        bkpc_tasks_control(&g_pc_tasks, command, offset, record, size,
+                            status, bkvoice_config_now_ms(NULL));
+    }
+
   if (kind == BKCONTROL_CONFIG_PC_AUTHORIZATION &&
       command == BKCONTROL_CONFIG_READ)
     {
@@ -1313,6 +1364,13 @@ static int product_config(void *context, enum bkcontrol_command_e command,
     return bkdisplay_trial_control(command, offset, record, size, status,
                                    bkvoice_config_now_ms(NULL));
 #endif
+
+  if (kind == BKCONTROL_CONFIG_PC_TASK)
+    {
+      product_pc_task_step(bkvoice_config_now_ms(NULL), g_control_bound);
+      return bkpc_tasks_control(&g_pc_tasks, command, offset, record, size,
+                                status, bkvoice_config_now_ms(NULL));
+    }
 
   if (kind == BKCONTROL_CONFIG_PC_AUTHORIZATION)
     {
@@ -2019,6 +2077,7 @@ static int product_reset_step(void)
   g_identity_bound = false;
   g_control_bound = false;
   bkpc_authorization_unbind();
+  bkpc_tasks_bind(&g_pc_tasks, 0, 0);
   g_configured = false;
   g_cloud_loaded = false;
   g_config_revision = 0;
@@ -2335,6 +2394,7 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
       if (reset)
         {
           product_nfc_scene_gate(false);
+          product_pc_task_step(now, false);
           if (reset > 0 || g_reset_phase != PRODUCT_RESET_IDLE)
             {
               /* Do this before TURN_COMPLETE or preference recovery can
@@ -2368,6 +2428,7 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
       if (product_keys_step(now))
         {
           product_nfc_scene_gate(false);
+          product_pc_task_step(now, false);
           bkfocus_cancel();
           bkfocus_intent_step(now, false);
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
@@ -2382,6 +2443,7 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
         }
 
 #endif
+      product_pc_task_step(now, g_control_bound && !bkagent_ota_busy());
       (void)bkfocus_step(now);
       product_nfc_scene_gate(g_control_bound && !bkagent_ota_busy() &&
         (!atomic_load(&g_voice_initialized) || voice_channel_is_idle()));

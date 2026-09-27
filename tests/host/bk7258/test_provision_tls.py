@@ -257,6 +257,7 @@ class ProvisionTlsTest(unittest.TestCase):
                         ROOT / "app/bk7258/bk7258_control_serial.c",
                         ROOT / "app/bk7258/bk7258_pc_grants.c",
                         ROOT / "app/bk7258/bk7258_pc_control.c",
+                        ROOT / "app/bk7258/bk7258_pc_tasks.c",
                         "-Wl,--wrap=open,--wrap=fsync",
                         ROOT / "app/bk7258/bk7258_provision_tls.c",
                         ROOT / "app/bk7258/bk7258_provision_claim.c",

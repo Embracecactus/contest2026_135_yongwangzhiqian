@@ -12,11 +12,15 @@ if __name__ == "__main__":
 
     source = (ROOT / "app/bk7258/bk7258_agent_product.c").read_text()
     body = function(source, "product_config")
+    task_step = function(source, "product_pc_task_step")
     start = source.index("struct agent_config_workspace_s\n")
     workspace = source[start : source.index("};", start) + 2]
     activation = function(source, "bk7258_agent_activate_cloud")
     prefix = r"""
 #include "bk7258_pc_authorization_owner.h"
+#include "bk7258_pc_tasks.h"
+#include "bk7258_pc_grants.h"
+static struct bkpc_tasks_s g_pc_tasks;
 #include <mbedtls/platform_util.h>
 static bool g_identity_bound=true, g_control_bound, g_save_first, g_configured;
 static uint64_t g_config_revision;
@@ -35,6 +39,8 @@ static struct { mbedtls_x509_crt certificate; mbedtls_pk_context key; uint8_t se
 static int ota_busy;
 #define bkagent_ota_busy() ota_busy
 #define bkfocus_control(...) (-ENOTSUP)
+#define bkvoice_config_now_ms(...) task_now
+static uint64_t task_now=100;
 #define bkprov_config_control(...) (-ENOTSUP)
 #define product_scan_read(...) (-ENOTSUP)
 #define product_reset_control(...) (-ENOTSUP)
@@ -49,6 +55,8 @@ static int ota_busy;
         code = code.replace(
             "int main(int argc,char **argv)",
             prefix
+            + task_step
+            + "\n"
             + body
             + "\n"
             + workspace
@@ -80,6 +88,31 @@ static int ota_busy;
  assert(set(1,0,tx,3)==0);
 """,
         )
+        if sys.argv[1] == "tasks":
+            code = code.replace(
+                "assert(set(1,0,tx,3)==0);",
+                r"""
+ assert(set(1,0,tx,7)==0);
+ product_pc_task_step(task_now,true);
+ unsigned char task[40]={'P','T','E','1',0,0,0,1,7};
+ task[31]=1;task[34]=0x27;task[35]=0x10;
+ assert(product_config(NULL,BKCONTROL_CONFIG_APPLY,15,0,task,40,&status)==0);
+ assert(product_config(NULL,BKCONTROL_CONFIG_READ,15,0,NULL,0,&status)==0);
+ assert(!memcmp(status.config_chunk,"PTS1",4) && status.config_chunk[7]==1);
+ task[7]=3;task[31]=2;task[39]=100;
+ assert(product_config(NULL,BKCONTROL_CONFIG_APPLY,15,0,task,40,&status)==0);
+ task[7]=2;task[31]=3;
+ assert(product_config(NULL,BKCONTROL_CONFIG_APPLY,15,0,task,40,&status)==-EALREADY);
+ bkpc_authorization_unbind();
+ assert(product_config(NULL,BKCONTROL_CONFIG_READ,15,0,NULL,0,&status)==-ENOKEY);
+ product_pc_task_step(task_now,true);
+ assert(g_pc_tasks.binding==0);
+ assert(prepare(1)==0);
+ product_pc_task_step(task_now,true);
+ assert(product_config(NULL,BKCONTROL_CONFIG_READ,15,0,NULL,0,&status)==0);
+ assert(status.config_chunk[7]==0);
+""",
+            )
         (temp / "case.c").write_text(code)
         command = subprocess.check_output(
             ["make", "-n", "-B", "build/test_pc_owner_binding"],
@@ -97,6 +130,7 @@ static int ota_busy;
             str(temp / "case.c") if x == "test_pc_owner_binding.c" else x for x in args
         ]
         args += [
+            str(ROOT / "app/bk7258/bk7258_pc_tasks.c"),
             "-I",
             str(ROOT / "tests/host/bk7258"),
             "-Wno-unused-parameter",
@@ -107,5 +141,11 @@ static int ota_busy;
         subprocess.run(args, cwd=ROOT / "tests/host/bk7258", check=True)
         (temp / "data").mkdir()
         subprocess.run(
-            [temp / "test", sys.argv[1], temp / "data"], check=True, timeout=30
+            [
+                temp / "test",
+                "offline" if sys.argv[1] == "tasks" else sys.argv[1],
+                temp / "data",
+            ],
+            check=True,
+            timeout=30,
         )

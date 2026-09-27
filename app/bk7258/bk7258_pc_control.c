@@ -84,6 +84,8 @@ static int config(void *context, enum bkcontrol_command_e command,
   allowed |= (state->capabilities & BKPC_CAP_RESOURCES) != 0 &&
              kind == BKCONTROL_CONFIG_EYE_PACK &&
              command == BKCONTROL_CONFIG_READ;
+  allowed |= (state->capabilities & BKPC_CAP_TASKS) != 0 &&
+             kind == BKCONTROL_CONFIG_PC_TASK;
   if (!allowed)
     {
       return -EACCES;

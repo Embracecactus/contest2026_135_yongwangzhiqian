@@ -246,11 +246,15 @@ static int pc_execute(void *context, enum bkcontrol_command_e command,
     }
   return 0;
 }
+#include "bk7258_pc_tasks.h"
+static struct bkpc_tasks_s pc_tasks;
 static int pc_config(void *context, enum bkcontrol_command_e command,
                       uint32_t kind, uint32_t offset, const uint8_t *record,
                       size_t size, struct bkcontrol_status_s *status)
 {
   assert(context == &pc_reads && offset == 0);
+  if (kind == BKCONTROL_CONFIG_PC_TASK)
+    return bkpc_tasks_control(&pc_tasks, command, offset, record, size, status, now);
   assert(kind == BKCONTROL_CONFIG_FOCUS || kind == BKCONTROL_CONFIG_EXPRESSION_TRIAL ||
          kind == BKCONTROL_CONFIG_EYE_PACK);
   if (command == BKCONTROL_CONFIG_READ)
@@ -579,6 +583,7 @@ static void control_stream_tests(mbedtls_ssl_context *client,
 /* Real PC lease + store + TLS + SDC1; service callbacks are independent
  * side-effect observers, not replacement authorization/transfer machines.
  */
+static uint8_t pc_response[40];
 static void pc_exchange(struct bkcontrol_pair_s *control, mbedtls_ssl_context *client,
                          uint32_t command, uint32_t sequence,
                          const uint8_t *payload, size_t size, int expected)
@@ -596,7 +601,11 @@ static void pc_exchange(struct bkcontrol_pair_s *control, mbedtls_ssl_context *c
   size_t received = 0;
   for (unsigned int i = 0; i < 200 && received < sizeof(response); i++)
     {
-      assert(control_step(control) == 0);
+      int step_result = control_step(control);
+      if (step_result != 0)
+        fprintf(stderr, "PC_STEP_ERROR command=%u sequence=%u ret=%d now=%llu\n",
+                command, sequence, step_result, (unsigned long long)now);
+      assert(step_result == 0);
       int ret = mbedtls_ssl_read(client, response + received, sizeof(response) - received);
       assert(ret > 0 || ret == MBEDTLS_ERR_SSL_WANT_READ);
       if (ret > 0) received += ret;
@@ -605,7 +614,11 @@ static void pc_exchange(struct bkcontrol_pair_s *control, mbedtls_ssl_context *c
   assert(received == 40 && !memcmp(response, "SDC1", 4));
   uint32_t actual = (uint32_t)response[16]<<24 | (uint32_t)response[17]<<16 |
                     (uint32_t)response[18]<<8 | response[19];
+  if (actual != (uint32_t)expected)
+    fprintf(stderr,"PC_RESPONSE_ERROR command=%u sequence=%u actual=%d expected=%d\n",
+            command,sequence,(int32_t)actual,expected);
   assert(actual == (uint32_t)expected);
+  memcpy(pc_response, response, sizeof(pc_response));
 }
 static void pc_change_result(uint32_t caps, int expected)
 {
@@ -627,7 +640,7 @@ static void pc_guard_tests(mbedtls_ssl_context *client,
   const uint8_t auth[32] = {84}, volume[4] = {0,0,0,73};
   const uint8_t focus[4] = {0,10,0,0}, eye[4] = {0,5,0,0};
   const uint8_t begin[8] = {0,0,0,10,0,0,0,4};
-  const uint8_t denied_kinds[] = {1,2,3,4,6,7,8,9,12,13,14};
+  const uint8_t denied_kinds[] = {1,2,3,4,6,7,8,9,12,13,14,15};
   pc_guarded = true;
   control_handshake_on(&control, client, cert, key, true);
   pc_exchange(&control, client, 1, 0, auth, 32, 0);
@@ -718,10 +731,35 @@ static void pc_guard_tests(mbedtls_ssl_context *client,
   pc_source_error = 0;
   control_handshake_on(&control, client, cert, key, true);
   pc_exchange(&control, client, 1, 0, auth, 32, 0);
+  pc_change(BKPC_CAP_TASKS);
+  control_terminal(&control, -ESTALE);
+  control_handshake_on(&control, client, cert, key, true);
+  pc_exchange(&control, client, 1, 0, auth, 32, 0);
+  bkpc_tasks_bind(&pc_tasks, pc_binding, 1);
+  uint8_t task[40] = {'P','T','E','1',0,0,0,1,7};
+  task[31]=1; task[34]=0x27; task[35]=0x10;
+  const uint8_t task_begin[8]={0,0,0,15,0,0,0,40};
+  const uint8_t task_read[4]={0,15,0,0};
+  uint32_t task_sequence=1;
+  for (int event=0;event<3;event++)
+    {
+      task[7]=event==0?1:event==1?3:2;
+      task[31]=(uint8_t)(event+1);
+      task[39]=event==0?0:100;
+      pc_exchange(&control,client,16,task_sequence++,task_begin,8,0);
+      pc_exchange(&control,client,17,task_sequence++,task,40,0);
+      pc_exchange(&control,client,18,task_sequence++,NULL,0,event==2?-EALREADY:0);
+      pc_exchange(&control,client,15,task_sequence++,task_read,4,0);
+      assert(!memcmp(pc_response+24,"PTS1",4));
+      assert(pc_response[31]==(event==0?1:3));
+    }
+  assert(bkcontrol_session_quiesce(&control.session)==0);
+  pc_exchange(&control,client,15,task_sequence++,task_read,4,0);
+  pc_exchange(&control,client,16,task_sequence++,task_begin,8,-EBUSY);
   pc_sync_fault = 1;
   pc_change_result(0, -EIO);
   pc_sync_fault = 0;
-  pc_exchange(&control, client, 2, 1, NULL, 0, 0);
+  pc_exchange(&control, client, 2, task_sequence, NULL, 0, 0);
   assert(pc_reads == 5);
   pc_sync_fault = 2;
   pc_change_result(0, -EINPROGRESS);

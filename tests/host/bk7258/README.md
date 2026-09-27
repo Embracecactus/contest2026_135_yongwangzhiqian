@@ -2509,3 +2509,36 @@ GATT/stream正常实际TLS录制后复放：返回值和加密轨迹摘要相同
 `acceptance/s79-evidence-20260927/`；其余原日志和私有合成复放材料仅在
 `out/shaniu-s79/`。测试编译通过，Python black24.10.0通过；clang-format14未找到，
 不报告C格式化通过。没有生产代码、manifest或默认资源改动，没有实板操作。
+
+### S80 · 授权任务事件接收与真实状态回读（2026-09-27）
+
+新增PTE1/PTS1 kind15，合同详见contracts.md。本片生产实现为单任务易失账本、
+独立TASKS权限与产品线程接线：去重不续期、序号递增、终态不回退、进度限频、
+TTL/时钟倒退/停止准入、授权换代及重置清理。没有新线程/文件写入/云调用。
+产品dispatcher复用真实PC存储快照，不借用worker对象；READ只查询，不重建绑定。
+原按键、原模型与应答、原生UI、身份/信任与Agent pin不变。
+
+新增9个L1 ID及 `PC-01.task-product` L2。后者执行源码截取的真实dispatcher/step
+及真实owner/storage/ledger；真实TLS+SDC1套件另覆盖TASKS权限、BEGIN/APPEND/APPLY、
+终态拒绝与READ帧。配置接线和TLS分别覆盖，不能合称实际USB纵向通过。
+
+测试先记录缺接口，随后一次TLS失败由新用例误用旧序号造成：前面新增12帧，
+STATUS仍发1，生产正确要求13并返回-71。仅改测试发送序号；保留原日志及精确复放。
+随后停止准入READ先Red（-16），加入只读白名单后Green，BEGIN仍拒绝。
+初轮全量443 PASS/12 SETUP_ERROR为旧reset夹具未链接新任务清理依赖；补真实
+模块和绑定清除断言后，最终 **455 PASS**（原63＋累计392），零SETUP_ERROR。
+没有删原断言、放宽超时或将setup错误计作业务Red。static void源码提取支持及
+变异脚本的匹配范围修正均为测试接线，未更改产品合同。
+
+原两项变异检出/恢复保持；新增终态回退、重复续期、绕过TASKS权限三项隔离变异
+均检出。最终恢复由主机全量与真实TLS目标确认。13运行器门禁另列通过。
+AP增量编译/链接通过；首次CMake重新生成缺SDK环境属SETUP_ERROR，按既有已验证
+SDK/生成分区/公开信任源恢复同一AP树，没有清构建、签名或刷板。ARM账本sizeof80B；
+CPU/p95、最长阻塞、栈/内存峰值与板端延迟仍待实测。新产品模块nxstyle通过，
+相关Python通过black24.10.0；未声称全仓历史格式或clang-format14通过。
+
+**尚未完成：**显示提示消费者、电脑任务发送工具、USB产品运行入口、实板组合。
+当前终态仅报告“等待提示”，不宣称已经渲染/播报。S66/S75/S76原TLS故障继续OPEN；
+本片的可复放-71是测试序号错误，不是其根因。完整结果：`acceptance/s80-20260927.json`；
+初轮保留：`acceptance/s80-first-20260927.json`；补充：
+`acceptance/s80-task-evidence-20260927.json`；原始日志：`out/shaniu-s80/`。

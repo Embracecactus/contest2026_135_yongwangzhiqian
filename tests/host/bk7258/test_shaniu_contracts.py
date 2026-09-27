@@ -432,6 +432,7 @@ def main():
     for target in (
         "test_control_serial",
         "test_pc_grants",
+        "test_pc_tasks",
         "test_pc_reset",
         "test_pc_storage",
         "test_pc_authorization",
@@ -786,6 +787,11 @@ def main():
             binaries["test_pc_owner_binding"])
         add(suite, "NET-03.pc-product-" + variant, "NET-03", "L2",
             [sys.executable, HERE / "test_pc_product_route.py", variant])
+    for variant in ("terminal", "duplicate", "ordering", "expiry", "binding", "readonly", "invalid", "quiesce", "rate"):
+        add(suite, "PC-01.task-" + variant, "PC-01", "L1",
+            [HERE / "build/test_pc_tasks", variant], binaries["test_pc_tasks"])
+    add(suite, "PC-01.task-product", "PC-01", "L2",
+        [sys.executable, HERE / "test_pc_product_route.py", "tasks"])
     for variant in ("source", "source-revision"):
         add(suite, "NET-03.pc-owner-" + variant, "NET-03", "L2",
             [sys.executable, HERE / "test_pc_owner_binding.py", variant],
@@ -1349,6 +1355,9 @@ def main():
         HERE / "test_pc_storage.py",
         HERE / "test_pc_authorization.c",
         HERE / "test_pc_authorization.py",
+        HERE / "test_pc_tasks.c",
+        ROOT / "app/bk7258/bk7258_pc_tasks.c",
+        ROOT / "app/bk7258/bk7258_pc_tasks.h",
         HERE / "test_pc_owner_binding.c",
         HERE / "test_pc_owner_binding.py",
         HERE / "test_pc_product_route.py",

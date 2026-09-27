@@ -445,7 +445,17 @@
     "provision.PcAuthorizationControllerTest.restoredPairingOnlyQueriesAndCannotExportUnconfirmedOrWrongTarget",
     "provision.PcAuthorizationControllerTest.pairingExpiredPreparationCannotSaveOrSendAndNonceIsNotReplaced",
     "NET-03.pc-owner-source",
-    "NET-03.pc-owner-source-revision"
+    "NET-03.pc-owner-source-revision",
+    "PC-01.task-terminal",
+    "PC-01.task-duplicate",
+    "PC-01.task-ordering",
+    "PC-01.task-expiry",
+    "PC-01.task-binding",
+    "PC-01.task-readonly",
+    "PC-01.task-invalid",
+    "PC-01.task-quiesce",
+    "PC-01.task-rate",
+    "PC-01.task-product"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -894,6 +904,16 @@
     "provision.PcAuthorizationControllerTest.restoredPairingOnlyQueriesAndCannotExportUnconfirmedOrWrongTarget",
     "provision.PcAuthorizationControllerTest.pairingExpiredPreparationCannotSaveOrSendAndNonceIsNotReplaced",
     "NET-03.pc-owner-source",
-    "NET-03.pc-owner-source-revision"
+    "NET-03.pc-owner-source-revision",
+    "PC-01.task-terminal",
+    "PC-01.task-duplicate",
+    "PC-01.task-ordering",
+    "PC-01.task-expiry",
+    "PC-01.task-binding",
+    "PC-01.task-readonly",
+    "PC-01.task-invalid",
+    "PC-01.task-quiesce",
+    "PC-01.task-rate",
+    "PC-01.task-product"
   ]
 }

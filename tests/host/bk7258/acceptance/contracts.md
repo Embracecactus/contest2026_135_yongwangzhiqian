@@ -324,3 +324,33 @@ unknown/pending jobs remain queryable; chooser return cannot implicitly confirm,
 repeat authorization or restore a closed session. UI file I/O uses the existing
 worker; no new BLE owner or service is introduced. No raw PC key is written to
 Bundle/preferences/files/clipboard. Certificate pin and request digest are public.
+
+### PC-01 / S80：PTE1/PTS1 事件接收合同
+
+来源为用户PC-01的任务状态、ID、有效期、去重和终态规则；以下是本片新增公开
+格式及资源选择，不是既有实板成绩。SDC1配置kind15沿既有认证/序号/分片服务。
+PC需要独立TASKS权限；手机owner沿同一dispatcher，设备当前也必须存在TASKS授权。
+每个设备保留一个当前任务，授权绑定为主配置revision＋PC grant revision，改变
+绑定清空旧账本；暂不可读时关闭准入，不能复活原任务。无文件写入/新线程/云调用。
+
+PTE1固定40字节，均BE：magic4，state4（1开始、2进度、3成功、4失败、5取消），
+非零task ID16，非零event sequence8，剩余TTL毫秒4，progress4（0..100或全1未知；
+开始必须为0）。有效期为调用方参数1..UINT32_MAX，接收端只用单调时钟，不信任PC
+墙钟；溢出拒绝。发送端扣除本地排队时间，不离线重放，不在同一授权期间重用task ID。
+序号在同一授权期间跨任务递增；设备只记最后已受理事件，不承诺无限历史去重。
+
+完全相同的最后事件重复提交幂等、不续期；同序号不同数据拒绝；旧序号拒绝；
+不同任务的非开始事件拒绝。新任务仅能显式开始且旧任务已终态/过期，运行中不能
+被替换。终态不接受之后的进度/结果。第一条进度后至少间隔1000ms才接收下一条
+进度，受拒绝事件不占用序号，终态不受该限频限制。此为协议限频策略，不是硬件
+响应时间或性能成绩。停止准入/时钟倒退使旧有效期失效，恢复准入不复活旧任务。
+
+PTS1固定48字节：magic4，state4，task ID16，event sequence8，剩余毫秒8，flags4，
+progress4。flags：1准入、2过期、4终态等待提示。过期不改写电脑报告的最终结果。
+READ无副作用；客户端分片读后须回读含ID/sequence的头确认一致。BEGIN/APPLY
+受理不等于提示完成；CONFIG_CANCEL仍仅取消传输暂存，任务取消用PTE1状态5。
+停止准入期间允许查询结果，禁止新的BEGIN/APPLY；不放松旧协议的鉴权/序号/长度。
+
+本片仅接收、状态、准入/取消边界，**尚无显示消费者和电脑发送工具**，flag4
+不是已渲染回执。不调用喇叭、电机或LLM。后续显示必须在语音忙时延后/合并，
+只消费未过期事件并核对实际渲染结果；USB运行入口和实板门槛仍单独开放。

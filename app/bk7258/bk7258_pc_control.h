@@ -52,7 +52,7 @@ struct bkpc_control_s
  * FOCUS/EXPRESSION_TRIAL read/begin/apply; RESOURCES currently permits only
  * EYE_PACK read. The legacy HTTPS import is not the USB file installer.
  * All other config/basic mutations are denied, no OTA handler or SPV1 entry
- * is installed. TASKS/DIAGNOSTICS need explicit command contracts.
+ * is installed. TASKS permits PTE1/PTS1 only. DIAGNOSTICS is unbound.
  */
 
 int bkpc_control_start(struct bkpc_control_s *state,

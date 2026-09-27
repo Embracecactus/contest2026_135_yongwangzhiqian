@@ -13,6 +13,8 @@ PREFIX = r"""
 #include <stddef.h>
 #include <errno.h>
 #include <stdatomic.h>
+#include "bk7258_pc_tasks.h"
+static struct bkpc_tasks_s g_pc_tasks;
 #define CONFIG_BK7258_NFC_SERVICE 1
 #define CONFIG_BK7258_MOTION_SERVICE 1
 static int motion_error, motion_resume_error, motion_stops, motion_resumes;
@@ -63,7 +65,7 @@ class ResetNfcTest(unittest.TestCase):
     def run_case(self, body):
         source = (ROOT / "app/bk7258/bk7258_agent_product.c").read_text()
         code = PREFIX + function(source, "product_reset_step")
-        code += "\nint main(void){" + body + "\nreturn 0;}\n"
+        code += "\nint main(void){bkpc_tasks_bind(&g_pc_tasks,1,1);" + body + "\nif(!g_control_bound)assert(g_pc_tasks.binding==0);\nreturn 0;}\n"
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)
             (path / "case.c").write_text(code)
@@ -78,6 +80,9 @@ class ResetNfcTest(unittest.TestCase):
                     "-Wno-unused-variable",
                     "-fsanitize=undefined",
                     "-fno-sanitize-recover=all",
+                    "-I",
+                    str(ROOT / "app/bk7258"),
+                    str(ROOT / "app/bk7258/bk7258_pc_tasks.c"),
                     str(path / "case.c"),
                     "-o",
                     str(path / "case"),
