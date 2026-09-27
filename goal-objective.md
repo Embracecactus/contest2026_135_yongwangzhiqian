@@ -704,3 +704,15 @@
   本片未修改Android/依赖/模型，未操作设备。下一片接Android kind17协议、
   会话控制器与Canva原生页面；浏览器入口、active/2迁移、现场/组合/发布仍开放。
   证据：tests/host/bk7258/acceptance/s104-phone-selection-evidence-20260927.json。
+
+- S105：Android默认表情协议、Session控制器和Canva原生页面接入；APK45 /
+  0.7.15-shaniu-default-selection。显式刷新与设默认分离，96字节分片、128字节
+  nonce快照复验、epoch/操作回执匹配；ACK不显示保存完成，断线不重发。Android
+  与PC都拒绝早期状态带saved、rendering却无saved的矛盾快照。保留接口缺失、
+  文案/解码Red及测试观察器纠正记录。最终622PASS=原63+559新增；本片8项
+  （3L1/5L2），另14原协议回归、19门禁通过。额外回执变异检出及恢复单列。
+  模拟器20轮页面/未知状态/关闭清理通过，仅合成准入；未在Mi10安装、未刷板。
+  最终APK签名/版本/SHA256已核对。固件/模型/依赖未改，不重复AP构建。
+  下一步接真实Android客户端到原生服务的跨层链路，并补本地素材选择的重建
+  保持性；已安装目录、限时包试用、浏览器工作台及现场/发布门槛仍开放。
+  证据：tests/host/bk7258/acceptance/s105-android-default-evidence-20260927.json。

@@ -18,6 +18,7 @@ class ControlKeyInstrumentation : Instrumentation() {
     private var cloudProbe = false
     private var uiProbe = false
     private var settingsUnknownProbe = false
+    private var defaultSelectionProbe = false
     private var expressionTrialProbe = false
     private var focusDraftProbe = false
     private var pcAuthorizationProbe = false
@@ -33,6 +34,7 @@ class ControlKeyInstrumentation : Instrumentation() {
         cloudProbe = arguments?.getString("cloud_probe") == "1"
         uiProbe = arguments?.getString("ui_probe") == "1"
         settingsUnknownProbe = arguments?.getString("settings_unknown_probe") == "1"
+        defaultSelectionProbe = arguments?.getString("default_selection_probe") == "1"
         expressionTrialProbe = arguments?.getString("expression_trial_probe") == "1"
         focusDraftProbe = arguments?.getString("focus_draft_probe") == "1"
         pcAuthorizationProbe = arguments?.getString("pc_authorization_probe") == "1"
@@ -50,6 +52,17 @@ class ControlKeyInstrumentation : Instrumentation() {
             val report = try {
                 DeviceUiAcceptance.runSettingsUnknown(this)
                 "PASS: UI-01.settings-unknown real editor controls; synthetic snapshots, no BLE"
+            } catch (error: Throwable) {
+                "FAIL: " + generateSequence(error) { it.cause }.take(5).joinToString(" <- ") { "${it.javaClass.simpleName}: ${it.message}" }
+            }
+            finish(if (report.startsWith("PASS:")) Activity.RESULT_OK else Activity.RESULT_CANCELED,
+                Bundle().apply { putString("stream", report) })
+            return
+        }
+        if (defaultSelectionProbe) {
+            val report = try {
+                DeviceUiAcceptance.runDefaultSelection(this)
+                "PASS: RES-02.default-ui 20 native navigation/unknown gates/close rounds; synthetic admission, no BLE or save proof"
             } catch (error: Throwable) {
                 "FAIL: " + generateSequence(error) { it.cause }.take(5).joinToString(" <- ") { "${it.javaClass.simpleName}: ${it.message}" }
             }

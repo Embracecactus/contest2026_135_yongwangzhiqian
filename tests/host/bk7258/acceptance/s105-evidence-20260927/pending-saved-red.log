@@ -1,0 +1,62 @@
+WARNING: platform-tools package is not installed.
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:generateDebugBuildConfig UP-TO-DATE
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
+> Task :app:javaPreCompileDebug UP-TO-DATE
+> Task :app:preDebugUnitTestBuild UP-TO-DATE
+> Task :app:javaPreCompileDebugUnitTest UP-TO-DATE
+
+> Task :app:compileDebugKotlin
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:283:16 'var statusBarColor: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:284:16 'var navigationBarColor: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:285:16 'var isStatusBarContrastEnforced: Boolean' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:286:26 'var systemUiVisibility: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:287:18 'static field SYSTEM_UI_FLAG_LIGHT_STATUS_BAR: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:287:58 'static field SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:2824:70 'static field SOFT_INPUT_ADJUST_RESIZE: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:4494:16 'var statusBarColor: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:4495:16 'var navigationBarColor: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:4496:26 'var systemUiVisibility: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:4497:18 'static field SYSTEM_UI_FLAG_LIGHT_STATUS_BAR: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:4497:58 'static field SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR: Int' is deprecated. Deprecated in Java.
+
+> Task :app:compileDebugJavaWithJavac UP-TO-DATE
+> Task :app:processDebugJavaRes UP-TO-DATE
+> Task :app:bundleDebugClassesToCompileJar
+> Task :app:bundleDebugClassesToRuntimeJar
+> Task :app:compileDebugUnitTestKotlin
+> Task :app:compileDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :app:processDebugUnitTestJavaRes UP-TO-DATE
+
+> Task :app:testDebugUnitTest FAILED
+
+DefaultSelectionControllerTest > decoderRejectsInconsistentSuccessAndReservedFields FAILED
+    java.lang.AssertionError at DefaultSelectionControllerTest.kt:99
+
+1 test completed, 1 failed
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:testDebugUnitTest'.
+> There were failing tests. See the report at: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/build/reports/tests/testDebugUnitTest/index.html
+
+* Try:
+> Run with --scan to get full insights.
+
+BUILD FAILED in 3s
+24 actionable tasks: 5 executed, 19 up-to-date

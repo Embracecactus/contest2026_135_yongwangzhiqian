@@ -3,13 +3,28 @@
 [项目与视频](../../README.md) · [技术报告](../../docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md) · [实际验收](../../docs/platforms/bk7258/shaniu-master-plan.md)
 
 原生 Kotlin 工程，包名 `com.shaniu.companion`。当前源码版本
-`0.5.23-shaniu-rebind`（versionCode 28），Android 10+（minSdk 29），
+`0.7.15-shaniu-default-selection`（versionCode 45），Android 10+（minSdk 29），
 compile/target SDK 35。App 只承担配置和控制：设备完成配置后独立运行语音，
 关闭 App 不等于结束设备端交互会话。
 
 [![App 操作演示](../../docs/contest/assets/app-demo-cover.jpg)](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-app-demo.mp4)
 
 补充演示 1 分 26 秒，包含认领配网、设置和 OTA 入口；不冒充完整升级录像。
+
+## 默认表情
+
+在“定制 → 默认表情”查看最近任务，再选择“刷新设备默认”读取设备保存的
+素材。任务仍在执行时，可用“读取操作结果”继续确认；受理不是保存或显示完成。
+先在资源更新中选择本地素材包，确认设备已安装同名素材后，才能将其设为默认。
+本页按已安装素材名称切换，不上传本地文件，也不声称本地文件版本已经安装。
+
+取消只适用于尚未提交的任务；资源释放失败可显式恢复，但原 UNKNOWN 结果
+不会因此变成成功。断线/关闭页面不自动重发、更改默认或宣称远端已取消。
+不支持默认选择协议的旧固件会明确提示，不回退到其他写入路径。
+
+JVM/模拟器验证与实际 BLE/板端流程分开；当前页面没有已安装素材目录接口，
+本地素材选择跨 Activity 重建的完整保持性仍待后续验证。使用与本仓手机 kind17
+设备端接线对应的固件；APK 本身不能补齐旧固件接口。
 
 ## 构建
 

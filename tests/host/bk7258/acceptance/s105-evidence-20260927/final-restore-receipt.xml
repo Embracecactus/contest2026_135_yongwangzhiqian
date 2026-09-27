@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.shaniu.companion.provision.DefaultSelectionControllerTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-09-27T11:01:39.401Z" hostname="DESKTOP-0B20O0K" time="0.048">
+  <properties/>
+  <testcase name="changedSequenceAndWrongOperationCannotPublishSuccess" classname="com.shaniu.companion.provision.DefaultSelectionControllerTest" time="0.048"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

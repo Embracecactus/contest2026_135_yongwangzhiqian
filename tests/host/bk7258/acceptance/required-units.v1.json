@@ -614,7 +614,15 @@
     "NET-03.phone-scope-identity",
     "RES-02.phone-default-native-revoke",
     "RES-02.phone-default-native-replace",
-    "RES-02.phone-default-native-reconnect"
+    "RES-02.phone-default-native-reconnect",
+    "provision.DefaultSelectionControllerTest.realProtocolRequiresAuthenticatedNonceReadAndExactDefaultLength",
+    "provision.DefaultSelectionControllerTest.goldenRecordPreservesUnsignedRevisionAndCanonicalName",
+    "provision.DefaultSelectionControllerTest.decoderRejectsInconsistentSuccessAndReservedFields",
+    "provision.DefaultSelectionControllerTest.explicitRefreshThenSaveUsesThreeChunksAndDoesNotClaimAckAsSaved",
+    "provision.DefaultSelectionControllerTest.cancellationRecoveryAndUnknownRemainDistinct",
+    "provision.DefaultSelectionControllerTest.changedSequenceAndWrongOperationCannotPublishSuccess",
+    "provision.DefaultSelectionControllerTest.disconnectAndLateAckNeverReplayAndCloseCannotCancelAnotherEditor",
+    "provision.DefaultSelectionControllerTest.unsupportedAndMalformedSnapshotNeverEnableWrites"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1232,6 +1240,14 @@
     "NET-03.phone-scope-identity",
     "RES-02.phone-default-native-revoke",
     "RES-02.phone-default-native-replace",
-    "RES-02.phone-default-native-reconnect"
+    "RES-02.phone-default-native-reconnect",
+    "provision.DefaultSelectionControllerTest.realProtocolRequiresAuthenticatedNonceReadAndExactDefaultLength",
+    "provision.DefaultSelectionControllerTest.goldenRecordPreservesUnsignedRevisionAndCanonicalName",
+    "provision.DefaultSelectionControllerTest.decoderRejectsInconsistentSuccessAndReservedFields",
+    "provision.DefaultSelectionControllerTest.explicitRefreshThenSaveUsesThreeChunksAndDoesNotClaimAckAsSaved",
+    "provision.DefaultSelectionControllerTest.cancellationRecoveryAndUnknownRemainDistinct",
+    "provision.DefaultSelectionControllerTest.changedSequenceAndWrongOperationCannotPublishSuccess",
+    "provision.DefaultSelectionControllerTest.disconnectAndLateAckNeverReplayAndCloseCannotCancelAnotherEditor",
+    "provision.DefaultSelectionControllerTest.unsupportedAndMalformedSnapshotNeverEnableWrites"
   ]
 }

@@ -221,6 +221,7 @@ class MainActivity : Activity() {
     private enum class ConfigFlow { SETTINGS, NONE, CAPABILITIES, CLOUD, WAKE, RESPONSE, SENSITIVITY, EYES }
     private var trialSecondsDraft = ""
     private var trialExpressionDraft = 0
+    private var defaultEditor: com.shaniu.companion.provision.DefaultSelectionController? = null
     private var trialEditor: com.shaniu.companion.provision.ExpressionTrialController? = null
     private var nfcMinutesDraft = "25"
     private var nfcSlotDraft = 0
@@ -785,7 +786,7 @@ class MainActivity : Activity() {
         foreground && directSession.requestPayload(command, payload)
 
     private fun configAvailable(): Boolean = foreground && directSession.current().authenticated &&
-        directSnapshot?.publicConfigSupported == true && configFlow == ConfigFlow.NONE && focusEditor == null && trialEditor == null && nfcEditor == null && pcEditor == null && !directPending &&
+        directSnapshot?.publicConfigSupported == true && configFlow == ConfigFlow.NONE && focusEditor == null && trialEditor == null && defaultEditor == null && nfcEditor == null && pcEditor == null && !directPending &&
         otaUpload == null && !otaVerificationPending && otaStatus?.state !in 1L..2L
 
     private fun requestConfigCapabilities() {
@@ -2216,6 +2217,7 @@ class MainActivity : Activity() {
         refreshSelection()
         content.addView(expressions, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
         page.settingsRow("在设备上限时试用", "指定时长，到期恢复；不更改默认", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "eye") { showExpressionTrial() }
+        page.settingsRow("默认表情", "刷新设备默认，或将已安装素材设为默认", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "eye") { showDefaultSelection() }
         page.sectionTitle("专注与陪伴")
         page.settingsRow("专注计时", "由设备计时，手机可随时回读", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "spark") { showFocusTimer() }
         page.settingsRow("专注卡片", "登记卡片与专注时长", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "spark") { showNfcBindings() }
@@ -2328,6 +2330,48 @@ class MainActivity : Activity() {
                 }
             }
             refreshCompanionSheet?.invoke()
+        }
+    }
+
+    private fun showDefaultSelection() {
+        if (!configAvailable() || settingsEditor != null || factoryReset != null) return
+        showCompanionSheet("默认表情", "把喜欢的模样，留作日常陪伴。", done = false, onClosed = {
+            defaultEditor?.close(); defaultEditor = null
+        }) { body, dialog ->
+            val page = CompanionPage(this, body)
+            val status = TextView(this).apply {
+                textSize = 16f; setTextColor(design.ink)
+                accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+            }
+            body.addView(status, LinearLayout.LayoutParams(-1, -2))
+            val selected = selectedEyePack
+            page.addCard("本地所选素材", selected?.let { "${it.packId} · 版本 ${it.revision}" }
+                ?: "尚未选择素材。可先在资源更新中导入本地素材包。")
+            page.notice("本页切换设备上同名已安装的素材，不上传本地文件。请先刷新设备默认；选择或预览不会更改默认。关闭页面不会撤销已受理的操作。")
+            page.settingsRow("去选择素材", "打开资源更新", iconName = "download") {
+                dialog.dismiss(); updateResources = true; selectTab(TAB_UPDATE); render()
+            }
+            val controls = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            body.addView(controls)
+            defaultEditor = com.shaniu.companion.provision.DefaultSelectionController(directSession, changed = { state ->
+                val value = state.snapshot
+                status.text = state.message + (value?.filename?.let {
+                    "\n上次回读：${it.removeSuffix(".bkep")}"
+                } ?: "") + if (value?.saved == true && value.rendered.not()) "\n设备报告已保存，显示尚未确认" else ""
+                controls.removeAllViews()
+                val actions = CompanionPage(this, controls)
+                val editor = defaultEditor
+                val ready = !state.busy && directSession.current().authenticated
+                actions.settingsRow("读取操作结果", "只读最近任务，不重新提交", ready) { editor?.refresh() }
+                actions.settingsRow("刷新设备默认", "读取设备上保存的默认素材", editor?.canAct(2) == true) { editor?.act(2) }
+                actions.primaryButton("将所选素材设为默认", selected != null && editor?.canAct(1) == true) {
+                    editor?.act(1, selected?.let { "${it.packId}.bkep" })
+                }
+                actions.settingsRow("取消未提交的操作", "提交开始后不能撤销保存", editor?.canAct(3) == true) { editor?.act(3) }
+                if (value?.releaseError != null && value.releaseError != 0)
+                    actions.settingsRow("恢复资源访问", "重试释放资源，原操作结果仍需核对", editor?.canAct(4) == true) { editor?.act(4) }
+            })
+            defaultEditor?.refresh()
         }
     }
 

@@ -1,0 +1,13 @@
+
+======================================================================
+FAIL: test_malformed (__main__.SelectionTest) (early_state=4)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_selection.py", line 130, in test_malformed
+    with self.subTest(early_state=state), self.assertRaises(ValueError):
+AssertionError: ValueError not raised
+
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+FAILED (failures=1)

@@ -3015,3 +3015,34 @@ AP增量链接、分层检查通过；新增常驻288B=scope16B+控制对象272B
 目标CPU/p95、栈、DMA/音频竞争未测。现有C文件保留遗留nxstyle诊断，新增函数
 无新增诊断；Python适配器使用black24.10.0。未刷板、安装App或改设备数据。
 证据：`acceptance/s104-20260927.json`、`s104-phone-selection-evidence-20260927.json`。
+
+### S105：Android默认表情页面与真实Session控制器（2026-09-27）
+
+原生“定制→默认表情”复用现有Session和素材选择入口。先读取最近任务，显式
+刷新才读设备默认；设默认按已安装名称切换，不上传本地文件或保证本地版本
+已安装。nonce固定128字节快照并复验序号；96字节请求用3个32字节分片。
+无符号64位持久版本不截断；ACK、保存、显示、取消和UNKNOWN分别表达。
+旧会话/回执不能确认本次操作；关闭只清理本人占用的staging，不声称远端取消。
+
+8个新增JVM执行单元（3 L1、5 L2），使用真实codec/DeviceControlProtocol与
+Controller/DeviceControlSession，只替换外部transport、时钟、token。
+缺类/缺kind17最初记BLOCKED_INTERFACE；Android/PC接受矛盾saved标记、刷新
+待处理文案误称保存分别先Red后修。没有放宽SDC1认证、序号、非法帧校验。
+状态4需要saved，但不把整个COMMITTING阶段强行判作未保存，以免误拒合法
+提交完成至终态更新之间的状态。原14项协议测试另行全部通过。
+
+模拟器新probe：`default_selection_probe=1`，20轮真实View打开、未知状态
+写入禁用与关闭清理；仅内存合成准入，没有BLE或设备保存证明。测试曾错误
+观察行内TextView而非交互行，以及在异步onDismiss之前检查清理；已按实际
+交互节点/UI队列契约纠正，原失败保留，不宣称产品修复。协议异常类型测试
+也纠正为已有IllegalStateException关闭契约，不改变生产错误包装。
+
+最终622PASS=原63（含2恢复）+559累计新增，19门禁/原2变异保持；另1移除
+回执匹配变异检出、恢复1次通过。中间完整报告保留，最终全部输入哈希匹配，
+生产源在最终运行期间未变。APK45/0.7.15-shaniu-default-selection与测试APK
+构建通过，最终APK验签通过；debug开发身份不是正式固件发布身份。只覆盖
+安装隔离模拟器，未在Mi10安装或操作板子；固件/依赖/原模型未改，不重建AP。
+
+尚未完成Android→TLS→原生默认服务的同一条纵向验收；本地素材选择跨重建、
+完整浅深色/字体矩阵、已安装目录、真实BLE/板端渲染及发布仍有缺口。
+证据：`acceptance/s105-20260927.json`、`s105-android-default-evidence-20260927.json`。

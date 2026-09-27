@@ -271,6 +271,7 @@ def run_jvm():
         "provision.PcPairingExchangeTest",
         "provision.NfcBindingControllerTest",
         "provision.ExpressionTrialControllerTest",
+        "provision.DefaultSelectionControllerTest",
         "ota.OtaControlUploadTest",
         "ota.OtaSessionContractTest",
     ]
@@ -379,22 +380,28 @@ def run_jvm():
                 parent = "NET-03"
             if "NfcBinding" in name:
                 parent = "NFC-02"
-            if "ExpressionTrial" in name:
+            if "ExpressionTrial" in name or "DefaultSelection" in name:
                 parent = "RES-02"
             if name in ("provision.ProvisionTlsTest", "provision.PcPairingExchangeTest"):
                 parent = "USB-01"
+            logic_only = name == "provision.DefaultSelectionControllerTest" and node.attrib["name"] in (
+                "goldenRecordPreservesUnsignedRevisionAndCanonicalName",
+                "decoderRejectsInconsistentSuccessAndReservedFields",
+                "realProtocolRequiresAuthenticatedNonceReadAndExactDefaultLength",
+            )
             RESULTS.append(
                 dict(
                     id=name + "." + node.attrib["name"],
                     parent=parent,
                     layer=(
                         "L2"
-                        if any(
+                        if not logic_only and any(
                             part in name
                             for part in (
                                 "Session",
                                 "FocusTimer",
                                 "ExpressionTrial",
+                                "DefaultSelection",
                                 "NfcBinding",
                                 "PcAuthorization",
                             )
@@ -1565,6 +1572,9 @@ def main():
         ROOT / "android/shaniu-companion/app/src/test/resources/pc-identity.pem",
         ROOT / "android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/PcAuthorizationController.kt",
         ROOT / "android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/DeviceControlProtocol.kt",
+        ROOT / "android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/DefaultSelectionController.kt",
+        ROOT / "android/shaniu-companion/app/src/androidTest/java/com/shaniu/companion/provision/DeviceUiAcceptance.kt",
+        ROOT / "android/shaniu-companion/app/src/androidTest/java/com/shaniu/companion/provision/ControlKeyInstrumentation.kt",
         ROOT / "android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt",
         ROOT / "chips/bk7258/ap/bk7258_usbcdc.c",
         ROOT / "nuttx/drivers/sensors/sc7a20.c",

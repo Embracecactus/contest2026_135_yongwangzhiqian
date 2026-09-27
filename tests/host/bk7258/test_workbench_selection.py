@@ -123,6 +123,12 @@ class SelectionTest(unittest.TestCase):
         )
 
     def test_malformed(self):
+        for state, flags in ((1, 3), (2, 3), (5, 3), (4, 1)):
+            data = bytearray(snapshot())
+            struct.pack_into(">I", data, 4, state)
+            struct.pack_into(">I", data, 36, flags)
+            with self.subTest(early_state=state), self.assertRaises(ValueError):
+                self.codec().decode(data)
         for offset, value in ((0, 0), (7, 255), (35, 1), (39, 32), (120, 1), (111, 1)):
             data = bytearray(snapshot())
             data[offset] = value

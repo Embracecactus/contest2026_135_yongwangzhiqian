@@ -114,6 +114,8 @@ def decode(data):
     if (
         (state == 0) != (job_id == 0)
         or (saved and (not known or refresh))
+        or (saved and state in (1, 2, 5))
+        or (state == 4 and not saved)
         or (rendered and not saved)
         or (known and filename is None)
         or (not known and revision != 0)

@@ -188,6 +188,44 @@ internal object DeviceUiAcceptance {
     }
 
     /** RES-02 expression trial UI navigation. Synthetic admission only; no transport. */
+    /** Synthetic UI admission only; never a BLE or save acceptance result. */
+    fun runDefaultSelection(instrumentation: Instrumentation) {
+        check(android.os.Build.FINGERPRINT.contains("generic") || android.os.Build.MODEL.contains("sdk"))
+        val activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
+        fun field(name: String) = MainActivity::class.java.getDeclaredField(name).apply { isAccessible = true }
+        val session = MainActivity::class.java.getDeclaredMethod("getDirectSession").apply { isAccessible = true }
+            .invoke(activity) as DeviceControlSession
+        try {
+            repeat(20) {
+                onUi(instrumentation) {
+                    DeviceControlSession::class.java.getDeclaredField("state").apply { isAccessible = true }.set(session,
+                        DeviceControlSession.State(connection = DeviceControlSession.Connection.CONNECTED, authenticated = true,
+                            snapshotFresh = true, snapshot = DeviceControlProtocol.Snapshot(0,true,false,50,0,0,0,publicConfigSupported=true)))
+                    MainActivity::class.java.getDeclaredMethod("showDefaultSelection").apply { isAccessible = true }.invoke(activity)
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    val dialog=checkNotNull(field("companionSheet").get(activity) as? android.app.Dialog)
+                    val root=checkNotNull(dialog.window).decorView
+                    listOf("将所选素材设为默认","刷新设备默认","取消未提交的操作").forEach { label ->
+                        val control=checkNotNull(findView(root) {
+                            (it is android.widget.Button && it.text.toString()==label) ||
+                                it.contentDescription?.toString()?.startsWith("$label，")==true
+                        })
+                        check(!control.isEnabled) { "Unknown default state enabled $label" }
+                    }
+                    check(findView(root) { it is TextView && it.text.toString()=="去选择素材" } != null)
+                    dialog.dismiss()
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    check(field("defaultEditor").get(activity)==null) { "Closing default sheet retained controller" }
+                }
+            }
+        } finally { onUi(instrumentation) { session.disconnect(); activity.finish() } }
+    }
+
     fun runExpressionTrial(instrumentation: Instrumentation) {
         check(android.os.Build.FINGERPRINT.contains("generic") || android.os.Build.MODEL.contains("sdk")) {
             "Expression trial fixture is emulator-only"

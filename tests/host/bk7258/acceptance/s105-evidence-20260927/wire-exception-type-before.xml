@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.shaniu.companion.provision.DefaultSelectionControllerTest" tests="8" skipped="0" failures="1" errors="0" timestamp="2026-09-27T10:35:34.199Z" hostname="DESKTOP-0B20O0K" time="0.077">
+  <properties/>
+  <testcase name="unsupportedAndMalformedSnapshotNeverEnableWrites" classname="com.shaniu.companion.provision.DefaultSelectionControllerTest" time="0.047"/>
+  <testcase name="changedSequenceAndWrongOperationCannotPublishSuccess" classname="com.shaniu.companion.provision.DefaultSelectionControllerTest" time="0.005"/>
+  <testcase name="explicitRefreshThenSaveUsesThreeChunksAndDoesNotClaimAckAsSaved" classname="com.shaniu.companion.provision.DefaultSelectionControllerTest" time="0.003"/>
+  <testcase name="cancellationRecoveryAndUnknownRemainDistinct" classname="com.shaniu.companion.provision.DefaultSelectionControllerTest" time="0.008"/>
+  <testcase name="realProtocolRequiresAuthenticatedNonceReadAndExactDefaultLength" classname="com.shaniu.companion.provision.DefaultSelectionControllerTest" time="0.007">
+    <failure message="java.lang.AssertionError: unexpected exception type thrown; expected:&lt;java.lang.IllegalArgumentException&gt; but was:&lt;java.lang.IllegalStateException&gt;" type="java.lang.AssertionError">java.lang.AssertionError: unexpected exception type thrown; expected:&lt;java.lang.IllegalArgumentException&gt; but was:&lt;java.lang.IllegalStateException&gt;
+	at org.junit.Assert.assertThrows(Assert.java:1020)
+	at org.junit.Assert.assertThrows(Assert.java:981)
+	at com.shaniu.companion.provision.DefaultSelectionControllerTest.realProtocolRequiresAuthenticatedNonceReadAndExactDefaultLength(DefaultSelectionControllerTest.kt:80)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:59)
+	at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)
+	at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:56)
+	at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)
+	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+	at org.junit.runners.BlockJUnit4ClassRunner$1.evaluate(BlockJUnit4ClassRunner.java:100)
+	at org.junit.runners.ParentRunner.runLeaf(ParentRunner.java:366)
+	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:103)
+	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:63)
+	at org.junit.runners.ParentRunner$4.run(ParentRunner.java:331)
+	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:79)
+	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:329)
+	at org.junit.runners.ParentRunner.access$100(ParentRunner.java:66)
+	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:293)
+	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+	at org.junit.runners.ParentRunner.run(ParentRunner.java:413)
+	at org.gradle.api.internal.tasks.testing.junit.JUnitTestClassExecutor.runTestClass(JUnitTestClassExecutor.java:112)
+	at org.gradle.api.internal.tasks.testing.junit.JUnitTestClassExecutor.execute(JUnitTestClassExecutor.java:58)
+	at org.gradle.api.internal.tasks.testing.junit.JUnitTestClassExecutor.execute(JUnitTestClassExecutor.java:40)
+	at org.gradle.api.internal.tasks.testing.junit.AbstractJUnitTestClassProcessor.processTestClass(AbstractJUnitTestClassProcessor.java:54)
+	at org.gradle.api.internal.tasks.testing.SuiteTestClassProcessor.processTestClass(SuiteTestClassProcessor.java:53)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at org.gradle.internal.dispatch.ReflectionDispatch.dispatch(ReflectionDispatch.java:36)
+	at org.gradle.internal.dispatch.ReflectionDispatch.dispatch(ReflectionDispatch.java:24)
+	at org.gradle.internal.dispatch.ContextClassLoaderDispatch.dispatch(ContextClassLoaderDispatch.java:33)
+	at org.gradle.internal.dispatch.ProxyDispatchAdapter$DispatchingInvocationHandler.invoke(ProxyDispatchAdapter.java:92)
+	at jdk.proxy1/jdk.proxy1.$Proxy4.processTestClass(Unknown Source)
+	at org.gradle.api.internal.tasks.testing.worker.TestWorker$2.run(TestWorker.java:183)
+	at org.gradle.api.internal.tasks.testing.worker.TestWorker.executeAndMaintainThreadName(TestWorker.java:132)
+	at org.gradle.api.internal.tasks.testing.worker.TestWorker.execute(TestWorker.java:103)
+	at org.gradle.api.internal.tasks.testing.worker.TestWorker.execute(TestWorker.java:63)
+	at org.gradle.process.internal.worker.child.ActionExecutionWorker.execute(ActionExecutionWorker.java:56)
+	at org.gradle.process.internal.worker.child.SystemApplicationClassLoaderWorker.call(SystemApplicationClassLoaderWorker.java:121)
+	at org.gradle.process.internal.worker.child.SystemApplicationClassLoaderWorker.call(SystemApplicationClassLoaderWorker.java:71)
+	at worker.org.gradle.process.internal.worker.GradleWorkerMain.run(GradleWorkerMain.java:69)
+	at worker.org.gradle.process.internal.worker.GradleWorkerMain.main(GradleWorkerMain.java:74)
+Caused by: java.lang.IllegalStateException: Invalid control response
+	at com.shaniu.companion.provision.DeviceControlProtocol.receive(DeviceControlProtocol.kt:230)
+	at com.shaniu.companion.provision.DefaultSelectionControllerTest.realProtocolRequiresAuthenticatedNonceReadAndExactDefaultLength$lambda$10(DefaultSelectionControllerTest.kt:80)
+	at org.junit.Assert.assertThrows(Assert.java:1001)
+	... 41 more
+</failure>
+  </testcase>
+  <testcase name="decoderRejectsInconsistentSuccessAndReservedFields" classname="com.shaniu.companion.provision.DefaultSelectionControllerTest" time="0.002"/>
+  <testcase name="goldenRecordPreservesUnsignedRevisionAndCanonicalName" classname="com.shaniu.companion.provision.DefaultSelectionControllerTest" time="0.001"/>
+  <testcase name="disconnectAndLateAckNeverReplayAndCloseCannotCancelAnotherEditor" classname="com.shaniu.companion.provision.DefaultSelectionControllerTest" time="0.003"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
