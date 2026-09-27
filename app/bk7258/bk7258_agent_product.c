@@ -62,6 +62,7 @@
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
 #include "bk7258_display_service.h"
 #include "bk7258_display_job_service.h"
+#include "bk7258_display_job_control.h"
 #include "bk7258_control_ota_request.h"
 #include "bk7258_cloud_http.h"
 #include "bk7258_voice_tls.h"
@@ -1501,6 +1502,78 @@ static int product_config(void *context, enum bkcontrol_command_e command,
 }
 
 #ifdef CONFIG_BK7258_USBCDC
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+static struct bkpack_control_s g_pc_pack;
+
+static void product_pc_pack_step(bool admitted)
+{
+  struct bkprov_pc_snapshot_s view;
+  uint64_t binding = 0;
+  int ret = bkpc_authorization_snapshot(NULL, &binding, &view);
+  bool valid = ret == 0 && (view.capabilities & BKPC_CAP_RESOURCES) != 0;
+  bool changed = valid && g_pc_pack.bound &&
+    (g_pc_pack.binding != binding || g_pc_pack.grant != view.revision ||
+     memcmp(g_pc_pack.client, view.client, sizeof(view.client)));
+
+  if (changed || (!valid && ret != -EAGAIN))
+    {
+      bkpack_control_invalidate(&g_pc_pack);
+    }
+
+  mbedtls_platform_zeroize(&view, sizeof(view));
+  (void)bk7258_display_job_quiesce(!admitted || !valid || !g_pc_pack.bound);
+}
+#endif
+
+/* Only the authenticated PC guard calls this adapter. Phone dispatch keeps
+ * its existing commands; the asynchronous service remains transport-neutral.
+ */
+
+static int product_pc_config(void *context, enum bkcontrol_command_e command,
+  uint32_t kind, uint32_t offset, const uint8_t *record, size_t size,
+  struct bkcontrol_status_s *status)
+{
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+  if (kind == BKCONTROL_CONFIG_RESOURCE_JOB)
+    {
+      const struct bkpc_control_s *lease = &g_pc_usb_owner.usb.lease;
+      bool admitted = g_identity_bound && g_control_bound &&
+                      !bkagent_ota_busy();
+      int ret;
+
+      if (!lease->open || (lease->capabilities & BKPC_CAP_RESOURCES) == 0)
+        return -EACCES;
+      if (!g_pc_pack.bound)
+        {
+          uint8_t epoch[16];
+          if (!admitted || g_pc_usb_owner.pair == NULL) return -EBUSY;
+          ret = mbedtls_ctr_drbg_random(&g_pc_usb_owner.pair->tls.random,
+                                        epoch, sizeof(epoch));
+          if (ret != 0) return -EIO;
+          ret = bkpack_control_bind(&g_pc_pack, lease->binding,
+                                     lease->revision, lease->client, epoch);
+          if (ret < 0) return ret;
+        }
+
+      if (g_pc_pack.binding != lease->binding ||
+          g_pc_pack.grant != lease->revision ||
+          memcmp(g_pc_pack.client, lease->client, sizeof(lease->client)))
+        return -ESTALE;
+      if (command == BKCONTROL_CONFIG_READ)
+        return bkpack_control_read(&g_pc_pack, offset, record, size, status,
+                                    bkvoice_config_now_ms(NULL));
+      if (!admitted) return -EBUSY;
+      if (size < 64 || size > 64 + BKDISPLAY_UPLOAD_CHUNK_MAX)
+        return -EINVAL;
+      if (command == BKCONTROL_CONFIG_BEGIN) return 0;
+      if (command != BKCONTROL_CONFIG_APPLY) return -ENOTSUP;
+      return bkpack_control_apply(&g_pc_pack, record, size,
+                                   bkvoice_config_now_ms(NULL));
+    }
+#endif
+  return product_config(context, command, kind, offset, record, size, status);
+}
+
 static int product_pc_usb_stop(void)
 {
   return bkpc_usb_owner_stop(&g_pc_usb_owner);
@@ -1513,7 +1586,7 @@ static void product_pc_usb_step(void)
   const struct bkpc_usb_config_s config =
     {
       &source, &g_identity.certificate, &g_identity.key,
-      bkvoice_config_now_ms, NULL, product_control, product_config, NULL
+      bkvoice_config_now_ms, NULL, product_control, product_pc_config, NULL
     };
 
   /* Same owner as phone dispatch; no key/certificate use after reset stop.
@@ -2736,9 +2809,9 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
 
       (void)bkprov_owner_step(bkvoice_config_now_ms(NULL), 0, false, false,
         !bkagent_ota_busy());
-#ifdef CONFIG_BK7258_DISPLAY_SERVICE
-      (void)bk7258_display_job_quiesce(!g_identity_bound ||
-                                      !g_control_bound || bkagent_ota_busy());
+#if defined(CONFIG_BK7258_DISPLAY_SERVICE) && defined(CONFIG_BK7258_USBCDC)
+      product_pc_pack_step(g_identity_bound && g_control_bound &&
+                            !bkagent_ota_busy());
 #endif
 #ifdef CONFIG_BK7258_USBCDC
       product_pc_usb_step();

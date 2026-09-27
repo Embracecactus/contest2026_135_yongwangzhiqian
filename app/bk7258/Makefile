@@ -100,6 +100,9 @@ ifeq ($(CONFIG_BK7258_DISPLAY_SERVICE),y)
 	         bk7258_display_job.c bk7258_display_job_service.c \
 		bk7258_display_pack.c bk7258_display_rpc.c \
 		bk7258_display_rpc_core.c
+ifeq ($(CONFIG_BK7258_VOICE_TLS)$(CONFIG_BK7258_USBCDC),yy)
+CSRCS += bk7258_display_job_control.c
+endif
 endif
 
 ifeq ($(CONFIG_BK7258_PRODUCT_KEYS),y)

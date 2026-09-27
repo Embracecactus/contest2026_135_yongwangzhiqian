@@ -575,3 +575,63 @@ removes native begin/worker entry paths from the AP image. Native service and
 worker code compile and pass host integration; they are not yet a deployed or
 reachable USB upload feature. No retention across reboot, Web workstation,
 trial/default UI or physical USB/SD acceptance is claimed by this slice.
+
+### S89: authenticated file-job adapter (RJI1/RJS1, kind 16)
+
+Requirement: RES-01/RES-03/USB-01/USB-02; follows N3 file-level import and
+install/default separation. The serialized PC guard requires RESOURCES on
+its current owner binding, grant revision and client identity. Legacy kind 5
+remains read-only over PC. This is not an arbitrary file/path or Shell API.
+
+All integers are big-endian. An RJI1 record is a 64-byte header plus at most
+4096 data bytes. Offsets: magic 0; operation u32 at 4 (1 BEGIN, 2 APPEND,
+3 FINISH, 4 CANCEL); server epoch16 at 8; client job nonce16 at 24 (nonzero);
+job ID u64 at 40; argument u32 at 48; TTL milliseconds u32 at 52; body size
+u32 at 56; reserved zero u32 at 60. BEGIN argument is total 128..32 MiB,
+TTL is positive and finite, job ID is the last observed service generation;
+body is empty. APPEND argument is contiguous offset, body is 1..4096 bytes,
+TTL zero. FINISH/CANCEL have zero argument, TTL and body. Records travel
+through normal authenticated SDC1 staging; framing/authentication/sequencing
+and capability negotiation remain unchanged.
+
+Server epoch is generated from the already seeded authenticated TLS DRBG and
+survives transport reconnect in RAM for the same authority. Boot/revocation
+invalidates it. Client must query before BEGIN and must not replay a job
+across a changed epoch. Known authority change cancels precommit work and
+requires actual cleanup before accepting a new authority. An EAGAIN authority
+snapshot suspends admission; it does not invent a revocation receipt.
+
+Exact latest BEGIN retry (nonce, previous generation, total, TTL) returns the
+original acceptance/error without renewing deadline or creating another job.
+A conflicting retry returns EEXIST. Only latest APPEND retry is deduplicated
+by offset, size and SHA256 of its bytes; same offset/different data is rejected.
+Older offsets are stale. The hash is not an advertised whole-file digest.
+ACK means enqueued, not written. `written` advances only after real I/O.
+FINISH retries while pending/committing/done are idempotent; DONE means
+installed immutable pack, never activation/default/rendered confirmation.
+RJI1 CANCEL ACK means requested. Outer SDC1 CONFIG_CANCEL only discards
+its staged request and does not cancel an accepted file job. COMMITTING is not cancelable. CANCELED is exposed
+only after cleanup; cleanup/release errors retain FAILED/UNKNOWN semantics.
+Native absolute deadline is not extended by queries, duplicates or reconnect.
+
+READ kind16 requires an additional nonzero 16-byte query nonce (20-byte SDC1
+payload). Offset0/new nonce captures one immutable 128-byte RJS1 snapshot;
+subsequent 16-byte aligned offsets must use that nonce. Exact offset0 retry
+returns the same snapshot, not a newer mixture. Another query invalidates the
+old captured view; nonzero offset with an unknown nonce returns ESTALE.
+Fresh status requires a new query nonce. Reads perform metadata access only.
+
+RJS1 offsets: magic0; native job state u32 at4 (0 idle,1 queued,2 opening,
+3 receiving,4 writing,5 commit pending,6 committing,7 canceling,8 done,
+9 canceled,10 failed,11 unknown); epoch16 at8; job nonce16 at24; ID u64 at40;
+snapshot revision u64 at48; total/written u32 at56/60; signed errno/release
+errno at64/68; flags u32 at72 (bit1 resources held, bit2 volatile); remaining
+TTL u32 at76; fixed NUL-terminated filename40 at80; reserved8 at120. No
+receipt from a previous authority is disclosed; ID alone remains a service
+precondition, with idle state/zero nonce. Snapshot revision is capture-local,
+not a durable revision or proof that data is current after capture.
+
+Latest result only, volatile across reboot. Loss of the server epoch or
+superseding result means outcome unknown: no automatic resubmission or claim
+of durable receipts. Persistent history, default/preview operations, desktop
+file sender, real USB and physical rendering are separate pending gates.

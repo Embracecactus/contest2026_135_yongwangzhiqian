@@ -1,0 +1,4 @@
+tests/host/bk7258/test_display_job_service.c:176:10: fatal error: bk7258_display_job_control.h: No such file or directory
+  176 | #include "bk7258_display_job_control.h"
+      |          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+compilation terminated.

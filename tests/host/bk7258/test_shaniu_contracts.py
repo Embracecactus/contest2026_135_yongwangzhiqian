@@ -467,6 +467,7 @@ def main():
         "test_display_upload",
         "test_display_job",
         "test_display_job_service",
+        "test_display_job_control",
         "test_shaniu_display_snapshot",
         "test_shaniu_display_intent",
         "test_shaniu_expression_cancel",
@@ -526,6 +527,13 @@ def main():
     add(suite, "RES-01.native-job-success", "RES-01", "L2",
         [HERE / "build/test_display_job_service", "success", HERE / "build/shaniu-default-v1.bkep"],
         binaries["test_display_job_service"])
+    for variant in ("malformed", "retry", "snapshot", "authority", "success", "session"):
+        add(suite, "RES-03.job-wire-" + variant, "RES-03", "L2",
+            [HERE / "build/test_display_job_control", variant, HERE / "build/shaniu-default-v1.bkep"],
+            binaries["test_display_job_control"])
+    for variant in ("session", "revoke"):
+        add(suite, "RES-03.product-job-route-" + variant, "RES-03", "L2",
+            [sys.executable, HERE / "test_pack_product_route.py", variant])
     add(
         suite,
         "DISP-01.power-pixels",
@@ -1379,10 +1387,13 @@ def main():
         ROOT / "app/bk7258/bk7258_control_pair.h",
         HERE / "test_display_job.c",
         HERE / "test_display_job_service.c",
+        HERE / "test_pack_product_route.py",
         ROOT / "app/bk7258/bk7258_display_job.c",
         ROOT / "app/bk7258/bk7258_display_job.h",
         ROOT / "app/bk7258/bk7258_display_job_service.c",
         ROOT / "app/bk7258/bk7258_display_job_service.h",
+        ROOT / "app/bk7258/bk7258_display_job_control.c",
+        ROOT / "app/bk7258/bk7258_display_job_control.h",
         HERE / "test_display_upload.c",
         HERE / "build/shaniu-default-v1.bkep",
         HERE / "build/upload-second.bkep",

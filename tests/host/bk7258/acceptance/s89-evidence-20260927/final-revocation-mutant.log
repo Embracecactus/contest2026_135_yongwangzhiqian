@@ -1,0 +1,9 @@
+route: /tmp/pack-route-_fq79206/route.c:396: main: Assertion `!wire.bound' failed.
+Traceback (most recent call last):
+  File "/tmp/pack-mutant-2w8ia0uc/route.py", line 161, in <module>
+    main()
+  File "/tmp/pack-mutant-2w8ia0uc/route.py", line 148, in main
+    subprocess.run(
+  File "/usr/lib/python3.10/subprocess.py", line 526, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['/tmp/pack-route-_fq79206/route', 'revoke', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/build/shaniu-default-v1.bkep']' died with <Signals.SIGABRT: 6>.

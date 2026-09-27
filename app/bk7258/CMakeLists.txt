@@ -110,6 +110,9 @@ if(CONFIG_BK7258_DISPLAY_SERVICE)
                               bk7258_display_pack.c
                               bk7258_display_rpc.c
                               bk7258_display_rpc_core.c)
+  if(CONFIG_BK7258_VOICE_TLS AND CONFIG_BK7258_USBCDC)
+    target_sources(apps PRIVATE bk7258_display_job_control.c)
+  endif()
 endif()
 
 if(CONFIG_BK7258_HEALTH_SERVICE)

@@ -502,7 +502,15 @@
     "LIFE-02.power-pack-busy",
     "LIFE-02.power-pack-failed",
     "RST-02.pack_busy",
-    "RST-02.pack_failed"
+    "RST-02.pack_failed",
+    "RES-03.job-wire-malformed",
+    "RES-03.job-wire-retry",
+    "RES-03.job-wire-snapshot",
+    "RES-03.job-wire-authority",
+    "RES-03.job-wire-success",
+    "RES-03.job-wire-session",
+    "RES-03.product-job-route-session",
+    "RES-03.product-job-route-revoke"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1008,6 +1016,14 @@
     "LIFE-02.power-pack-busy",
     "LIFE-02.power-pack-failed",
     "RST-02.pack_busy",
-    "RST-02.pack_failed"
+    "RST-02.pack_failed",
+    "RES-03.job-wire-malformed",
+    "RES-03.job-wire-retry",
+    "RES-03.job-wire-snapshot",
+    "RES-03.job-wire-authority",
+    "RES-03.job-wire-success",
+    "RES-03.job-wire-session",
+    "RES-03.product-job-route-session",
+    "RES-03.product-job-route-revoke"
   ]
 }

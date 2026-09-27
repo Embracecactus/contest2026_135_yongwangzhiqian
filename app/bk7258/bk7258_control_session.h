@@ -96,6 +96,8 @@ enum bkcontrol_command_e
 #define BKCONTROL_CONFIG_PC_AUTHORIZATION 14u
 /* PTE1/PTS1 volatile task events; see bk7258_pc_tasks.h. */
 #define BKCONTROL_CONFIG_PC_TASK 15u
+/* RJI1/RJS1 authenticated asynchronous resource installation. */
+#define BKCONTROL_CONFIG_RESOURCE_JOB 16u
 #define BKCONTROL_CONFIG_CAPABILITIES 0x7fffu
 #define BKCONTROL_CONFIG_RECORD_MAX (140u + 65536u) /* WKM2 显式前端字段 */
 struct bkcontrol_device_info_s

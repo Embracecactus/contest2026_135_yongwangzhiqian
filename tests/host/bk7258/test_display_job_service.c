@@ -88,7 +88,7 @@ static struct bkdisplay_job_status_s wait_state(int state)
 }
 static int remove_entry(const char *path, const struct stat *st, int type, struct FTW *walk)
 { (void)st; (void)type; (void)walk; return remove(path); }
-int main(int argc, char **argv)
+int native_main(int argc, char **argv)
 {
   uint64_t id;
   struct bkdisplay_job_status_s status;
@@ -171,3 +171,201 @@ int main(int argc, char **argv)
   puts("CONTRACT_PASS");
   return 0;
 }
+
+#ifdef TEST_PACK_CONTROL
+#include "bk7258_display_job_control.h"
+static struct bkpack_control_s wire;
+static const uint8_t epoch[16] = {1,2,3,4};
+static const uint8_t client[16] = {9,8,7,6};
+static uint8_t nonce[16] = {5,6,7,8};
+static void p32(uint8_t *p, uint32_t v)
+{ p[0]=v>>24; p[1]=v>>16; p[2]=v>>8; p[3]=v; }
+static void p64(uint8_t *p, uint64_t v) { p32(p,v>>32); p32(p+4,v); }
+static uint32_t u32(const uint8_t *p)
+{ return (uint32_t)p[0]<<24 | (uint32_t)p[1]<<16 | (uint32_t)p[2]<<8 | p[3]; }
+static uint64_t u64(const uint8_t *p) { return (uint64_t)u32(p)<<32 | u32(p+4); }
+static struct bkcontrol_session_s session;
+static uint32_t sequence;
+static bool use_session;
+static int execute_peer(void *ctx, enum bkcontrol_command_e command,
+                        uint32_t arg, struct bkcontrol_status_s *status)
+{ (void)ctx; (void)command; (void)arg; (void)status; return -ENOTSUP; }
+static int config_route(void *ctx, enum bkcontrol_command_e command,
+                        uint32_t kind, uint32_t off, const uint8_t *record,
+                        size_t size, struct bkcontrol_status_s *status)
+{
+  assert(ctx==&wire && kind==16);
+  if(command==BKCONTROL_CONFIG_READ)
+    return bkpack_control_read(&wire,off,record,size,status,bkdisplay_job_now());
+  if(command==BKCONTROL_CONFIG_BEGIN) return size>=64&&size<=4160 ? 0 : -EINVAL;
+  assert(command==BKCONTROL_CONFIG_APPLY);
+  return bkpack_control_apply(&wire,record,size,bkdisplay_job_now());
+}
+static int exchange(uint32_t command, const void *data, size_t n, uint8_t out[40])
+{
+  uint8_t frame[BKCONTROL_REQUEST_MAX]={0};
+  assert(n<=BKCONTROL_CONFIG_APPEND_MAX);
+  memcpy(frame,"SDC1",4); p32(frame+4,command);p32(frame+8,sequence++);p32(frame+12,n);
+  if(n)memcpy(frame+16,data,n);
+  int ret=bkcontrol_session_packet(&session,frame,16+n,out);
+  return ret<0 ? ret : (int32_t)u32(out+16);
+}
+static void connect_session(void)
+{
+  uint8_t key[32]={42},out[40];
+  bkcontrol_session_close(&session);sequence=0;
+  assert(bkcontrol_session_open(&session,key,execute_peer,&wire)==0);
+  assert(bkcontrol_session_set_config_handler(&session,config_route)==0);
+  assert(exchange(1,key,32,out)==0);
+}
+static int request(int op, uint64_t id, uint32_t arg, uint32_t ttl,
+                   const void *data, size_t size)
+{
+  uint8_t r[64+4096] = {0};
+  memcpy(r,"RJI1",4); p32(r+4,op); memcpy(r+8,epoch,16);
+  memcpy(r+24,nonce,16); p64(r+40,id); p32(r+48,arg);
+  p32(r+52,ttl); p32(r+56,size);
+  if(size) memcpy(r+64,data,size);
+  if(!use_session) return bkpack_control_apply(&wire,r,64+size,bkdisplay_job_now());
+  uint8_t begin[8],out[40];p32(begin,16);p32(begin+4,64+size);
+  int ret=exchange(16,begin,8,out);
+  for(size_t off=0;ret==0&&off<64+size;)
+    {size_t n=64+size-off;if(n>32)n=32;ret=exchange(17,r+off,n,out);off+=n;}
+  return ret==0 ? exchange(18,NULL,0,out) : ret;
+}
+static void snapshot(uint8_t out[128], uint8_t tag)
+{
+  struct bkcontrol_status_s result;
+  uint8_t query[16] = {0}; query[0]=tag;
+  for(size_t off=0;off<128;off+=16)
+    {
+      if(use_session)
+        {
+          uint8_t read[20],out[40];p32(read,(16<<16)|off);memcpy(read+4,query,16);
+          assert(exchange(15,read,20,out)==0);
+          result.config_total=u32(out+20);memcpy(result.config_chunk,out+24,16);
+        }
+      else assert(bkpack_control_read(&wire,off,query,16,&result,bkdisplay_job_now())==0);
+      assert(result.config_total==128);
+      memcpy(out+off,result.config_chunk,16);
+    }
+}
+int main(int argc, char **argv)
+{
+  assert(argc==3 && mkdtemp(fixture_root));
+  assert(sem_init(&g_job_wake,0,0)==0);
+  assert(bk7258_display_job_quiesce(false)==0);
+  assert(bkpack_control_bind(&wire,7,8,client,epoch)==0);
+  use_session=!strcmp(argv[1],"session");
+  if(use_session) connect_session();
+  uint8_t before[128], after[128];
+  snapshot(before,1);
+  assert(!memcmp(before,"RJS1",4) && u32(before+4)==0);
+  assert(!memcmp(before+8,epoch,16) && u64(before+40)==0);
+  assert(mounted==0 && created==0); /* Reads have no filesystem side effects. */
+  if(!strcmp(argv[1],"malformed"))
+    {
+      uint8_t bad[64]={0};
+      assert(bkpack_control_apply(&wire,bad,64,bkdisplay_job_now())==-EINVAL);
+      assert(request(1,0,128,0,NULL,0)==-EINVAL);
+      assert(request(1,0,127,5000,NULL,0)==-EINVAL);
+      assert(request(2,0,0,1,"a",1)==-EINVAL);
+      memcpy(bad,"RJI1",4);p32(bad+4,1);bad[8]=99;bad[24]=1;
+      p32(bad+48,128);p32(bad+52,5000);
+      assert(bkpack_control_apply(&wire,bad,64,bkdisplay_job_now())==-ESTALE);
+      memcpy(bad+8,epoch,16);bad[63]=1;
+      assert(bkpack_control_apply(&wire,bad,64,bkdisplay_job_now())==-EINVAL);
+      bad[63]=0;p32(bad+56,1);
+      assert(bkpack_control_apply(&wire,bad,64,bkdisplay_job_now())==-EINVAL);
+      assert(created==0 && mounted==0);
+    }
+  else
+    {
+      size_t total=128; uint8_t *bytes=NULL;
+      bool success=!strcmp(argv[1],"success")||use_session;
+      if(success)
+        {
+          struct stat info; int fd=open(argv[2],O_RDONLY);
+          assert(fd>=0 && fstat(fd,&info)==0);
+          total=info.st_size; bytes=malloc(total);
+          assert(bytes && read(fd,bytes,total)==(ssize_t)total && close(fd)==0);
+        }
+      assert(request(1,0,total,5000,NULL,0)==0);
+      struct bkdisplay_job_status_s status=wait_state(BKDISPLAY_JOB_RECEIVING);
+      uint64_t id=status.id;
+      nonce[0]^=1;
+      assert(request(2,id,0,0,"abc",3)==-ESTALE);
+      nonce[0]^=1;
+      if(use_session)
+        {connect_session();snapshot(after,2);assert(u64(after+40)==id);}
+
+      if(!strcmp(argv[1],"retry"))
+        {
+          uint64_t deadline=status.deadline_ms;
+          assert(request(1,0,total,5000,NULL,0)==0 && created==1);
+          assert(request(1,0,total,6000,NULL,0)==-EEXIST);
+          assert(bk7258_display_job_status(&status)==0 && status.deadline_ms==deadline);
+          assert(request(2,id,0,0,"abc",3)==0);
+          assert(request(2,id,0,0,"abc",3)==0);
+          assert(request(2,id,0,0,"abd",3)==-EEXIST);
+        }
+      if(!strcmp(argv[1],"snapshot"))
+        {
+          snapshot(after,1); assert(!memcmp(before,after,128));
+          snapshot(after,2); assert(u64(after+40)==id);
+          assert(!memcmp(after+24,nonce,16));
+          struct bkcontrol_status_s result; uint8_t stale[16]={3};
+          assert(bkpack_control_read(&wire,16,stale,16,&result,bkdisplay_job_now())==-ESTALE);
+        }
+      if(!strcmp(argv[1],"authority"))
+        {
+          uint8_t other[16]={99};
+          assert(bkpack_control_bind(&wire,7,9,client,epoch)==-ESTALE);
+          assert(bkpack_control_bind(&wire,7,8,other,epoch)==-ESTALE);
+          assert(bkpack_control_bind(&wire,7,8,client,other)==-ESTALE);
+          bkpack_control_invalidate(&wire);
+          assert(request(2,id,0,0,"abc",3)==-EACCES);
+        }
+      if(success)
+        {
+          for(size_t off=0;off<total;)
+            {
+              size_t n=total-off; if(n>4096)n=4096;
+              int ret;
+              do { ret=request(2,id,off,0,bytes+off,n); if(ret==-EAGAIN||ret==-EBUSY)usleep(1000); }
+              while(ret==-EAGAIN||ret==-EBUSY);
+              assert(ret==0); off+=n;
+              for(int i=0;i<2000;i++)
+                { if(bk7258_display_job_status(&status)==0&&status.written==off)break; usleep(1000); }
+              assert(status.written==off);
+            }
+          assert(request(3,id,0,0,NULL,0)==0);
+        }
+      else if(strcmp(argv[1],"authority")) assert(request(4,id,0,0,NULL,0)==0);
+      else { int ret=bk7258_display_job_quiesce(true); assert(ret==0||ret==-EAGAIN); }
+      status=wait_state(-1); assert(pthread_join(worker,NULL)==0);
+      if(success)
+        {
+          assert(status.state==BKDISPLAY_JOB_DONE);
+          assert(request(3,id,0,0,NULL,0)==0);
+          assert(request(4,id,0,0,NULL,0)==-EALREADY);
+          char path[512]; snprintf(path,sizeof(path),"%s/shaniu/display/active.json",fixture_root);
+          assert(access(path,F_OK)<0); /* Installation must not set default. */
+        }
+      else assert(status.state==BKDISPLAY_JOB_CANCELED);
+      if(strcmp(argv[1],"authority"))
+        {
+          assert(request(2,id,0,0,"abc",3)==-EALREADY);
+          assert(request(4,id+1,0,0,NULL,0)==-ESTALE);
+          snapshot(after,4); assert(u32(after+4)==(unsigned)status.state);
+          assert(u64(after+40)==id);
+        }
+      free(bytes);
+    }
+  assert(mounted==unmounted);
+  assert(nftw(fixture_root,remove_entry,16,FTW_DEPTH|FTW_PHYS)==0);
+  puts("CONTRACT_PASS");
+}
+#else
+int main(int argc, char **argv) { return native_main(argc,argv); }
+#endif

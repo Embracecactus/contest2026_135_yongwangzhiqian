@@ -256,6 +256,13 @@ static int pc_config(void *context, enum bkcontrol_command_e command,
   assert(context == &pc_reads);
   if (kind == BKCONTROL_CONFIG_PC_TASK)
     return bkpc_tasks_control(&pc_tasks, command, offset, record, size, status, now);
+  if (kind == BKCONTROL_CONFIG_RESOURCE_JOB)
+    {
+      /* Guard boundary only: native job integration has its own real worker
+       * fixture. Never return a fabricated installation success here. */
+      assert(command == BKCONTROL_CONFIG_READ && record && size == 16);
+      return -ENOTSUP;
+    }
   assert(offset == 0);
   assert(kind == BKCONTROL_CONFIG_FOCUS || kind == BKCONTROL_CONFIG_EXPRESSION_TRIAL ||
          kind == BKCONTROL_CONFIG_EYE_PACK);
@@ -716,6 +723,8 @@ static void pc_guard_tests(mbedtls_ssl_context *client,
   assert(pc_reads == 2 && pc_writes == 0);
   pc_exchange(&control, client, 15, seq++, focus, 4, 0);
   pc_exchange(&control, client, 15, seq++, eye, 4, 0);
+  const uint8_t resource_query[20] = {0,16,0,0,1};
+  pc_exchange(&control, client, 15, seq++, resource_query, 20, -ENOTSUP);
   pc_exchange(&control, client, 16, seq++, begin, 8, 0);
   pc_exchange(&control, client, 17, seq++, (const uint8_t *)"TEST", 4, 0);
   pc_exchange(&control, client, 18, seq++, NULL, 0, 0);
@@ -737,6 +746,7 @@ static void pc_guard_tests(mbedtls_ssl_context *client,
   pc_exchange(&control, client, 1, 0, auth, 32, 0);
   pc_exchange(&control, client, 15, 1, focus, 4, -EACCES);
   pc_exchange(&control, client, 16, 2, begin, 8, -EACCES);
+  pc_exchange(&control, client, 15, 3, resource_query, 20, -EACCES);
   assert(pc_reads == 4 && pc_writes == 1);
   pc_change(BKPC_CAP_SCENES); /* Changing scope also invalidates current AUTH. */
   control_terminal(&control, -ESTALE);

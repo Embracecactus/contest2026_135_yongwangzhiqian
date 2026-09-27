@@ -363,6 +363,20 @@ $(BUILD)/test_display_job_service: test_display_job_service.c \
 		$(VOICE_PACK_ROOT)/bk7258_display_pack.c $(VOICE_PACK_ROOT)/bk7258_media_volume.c \
 		-I $(MOCKS) -I $(VOICE_PACK_ROOT) -o $@
 
+$(BUILD)/test_display_job_control: test_display_job_service.c \
+	$(VOICE_PACK_ROOT)/bk7258_control_session.c $(VOICE_PACK_ROOT)/bk7258_control_session.h \
+	$(VOICE_PACK_ROOT)/bk7258_display_job_control.c $(VOICE_PACK_ROOT)/bk7258_display_job_control.h \
+	$(BUILD)/test_display_job_service | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread -ffunction-sections -fdata-sections -Wl,--gc-sections -DTEST_PACK_CONTROL test_display_job_service.c \
+		$(VOICE_PACK_ROOT)/bk7258_display_job_control.c $(VOICE_PACK_ROOT)/bk7258_control_session.c \
+		$(VOICE_PACK_ROOT)/bk7258_display_job.c $(VOICE_PACK_ROOT)/bk7258_display_store.c \
+		$(VOICE_PACK_ROOT)/bk7258_display_pack.c $(VOICE_PACK_ROOT)/bk7258_media_volume.c \
+		$(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/library/sha256.c \
+		$(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/library/platform_util.c \
+		$(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/library/constant_time.c \
+		-I $(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/include \
+		-I $(MOCKS) -I $(VOICE_PACK_ROOT) -o $@
+
 $(DISPLAY_RPC_TARGET): test_bk7258_display_rpc.c \
 	$(VOICE_PACK_ROOT)/bk7258_display_rpc_core.c \
 	$(VOICE_PACK_ROOT)/bk7258_display_rpc_core.h \

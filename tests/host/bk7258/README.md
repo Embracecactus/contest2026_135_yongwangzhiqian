@@ -2704,3 +2704,28 @@ begin/worker 因尚无文件协议调用者被裁除；不得把构建绿灯称�
 全量样式通过。全量后只有注释/空白/单条 return 外括号整理，记录前后哈希，
 16 个相关 job/native 用例和 AP 再验证。下一片接真实协议、工作台及结果
 回查，最新易失结果不代表跨重启持久回执，不能替代现场/完整需求验收。
+
+### S89：PC 认证文件作业接线（主机与 AP，2026-09-27）
+
+RJI1/RJS1 kind16 通过原 SDC1 分块事务访问真实异步安装服务；只允许当前
+PC RESOURCES 授权，旧 kind5 仍只读。支持有限分块、最新请求去重、重连回查、
+有 nonce 的一致分片快照与明确取消。授权改变会主动停止旧作业；安装不设默认。
+格式与易失回执限制见 `acceptance/contracts.md`。AP 链接确认 begin/worker
+已从产品入口可达，新增控制元数据 288B；这不是实际原生 USB 已传输的证明。
+
+完整 510 PASS = 原63（含2恢复复验）+447新增累计，本轮新8个执行标识；
+17运行器门禁、原2变异保留。额外3变异检出与2恢复运行单列，不加进510。
+真实原生任务/文件/解析/卷、SDC1重连与提取的生产分发/撤销通过；任务调度、
+挂载/root、授权快照与随机源按层用外部夹具。真实 TLS guard 另验证新权限路由，
+尚未把完整 TLS、原生文件上传和电脑发送工具合成一轮端到端流程。
+
+首轮新头文件缺失为 BLOCKED_INTERFACE；crypto链接及错误夹具路径属 SETUP_ERROR。
+新安装测试最初错误的默认文件路径在最终收集前纠正，保留依据及失效范围。
+证据：`acceptance/s89-20260927.json`、`s89-wire-evidence-20260927.json`。
+运行：`make -C tests/host/bk7258 build/test_display_job_control`，然后执行
+`tests/host/bk7258/build/test_display_job_control session tests/host/bk7258/build/shaniu-default-v1.bkep`；
+生产路由：`python3 tests/host/bk7258/test_pack_product_route.py session` / `revoke`。
+
+下一片接电脑文件发送/查询和组合协议验证。快照仅最新易失回执，设备重启后
+不能自动重播；设默认/真实渲染、吞吐/内存高水位、物理USB及完整发布仍待完成。
+未刷板、安装或清除设备。历史TLS首错保持OPEN，510不等于56项产品验收。

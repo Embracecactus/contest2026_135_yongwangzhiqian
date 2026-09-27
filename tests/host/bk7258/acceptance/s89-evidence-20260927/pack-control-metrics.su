@@ -1,0 +1,8 @@
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_display_job_control.c:22:17:get32	0	static
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_display_job_control.c:33:13:put32	0	static
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_display_job_control.c:41:13:put64	8	static
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_display_job_control.c:47:13:nonzero	0	static
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_display_job_control.c:58:5:bkpack_control_bind	40	static
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_display_job_control.c:85:6:bkpack_control_invalidate	8	static
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_display_job_control.c:91:5:bkpack_control_apply	200	static
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_display_job_control.c:182:5:bkpack_control_read	128	static

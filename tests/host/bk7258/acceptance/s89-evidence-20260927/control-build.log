@@ -1,0 +1,41 @@
+make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'
+cc -std=gnu11 -Wall -Wextra -Werror -O2 -pthread test_display_job_service.c \
+	/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_job.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c \
+	/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_pack.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_media_volume.c \
+	-I mocks -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -o build/test_display_job_service
+cc -std=gnu11 -Wall -Wextra -Werror -O2 -pthread -DTEST_PACK_CONTROL test_display_job_service.c \
+	/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_job_control.c \
+	/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_job.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c \
+	/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_pack.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_media_volume.c \
+	/home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/library/sha256.c \
+	/home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/library/platform_util.c \
+	/home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/library/constant_time.c \
+	-I /home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/include \
+	-I mocks -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -o build/test_display_job_control
+/usr/bin/ld: /tmp/ccHXYlh9.o: in function `mbedtls_ct_hmac':
+constant_time.c:(.text+0x3bf): undefined reference to `mbedtls_md_get_type'
+/usr/bin/ld: constant_time.c:(.text+0x3e7): undefined reference to `mbedtls_md_get_size'
+/usr/bin/ld: constant_time.c:(.text+0x3f3): undefined reference to `mbedtls_md_init'
+/usr/bin/ld: constant_time.c:(.text+0x401): undefined reference to `mbedtls_md_setup'
+/usr/bin/ld: constant_time.c:(.text+0x411): undefined reference to `mbedtls_md_free'
+/usr/bin/ld: constant_time.c:(.text+0x452): undefined reference to `mbedtls_md_update'
+/usr/bin/ld: constant_time.c:(.text+0x466): undefined reference to `mbedtls_md_update'
+/usr/bin/ld: constant_time.c:(.text+0x4c9): undefined reference to `mbedtls_md_clone'
+/usr/bin/ld: constant_time.c:(.text+0x4e1): undefined reference to `mbedtls_md_finish'
+/usr/bin/ld: constant_time.c:(.text+0x51f): undefined reference to `mbedtls_md_update'
+/usr/bin/ld: constant_time.c:(.text+0x589): undefined reference to `mbedtls_md_finish'
+/usr/bin/ld: constant_time.c:(.text+0x599): undefined reference to `mbedtls_md_starts'
+/usr/bin/ld: constant_time.c:(.text+0x5b6): undefined reference to `mbedtls_md_update'
+/usr/bin/ld: constant_time.c:(.text+0x5cc): undefined reference to `mbedtls_md_update'
+/usr/bin/ld: constant_time.c:(.text+0x5df): undefined reference to `mbedtls_md_finish'
+/usr/bin/ld: constant_time.c:(.text+0x5ef): undefined reference to `mbedtls_md_hmac_reset'
+/usr/bin/ld: /tmp/ccHXYlh9.o: in function `mbedtls_mpi_safe_cond_assign':
+constant_time.c:(.text+0x63c): undefined reference to `mbedtls_mpi_grow'
+/usr/bin/ld: constant_time.c:(.text+0x682): undefined reference to `mbedtls_mpi_core_cond_assign'
+/usr/bin/ld: /tmp/ccHXYlh9.o: in function `mbedtls_mpi_safe_cond_swap':
+constant_time.c:(.text+0x6f5): undefined reference to `mbedtls_mpi_grow'
+/usr/bin/ld: constant_time.c:(.text+0x718): undefined reference to `mbedtls_mpi_grow'
+/usr/bin/ld: constant_time.c:(.text+0x764): undefined reference to `mbedtls_mpi_core_cond_swap'
+collect2: error: ld returned 1 exit status
+make: *** [Makefile:369: build/test_display_job_control] Error 1
+make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'
