@@ -247,3 +247,26 @@ int bkpc_tasks_control(struct bkpc_tasks_s *state,
   return command == BKCONTROL_CONFIG_APPLY ?
     bkpc_tasks_apply(state, record, size, now) : -ENOTSUP;
 }
+
+unsigned int bkpc_tasks_visual(const struct bkpc_tasks_s *state,
+                               uint64_t now, bool available,
+                               unsigned int focus)
+{
+  if (!available)
+    {
+      return 0;
+    }
+
+  if (focus)
+    {
+      return focus;
+    }
+
+  if (!state->admitted || state->expired || now < state->observed ||
+      now >= state->deadline || state->last[7] < 3)
+    {
+      return 0;
+    }
+
+  return (state->last[7] + 1u) << 8;
+}

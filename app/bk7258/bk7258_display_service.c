@@ -82,7 +82,7 @@ static atomic_bool g_speaking;
 static atomic_uint g_focus_visual;
 void bk7258_display_focus(unsigned visual)
 {
-  if (visual && ((visual >> 8) < 1 || (visual >> 8) > 3 || (visual & 255) > 32)) return;
+  if (visual && ((visual >> 8) < 1 || (visual >> 8) > 6 || (visual & 255) > 32)) return;
   atomic_store(&g_focus_visual, visual);
 }
 

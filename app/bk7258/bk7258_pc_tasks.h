@@ -24,7 +24,8 @@
  * Flags: admission=1, expired=2, terminal-awaiting-feedback=4.
  * Progress updates are limited to one per second after the first progress;
  * Terminal events bypass the limit; rejected events do not advance sequence.
- * Acceptance is not a display receipt. No feedback consumer is bound yet.
+ * Acceptance is not a display receipt. Local visual selection is bounded
+ * by the receiver TTL.
  */
 
 struct bkpc_tasks_s
@@ -48,6 +49,13 @@ int bkpc_tasks_apply(struct bkpc_tasks_s *state, const void *record,
                      size_t size, uint64_t now);
 void bkpc_tasks_step(struct bkpc_tasks_s *state, uint64_t now,
                      bool admitted);
+/* Existing display owner uses states 4/5/6 for task result shapes.
+ * Voice availability gates all visuals; a timer keeps priority.
+ */
+
+unsigned int bkpc_tasks_visual(const struct bkpc_tasks_s *state,
+                               uint64_t now, bool available,
+                               unsigned int focus);
 void bkpc_tasks_snapshot(const struct bkpc_tasks_s *state, uint8_t out[48],
                          uint64_t now);
 int bkpc_tasks_control(struct bkpc_tasks_s *state,

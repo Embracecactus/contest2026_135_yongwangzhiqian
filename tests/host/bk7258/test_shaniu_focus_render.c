@@ -37,5 +37,17 @@ int main(void)
   assert(service.status.render_sequence==1 && writes==4);
   assert(bkdisplay_focus_present_locked(&service,0)==0);
   assert(service.status.render_sequence==2 && fallback==1);
+  /* Task results use shape as well as color, through the real renderer. */
+  assert(bkfocus_pixel(4,0,16,-8)==0x07e0);
+  assert(bkfocus_pixel(5,0,0,0)==0xf800);
+  assert(bkfocus_pixel(6,0,0,0)==0xffe0);
+  for (unsigned state=4;state<=6;state++)
+    {
+      int before=writes;
+      assert(bkdisplay_focus_present_locked(&service,state<<8)==0);
+      assert(writes==before+2);
+      assert(bkdisplay_focus_present_locked(&service,state<<8)==0);
+      assert(writes==before+2);
+    }
   puts("CONTRACT_PASS");return 0;
 }

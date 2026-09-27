@@ -2449,8 +2449,9 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
         (!atomic_load(&g_voice_initialized) || voice_channel_is_idle()));
       bkfocus_intent_step(now, g_control_bound && !bkagent_ota_busy());
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
-      bk7258_display_focus(atomic_load(&g_voice_initialized) && !voice_channel_is_idle() ?
-                          0 : bkfocus_visual(now));
+      bk7258_display_focus(bkpc_tasks_visual(&g_pc_tasks, now,
+        !atomic_load(&g_voice_initialized) || voice_channel_is_idle(),
+        bkfocus_visual(now)));
 #endif
       if (now >= voice_cleanup_at)
         {

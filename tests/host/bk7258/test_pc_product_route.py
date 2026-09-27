@@ -13,6 +13,12 @@ if __name__ == "__main__":
     source = (ROOT / "app/bk7258/bk7258_agent_product.c").read_text()
     body = function(source, "product_config")
     task_step = function(source, "product_pc_task_step")
+    visual_start = source.index("      bk7258_display_focus(bkpc_tasks_visual(")
+    visual_statement = source[visual_start : source.index(";", visual_start) + 1]
+    visual_step = (
+        "static void product_visual_test(uint64_t now) {" + visual_statement + "}"
+    )
+
     start = source.index("struct agent_config_workspace_s\n")
     workspace = source[start : source.index("};", start) + 2]
     activation = function(source, "bk7258_agent_activate_cloud")
@@ -21,6 +27,11 @@ if __name__ == "__main__":
 #include "bk7258_pc_tasks.h"
 #include "bk7258_pc_grants.h"
 static struct bkpc_tasks_s g_pc_tasks;
+static unsigned painted, focus_visual;
+static bool voice_idle=true;
+#define voice_channel_is_idle() voice_idle
+#define bkfocus_visual(now) focus_visual
+#define bk7258_display_focus(value) (painted=(value))
 #include <mbedtls/platform_util.h>
 static bool g_identity_bound=true, g_control_bound, g_save_first, g_configured;
 static uint64_t g_config_revision;
@@ -55,6 +66,7 @@ static uint64_t task_now=100;
         code = code.replace(
             "int main(int argc,char **argv)",
             prefix
+            + visual_step
             + task_step
             + "\n"
             + body
@@ -68,6 +80,7 @@ static uint64_t task_now=100;
             "assert(prepare(1)==0 && read_current()==0);",
             """bool waiting = true;
  assert(bk7258_agent_activate_cloud(&waiting)==0 && !waiting);
+ product_visual_test(task_now); assert(painted==0);
  int ready=-EAGAIN;
  for(int i=0;i<3000 && ready==-EAGAIN;i++)
   {ready=read_current();if(ready==-EAGAIN)tick();}
@@ -101,6 +114,13 @@ static uint64_t task_now=100;
  assert(!memcmp(status.config_chunk,"PTS1",4) && status.config_chunk[7]==1);
  task[7]=3;task[31]=2;task[39]=100;
  assert(product_config(NULL,BKCONTROL_CONFIG_APPLY,15,0,task,40,&status)==0);
+ product_visual_test(task_now); assert(painted==(4u<<8));
+ atomic_store(&g_voice_initialized,true);voice_idle=false;
+ product_visual_test(task_now); assert(painted==0);
+ voice_idle=true;focus_visual=0x110;
+ product_visual_test(task_now); assert(painted==0x110);
+ focus_visual=0;
+ product_visual_test(task_now+10000); assert(painted==0);
  task[7]=2;task[31]=3;
  assert(product_config(NULL,BKCONTROL_CONFIG_APPLY,15,0,task,40,&status)==-EALREADY);
  bkpc_authorization_unbind();

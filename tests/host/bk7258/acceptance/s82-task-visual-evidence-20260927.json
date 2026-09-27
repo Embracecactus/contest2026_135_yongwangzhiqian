@@ -1,0 +1,61 @@
+{
+  "parent": "75d77a0c98a699b188a85afb3537000bab06463a",
+  "counts": {
+    "selected": 462,
+    "original": 63,
+    "added": 399,
+    "new_id": 1,
+    "runner_gates": 13,
+    "extra_mutations": 2
+  },
+  "first": {
+    "PASS": 457,
+    "SETUP_ERROR": 5,
+    "reason": "new extracted helper unused on five old fixture paths; corrected to execute empty-task visual check, no warning suppression"
+  },
+  "red": "Existing production pixel renderer failed the new success shape assertion before implementation; missing visual selector was an interface gap.",
+  "format_only_after_full": {
+    "file": "app/bk7258/bk7258_focus_pixels.h",
+    "before": "3156484c2d0fb0f9a80c35fa9590d79da2510c55dcefaf14dd9841506ef21a5f",
+    "after": "2b1f57fcc77e6634f0cdf3be634e162812b4795d0a40334fb1730a689485d62f",
+    "nonwhitespace_identical": true
+  },
+  "final_checks": "Nonwhitespace tokens unchanged after full run; actual renderer rebuilt/passed and AP incremental recompiled after formatting.",
+  "style": "Pinned NuttX 76354c637858ecb0aa4601629327acb6f44a26bb; mapped pc_tasks c/h nxstyle pass; full checkpatch not clean due existing pixel/header path style; no claim of global style pass.",
+  "log_issue": "Reused local /tmp S80 build helper overwrote ignored out/shaniu-s80/build-ap.log. S80 tracked reports/evidence unchanged; old scratch build log no longer available. S82 output copied to its own directory and helper output corrected for final build.",
+  "hardware": "NOT_RUN",
+  "remaining": [
+    "native USB product owner",
+    "render confirmation protocol and physical panels",
+    "real voice-start races/latency",
+    "historical TLS faults OPEN"
+  ],
+  "evidence": {
+    "PC-01.task-product.log": "ec03b2d7d4ca2f89407de52f7eb4be65ce4883e211520d1d27b8024f3d396220",
+    "PC-01.task-visual.log": "02f418d8e3a912e010dc5325d5d8c030db4d3b272d211259da4ece2aa3c8ca1e",
+    "ap-build.log": "6ef4608dc3d60ef4d3fdf854b003fb3728659d545c076d4abf9d3ad65c13bac9",
+    "ap-compile-final.log": "b534deedbbc346cc024662fecc7b391e6af6d440b7e2121f5308966287183343",
+    "ap-compile.log": "260e6eca79fac0e650dc039524877289efb2a250dc5cd405be2e980ff2d11ab0",
+    "ap-final.log": "6ef4608dc3d60ef4d3fdf854b003fb3728659d545c076d4abf9d3ad65c13bac9",
+    "build.log": "694d80244bdce5d3614cf63a4090393332f3859a752e8f4e8ccc508f53d9224b",
+    "checkpatch-invalid-option.log": "8d6c93fa8f0549875584a1bb69a82cc57f4536b3ec3d88859995a718abfee142",
+    "checkpatch.log": "58f74e967ab13d9921249b63f66e407bce8938f1545af20501744aaa872b46e5",
+    "expired-visible.log": "18c8a8393dd2598be9bab0b997f71598c3d62c205d696c8e1788b0ad5a08faa3",
+    "final.log": "02650738993540035ab560ec27869e7253f446452b1e7e0061943c90b1e1dbdd",
+    "format-only.json": "0712a47a117f0a3de2d365ee1a372c7c16c0c9251ebd5ecacc0745578dab5c2c",
+    "full.log": "4150cbc7934621d495cfce7f193043a27a34cf8038e89fc38ac857b8c32c6226",
+    "mutations.json": "379ad9f4cc92cf9e5f5e4c1dc7e11194c5debcd08ba31fb0807e3ac9099c90c9",
+    "product.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "render-before.log": "83e3ad7e54c853b3ab10e2078717fa8c307cdd1cff34f6088ad85baa5bc2b679",
+    "render-build-before.log": "0752ac4201e111edb05feb58c7a62157f98da5475f7b46b3b4c2478cc186ccbb",
+    "render-final-build.log": "0752ac4201e111edb05feb58c7a62157f98da5475f7b46b3b4c2478cc186ccbb",
+    "render-final.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "runner-gates.log": "9566d3dc8c1530ceb6814da988f7ad7f8fe3dce2d0a4f43eb50f34b061261faf",
+    "style-bk7258_pc_tasks.c.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "style-bk7258_pc_tasks.h.log": "36ae22ce91d5c19b9c857e89b758d9f74d138e9450dc0a7ed4a3d09f949a3ac7",
+    "style-final-bk7258_pc_tasks.c.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "style-final-bk7258_pc_tasks.h.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "visual-restored.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "voice-bypass.log": "8134bb9473e742aec7b7b475844c8b0fe1a709a0e550bf23c00c98aa3215e89b"
+  }
+}

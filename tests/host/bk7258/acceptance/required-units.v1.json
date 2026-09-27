@@ -461,7 +461,8 @@
     "PC-01.sender-staging",
     "PC-01.sender-readback",
     "PC-01.sender-failure",
-    "PC-01.sender-cli"
+    "PC-01.sender-cli",
+    "PC-01.task-visual"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -926,6 +927,7 @@
     "PC-01.sender-staging",
     "PC-01.sender-readback",
     "PC-01.sender-failure",
-    "PC-01.sender-cli"
+    "PC-01.sender-cli",
+    "PC-01.task-visual"
   ]
 }

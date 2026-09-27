@@ -1,0 +1,4 @@
+make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'
+cc -std=gnu11 -pthread -Wall -Wextra -O2 -Werror -I/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_pc_tasks.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_pc_tasks.c -o build/test_pc_tasks
+cc -std=gnu11 -Wall -Wextra -Werror -O2 -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_shaniu_focus_render.c -o build/test_shaniu_focus_render
+make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'

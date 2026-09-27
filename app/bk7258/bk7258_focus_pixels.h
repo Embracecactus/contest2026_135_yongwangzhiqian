@@ -29,7 +29,19 @@ static inline uint16_t bkfocus_pixel(unsigned state, unsigned segments, int x, i
       int dx=x-points[i][0],dy=y-points[i][1];
       if (dx*dx+dy*dy<=16) return i<segments ? 0x07ff : 0x2104;
     }
-  if (state==3)
+  if (state == 5)
+    {
+      /* Failure cross. */
+      int a = y - x, b = y + x;
+      return x >= -20 && x <= 20 && y >= -20 && y <= 20 &&
+        ((a >= -3 && a <= 3) || (b >= -3 && b <= 3)) ? 0xf800 : 0;
+    }
+  if (state == 6)
+    {
+      /* Canceled: a horizontal stop bar, not a failure cross. */
+      return x >= -22 && x <= 22 && y >= -3 && y <= 3 ? 0xffe0 : 0;
+    }
+  if (state == 3 || state == 4)
     {
       /* Check mark, also recognizable without color. */
       int a=y-x-8,b=y+x-8;

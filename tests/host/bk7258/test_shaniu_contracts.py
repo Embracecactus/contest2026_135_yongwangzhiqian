@@ -787,7 +787,7 @@ def main():
             binaries["test_pc_owner_binding"])
         add(suite, "NET-03.pc-product-" + variant, "NET-03", "L2",
             [sys.executable, HERE / "test_pc_product_route.py", variant])
-    for variant in ("terminal", "duplicate", "ordering", "expiry", "binding", "readonly", "invalid", "quiesce", "rate"):
+    for variant in ("terminal", "duplicate", "ordering", "expiry", "binding", "readonly", "invalid", "quiesce", "rate", "visual"):
         add(suite, "PC-01.task-" + variant, "PC-01", "L1",
             [HERE / "build/test_pc_tasks", variant], binaries["test_pc_tasks"])
     add(suite, "PC-01.task-product", "PC-01", "L2",

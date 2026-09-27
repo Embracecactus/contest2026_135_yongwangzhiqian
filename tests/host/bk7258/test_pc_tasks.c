@@ -21,7 +21,26 @@ int main(int argc,char **argv)
   struct bkpc_tasks_s s={0};
   bkpc_tasks_bind(&s,1,1);
   assert(send(&s,1,1,1000,100)==0);
-  if(!strcmp(argv[1],"terminal"))
+  if(!strcmp(argv[1],"visual"))
+    {
+      assert(bkpc_tasks_visual(&s,100,true,0)==0);
+      assert(send(&s,3,2,1000,200)==0);
+      assert(bkpc_tasks_visual(&s,201,true,0)==(4u<<8));
+      assert(bkpc_tasks_visual(&s,201,false,0)==0);
+      assert(bkpc_tasks_visual(&s,201,true,0x110)==0x110);
+      assert(bkpc_tasks_visual(&s,1200,true,0)==0);
+      assert(bkpc_tasks_visual(&s,199,true,0)==0);
+      bkpc_tasks_step(&s,202,false);
+      assert(bkpc_tasks_visual(&s,203,true,0)==0);
+      for(unsigned result=4;result<=5;result++)
+        {
+          bkpc_tasks_bind(&s,1,result);
+          assert(send(&s,1,1,1000,100)==0);
+          assert(send(&s,result,2,1000,200)==0);
+          assert(bkpc_tasks_visual(&s,201,true,0)==((result+1)<<8));
+        }
+    }
+  else if(!strcmp(argv[1],"terminal"))
     {
       assert(send(&s,2,2,1000,150)==0);
       assert(send(&s,3,3,1000,200)==0);

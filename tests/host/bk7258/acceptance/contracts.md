@@ -376,3 +376,28 @@ PC-01 software binding remains partial: live USB ownership, device reminder
 consumption/arbitration and physical output are still missing. TTL is receiver
 remaining lifetime supplied explicitly; callers subtract pre-existing queue age.
 This slice does not add durable event replay or a background process supervisor.
+
+
+### S82 local task-result visual binding (2026-09-27)
+
+Terminal PC results now use the existing product/display owners and transient
+local visual plane: success check, failure cross, canceled horizontal bar.
+No new thread, SD write, cloud request, motor or audio output is introduced.
+The existing voice-idle observation gates selection; focus timer visuals retain
+priority. Pending results can become visible after those activities end only
+while receiver TTL remains. Expiration, quiesce and clock rollback produce no
+task overlay; original display content is restored through the existing renderer.
+Exact event duplicates do not renew TTL or cause redundant framebuffer writes.
+
+This internal visual choice does not extend PTS1 or mark rendered receipts.
+PTS1 pending still means feedback confirmation is unavailable; dual framebuffer
+writes and actual panel appearance are separate evidence. Physical voice-start
+races, real rendering latency and display quality remain L3 checks. Host tests
+exercise the exact product visual statement with real task state, the actual
+render function with external framebuffer sinks, and input boundary sequences.
+
+Storage remains the existing 80-byte task ledger. Selection is constant-time
+arithmetic with no allocation; renderer reuses the existing single transient
+160x160 RGB565 buffer (50 KiB), freed after writes. No additional permanent
+buffer/DMA or worker is introduced. CPU p95, stack high-water and real output
+latency are NOT_MEASURED, not inferred from host success.
