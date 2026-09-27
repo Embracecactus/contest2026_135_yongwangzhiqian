@@ -3222,3 +3222,28 @@ USB/屏幕或新增浏览器DOM验收，不把这些主机结果当M4/M5完成�
 本轮执行。明确选择集合、逐例耗时、主机二进制/输入哈希及命令保存在
 `acceptance/s112-20260927.json`、`s112-browser-bound-evidence-20260927.json`和
 `s112-evidence-20260927/`。只改PC浏览器边界，无固件/APK重建或实板操作。
+
+
+### S113：已安装目录存储合同（尚未开放产品入口）
+
+真实store新增只读分页API：调用方持卷且排除目录修改，每页最多4个完整校验
+包、最多256个目录项扫描（包含点目录/非包）；按规范文件名排序。任一错误
+清空整页，取消在项/文件之间观察；关闭失败可见，不能据此宣布卷已安全释放。
+不挂盘、不建目录、不读取/写入默认标记。页面之间不承诺一致快照，后续异步
+服务必须串行化并提供代次/重试语义。source_sha256仍仅源元数据，不是包字节
+摘要。原有未处理pack_close返回值的调用方不因此自动获得安全退出保证。
+
+`make -C tests/host/bk7258 build/test_display_catalog` 后运行
+`tests/host/bk7258/build/test_display_catalog tests/host/bk7258/build/shaniu-default-v1.bkep pages`；
+其他独立case为missing、cancel-before、cancel-during、invalid-cursor、read-error、
+directory-close、file-close、scan-limit、symlink、corrupt。已接入原合同运行器。
+初始缺接口编译结果为BLOCKED_INTERFACE；首实现长度警告为SETUP_ERROR，修复
+后11例通过，不称原始业务Red。临时变异忽略closedir失败触发独立EIO断言，
+恢复原生产输入后通过，变异/恢复与产品数量分列。
+
+本轮28个选定单元全部通过：11新增目录、12已有上传、5HTTP/TLS显示；另行
+旧包目标、19门禁、层检查及AP增量编译通过。全局登记665未全量执行，最近
+完整报告仍S111652；原63/所有654原标识未删。证据见`acceptance/s113-20260927.json`
+和`s113-catalog-store-evidence-20260927.json`。无产品目录入口/真实USB/SD验收。
+主机函数栈估计1968字节不是板端高水位；新函数尚无生产调用者，链接可能
+裁除，下一步接入共享异步显示所有者与协议前必须验证整个调用链预算及退出。

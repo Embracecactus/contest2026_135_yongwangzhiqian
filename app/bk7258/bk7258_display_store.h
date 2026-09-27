@@ -34,6 +34,38 @@ struct bkdisplay_selection_version_s
   uint64_t revision;
 };
 
+/* Bounded page of fully parsed installed files, sorted by canonical name.
+ * source_sha256 is declared source metadata, NOT the complete file digest.
+ * Caller owns the mounted-volume lease and excludes all directory mutation
+ * throughout this synchronous worker operation. No mount, mkdir or writes.
+ * Each page scans at most256 directory entries and validates at most4 files.
+ * Cancellation is checked between entries/files, not inside pack validation.
+ * A nonzero result clears the page; it does not prove safe volume release.
+ * Pages are separate observations; the upper service must version a session
+ * or detect intervening changes before claiming a coherent whole catalog.
+ */
+
+#define BKDISPLAY_CATALOG_PAGE_MAX 4u
+#define BKDISPLAY_CATALOG_SCAN_MAX 256u
+
+struct bkdisplay_catalog_entry_s
+{
+  char filename[BKDISPLAY_STORE_FILENAME_SIZE];
+  struct bkdisplay_pack_info_s info;
+};
+
+struct bkdisplay_catalog_page_s
+{
+  struct bkdisplay_catalog_entry_s entries[BKDISPLAY_CATALOG_PAGE_MAX];
+  unsigned int count;
+  bool more;
+};
+
+int bkdisplay_store_catalog_page(
+  const char *root, const char *after,
+  bool (*canceled)(void *context), void *context,
+  struct bkdisplay_catalog_page_s *page);
+
 /* Mounted-volume operations: caller must serialize all reads and mutations
  * with the same exclusive owner used by local activation. No authentication
  * or arbitrary concurrent filesystem-writer arbitration happens here.

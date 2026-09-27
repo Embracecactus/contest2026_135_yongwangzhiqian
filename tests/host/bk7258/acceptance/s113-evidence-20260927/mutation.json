@@ -1,0 +1,8 @@
+{
+  "mutation": "ignore directory close error",
+  "compiled": true,
+  "detected_assertion": "ret == -EIO",
+  "mutant_exit": -6,
+  "restored_exit": 0,
+  "production_edited": false
+}

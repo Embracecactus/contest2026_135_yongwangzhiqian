@@ -473,6 +473,7 @@ def main():
         "test_shaniu_nfc_quiesce",
         "test_shaniu_focus_pixels",
         "test_shaniu_focus_render",
+        "test_display_catalog",
         "test_display_upload",
         "test_display_selection",
         "test_bk7258_display_pack",
@@ -520,6 +521,13 @@ def main():
             [HERE / "build/test_shaniu_key_contract", variant],
             binaries["test_shaniu_key_contract"],
         )
+    for variant in ("missing", "pages", "cancel-before", "cancel-during",
+                    "invalid-cursor", "read-error", "directory-close",
+                    "file-close", "scan-limit", "symlink", "corrupt"):
+        add(suite, "RES-02.catalog-" + variant, "RES-02", "L2",
+            [HERE / "build/test_display_catalog",
+             HERE / "build/shaniu-default-v1.bkep", variant],
+            binaries["test_display_catalog"])
     for variant in ("collision", "cancel", "corrupt", "fragmented", "normal",
                     "preserve", "write-failure", "sync-failure", "close-failure",
                     "directory-failure"):

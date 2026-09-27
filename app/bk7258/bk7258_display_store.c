@@ -137,6 +137,7 @@ static int bkdisplay_store_validate(const char *path, const char *filename,
   struct bkdisplay_pack_s *pack = NULL;
   char expected[BKDISPLAY_STORE_FILENAME_SIZE];
   int written;
+  int close_ret;
   int ret;
 
   if (result_pack != NULL)
@@ -172,7 +173,17 @@ static int bkdisplay_store_validate(const char *path, const char *filename,
       pack = NULL;
     }
 
-  bkdisplay_pack_close(pack);
+  close_ret = bkdisplay_pack_close(pack);
+  if (close_ret < 0)
+    {
+      ret = close_ret;
+    }
+
+  if (ret < 0 && result != NULL)
+    {
+      memset(result, 0, sizeof(*result));
+    }
+
   return ret;
 }
 
@@ -1294,4 +1305,167 @@ int bkdisplay_store_import(const char *root, const void *data, size_t size,
 
   return ret < 0 ? ret :
     bkdisplay_store_activate(root, installed.filename, selection);
+}
+
+
+int bkdisplay_store_catalog_page(
+  const char *root, const char *after,
+  bool (*canceled)(void *context), void *context,
+  struct bkdisplay_catalog_page_s *page)
+{
+  struct bkdisplay_catalog_page_s result = {0};
+  char names[BKDISPLAY_CATALOG_PAGE_MAX + 1][BKDISPLAY_STORE_FILENAME_SIZE] = {{0}};
+  char directory[BKDISPLAY_PACK_PATH_SIZE];
+  char path[BKDISPLAY_PACK_PATH_SIZE];
+  struct bkdisplay_store_selection_s selection;
+  struct bkdisplay_pack_s *pack;
+  struct stat st;
+  struct dirent *entry;
+  DIR *dir;
+  unsigned int scanned = 0;
+  int ret;
+
+  if (page == NULL)
+    {
+      return -EINVAL;
+    }
+
+  memset(page, 0, sizeof(*page));
+  if (after != NULL && after[0] != '\0' &&
+      !bkdisplay_store_filename(after))
+    {
+      return -EINVAL;
+    }
+
+  ret = bkdisplay_store_path(directory, sizeof(directory), root,
+                             BKDISPLAY_STORE_PACKS);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (canceled != NULL && canceled(context))
+    {
+      return -ECANCELED;
+    }
+
+  if (lstat(directory, &st) < 0)
+    {
+      return bkdisplay_store_errno();
+    }
+
+  if (!S_ISDIR(st.st_mode))
+    {
+      return S_ISLNK(st.st_mode) ? -ELOOP : -ENOTDIR;
+    }
+
+  dir = opendir(directory);
+  if (dir == NULL)
+    {
+      return bkdisplay_store_errno();
+    }
+
+  for (;;)
+    {
+      if (canceled != NULL && canceled(context))
+        {
+          ret = -ECANCELED;
+          break;
+        }
+
+      errno = 0;
+      entry = readdir(dir);
+      if (entry == NULL)
+        {
+          ret = errno ? bkdisplay_store_errno() : 0;
+          break;
+        }
+
+      if (++scanned > BKDISPLAY_CATALOG_SCAN_MAX)
+        {
+          ret = -E2BIG;
+          break;
+        }
+
+      if (!bkdisplay_store_filename(entry->d_name) ||
+          (after != NULL && strcmp(entry->d_name, after) <= 0))
+        {
+          continue;
+        }
+
+      for (unsigned int i = 0; i <= BKDISPLAY_CATALOG_PAGE_MAX; i++)
+        {
+          if (!names[i][0] || strcmp(entry->d_name, names[i]) < 0)
+            {
+              for (unsigned int j = BKDISPLAY_CATALOG_PAGE_MAX; j > i; j--)
+                {
+                  memcpy(names[j], names[j - 1], sizeof(names[j]));
+                }
+
+              /* Canonical validation above guarantees the bounded length. */
+
+              memcpy(names[i], entry->d_name, strlen(entry->d_name) + 1);
+              break;
+            }
+        }
+    }
+
+  if (closedir(dir) < 0)
+    {
+      ret = bkdisplay_store_errno();
+    }
+
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  result.more = names[BKDISPLAY_CATALOG_PAGE_MAX][0] != '\0';
+  for (unsigned int i = 0; i < BKDISPLAY_CATALOG_PAGE_MAX && names[i][0]; i++)
+    {
+      if (canceled != NULL && canceled(context))
+        {
+          return -ECANCELED;
+        }
+
+      if (snprintf(path, sizeof(path), "%s/%s", directory, names[i]) >=
+          (int)sizeof(path))
+        {
+          return -ENAMETOOLONG;
+        }
+
+      if (lstat(path, &st) < 0)
+        {
+          return bkdisplay_store_errno();
+        }
+
+      if (!S_ISREG(st.st_mode))
+        {
+          return S_ISLNK(st.st_mode) ? -ELOOP : -EINVAL;
+        }
+
+      ret = bkdisplay_store_open_installed(root, names[i], &selection, &pack);
+      if (ret < 0)
+        {
+          return ret;
+        }
+
+      ret = bkdisplay_pack_close(pack);
+      if (ret < 0)
+        {
+          return ret;
+        }
+
+      memcpy(result.entries[i].filename, names[i], sizeof(names[i]));
+      result.entries[i].info = selection.info;
+      result.count++;
+    }
+
+  if (canceled != NULL && canceled(context))
+    {
+      return -ECANCELED;
+    }
+
+  *page = result;
+  return 0;
 }

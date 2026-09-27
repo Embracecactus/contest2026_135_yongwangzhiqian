@@ -892,21 +892,29 @@ int bkdisplay_pack_open(const char *path, struct bkdisplay_pack_s **result,
 out:
   free(toc);
   free(pack);
-  close(fd);
+  if (close(fd) < 0)
+    {
+      ret = bkdisplay_errno();
+    }
+
   return ret;
 }
 
-void bkdisplay_pack_close(struct bkdisplay_pack_s *pack)
+int bkdisplay_pack_close(struct bkdisplay_pack_s *pack)
 {
+  int ret = 0;
+
   if (pack != NULL)
     {
-      if (pack->fd >= 0)
+      if (pack->fd >= 0 && close(pack->fd) < 0)
         {
-          close(pack->fd);
+          ret = bkdisplay_errno();
         }
 
       free(pack);
     }
+
+  return ret;
 }
 
 int bkdisplay_pack_render(struct bkdisplay_pack_s *pack,

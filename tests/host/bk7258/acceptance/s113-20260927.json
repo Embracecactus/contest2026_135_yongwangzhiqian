@@ -1,0 +1,217 @@
+{
+  "scope": "S113 affected catalog/upload and HTTP TLS display paths; not full global suite",
+  "parent": "aaaa0fdbbb89d5ea57989cede2a1cbbcf206b3e5",
+  "selected_execution_ids": [
+    "RES-02.catalog-missing",
+    "RES-02.catalog-pages",
+    "RES-02.catalog-cancel-before",
+    "RES-02.catalog-cancel-during",
+    "RES-02.catalog-invalid-cursor",
+    "RES-02.catalog-read-error",
+    "RES-02.catalog-directory-close",
+    "RES-02.catalog-file-close",
+    "RES-02.catalog-scan-limit",
+    "RES-02.catalog-symlink",
+    "RES-02.catalog-corrupt",
+    "RES-01.upload-collision",
+    "RES-01.upload-cancel",
+    "RES-01.upload-corrupt",
+    "RES-01.upload-fragmented",
+    "RES-01.upload-normal",
+    "RES-01.upload-preserve",
+    "RES-01.upload-write-failure",
+    "RES-01.upload-sync-failure",
+    "RES-01.upload-close-failure",
+    "RES-01.upload-directory-failure",
+    "RES-02.activate-collision",
+    "RES-02.activate-directory-failure",
+    "RES-02.web-display-tls-trial_expiry",
+    "RES-02.web-display-tls-trial_cancel",
+    "RES-02.web-display-tls-missing_pack",
+    "RES-02.web-display-tls-default_supersedes_trial",
+    "RES-02.web-display-tls-release_recovery_stays_unknown"
+  ],
+  "collected": [
+    {
+      "id": "RES-02.catalog-missing",
+      "status": "PASS",
+      "returncode": 0,
+      "seconds": 0.0019054639851674438
+    },
+    {
+      "id": "RES-02.catalog-pages",
+      "status": "PASS",
+      "returncode": 0,
+      "seconds": 0.008178698015399277
+    },
+    {
+      "id": "RES-02.catalog-cancel-before",
+      "status": "PASS",
+      "returncode": 0,
+      "seconds": 0.003780015977099538
+    },
+    {
+      "id": "RES-02.catalog-cancel-during",
+      "status": "PASS",
+      "returncode": 0,
+      "seconds": 0.003709929995238781
+    },
+    {
+      "id": "RES-02.catalog-invalid-cursor",
+      "status": "PASS",
+      "returncode": 0,
+      "seconds": 0.0037428599898703396
+    },
+    {
+      "id": "RES-02.catalog-read-error",
+      "status": "PASS",
+      "returncode": 0,
+      "seconds": 0.0014550639898516238
+    },
+    {
+      "id": "RES-02.catalog-directory-close",
+      "status": "PASS",
+      "returncode": 0,
+      "seconds": 0.0035839449847117066
+    },
+    {
+      "id": "RES-02.catalog-file-close",
+      "status": "PASS",
+      "returncode": 0,
+      "seconds": 0.0037156310281716287
+    },
+    {
+      "id": "RES-02.catalog-scan-limit",
+      "status": "PASS",
+      "returncode": 0,
+      "seconds": 0.007946052006445825
+    },
+    {
+      "id": "RES-02.catalog-symlink",
+      "status": "PASS",
+      "returncode": 0,
+      "seconds": 0.0037564699887298048
+    },
+    {
+      "id": "RES-02.catalog-corrupt",
+      "status": "PASS",
+      "returncode": 0,
+      "seconds": 0.0037949379766359925
+    },
+    {
+      "id": "RES-01.upload-collision",
+      "status": "PASS",
+      "returncode": 0,
+      "seconds": 0.0014719209866598248
+    },
+    {
+      "id": "RES-01.upload-cancel",
+      "status": "PASS",
+      "returncode": 0,
+      "seconds": 0.0014682220062240958
+    },
+    {
+      "id": "RES-01.upload-corrupt",
+      "status": "PASS",
+      "returncode": 0,
+      "seconds": 0.03309136803727597
+    },
+    {
+      "id": "RES-01.upload-fragmented",
+      "status": "PASS",
+      "returncode": 0,
+      "seconds": 0.03341226902557537
+    },
+    {
+      "id": "RES-01.upload-normal",
+      "status": "PASS",
+      "returncode": 0,
+      "seconds": 0.03316935198381543
+    },
+    {
+      "id": "RES-01.upload-preserve",
+      "status": "PASS",
+      "returncode": 0,
+      "seconds": 0.06601934297941625
+    },
+    {
+      "id": "RES-01.upload-write-failure",
+      "status": "PASS",
+      "returncode": 0,
+      "seconds": 0.0015989450039342046
+    },
+    {
+      "id": "RES-01.upload-sync-failure",
+      "status": "PASS",
+      "returncode": 0,
+      "seconds": 0.0014882719842717052
+    },
+    {
+      "id": "RES-01.upload-close-failure",
+      "status": "PASS",
+      "returncode": 0,
+      "seconds": 0.0038078599609434605
+    },
+    {
+      "id": "RES-01.upload-directory-failure",
+      "status": "PASS",
+      "returncode": 0,
+      "seconds": 0.016404663037974387
+    },
+    {
+      "id": "RES-02.activate-collision",
+      "status": "PASS",
+      "returncode": 0,
+      "seconds": 0.06609219295205548
+    },
+    {
+      "id": "RES-02.activate-directory-failure",
+      "status": "PASS",
+      "returncode": 0,
+      "seconds": 0.06543109699850902
+    },
+    {
+      "id": "RES-02.web-display-tls-trial_expiry",
+      "status": "PASS",
+      "returncode": 0,
+      "seconds": 8.310463840025477
+    },
+    {
+      "id": "RES-02.web-display-tls-trial_cancel",
+      "status": "PASS",
+      "returncode": 0,
+      "seconds": 9.054918188019656
+    },
+    {
+      "id": "RES-02.web-display-tls-missing_pack",
+      "status": "PASS",
+      "returncode": 0,
+      "seconds": 7.500396093993913
+    },
+    {
+      "id": "RES-02.web-display-tls-default_supersedes_trial",
+      "status": "PASS",
+      "returncode": 0,
+      "seconds": 12.487685449013952
+    },
+    {
+      "id": "RES-02.web-display-tls-release_recovery_stays_unknown",
+      "status": "PASS",
+      "returncode": 0,
+      "seconds": 10.396344252978452
+    }
+  ],
+  "inputs": {
+    "app/bk7258/bk7258_display_pack.c": "caf8600e80bfa81384bcc38b4c86b5312a60b713ed707664304efe9e05d85702",
+    "app/bk7258/bk7258_display_store.c": "69648fa2da6fc1e787a0d3e049f6255e43c94600d709776245bb4cdaa4f42f5e",
+    "tests/host/bk7258/test_display_catalog.c": "ee760d47c50f92cdd340075b98cb724ed09365cc221315188f42ad76b11e4f3a",
+    "tests/host/bk7258/build/shaniu-default-v1.bkep": "1bfa445365f6081d889fd604b0dadd3d1821d87fd7ee7548259acf47fb666395",
+    "tests/host/bk7258/build/upload-second.bkep": "7e35c6e60b6fa2f22a180cff7c416f663dcbc52b03db7aeb7611c4c9e25f3f2c"
+  },
+  "registered_global_ids": 665,
+  "last_full_suite": "s111-20260927.json",
+  "environment": {
+    "platform": "Linux-5.15.167.4-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+    "python": "3.10.12"
+  }
+}

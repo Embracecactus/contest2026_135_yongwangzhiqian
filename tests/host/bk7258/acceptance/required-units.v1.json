@@ -654,7 +654,18 @@
     "RES-02.web-display-tls-default_supersedes_trial",
     "RES-02.web-display-tls-release_recovery_stays_unknown",
     "USB-02.browser-upload_exact_128k_boundary",
-    "USB-02.browser-upload_128k_plus_one_rejected_before_spool_or_worker"
+    "USB-02.browser-upload_128k_plus_one_rejected_before_spool_or_worker",
+    "RES-02.catalog-missing",
+    "RES-02.catalog-pages",
+    "RES-02.catalog-cancel-before",
+    "RES-02.catalog-cancel-during",
+    "RES-02.catalog-invalid-cursor",
+    "RES-02.catalog-read-error",
+    "RES-02.catalog-directory-close",
+    "RES-02.catalog-file-close",
+    "RES-02.catalog-scan-limit",
+    "RES-02.catalog-symlink",
+    "RES-02.catalog-corrupt"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1312,6 +1323,17 @@
     "RES-02.web-display-tls-default_supersedes_trial",
     "RES-02.web-display-tls-release_recovery_stays_unknown",
     "USB-02.browser-upload_exact_128k_boundary",
-    "USB-02.browser-upload_128k_plus_one_rejected_before_spool_or_worker"
+    "USB-02.browser-upload_128k_plus_one_rejected_before_spool_or_worker",
+    "RES-02.catalog-missing",
+    "RES-02.catalog-pages",
+    "RES-02.catalog-cancel-before",
+    "RES-02.catalog-cancel-during",
+    "RES-02.catalog-invalid-cursor",
+    "RES-02.catalog-read-error",
+    "RES-02.catalog-directory-close",
+    "RES-02.catalog-file-close",
+    "RES-02.catalog-scan-limit",
+    "RES-02.catalog-symlink",
+    "RES-02.catalog-corrupt"
   ]
 }

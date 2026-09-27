@@ -2051,3 +2051,11 @@ $(BUILD)/test_pc_owner_binding: test_pc_storage.c $(VOICE_PACK_ROOT)/bk7258_pc_a
 
 $(BUILD)/test_pc_tasks: test_pc_tasks.c $(VOICE_PACK_ROOT)/bk7258_pc_tasks.c $(VOICE_PACK_ROOT)/bk7258_pc_tasks.h | $(BUILD)
 	$(CC) $(CFLAGS) -Werror -I$(VOICE_PACK_ROOT) $(filter %.c,$^) -o $@
+
+$(BUILD)/test_display_catalog: test_display_catalog.c \
+	$(VOICE_PACK_ROOT)/bk7258_display_store.c $(VOICE_PACK_ROOT)/bk7258_display_store.h \
+	$(VOICE_PACK_ROOT)/bk7258_display_pack.c $(VOICE_PACK_ROOT)/bk7258_display_pack.h \
+	$(DISPLAY_PACK_FIXTURE) | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -fstack-usage test_display_catalog.c \
+		$(VOICE_PACK_ROOT)/bk7258_display_pack.c $(VOICE_PACK_ROOT)/bk7258_display_store.c \
+		-I $(VOICE_PACK_ROOT) -Wl,--wrap=opendir,--wrap=readdir,--wrap=closedir,--wrap=close,--wrap=write -o $@
