@@ -2749,3 +2749,22 @@ worker、存储/解析/卷；CLI用真实Python TLS客户端连接OpenSSL测试p
 质量证明。真实物理USB、原生设备TLS到安装的整条链路、浏览器界面、默认设置、
 跨重启回执、吞吐/高水位及混合场景仍待完成。旧S66/S75/S76 TLS首错保持OPEN。
 本轮未改固件生产源码，无刷板/安装/清数据。主机数据不计为实板或56项验收。
+
+### S91：嵌入式 TLS 到原生安装的主机集成（2026-09-27）
+
+新增四个独立执行标识：`RES-03.native-tls-upload/reconnect/cancel/wrong_principal`。
+真实 Python ControlClient、嵌入式 mbedTLS、PC grant/guard、SDC1、作业控制器、
+原生 worker、存储/解析/卷连接成一条主机路径。重连实际关闭 Unix socket，再建
+TLS/认证，保持同一作业与单个 worker；独立读取实际安装文件逐字节比对，默认不变。
+传输/调度/挂载用外部主机夹具，测试 pc_config 是薄接线；完整产品线程仍另测。
+
+完整529 PASS = 原63（含2恢复复验）+466新增累计；18运行器门禁、原2变异保留。
+额外“删除安装文件却报告DONE”变异检出，恢复后通过，二者单列不加入529。
+最初两次隔离变异因缺头文件为SETUP，不计检出。内层exit2误分型先Red再修；
+编译POSIX声明问题和缺接口实验原样保留，均不冒充业务Red。
+证据见 `acceptance/s91-20260927.json`、`s91-native-tls-evidence-20260927.json`。
+复跑单项：`python3 tests/host/bk7258/test_provision_tls.py --resource-case reconnect`。
+
+本轮只改测试/运行器/证据，未修改固件或客户端生产行为，未操作手机/板子。
+物理USB、SD/DMA、资源高水位/性能、默认/试用、轻量界面、跨重启回执与完整交付
+仍待完成；历史TLS首错保持OPEN。529项不表示56项产品需求或实板通过。

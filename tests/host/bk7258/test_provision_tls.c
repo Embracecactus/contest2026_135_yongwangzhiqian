@@ -19,6 +19,14 @@
 #include <unistd.h>
 #include <time.h>
 #include <signal.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include "bk7258_display_job_control.h"
+
+void test_pack_native_start(void);
+void test_pack_native_finish(const char *expected);
+static bool resource_peer;
+static struct bkpack_control_s resource_job;
 
 struct queue_s { unsigned char data[4096]; size_t size; };
 static struct queue_s inbound, outbound;
@@ -258,6 +266,23 @@ static int pc_config(void *context, enum bkcontrol_command_e command,
     return bkpc_tasks_control(&pc_tasks, command, offset, record, size, status, now);
   if (kind == BKCONTROL_CONFIG_RESOURCE_JOB)
     {
+      if (resource_peer)
+        {
+          if (!resource_job.bound)
+            {
+              uint8_t epoch[16];
+              assert(mbedtls_ctr_drbg_random(&pc_control.pair->tls.random,epoch,16)==0);
+              int ret=bkpack_control_bind(&resource_job,pc_control.binding,
+                       pc_control.revision,pc_control.client,epoch);
+              if(ret<0)return ret;
+            }
+          if(command==BKCONTROL_CONFIG_READ)
+            return bkpack_control_read(&resource_job,offset,record,size,status,now);
+          if(size<64||size>4160)return -EINVAL;
+          if(command==BKCONTROL_CONFIG_BEGIN)return 0;
+          if(command!=BKCONTROL_CONFIG_APPLY)return -ENOTSUP;
+          return bkpack_control_apply(&resource_job,record,size,now);
+        }
       /* Guard boundary only: native job integration has its own real worker
        * fixture. Never return a fabricated installation success here. */
       assert(command == BKCONTROL_CONFIG_READ && record && size == 16);
@@ -858,12 +883,14 @@ static void pc_guard_tests(mbedtls_ssl_context *client,
   pc_guarded = false;
 }
 
-/* Ciphertext pipe endpoint for the JVM production TLS/GATT client test.
- * Only synthetic owner key/state are used; no sockets or hardware are opened.
+/* External ciphertext pipe / Unix-socket peer for production TLS clients.
+ * Only synthetic owner state and local host transport are used; no hardware.
  */
 static int control_pipe_peer(const char *certificate, const char *private_key,
-                             const char *pc_root)
+                             const char *pc_root, const char *socket_path,
+                             int connections)
 {
+  int listener=-1, wire_in=STDIN_FILENO, wire_out=STDOUT_FILENO;
   struct bkcontrol_pair_s control = {0};
   mbedtls_x509_crt cert;
   mbedtls_pk_context key;
@@ -881,6 +908,25 @@ static int control_pipe_peer(const char *certificate, const char *private_key,
   assert(fcntl(STDIN_FILENO, F_SETFL, O_NONBLOCK) == 0);
   assert(fcntl(STDOUT_FILENO, F_SETFL, O_NONBLOCK) == 0);
   signal(SIGPIPE, SIG_IGN);
+  if(socket_path)
+    {
+      struct sockaddr_un address={.sun_family=AF_UNIX};
+      assert(strlen(socket_path)<sizeof(address.sun_path));
+      strcpy(address.sun_path,socket_path);
+      listener=socket(AF_UNIX,SOCK_STREAM,0);
+      assert(listener>=0 && bind(listener,(struct sockaddr *)&address,sizeof(address))==0);
+      assert(listen(listener,2)==0);
+      test_pack_native_start();
+    }
+  for(int connection=0;connection<connections;connection++)
+    {
+      if(socket_path)
+        {
+          wire_in=accept(listener,NULL,NULL);wire_out=wire_in;
+          assert(wire_in>=0 && fcntl(wire_in,F_SETFL,O_NONBLOCK)==0);
+          memset(&inbound,0,sizeof(inbound));memset(&outbound,0,sizeof(outbound));
+          stream_generation++;
+        }
   clock_gettime(CLOCK_MONOTONIC, &time);
   now = (uint64_t)time.tv_sec * 1000 + time.tv_nsec / 1000000;
   if (pc_root)
@@ -888,8 +934,11 @@ static int control_pipe_peer(const char *certificate, const char *private_key,
       const uint8_t pc[32] = {84}, client[16] = {7}, transaction[16] = {99};
       struct bkprov_tls_transport_s transport =
         {&stream_generation, stream_epoch, stream_read, stream_send, 64, 0};
-      assert(bkpc_grants_open(&pc_grants, pc_root, owner) == 0);
-      assert(bkpc_grants_set(&pc_grants, 0, transaction, client, pc, 7) == 0);
+      if(connection==0)
+        {
+          assert(bkpc_grants_open(&pc_grants, pc_root, owner) == 0);
+          assert(bkpc_grants_set(&pc_grants, 0, transaction, client, pc, 7) == 0);
+        }
       bkpc_tasks_bind(&pc_tasks, pc_binding, 1);
       pc_guarded = true;
       assert(bkpc_control_start(&pc_control, &control, &pc_source,
@@ -905,7 +954,7 @@ static int control_pipe_peer(const char *certificate, const char *private_key,
   for (;;)
     {
       uint8_t bytes[20];
-      ssize_t count = read(STDIN_FILENO, bytes, sizeof(bytes));
+      ssize_t count = read(wire_in, bytes, sizeof(bytes));
       if (count == 0) break;
       if (count < 0 && errno != EAGAIN && errno != EINTR) { result = 2; break; }
       if (count > 0 && put(&inbound, bytes, (size_t)count) != count) { result = 3; break; }
@@ -914,7 +963,7 @@ static int control_pipe_peer(const char *certificate, const char *private_key,
       if (control_step(&control) < 0) { result = 4; break; }
       if (outbound.size)
         {
-          count = write(STDOUT_FILENO, outbound.data, outbound.size < 20 ? outbound.size : 20);
+          count = write(wire_out, outbound.data, outbound.size < 20 ? outbound.size : 20);
           if (count < 0 && errno != EAGAIN && errno != EINTR) { result = 5; break; }
           if (count > 0)
             { outbound.size -= count; memmove(outbound.data, outbound.data + count, outbound.size); }
@@ -924,6 +973,17 @@ static int control_pipe_peer(const char *certificate, const char *private_key,
     }
   if (pc_guarded) bkpc_control_close(&pc_control);
   else bkcontrol_pair_close(&control);
+      if(socket_path)assert(close(wire_in)==0);
+      if(result)break;
+    }
+  if(socket_path)
+    {
+      char expected[512];snprintf(expected,sizeof(expected),"%s/expected.bkep",pc_root);
+      test_pack_native_finish(expected);
+      assert(close(listener)==0 && unlink(socket_path)==0);
+      /* A rejected principal closes its stream before any resource command. */
+      if(result==4 && !resource_job.bound)result=0;
+    }
   mbedtls_pk_free(&key); mbedtls_x509_crt_free(&cert);
   mbedtls_ctr_drbg_free(&random); mbedtls_entropy_free(&entropy);
   return result;
@@ -932,9 +992,15 @@ static int control_pipe_peer(const char *certificate, const char *private_key,
 int main(int argc, char **argv)
 {
   if (argc == 4 && !strcmp(argv[1], "--control-peer"))
-    return control_pipe_peer(argv[2], argv[3], NULL);
+    return control_pipe_peer(argv[2], argv[3], NULL, NULL, 1);
   if (argc == 5 && !strcmp(argv[1], "--pc-peer"))
-    return control_pipe_peer(argv[2], argv[3], argv[4]);
+    return control_pipe_peer(argv[2], argv[3], argv[4], NULL, 1);
+  if(argc==7 && !strcmp(argv[1],"--pc-resource-peer"))
+    {
+      int connections=atoi(argv[6]);assert(connections==1||connections==2);
+      resource_peer=true;
+      return control_pipe_peer(argv[2],argv[3],argv[4],argv[5],connections);
+    }
   struct bkprov_pair_s pair = {0};
   mbedtls_ssl_context client;
   mbedtls_ssl_config config;

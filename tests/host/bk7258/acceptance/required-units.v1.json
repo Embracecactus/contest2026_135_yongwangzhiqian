@@ -525,7 +525,11 @@
     "RES-03.flow-unknown_epoch_no_replay",
     "RES-03.flow-cancel_and_no_default",
     "RES-03.flow-changed_file_and_existing_receipt",
-    "RES-03.flow-non_pack_rejected_before_connect"
+    "RES-03.flow-non_pack_rejected_before_connect",
+    "RES-03.native-tls-upload",
+    "RES-03.native-tls-reconnect",
+    "RES-03.native-tls-cancel",
+    "RES-03.native-tls-wrong_principal"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1054,6 +1058,10 @@
     "RES-03.flow-unknown_epoch_no_replay",
     "RES-03.flow-cancel_and_no_default",
     "RES-03.flow-changed_file_and_existing_receipt",
-    "RES-03.flow-non_pack_rejected_before_connect"
+    "RES-03.flow-non_pack_rejected_before_connect",
+    "RES-03.native-tls-upload",
+    "RES-03.native-tls-reconnect",
+    "RES-03.native-tls-cancel",
+    "RES-03.native-tls-wrong_principal"
   ]
 }

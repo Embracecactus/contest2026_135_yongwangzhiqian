@@ -1,0 +1,9 @@
+["/usr/bin/python3", "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_provision_tls.py", "--resource-case", "reconnect"]
+RESOURCE_EVIDENCE {"case": "reconnect", "connections": 2, "certificate_sha256": "e48d9a3352fdd9383a94cdcbf41111ecd1ac1d12a9fb46d1dc1a76265a61633f", "input_sha256": "1bfa445365f6081d889fd604b0dadd3d1821d87fd7ee7548259acf47fb666395", "native": "native-pack workers=1 installed-files-compared=1 default-unchanged=1"}
+RESOURCE_RANDOM_SHA256=9a978f2eb3d452e567b5388284685b5cb96f5d9a22d00c588b060020c0b45fce
+NATIVE_RESOURCE_CASE=reconnect PASS
+.
+----------------------------------------------------------------------
+Ran 1 test in 10.102s
+
+OK

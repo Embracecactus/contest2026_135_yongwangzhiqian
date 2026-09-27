@@ -1,0 +1,96 @@
+{
+  "parent": "6bcda4e0b7ee417464785be281c3c1025f3bf88c",
+  "counts": {
+    "selected": 529,
+    "original_including_restores": 63,
+    "added": 466,
+    "new_ids": 4,
+    "runner_gates": 18,
+    "original_mutations": 2,
+    "extra_mutations": 1,
+    "extra_restore_runs": 1
+  },
+  "scope": "Tests/fixtures/runner configuration and evidence only; firmware/client production sources, dependencies and resources unchanged.",
+  "integration": {
+    "path": "Actual Python ControlClient -> embedded mbedTLS -> real PC grants/guard and SDC1 session -> actual job controller/native worker/store/parser/volume.",
+    "external_peers": "Unix socket transport, host scheduling/semaphore and mount/root mapping; synthetic identity and grant. Test pc_config adapter binds actual modules; full product-thread adapter remains separately covered by S89.",
+    "observations": [
+      "Upload compares installed bytes independently against input; no default file created.",
+      "Reconnect closes socket, creates fresh TLS/SDC1 auth, keeps same job/epoch and one worker.",
+      "Cancel checks confirmed canceled and resources released.",
+      "Owner principal is rejected on PC path, zero workers."
+    ],
+    "not_claimed": [
+      "Physical USB/DCD/IRQ/DMA, actual SD durability or audio coexistence.",
+      "Target peak memory, stack high water, CPU/p95 or throughput.",
+      "Complete product-thread integration or all 56 requirements."
+    ]
+  },
+  "first_failures": [
+    "interface-before: deliberately absent peer fixture; SETUP, not business Red.",
+    "tls-first and upload-first: POSIX lstat declaration compile SETUP, corrected compile command scope.",
+    "nested-gate-red: actual assertion Red; native child exit 2 must remain SETUP_ERROR even with Assertion text.",
+    "phantom-installed and phantom-installed-wired: isolated overlay missing chip/apps include dependencies; SETUP, not detections.",
+    "phantom-installed-complete-overlay: compilable false-DONE mutant reached independent installed-file assertion, detected exit 1. Original restored upload exit 0."
+  ],
+  "mutation": {
+    "mutation": "report-installed-after-removing-file",
+    "case": "RES-03.native-tls-upload",
+    "detected": true,
+    "mutant_exit": 1,
+    "restored_exit": 0,
+    "source_sha256": "e495fe1ad99be891fc1838e854fb96c256c68cc08c8a260d0a95ba2fe7926111",
+    "mutant_sha256": "e1016d4b13792a38ee28e08d93f6b0bc7006b29885245765ffc552459e179cf5",
+    "oracle": "Independent actual installed-file comparison in native fixture; no client snapshot-only oracle."
+  },
+  "post_full_change": {
+    "file": "tests/host/bk7258/test_provision_tls.py",
+    "change": "Comment only: resource peer inherits entropy capture; no behavior change. Runner gates rerun 18 PASS; black check passed.",
+    "sha256": "35d242bd5fbd2c9023c6e6b6aaf50355e03a97cf29ffdd48c5235fed3deceef7"
+  },
+  "parent_gaps": {
+    "RES-03": {
+      "interface": "PARTIAL: CLI upload/status/resume/cancel available; default/trial/light UI pending.",
+      "L1_L2": "Full embedded TLS and native install module chain covered on host; real product-thread, transport performance and hardware boundaries remain.",
+      "L3": "NOT_RUN: no device touched."
+    },
+    "USB-02": {
+      "interface": "Explicit resume only; latest volatile result retained across connection, not reboot.",
+      "L1_L2": "Actual socket disconnect/re-auth/resume covered; physical transport and resource budgets open.",
+      "L3": "NOT_RUN: no physical USB traffic."
+    }
+  },
+  "limits": [
+    "Unexpected exceptions in inner unittest may still classify as SETUP_ERROR; explicit assertion and external setup cases covered, not a universal classification proof.",
+    "clang-format 14 unavailable on PATH; no C formatter pass claimed.",
+    "Raw private synthetic key/entropy failure files remain ignored locally; only public hashes and text logs archived.",
+    "Historic S66/S75/S76 TLS failures remain OPEN.",
+    "Goal ACTIVE: continue remaining M0-M5 implementation, physical combinations and release gates."
+  ],
+  "evidence_sha256": {
+    "tests/host/bk7258/acceptance/s91-evidence-20260927/CFG-01.wifi-clears-cloud.log": "881042d4fe2960ce205f97070a81063d02129550b587a7a11ffd36c3b638920e",
+    "tests/host/bk7258/acceptance/s91-evidence-20260927/MSC-01.early-release.log": "71bbb4c96c6fd9e96d6a2f29ed00aaeb046c1d66608e96dcbb074add235c30d0",
+    "tests/host/bk7258/acceptance/s91-evidence-20260927/RES-03.native-tls-cancel.log": "8d2f4be7644a39f979f419ec3be9b65074807b045010b4ebd399374a7ec07840",
+    "tests/host/bk7258/acceptance/s91-evidence-20260927/RES-03.native-tls-reconnect.log": "3ac675a9ef54bedaf5e9a064267efeef42f966dd36929bd8c7304b1e6fc84160",
+    "tests/host/bk7258/acceptance/s91-evidence-20260927/RES-03.native-tls-upload.log": "a99a2d455446fb8aeeea5f2356964b93718ab494c28f2c9064e52a7999223998",
+    "tests/host/bk7258/acceptance/s91-evidence-20260927/RES-03.native-tls-wrong_principal.log": "998d9b95db9e8b069fc5234b23f6064134dc0ba6fa960102b89041acde85df00",
+    "tests/host/bk7258/acceptance/s91-evidence-20260927/full.log": "f8b443a5904b6a2f2462ba51f72bf109bf2d89b712f0be4a348970dc679f1512",
+    "tests/host/bk7258/acceptance/s91-evidence-20260927/gates-comment-final.log": "3b95636ae54cbb25ba820d5abf9fcfcbbc89a7098dffc898e4dbedcda6aa4a01",
+    "tests/host/bk7258/acceptance/s91-evidence-20260927/gates-final.log": "897012c339e14fe063b54f818a01124d0b17764977c1a925e7f28aa805b45dc2",
+    "tests/host/bk7258/acceptance/s91-evidence-20260927/gates.log": "3b95636ae54cbb25ba820d5abf9fcfcbbc89a7098dffc898e4dbedcda6aa4a01",
+    "tests/host/bk7258/acceptance/s91-evidence-20260927/interface-before.log": "70a2acae283b5d100b65bbabad811c4c10f59f881a79949f7f4924b1fb1ae211",
+    "tests/host/bk7258/acceptance/s91-evidence-20260927/mutation.json": "a658f505e3a7dd979d4cadfeac3d4985d0010521552b72dfea21c447cf2cd1d5",
+    "tests/host/bk7258/acceptance/s91-evidence-20260927/nested-gate-red.log": "73ef48de33cdafc35279e8fd8fb0e6a7819216b96eb62c6ed26bc42238ed40fd",
+    "tests/host/bk7258/acceptance/s91-evidence-20260927/phantom-installed-complete-overlay.log": "59045b32aba99503d3680cc8955cfc69dc7c15cef97a47d4ce60deb88ec80c7d",
+    "tests/host/bk7258/acceptance/s91-evidence-20260927/phantom-installed-wired.log": "2a6cce745a36f55123ac579a21ea65678d28e97c200c1144022ea5e3268a1a08",
+    "tests/host/bk7258/acceptance/s91-evidence-20260927/phantom-installed.log": "790c52ff88a76125b20c1872066724a0d2f6127643a3317025eab1fdee032624",
+    "tests/host/bk7258/acceptance/s91-evidence-20260927/reconnect-first.log": "3fa2e0ba7c21922f7a798a37325a99374f5d940bb44c36fcebf2cdb475929f98",
+    "tests/host/bk7258/acceptance/s91-evidence-20260927/restored-upload.log": "8cd5ba76b167f1eb0339ec6f854c30dc37dadb0f707542a09827dd04e9dc4193",
+    "tests/host/bk7258/acceptance/s91-evidence-20260927/style-check.log": "b9cf511501d306d2bd8355ccb165c8ddc0a6fdd62d7c72c4a7b1795cf8934c8c",
+    "tests/host/bk7258/acceptance/s91-evidence-20260927/style-final.log": "de53f369e9e70f24f0c799fd2698cd4b73dbc18c76196426f35e527998394080",
+    "tests/host/bk7258/acceptance/s91-evidence-20260927/style.log": "f1ebb6f3dcaa751e7853d96de4bdc51c379978dfdb3de3ad9f0c102234ec12ed",
+    "tests/host/bk7258/acceptance/s91-evidence-20260927/tls-first.log": "c4d60356755102362e4972f428b27a17e3bc3ba873f2abeeabc073917d2f7743",
+    "tests/host/bk7258/acceptance/s91-evidence-20260927/upload-first.log": "12c5dd458c776d9e655a6cc9d43c03f6618ac0fd09058f3c3e6661a6091d8477",
+    "tests/host/bk7258/acceptance/s91-evidence-20260927/upload-posix.log": "05beeaba0ffb0b30f06f7645ef5f0e697b316c0a231f03d6c478bf2942e58839"
+  }
+}

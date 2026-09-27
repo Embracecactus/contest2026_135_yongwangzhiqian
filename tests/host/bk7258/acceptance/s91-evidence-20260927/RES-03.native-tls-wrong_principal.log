@@ -1,0 +1,9 @@
+["/usr/bin/python3", "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_provision_tls.py", "--resource-case", "wrong_principal"]
+RESOURCE_EVIDENCE {"case": "wrong-principal", "connections": 1, "certificate_sha256": "089fd0dd114567aaa0399fa701e46f0da44a0aad115413de2185dd8dec57aea2", "input_sha256": "1bfa445365f6081d889fd604b0dadd3d1821d87fd7ee7548259acf47fb666395", "native": "native-pack workers=0 installed-files-compared=0 default-unchanged=1"}
+RESOURCE_RANDOM_SHA256=9ceb7afee69ba4387ed70e04d985cfbaf651116c432c86749e37a254e84c85ac
+NATIVE_RESOURCE_CASE=wrong_principal PASS
+.
+----------------------------------------------------------------------
+Ran 1 test in 5.365s
+
+OK

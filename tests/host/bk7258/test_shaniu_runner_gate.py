@@ -160,6 +160,29 @@ class NestedTlsGateTest(unittest.TestCase):
             self.assertEqual(len(result.errors), 1)
             self.assertEqual(len(result.failures), 0)
 
+    def test_native_peer_setup_error_remains_setup_error(self):
+        import subprocess
+        import test_provision_tls as tls
+
+        with tempfile.TemporaryDirectory(prefix="native-tls-gate-") as directory:
+            root = Path(directory)
+            (root / "CMakeLists.txt").write_text("")
+
+            def external(args, **kwargs):
+                failed = len(args) > 1 and str(args[1]).endswith("test_workbench_native_tls.py")
+                if failed:
+                    kwargs["stdout"].write("fixture setup error: Assertion in diagnostic\n")
+                return subprocess.CompletedProcess(args, 2 if failed else 0)
+
+            with patch.dict(os.environ, {"MBEDTLS_SOURCE": str(root),
+                "SHANIU_TLS_FAILURE_DIR": str(root / "failures")}), \
+                patch.object(tls, "RESOURCE_CASE", "upload"), \
+                patch.object(tls.subprocess, "run", side_effect=external):
+                result = unittest.TestResult()
+                tls.ProvisionTlsTest("test_real_tls_fragmentation_and_teardown").run(result)
+            self.assertEqual(len(result.errors), 1)
+            self.assertEqual(len(result.failures), 0)
+
     def test_nested_setup_exit_overrides_assertion_text(self):
         with tempfile.TemporaryDirectory(prefix="tls-gate-") as directory:
             out = Path(directory)

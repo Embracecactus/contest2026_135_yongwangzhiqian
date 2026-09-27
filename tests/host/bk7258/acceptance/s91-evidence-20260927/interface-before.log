@@ -1,0 +1,65 @@
+test_cancel (__main__.run.<locals>.NativeTls) ... ERROR
+test_reconnect (__main__.run.<locals>.NativeTls) ... ERROR
+test_upload (__main__.run.<locals>.NativeTls) ... ERROR
+test_wrong_principal (__main__.run.<locals>.NativeTls) ... ERROR
+
+======================================================================
+ERROR: test_cancel (__main__.run.<locals>.NativeTls)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_native_tls.py", line 108, in test_cancel
+    def test_cancel(self):self.exercise('cancel')
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_native_tls.py", line 37, in exercise
+    process=subprocess.Popen([executable,'--pc-resource-peer',certificate,key,str(grant),str(address),str(sessions)],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+  File "/usr/lib/python3.10/subprocess.py", line 971, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+  File "/usr/lib/python3.10/subprocess.py", line 1863, in _execute_child
+    raise child_exception_type(errno_num, err_msg, err_filename)
+FileNotFoundError: [Errno 2] No such file or directory: '/nonexistent/peer'
+
+======================================================================
+ERROR: test_reconnect (__main__.run.<locals>.NativeTls)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_native_tls.py", line 107, in test_reconnect
+    def test_reconnect(self):self.exercise('reconnect')
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_native_tls.py", line 37, in exercise
+    process=subprocess.Popen([executable,'--pc-resource-peer',certificate,key,str(grant),str(address),str(sessions)],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+  File "/usr/lib/python3.10/subprocess.py", line 971, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+  File "/usr/lib/python3.10/subprocess.py", line 1863, in _execute_child
+    raise child_exception_type(errno_num, err_msg, err_filename)
+FileNotFoundError: [Errno 2] No such file or directory: '/nonexistent/peer'
+
+======================================================================
+ERROR: test_upload (__main__.run.<locals>.NativeTls)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_native_tls.py", line 106, in test_upload
+    def test_upload(self):self.exercise('upload')
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_native_tls.py", line 37, in exercise
+    process=subprocess.Popen([executable,'--pc-resource-peer',certificate,key,str(grant),str(address),str(sessions)],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+  File "/usr/lib/python3.10/subprocess.py", line 971, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+  File "/usr/lib/python3.10/subprocess.py", line 1863, in _execute_child
+    raise child_exception_type(errno_num, err_msg, err_filename)
+FileNotFoundError: [Errno 2] No such file or directory: '/nonexistent/peer'
+
+======================================================================
+ERROR: test_wrong_principal (__main__.run.<locals>.NativeTls)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_native_tls.py", line 109, in test_wrong_principal
+    def test_wrong_principal(self):self.exercise('wrong-principal')
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_native_tls.py", line 37, in exercise
+    process=subprocess.Popen([executable,'--pc-resource-peer',certificate,key,str(grant),str(address),str(sessions)],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+  File "/usr/lib/python3.10/subprocess.py", line 971, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+  File "/usr/lib/python3.10/subprocess.py", line 1863, in _execute_child
+    raise child_exception_type(errno_num, err_msg, err_filename)
+FileNotFoundError: [Errno 2] No such file or directory: '/nonexistent/peer'
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.005s
+
+FAILED (errors=4)

@@ -19,6 +19,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[3]
+RESOURCE_CASE = None
 
 
 class ProvisionTlsTest(unittest.TestCase):
@@ -42,8 +43,11 @@ class ProvisionTlsTest(unittest.TestCase):
                     nonlocal tape_sequence
                     tape = None
                     # Observe real randomness only in the synthetic C fixture.
-                    # Peer subprocesses have separate lifetimes and are not taped.
-                    if str(args[0]) == str(temp / "test"):
+                    # Resource peer children inherit the tape path; other peers do not.
+                    if str(args[0]) == str(temp / "test") or (
+                        len(args) > 1
+                        and Path(args[1]).name == "test_workbench_native_tls.py"
+                    ):
                         tape = temp / f"tls-random-{tape_sequence}.bin"
                         tape_sequence += 1
                         env = dict(os.environ if env is None else env)
@@ -112,9 +116,16 @@ class ProvisionTlsTest(unittest.TestCase):
                         log.flush()
                         shutil.copyfile(temp / "build.log", failure_root / "build.log")
                         log.seek(0)
-                        detail = log.read()[-6000:] + f"\nSynthetic inputs: {failure_root}"
+                        detail = (
+                            log.read()[-6000:] + f"\nSynthetic inputs: {failure_root}"
+                        )
                         # Build/fixture tools cannot establish a product failure.
-                        if str(args[0]) in ("cc", "cmake", "openssl"):
+                        native_setup = (
+                            len(args) > 1
+                            and str(args[1]).endswith("test_workbench_native_tls.py")
+                            and result.returncode == 2
+                        )
+                        if str(args[0]) in ("cc", "cmake", "openssl") or native_setup:
                             raise RuntimeError(detail)
                         self.fail(detail)
 
@@ -254,6 +265,16 @@ class ProvisionTlsTest(unittest.TestCase):
                         "-I",
                         ROOT / "app/bk7258",
                         ROOT / "tests/host/bk7258/test_provision_tls.c",
+                        "-D_POSIX_C_SOURCE=200809L",
+                        "-pthread",
+                        "-I",
+                        ROOT / "tests/host/bk7258/mocks",
+                        ROOT / "tests/host/bk7258/test_pack_native_fixture.c",
+                        ROOT / "app/bk7258/bk7258_display_job_control.c",
+                        ROOT / "app/bk7258/bk7258_display_job.c",
+                        ROOT / "app/bk7258/bk7258_display_store.c",
+                        ROOT / "app/bk7258/bk7258_display_pack.c",
+                        ROOT / "app/bk7258/bk7258_media_volume.c",
                         ROOT / "tests/host/bk7258/tls_entropy_tape.c",
                         "-Wl,--wrap=mbedtls_ctr_drbg_random,--wrap=time",
                         ROOT / "tests/host/bk7258/test_control_serial_peer.c",
@@ -277,6 +298,54 @@ class ProvisionTlsTest(unittest.TestCase):
                         temp / "test",
                     ]
                 )
+                if RESOURCE_CASE is not None:
+                    run(
+                        [
+                            "openssl",
+                            "req",
+                            "-x509",
+                            "-newkey",
+                            "ec",
+                            "-pkeyopt",
+                            "ec_paramgen_curve:P-256",
+                            "-nodes",
+                            "-keyout",
+                            temp / "key.pem",
+                            "-out",
+                            temp / "cert.pem",
+                            "-subj",
+                            "/CN=localhost",
+                            "-days",
+                            "1",
+                            "-addext",
+                            "subjectAltName=DNS:localhost",
+                        ]
+                    )
+                    run(
+                        [
+                            sys.executable,
+                            ROOT / "tests/host/bk7258/test_workbench_native_tls.py",
+                            temp / "test",
+                            temp / "cert.pem",
+                            temp / "key.pem",
+                            "--case",
+                            RESOURCE_CASE,
+                        ]
+                    )
+                    log.flush()
+                    log.seek(0)
+                    for line in log:
+                        if line.startswith("RESOURCE_EVIDENCE "):
+                            print(line.rstrip(), flush=True)
+                    log.seek(0, 2)
+                    for recorded in temp.glob("tls-random-*.bin"):
+                        print(
+                            "RESOURCE_RANDOM_SHA256="
+                            + hashlib.sha256(recorded.read_bytes()).hexdigest(),
+                            flush=True,
+                        )
+                    print("NATIVE_RESOURCE_CASE=" + RESOURCE_CASE + " PASS", flush=True)
+                    return
                 run(
                     [
                         "cc",
@@ -575,6 +644,11 @@ class ProvisionTlsTest(unittest.TestCase):
 
 
 if __name__ == "__main__":
+    if len(sys.argv) >= 3 and sys.argv[1] == "--resource-case":
+        RESOURCE_CASE = sys.argv[2]
+        if RESOURCE_CASE not in ("upload", "reconnect", "cancel", "wrong_principal"):
+            raise SystemExit(2)
+        del sys.argv[1:3]
     program = unittest.main(exit=False)
     # Preserve setup errors through the outer contract collector, even when a
     # compiler diagnostic contains the word Assertion.

@@ -909,6 +909,10 @@ def main():
         add(suite, "USB-01.pc-pairing-" + variant, "USB-01", "L2",
             [sys.executable, HERE / "test_workbench_pairing.py",
              "PairingTest.test_" + variant], marker=False)
+    for variant in ("upload", "reconnect", "cancel", "wrong_principal"):
+        add(suite, "RES-03.native-tls-" + variant, "RES-03", "L2",
+            [sys.executable, HERE / "test_provision_tls.py", "--resource-case", variant],
+            marker=False, setup_exit_code=2)
     add(suite, "USB-01.tls-transport", "USB-01", "L2",
         [sys.executable, HERE / "test_provision_tls.py"], marker=False,
         setup_exit_code=2)
@@ -1389,6 +1393,8 @@ def main():
         HERE / "tls_entropy_tape.c",
         HERE / "test_tls_entropy_tape.py",
         HERE / "test_provision_tls.c",
+        HERE / "test_pack_native_fixture.c",
+        HERE / "test_workbench_native_tls.py",
         HERE / "test_control_serial_peer.c",
         HERE / "test_provision_tls_transport.c",
         ROOT / "app/bk7258/bk7258_provision_tls.c",
@@ -1457,6 +1463,8 @@ def main():
         ROOT / "tools/bk7258/_lib/workbench_resources.py",
         ROOT / "tools/bk7258/_lib/workbench_tasks.py",
         HERE / "test_provision_tls.c",
+        HERE / "test_pack_native_fixture.c",
+        HERE / "test_workbench_native_tls.py",
         HERE / "test_control_serial_peer.c",
         HERE / "test_provision_tls.py",
         HERE / "tls_entropy_tape.c",
