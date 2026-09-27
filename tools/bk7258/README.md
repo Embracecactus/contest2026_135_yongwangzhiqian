@@ -504,7 +504,7 @@ remote cancellation; query for CANCELED. A committing job may reject cancellatio
 Host coverage includes the actual Python TLS client, SDC1 session, native job
 worker and installer, with test TLS server/mount/scheduling boundaries. Embedded
 TLS/PC-grant guard tests remain separate. Physical USB, a browser workbench,
-default activation, persistent device receipts and production throughput remain
+phone default-selection UI, persistent device receipts and production throughput remain
 pending; no board deployment is implied by these host commands/tests.
 
 ### Limited expression trials from the PC
@@ -551,3 +551,53 @@ firmware rejection remains unconfirmed/error; the client never falls back to
 the default pack, retries automatically, or activates an uploaded pack. A missing
 installed name can be accepted then report failed; check status, not only ACK.
 Host client-to-production-renderer tests do not prove physical USB/screens.
+
+
+### Versioned default selection from the PC
+
+A compatible device exposes ESC1/ESS1 and the independent PC profile needs
+`resources` permission. `scenes` alone permits trials, not a persisted default.
+These host commands do not establish that a connected board has been updated.
+
+Start with `default-status`. It reads the **latest selection job**, without disk
+I/O. Its filename may describe a pending request or an older result. To obtain
+current persisted selection, explicitly submit `default-refresh`, then query
+until that operation reports `refresh_complete: true`. Use its returned job ID
+and revision when issuing `default-set`; a concurrent change is rejected.
+
+Replace the uppercase placeholders below with actual returned values. Generate
+a fresh nonzero32-character lowercase hex nonce per new intent (for example,
+`python3 -c 'import secrets; print(secrets.token_hex(16))'`). Retain the exact
+public epoch, nonce, expected ID, revision and filename before sending; these
+are operation identifiers, not authentication credentials.
+
+```sh
+python tools/bk7258/bk7258.py workbench default-status --port NATIVE_CDC_PORT --profile pc.profile
+python tools/bk7258/bk7258.py workbench default-refresh --port NATIVE_CDC_PORT --profile pc.profile --selection-epoch EPOCH_FROM_STATUS --selection-nonce REFRESH_NONCE_32_HEX --expected-selection-id JOB_ID_FROM_STATUS
+python tools/bk7258/bk7258.py workbench default-status --port NATIVE_CDC_PORT --profile pc.profile --selection-epoch EPOCH_FROM_STATUS --selection-nonce REFRESH_NONCE_32_HEX
+# Only after that refresh completes, use its returned id and revision:
+python tools/bk7258/bk7258.py workbench default-set --port NATIVE_CDC_PORT --profile pc.profile --selection-epoch EPOCH_FROM_STATUS --selection-nonce SET_NONCE_32_HEX --expected-selection-id JOB_ID_FROM_REFRESH --expected-default-revision REVISION_FROM_REFRESH --pack-filename shaniu-upload-v1.bkep
+python tools/bk7258/bk7258.py workbench default-status --port NATIVE_CDC_PORT --profile pc.profile --selection-epoch EPOCH_FROM_STATUS --selection-nonce SET_NONCE_32_HEX
+```
+
+`accepted` with `completion_verified: false` is only acceptance. Status separates
+`device_reports_saved`, `device_reports_rendered`, `selection_complete`, and
+errors. These are device reports, not independent physical screen measurements.
+A completed refresh reports the observed version, not a new save or render.
+The result is volatile; reboot, authorization change or a superseding operation
+can make it unconfirmed. A stale expected nonce/epoch/ID closes the client and
+sends no write. After transport failure, query before considering an explicit
+retry of the exact same request. There is no automatic replay or fallback.
+
+To cancel before commit, use `default-cancel` with the same epoch, the current
+job ID and a **new** selection nonce; confirm `cancel_confirmed` via status.
+Commit may reject cancellation. To retry a reported volume release failure,
+use `default-recover` with those same target fields and a new nonce. Recovery is
+close-only: it can clear `release_error` while the original job remains UNKNOWN;
+it does not repeat the save or render. Neither closing the CLI nor an ACK proves
+remote cancellation/recovery. Querying status never implicitly refreshes disk.
+
+Host coverage includes real client framing -> native controller/worker/store/
+renderer using a pipe in place of TLS/USB. Existing production TLS/permission
+checks remain separate; browser UI, phone integration, physical USB, migration
+of active/2 markers and board acceptance remain pending.

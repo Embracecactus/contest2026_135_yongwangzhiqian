@@ -923,6 +923,14 @@ def main():
     add(suite, "RES-02.selection-version-legacy-recovery", "RES-02", "L2",
         [HERE / "build/test_bk7258_display_pack", HERE / "build/shaniu-default-v1.bkep"],
         ready=binaries["test_bk7258_display_pack"], marker=False)
+    for variant in ("golden", "invalid", "decode", "malformed", "staging", "unconfirmed_no_replay", "snapshot_identity", "cli_validation"):
+        add(suite, "RES-02.pc-default-" + variant, "RES-02", "L1",
+            [sys.executable, HERE / "test_workbench_selection.py", "SelectionTest.test_" + variant],
+            marker=False, setup_exit_code=2)
+    for variant in ("lifecycle", "cancel", "stale", "recover"):
+        add(suite, "RES-02.pc-default-native-" + variant, "RES-02", "L2",
+            [sys.executable, HERE / "test_pack_trial.py", "pc-default-" + variant],
+            ready=binaries["test_display_upload"], marker=False, setup_exit_code=2)
     for variant in ("success", "invalid", "revoke", "cancel", "refresh", "recover", "product"):
         add(suite, "RES-02.selection-wire-" + variant, "RES-02", "L2",
             [sys.executable, HERE / "test_pack_trial.py", "selection-wire-" + variant],
@@ -1512,6 +1520,8 @@ def main():
         HERE / "test_workbench_resource_flow.py",
         ROOT / "tools/bk7258/_lib/workbench_resources.py",
         ROOT / "tools/bk7258/_lib/workbench_trial.py",
+        ROOT / "tools/bk7258/_lib/workbench_selection.py",
+        HERE / "test_workbench_selection.py",
         HERE / "test_workbench_trial.py",
         HERE / "test_pack_trial.py",
         HERE / "test_pack_trial.c",

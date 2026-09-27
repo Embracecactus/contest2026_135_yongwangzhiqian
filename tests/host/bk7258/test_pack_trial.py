@@ -127,13 +127,28 @@ def main():
                 str(temp / "test"),
                 str(HERE / "build/shaniu-default-v1.bkep"),
                 str(fixture),
-                "--peer",
+                (
+                    "--selection-peer"
+                    if sys.argv[1].startswith("pc-default-")
+                    else "--peer"
+                ),
             ]
             result = subprocess.run(
                 [
                     sys.executable,
-                    str(HERE / "test_workbench_trial.py"),
-                    "PackWireTest.test_" + sys.argv[1].removeprefix("pc-"),
+                    str(
+                        HERE
+                        / (
+                            "test_workbench_selection.py"
+                            if sys.argv[1].startswith("pc-default-")
+                            else "test_workbench_trial.py"
+                        )
+                    ),
+                    (
+                        "NativeTest.test_" + sys.argv[1].removeprefix("pc-default-")
+                        if sys.argv[1].startswith("pc-default-")
+                        else "PackWireTest.test_" + sys.argv[1].removeprefix("pc-")
+                    ),
                 ],
                 env=dict(os.environ, SHANIU_PACK_TEST_PEER=json.dumps(command)),
                 timeout=20,

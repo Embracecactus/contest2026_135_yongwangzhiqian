@@ -592,7 +592,19 @@
     "RES-02.selection-wire-cancel",
     "RES-02.selection-wire-refresh",
     "RES-02.selection-wire-recover",
-    "RES-02.selection-wire-product"
+    "RES-02.selection-wire-product",
+    "RES-02.pc-default-golden",
+    "RES-02.pc-default-invalid",
+    "RES-02.pc-default-decode",
+    "RES-02.pc-default-malformed",
+    "RES-02.pc-default-staging",
+    "RES-02.pc-default-unconfirmed_no_replay",
+    "RES-02.pc-default-snapshot_identity",
+    "RES-02.pc-default-cli_validation",
+    "RES-02.pc-default-native-lifecycle",
+    "RES-02.pc-default-native-cancel",
+    "RES-02.pc-default-native-stale",
+    "RES-02.pc-default-native-recover"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1188,6 +1200,18 @@
     "RES-02.selection-wire-cancel",
     "RES-02.selection-wire-refresh",
     "RES-02.selection-wire-recover",
-    "RES-02.selection-wire-product"
+    "RES-02.selection-wire-product",
+    "RES-02.pc-default-golden",
+    "RES-02.pc-default-invalid",
+    "RES-02.pc-default-decode",
+    "RES-02.pc-default-malformed",
+    "RES-02.pc-default-staging",
+    "RES-02.pc-default-unconfirmed_no_replay",
+    "RES-02.pc-default-snapshot_identity",
+    "RES-02.pc-default-cli_validation",
+    "RES-02.pc-default-native-lifecycle",
+    "RES-02.pc-default-native-cancel",
+    "RES-02.pc-default-native-stale",
+    "RES-02.pc-default-native-recover"
   ]
 }

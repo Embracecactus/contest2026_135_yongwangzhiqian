@@ -888,3 +888,26 @@ filename72..111,snapshot sequence112(u64),reserved120..127 zero. All receipts
 are volatile. Snapshot is global device public resource state, not credentials.
 Invalidation cancels this authority's latest queued/preparing job where possible;
 it cannot undo an already committing save, and does not claim to do so.
+
+### S103: PC default selection commands
+
+`default-status` reads latest-job metadata, not the disk. `default-refresh`
+explicitly requests a storage read; its completed result supplies the current
+revision for `default-set`. Every mutation requires caller-supplied epoch,
+nonzero operation nonce and expected job ID; set additionally requires the
+installed canonical filename and expected durable revision. No automatic write,
+resume, credential fallback or request replay follows a timeout. Keeping these
+public request arguments lets the caller query the latest volatile receipt.
+
+Status may match expected epoch, operation nonce and job ID. Identity mismatch,
+malformed fields or incoherent snapshot sequence leaves the result unconfirmed
+and closes the client; it does not send any mutation. Pending acceptance cannot
+report saved/rendered. Recovery clears release_error only when reported by the
+device; UNKNOWN stays UNKNOWN and is not upgraded to rendered/done. `saved`
+and `rendered` mean device-reported confirmations, not physical screen proof.
+
+Host tests use independent ESC1 bytes and ESS1 fields, external transport faults,
+and real Python _exchange -> native SDC1/controller/worker/store/renderer. The
+native peer replaces TLS/USB transport with pipes and uses synthetic credentials;
+separate existing TLS/guard regressions remain required. No single physical or
+production-TLS-to-default-renderer path is claimed by the pipe integration.

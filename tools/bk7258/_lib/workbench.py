@@ -346,6 +346,79 @@ class ControlClient:
             self.close()
             raise ControlError("Trial read unconfirmed; no request replayed") from None
 
+    def selection_request(
+        self, action, epoch, nonce, expected_id, revision=None, filename=None
+    ):
+        from . import workbench_selection
+
+        record = workbench_selection.encode(
+            action, epoch, nonce, expected_id, revision, filename
+        )
+        if self.closed or not self.authenticated:
+            raise ControlError("PC authentication is required")
+        try:
+            deadline = self._now() + self._timeout
+            self._exchange(16, struct.pack(">II", 17, len(record)), deadline)
+            for offset in range(0, len(record), 32):
+                self._exchange(17, record[offset : offset + 32], deadline)
+            self._exchange(18, b"", deadline)
+            return dict(
+                accepted=True,
+                action=action,
+                epoch=epoch,
+                operation_nonce=nonce,
+                expected_job_id=expected_id,
+                completion_verified=False,
+            )
+        except Exception:
+            self.close()
+            raise ControlError(
+                "Default request unconfirmed; query its epoch/nonce before manual retry"
+            ) from None
+
+    def selection_status(
+        self, *, expected_epoch=None, expected_nonce=None, expected_id=None
+    ):
+        from . import workbench_selection
+        import uuid
+
+        workbench_selection.validate_query(expected_epoch, expected_nonce, expected_id)
+        if self.closed or not self.authenticated:
+            raise ControlError("PC authentication is required")
+        try:
+            deadline = self._now() + self._timeout
+            query = uuid.uuid4().bytes
+
+            def chunk(offset):
+                total, *words = self._exchange(
+                    15, struct.pack(">I", 17 << 16 | offset) + query, deadline
+                )
+                if total != 128:
+                    raise ControlError("Invalid selection snapshot size")
+                return struct.pack(">4I", *words)
+
+            data = b"".join(chunk(offset) for offset in range(0, 128, 16))
+            if chunk(112) != data[112:]:
+                raise ControlError("Selection snapshot changed during read")
+            result = workbench_selection.decode(data)
+            if (
+                (expected_epoch is not None and result["epoch"] != expected_epoch)
+                or (
+                    expected_nonce is not None
+                    and result["operation_nonce"] != expected_nonce
+                )
+                or (expected_id is not None and result["id"] != expected_id)
+            ):
+                raise ControlError(
+                    "Selection receipt is stale or belongs to another operation"
+                )
+            return result
+        except Exception:
+            self.close()
+            raise ControlError(
+                "Default read unconfirmed; no request replayed"
+            ) from None
+
     def _resource_deadline(self, deadline):
         now = self._now()
         if deadline is not None and (
@@ -465,6 +538,11 @@ def add_arguments(parser):
             "trial-start",
             "trial-status",
             "trial-cancel",
+            "default-status",
+            "default-refresh",
+            "default-set",
+            "default-cancel",
+            "default-recover",
             "resource-status",
             "resource-upload",
             "resource-resume",
@@ -517,7 +595,24 @@ def add_arguments(parser):
     )
     parser.add_argument(
         "--pack-filename",
-        help="Already installed .bkep name; trial only, never a local path/default",
+        help="Installed .bkep name for trial-start or default-set; never a local path",
+    )
+    parser.add_argument(
+        "--selection-epoch", help="32 lowercase hex scope from default-status"
+    )
+    parser.add_argument(
+        "--selection-nonce",
+        help="Explicit nonzero 32-hex operation ID; retain for status/retry",
+    )
+    parser.add_argument(
+        "--expected-selection-id",
+        type=int,
+        help="Latest selection job ID in this scope",
+    )
+    parser.add_argument(
+        "--expected-default-revision",
+        type=int,
+        help="Durable version from completed explicit refresh",
     )
     parser.add_argument("--port")
     parser.add_argument("--profile", type=Path)
@@ -574,6 +669,10 @@ def _credentials(args):
 
 def run(args):
     resource_plan = None
+    if args.operation.startswith("default-"):
+        from . import workbench_selection
+
+        workbench_selection.prepare(args)
     if args.operation.startswith("trial-"):
         from . import workbench_trial
 
@@ -619,6 +718,8 @@ def run(args):
             )
             client.start(key)
             key[:] = bytes(len(key))
+            if args.operation.startswith("default-"):
+                return workbench_selection.perform(client, args)
             if args.operation == "trial-status":
                 return client.trial_status()
             if args.operation in ("trial-start", "trial-cancel"):

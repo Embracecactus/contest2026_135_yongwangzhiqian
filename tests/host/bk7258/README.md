@@ -2966,3 +2966,28 @@ entropy宏编译错误单独记测试错误/SETUP_ERROR，原日志保留，不�
 下一片接PC命令/回执，再接手机共用服务与原生UI；active/2迁移、现场与
 最终发布门槛仍开放。证据：`acceptance/s102-20260927.json`、
 `s102-selection-protocol-evidence-20260927.json`。
+
+### S103：PC默认选择命令与真实原生路径（2026-09-27）
+
+现有workbench新增default-status/refresh/set/cancel/recover。写入必须明确
+指定epoch、操作nonce、预期任务ID；set还需预期持久版本和已安装包名。
+查询只读最近任务；刷新才读盘。ACK仅受理，保存、渲染、取消、恢复分别
+表达，UNKNOWN不因释放成功升级为DONE。快照seq复验及可选epoch/nonce/ID
+匹配拒绝旧结果；异常关客户端，不重发/回退。参数在凭据/端口访问前校验。
+
+先写8个独立codec/client规格，初始缺模块记BLOCKED_INTERFACE；再实现并
+补4条真实Python _exchange→原生SDC1/协议/worker/store/renderer流程。
+pipe替换TLS/USB，外部umount可失败，真实像素/写入/版本用于观察；不替换
+生产状态机。覆盖刷新后设默认与幂等重放、取消后旧请求、旧持久版本失败、
+保存成功但释放失败后恢复及刷新。既有真实TLS/PC权限套件分开通过，不称
+同一条生产TLS/实板默认渲染流程已经完成。
+
+冻结604PASS=原63（含2恢复）+541累计新增；本轮12新ID，19门禁、原2
+变异保持。另1个把pending报已保存的变异被检出，恢复后通过，单独计数。
+全部输入哈希一致，完整运行期间源未变。固件/App/依赖/资源与父提交相同，
+本片不重复AP构建、不操作设备；CLI帮助/分层及black24.10.0通过。新增
+Python对象实际峰值/CPU与物理吞吐未测，不把定长协议大小当内存实测。
+
+使用步骤见tools/bk7258/README.md；手机接线、原生UI/浏览器工作台、active/2
+迁移、现场/组合/发布仍开放。证据：`acceptance/s103-20260927.json`、
+`s103-pc-selection-evidence-20260927.json`。

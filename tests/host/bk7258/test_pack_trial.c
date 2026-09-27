@@ -217,15 +217,29 @@ static void wire_case(struct bkdisplay_service_s *service,const char *variant)
   bkcontrol_session_close(&wire);
 }
 /* Host transport peer only: protocol, trial, store and pixels stay real. */
-static void client_peer(struct bkdisplay_service_s *service)
+static void client_peer(struct bkdisplay_service_s *service,bool selection)
 {
   uint8_t key[32]={1};char line[513];
   unsigned initial_writes=writes;
+  if(selection){uint8_t epoch[16]={7};assert(bkselection_control_bind(&selection_control,epoch)==0);}
   assert(bkcontrol_session_open(&wire,key,execute,NULL)==0);
   assert(bkcontrol_session_set_config_handler(&wire,config)==0);
   while(fgets(line,sizeof(line),stdin))
     {
-      if(!strcmp(line,"step\n"))
+      if(selection && !strcmp(line,"fail-unmount\n"))
+        {fail_unmount=true;puts("FAULT_READY");}
+      else if(selection && !strcmp(line,"stats\n"))
+        {printf("STATS %u %u %u %u\n",writes-initial_writes,frames,mounts,unmounts);}
+      else if(selection && !strcmp(line,"step\n"))
+        {
+          struct bkdisplay_selection_status_s current;
+          assert(bk7258_display_selection_status(&current)==0);
+          expect_green=!strcmp(current.version.filename,"shaniu-upload-v1.bkep");
+          (void)bkdisplay_selection_recover_step(service);
+          (void)bkdisplay_selection_step(service,true);
+          printf("SELECT %u %u\n",writes-initial_writes,frames);
+        }
+      else if(!strcmp(line,"step\n"))
         {
           struct bkdisplay_trial_status_s current;
           assert(bk7258_display_trial_status(&current)==0);
@@ -513,7 +527,9 @@ int main(int argc,char **argv)
   if(!strncmp(argv[3],"selection-",10))
     {selection_case(&service,argv[3]);baseline_writes=writes;}
   else if(!strcmp(argv[3],"--peer"))
-    client_peer(&service);
+    client_peer(&service,false);
+  else if(!strcmp(argv[3],"--selection-peer"))
+    {client_peer(&service,true);baseline_writes=writes;}
   else if(!strncmp(argv[3],"wire-",5))
     wire_case(&service,argv[3]);
   else if(!strcmp(argv[3],"invalid"))

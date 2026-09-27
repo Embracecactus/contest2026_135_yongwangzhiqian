@@ -1,0 +1,13 @@
+F
+======================================================================
+FAIL: test_decode (test_workbench_selection.SelectionTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_selection.py", line 111, in test_decode
+    self.assertFalse(
+AssertionError: True is not false
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (failures=1)
