@@ -229,6 +229,7 @@ class MainActivity : Activity() {
     private var pcConfirmation: android.app.AlertDialog? = null
     private var pcReceiptDevice = ""
     private var pcReceiptTransaction: String? = null
+    private var pcReceiptTarget: com.shaniu.companion.provision.PcAuthorizationController.Target? = null
     private var nfcEditor: com.shaniu.companion.provision.NfcBindingController? = null
     private var focusMinutesDraft = "25"
     private var focusEditor: com.shaniu.companion.provision.FocusTimerController? = null
@@ -287,6 +288,13 @@ class MainActivity : Activity() {
         focusMinutesDraft = savedInstanceState?.getString("focus_minutes_draft") ?: "25"
         pcReceiptDevice = savedInstanceState?.getString("pc_receipt_device").orEmpty()
         pcReceiptTransaction = savedInstanceState?.getString("pc_receipt_transaction")
+        pcReceiptTarget = savedInstanceState?.let { saved ->
+            val client = saved.getString("pc_receipt_client")
+            val revision = saved.getString("pc_receipt_revision")?.toULongOrNull()
+            if (client != null && revision != null)
+                com.shaniu.companion.provision.PcAuthorizationController.Target(client, saved.getInt("pc_receipt_caps", -1), revision)
+            else null
+        }
         nfcMinutesDraft = savedInstanceState?.getString("nfc_minutes_draft") ?: "25"
         nfcSlotDraft = (savedInstanceState?.getInt("nfc_slot_draft", 0) ?: 0).coerceIn(0, 7)
         expressionPreview = savedInstanceState?.getInt("expression_preview", 0) ?: 0
@@ -2430,7 +2438,7 @@ class MainActivity : Activity() {
     private fun showPcAuthorization() {
         if (!configAvailable() || settingsEditor != null || factoryReset != null) return
         val device = provisionedDeviceId
-        if (pcReceiptDevice != device) { pcReceiptDevice = device; pcReceiptTransaction = null }
+        if (pcReceiptDevice != device) { pcReceiptDevice = device; pcReceiptTransaction = null; pcReceiptTarget = null }
         showCompanionSheet("电脑授权", "由你决定，谁可以和傻妞协作。", done = false, onClosed = {
             pcConfirmation?.dismiss(); pcConfirmation = null
             pcEditor?.close(); pcEditor = null
@@ -2470,8 +2478,8 @@ class MainActivity : Activity() {
             }
             button("返回") { dialog.dismiss() }.apply { isEnabled = true; alpha = 1f }
             pcEditor = com.shaniu.companion.provision.PcAuthorizationController(directSession,
-                resumeTransaction = pcReceiptTransaction, changed = { state ->
-                    pcReceiptDevice = device; pcReceiptTransaction = state.transaction
+                resumeTransaction = pcReceiptTransaction, resumeTarget = pcReceiptTarget, changed = { state ->
+                    pcReceiptDevice = device; pcReceiptTransaction = state.transaction; pcReceiptTarget = state.target
                     status.text = state.message
                     val value = state.snapshot
                     details.text = when {
@@ -4287,6 +4295,11 @@ class MainActivity : Activity() {
         outState.putString("focus_minutes_draft", focusMinutesDraft)
         outState.putString("pc_receipt_device", pcReceiptDevice)
         outState.putString("pc_receipt_transaction", pcReceiptTransaction)
+        pcReceiptTarget?.let {
+            outState.putString("pc_receipt_client", it.client)
+            outState.putString("pc_receipt_revision", it.revision.toString())
+            outState.putInt("pc_receipt_caps", it.capabilities)
+        }
         outState.putString("nfc_minutes_draft", nfcMinutesDraft)
         outState.putInt("nfc_slot_draft", nfcSlotDraft)
         outState.putInt("navigation", currentTab)

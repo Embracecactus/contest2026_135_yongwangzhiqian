@@ -5,19 +5,20 @@ import java.nio.ByteBuffer
 import java.security.SecureRandom
 
 /** Phone-owned PC authorization view. The device owns persistence and receipts.
- * A transaction identifier is public query data; no PC key enters this view.
+ * Public state contains only transaction and principal metadata, never a PC key.
  */
 internal class PcAuthorizationController(
     private val session: DeviceControlSession,
     private val transactionId: () -> ByteArray = { ByteArray(16).also { SecureRandom().nextBytes(it) } },
     resumeTransaction: String? = null,
+    resumeTarget: Target? = null,
     private val changed: (State) -> Unit,
 ) : AutoCloseable {
     data class Snapshot(val active: Boolean, val configRevision: ULong, val grantRevision: ULong,
                         val capabilities: Int, val client: String, val transaction: String)
     enum class Outcome { NONE, PENDING, UNKNOWN, FAILED, CONFIRMED }
     data class State(val snapshot: Snapshot?, val busy: Boolean, val outcome: Outcome,
-                     val transaction: String?, val message: String)
+                     val transaction: String?, val message: String, val target: Target?)
     private enum class Phase { IDLE, VIEW, VERIFY, BEGIN, APPEND, APPLY, RECEIPT }
     private var phase = Phase.IDLE
     private var snapshot: Snapshot? = null
@@ -27,7 +28,13 @@ internal class PcAuthorizationController(
     private val data = ByteArray(64)
     private var offset = 0
     private var request: ByteArray? = null
-    private var verifyRevoke = false
+    private var verifyOutcome = false
+    data class Target(val client: String, val capabilities: Int, val revision: ULong)
+    private var target = resumeTarget?.takeIf {
+        transaction != null && it.revision > 0u && it.capabilities in 0..15 &&
+            it.client.matches(Regex("[0-9a-f]{32}")) &&
+            (it.capabilities != 0) == it.client.any { c -> c != '0' }
+    }
     private var ownsTransaction = false
     private var submitted = transaction != null
     private var active = true
@@ -44,13 +51,13 @@ internal class PcAuthorizationController(
             publish()
         }
     }
-    fun current() = State(snapshot, phase != Phase.IDLE, outcome, transaction.takeIf { submitted }, message)
+    fun current() = State(snapshot, phase != Phase.IDLE, outcome, transaction.takeIf { submitted }, message, target.takeIf { submitted })
     private fun publish() { if (active) changed(current()) }
     private fun available() = active && phase == Phase.IDLE && session.current().authenticated &&
         generation == session.current().generation
     fun refresh(): Boolean {
         if (!available()) return false
-        verifyRevoke = false
+        verifyOutcome = false
         return readView()
     }
     private fun readView(): Boolean {
@@ -60,16 +67,32 @@ internal class PcAuthorizationController(
     }
     /** The caller presents confirmation for this exact verified snapshot. */
     fun revoke(expected: Snapshot): Boolean {
-        if (!available() || snapshot != expected || !expected.active ||
+        if (!expected.active) return false
+        return submit(expected, ByteArray(16), ByteArray(32), 0)
+    }
+    /** Borrowed inputs belong to a separately authenticated PC exchange. The
+     * caller must obtain explicit confirmation for the principal/capabilities;
+     * this method does not create, transfer or persist desktop credentials.
+     */
+    fun grant(expected: Snapshot, client: ByteArray, key: ByteArray, capabilities: Int): Boolean {
+        if (client.size != 16 || client.all { it == 0.toByte() } ||
+            key.size != 32 || key.all { it == 0.toByte() } ||
+            capabilities !in 1..15) return false
+        return submit(expected, client, key, capabilities)
+    }
+    private fun submit(expected: Snapshot, client: ByteArray, key: ByteArray, capabilities: Int): Boolean {
+        if (!available() || snapshot != expected || expected.grantRevision == ULong.MAX_VALUE ||
             outcome in listOf(Outcome.PENDING, Outcome.UNKNOWN)) return false
         val id = transactionId()
         if (id.size != 16 || id.all { it == 0.toByte() }) { id.fill(0); return false }
         val record = ByteBuffer.allocate(88).put("PCW1".toByteArray(Charsets.US_ASCII))
-            .putLong(expected.configRevision.toLong()).putLong(expected.grantRevision.toLong()).put(id).array()
+            .putLong(expected.configRevision.toLong()).putLong(expected.grantRevision.toLong()).put(id)
+            .put(client).put(key).putInt(capabilities).array()
+        target = Target(hex(client), capabilities, expected.grantRevision + 1u)
         transaction = hex(id); id.fill(0)
-        request = record; offset = 0; submitted = false; verifyRevoke = false
+        request = record; offset = 0; submitted = false; verifyOutcome = false
         outcome = Outcome.UNKNOWN; snapshot = null; phase = Phase.BEGIN; ownsTransaction = true
-        message = "正在提交撤销；尚未确认生效"; publish()
+        message = "正在提交电脑授权变更；尚未确认生效"; publish()
         return send(DeviceControlProtocol.Command.CONFIG_BEGIN, ByteBuffer.allocate(8).putInt(14).putInt(88).array())
     }
     fun query(): Boolean {
@@ -163,10 +186,13 @@ internal class PcAuthorizationController(
         }
         snapshot = Snapshot(enabled == 1, config, revision, caps, hex(client), hex(tx))
         phase = Phase.IDLE; message = if (enabled == 1) "已回读：存在电脑授权" else "已回读：没有有效电脑授权"
-        if (verifyRevoke) {
-            outcome = if (enabled == 0 && hex(tx) == transaction) Outcome.CONFIRMED else Outcome.UNKNOWN
-            message = if (outcome == Outcome.CONFIRMED) "撤销已持久保存，并已回读确认" else "回执与当前授权状态不一致，结果未确认"
-            verifyRevoke = false
+        if (verifyOutcome) {
+            val wanted = target
+            outcome = if (wanted != null && hex(tx) == transaction &&
+                revision == wanted.revision && caps == wanted.capabilities && hex(client) == wanted.client)
+                Outcome.CONFIRMED else Outcome.UNKNOWN
+            message = if (outcome == Outcome.CONFIRMED) "授权变更已持久保存，并已回读确认" else "回执与预期授权状态无法核对，结果未确认"
+            verifyOutcome = false
         }
         clearBuffers(); publish()
     }
@@ -178,7 +204,7 @@ internal class PcAuthorizationController(
         }
         phase = Phase.IDLE; clearBuffers()
         when (receiptPhase) {
-            2 -> { verifyRevoke = true; readView(); return }
+            2 -> { verifyOutcome = true; readView(); return }
             1 -> { outcome = Outcome.PENDING; message = "设备仍在处理，请稍后查询回执" }
             3 -> { outcome = Outcome.FAILED; message = "设备确认操作失败（$result），请重新读取当前授权" }
             else -> { outcome = Outcome.UNKNOWN; message = "操作结果未知（$result）；请查询，不会自动重发" }

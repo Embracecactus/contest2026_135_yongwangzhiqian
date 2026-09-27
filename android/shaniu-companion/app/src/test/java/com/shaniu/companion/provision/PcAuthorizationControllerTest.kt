@@ -7,7 +7,7 @@ import org.junit.Test
 
 /** Real controller + Session + SDC1 codec. Only the remote device is a peer. */
 class PcAuthorizationControllerTest {
-    private class Fixture(resume: String? = null) {
+    private class Fixture(resume: String? = null, target: PcAuthorizationController.Target? = null) {
         lateinit var events: DeviceControlSession.Events
         lateinit var protocol: DeviceControlProtocol
         val frames = mutableListOf<ByteArray>()
@@ -33,7 +33,7 @@ class PcAuthorizationControllerTest {
             })
             protocol.start(); reply()
             protocol.request(DeviceControlProtocol.Command.STATUS); reply()
-            controller = PcAuthorizationController(session, { tx.copyOf() }, resume) { observed += it }
+            controller = PcAuthorizationController(session, { tx.copyOf() }, resume, target) { observed += it }
         }
         fun command() = ByteBuffer.wrap(frames.last()).getInt(4)
         fun reply(error: Int = 0, total: Int = 0, chunk: ByteArray? = null) {
@@ -171,4 +171,88 @@ class PcAuthorizationControllerTest {
             p.read(data); assertNull(p.controller.current().snapshot)
         }
     }
+    @Test fun grantUsesIndependentCredentialAndRequiresExactDurableReadback() {
+        val f = Fixture(); assertTrue(f.controller.refresh()); f.read(f.view(false))
+        val client = ByteArray(16) { 12 }; val key = ByteArray(32) { 84 }
+        assertTrue(f.controller.grant(f.controller.current().snapshot!!, client, key, 3))
+        client.fill(0); key.fill(0) // Caller ownership cannot change the queued request.
+        f.reply()
+        val bytes = mutableListOf<Byte>()
+        repeat(3) { bytes += f.frames.last().drop(16); f.reply() }
+        val record = bytes.toByteArray()
+        assertEquals(88, record.size)
+        assertEquals("PCW1", String(record.copyOfRange(0, 4)))
+        assertEquals(3L, ByteBuffer.wrap(record).getLong(4))
+        assertEquals(5L, ByteBuffer.wrap(record).getLong(12))
+        assertArrayEquals(f.tx, record.copyOfRange(20, 36))
+        assertArrayEquals(ByteArray(16) { 12 }, record.copyOfRange(36, 52))
+        assertArrayEquals(ByteArray(32) { 84 }, record.copyOfRange(52, 84))
+        assertEquals(3, ByteBuffer.wrap(record).getInt(84))
+        assertFalse(f.observed.toString().contains("54".repeat(32)))
+        f.reply(); f.receipt(2)
+        assertNotEquals(PcAuthorizationController.Outcome.CONFIRMED, f.controller.current().outcome)
+        val view = f.view(true, 6, f.tx); ByteArray(16) { 12 }.copyInto(view, 32)
+        f.read(view)
+        assertEquals(PcAuthorizationController.Outcome.CONFIRMED, f.controller.current().outcome)
+        assertTrue(f.controller.current().snapshot!!.active)
+    }
+    @Test fun grantRejectsWrongReadbackClientCapabilitiesAndRevision() {
+        for (field in listOf(16, 24, 32, 48)) {
+            val f = Fixture(); f.loaded()
+            assertTrue(f.controller.grant(f.controller.current().snapshot!!, ByteArray(16) { 9 }, ByteArray(32) { 84 }, 3))
+            f.reply(); repeat(3) { f.reply() }; f.reply(); f.receipt(2)
+            val view = f.view(true, 6, f.tx)
+            view[field] = (view[field].toInt() xor 1).toByte()
+            f.read(view)
+            assertNotEquals(PcAuthorizationController.Outcome.CONFIRMED, f.controller.current().outcome)
+        }
+    }
+    @Test fun invalidGrantInputsNeverBeginOrChangeBorrowedKey() {
+        val f = Fixture(); f.loaded(); val before = f.frames.size
+        val key = ByteArray(32) { 84 }; val client = ByteArray(16) { 9 }
+        for (caps in listOf(0, 16, -1)) assertFalse(f.controller.grant(f.controller.current().snapshot!!, client, key, caps))
+        assertFalse(f.controller.grant(f.controller.current().snapshot!!, ByteArray(16), key, 3))
+        assertFalse(f.controller.grant(f.controller.current().snapshot!!, client, ByteArray(32), 3))
+        assertFalse(f.controller.grant(f.controller.current().snapshot!!, client, ByteArray(31), 3))
+        assertEquals(before, f.frames.size)
+        assertArrayEquals(ByteArray(32) { 84 }, key)
+    }
+    @Test fun grantCloseAndDisconnectDoNotReplayOrExposeCredential() {
+        val f = Fixture(); f.loaded()
+        assertTrue(f.controller.grant(f.controller.current().snapshot!!, ByteArray(16) { 9 }, ByteArray(32) { 84 }, 3))
+        f.reply(); repeat(3) { f.reply() }
+        val id = f.controller.current().transaction!!
+        f.events.closed("lost after APPLY"); val count = f.frames.size
+        assertEquals(PcAuthorizationController.Outcome.UNKNOWN, f.controller.current().outcome)
+        f.controller.close(); assertEquals(count, f.frames.size)
+        val restored = Fixture(id); assertTrue(restored.controller.query()); restored.receipt(2)
+        restored.read(restored.view(true, 6, restored.tx))
+        assertNotEquals(PcAuthorizationController.Outcome.CONFIRMED, restored.controller.current().outcome)
+        assertFalse(restored.frames.any { ByteBuffer.wrap(it).getInt(4) in 16..18 })
+    }
+
+    @Test fun restoredPublicTargetConfirmsOnlyMatchingGrantWithoutReplaying() {
+        val f = Fixture(); f.loaded()
+        assertTrue(f.controller.grant(f.controller.current().snapshot!!, ByteArray(16) { 9 }, ByteArray(32) { 84 }, 3))
+        assertNull(f.controller.current().target)
+        f.reply(); repeat(3) { f.reply() }
+        val pending = f.controller.current(); assertNotNull(pending.target)
+        f.controller.close()
+        val restored = Fixture(pending.transaction, pending.target)
+        assertTrue(restored.controller.query()); restored.receipt(2)
+        restored.read(restored.view(true, 6, restored.tx))
+        assertEquals(PcAuthorizationController.Outcome.CONFIRMED, restored.controller.current().outcome)
+        assertFalse(restored.frames.any { ByteBuffer.wrap(it).getInt(4) in 16..18 })
+    }
+    @Test fun restoredRevokeTargetAndInvalidMetadataStaySeparate() {
+        val f = Fixture(); f.loaded(); f.apply(); val pending = f.controller.current()
+        val restored = Fixture(pending.transaction, pending.target)
+        assertTrue(restored.controller.query()); restored.receipt(2); restored.read(restored.view(false, 6, restored.tx))
+        assertEquals(PcAuthorizationController.Outcome.CONFIRMED, restored.controller.current().outcome)
+        val invalid = Fixture(pending.transaction, PcAuthorizationController.Target("00".repeat(16), 3, 6u))
+        assertNull(invalid.controller.current().target)
+        assertTrue(invalid.controller.query()); invalid.receipt(2); invalid.read(invalid.view(false, 6, invalid.tx))
+        assertEquals(PcAuthorizationController.Outcome.UNKNOWN, invalid.controller.current().outcome)
+    }
+
 }

@@ -400,7 +400,13 @@
     "USB-01.pc-client-native_port_filter_rejects_uart_without_opening",
     "USB-01.pc-client-cli_invalid_certificate_never_opens_port",
     "USB-01.pc-client-clock_rollback_terminates_without_replay",
-    "USB-01.pc-client-native_adapter_preserves_partial_io_without_global_output_redirect"
+    "USB-01.pc-client-native_adapter_preserves_partial_io_without_global_output_redirect",
+    "provision.PcAuthorizationControllerTest.grantUsesIndependentCredentialAndRequiresExactDurableReadback",
+    "provision.PcAuthorizationControllerTest.grantRejectsWrongReadbackClientCapabilitiesAndRevision",
+    "provision.PcAuthorizationControllerTest.invalidGrantInputsNeverBeginOrChangeBorrowedKey",
+    "provision.PcAuthorizationControllerTest.grantCloseAndDisconnectDoNotReplayOrExposeCredential",
+    "provision.PcAuthorizationControllerTest.restoredPublicTargetConfirmsOnlyMatchingGrantWithoutReplaying",
+    "provision.PcAuthorizationControllerTest.restoredRevokeTargetAndInvalidMetadataStaySeparate"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -804,6 +810,12 @@
     "USB-01.pc-client-native_port_filter_rejects_uart_without_opening",
     "USB-01.pc-client-cli_invalid_certificate_never_opens_port",
     "USB-01.pc-client-clock_rollback_terminates_without_replay",
-    "USB-01.pc-client-native_adapter_preserves_partial_io_without_global_output_redirect"
+    "USB-01.pc-client-native_adapter_preserves_partial_io_without_global_output_redirect",
+    "provision.PcAuthorizationControllerTest.grantUsesIndependentCredentialAndRequiresExactDurableReadback",
+    "provision.PcAuthorizationControllerTest.grantRejectsWrongReadbackClientCapabilitiesAndRevision",
+    "provision.PcAuthorizationControllerTest.invalidGrantInputsNeverBeginOrChangeBorrowedKey",
+    "provision.PcAuthorizationControllerTest.grantCloseAndDisconnectDoNotReplayOrExposeCredential",
+    "provision.PcAuthorizationControllerTest.restoredPublicTargetConfirmsOnlyMatchingGrantWithoutReplaying",
+    "provision.PcAuthorizationControllerTest.restoredRevokeTargetAndInvalidMetadataStaySeparate"
   ]
 }

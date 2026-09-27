@@ -2271,3 +2271,34 @@ phase与result分开；底层已知失败即使返回EAGAIN也必须phase=3，�
   回复，TLS调用/积压设64KiB上界和4096字节块；Python/OpenSSL额外内存及真实CPU、
   OS串口阻塞、USB时延仍未实测。S66偶发TLS问题仍开放；手机授权交换、受保护的PC
   凭据保存、USB产品owner、资源安装/网页/事件入口仍未完成，也未启用真实端口。
+
+### S72 · 手机提交独立 PC 授权与目标回读（2026-09-27）
+
+在 S71 `5222e5a3` 上，先补 `PcAuthorizationControllerTest` 的授权行为，再实现
+真实 Controller → Session → SDC1 的 `grant` 路径；设备端仍使用既有 PCW1/PCS1/PCR1。
+独立 client/key 与权限由后续可信电脑交换入口提供，本片没有配对 UI、密钥生成或传输入口。
+不能把可调用的提交 API 称为用户已能首次授权电脑。
+
+- 88 字节 PCW1 固定编码两种 revision、transaction、client、32 字节 PC key 和权限；
+  输入长度、非零及权限范围先校验。借入数组只复制，不由控制器清除；自有暂存继续按
+  现有提交、失败、关闭路径清除。状态与 Activity 保存数据不含密钥，不声称 JVM 完全擦除。
+- APPLY 回复不是授权完成。只有 PCR1 持久成功且 PCS1 的 transaction、递增后的授权
+  revision、client、capabilities 全部与原操作相符才确认；grant/revoke 共用此规则。
+  断开不重放。需要明确用户确认的调用责任保持，现有 UI 仍仅查看/撤销。
+- 只在 APPLY 已提交时向页面发布公开 Target 元数据，与事务 ID 按设备保存至 Activity
+  状态；重建仅查询，不重传密钥。旧状态只含 transaction、预期缺失或非法时可以回查，
+  但不会把当前状态冒充原操作的目标确认。这是对恢复证据的加强，未改变设备协议。
+- 新增 6 个 JVM 执行 ID；同类原 9 项全部保留，共 15 项。最早缺少 grant 接口的
+  编译失败归 `BLOCKED_INTERFACE`，不是业务 Red。首次组合 Gradle 命令把 `--tests`
+  放在 assembleDebug 后导致命令设置失败，保留日志；调整参数归属后测试和构建通过。
+- 完整当前集合 **406 PASS** = 原 63（内含 2 项恢复复验）+ 新增累计 343；本片新增 6。
+  运行器门禁另计 13 PASS。隔离 Android 副本中漏发 key、忽略目标匹配两项变异被检出，
+  原源码恢复后 15 PASS；不把变异或恢复重复加进 406。测试替换远端 peer，不替换
+  Controller/Session/SDC1；手机到实际 C 设备的新增 grant 纵向互通仍需后续验证。
+- Debug APK 构建通过但未安装。Activity Bundle 接线经编译/源码核对，本片没有新的
+  Activity instrumentation 或真实 BLE 证据。固件、原模型/“我在”、Agent pin 不变。
+  S66 TLS 偶发失败仍开放；PC 配对交换、安全保存、USB owner、工作台资源/事件及实板
+  门槛均未由本片关闭。没有开串口、刷板、按键或清设备数据。
+
+逐例结果：`acceptance/s72-20260927.json`；补充证据：
+`acceptance/s72-pc-grant-evidence-20260927.json`；原始日志：`out/shaniu-s72/`。
