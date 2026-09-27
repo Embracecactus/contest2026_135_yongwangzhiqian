@@ -687,7 +687,18 @@
     "RES-02.catalog-wire-phone-normal",
     "RES-02.catalog-wire-phone-revoke",
     "RES-02.pc-default-catalog_is_not_default_completion",
-    "provision.DefaultSelectionControllerTest.catalogCompletionNeverClaimsDefaultSavedOrEnablesDefaultMutation"
+    "provision.DefaultSelectionControllerTest.catalogCompletionNeverClaimsDefaultSavedOrEnablesDefaultMutation",
+    "RES-02.pc-catalog-golden",
+    "RES-02.pc-catalog-decode",
+    "RES-02.pc-catalog-malformed",
+    "RES-02.pc-catalog-page_order_and_cursor",
+    "RES-02.pc-catalog-staging",
+    "RES-02.pc-catalog-identity_and_snapshot",
+    "RES-02.pc-catalog-validation_before_credentials",
+    "RES-02.web-display-tls-catalog_lifecycle",
+    "RES-02.web-display-tls-catalog_cancel_recovery",
+    "RES-02.web-display-tls-catalog_stale_receipt",
+    "UI-01.catalog-browser-gates"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1378,6 +1389,17 @@
     "RES-02.catalog-wire-phone-normal",
     "RES-02.catalog-wire-phone-revoke",
     "RES-02.pc-default-catalog_is_not_default_completion",
-    "provision.DefaultSelectionControllerTest.catalogCompletionNeverClaimsDefaultSavedOrEnablesDefaultMutation"
+    "provision.DefaultSelectionControllerTest.catalogCompletionNeverClaimsDefaultSavedOrEnablesDefaultMutation",
+    "RES-02.pc-catalog-golden",
+    "RES-02.pc-catalog-decode",
+    "RES-02.pc-catalog-malformed",
+    "RES-02.pc-catalog-page_order_and_cursor",
+    "RES-02.pc-catalog-staging",
+    "RES-02.pc-catalog-identity_and_snapshot",
+    "RES-02.pc-catalog-validation_before_credentials",
+    "RES-02.web-display-tls-catalog_lifecycle",
+    "RES-02.web-display-tls-catalog_cancel_recovery",
+    "RES-02.web-display-tls-catalog_stale_receipt",
+    "UI-01.catalog-browser-gates"
   ]
 }

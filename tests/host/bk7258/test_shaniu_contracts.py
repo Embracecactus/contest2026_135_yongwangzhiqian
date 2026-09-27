@@ -978,6 +978,15 @@ def main():
         add(suite, "RES-02.selection-job-" + variant, "RES-02", "L2",
             [sys.executable, HERE / "test_pack_trial.py", "selection-" + variant],
             ready=binaries["test_display_upload"], setup_exit_code=2)
+    for variant in ("golden", "decode", "malformed", "page_order_and_cursor", "staging", "identity_and_snapshot", "validation_before_credentials"):
+        add(suite, "RES-02.pc-catalog-" + variant, "RES-02", "L1",
+            [sys.executable, HERE / "test_workbench_catalog.py", "CatalogTest.test_" + variant],
+            marker=False, setup_exit_code=2)
+    for variant in ("catalog_lifecycle", "catalog_cancel_recovery", "catalog_stale_receipt"):
+        add(suite, "RES-02.web-display-tls-" + variant, "RES-02", "L2",
+            [sys.executable, HERE / "test_pack_trial.py", "web-display-tls-" + variant], marker=False)
+    add(suite, "UI-01.catalog-browser-gates", "UI-01", "L1",
+        ["node", HERE / "test_workbench_catalog_ui.cjs"])
     for variant in ("normal", "invalid", "revoke", "cancel", "recovery", "product", "phone-normal", "phone-revoke"):
         add(suite, "RES-02.catalog-wire-" + variant, "RES-02", "L2",
             [sys.executable, HERE / "test_pack_trial.py", "catalog-wire-" + variant],

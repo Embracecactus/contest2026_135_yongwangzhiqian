@@ -950,3 +950,36 @@ be presented as a saved/rendered default. Current PC/Android decoders must accep
 this distinction before this firmware is deployed with catalog enabled; older
 strict ESS1 decoders reject the extension. Matching APK/firmware is a release
 gate; no on-device compatibility is inferred from host decoding.
+
+
+### S117: public catalog client and browser workflow
+
+The sole workbench CLI adds catalog-status/page/cancel/recover. Authority epoch,
+operation nonce and expected shared job ID are explicit; --catalog-after is
+only a canonical filename cursor for page requests. Invalid/mixed input fails
+before credentials or port access. Each request uses one BEGIN/3APPEND/APPLY,
+returns accepted only and never reconnects/replays on an uncertain response.
+Status reads one nonce-bound608B snapshot and rechecks its sequence-containing
+chunk; receipt epoch/nonce/ID mismatch closes the connection and returns unknown,
+not an empty list. Entries are strictly ordered/canonical with zero padding;
+more requires a full4-item page. Source SHA remains declared source metadata.
+
+Browser requests traverse the existing authenticated loopback server and sole
+operation worker. GET local state never scans or contacts the device. Explicit
+catalog-status is metadata-only; explicit page creates a device job, and the
+user reads its result. UI lists only a validated available page; pending/error,
+unknown or unconfirmed never become an empty successful catalog. Selection only
+fills the filename field, with no device operation. Next page uses the returned
+cursor and current shared job ID. Any new catalog/default attempt invalidates
+cached shared-state controls before I/O, including a lost POST response followed
+by a late old local snapshot. Shared default/catalog results require fresh reads
+before another domain may mutate. Explicit close recovery leaves UNKNOWN and
+no entries. Each page is an observation, not a frozen whole directory.
+
+This step binds browser HTTP -> real TLS/SDC1 -> production controller/worker/
+store with synthetic identity and controlled transport/hardware. PC grant and
+USB product routing are separately covered; this is not physical native USB,
+real BLE, actual SD or full paired PC acceptance. Native Android catalog picker
+remains separate outstanding work. Browser layout/DOM states and native protocol
+integration are separate evidence layers; no synthetic screenshot is hardware
+proof. No automatic refresh loop, firmware downgrade, MSC or arbitrary file path.

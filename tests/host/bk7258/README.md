@@ -3318,3 +3318,21 @@ source_sha256，不冒充完整文件校验。手机owner和电脑RESOURCES授�
 每个控制器904B，共2个；控制函数静态栈640B非实板高水位，没有新增线程队列。
 证据见`acceptance/s116-20260927.json`、`s116-catalog-wire-evidence-20260927.json`
 及`s116-evidence-20260927/`。未刷板、安装真机或改变设备数据。
+
+
+### S117：电脑目录列表走真实设备作业
+
+`test_workbench_catalog.py CatalogTest`提供7项独立ECC1/ECL1向量与真实客户端
+收发序列；`test_pack_trial.py web-display-tls-catalog_{lifecycle,cancel_recovery,stale_receipt}`
+通过真实HTTP、TLS/SDC1、目录worker/store检查列表、无写入、取消、释放UNKNOWN
+和旧回执拒绝。TLS绑定合成身份，PC配对/授权/原生USB仍是另外的验证边界。
+`node test_workbench_catalog_ui.cjs`执行正式网页JS，DOM和HTTP为外部夹具；先
+复现丢提交响应后旧本地状态重新启用分页，再修为提交前失效，选择零设备写。
+
+完整698PASS保留原687/原63；新增7客户端、3跨层、1JS。19门禁、原2变异，
+额外未用槽位变异检出/恢复单列。Chromium桌面和360px深色、键盘/无溢出检查
+单列，使用合成HTTP状态而非实板。首次缺接口/未接HTTP入口不计有效业务Red。
+无C/Android源码改变，不重复固件构建；未开真实串口/刷板/安装/清数据。
+证据见`acceptance/s117-20260927.json`、`s117-workbench-catalog-evidence-20260927.json`
+及`s117-evidence-20260927/`；截图留在out并记录摘要，临时访问口令不归档。
+原生Android目录选择与真实USB/SD/授权组合仍待执行。

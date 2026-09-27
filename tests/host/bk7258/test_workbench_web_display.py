@@ -148,6 +148,113 @@ class DisplayHttpTest(WebTest):
         self.assertEqual(value["phase"], "returned", value)
         return value["result"]
 
+    def start_catalog(self):
+        value = self.operation("catalog-status")
+        before = self.peer.stats()
+        accepted = self.operation(
+            "catalog-page",
+            selection_epoch=value["epoch"],
+            expected_selection_id=value["id"],
+        )
+        self.assertFalse(accepted["completion_verified"])
+        pending = self.operation(
+            "catalog-status",
+            selection_epoch=accepted["epoch"],
+            selection_nonce=accepted["operation_nonce"],
+        )
+        self.assertEqual(pending["state"], "pending")
+        self.assertEqual(pending["entries"], [])
+        self.assertEqual(self.peer.stats(), before)
+        return pending, before
+
+    def test_catalog_lifecycle(self):
+        pending, before = self.start_catalog()
+        self.peer.external("step")
+        page = self.operation(
+            "catalog-status",
+            selection_epoch=pending["epoch"],
+            selection_nonce=pending["operation_nonce"],
+            expected_selection_id=pending["id"],
+        )
+        self.assertTrue(page["page_available"])
+        self.assertEqual(
+            [x["filename"] for x in page["entries"]], ["shaniu-default-v1.bkep", NAME]
+        )
+        self.assertEqual(self.peer.stats()[:2], before[:2])
+        self.assertEqual(self.peer.stats()[4:], before[4:])
+        stable = self.peer.stats()
+        self.operation("catalog-status")
+        self.assertEqual(self.peer.stats(), stable)
+        self.operation(
+            "catalog-page",
+            selection_epoch=page["epoch"],
+            expected_selection_id=page["id"],
+            catalog_after=NAME,
+        )
+        self.peer.external("step")
+        empty = self.operation("catalog-status")
+        self.assertTrue(empty["page_available"])
+        self.assertEqual(empty["entries"], [])
+        self.assertFalse(empty["more"])
+
+    def test_catalog_cancel_recovery(self):
+        pending, before = self.start_catalog()
+        self.operation(
+            "catalog-cancel",
+            selection_epoch=pending["epoch"],
+            expected_selection_id=pending["id"],
+        )
+        canceled = self.operation("catalog-status")
+        self.assertTrue(canceled["cancel_confirmed"])
+        self.peer.external("step")
+        self.assertEqual(self.peer.stats(), before)
+        pending, before = self.start_catalog()
+        self.peer.external("fail-unmount")
+        self.peer.external("step")
+        unknown = self.operation("catalog-status")
+        self.assertEqual(unknown["state"], "unknown")
+        self.assertEqual(unknown["entries"], [])
+        self.assertEqual(unknown["release_error"], -5)
+        self.operation(
+            "catalog-recover",
+            selection_epoch=unknown["epoch"],
+            expected_selection_id=unknown["id"],
+        )
+        self.peer.external("step")
+        after = self.operation("catalog-status")
+        self.assertEqual(after["state"], "unknown")
+        self.assertEqual(after["release_error"], 0)
+        self.assertFalse(after["page_available"])
+        self.assertEqual(self.peer.stats()[:2], before[:2])
+
+    def test_catalog_stale_receipt(self):
+        pending, before = self.start_catalog()
+        self.peer.external("step")
+        self.operation(
+            "default-refresh",
+            selection_epoch=pending["epoch"],
+            expected_selection_id=pending["id"],
+        )
+        self.peer.external("step")
+        self.next_id += 1
+        code, _ = self.request(
+            "POST",
+            "/api/start",
+            {
+                "id": f"{self.next_id:032x}",
+                "operation": "catalog-status",
+                "params": {
+                    "selection_epoch": pending["epoch"],
+                    "selection_nonce": pending["operation_nonce"],
+                },
+            },
+        )
+        self.assertEqual(code, 202)
+        result = self.wait_result()
+        self.assertEqual(result["phase"], "unconfirmed")
+        self.assertFalse(result.get("result"))
+        self.assertEqual(self.peer.stats()[:2], before[:2])
+
     def start_trial(self, name=NAME):
         value = self.operation("trial-status")
         before = self.peer.stats()

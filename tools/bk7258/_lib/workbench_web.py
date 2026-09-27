@@ -11,7 +11,13 @@ import re
 import secrets
 import threading
 
-from . import workbench, workbench_resources, workbench_selection, workbench_trial
+from . import (
+    workbench,
+    workbench_resources,
+    workbench_selection,
+    workbench_trial,
+    workbench_catalog,
+)
 
 ASSETS = Path(__file__).with_name("workbench_web")
 LIMIT = 190000
@@ -23,6 +29,7 @@ READS = {
     "resource-status",
     "trial-status",
     "default-status",
+    "catalog-status",
     "task-status",
 }
 FIELDS = {
@@ -42,6 +49,18 @@ FIELDS = {
     "default-cancel": {"selection_epoch", "expected_selection_id"},
     "default-recover": {"selection_epoch", "expected_selection_id"},
 }
+FIELDS.update(
+    {
+        "catalog-status": {
+            "selection_epoch",
+            "selection_nonce",
+            "expected_selection_id",
+        },
+        "catalog-page": {"selection_epoch", "expected_selection_id", "catalog_after"},
+        "catalog-cancel": {"selection_epoch", "expected_selection_id"},
+        "catalog-recover": {"selection_epoch", "expected_selection_id"},
+    }
+)
 FIELDS["resource-status"] = {"receipt_id"}
 
 
@@ -117,6 +136,10 @@ class Service:
             )
         if operation.startswith("default-") and operation != "default-status":
             args.selection_nonce = request_id
+        if operation.startswith("catalog-"):
+            if operation != "catalog-status":
+                args.selection_nonce = request_id
+            workbench_catalog.prepare(args)
         if operation.startswith("trial-"):
             workbench_trial.prepare(args)
         if operation.startswith("default-"):

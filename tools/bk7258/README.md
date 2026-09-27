@@ -621,7 +621,7 @@ already observed as done wins over a late local cancel intent. Lost ACKs and
 commit-time rejection remain errors/unknown; they are not reported as canceled.
 The saved receipt remains available for explicit result queries.
 
-This does not yet provide the browser server/page. It does not make a 4096-byte
+The browser entry is described below. This does not make a 4096-byte
 resource request interruptible in the middle of CONFIG staging, guarantee a
 physical USB response latency, or renew the configured deadline/receiver TTL.
 
@@ -638,7 +638,11 @@ python tools/bk7258/bk7258.py workbench serve --port NATIVE_CDC_PORT --profile p
 眼睛包导入、按回执查询/续传/取消、已安装包的限时试用与默认选择，以及导出
 本次公开结果。使用原生文件选择器选择 BKep；导入不自动激活，受理也不等于
 完成。设默认前先读取默认状态、提交刷新，再读取到明确版本；保存后再回读。
-设备上已安装的文件名目前需手填或从成功导入结果取得，尚无目录/版本比对。
+已安装素材可从目录选择，也可手填或从成功导入结果取得；暂不做文件版本比对。
+先点“读取目录状态”，再点“刷新目录”，受理后再次读取状态。仅选择名称不会
+试用或写默认；每页最多4项，有更多时可翻页。目录不是跨页冻结快照。目录任务
+和默认选择共用版本化作业身份，切换操作后须重新读取，旧按钮不会沿用旧状态。
+取消目录读取与重试释放资源是显式设备请求；结果未知或释放失败不显示空目录。
 
 一次只执行一个设备作业。页面轮询只读本地快照；取消按钮只设置意图，由同一
 传输线程在完整分块之间发送取消并回读。页面关闭不会自动撤销设备操作；
@@ -660,3 +664,22 @@ Shell、OTA、清owner或电源操作入口。8个有超时的HTTP连接不共�
 验证边界：HTTP边界、单作业/幂等/取消意图、大整数，以及HTTP→真实客户端TLS→
 原生安装作业已在主机验证。浏览器布局/缺失profile错误路径单列；未声称真实
 USB、板端SD、屏幕或手机共同操作通过。固件必须实际支持对应协议和独立PC授权。
+
+
+### 目录命令与边界
+
+`workbench catalog-status`仅取元数据，不扫描。`catalog-page`必须带本次状态的
+`--selection-epoch`、`--expected-selection-id`和新的`--selection-nonce`；第一页
+省略`--catalog-after`，下一页使用回读的`next_cursor`。`catalog-cancel`和
+`catalog-recover`使用当前目录作业ID，后者只恢复释放，不把UNKNOWN改为成功。
+所有命令沿用同一`--port`与`--profile`，不切MSC，也不打开调试Shell。
+
+```sh
+python tools/bk7258/bk7258.py workbench catalog-status --port NATIVE_CDC_PORT --profile pc.profile
+python tools/bk7258/bk7258.py workbench catalog-page --port NATIVE_CDC_PORT --profile pc.profile --selection-epoch EPOCH_FROM_STATUS --expected-selection-id ID_FROM_STATUS --selection-nonce NEW_32_LOWERCASE_HEX
+```
+
+示例占位符须换成实际非零身份，不能照抄。受理不代表读取完成；随后用
+`catalog-status`并带原epoch/nonce回查，错scope或旧请求会报未确认，不自动重放。
+`source_sha256`只是包的源元数据摘要，不是文件哈希。旧固件不支持则报错，
+不假装设备没有资源。手机原生App目录选择尚未随此电脑入口完成。

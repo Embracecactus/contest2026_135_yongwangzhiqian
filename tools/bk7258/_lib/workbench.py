@@ -419,6 +419,75 @@ class ControlClient:
                 "Default read unconfirmed; no request replayed"
             ) from None
 
+    def catalog_request(self, action, epoch, nonce, expected_id, after=None):
+        from . import workbench_catalog
+
+        record = workbench_catalog.encode(action, epoch, nonce, expected_id, after)
+        if self.closed or not self.authenticated:
+            raise ControlError("PC authentication is required")
+        try:
+            deadline = self._now() + self._timeout
+            self._exchange(16, struct.pack(">II", 18, len(record)), deadline)
+            for offset in range(0, len(record), 32):
+                self._exchange(17, record[offset : offset + 32], deadline)
+            self._exchange(18, b"", deadline)
+            return dict(
+                accepted=True,
+                completion_verified=False,
+                action=action,
+                epoch=epoch,
+                operation_nonce=nonce,
+                expected_job_id=expected_id,
+            )
+        except Exception:
+            self.close()
+            raise ControlError(
+                "Catalog request unconfirmed; query its epoch/nonce before manual retry"
+            ) from None
+
+    def catalog_status(
+        self, *, expected_epoch=None, expected_nonce=None, expected_id=None
+    ):
+        from . import workbench_catalog
+        import uuid
+
+        workbench_catalog.validate_query(expected_epoch, expected_nonce, expected_id)
+        if self.closed or not self.authenticated:
+            raise ControlError("PC authentication is required")
+        try:
+            deadline = self._now() + self._timeout
+            query = uuid.uuid4().bytes
+
+            def chunk(offset):
+                total, *words = self._exchange(
+                    15, struct.pack(">I", 18 << 16 | offset) + query, deadline
+                )
+                if total != 608:
+                    raise ControlError("Invalid catalog snapshot size")
+                return struct.pack(">4I", *words)
+
+            data = b"".join(chunk(offset) for offset in range(0, 608, 16))
+            if chunk(48) != data[48:64]:
+                raise ControlError("Catalog snapshot changed during read")
+            result = workbench_catalog.decode(data)
+            if (
+                (expected_epoch is not None and result["epoch"] != expected_epoch)
+                or (
+                    expected_nonce is not None
+                    and result["operation_nonce"] != expected_nonce
+                )
+                or (expected_id is not None and result["id"] != expected_id)
+            ):
+                raise ControlError(
+                    "Catalog receipt is stale or belongs to another operation"
+                )
+            return result
+        except Exception:
+            self.close()
+            raise ControlError(
+                "Catalog read unconfirmed; no request replayed"
+            ) from None
+
     def _resource_deadline(self, deadline):
         now = self._now()
         if deadline is not None and (
@@ -539,6 +608,10 @@ def add_arguments(parser):
             "trial-start",
             "trial-status",
             "trial-cancel",
+            "catalog-status",
+            "catalog-page",
+            "catalog-cancel",
+            "catalog-recover",
             "default-status",
             "default-refresh",
             "default-set",
@@ -597,6 +670,9 @@ def add_arguments(parser):
     parser.add_argument(
         "--pack-filename",
         help="Installed .bkep name for trial-start or default-set; never a local path",
+    )
+    parser.add_argument(
+        "--catalog-after", help="Last canonical filename from preceding catalog page"
     )
     parser.add_argument(
         "--selection-epoch", help="32 lowercase hex scope from default-status"
@@ -685,6 +761,12 @@ def run(args, *, observe=None, cancel_requested=None):
 
         return workbench_web.serve(args)
     resource_plan = None
+    if args.operation.startswith("catalog-"):
+        from . import workbench_catalog
+
+        workbench_catalog.prepare(args)
+    elif getattr(args, "catalog_after", None) is not None:
+        raise ControlError("Catalog cursor cannot be used by another operation")
     if args.operation.startswith("default-"):
         from . import workbench_selection
 
@@ -734,6 +816,8 @@ def run(args, *, observe=None, cancel_requested=None):
             )
             client.start(key)
             key[:] = bytes(len(key))
+            if args.operation.startswith("catalog-"):
+                return workbench_catalog.perform(client, args)
             if args.operation.startswith("default-"):
                 return workbench_selection.perform(client, args)
             if args.operation == "trial-status":
