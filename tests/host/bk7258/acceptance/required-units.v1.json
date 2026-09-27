@@ -647,7 +647,12 @@
     "USB-02.browser-page_headers_and_no_credential_paths",
     "USB-02.browser-invalid_upload_does_not_open_device",
     "USB-02.browser-http_upload_reaches_tls_and_native_installer",
-    "USB-02.browser-large_counters_preserve_exact_value"
+    "USB-02.browser-large_counters_preserve_exact_value",
+    "RES-02.web-display-tls-trial_expiry",
+    "RES-02.web-display-tls-trial_cancel",
+    "RES-02.web-display-tls-missing_pack",
+    "RES-02.web-display-tls-default_supersedes_trial",
+    "RES-02.web-display-tls-release_recovery_stays_unknown"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1298,6 +1303,11 @@
     "USB-02.browser-page_headers_and_no_credential_paths",
     "USB-02.browser-invalid_upload_does_not_open_device",
     "USB-02.browser-http_upload_reaches_tls_and_native_installer",
-    "USB-02.browser-large_counters_preserve_exact_value"
+    "USB-02.browser-large_counters_preserve_exact_value",
+    "RES-02.web-display-tls-trial_expiry",
+    "RES-02.web-display-tls-trial_cancel",
+    "RES-02.web-display-tls-missing_pack",
+    "RES-02.web-display-tls-default_supersedes_trial",
+    "RES-02.web-display-tls-release_recovery_stays_unknown"
   ]
 }

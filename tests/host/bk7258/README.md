@@ -3189,3 +3189,21 @@ Controller仅多40字节请求内容及一个分片偏移；每片<=32，仍为�
 见`acceptance/s110-20260927.json`、`s110-browser-workbench-evidence-20260927.json`
 及`s110-evidence-20260927/`。浏览器截图留在忽略的out目录，记录摘要；启动
 访问口令的临时日志不归档。使用方法在`tools/bk7258/README.md`本机工作台章节。
+
+
+### S111：工作台HTTP试用与默认选择纵向验证
+
+`test_pack_trial.py web-display-tls-{trial_expiry,trial_cancel,missing_pack,default_supersedes_trial,release_recovery_stays_unknown}`
+复用生产TLS/Session、试用/默认选择、存储和渲染。每个HTTP操作真实重连TLS，
+同一native进程保持显示状态；只替换外部传输、时钟、工作调度、挂载与帧输出。
+固定authority直接绑定不等于真实PC授权存储/product路由/USB端口已经组合通过。
+
+独立检查默认文件/版本/写入次数、每屏像素和帧数；ACK之前后不混同渲染完成，
+取消须真实恢复，新默认不被迟到试用到期覆盖，卸载恢复不把UNKNOWN伪装成功。
+现有实现基线即绿，无产品代码修改。隔离漏第二屏输出变异产生有效断言失败，
+恢复通过。五例共用新连接夹具，原Android TLS用例回归保留。
+
+完整652PASS＝原63（含2恢复）＋589累计新增，原647标识保留；19门禁、原2
+变异保持；新增1渲染变异和1恢复单列，不混入652。见`acceptance/s111-20260927.json`、
+`s111-web-display-evidence-20260927.json`及`s111-evidence-20260927/`。未执行实体
+USB/屏幕或新增浏览器DOM验收，不把这些主机结果当M4/M5完成。

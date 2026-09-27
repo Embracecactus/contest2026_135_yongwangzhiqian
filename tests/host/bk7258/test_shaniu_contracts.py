@@ -894,6 +894,9 @@ def main():
     for variant in ('http_authority_rejects_before_operation', 'polling_is_local_and_duplicate_is_not_replayed', 'cancel_is_intent_not_remote_completion', 'page_headers_and_no_credential_paths', 'invalid_upload_does_not_open_device', 'http_upload_reaches_tls_and_native_installer', 'large_counters_preserve_exact_value'):
         add(suite, "USB-02.browser-" + variant, "USB-02", "L2",
             [sys.executable, HERE / "test_workbench_web.py", "WebTest.test_" + variant], marker=False)
+    for variant in ('trial_expiry', 'trial_cancel', 'missing_pack', 'default_supersedes_trial', 'release_recovery_stays_unknown'):
+        add(suite, "RES-02.web-display-tls-" + variant, "RES-02", "L2",
+            [sys.executable, HERE / "test_pack_trial.py", "web-display-tls-" + variant], marker=False)
     for variant in ("golden", "invalid", "snapshot", "staging", "failure", "deadline", "cli"):
         add(suite, "RES-03.client-" + variant, "RES-03", "L1",
             [sys.executable, HERE / "test_workbench_resources.py",
@@ -1548,6 +1551,7 @@ def main():
         HERE / "test_workbench_client.py",
         HERE / "test_workbench_tasks.py",
         HERE / "test_workbench_web.py",
+        HERE / "test_workbench_web_display.py",
         ROOT / "tools/bk7258/_lib/workbench_web.py",
         ROOT / "tools/bk7258/_lib/workbench_web/index.html",
         ROOT / "tools/bk7258/_lib/workbench_web/app.js",

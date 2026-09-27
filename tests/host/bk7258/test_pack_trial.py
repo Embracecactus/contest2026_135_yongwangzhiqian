@@ -102,7 +102,9 @@ def main():
             + hashlib.sha256(fixture.read_bytes()).hexdigest(),
             flush=True,
         )
-        tls = sys.argv[1].startswith(("android-default-tls-", "android-trial-tls-"))
+        tls = sys.argv[1].startswith(
+            ("android-default-tls-", "android-trial-tls-", "web-display-tls-")
+        )
         tls_flags = []
         if tls:
             from tls_test_identity import issue
@@ -190,6 +192,28 @@ def main():
             ],
             check=True,
         )
+        if sys.argv[1].startswith("web-display-tls-"):
+            command = [
+                str(temp / "test"),
+                str(HERE / "build/shaniu-default-v1.bkep"),
+                str(fixture),
+                "--selection-tls-peer",
+            ]
+            return subprocess.run(
+                [
+                    sys.executable,
+                    str(HERE / "test_workbench_web_display.py"),
+                    "DisplayHttpTest.test_"
+                    + sys.argv[1].removeprefix("web-display-tls-"),
+                ],
+                timeout=40,
+                env=dict(
+                    os.environ,
+                    SHANIU_WEB_DISPLAY_PEER=json.dumps(command),
+                    SHANIU_TEST_CERT=str(temp / "cert.pem"),
+                    SHANIU_TEST_KEY=str(temp / "key.pem"),
+                ),
+            ).returncode
         if tls:
             import time
 

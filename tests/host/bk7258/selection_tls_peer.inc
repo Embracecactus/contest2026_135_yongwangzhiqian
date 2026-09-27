@@ -53,6 +53,7 @@ static void selection_tls_peer(struct bkdisplay_service_s *service)
   const uint8_t owner[32] = {42}, epoch[16] = {7};
   char line[513];
   unsigned initial_writes = writes;
+  bool connected = true;
   mbedtls_x509_crt_init(&cert);
   mbedtls_pk_init(&key);
   mbedtls_entropy_init(&entropy);
@@ -70,9 +71,26 @@ static void selection_tls_peer(struct bkdisplay_service_s *service)
   fflush(stdout);
   while (fgets(line, sizeof(line), stdin))
     {
-      if (!strncmp(line, "wire ", 5))
+      if (!strcmp(line, "disconnect\n"))
+        {
+          assert(connected);
+          bkcontrol_pair_close(&pair);
+          connected = false;
+          tls_received = 0;
+        }
+      else if (!strcmp(line, "connect\n"))
+        {
+          assert(!connected);
+          memset(&pair, 0, sizeof(pair));
+          assert(bkcontrol_pair_start(&pair, 1, &cert, &key, owner, tls_now,
+                                     NULL, execute, NULL) == 0);
+          assert(bkcontrol_session_set_config_handler(&pair.session, config) == 0);
+          connected = true;
+        }
+      else if (!strncmp(line, "wire ", 5))
         {
           size_t n = strcspn(line + 5, "\n");
+          assert(connected);
           assert(n && n % 2 == 0 && n / 2 <= 20);
           assert(tls_received + n / 2 <= sizeof(tls_input));
           for (size_t i = 0; i < n / 2; i++)
@@ -107,7 +125,7 @@ static void selection_tls_peer(struct bkdisplay_service_s *service)
         }
       else if (!strcmp(line, "fail-unmount\n")) fail_unmount = true;
       else assert(!strcmp(line, "poll\n") || !strcmp(line, "stats\n"));
-      assert(bkcontrol_pair_step(&pair) >= 0);
+      if (connected) assert(bkcontrol_pair_step(&pair) >= 0);
       if (!strcmp(line, "stats\n"))
         {
           struct bkdisplay_selection_version_s version;
