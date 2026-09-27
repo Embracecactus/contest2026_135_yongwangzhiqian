@@ -35,7 +35,19 @@ class ProvisionTlsTest(unittest.TestCase):
             (temp / "include/nuttx/config.h").write_text("")
             with (temp / "build.log").open("w+") as log:
 
+                tape_sequence = 0
+
                 def run(args, env=None):
+                    nonlocal tape_sequence
+                    tape = None
+                    # Observe real randomness only in the synthetic C fixture.
+                    # Peer subprocesses have separate lifetimes and are not taped.
+                    if str(args[0]) == str(temp / "test"):
+                        tape = temp / f"tls-random-{tape_sequence}.bin"
+                        tape_sequence += 1
+                        env = dict(os.environ if env is None else env)
+                        env.pop("SHANIU_TLS_TAPE_REPLAY", None)
+                        env["SHANIU_TLS_TAPE_RECORD"] = str(tape)
                     result = subprocess.run(
                         [str(a) for a in args], stdout=log, stderr=log, env=env
                     )
@@ -71,6 +83,7 @@ class ProvisionTlsTest(unittest.TestCase):
                                 for name in (
                                     "tests/host/bk7258/test_provision_tls.c",
                                     "tests/host/bk7258/test_provision_tls.py",
+                                    "tests/host/bk7258/tls_entropy_tape.c",
                                     "app/bk7258/bk7258_provision_tls.c",
                                 )
                             },
@@ -79,6 +92,19 @@ class ProvisionTlsTest(unittest.TestCase):
                             metadata["public_certificate_pem_sha256"] = hashlib.sha256(
                                 (temp / "cert.pem").read_bytes()
                             ).hexdigest()
+                        if tape is not None and tape.is_file():
+                            retained = failure_root / "tls-random.bin"
+                            shutil.copyfile(tape, retained)
+                            retained.chmod(0o600)
+                            metadata["synthetic_random_tape"] = {
+                                "file": retained.name,
+                                "sha256": hashlib.sha256(
+                                    retained.read_bytes()
+                                ).hexdigest(),
+                                "bytes": retained.stat().st_size,
+                                "replay_environment": "SHANIU_TLS_TAPE_REPLAY",
+                                "scope": "C fixture RNG and time; not external Python peer",
+                            }
                         (failure_root / "failure.json").write_text(
                             json.dumps(metadata, indent=2) + "\n"
                         )
@@ -89,6 +115,12 @@ class ProvisionTlsTest(unittest.TestCase):
                             log.read()[-6000:] + f"\nSynthetic inputs: {failure_root}"
                         )
 
+                run(
+                    [
+                        sys.executable,
+                        ROOT / "tests/host/bk7258/test_tls_entropy_tape.py",
+                    ]
+                )
                 run(
                     [
                         "cc",
@@ -219,6 +251,8 @@ class ProvisionTlsTest(unittest.TestCase):
                         "-I",
                         ROOT / "app/bk7258",
                         ROOT / "tests/host/bk7258/test_provision_tls.c",
+                        ROOT / "tests/host/bk7258/tls_entropy_tape.c",
+                        "-Wl,--wrap=mbedtls_ctr_drbg_random,--wrap=time",
                         ROOT / "tests/host/bk7258/test_control_serial_peer.c",
                         ROOT / "app/bk7258/bk7258_control_serial.c",
                         ROOT / "app/bk7258/bk7258_pc_grants.c",

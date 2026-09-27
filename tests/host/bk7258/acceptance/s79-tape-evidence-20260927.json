@@ -1,0 +1,156 @@
+{
+  "slice": "S79",
+  "kind": "test-only evidence preservation; not a TLS production fix",
+  "parent": "70dd8839e2673faa2cc9b49a3fa2ca6b2e5c2de1",
+  "production_changes": false,
+  "results": {
+    "contracts": {
+      "PASS": 445,
+      "FAIL_ASSERTION": 0,
+      "SETUP_ERROR": 0,
+      "NOT_RUN": 0
+    },
+    "original_63": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "tool_units": {
+      "PASS": 6,
+      "in_contract_denominator": false
+    },
+    "runner_gate": {
+      "PASS": 13,
+      "in_contract_denominator": false
+    },
+    "original_mutations": [
+      {
+        "id": "MSC-01.early-release",
+        "status": "DETECTED",
+        "exit_code": -6,
+        "seconds": 0.007982615032233298,
+        "source": "app/bk7258/bk7258_media_volume.c",
+        "original_sha256": "58ebb18ae63adccf21262253da18f153bbb7c680cc0b64719ca20e8a6d9681c8",
+        "mutant_sha256": "bf298373a95ac54d5587f93ece34a30a7f661a65a969c69db9e27c6570770c57",
+        "expected_assertion": "!mounted",
+        "evidence": "MSC-01.early-release.log"
+      },
+      {
+        "id": "CFG-01.wifi-clears-cloud",
+        "status": "DETECTED",
+        "exit_code": -6,
+        "seconds": 0.06453691399656236,
+        "source": "app/bk7258/bk7258_provision_config.c",
+        "original_sha256": "98f5100ca49ca44e45fe3e5da4bb2da0add7466f0e357a205ca8b1e307a5818e",
+        "mutant_sha256": "4c0c615b8ffc99247b0fd91bd934d3df0409a1180769cb939b2820f9e6f69427",
+        "expected_assertion": "bkcloud_config_decode",
+        "evidence": "CFG-01.wifi-clears-cloud.log"
+      }
+    ],
+    "final_tls_target": "PASS after correcting observer time-call evaluation order; test-only correction, no product contract change"
+  },
+  "experiments": {
+    "sanitizers": {
+      "runs": 64,
+      "nonzero": 0,
+      "scope": "application C modules instrumented; pinned mbedTLS static archives not instrumented; no original failure reproduced"
+    },
+    "seed_and_time": {
+      "runs": 258,
+      "nonzero": 0,
+      "first_two_same_transcript": true,
+      "scope": "isolated exploratory synthetic random source; not production or normal test mode"
+    },
+    "tape_real_tls": [
+      {
+        "variant": "normal",
+        "mode": "gatt",
+        "matched": true,
+        "result": {
+          "exit_code": 0,
+          "stdout": "5b7a6040363b8d8d2e56be1dd15336fbcaf93a91f213bb93742c6700e4e463e0 BKPROV_TLS_HOST_PASS\n",
+          "stderr": ""
+        },
+        "tape_bytes": 6910,
+        "tape_sha256": "eebf575b1e6ffb360cacde45e7ae2101831559d2c6c2613167b6d77848af8094",
+        "tape_mode": "0o600"
+      },
+      {
+        "variant": "normal",
+        "mode": "stream",
+        "matched": true,
+        "result": {
+          "exit_code": 0,
+          "stdout": "c31fad7e96bd50242766ec8740c9a0c8394e4d3e021346b04c522b823e591c58 BKPROV_TLS_HOST_PASS\n",
+          "stderr": ""
+        },
+        "tape_bytes": 20304,
+        "tape_sha256": "b63b2ee8b530d69c992e3753bfb95193a5b7078047bfb381bc135cfd499ed693",
+        "tape_mode": "0o600"
+      },
+      {
+        "variant": "wrong-hostname",
+        "mode": "gatt",
+        "matched": true,
+        "result": {
+          "exit_code": -6,
+          "stdout": "",
+          "stderr": "TLS_HOST_FIRST_ERROR line=873 ret=-9984 verify=4 now=560 stream=0 serial=0\nclient handshake failed: -9984\ntape-wrong-hostname: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s79/tape-wrong-hostname.c:877: main: Assertion `ret == 0 || ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE' failed.\n"
+        },
+        "tape_bytes": 553,
+        "tape_sha256": "a6ab08ef21486a6f1659df1ae86c22f4cd38d9f01f25dde9b0426e282fa40bef",
+        "tape_mode": "0o600"
+      },
+      {
+        "variant": "wrong-hostname",
+        "mode": "stream",
+        "matched": true,
+        "result": {
+          "exit_code": -6,
+          "stdout": "",
+          "stderr": "TLS_HOST_FIRST_ERROR line=873 ret=-9984 verify=4 now=300 stream=1 serial=0\nclient handshake failed: -9984\ntape-wrong-hostname: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s79/tape-wrong-hostname.c:877: main: Assertion `ret == 0 || ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE' failed.\n"
+        },
+        "tape_bytes": 553,
+        "tape_sha256": "e83cd8a55ddc61fe76b89ae712ce703945b5d818b45038203360aa543c560eba",
+        "tape_mode": "0o600"
+      }
+    ],
+    "automatic_failure_retention": {
+      "expected_negative_exit": -6,
+      "tape": {
+        "file": "tls-random.bin",
+        "sha256": "e0e14700ed7cebdefe813f79a3125c16e76c10ecef6ffac80e31816613155853",
+        "bytes": 553,
+        "replay_environment": "SHANIU_TLS_TAPE_REPLAY",
+        "scope": "C fixture RNG and time; not external Python peer"
+      },
+      "retained_replay": "same hostname verification error -9984 / verify 4 and assertion, exit -6",
+      "original_fault_reproduced": false
+    }
+  },
+  "limits": [
+    "S66/S75/S76 original failure remains OPEN",
+    "Only direct C fixture RNG/time are recorded; external Python TLS peer and real serial scheduler are not reproducible by this tape",
+    "No USB product lifecycle activation, firmware build, phone install or board operation",
+    "Capture is limited to 8 MiB and fails explicitly; record O_EXCL mode0600; successful temporary fixtures removed",
+    "Diagnostic binary tape contains synthetic secret material; ignored local out only; never publish it",
+    "clang-format14 unavailable; no C formatter pass claimed; compiler Wall/Wextra/Werror and Python black24.10.0 pass for new tools"
+  ],
+  "source_sha256": {
+    "tests/host/bk7258/tls_entropy_tape.c": "8d3d0700c979384453575d4a3f6e60eebac0fe4d10068e24f3b617fecae06b45",
+    "tests/host/bk7258/test_tls_entropy_tape.py": "8ca944430a2cf0f4ae7cfd6e5eb059685d090aeb35bb32ca7e3749c3f56d14c1",
+    "tests/host/bk7258/test_provision_tls.py": "022197442b914f3e92770a0371525fc4af24f9f71658ec3ca4833d49d3a7dd07"
+  },
+  "logs": {
+    "replay-build-first.log": "f210b4fb24b068167551b087673f56a292636ea1bf3131760772af93c4ca4a13",
+    "runner-gate.log": "73343775a7dd0d9d74536331d0e5bfbb1ef2ba28af51e61d16db81c5574587a7",
+    "tape-unit-final.log": "acc85a36a70e993a351303fc128f1c311fe7e7859d63bf1e3615250b29c0d830",
+    "tape-before.log": "d694c7962b2850222ab5226b4961dc112fae9fdfaebc62a8fbd85a0a2973ff23",
+    "negative-retained-replay.log": "55cc969fb7aeba35ec980f7942527dfee686d1447a44e89991e735108f2ef888",
+    "tls-final.log": "ba6df982e16f76493baf99b9b29c81fa3ca15aa083cb04cf94ca6fc71902b107"
+  }
+}

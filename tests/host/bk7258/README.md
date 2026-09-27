@@ -2476,3 +2476,36 @@ AP 增量编译/链接通过。ARM sizeof：source 8 B、lease 64 B、临时快�
 445 通过不覆盖 S66/S75/S76 原 TLS 故障，不关闭其门禁。生产授权 owner 与 lease
 各自真实路径已测，USB 串行产品生命周期尚未接入，不能宣称完整纵向集成。
 没有安装手机、刷板或实板验收；接口/L1-L2/L3 缺口继续分别保留。
+
+### S79 · TLS 失败随机输入与墙钟复放（2026-09-27）
+
+此前保留证书仍不能复放偶发握手，S66/S75/S76继续OPEN。本片只改测试：
+`tls_entropy_tape.c` 仅链接主机TLS夹具，正常记录仍调用真实CTR-DRBG和墙钟，
+按调用种类/长度/返回值保存结果；没有改生产随机源、认证、期限或断言。
+录制文件O_EXCL/0600，总量最多8MiB，错误明确退出86；复放拒绝截断、顺序/长度
+不符及正常结束后的剩余记录。不要把它链接到任何固件，也不要公开二进制tape。
+
+既有 `python3 tests/host/bk7258/test_provision_tls.py` 为每个直接C夹具进程录制，
+成功随临时目录清理；首个失败仍非零并保留 `out/tls-failures/<id>/tls-random.bin`，
+`failure.json` 附文件摘要/大小及源码摘要。目录0700、文件0600。不保存宿主完整
+环境。外部Python PC对端未覆盖，PTY调度及硬件状态也不是本文件能重放的输入。
+
+复放须用匹配源码/固定mbedTLS重新构建同一主机test可执行文件（编译入口在上述
+Python工具），以保留的cert.pem/key.pem和**新的空临时store目录**作原有三个参数，
+设置 `SHANIU_TLS_TAPE_REPLAY=<受限本地tape>`，按failure.json恢复STREAM/SERIAL
+模式；不设置RECORD。不要重跑高层Python入口期望它选择旧tape，该入口创建新夹具。
+秘密材料路径只保留本地；源码、编译选项或调用次序变化可能导致明确的复放不匹配。
+
+完整集合445 PASS，原63均收集；新增工具测试6 PASS、运行器门禁13 PASS另列。
+新增工具用例由既有TLS入口自动执行，不增加产品需求完成率或445分母。
+GATT/stream正常实际TLS录制后复放：返回值和加密轨迹摘要相同；错误主机名两组
+均稳定停在-9984/verify4及原断言（exit -6）。还验证了运行器自动保留的553字节
+反例tape能复放该错误。该反例不是历史偶发问题，不据此销项。
+64组ASan/UBSan（应用模块，未插桩crypto归档）与258次固定随机/墙钟探索未复现；
+最初观察器编译格式错误为SETUP_ERROR单存，不改编译警告门禁。
+
+用例/输入摘要：`acceptance/s79-20260927.json`；诊断证据：
+`acceptance/s79-tape-evidence-20260927.json`；公开日志：
+`acceptance/s79-evidence-20260927/`；其余原日志和私有合成复放材料仅在
+`out/shaniu-s79/`。测试编译通过，Python black24.10.0通过；clang-format14未找到，
+不报告C格式化通过。没有生产代码、manifest或默认资源改动，没有实板操作。

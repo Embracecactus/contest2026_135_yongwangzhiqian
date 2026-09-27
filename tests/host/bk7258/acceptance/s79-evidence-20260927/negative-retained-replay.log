@@ -1,0 +1,3 @@
+TLS_HOST_FIRST_ERROR line=873 ret=-9984 verify=4 now=560 stream=0 serial=0
+client handshake failed: -9984
+tape-wrong-hostname: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s79/tape-wrong-hostname.c:877: main: Assertion `ret == 0 || ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE' failed.
