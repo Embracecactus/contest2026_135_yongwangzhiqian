@@ -1,0 +1,14 @@
+[
+  {
+    "id": "metadata-lock-during-io",
+    "status": "DETECTED",
+    "case": "blocked-cancel",
+    "exit_code": -6
+  },
+  {
+    "id": "ignore-cleanup-error",
+    "status": "DETECTED",
+    "case": "cleanup-failure",
+    "exit_code": -6
+  }
+]

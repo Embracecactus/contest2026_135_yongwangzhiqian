@@ -23,6 +23,10 @@ static int usb_error, usb_stops;
 static bool usb_closed;
 static int product_pc_usb_stop(void)
 { usb_stops++; usb_closed=!usb_error; return usb_error; }
+static int pack_error, pack_stops;
+static bool pack_closed;
+int bk7258_display_job_quiesce(bool stop)
+{ assert(stop); pack_stops++; pack_closed = !pack_error; return pack_error; }
 #define CONFIG_BK7258_PRODUCT_KEYS 1
 #define CONFIG_BK7258_PM_SOFT_OFF 1
 #define CONFIG_BK7258_VISION_SERVICE 1
@@ -246,6 +250,19 @@ int main(int argc, char **argv)
       assert(config_steps > before && cp_calls == 0 && reopens == 0);
       puts("CONTRACT_PASS");
       return 0;
+    }
+  if (!strcmp(argv[1], "pack-busy") || !strcmp(argv[1], "pack-failed"))
+    {
+      bool failed = !strcmp(argv[1], "pack-failed");
+      pack_error = failed ? -EIO : -EAGAIN;
+      assert(product_keys_step(100));
+      assert(pack_stops == 1 && !pack_closed && cp_calls == 0);
+      assert(g_shutdown_failed == failed);
+      pack_error = 0;
+      assert(product_keys_step(101));
+      if (failed) assert(cp_calls == 0);
+      else assert(cp_calls == 1 && pack_closed);
+      puts("CONTRACT_PASS"); return 0;
     }
   if (!strcmp(argv[1], "usb-failed"))
     {

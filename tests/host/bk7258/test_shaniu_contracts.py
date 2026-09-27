@@ -465,6 +465,8 @@ def main():
         "test_shaniu_focus_pixels",
         "test_shaniu_focus_render",
         "test_display_upload",
+        "test_display_job",
+        "test_display_job_service",
         "test_shaniu_display_snapshot",
         "test_shaniu_display_intent",
         "test_shaniu_expression_cancel",
@@ -513,6 +515,17 @@ def main():
             [HERE / "build/test_display_upload",
              HERE / "build/shaniu-default-v1.bkep", variant,
              HERE / "build/upload-second.bkep"], binaries["test_display_upload"])
+    for variant in ("queued-cancel", "expiry", "rollback", "blocked-cancel", "gate",
+                    "release-failure", "cleanup-failure", "commit-cancel", "commit-busy", "success"):
+        add(suite, "RES-01.job-" + variant, "RES-01", "L2",
+            [HERE / "build/test_display_job", HERE / "build/shaniu-default-v1.bkep", variant],
+            binaries["test_display_job"])
+    for variant in ("normal", "start-failure", "mount-failure", "unmount-failure", "volume-conflict"):
+        add(suite, "RES-01.native-job-" + variant, "RES-01", "L2",
+            [HERE / "build/test_display_job_service", variant], binaries["test_display_job_service"])
+    add(suite, "RES-01.native-job-success", "RES-01", "L2",
+        [HERE / "build/test_display_job_service", "success", HERE / "build/shaniu-default-v1.bkep"],
+        binaries["test_display_job_service"])
     add(
         suite,
         "DISP-01.power-pixels",
@@ -762,11 +775,11 @@ def main():
         add(suite, "LIFE-01." + variant, "LIFE-01", "L1",
             [HERE / "build/test_shaniu_power_contract", variant],
             binaries["test_shaniu_power_contract"])
-    for variant in ("usb-failed", "usb-close"):
+    for variant in ("usb-failed", "usb-close", "pack-busy", "pack-failed"):
         add(suite, "LIFE-02.power-" + variant, "LIFE-02", "L1",
             [HERE / "build/test_shaniu_power_contract", variant],
             binaries["test_shaniu_power_contract"])
-    for variant in ("usb_failed", "usb_before_identity"):
+    for variant in ("usb_failed", "usb_before_identity", "pack_busy", "pack_failed"):
         add(suite, "RST-02." + variant, "RST-02", "L1",
             [sys.executable, HERE / "test_shaniu_reset_nfc.py",
              "ResetNfcTest.test_" + variant], marker=False)
@@ -1364,6 +1377,12 @@ def main():
         ROOT / "app/bk7258/bk7258_provision_tls.h",
         ROOT / "app/bk7258/bk7258_control_pair.c",
         ROOT / "app/bk7258/bk7258_control_pair.h",
+        HERE / "test_display_job.c",
+        HERE / "test_display_job_service.c",
+        ROOT / "app/bk7258/bk7258_display_job.c",
+        ROOT / "app/bk7258/bk7258_display_job.h",
+        ROOT / "app/bk7258/bk7258_display_job_service.c",
+        ROOT / "app/bk7258/bk7258_display_job_service.h",
         HERE / "test_display_upload.c",
         HERE / "build/shaniu-default-v1.bkep",
         HERE / "build/upload-second.bkep",

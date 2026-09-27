@@ -1,0 +1,37 @@
+..........EE.......EE....
+======================================================================
+ERROR: test_pack_busy (__main__.ResetMotionTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_reset_nfc.py", line 112, in test_pack_busy
+    self.check("""pack_error=-EAGAIN;
+AttributeError: 'ResetMotionTest' object has no attribute 'check'
+
+======================================================================
+ERROR: test_pack_failed (__main__.ResetMotionTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_reset_nfc.py", line 107, in test_pack_failed
+    self.check("""pack_error=-EIO;
+AttributeError: 'ResetMotionTest' object has no attribute 'check'
+
+======================================================================
+ERROR: test_pack_busy (__main__.ResetNfcTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_reset_nfc.py", line 112, in test_pack_busy
+    self.check("""pack_error=-EAGAIN;
+AttributeError: 'ResetNfcTest' object has no attribute 'check'
+
+======================================================================
+ERROR: test_pack_failed (__main__.ResetNfcTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_reset_nfc.py", line 107, in test_pack_failed
+    self.check("""pack_error=-EIO;
+AttributeError: 'ResetNfcTest' object has no attribute 'check'
+
+----------------------------------------------------------------------
+Ran 25 tests in 4.506s
+
+FAILED (errors=4)

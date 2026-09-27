@@ -343,6 +343,26 @@ $(BUILD)/test_display_upload: test_display_upload.c \
 		$(VOICE_PACK_ROOT)/bk7258_display_pack.c $(VOICE_PACK_ROOT)/bk7258_display_store.c \
 		-I $(VOICE_PACK_ROOT) -Wl,--wrap=write,--wrap=fsync,--wrap=close -o $@
 
+$(BUILD)/test_display_job: test_display_job.c $(VOICE_PACK_ROOT)/bk7258_display_job.c \
+	$(VOICE_PACK_ROOT)/bk7258_display_job.h $(VOICE_PACK_ROOT)/bk7258_display_store.c \
+	$(VOICE_PACK_ROOT)/bk7258_display_store.h $(VOICE_PACK_ROOT)/bk7258_display_pack.c \
+	$(DISPLAY_PACK_FIXTURE) | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread test_display_job.c \
+		$(VOICE_PACK_ROOT)/bk7258_display_job.c $(VOICE_PACK_ROOT)/bk7258_display_store.c \
+		$(VOICE_PACK_ROOT)/bk7258_display_pack.c -I $(VOICE_PACK_ROOT) \
+		-Wl,--wrap=write,--wrap=unlink,--wrap=fsync -o $@
+
+$(BUILD)/test_display_job_service: test_display_job_service.c \
+	$(VOICE_PACK_ROOT)/bk7258_display_job_service.c $(VOICE_PACK_ROOT)/bk7258_display_job_service.h \
+	$(VOICE_PACK_ROOT)/bk7258_display_job.c $(VOICE_PACK_ROOT)/bk7258_display_job.h \
+	$(VOICE_PACK_ROOT)/bk7258_display_store.c $(VOICE_PACK_ROOT)/bk7258_display_store.h \
+	$(VOICE_PACK_ROOT)/bk7258_display_pack.c $(VOICE_PACK_ROOT)/bk7258_media_volume.c \
+	$(VOICE_PACK_ROOT)/bk7258_media_volume.h $(DISPLAY_PACK_FIXTURE) | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread test_display_job_service.c \
+		$(VOICE_PACK_ROOT)/bk7258_display_job.c $(VOICE_PACK_ROOT)/bk7258_display_store.c \
+		$(VOICE_PACK_ROOT)/bk7258_display_pack.c $(VOICE_PACK_ROOT)/bk7258_media_volume.c \
+		-I $(MOCKS) -I $(VOICE_PACK_ROOT) -o $@
+
 $(DISPLAY_RPC_TARGET): test_bk7258_display_rpc.c \
 	$(VOICE_PACK_ROOT)/bk7258_display_rpc_core.c \
 	$(VOICE_PACK_ROOT)/bk7258_display_rpc_core.h \

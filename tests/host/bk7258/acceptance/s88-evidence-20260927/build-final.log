@@ -1,0 +1,11 @@
+make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'
+cc -std=gnu11 -Wall -Wextra -Werror -O2 -pthread test_display_job.c \
+	/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_job.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c \
+	/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_pack.c -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 \
+	-Wl,--wrap=write,--wrap=unlink,--wrap=fsync -o build/test_display_job
+cc -std=gnu11 -Wall -Wextra -Werror -O2 -pthread test_display_job_service.c \
+	/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_job.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c \
+	/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_pack.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_media_volume.c \
+	-I mocks -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -o build/test_display_job_service
+make: 'build/test_shaniu_power_contract' is up to date.
+make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'

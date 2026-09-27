@@ -213,6 +213,10 @@ static bool product_keys_step(uint64_t now)
       int nfc = 0;
       int motion = 0;
       int usb = 0;
+      int pack = 0;
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+      pack = bk7258_display_job_quiesce(true);
+#endif
 #ifdef CONFIG_BK7258_USBCDC
       usb = product_pc_usb_stop();
 #endif
@@ -239,7 +243,7 @@ static bool product_keys_step(uint64_t now)
         }
 
       product_power_drain();
-      if (admission < 0 || trigger < 0 || nfc < 0 || motion < 0 || usb < 0)
+      if (admission < 0 || trigger < 0 || nfc < 0 || motion < 0 || usb < 0 || pack < 0)
         {
           int error = admission < 0 ? admission : trigger < 0 ? trigger : nfc < 0 ? nfc : motion;
           /* Quiescing is a handshake: EAGAIN/EBUSY is incomplete, not a
@@ -253,6 +257,8 @@ static bool product_keys_step(uint64_t now)
             error = motion;
           if (usb < 0 && ((usb != -EAGAIN && usb != -EBUSY) || error == 0))
             error = usb;
+          if (pack < 0 && ((pack != -EAGAIN && pack != -EBUSY) || error == 0))
+            error = pack;
           if (error == -EAGAIN || error == -EBUSY)
             {
               if (now >= g_shutdown_deadline)

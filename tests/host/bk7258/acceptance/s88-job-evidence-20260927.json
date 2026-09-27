@@ -1,0 +1,183 @@
+{
+  "parent": "cab0d313670fcfc7fede23a5b48d08bac514a1e8",
+  "scope": "Native asynchronous job service plus product exit/admission; no file protocol caller enabled",
+  "counts": {
+    "selected": 502,
+    "original": 63,
+    "added": 439,
+    "new_ids": 20,
+    "job_core": 10,
+    "native_service": 6,
+    "power": 2,
+    "reset": 2,
+    "runner_gates": 17,
+    "extra_mutations": 2,
+    "extra_restores_in_formatted_jobs": 2,
+    "standalone_reset_suite": 25
+  },
+  "red": [
+    "Cleanup unlink failure was reported as canceled before correction",
+    "Power coordinator ignored in-flight/failed pack participant",
+    "Reset coordinator proceeded despite pack participant failure"
+  ],
+  "setup": [
+    "Initial new job header missing: BLOCKED_INTERFACE, not business Red",
+    "First new reset cases used wrong helper: SETUP_ERROR; corrected cases then hit real C assertions",
+    "Native host fixture enum/int comparison failed Werror; corrected before execution"
+  ],
+  "native_boundary": "Actual task/service/job/store/pack/volume implementations; host pthread and semaphore ABI, mount syscalls and root path are external peers. Private semaphore initialized for host ABI only. No product success state injected.",
+  "production_unchanged_during_run": true,
+  "post_full_style": [
+    {
+      "file": "app/bk7258/bk7258_display_job.c",
+      "before": "550c09a03fb902dd365e718105668d997db919809205436784e7047dd17a9645",
+      "after": "dcfb5bde4869778983d9314db844c37d39c1a8d74023e96acfd06d204a6f8d4a",
+      "changes": "Comments, whitespace and braces around single early-return statements only"
+    },
+    {
+      "file": "app/bk7258/bk7258_display_job.h",
+      "before": "2e8a921011bf9241d72015a10fd74ae90315acb812c4eae6e8d6fa81b3ab04f7",
+      "after": "6a954e5bd9d811ea5442501b143e8ad15dbd5d834476255db98a2e41834ca318",
+      "changes": "Comments, whitespace and braces around single early-return statements only"
+    },
+    {
+      "file": "app/bk7258/bk7258_display_job_service.c",
+      "before": "2da1ffc61a839d0df1a6367eb926b72df0431b89aa9cd57a3e59dad9b831d2c5",
+      "after": "906a2f36b782d1be76711641e4d399d335485973332ce1e5f427c6d7e65ca316",
+      "changes": "Comments, whitespace and braces around single early-return statements only"
+    },
+    {
+      "file": "app/bk7258/bk7258_display_job_service.h",
+      "before": "d25b754e5f8fa0bc95b80291ee0b98c4707b958de944e61ba4ee8f6ad21f2c05",
+      "after": "8eecb5b58e9798be48076f925c503b1dbbe1dd0091c0493eaaee62e3f26a8eb9",
+      "changes": "Comments, whitespace and braces around single early-return statements only"
+    }
+  ],
+  "post_style_verification": "All 16 job/native cases and AP reverified. Last header edit only shortens a comment; latest AP build passed.",
+  "style": {
+    "bk7258_display_job.c": {
+      "exit": 0,
+      "diagnostics": 0
+    },
+    "bk7258_display_job.h": {
+      "exit": 0,
+      "diagnostics": 0
+    },
+    "bk7258_display_job_service.c": {
+      "exit": 0,
+      "diagnostics": 0
+    },
+    "bk7258_display_job_service.h": {
+      "exit": 0,
+      "diagnostics": 0
+    }
+  },
+  "style_scope": "Four new production modules through NuttX apps path mapping; not a whole-repository style claim",
+  "resource_budget": {
+    "linked_job_bytes": 4784,
+    "wake_semaphore_bytes": 16,
+    "worker_and_mount_flags_bytes": 3,
+    "configured_on_demand_stack_bytes": 6144,
+    "configured_priority": 75,
+    "consumer_step_own_stack_bytes": 432,
+    "native_worker_own_stack_bytes": 136,
+    "chunk_bytes": 4096,
+    "new_tasks_max": 1,
+    "persistent_worker": false,
+    "cpu_average_p95": "NOT_MEASURED",
+    "longest_io_block": "NOT_MEASURED",
+    "critical_section": "Metadata/copy at most one 4096-byte block, no filesystem calls under metadata mutex",
+    "isr_dma": "No new ISR or DMA buffer",
+    "stack_high_water": "NOT_MEASURED",
+    "heap_peak": "NOT_MEASURED; existing neutral validation allocates 51200 bytes plus parser allocations",
+    "wireless": "No new transport enabled",
+    "sd_writes": "One bounded queued block per step plus existing finish/fsync/rename operations",
+    "exit": "Cancel accepted before commit; consumer confirms cleanup. Failed close/unmount/release pins owner and prevents power completion."
+  },
+  "link_evidence": "Only product admission/quiesce is currently reachable. The native begin/worker has no file-protocol caller and is removed by section GC. Host native worker success is not reachable-device USB proof.",
+  "hardware": "NOT_RUN",
+  "remaining": [
+    "Authenticated file/job protocol and authorized transport binding",
+    "Reconnect/result correlation and retention beyond the latest volatile result",
+    "Workstation import/trial/default workflow",
+    "Native USB/SD and real CPU/heap/stack/high-water/timing validation",
+    "Historical TLS faults and combined regression",
+    "Final fixed artifact and first-use delivery"
+  ],
+  "mutations": [
+    {
+      "id": "metadata-lock-during-io",
+      "status": "DETECTED",
+      "case": "blocked-cancel",
+      "exit_code": -6
+    },
+    {
+      "id": "ignore-cleanup-error",
+      "status": "DETECTED",
+      "case": "cleanup-failure",
+      "exit_code": -6
+    }
+  ],
+  "evidence": {
+    "queued-cancel.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "ap-build.log": "6ef4608dc3d60ef4d3fdf854b003fb3728659d545c076d4abf9d3ad65c13bac9",
+    "before-power-build.log": "50ecc248f89c389c959ad2811e90f36e142a097b8e8f3be35227b945dff3161d",
+    "style-final-bk7258_display_job_service.c.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "ap-formatted-compile.log": "9e06e7d06b08c6bdc3ec979a9e48711034232d154219419cfc40eea7a4553632",
+    "build-final.log": "6daaca7affae7f727478c37574e8ae146086556ec3215fc37459a7c6af898f27",
+    "native-mount-failure.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "native-volume-conflict.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "style-final-bk7258_display_job_service.h.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "arm-linked.log": "4f14ca0b95ecbf0d3e1b9d00caa11881dd3ef4ff93168e72152f982533eb5cc7",
+    "style-bk7258_display_job.h.log": "5f47c5897d1e3d1bb47ef96868bc4f3c11fb6ffb77d98445724833d20a0ad0cc",
+    "formatted-build.log": "9b976f067f21eac52f00ac024b4f6c2c46a2e1473faa916b1e2ac3b6189576c8",
+    "release-failure.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "cleanup-failure.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "ap-compile.log": "d2abf34b8d61b037ae0c424bd9c2571abd0b3218d83b1dc9bbec6396dfac3a04",
+    "ap-formatted.log": "6ef4608dc3d60ef4d3fdf854b003fb3728659d545c076d4abf9d3ad65c13bac9",
+    "native-unmount-failure.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "blocked-cancel.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "mutations.json": "50a0d0339146ed20a0be7cf6eba12265b7e07475b1a8b7ef575aa2727272895e",
+    "formatted-jobs.log": "3b7c865ffed42f6a328d454a1abd642ca43a9bad64002f568218523d69533a1d",
+    "success.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "pack-failed.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "native-build.log": "bc4adaa5d3ed3f239ad10f470ac3feda44f95659c1c9e6458793ff884db3706f",
+    "arm-stack.log": "afbbce08d5b89eefeaee6631b556e41899795c8a57aa2a1a3f8dd7f732ecd6f3",
+    "style-final-bk7258_display_job.h.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native-build-fixed.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "ap-latest-compile.log": "9b0d48fca0ff145269ef2a1e3d9648c1bd0cdae50cd88c8b7fda456e2a984766",
+    "ap-final-compile.log": "d59c7fa3b68635fe1c46b5f6ee1c55a18fc8b8aafcfcd0d023b2434cbffc8b44",
+    "gate.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "pack-busy.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "style.json": "19cce81e64b8e17deba2b20e99754a2dcdc36a18e9359271d4702ce6ff4ed613",
+    "commit-busy.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "native-success.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "full.log": "a2cf1646a9346e1f546943dc460a2a7312e9d45a8483e8bd18420d147b964474",
+    "before-reset-bound.log": "fbc7e92a77877a394fc75026033972cb72594237c1a215cf1ec0dc2dfdeb6c2f",
+    "ignore-cleanup-error.log": "98d7bb1e6e1914f3aff35e21c066c606f6cb2aa5c003eee09dfed93769d106c4",
+    "style-bk7258_display_job_service.c.log": "fa83bebc0e68010b32f006ff6c26dac599af029b7e83199175cac6a8f3862d4a",
+    "native-normal.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "ap-latest.log": "6ef4608dc3d60ef4d3fdf854b003fb3728659d545c076d4abf9d3ad65c13bac9",
+    "expiry.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "formatted-native.log": "b9b2710f7a0439daf07211cb2a5194474d04d187f73b0495486a956734ca0ebc",
+    "style-bk7258_display_job_service.h.log": "1eb103005e063006ab381ff251f7e38002a1ea7d3675dd46de06eaedb673f73a",
+    "metadata-lock-during-io.log": "fe9165b30780beedaa4e27ae28afffc5d94ad651885eac75514deec06aa84a70",
+    "build-jobs.log": "9b976f067f21eac52f00ac024b4f6c2c46a2e1473faa916b1e2ac3b6189576c8",
+    "reset.log": "b866c4343f8789e0c145a5e3ee6a1f2ebce59a00c4b8a21e8b32767f4a7e353d",
+    "power-build.log": "2e64bb021ddb9b5f6258b202ee8748f5b6cd07c89e37c9c87cbeb57599c6ffa5",
+    "commit-cancel.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "format-only.json": "30bd348f3ac9e76c57706bbd572489655f6c6b47d489ae6dddcef188f29ac87e",
+    "style-bk7258_display_job.c.log": "e04956cecf541e1b25a1a04f156db41efc4dfb75fc0b42a1a89553bddf12b537",
+    "style-final-bk7258_display_job.c.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "before-interface.log": "c2d871926b6dbda42802c8dec063d5a74afe0056775fdb386958dbba36d72a18",
+    "gates.log": "9d88caf079055814b35eea79521d1d8cc23a208ec21f12d0f484191df67de71a",
+    "before-reset.log": "457f7d09c0e59535aa4ebb50bed94f97be72052e9e4f2b4b054be0966cfe39e0",
+    "native-start-failure.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "before.json": "f75b54949947aea39a009d42632d8bf5190a68e187d61b9988f732b785f2182b",
+    "rollback.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "before-cleanup.log": "4f11b9466e750f935689b00caa107600f7bd2ca59d269461d065467fab4237eb",
+    "before-power.log": "b6ce739832938b5b0ea7fafd40683df69abf185f8eb115ea0d9e3ff619f0dca3",
+    "ap-final.log": "6ef4608dc3d60ef4d3fdf854b003fb3728659d545c076d4abf9d3ad65c13bac9",
+    "style-final.json": "41a81d95a03c3d0646e6c7488f261e2b7c627777a2db21ab25947f86d591d22a"
+  }
+}

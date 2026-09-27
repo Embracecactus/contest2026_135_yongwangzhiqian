@@ -15,6 +15,10 @@ PREFIX = r"""
 #include <stdatomic.h>
 #include "bk7258_pc_tasks.h"
 static struct bkpc_tasks_s g_pc_tasks;
+#define CONFIG_BK7258_DISPLAY_SERVICE 1
+static int pack_error, pack_stops;
+int bk7258_display_job_quiesce(bool stop)
+{assert(stop);pack_stops++;return pack_error;}
 #define CONFIG_BK7258_USBCDC 1
 static int usb_error, usb_stops;
 static bool usb_closed;
@@ -98,6 +102,18 @@ class ResetNfcTest(unittest.TestCase):
                 check=True,
             )
             subprocess.run([str(path / "case")], check=True)
+
+    def test_pack_failed(self):
+        self.run_case("""pack_error=-EIO;
+ assert(product_reset_step()==-EIO);
+ assert(pack_stops==1 && !finishes && !clears);""")
+
+    def test_pack_busy(self):
+        self.run_case("""pack_error=-EAGAIN;
+ assert(product_reset_step()==-EAGAIN);
+ assert(pack_stops==1 && !finishes && !clears);
+ pack_error=0;assert(product_reset_step()==-EAGAIN);
+ assert(finishes==1);""")
 
     def test_usb_failed(self):
         self.run_case(

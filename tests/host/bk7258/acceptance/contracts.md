@@ -523,3 +523,55 @@ authenticated USB file/job schema, bounded inbox and background worker, lifetime
 coordination with display/MSC/power/reset, result query/reconnect/cancel routing,
 workbench import/try/default flow. L3: native USB/SD timing, faults and recovery
 NOT_RUN. This slice does not enable PC EYE_PACK writes or complete RES-03.
+
+### S88 asynchronous native installation owner (2026-09-27)
+
+RES-01, LIFE-02, RST-02: the native job API accepts an already-authenticated
+binding, a nonzero monotonically assigned job ID, and an absolute monotonic
+caller deadline. It retains only the latest volatile result. External protocol
+adapters must bind their verified authority to this identity, correlate results,
+and define recovery/result-retention policy; this API does not authenticate USB.
+
+Begin only reserves metadata. Append copies at most one 4096-byte block, with
+exact job/binding/offset checks. Busy returns backpressure; it does not imply a
+broken connection or a completed write. Read-only status does not mount, write,
+renew deadlines or wait for file I/O. Metadata contention returns EAGAIN. The
+sole consumer drops the metadata mutex before all filesystem/driver calls.
+Written progress advances after real storage completion, not after enqueue.
+
+Cancel before commit is an accepted request. A blocked write must return, owned
+staging must be cleaned, and the volume must exit before CANCELED is published.
+A queued commit remains cancellable; once the consumer enters COMMITTING,
+cancel returns EBUSY and shutdown waits for completion/cleanup. Deadline expiry
+or clock rollback cancels precommit work; queries do not keep it alive. A newer
+job receives a new ID; old IDs/bindings never append or cancel it.
+
+Failed unlink remains UNKNOWN/error even when the descriptor and volume can
+safely exit. Failed close/unmount/lease release remains UNKNOWN and pinned;
+there is no automatic retry that can reuse an uncertain descriptor or bypass a
+lease. A finish error may follow rename and is conservatively UNKNOWN. A full
+result-recovery protocol is still required before this is a public USB feature.
+
+The native adapter creates one task on demand (existing configured display
+priority 75, stack 6144), waits on a coalesced semaphore until a command or the
+absolute deadline, and exits after a terminal outcome. It has a distinct INSTALL
+owner in the same AP/MSC volume arbiter; it cannot release DISPLAY's lease.
+It uses the same configured block device, vfat contract and /mnt/sdnand mount
+point. No render mutex is held during installation. Product reset/power paths
+close admission independently of other participant failures and wait for real
+resource release. Normal admission requires bound identity/control and no OTA.
+
+Host integration executes the real native adapter, worker, job, store, pack and
+volume code. Only task/semaphore OS shims, physical mount syscalls and the host
+root are external peers. It covers native success, task creation failure,
+mount/unmount failure and existing display-volume ownership. Separate threaded
+cases block real write/fsync boundaries to check control availability and the
+commit/cancel boundary. Two isolated mutations must fail: metadata lock held
+over I/O, and ignored cleanup error.
+
+Current binding limits: product quiesce/admission is linked and called. There is
+still no authenticated file-job command caller, so link-time garbage collection
+removes native begin/worker entry paths from the AP image. Native service and
+worker code compile and pass host integration; they are not yet a deployed or
+reachable USB upload feature. No retention across reboot, Web workstation,
+trial/default UI or physical USB/SD acceptance is claimed by this slice.

@@ -1,0 +1,25 @@
+[0/2] Re-checking globbed directories...
+[1/15] Generating bin output directories
+[2/15] cd /home/lijian/project/open-vela/nuttx && /home/lijian/project/open-vela/prebuilts/tools/cmake/bin/cmake -DKCONFIG_CONFIG=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/configs/mcuboot/ap/defconfig -DNUTTX_DIR=/home/lijian/project/open-vela/nuttx -DCMAKE_BINARY_DIR=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake -P /home/lijian/project/open-vela/nuttx/cmake/nuttx_generate_dts.cmake
+[3/15] cd /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/apps && cmake --build /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/bin_host --target incdir
+[150%] Built target incdir
+[4/15] cd /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/apps && cmake --build /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/bin_host --target mkdeps
+[200%] Built target mkdeps
+[5/15] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_display_job_service.c.o
+[6/15] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_display_job.c.o
+[7/15] Performing build step for 'ffmpeg_out_tree'
+[8/15] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_agent_product.c.o
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_agent_product.c: In function 'install_product_skills':
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_agent_product.c:2962:5: warning: missing braces around initializer [-Wmissing-braces]
+ 2962 |     {
+      |     ^
+ 2963 |       "device-assistant.md", g_product_skill_device_assistant
+      |       {
+ 2964 |     };
+      |     }
+[9/15] Performing install step for 'ffmpeg_out_tree'
+[10/15] Linking CXX static library apps/libapps.a
+[11/15] Completed 'ffmpeg_out_tree'
+[12/15] Linking CXX executable nuttx
+[13/15] Generating nuttx.bin
+[14/15] Generating System.map

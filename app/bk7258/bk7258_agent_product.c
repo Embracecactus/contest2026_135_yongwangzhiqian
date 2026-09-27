@@ -61,6 +61,7 @@
 #include "bk7258_haptic_service.h"
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
 #include "bk7258_display_service.h"
+#include "bk7258_display_job_service.h"
 #include "bk7258_control_ota_request.h"
 #include "bk7258_cloud_http.h"
 #include "bk7258_voice_tls.h"
@@ -2057,6 +2058,9 @@ static int product_reset_step(void)
   if (g_reset_phase != PRODUCT_RESET_FINISHING)
     {
       g_reset_phase = PRODUCT_RESET_QUIESCING;
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+      int pack = bk7258_display_job_quiesce(true);
+#endif
 #ifdef CONFIG_BK7258_USBCDC
       int usb = product_pc_usb_stop();
 #endif
@@ -2077,6 +2081,9 @@ static int product_reset_step(void)
 #endif
 #ifdef CONFIG_BK7258_USBCDC
       if (usb < 0) return usb;
+#endif
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+      if (pack < 0) return pack;
 #endif
       ret = bkprov_network_cancel();
       if (ret < 0 && ret != -EAGAIN) return ret;
@@ -2424,6 +2431,9 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
       if (waited < 0 && errno != ETIMEDOUT)
         {
           int error = errno;
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+          (void)bk7258_display_job_quiesce(true);
+#endif
 #ifdef CONFIG_BK7258_USBCDC
           (void)product_pc_usb_stop();
 #endif
@@ -2437,6 +2447,9 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
       int reset = product_reset_step();
       if (reset)
         {
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+          (void)bk7258_display_job_quiesce(true);
+#endif
 #ifdef CONFIG_BK7258_USBCDC
           (void)product_pc_usb_stop();
 #endif
@@ -2723,6 +2736,10 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
 
       (void)bkprov_owner_step(bkvoice_config_now_ms(NULL), 0, false, false,
         !bkagent_ota_busy());
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+      (void)bk7258_display_job_quiesce(!g_identity_bound ||
+                                      !g_control_bound || bkagent_ota_busy());
+#endif
 #ifdef CONFIG_BK7258_USBCDC
       product_pc_usb_step();
 #endif

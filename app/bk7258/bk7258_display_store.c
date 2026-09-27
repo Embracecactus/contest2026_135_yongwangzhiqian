@@ -862,6 +862,14 @@ static int bkdisplay_upload_fail(struct bkdisplay_upload_s *upload,
   return error;
 }
 
+int bkdisplay_upload_quiesced(const struct bkdisplay_upload_s *upload)
+{
+  if (upload == NULL) return -EINVAL;
+  if (upload->state == BKUPLOAD_RECEIVING) return -EBUSY;
+  if (upload->state == BKUPLOAD_CLOSE_UNKNOWN) return upload->error;
+  return 0;
+}
+
 int bkdisplay_upload_begin(struct bkdisplay_upload_s *upload,
                            const char *root, size_t size)
 {
