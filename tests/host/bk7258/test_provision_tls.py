@@ -8,6 +8,7 @@ Failures retain synthetic inputs under ignored out/ with restricted permissions.
 MBEDTLS_SOURCE may select another checkout for upstream compatibility testing.
 """
 import hashlib
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -51,6 +52,36 @@ class ProvisionTlsTest(unittest.TestCase):
                             if (temp / name).is_file():
                                 shutil.copyfile(temp / name, failure_root / name)
                                 (failure_root / name).chmod(0o600)
+                        # Only explicit test modes and public/source hashes.
+                        # Never serialize the process environment or private key.
+                        context = os.environ if env is None else env
+                        metadata = {
+                            "exit_code": result.returncode,
+                            "command": [
+                                str(a).replace(str(temp), "<fixture>") for a in args
+                            ],
+                            "modes": {
+                                key: context.get(key)
+                                for key in ("SHANIU_TLS_STREAM", "SHANIU_TLS_SERIAL")
+                            },
+                            "source_sha256": {
+                                name: hashlib.sha256(
+                                    (ROOT / name).read_bytes()
+                                ).hexdigest()
+                                for name in (
+                                    "tests/host/bk7258/test_provision_tls.c",
+                                    "tests/host/bk7258/test_provision_tls.py",
+                                    "app/bk7258/bk7258_provision_tls.c",
+                                )
+                            },
+                        }
+                        if (temp / "cert.pem").is_file():
+                            metadata["public_certificate_pem_sha256"] = hashlib.sha256(
+                                (temp / "cert.pem").read_bytes()
+                            ).hexdigest()
+                        (failure_root / "failure.json").write_text(
+                            json.dumps(metadata, indent=2) + "\n"
+                        )
                         log.flush()
                         shutil.copyfile(temp / "build.log", failure_root / "build.log")
                         log.seek(0)
@@ -409,12 +440,20 @@ class ProvisionTlsTest(unittest.TestCase):
                         flush=True,
                     )
                     if index == 0:
-                        run([
-                            sys.executable,
-                            ROOT / "tests/host/bk7258/test_workbench_client.py",
-                            "--pc-peer", temp / "test", temp / "cert.pem", temp / "key.pem",
-                        ])
-                        print("PC client interop: independent-principal=PASS owner-rejected=PASS STATUS/INFO=PASS", flush=True)
+                        run(
+                            [
+                                sys.executable,
+                                ROOT / "tests/host/bk7258/test_workbench_client.py",
+                                "--pc-peer",
+                                temp / "test",
+                                temp / "cert.pem",
+                                temp / "key.pem",
+                            ]
+                        )
+                        print(
+                            "PC client interop: independent-principal=PASS owner-rejected=PASS STATUS/INFO=PASS",
+                            flush=True,
+                        )
                         run(
                             [
                                 "openssl",

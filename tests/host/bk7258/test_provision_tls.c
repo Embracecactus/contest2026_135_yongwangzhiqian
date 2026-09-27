@@ -125,6 +125,26 @@ static ssize_t stream_send(void *context, uint32_t epoch, const void *data,
 
 static struct bkcontrol_serial_s serial;
 static bool serial_wire;
+
+/* Preserve the first unexpected return at every handshake site, including
+ * recovery. Reporting only the initial handshake lost the S66 error domain.
+ */
+static int handshake_checked(mbedtls_ssl_context *client, int line)
+{
+  int ret = mbedtls_ssl_handshake(client);
+  if (ret != 0 && ret != MBEDTLS_ERR_SSL_WANT_READ &&
+      ret != MBEDTLS_ERR_SSL_WANT_WRITE)
+    {
+      fprintf(stderr,
+              "TLS_HOST_FIRST_ERROR line=%d ret=%d verify=%lu now=%llu "
+              "stream=%d serial=%d\n",
+              line, ret, (unsigned long)mbedtls_ssl_get_verify_result(client),
+              (unsigned long long)now, getenv("SHANIU_TLS_STREAM") != NULL,
+              getenv("SHANIU_TLS_SERIAL") != NULL);
+      fflush(stderr);
+    }
+  return ret;
+}
 void test_serial_peer_open(void);
 void test_serial_peer_close(void);
 int test_serial_peer_send(const void *, size_t);
@@ -811,7 +831,7 @@ int main(int argc, char **argv)
       ret = bkprov_tls_step(&server); assert(ret >= 0);
       if (!client_ready)
         {
-          ret = mbedtls_ssl_handshake(&client);
+          ret = handshake_checked(&client, __LINE__);
           if (ret != 0 && ret != MBEDTLS_ERR_SSL_WANT_READ &&
               ret != MBEDTLS_ERR_SSL_WANT_WRITE)
             fprintf(stderr, "client handshake failed: %d\n", ret);
@@ -886,7 +906,7 @@ int main(int argc, char **argv)
       assert(bkprov_tls_step(&server) >= 0);
       if (!client_ready)
         {
-          ret = mbedtls_ssl_handshake(&client);
+          ret = handshake_checked(&client, __LINE__);
           assert(ret == 0 || ret == MBEDTLS_ERR_SSL_WANT_READ ||
                  ret == MBEDTLS_ERR_SSL_WANT_WRITE);
           client_ready = ret == 0;
@@ -942,7 +962,7 @@ int main(int argc, char **argv)
   for (int i = 0; i < 2500 && (!client_ready || !server.established); i++)
     {
       assert(bkprov_tls_step(&server) >= 0);
-      if (!client_ready) { ret = mbedtls_ssl_handshake(&client);
+      if (!client_ready) { ret = handshake_checked(&client, __LINE__);
         assert(ret == 0 || ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE);
         client_ready = ret == 0; }
       now += 10;
@@ -977,7 +997,7 @@ int main(int argc, char **argv)
           assert(bkprov_pair_step(&pair) == 0);
           if (!client_ready)
             {
-              ret = mbedtls_ssl_handshake(&client);
+              ret = handshake_checked(&client, __LINE__);
               assert(ret == 0 || ret == MBEDTLS_ERR_SSL_WANT_READ ||
                      ret == MBEDTLS_ERR_SSL_WANT_WRITE);
               client_ready = ret == 0;

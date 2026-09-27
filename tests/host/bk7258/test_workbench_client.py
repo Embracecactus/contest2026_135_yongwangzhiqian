@@ -106,7 +106,7 @@ class TlsPeer:
                 24,
                 error,
                 flags,
-                *values
+                *values,
             )
             self.tls.write(frame)
 
@@ -418,7 +418,20 @@ def pc_interop(executable, certificate, private_key):
 
                 pem = Path(certificate).read_text()
                 pin = hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem)).hexdigest()
-                client = workbench.ControlClient(PipeChannel(), pem, pin)
+                transport_errors = []
+
+                class ObservedClient(workbench.ControlClient):
+                    # Observe the real TLS boundary, never replace its state machine.
+                    def _call(self, function, deadline):
+                        try:
+                            return super()._call(function, deadline)
+                        except Exception as error:
+                            transport_errors.append(
+                                f"{function.__name__}: {type(error).__name__}: {error}"
+                            )
+                            raise
+
+                client = ObservedClient(PipeChannel(), pem, pin)
                 try:
                     if accepted:
                         client.start(key)
@@ -440,7 +453,11 @@ def pc_interop(executable, certificate, private_key):
                     details = process.stderr.read().decode(errors="replace")
                     process.stdout.close()
                     process.stderr.close()
-                self.assertEqual(result, 0 if accepted else 4, details)
+                self.assertEqual(
+                    result,
+                    0 if accepted else 4,
+                    details + "\nTLS boundary: " + repr(transport_errors),
+                )
 
         def test_status_real_pc_principal(self):
             self.exercise(PC_KEY, True)
