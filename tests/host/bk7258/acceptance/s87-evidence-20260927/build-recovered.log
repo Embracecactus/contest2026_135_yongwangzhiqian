@@ -1,0 +1,16 @@
+make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'
+python3 -c 'import json; from pathlib import Path; d=json.loads(Path("/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/assets/display/shaniu-default-v1.json").read_text()); d["pack_id"]="shaniu-upload-v1"; Path("build/upload-second.json").write_text(json.dumps(d))'
+rm -f build/upload-second.bkep.tmp
+python3 /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tools/bk7258/bk7258.py package eye-pack --source /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/build/upload-second.json --output build/upload-second.bkep.tmp
+bk7258 package eye-pack: PASS output=/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/build/upload-second.bkep.tmp id=shaniu-upload-v1 revision=1 entries=11 size=10494 sha256=7e35c6e60b6fa2f22a180cff7c416f663dcbc52b03db7aeb7611c4c9e25f3f2c
+mv build/upload-second.bkep.tmp build/upload-second.bkep
+cc -std=gnu11 -Wall -Wextra -Werror -O2 test_display_upload.c \
+	/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_pack.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c \
+	-I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -Wl,--wrap=write,--wrap=fsync,--wrap=close -o build/test_display_upload
+cc -std=gnu11 -Wall -Wextra -Werror -O2 test_bk7258_display_pack.c \
+	/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_pack.c \
+	/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c \
+	-I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -o build/test_bk7258_display_pack
+./build/test_bk7258_display_pack build/shaniu-default-v1.bkep
+BKDISPLAY_PACK_HOST_PASS
+make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'

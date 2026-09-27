@@ -308,8 +308,10 @@ run: run-motion-rpc run-nfc-rpc run-wifi-native-lease run-camera-storage run-vis
 
 $(DISPLAY_PACK_FIXTURE): $(DISPLAY_PACK_SOURCE) \
 	$(TOOLS_ROOT)/bk7258.py $(TOOLS_ROOT)/_lib/display_assets.py | $(BUILD)
+	rm -f $@.tmp
 	python3 $(TOOLS_ROOT)/bk7258.py package eye-pack \
-		--source $(DISPLAY_PACK_SOURCE) --output $@
+		--source $(DISPLAY_PACK_SOURCE) --output $@.tmp
+	mv $@.tmp $@
 
 $(DISPLAY_PACK_TARGET): test_bk7258_display_pack.c \
 	$(VOICE_PACK_ROOT)/bk7258_display_pack.c \
@@ -326,6 +328,20 @@ display-pack: $(DISPLAY_PACK_TARGET)
 
 run-display-pack: display-pack
 	./$(DISPLAY_PACK_TARGET) $(DISPLAY_PACK_FIXTURE)
+
+$(BUILD)/upload-second.bkep: $(DISPLAY_PACK_SOURCE) $(TOOLS_ROOT)/_lib/display_assets.py | $(BUILD)
+	python3 -c 'import json; from pathlib import Path; d=json.loads(Path("$(DISPLAY_PACK_SOURCE)").read_text()); d["pack_id"]="shaniu-upload-v1"; Path("$(BUILD)/upload-second.json").write_text(json.dumps(d))'
+	rm -f $@.tmp
+	python3 $(TOOLS_ROOT)/bk7258.py package eye-pack --source $(abspath $(BUILD)/upload-second.json) --output $@.tmp
+	mv $@.tmp $@
+
+$(BUILD)/test_display_upload: test_display_upload.c \
+	$(VOICE_PACK_ROOT)/bk7258_display_store.c $(VOICE_PACK_ROOT)/bk7258_display_store.h \
+	$(VOICE_PACK_ROOT)/bk7258_display_pack.c $(VOICE_PACK_ROOT)/bk7258_display_pack.h \
+	$(DISPLAY_PACK_FIXTURE) $(BUILD)/upload-second.bkep | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) test_display_upload.c \
+		$(VOICE_PACK_ROOT)/bk7258_display_pack.c $(VOICE_PACK_ROOT)/bk7258_display_store.c \
+		-I $(VOICE_PACK_ROOT) -Wl,--wrap=write,--wrap=fsync,--wrap=close -o $@
 
 $(DISPLAY_RPC_TARGET): test_bk7258_display_rpc.c \
 	$(VOICE_PACK_ROOT)/bk7258_display_rpc_core.c \

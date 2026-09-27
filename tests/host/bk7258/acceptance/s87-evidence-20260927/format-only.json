@@ -1,0 +1,14 @@
+[
+  {
+    "file": "app/bk7258/bk7258_display_store.c",
+    "before": "e5bad90c45112518b31d1bd77d070d1a803aa113cafd59db48255c5b10b2d301",
+    "after": "b2c851365c96ccc0041953e820a8950e46a28e2c308e431f667b42245b301ca1",
+    "code_excluding_comments_whitespace_identical": true
+  },
+  {
+    "file": "app/bk7258/bk7258_display_store.h",
+    "before": "97d8155a39a6088bfb9f36140b1bd526fdbb689867472126e7133be21bc15c55",
+    "after": "a014a58b7f6ee1358d74bba72a4a4fbc97deb86836100cea7d5c65f1936daf8e",
+    "code_excluding_comments_whitespace_identical": true
+  }
+]

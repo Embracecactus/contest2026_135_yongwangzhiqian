@@ -464,6 +464,7 @@ def main():
         "test_shaniu_nfc_quiesce",
         "test_shaniu_focus_pixels",
         "test_shaniu_focus_render",
+        "test_display_upload",
         "test_shaniu_display_snapshot",
         "test_shaniu_display_intent",
         "test_shaniu_expression_cancel",
@@ -505,6 +506,13 @@ def main():
             [HERE / "build/test_shaniu_key_contract", variant],
             binaries["test_shaniu_key_contract"],
         )
+    for variant in ("collision", "cancel", "corrupt", "fragmented", "normal",
+                    "preserve", "write-failure", "sync-failure", "close-failure",
+                    "directory-failure"):
+        add(suite, "RES-01.upload-" + variant, "RES-01", "L2",
+            [HERE / "build/test_display_upload",
+             HERE / "build/shaniu-default-v1.bkep", variant,
+             HERE / "build/upload-second.bkep"], binaries["test_display_upload"])
     add(
         suite,
         "DISP-01.power-pixels",
@@ -1356,6 +1364,13 @@ def main():
         ROOT / "app/bk7258/bk7258_provision_tls.h",
         ROOT / "app/bk7258/bk7258_control_pair.c",
         ROOT / "app/bk7258/bk7258_control_pair.h",
+        HERE / "test_display_upload.c",
+        HERE / "build/shaniu-default-v1.bkep",
+        HERE / "build/upload-second.bkep",
+        ROOT / "app/bk7258/bk7258_display_store.c",
+        ROOT / "app/bk7258/bk7258_display_store.h",
+        ROOT / "app/bk7258/bk7258_display_pack.c",
+        ROOT / "app/bk7258/bk7258_display_pack.h",
         HERE / "test_control_pair.c",
         HERE / "test_control_serial.c",
         HERE / "test_control_serial_peer.c",

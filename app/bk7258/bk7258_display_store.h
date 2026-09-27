@@ -24,6 +24,38 @@ struct bkdisplay_store_selection_s
   struct bkdisplay_pack_info_s info;
 };
 
+/* A single worker owns this zero-initialized object and the mounted volume
+ * for its complete lifetime. Append performs I/O; never call it from a short
+ * control callback. No operation here authenticates a remote peer.
+ */
+
+#define BKDISPLAY_UPLOAD_CHUNK_MAX 4096u
+
+struct bkdisplay_upload_s
+{
+  char root[BKDISPLAY_PACK_PATH_SIZE];
+  char temporary[BKDISPLAY_PACK_PATH_SIZE];
+  size_t expected;
+  size_t received;
+  int fd;
+  int state;
+  int error;
+};
+
+int bkdisplay_upload_begin(struct bkdisplay_upload_s *upload,
+                           const char *root, size_t size);
+int bkdisplay_upload_append(struct bkdisplay_upload_s *upload, size_t offset,
+                            const void *data, size_t size);
+
+/* Installs a validated pack, without changing the persistent selection.
+ * Commit is synchronous and cannot be canceled concurrently. A failed close
+ * is latched; the owner must not treat it as a confirmed resource exit.
+ */
+
+int bkdisplay_upload_finish(struct bkdisplay_upload_s *upload,
+                            struct bkdisplay_store_selection_s *selection);
+int bkdisplay_upload_cancel(struct bkdisplay_upload_s *upload);
+
 /* The root is a mounted FAT volume, not /dev/mmcsd0 itself. */
 
 int bkdisplay_store_ensure(const char *root);

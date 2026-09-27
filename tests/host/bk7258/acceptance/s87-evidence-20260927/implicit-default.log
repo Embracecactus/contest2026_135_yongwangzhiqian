@@ -1,0 +1,1 @@
+test: tests/host/bk7258/test_display_upload.c:213: main: Assertion `strcmp(prior.filename, "shaniu-default-v1.bkep") == 0' failed.

@@ -1,0 +1,18 @@
+{
+  "baseline-bk7258_display_store.c": {
+    "exit": 1,
+    "diagnostics": 37
+  },
+  "final-bk7258_display_store.c": {
+    "exit": 1,
+    "diagnostics": 36
+  },
+  "baseline-bk7258_display_store.h": {
+    "exit": 1,
+    "diagnostics": 8
+  },
+  "final-bk7258_display_store.h": {
+    "exit": 1,
+    "diagnostics": 8
+  }
+}

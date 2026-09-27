@@ -472,7 +472,17 @@
     "USB-02.serial-close-get",
     "USB-02.serial-close-set",
     "USB-02.serial-close-hangup",
-    "USB-02.serial-close-lost"
+    "USB-02.serial-close-lost",
+    "RES-01.upload-collision",
+    "RES-01.upload-cancel",
+    "RES-01.upload-corrupt",
+    "RES-01.upload-fragmented",
+    "RES-01.upload-normal",
+    "RES-01.upload-preserve",
+    "RES-01.upload-write-failure",
+    "RES-01.upload-sync-failure",
+    "RES-01.upload-close-failure",
+    "RES-01.upload-directory-failure"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -948,6 +958,16 @@
     "USB-02.serial-close-get",
     "USB-02.serial-close-set",
     "USB-02.serial-close-hangup",
-    "USB-02.serial-close-lost"
+    "USB-02.serial-close-lost",
+    "RES-01.upload-collision",
+    "RES-01.upload-cancel",
+    "RES-01.upload-corrupt",
+    "RES-01.upload-fragmented",
+    "RES-01.upload-normal",
+    "RES-01.upload-preserve",
+    "RES-01.upload-write-failure",
+    "RES-01.upload-sync-failure",
+    "RES-01.upload-close-failure",
+    "RES-01.upload-directory-failure"
   ]
 }

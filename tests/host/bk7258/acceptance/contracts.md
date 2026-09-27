@@ -481,3 +481,45 @@ case actually releases it, opens an unrelated /dev/null handle with that number,
 and verifies the unrelated handle remains live. This is deterministic host
 fault injection, not a claim that the target kernel physically reproduced EINTR.
 No new thread or heap buffer; linked product owner remains 120 bytes.
+
+### S87 bounded pack storage input (2026-09-27)
+
+RES-01/RES-02: a zero-initialized upload object belongs to one storage worker,
+which retains the mounted-volume lease across begin/append/finish/cancel. These
+are synchronous I/O primitives, never short protocol callback operations.
+Begin validates the announced size (128 bytes through the existing 32 MiB
+format limit), exclusively creates its private staging file, and does not
+truncate another live upload or an unreviewed previous-boot remnant. A blocked
+remnant requires explicit recovery policy, not automatic deletion.
+
+Append accepts a positive, contiguous block of at most 4096 bytes. Invalid,
+duplicate, reordered or excess input cannot change the file. Wire-level retry
+idempotency belongs to the authenticated job layer before this primitive.
+Finish rejects incomplete input without committing; complete input is synced,
+closed, parsed and neutral-render validated through the production pack reader.
+Successful installation publishes a new immutable filename without selecting it.
+Setting the default is a separate explicit activation. The legacy memory-import
+entry reuses these primitives and retains its existing import-and-activate
+semantics; it still owns its preexisting full download buffer.
+
+Cancellation before finish closes and removes only the owned temporary file,
+is idempotent once confirmed, and cannot reopen a terminal upload. Finish is
+not concurrently cancellable; the job owner must linearize the commit boundary.
+A close error is retained without retrying the potentially reused fd. The owner
+must quarantine uncertain release rather than treating it as exited. Directory
+sync failure after rename can leave a published pack with an unchanged default:
+return the real error, query the artifact before deciding recovery, and never
+claim an atomic power-loss guarantee from a host filesystem fsync success.
+
+Ten host cases execute the production store/pack implementations with real
+files; only selected write/fsync/close failures are injected. Golden payloads
+are produced from the existing public eye source, with a second public pack ID
+for old-default preservation. They are not signature/trust validation evidence.
+Two isolated mutants (implicit activation, truncating another upload) must fail.
+
+Interface: storage primitive implemented and legacy importer bound. L1/L2:
+file parsing, bounded input and selection preservation covered. Missing:
+authenticated USB file/job schema, bounded inbox and background worker, lifetime
+coordination with display/MSC/power/reset, result query/reconnect/cancel routing,
+workbench import/try/default flow. L3: native USB/SD timing, faults and recovery
+NOT_RUN. This slice does not enable PC EYE_PACK writes or complete RES-03.
