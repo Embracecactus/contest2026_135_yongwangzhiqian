@@ -640,7 +640,14 @@
     "provision.SceneControlProtocolTest.pcReceiptAndSnapshotCannotBeInterchanged",
     "provision.SceneControlProtocolTest.pcSnapshotReceiptAndWriteUseTheirOwnBoundedShapes",
     "provision.SceneControlProtocolTest.sceneCapabilityRemainsReadOnly",
-    "provision.SceneControlProtocolTest.sceneKindsCanReadAndWriteThroughProductionCodec"
+    "provision.SceneControlProtocolTest.sceneKindsCanReadAndWriteThroughProductionCodec",
+    "USB-02.browser-http_authority_rejects_before_operation",
+    "USB-02.browser-polling_is_local_and_duplicate_is_not_replayed",
+    "USB-02.browser-cancel_is_intent_not_remote_completion",
+    "USB-02.browser-page_headers_and_no_credential_paths",
+    "USB-02.browser-invalid_upload_does_not_open_device",
+    "USB-02.browser-http_upload_reaches_tls_and_native_installer",
+    "USB-02.browser-large_counters_preserve_exact_value"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1284,6 +1291,13 @@
     "provision.SceneControlProtocolTest.pcReceiptAndSnapshotCannotBeInterchanged",
     "provision.SceneControlProtocolTest.pcSnapshotReceiptAndWriteUseTheirOwnBoundedShapes",
     "provision.SceneControlProtocolTest.sceneCapabilityRemainsReadOnly",
-    "provision.SceneControlProtocolTest.sceneKindsCanReadAndWriteThroughProductionCodec"
+    "provision.SceneControlProtocolTest.sceneKindsCanReadAndWriteThroughProductionCodec",
+    "USB-02.browser-http_authority_rejects_before_operation",
+    "USB-02.browser-polling_is_local_and_duplicate_is_not_replayed",
+    "USB-02.browser-cancel_is_intent_not_remote_completion",
+    "USB-02.browser-page_headers_and_no_credential_paths",
+    "USB-02.browser-invalid_upload_does_not_open_device",
+    "USB-02.browser-http_upload_reaches_tls_and_native_installer",
+    "USB-02.browser-large_counters_preserve_exact_value"
   ]
 }

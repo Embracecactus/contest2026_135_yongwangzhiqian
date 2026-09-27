@@ -1,0 +1,7 @@
+["/usr/bin/python3", "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_web.py", "WebTest.test_http_upload_reaches_tls_and_native_installer"]
+{"fixture": "synthetic-workbench-tls", "certificate_sha256": "bd81276caec9bf2ff68f8187e16ffa762dcf72d72e82221b556271a549e417bf", "alternate_certificate_sha256": "febd36b3e4b9499a391813b0431036cbfca2b3c69b242f17a6566e1336a3413c", "openssl": "OpenSSL 3.0.2 15 Mar 2022"}
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.744s
+
+OK

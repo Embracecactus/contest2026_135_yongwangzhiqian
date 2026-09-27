@@ -1,0 +1,9 @@
+AssertionError [ERR_ASSERTION]: 0 == 32
+    at /tmp/shaniu-s110-browser.cjs:24:9 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: 0,
+  expected: 32,
+  operator: '==',
+  diff: 'simple'
+}

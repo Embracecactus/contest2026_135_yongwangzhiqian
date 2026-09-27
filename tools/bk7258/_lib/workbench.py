@@ -530,6 +530,7 @@ def add_arguments(parser):
         choices=(
             "status",
             "info",
+            "serve",
             "save-profile",
             "pair-start",
             "pair-finish",
@@ -614,6 +615,17 @@ def add_arguments(parser):
         type=int,
         help="Durable version from completed explicit refresh",
     )
+    parser.add_argument(
+        "--workbench-dir",
+        type=Path,
+        help="New local directory for browser resource receipts",
+    )
+    parser.add_argument(
+        "--listen-port",
+        type=int,
+        default=0,
+        help="Loopback port; 0 chooses a free port",
+    )
     parser.add_argument("--port")
     parser.add_argument("--profile", type=Path)
     parser.add_argument("--certificate", type=Path)
@@ -668,6 +680,10 @@ def _credentials(args):
 
 
 def run(args, *, observe=None, cancel_requested=None):
+    if args.operation == "serve":
+        from . import workbench_web
+
+        return workbench_web.serve(args)
     resource_plan = None
     if args.operation.startswith("default-"):
         from . import workbench_selection

@@ -1,0 +1,28 @@
+const {chromium}=require('/tmp/shaniu-browser-check/node_modules/playwright');
+const fs=require('fs');
+const assert=require('assert');
+(async()=>{
+ const text=fs.readFileSync('out/shaniu-s110/browser-server-private.log','utf8');
+ const url=text.match(/http:\/\/127\.0\.0\.1:\d+\/#\S+/)[0];
+ const browser=await chromium.launch({executablePath:'/home/lijian/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome',headless:true});
+ const page=await browser.newPage({viewport:{width:1280,height:1000}});
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(url);await page.getByText('工作台已就绪，尚未连接设备。',{exact:true}).waitFor();
+ assert(await page.locator('#trial-start').isDisabled());assert(await page.locator('#default-set').isDisabled());
+ await page.screenshot({path:'out/shaniu-s110/workbench-desktop.png',fullPage:true});
+ await page.getByRole('button',{name:'读取设备状态',exact:true}).click();
+ await page.getByText(/结果未确认.*操作未确认/).waitFor();
+ assert(!(await page.locator('#connection').innerText()).includes('设备报告本地就绪'));
+ await page.reload();await page.getByText(/结果未确认.*操作未确认/).waitFor();
+ await page.setViewportSize({width:360,height:800});await page.emulateMedia({colorScheme:'dark'});
+ assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ await page.screenshot({path:'out/shaniu-s110/workbench-mobile-dark.png',fullPage:true});
+ await page.locator('#filename').focus();await page.keyboard.type('sample.bkep');
+ assert.equal(await page.locator('#filename').inputValue(),'sample.bkep');
+ await page.locator('#pack').setInputFiles('tests/host/bk7258/build/shaniu-default-v1.bkep');
+ await page.locator('#upload').click();await page.waitForFunction(()=>document.getElementById('receipt').value.length===32);await page.getByText(/结果未确认.*操作未确认/).waitFor();
+ assert.equal((await page.locator('#receipt').inputValue()).length,32);
+ assert.deepEqual(errors,[]);
+ console.log(JSON.stringify({PASS:true,browser:browser.version(),checks:['desktop and360px dark layout','no horizontal overflow','unknown gates','missing profile remains unconfirmed','reload retains local access','keyboard input','real file upload form with missing-profile error'],limits:'No physical device, no successful browser hardware flow'}));
+ await browser.close();
+})().catch(e=>{console.error(e);process.exit(1)});

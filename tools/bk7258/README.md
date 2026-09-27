@@ -624,3 +624,39 @@ The saved receipt remains available for explicit result queries.
 This does not yet provide the browser server/page. It does not make a 4096-byte
 resource request interruptible in the middle of CONFIG staging, guarantee a
 physical USB response latency, or renew the configured deadline/receiver TTL.
+
+### 本机浏览器工作台
+
+沿用已由手机授权并保存在本机的独立 PC profile。启动不会打开串口；页面中的
+明确操作才借用 profile、校验证书并连接指定的原生 USB。不要填 CH340 调试口。
+
+```sh
+python tools/bk7258/bk7258.py workbench serve --port NATIVE_CDC_PORT --profile pc.profile --workbench-dir new-workbench-receipts
+```
+
+打开终端给出的 `http://127.0.0.1:端口/#本次访问口令`。页面支持设备状态/版本、
+眼睛包导入、按回执查询/续传/取消、已安装包的限时试用与默认选择，以及导出
+本次公开结果。使用原生文件选择器选择 BKep；导入不自动激活，受理也不等于
+完成。设默认前先读取默认状态、提交刷新，再读取到明确版本；保存后再回读。
+设备上已安装的文件名目前需手填或从成功导入结果取得，尚无目录/版本比对。
+
+一次只执行一个设备作业。页面轮询只读本地快照；取消按钮只设置意图，由同一
+传输线程在完整分块之间发送取消并回读。页面关闭不会自动撤销设备操作；
+Ctrl+C 停止本地服务时请求取消在途导入并等待既有有界操作退出。提交阶段
+拒绝取消或通信失败都保持未确认，不谎报远端已取消。
+
+目录必须是新目录，最多受理64个不同本地作业，单包上限128KiB；同请求编号
+和内容重复提交不重放，不同内容复用编号被拒绝。JSON大整数以字符串返回，
+避免浏览器损坏uint64版本。导入数据及公开回执留在目录中，不自动删除。
+重启工作台使用新目录；旧回执可通过既有CLI的`resource-status`/显式resume
+查询恢复。不要同时用另一个程序占用该USB口。
+
+本地访问口令仅授予这次受限页面入口，存于当前页会话，不是设备凭据。
+HTTP仅监听IPv4 loopback、检查Host/Origin及口令，无CORS、任意文件读取、
+Shell、OTA、清owner或电源操作入口。8个有超时的HTTP连接不共享USB客户端；
+设备密钥只在原有本地profile路径使用，不传给网页。任务事件发送仍使用既有
+`task-event` CLI，不把网页保活当作常驻电脑代理。
+
+验证边界：HTTP边界、单作业/幂等/取消意图、大整数，以及HTTP→真实客户端TLS→
+原生安装作业已在主机验证。浏览器布局/缺失profile错误路径单列；未声称真实
+USB、板端SD、屏幕或手机共同操作通过。固件必须实际支持对应协议和独立PC授权。
