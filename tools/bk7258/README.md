@@ -383,3 +383,29 @@ python3 tools/bk7258/bk7258.py workbench info \
 WSL 可调用当前 Windows 用户的 PowerShell。没有 Windows 保护服务就明确失败。
 这属于登录用户的保护边界，不抵御同一账户内恶意进程或管理员；Python/.NET 内部副本
 不承诺完全擦除。文件系统需要支持同目录硬链接的独占发布，不支持时失败而非覆盖。
+
+#### 离线配对交换（S75，手机确认/导出 UI 尚未接通）
+
+Windows 或现有 WSL→Windows DPAPI 环境可生成公开请求和受保护的临时状态：
+
+```sh
+python3 tools/bk7258/bk7258.py workbench pair-start \
+  --request pc-request.spq --pending pc-pending.spp --allow resources scenes
+```
+
+权限必须显式选择：`resources`、`scenes`、`tasks`、`diagnostics`。输出请求摘要供
+后续手机核对；请求有效期 10 分钟，双方系统时间需一致。`pc-pending.spp` 绑定当前
+Windows 用户，只留在本机；不会产生明文私钥文件。这里不打开串口、不授权设备。
+
+手机侧公开编解码接口已实现，但普通用户的文件选择、确认授权、持久回执及响应导出
+尚未串联，因此目前不是完整首配 SOP。获得该流程正式产生的加密响应后，导入命令为：
+
+```sh
+python3 tools/bk7258/bk7258.py workbench pair-finish \
+  --pending pc-pending.spp --response phone-response.spr --profile device.spc \
+  --confirm-device-sha256 <从可信手机界面核对的64位小写十六进制证书摘要>
+```
+
+摘要不能照抄不可信响应。所有输出路径必须不存在；导入不覆盖已有配置。导入成功仅
+表示受保护配置保存成功，仍需真实设备鉴权，不能据此宣称设备已授权。临时状态保留
+供有效期内恢复，不承诺一次性消费或安全擦除。非 Windows 的系统密钥库尚未实现。

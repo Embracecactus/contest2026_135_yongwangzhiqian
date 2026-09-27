@@ -266,6 +266,7 @@ def run_jvm():
         "provision.FocusTimerControllerTest",
         "provision.SceneControlProtocolTest",
         "provision.PcAuthorizationControllerTest",
+        "provision.PcPairingExchangeTest",
         "provision.NfcBindingControllerTest",
         "provision.ExpressionTrialControllerTest",
         "ota.OtaControlUploadTest",
@@ -378,7 +379,7 @@ def run_jvm():
                 parent = "NFC-02"
             if "ExpressionTrial" in name:
                 parent = "RES-02"
-            if name == "provision.ProvisionTlsTest":
+            if name in ("provision.ProvisionTlsTest", "provision.PcPairingExchangeTest"):
                 parent = "USB-01"
             RESULTS.append(
                 dict(
@@ -840,6 +841,10 @@ def main():
         add(suite, "USB-01.pc-profile-" + variant, "USB-01", "L2",
             [sys.executable, HERE / "test_workbench_profile.py",
              "ProfileTest.test_" + variant], marker=False)
+    for variant in ('request_layout_pending_protection_and_roundtrip', 'expiry_rollback_and_invalid_permissions_fail_without_profile', 'tamper_wrong_request_caps_key_and_trusted_pin_rejected', 'existing_outputs_are_not_replaced_and_import_does_not_authorize_device', 'invalid_pending_or_unavailable_protection_never_exposes_private_material', 'cli_pairing_is_offline_and_rejects_mixed_credentials', 'pending_readback_failure_never_publishes_request'):
+        add(suite, "USB-01.pc-pairing-" + variant, "USB-01", "L2",
+            [sys.executable, HERE / "test_workbench_pairing.py",
+             "PairingTest.test_" + variant], marker=False)
     add(suite, "USB-01.tls-transport", "USB-01", "L2",
         [sys.executable, HERE / "test_provision_tls.py"], marker=False)
     for variant in (
@@ -1348,6 +1353,11 @@ def main():
         ROOT / "tools/bk7258/_lib/workbench.py",
         ROOT / "tools/bk7258/_lib/workbench_profile.py",
         HERE / "test_workbench_profile.py",
+        ROOT / "tools/bk7258/_lib/workbench_pairing.py",
+        HERE / "test_workbench_pairing.py",
+        HERE / "test_workbench_pairing_interop.py",
+        ROOT / "android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/PcPairingExchange.kt",
+        ROOT / "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/PcPairingExchangeTest.kt",
         ROOT / "tools/bk7258/_lib/deploy_usb.py",
         ROOT / "tools/bk7258/bk7258.py",
         HERE / "test_workbench_client.py",

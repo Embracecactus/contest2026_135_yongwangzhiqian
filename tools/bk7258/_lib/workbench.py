@@ -276,13 +276,23 @@ class SerialChannel:
 
 
 def add_arguments(parser):
-    parser.add_argument("operation", choices=("status", "info", "save-profile"))
+    parser.add_argument(
+        "operation",
+        choices=("status", "info", "save-profile", "pair-start", "pair-finish"),
+    )
     parser.add_argument("--port")
     parser.add_argument("--profile", type=Path)
     parser.add_argument("--certificate", type=Path)
     parser.add_argument("--certificate-sha256")
     parser.add_argument("--pc-key-file", type=Path)
     parser.add_argument("--timeout", type=float, default=10)
+    parser.add_argument("--request", type=Path)
+    parser.add_argument("--pending", type=Path)
+    parser.add_argument("--response", type=Path)
+    parser.add_argument("--confirm-device-sha256")
+    parser.add_argument(
+        "--allow", nargs="+", choices=("resources", "scenes", "tasks", "diagnostics")
+    )
 
 
 def _read_file(path, limit):
@@ -324,6 +334,10 @@ def _credentials(args):
 
 
 def run(args):
+    if args.operation in ("pair-start", "pair-finish"):
+        from . import workbench_pairing
+
+        return workbench_pairing.run(args)
     from . import workbench_profile
 
     client = None

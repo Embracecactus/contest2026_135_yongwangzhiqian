@@ -427,7 +427,19 @@
     "provision.ProvisionTlsTest.gattDeadlinesAndQueueLimitsFailClosed",
     "provision.ProvisionTlsTest.engineChannelHandlesTwentyByteFragmentsAndRejectsCorruption",
     "provision.ProvisionTlsTest.channelRefusesEarlyWritesAndFailsClosedOnBackpressure",
-    "provision.ProvisionTlsTest.realTlsAllowsApplicationBytesOnlyWithMatchingPin"
+    "provision.ProvisionTlsTest.realTlsAllowsApplicationBytesOnlyWithMatchingPin",
+    "USB-01.pc-pairing-request_layout_pending_protection_and_roundtrip",
+    "USB-01.pc-pairing-expiry_rollback_and_invalid_permissions_fail_without_profile",
+    "USB-01.pc-pairing-tamper_wrong_request_caps_key_and_trusted_pin_rejected",
+    "USB-01.pc-pairing-existing_outputs_are_not_replaced_and_import_does_not_authorize_device",
+    "USB-01.pc-pairing-invalid_pending_or_unavailable_protection_never_exposes_private_material",
+    "USB-01.pc-pairing-cli_pairing_is_offline_and_rejects_mixed_credentials",
+    "USB-01.pc-pairing-pending_readback_failure_never_publishes_request",
+    "provision.PcPairingExchangeTest.independentVectorEncryptsOnlyRequestedPrincipalAndDevice",
+    "provision.PcPairingExchangeTest.requestOwnsInputAndReturnsIndependentPublicIdentifiers",
+    "provision.PcPairingExchangeTest.malformedExpiredAndUnauthorizedRequestsAreRejected",
+    "provision.PcPairingExchangeTest.encryptionRechecksExpiryAndRejectsEmptyCredentials",
+    "provision.PcPairingExchangeTest.hostInteropUsesProductionCodecWhenExplicitlySelected"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -858,6 +870,18 @@
     "provision.ProvisionTlsTest.gattDeadlinesAndQueueLimitsFailClosed",
     "provision.ProvisionTlsTest.engineChannelHandlesTwentyByteFragmentsAndRejectsCorruption",
     "provision.ProvisionTlsTest.channelRefusesEarlyWritesAndFailsClosedOnBackpressure",
-    "provision.ProvisionTlsTest.realTlsAllowsApplicationBytesOnlyWithMatchingPin"
+    "provision.ProvisionTlsTest.realTlsAllowsApplicationBytesOnlyWithMatchingPin",
+    "USB-01.pc-pairing-request_layout_pending_protection_and_roundtrip",
+    "USB-01.pc-pairing-expiry_rollback_and_invalid_permissions_fail_without_profile",
+    "USB-01.pc-pairing-tamper_wrong_request_caps_key_and_trusted_pin_rejected",
+    "USB-01.pc-pairing-existing_outputs_are_not_replaced_and_import_does_not_authorize_device",
+    "USB-01.pc-pairing-invalid_pending_or_unavailable_protection_never_exposes_private_material",
+    "USB-01.pc-pairing-cli_pairing_is_offline_and_rejects_mixed_credentials",
+    "USB-01.pc-pairing-pending_readback_failure_never_publishes_request",
+    "provision.PcPairingExchangeTest.independentVectorEncryptsOnlyRequestedPrincipalAndDevice",
+    "provision.PcPairingExchangeTest.requestOwnsInputAndReturnsIndependentPublicIdentifiers",
+    "provision.PcPairingExchangeTest.malformedExpiredAndUnauthorizedRequestsAreRejected",
+    "provision.PcPairingExchangeTest.encryptionRechecksExpiryAndRejectsEmptyCredentials",
+    "provision.PcPairingExchangeTest.hostInteropUsesProductionCodecWhenExplicitlySelected"
   ]
 }

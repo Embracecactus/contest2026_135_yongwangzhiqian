@@ -249,3 +249,50 @@ freeze TIMER-02: cross-reboot policy is pending user input; no device deployment
 or UI promise depends on the volatile prototype. A completion state is not
 a rendered ring, sound or delivered notification. App/NFC/visual/audio binding
 and resource measurements remain required before N2 acceptance.
+
+### S75 PC offline pairing envelope v1 (USB-01 / NET-03)
+
+Scope: host request/protected pending storage, Android codec and PC response import.
+This is not phone consent, grant commit or a live USB owner activation. A future
+phone caller must compare the request fingerprint with the PC, confirm explicit
+capabilities, use the current authenticated peer certificate, submit the same
+client/transaction/capabilities through PCW1, and require its durable receipt and
+exact target readback before exporting the encrypted response. Never accept a
+response's embedded pin as the user's trusted confirmation source.
+
+All integers are big-endian. SPQ1 is magic(4), capabilities(u32, bits 1/2/4/8),
+created epoch milliseconds(u64 within signed Long), expires(u64), random nonzero
+client ID(16), random nonzero transaction ID(16), DER size(u32), canonical RSA
+3072/e65537 SPKI DER. Total <=1024. This v1 exchange validity is exactly 600000ms;
+both ends require created <= now < expires. This is an offline exchange window,
+not expression preview TTL or a claim of monotonic expiry across OS clock reset.
+Future changes need a versioned contract, not a relaxed failing assertion.
+
+SPR1 is magic(4), SHA256 of complete SPQ1(32), device certificate DER size(u32),
+DER(1..8192), ciphertext(384). OAEP uses SHA256, MGF1-SHA256 and label
+ASCII `shaniu-pc-pair-v1` followed by request SHA256. The 104-byte plaintext is
+SPK1(4), request SHA256(32), device DER SHA256(32), independent PC key(32 nonzero),
+capabilities(u32). Every binding and exact length is checked. OAEP encrypts to
+the PC; it does not authenticate the sender. The independently confirmed phone
+pin and subsequent real device TLS/SDC1 authentication remain required.
+
+SPP1 pending files use the existing CurrentUser DPAPI boundary: magic(4), sealed
+size(u32), sealed SPX1 inner payload. SPX1 is magic(4), request size(u32), PKCS8
+size(u32), complete request, ephemeral encryption private key DER. Only protected
+bytes reach disk; private/public key correspondence is verified at import.
+Protected readback must match before publishing the public request. Files are
+created exclusively; old paths are never overwritten. Partial publication can
+leave a protected pending file and is reported as unconfirmed, not success.
+Import retains pending state for recovery within validity; single-use import or
+secure deletion is not promised. Same destination cannot be replaced. Python/JCA
+immutable internal copies cannot be claimed securely wiped; owned mutable buffers
+are cleared. No private signing identity, raw PC key file, serial command or device
+authorization is created by these offline CLI operations.
+
+Evidence boundaries: Python protection fixture tests replace only OS encryption;
+separate Windows DPAPI/JVM/TLS integration exercises actual OS protection and
+production codecs. Emulator checks the Android OAEP provider with the explicit
+nonempty label. Synthetic TLS peers are not connected-board acceptance. Required
+IDs add seven Python and five JVM cases; the explicitly selected cross-language
+subscenario, two mutants, seven restored tests and DPAPI three are separate and
+must not be added again to the required-case denominator.

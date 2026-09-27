@@ -2372,3 +2372,39 @@ PC key、证书长度及 PEM。证书≤16KiB、保护输入/输出≤32KiB；�
 
 逐例清单：`acceptance/s74-20260927.json`；跨层与模拟器证据：
 `acceptance/s74-peer-identity-evidence-20260927.json`；原始日志：`out/shaniu-s74/`。
+
+### S75 · 离线 PC 配对加密交换（2026-09-27）
+
+先建立缺接口测试，再实现 SPQ1/SPR1 编解码和唯一 CLI 的 `pair-start` / `pair-finish`。
+实际请求生成、保护文件读回、响应解密和 SPC1 保存均走生产模块；只在一般单测中替换
+外部 OS 保护。独立向量检查请求/权限/设备pin绑定、非法长度、有效期、空key、输出
+不覆盖，以及保护回读失败不得发布请求。具体 wire/时间合同见 acceptance/contracts.md。
+
+本轮新增 7 Python + 5 JVM 必选ID。完整439收集：438 PASS、1 FAIL_ASSERTION，
+0 SETUP_ERROR/NOT_RUN；原63/63通过。失败是既有 USB-01.tls-transport 在恢复握手
+`test_provision_tls.c:981` 的断言，保留非零退出及合成证书/日志。不是新配对协议已
+导致或修复了该问题的因果证据。固定失败证书150次有界复放通过，不取代原失败，
+S66继续开放。准备复放时截获过宽导致另一identity夹具缺失，记录SETUP_ERROR后
+改为运行已构建测试程序，不把该设置错误算产品断言失败。
+
+单列证据（不累加到439）：13运行器门禁；真实Windows CurrentUser DPAPI回归3；
+真实DPAPI→Python请求→生产Kotlin响应→Python导入→真实TLS客户端/外部对端鉴权1；
+2隔离变异分别移除请求绑定/权限绑定被检出，原生产代码恢复7测试通过。Android
+Debug/androidTest构建及仅emulator-5554安装通过，原生Android提供方完成SHA256+
+MGF1-SHA256+非空label加密/解密。未安装Mi10、未访问板子/原生USB、未修改Agent。
+
+可复跑入口（互通环境变量选择的是额外场景，不是假定默认执行了它）：
+
+```sh
+python3 tests/host/bk7258/test_workbench_pairing.py
+SHANIU_PAIR_INTEROP_OUT=out/pairing-interop \
+  python3 tests/host/bk7258/test_workbench_pairing_interop.py
+python3 tests/host/bk7258/test_workbench_profile.py --dpapi
+```
+
+互通脚本缺真实Windows DPAPI或Gradle依赖时必须非零，不能视为业务失败或静默skip。
+普通Kotlin用例仅验证公开证书解析；互通也使用合成外部TLS对端。手机侧确认、grant
+持久回执后导出尚未接通。父需求接口/L1L2/L3缺口继续分层，不以codec通过标完成。
+
+逐例：`acceptance/s75-20260927.json`；补充：
+`acceptance/s75-pairing-evidence-20260927.json`；原始日志：`out/shaniu-s75/`。

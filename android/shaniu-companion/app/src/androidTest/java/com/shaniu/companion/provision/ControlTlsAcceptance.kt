@@ -99,6 +99,7 @@ internal object ControlTlsAcceptance {
                 val exported = java.security.cert.CertificateFactory.getInstance("X.509")
                     .generateCertificate(identity.certificatePem.byteInputStream())
                 check(MessageDigest.getInstance("SHA-256").digest(exported.encoded).contentEquals(pin))
+                PcPairingAcceptance.run(identity)
                 val message = ByteArray(48) { (it + 1).toByte() }
                 client.send(message)
                 pumpUntil { serverPlain.size() == message.size }

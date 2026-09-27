@@ -88,7 +88,7 @@ def _validate(pem, pin, key):
     return encoded
 
 
-def _read(path):
+def _read(path, *, magic=b"SPC1"):
     path = Path(path)
     if path.is_symlink() or not path.is_file():
         raise ValueError()
@@ -105,7 +105,7 @@ def _read(path):
         data = stream.read(_LIMIT + 9)
     if (
         not 8 < len(data) <= _LIMIT + 8
-        or data[:4] != b"SPC1"
+        or data[:4] != magic
         or struct.unpack(">I", data[4:8])[0] != len(data) - 8
     ):
         raise ValueError()
@@ -140,6 +140,23 @@ def use(path):
             plain[:] = bytes(len(plain))
 
 
+def _publish_new(path, wire):
+    """Shared exclusive file publication. Callers seal all private bytes first."""
+    temporary = None
+    try:
+        descriptor, temporary = tempfile.mkstemp(
+            prefix=".shaniu-pc-", dir=Path(path).parent
+        )
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(wire)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.link(temporary, path)
+    finally:
+        if temporary is not None:
+            Path(temporary).unlink(missing_ok=True)
+
+
 def create(path, pem, pin, key):
     """Publish a new encrypted file exclusively, then verify decrypted readback.
     Never replace an existing profile. A post-publication failure is uncertain;
@@ -148,7 +165,6 @@ def create(path, pem, pin, key):
     """
     path = Path(path)
     plain = bytearray()
-    temporary = None
     try:
         certificate = _validate(pem, pin, key)
         plain.extend(b"PCI1" + bytes.fromhex(pin))
@@ -158,13 +174,7 @@ def create(path, pem, pin, key):
         sealed = _protect(plain)
         if not 0 < len(sealed) <= _LIMIT:
             raise ValueError()
-        descriptor, temporary = tempfile.mkstemp(prefix=".shaniu-pc-", dir=path.parent)
-        with os.fdopen(descriptor, "wb") as stream:
-            stream.write(b"SPC1" + struct.pack(">I", len(sealed)))
-            stream.write(sealed)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.link(temporary, path)  # Atomic, exclusive publication; no replace fallback.
+        _publish_new(path, b"SPC1" + struct.pack(">I", len(sealed)) + sealed)
         with use(path) as (saved_pem, saved_pin, saved_key):
             if (saved_pem, saved_pin) != (pem, pin) or saved_key != key:
                 raise ValueError()
@@ -174,5 +184,3 @@ def create(path, pem, pin, key):
         ) from None
     finally:
         plain[:] = bytes(len(plain))
-        if temporary is not None:
-            Path(temporary).unlink(missing_ok=True)
