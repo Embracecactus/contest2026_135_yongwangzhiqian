@@ -1,0 +1,20 @@
+test_cancel_and_no_default (__main__.ResourceFlow) ... ok
+test_changed_file_and_existing_receipt (__main__.ResourceFlow) ... ok
+test_cli_tls_cooperative_cancel (__main__.ResourceFlow) ... {"fixture": "synthetic-workbench-tls", "certificate_sha256": "e2a4e395b983d6e3c873b0144ac42d4603c5005af48038a3380ad6e3456d9a70", "alternate_certificate_sha256": "ef9c163dd2c495550d7e7e3ff46f34dd09de78b377f89810939ab8166a798d71", "openssl": "OpenSSL 3.0.2 15 Mar 2022"}
+ok
+test_cli_tls_upload (__main__.ResourceFlow) ... {"fixture": "synthetic-workbench-tls", "certificate_sha256": "fce29f0fe4e5aa864cd16ec4152a90ff3d16b165464864b61d76abc6a63c2c31", "alternate_certificate_sha256": "762d652ef088d0fbb6e4647c20f3d350fa8188b185290456d3c6f64c936f58b6", "openssl": "OpenSSL 3.0.2 15 Mar 2022"}
+ok
+test_cooperative_cancel_after_first_chunk (__main__.ResourceFlow) ... ok
+test_cooperative_cancel_before_begin (__main__.ResourceFlow) ... ok
+test_cooperative_lost_cancel_ack_remains_unknown (__main__.ResourceFlow) ... ok
+test_cooperative_terminal_progress_is_not_canceled (__main__.ResourceFlow) ... ok
+test_lost_ack_resume (__main__.ResourceFlow) ... ok
+test_non_pack_rejected_before_connect (__main__.ResourceFlow) ... ok
+test_receipt_precedes_begin (__main__.ResourceFlow) ... ok
+test_unknown_epoch_no_replay (__main__.ResourceFlow) ... ok
+test_upload (__main__.ResourceFlow) ... ok
+
+----------------------------------------------------------------------
+Ran 13 tests in 1.156s
+
+OK

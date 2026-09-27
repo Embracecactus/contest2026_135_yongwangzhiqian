@@ -1,0 +1,125 @@
+{
+  "parent": "50eb29431b7416d0cec35f066976a47e374b7f10",
+  "counts": {
+    "selected": 640,
+    "PASS": 640,
+    "original_including_two_restores": 63,
+    "added": 577,
+    "new_L2": 5,
+    "runner_gates": 19,
+    "original_mutations_detected": 2,
+    "extra_mutation_detected": 1,
+    "extra_restore_pass": 1
+  },
+  "new_ids": [
+    "RES-03.flow-cli_tls_cooperative_cancel",
+    "RES-03.flow-cooperative_cancel_after_first_chunk",
+    "RES-03.flow-cooperative_cancel_before_begin",
+    "RES-03.flow-cooperative_lost_cancel_ack_remains_unknown",
+    "RES-03.flow-cooperative_terminal_progress_is_not_canceled"
+  ],
+  "new_units": [
+    {
+      "id": "RES-03.flow-cooperative_cancel_after_first_chunk",
+      "parent": "RES-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.16560154198668897,
+      "evidence": "RES-03.flow-cooperative_cancel_after_first_chunk.log",
+      "evidence_sha256": "2ac27e2f5459c5c0dd4bb4a42aff4450df770319b773b82477f11b43bea4dd6b"
+    },
+    {
+      "id": "RES-03.flow-cooperative_cancel_before_begin",
+      "parent": "RES-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.11523232801118866,
+      "evidence": "RES-03.flow-cooperative_cancel_before_begin.log",
+      "evidence_sha256": "d4e11d86770fb9c8e971eed18f2fd64edfb94961e78fc7d456d2ca0bf40d4869"
+    },
+    {
+      "id": "RES-03.flow-cooperative_terminal_progress_is_not_canceled",
+      "parent": "RES-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.217884037992917,
+      "evidence": "RES-03.flow-cooperative_terminal_progress_is_not_canceled.log",
+      "evidence_sha256": "b2ca00028b46d0d897f740093210a75e7dd62540bfb92eec7fd53469716d51e1"
+    },
+    {
+      "id": "RES-03.flow-cooperative_lost_cancel_ack_remains_unknown",
+      "parent": "RES-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.16597290796926245,
+      "evidence": "RES-03.flow-cooperative_lost_cancel_ack_remains_unknown.log",
+      "evidence_sha256": "b831f4d9c2fb54478fbeed6c1a3b6835bc6399a5623be69ba592384f57916a55"
+    },
+    {
+      "id": "RES-03.flow-cli_tls_cooperative_cancel",
+      "parent": "RES-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.21733364200918004,
+      "evidence": "RES-03.flow-cli_tls_cooperative_cancel.log",
+      "evidence_sha256": "678341fbde1cecce5a914601026c1c4287e1c528fab9c816ba0c00daf5af813d"
+    }
+  ],
+  "baseline": "New optional hooks absent initially: TypeError at binding, BLOCKED_INTERFACE, not business assertion Red. Both initial logs retained.",
+  "implementation": "Existing workbench.run forwards bounded local observer/cancel hooks to the sole resource transfer owner. One cancel request between protocol operations; no new client, worker, wire schema, receiver TTL or transfer deadline.",
+  "oracle": [
+    "Actual native resource job/session/worker/store through production client framing",
+    "Additional TLS peer relays real frames to native implementation",
+    "First chunk then cancel prevents FINISH; native canceled readback required",
+    "Before BEGIN no receipt or resource mutation",
+    "Done snapshot wins over late intent; detached observer cannot overwrite progress",
+    "Lost cancel ACK remains error; only separate device query resolves result"
+  ],
+  "mutation": "Temporary copied production transfer function ignores cancel intent: assertion done != canceled; original function restore passes. No mutation in product checkout or device.",
+  "input_hashes_match": true,
+  "production_unchanged_during_final_run": true,
+  "parent_gaps": {
+    "RES-03": {
+      "interface": "Resource transfer hooks now bound through existing workbench entry; browser page/server not yet implemented",
+      "L1_L2": "640 collected PASS, all previous635 IDs retained; native and TLS cancel paths covered",
+      "L3": "NOT_RUN: actual USB/SD, physical latency and device coexistence"
+    },
+    "USB-02": {
+      "interface": "Local browser service still pending; future adapter must use single owner and bounded local snapshot/intent handoff",
+      "L1_L2": "No concurrent browser HTTP/queue validation claimed by these tests",
+      "L3": "NOT_RUN; COM16 identity/availability unanswered"
+    }
+  },
+  "resources": {
+    "bounded": "Detached fixed-field snapshot per update, two optional callbacks, no extra persistent buffers/threads; existing max4096-byte resource chunk and absolute deadline retained",
+    "unknown": "Physical USB cancellation latency, CPU p95 and memory high-water not measured; callbacks required nonblocking; no CONFIG staging preemption"
+  },
+  "limits": [
+    "No APK/firmware/model/Agent change, no rebuild of unchanged firmware/APK",
+    "No phone installation, serial open, flash or data reset",
+    "640 units do not mean56 product requirements complete",
+    "Original APK46/COM16 questions remain unanswered; no new hardware action inferred"
+  ],
+  "raw_evidence_sha256": {
+    "s109-evidence-20260927/CFG-01.wifi-clears-cloud.log": "aaa11bcfa92919fdf829fd76f60a34087340a280eeed3351f11df81655d88e93",
+    "s109-evidence-20260927/MSC-01.early-release.log": "9556dbe76893d736eb178d8571253e3717099612e6c1bf7d3e7ebdcc82f81b9b",
+    "s109-evidence-20260927/RES-03.flow-cli_tls_cooperative_cancel.log": "678341fbde1cecce5a914601026c1c4287e1c528fab9c816ba0c00daf5af813d",
+    "s109-evidence-20260927/RES-03.flow-cooperative_cancel_after_first_chunk.log": "2ac27e2f5459c5c0dd4bb4a42aff4450df770319b773b82477f11b43bea4dd6b",
+    "s109-evidence-20260927/RES-03.flow-cooperative_cancel_before_begin.log": "d4e11d86770fb9c8e971eed18f2fd64edfb94961e78fc7d456d2ca0bf40d4869",
+    "s109-evidence-20260927/RES-03.flow-cooperative_lost_cancel_ack_remains_unknown.log": "b831f4d9c2fb54478fbeed6c1a3b6835bc6399a5623be69ba592384f57916a55",
+    "s109-evidence-20260927/RES-03.flow-cooperative_terminal_progress_is_not_canceled.log": "b2ca00028b46d0d897f740093210a75e7dd62540bfb92eec7fd53469716d51e1",
+    "s109-evidence-20260927/before.log": "be63648be5a46b6e3ede9378a448d821733b349f60c312b0d13062653d585a7a",
+    "s109-evidence-20260927/cli-before.log": "a097eeb49e2a050c2348ab272b2855b5bb00f70fd2d5234cc8a6ff23696c0c6a",
+    "s109-evidence-20260927/flow-after.log": "d44cc96ae43bef0e12eb5621c59fc64143175787a62f150f319f58943bacad96",
+    "s109-evidence-20260927/full.log": "8d74b478a25adefed2656058d4f57a4023fae471a6335b5133d532927173faab",
+    "s109-evidence-20260927/mutation.log": "6077b44656671b5944403d1ada8913ac17459eea4364315c9834fa1e9bfc4e76",
+    "s109-evidence-20260927/restored.log": "850dd2ad664733a87edc5f1ec0ae6cb32b2612ae19d19544869205df20429acb",
+    "s109-evidence-20260927/runner-gates.log": "9f85c99ded38905e60c30eff9228482736aeb277b91c5fc827e4e476389066e9",
+    "s109-evidence-20260927/style.log": "06b67d1d8d501ffc36c5c1cae40f419eaf8d9a478d57c08ae2fa220dd7386ecc"
+  }
+}

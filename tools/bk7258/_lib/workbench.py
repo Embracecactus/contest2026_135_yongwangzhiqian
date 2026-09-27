@@ -667,7 +667,7 @@ def _credentials(args):
         key[:] = bytes(len(key))
 
 
-def run(args):
+def run(args, *, observe=None, cancel_requested=None):
     resource_plan = None
     if args.operation.startswith("default-"):
         from . import workbench_selection
@@ -732,7 +732,13 @@ def run(args):
                     pack_filename=args.pack_filename,
                 )
             if resource_plan is not None:
-                return workbench_resources.perform(client, args, resource_plan)
+                return workbench_resources.perform(
+                    client,
+                    args,
+                    resource_plan,
+                    observe=observe,
+                    cancel_requested=cancel_requested,
+                )
             if args.operation == "task-event":
                 return client.task_event(
                     args.task_id,

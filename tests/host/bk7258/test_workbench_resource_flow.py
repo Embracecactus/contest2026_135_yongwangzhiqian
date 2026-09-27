@@ -92,6 +92,123 @@ def args(op, root):
 
 
 class ResourceFlow(unittest.TestCase):
+    def test_cooperative_cancel_after_first_chunk(self):
+        with tempfile.TemporaryDirectory() as directory:
+            a = args("resource-upload", Path(directory))
+            p, c = m.prepare(a), client()
+            seen, commands = [], []
+            real = c.resource_request
+
+            def observe(snapshot):
+                seen.append(dict(snapshot))
+                # A UI observer cannot alter the authoritative transfer snapshot.
+                snapshot["written"] = 0xFFFFFFFF
+
+            def send(*values, **kwargs):
+                commands.append(values[0])
+                return real(*values, **kwargs)
+
+            try:
+                with patch.object(c, "resource_request", side_effect=send):
+                    result = m.perform(
+                        c,
+                        a,
+                        p,
+                        observe=observe,
+                        cancel_requested=lambda: bool(seen and seen[-1]["written"] > 0),
+                    )
+                self.assertEqual(result["state"], "canceled")
+                self.assertFalse(result["installed"])
+                self.assertEqual(commands.count("append"), 1)
+                self.assertEqual(commands.count("cancel"), 1)
+                self.assertNotIn("finish", commands)
+                self.assertEqual(seen[-1]["state"], "canceled")
+                self.assertEqual(c.resource_status()["state"], "canceled")
+                self.assertTrue(a.receipt.is_file())
+            finally:
+                p.close()
+                c.close()
+
+    def test_cooperative_cancel_before_begin(self):
+        with tempfile.TemporaryDirectory() as directory:
+            a = args("resource-upload", Path(directory))
+            p, c = m.prepare(a), client()
+            try:
+                with patch.object(
+                    c, "resource_request", wraps=c.resource_request
+                ) as send:
+                    with self.assertRaisesRegex(ValueError, "not started"):
+                        m.perform(c, a, p, cancel_requested=lambda: True)
+                    send.assert_not_called()
+                self.assertFalse(a.receipt.exists())
+                self.assertEqual(c.resource_status()["state"], "idle")
+            finally:
+                p.close()
+                c.close()
+
+    def test_cooperative_terminal_progress_is_not_canceled(self):
+        with tempfile.TemporaryDirectory() as directory:
+            a = args("resource-upload", Path(directory))
+            p, c = m.prepare(a), client()
+            seen = []
+            try:
+                with patch.object(
+                    c, "resource_request", wraps=c.resource_request
+                ) as send:
+                    result = m.perform(
+                        c,
+                        a,
+                        p,
+                        observe=lambda v: seen.append(v),
+                        cancel_requested=lambda: bool(seen and seen[-1]["installed"]),
+                    )
+                self.assertTrue(result["installed"])
+                self.assertEqual(seen[-1]["state"], "done")
+                self.assertNotIn(
+                    "cancel", [call.args[0] for call in send.call_args_list]
+                )
+                self.assertEqual(
+                    [v["written"] for v in seen], sorted(v["written"] for v in seen)
+                )
+            finally:
+                p.close()
+                c.close()
+
+    def test_cooperative_lost_cancel_ack_remains_unknown(self):
+        with tempfile.TemporaryDirectory() as directory:
+            a = args("resource-upload", Path(directory))
+            p, c = m.prepare(a), client()
+            seen, commands = [], []
+            real = c.resource_request
+
+            def send(*values, **kwargs):
+                commands.append(values[0])
+                result = real(*values, **kwargs)
+                if values[0] == "cancel":
+                    raise w.ControlError("Cancel ACK lost after actual acceptance")
+                return result
+
+            try:
+                with patch.object(c, "resource_request", side_effect=send):
+                    with self.assertRaises(w.ControlError):
+                        m.perform(
+                            c,
+                            a,
+                            p,
+                            observe=lambda v: seen.append(v),
+                            cancel_requested=lambda: bool(
+                                seen and seen[-1]["written"] > 0
+                            ),
+                        )
+                self.assertEqual(commands.count("cancel"), 1)
+                self.assertNotEqual(seen[-1]["state"], "canceled")
+                # Explicit independent read resolves the unknown, not local closure.
+                self.assertEqual(c.resource_status()["state"], "canceled")
+                self.assertTrue(a.receipt.is_file())
+            finally:
+                p.close()
+                c.close()
+
     def test_upload(self):
         with tempfile.TemporaryDirectory() as directory:
             a = args("resource-upload", Path(directory))
@@ -116,6 +233,12 @@ class ResourceFlow(unittest.TestCase):
                 c.close()
 
     def test_cli_tls_upload(self):
+        self._cli_tls_transfer(False)
+
+    def test_cli_tls_cooperative_cancel(self):
+        self._cli_tls_transfer(True)
+
+    def _cli_tls_transfer(self, cancel):
         import contextlib
         import ssl
         import struct
@@ -172,8 +295,19 @@ class ResourceFlow(unittest.TestCase):
                     with patch.object(
                         w, "SerialChannel", return_value=peer
                     ), patch.object(w, "_credentials", material):
-                        result = w.run(a)
-                    self.assertTrue(result["installed"])
+                        seen = []
+                        if cancel:
+                            result = w.run(
+                                a,
+                                observe=lambda value: seen.append(value),
+                                cancel_requested=lambda: bool(
+                                    seen and seen[-1]["written"] > 0
+                                ),
+                            )
+                        else:
+                            result = w.run(a)
+                    self.assertEqual(result["installed"], not cancel)
+                    self.assertEqual(result["state"], "canceled" if cancel else "done")
                     self.assertTrue(peer.closed)
                 finally:
                     peer.close()

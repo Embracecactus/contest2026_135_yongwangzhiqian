@@ -601,3 +601,26 @@ Host coverage includes real client framing -> native controller/worker/store/
 renderer using a pipe in place of TLS/USB. Existing production TLS/permission
 checks remain separate; browser UI, phone integration, physical USB, migration
 of active/2 markers and board acceptance remain pending.
+
+
+### Resource transfer integration for a local workbench
+
+The shared Python `workbench.run(args, observe=..., cancel_requested=...)`
+entry now forwards optional local hooks to resource operations. `observe`
+receives a detached public device snapshot; `cancel_requested` reads a local
+intent. Both callbacks must be short, nonblocking and must not call the client.
+The owner remains the existing single USB/TLS client. A browser adapter must
+publish snapshots and set cancellation intent without opening another port or
+sending concurrent commands on this client.
+
+Cancellation is checked before a new BEGIN and between bounded protocol
+operations. Before BEGIN it sends no mutation and creates no receipt. After
+BEGIN it sends at most one cancel, stops producing APPEND/FINISH, and waits for
+the device's canceled state under the original deadline. A terminal installation
+already observed as done wins over a late local cancel intent. Lost ACKs and
+commit-time rejection remain errors/unknown; they are not reported as canceled.
+The saved receipt remains available for explicit result queries.
+
+This does not yet provide the browser server/page. It does not make a 4096-byte
+resource request interruptible in the middle of CONFIG staging, guarantee a
+physical USB response latency, or renew the configured deadline/receiver TTL.

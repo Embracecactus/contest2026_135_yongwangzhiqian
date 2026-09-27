@@ -897,7 +897,10 @@ def main():
              "ResourcesTest.test_" + variant], marker=False)
     for variant in ("upload", "cli_tls_upload", "lost_ack_resume", "receipt_precedes_begin",
                     "unknown_epoch_no_replay", "cancel_and_no_default",
-                    "changed_file_and_existing_receipt", "non_pack_rejected_before_connect"):
+                    "changed_file_and_existing_receipt", "non_pack_rejected_before_connect",
+                    "cooperative_cancel_after_first_chunk", "cooperative_cancel_before_begin",
+                    "cooperative_terminal_progress_is_not_canceled",
+                    "cooperative_lost_cancel_ack_remains_unknown", "cli_tls_cooperative_cancel"):
         add(suite, "RES-03.flow-" + variant, "RES-03", "L2",
             [sys.executable, HERE / "test_workbench_resource_flow.py",
              "ResourceFlow.test_" + variant], marker=False)

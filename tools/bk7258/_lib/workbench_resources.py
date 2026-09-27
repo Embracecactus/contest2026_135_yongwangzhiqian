@@ -290,11 +290,32 @@ def correlate(snapshot, receipt, pin):
         )
 
 
-def perform(client, args, prepared):
+def perform(client, args, prepared, *, observe=None, cancel_requested=None):
+    """Run on the sole client owner. Optional local hooks must be short and
+    nonblocking; they must not use the client. Observers receive detached public
+    snapshots. Cancellation is checked between bounded protocol requests, never
+    in the middle of CONFIG staging. A requested cancel is sent once and only a
+    device snapshot establishes CANCELED; lost replies propagate as unknown.
+    Existing absolute deadline and saved receipt remain authoritative.
+    """
+    if observe is not None and not callable(observe):
+        raise ValueError("Invalid resource observer")
+    if cancel_requested is not None and not callable(cancel_requested):
+        raise ValueError("Invalid resource cancellation source")
+
+    def publish(value):
+        if observe is not None:
+            observe(dict(value))
+
+    def canceled():
+        return cancel_requested is not None and cancel_requested()
+
     deadline = client._now() + client._timeout
     snapshot = client.resource_status(deadline=deadline)
     receipt = prepared.receipt
     if args.operation == "resource-upload":
+        if canceled():
+            raise ValueError("Resource upload not started; no device mutation")
         if (
             snapshot["state"] not in ("idle", "done", "canceled", "failed")
             or snapshot["resources_held"]
@@ -324,9 +345,12 @@ def perform(client, args, prepared):
     if receipt is not None:
         correlate(snapshot, receipt, client._pin)
     if args.operation == "resource-status":
+        publish(snapshot)
         return snapshot
-    if args.operation == "resource-cancel":
+    canceling = args.operation == "resource-cancel"
+    if canceling:
         if snapshot["state"] == "canceled":
+            publish(snapshot)
             return snapshot
         client.resource_request(
             "cancel",
@@ -339,16 +363,26 @@ def perform(client, args, prepared):
     while True:
         client._check(deadline)
         correlate(snapshot, receipt, client._pin)
+        publish(snapshot)
         state = snapshot["state"]
-        if args.operation == "resource-cancel" and state == "canceled":
+        if canceling and state == "canceled":
             return snapshot
-        if args.operation != "resource-cancel" and state == "done":
+        if not canceling and state == "done":
             return snapshot
         if state in ("idle", "done", "canceled", "failed", "unknown"):
             raise ValueError(
                 "Resource job did not complete the requested operation; query saved receipt"
             )
-        if args.operation != "resource-cancel" and state == "receiving":
+        if not canceling and canceled():
+            client.resource_request(
+                "cancel",
+                receipt["epoch"],
+                receipt["nonce"],
+                snapshot["id"],
+                deadline=deadline,
+            )
+            canceling = True
+        if not canceling and state == "receiving":
             offset = snapshot["written"]
             if offset < prepared.total:
                 prepared.stream.seek(offset)
