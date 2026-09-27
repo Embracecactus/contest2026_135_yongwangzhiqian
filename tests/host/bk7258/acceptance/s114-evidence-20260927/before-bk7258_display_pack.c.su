@@ -1,0 +1,12 @@
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_display_pack.c:83:17:bkdisplay_le32	0	static
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_display_pack.c:89:17:bkdisplay_crc32_update	8	static
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_display_pack.c:73:12:bkdisplay_errno	8	static
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_display_pack.c:143:12:bkdisplay_seek	8	static
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_display_pack.c:113:12:bkdisplay_read_exact	24	static
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_display_pack.c:323:12:bkdisplay_decode	1088	static
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_display_pack.c:224:13:bkdisplay_expression_id	0	static
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_display_pack.c:286:12:bkdisplay_zero_region	80	static
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_display_pack.c:185:12:bkdisplay_padded_ascii.constprop	16	static
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_display_pack.c:704:5:bkdisplay_pack_open	2312	static
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_display_pack.c:903:5:bkdisplay_pack_close	16	static
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_display_pack.c:920:5:bkdisplay_pack_render	104	static
