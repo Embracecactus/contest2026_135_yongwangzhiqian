@@ -283,6 +283,9 @@ static void client_peer(struct bkdisplay_service_s *service,bool selection)
     }
   bkcontrol_session_close(&wire);
 }
+#ifdef TEST_SELECTION_TLS
+#include "selection_tls_peer.inc"
+#endif
 /* Recovery retries release only; the original save/render outcome is immutable. */
 static void selection_wire_case(struct bkdisplay_service_s *service,const char *mode)
 {
@@ -580,6 +583,10 @@ int main(int argc,char **argv)
     {selection_case(&service,argv[3]);baseline_writes=writes;}
   else if(!strcmp(argv[3],"--peer"))
     client_peer(&service,false);
+#ifdef TEST_SELECTION_TLS
+  else if(!strcmp(argv[3],"--selection-tls-peer"))
+    {selection_tls_peer(&service);baseline_writes=writes;}
+#endif
   else if(!strcmp(argv[3],"--selection-peer"))
     {client_peer(&service,true);baseline_writes=writes;}
   else if(!strncmp(argv[3],"wire-",5))

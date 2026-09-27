@@ -9,6 +9,7 @@ import hashlib
 import subprocess
 import sys
 import tempfile
+import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[3]
 APP = ROOT / "app/bk7258"
@@ -52,7 +53,17 @@ def main():
         fragments.append(source[start:pos])
     with tempfile.TemporaryDirectory(prefix="pack-trial-build-") as d:
         temp = Path(d)
-        (temp / "pack-trial-render.inc").write_text("\n".join(fragments))
+        renderer = "\n".join(fragments)
+        if os.environ.get("SHANIU_TEST_MUTATE_FB1") == "1":
+            needle = "ret = bkdisplay_framebuffer_write(BKDISPLAY_FB1, pixels);"
+            if renderer.count(needle) != 1:
+                raise RuntimeError("renderer mutation target changed")
+            renderer = renderer.replace(needle, "ret = 0; /* isolated missed FB1 */")
+        (temp / "pack-trial-render.inc").write_text(renderer)
+        print(
+            "RENDERER_SHA256=" + hashlib.sha256(renderer.encode()).hexdigest(),
+            flush=True,
+        )
         from test_nfc_rf_lifecycle import function
 
         product = (APP / "bk7258_agent_product.c").read_text()
@@ -91,6 +102,52 @@ def main():
             + hashlib.sha256(fixture.read_bytes()).hexdigest(),
             flush=True,
         )
+        tls = sys.argv[1].startswith("android-default-tls-")
+        tls_flags = []
+        if tls:
+            from tls_test_identity import issue
+
+            crypto = ROOT.parent / "apps/crypto/mbedtls/mbedtls"
+            build = temp / "crypto"
+
+            def run(args):
+                subprocess.run([str(x) for x in args], check=True)
+
+            run(
+                [
+                    "cmake",
+                    "-S",
+                    crypto,
+                    "-B",
+                    build,
+                    "-DENABLE_PROGRAMS=OFF",
+                    "-DENABLE_TESTING=OFF",
+                    "-DCMAKE_C_FLAGS=-Wno-error=missing-prototypes",
+                    "-DCMAKE_BUILD_TYPE=Release",
+                ]
+            )
+            run(["cmake", "--build", build, "-j8"])
+            issue(run, temp)
+            print(
+                "TLS_CERT_SHA256="
+                + hashlib.sha256((temp / "cert.pem").read_bytes()).hexdigest(),
+                flush=True,
+            )
+            tls_flags = ["-DTEST_SELECTION_TLS", "-I", str(crypto / "include")]
+            tls_flags += [
+                str(APP / (name + ".c"))
+                for name in (
+                    "bk7258_control_pair",
+                    "bk7258_provision_tls",
+                    "bk7258_provision_pair",
+                    "bk7258_provision_claim",
+                    "bk7258_provision_scan",
+                )
+            ]
+            tls_flags += [
+                str(build / "library" / ("lib" + name + ".a"))
+                for name in ("mbedtls", "mbedx509", "mbedcrypto")
+            ]
         subprocess.run(
             [
                 "cc",
@@ -126,12 +183,90 @@ def main():
                 str(APP / "bk7258_display_trial_control.c"),
                 str(APP / "bk7258_display_selection_control.c"),
                 str(APP / "bk7258_control_session.c"),
+                *tls_flags,
                 "-Wl,--wrap=write,--wrap=fsync",
                 "-o",
                 str(temp / "test"),
             ],
             check=True,
         )
+        if tls:
+            import time
+
+            method = {
+                "save": "authenticatedNativeSavePreservesAckAndRenderBoundary",
+                "cancel": "confirmedNativeCancelDoesNotWriteOrRender",
+                "recovery": "nativeReleaseFailureRemainsUnknownAfterRecovery",
+            }[sys.argv[1].removeprefix("android-default-tls-")]
+            command = [
+                str(temp / "test"),
+                str(HERE / "build/shaniu-default-v1.bkep"),
+                str(fixture),
+                "--selection-tls-peer",
+            ]
+            app = ROOT / "android/shaniu-companion"
+            name = "com.shaniu.companion.provision.DefaultSelectionNativeTlsTest"
+            start = time.time()
+            result = subprocess.run(
+                [
+                    "./gradlew",
+                    ":app:testDebugUnitTest",
+                    "--offline",
+                    "--rerun-tasks",
+                    "--tests",
+                    name + "." + method,
+                ],
+                cwd=app,
+                timeout=180,
+                env=dict(
+                    os.environ,
+                    SHANIU_SELECTION_TLS_PEER="\n".join(command),
+                    SHANIU_TEST_CERT=str(temp / "cert.pem"),
+                    SHANIU_TEST_KEY=str(temp / "key.pem"),
+                ),
+            )
+            report = (
+                app
+                / "app/build/test-results/testDebugUnitTest"
+                / ("TEST-" + name + ".xml")
+            )
+            if not report.exists() or report.stat().st_mtime < start:
+                raise RuntimeError("missing/stale native TLS JUnit report")
+            doc = ET.parse(report).getroot()
+            cases = doc.findall("testcase")
+            if (
+                doc.tag != "testsuite"
+                or doc.get("name") != name
+                or doc.get("tests") != "1"
+                or doc.get("skipped") != "0"
+                or len(cases) != 1
+                or cases[0].get("name") != method
+                or cases[0].get("classname") != name
+                or cases[0].find("skipped") is not None
+            ):
+                raise RuntimeError("incomplete native TLS JUnit collection")
+            print("NATIVE_TLS_JUNIT " + report.read_text(), flush=True)
+            if result.returncode:
+                import shutil
+
+                failure = (
+                    ROOT / "out/tls-failures" / ("selection-" + str(time.time_ns()))
+                )
+                failure.mkdir(parents=True, mode=0o700)
+                for name in ("cert.pem", "key.pem"):
+                    shutil.copyfile(temp / name, failure / name)
+                    (failure / name).chmod(0o600)
+                shutil.copyfile(report, failure / "junit.xml")
+                print("Synthetic failing inputs retained: " + str(failure), flush=True)
+            failed = (
+                cases[0].find("failure") is not None
+                or cases[0].find("error") is not None
+            )
+            if result.returncode and not failed:
+                raise RuntimeError(
+                    "Gradle failed without a collected assertion failure"
+                )
+            return 1 if failed else 0
         if sys.argv[1].startswith("pc-"):
             command = [
                 str(temp / "test"),
@@ -179,6 +314,12 @@ def main():
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except (RuntimeError, subprocess.CalledProcessError, OSError) as e:
+    except (
+        RuntimeError,
+        subprocess.SubprocessError,
+        OSError,
+        ET.ParseError,
+        KeyError,
+    ) as e:
         print("SETUP_ERROR:", e, file=sys.stderr)
         raise SystemExit(2)

@@ -934,6 +934,10 @@ def main():
         add(suite, "RES-02.pc-default-" + variant, "RES-02", "L1",
             [sys.executable, HERE / "test_workbench_selection.py", "SelectionTest.test_" + variant],
             marker=False, setup_exit_code=2)
+    for variant in ("save", "cancel", "recovery"):
+        add(suite, "RES-02.android-default-tls-" + variant, "RES-02", "L2",
+            [sys.executable, HERE / "test_pack_trial.py", "android-default-tls-" + variant],
+            ready=binaries["test_display_upload"], marker=False, setup_exit_code=2)
     for variant in ("lifecycle", "cancel", "stale", "recover"):
         add(suite, "RES-02.pc-default-native-" + variant, "RES-02", "L2",
             [sys.executable, HERE / "test_pack_trial.py", "pc-default-" + variant],
@@ -1540,6 +1544,8 @@ def main():
         HERE / "test_workbench_trial.py",
         HERE / "test_pack_trial.py",
         HERE / "test_pack_trial.c",
+        HERE / "selection_tls_peer.inc",
+        ROOT / "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionNativeTlsTest.kt",
         HERE / "test_display_selection.c",
         HERE / "test_bk7258_display_pack.c",
         ROOT / "app/bk7258/bk7258_display_service.c",

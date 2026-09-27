@@ -3046,3 +3046,38 @@ Controller/DeviceControlSession，只替换外部transport、时钟、token。
 尚未完成Android→TLS→原生默认服务的同一条纵向验收；本地素材选择跨重建、
 完整浅深色/字体矩阵、已安装目录、真实BLE/板端渲染及发布仍有缺口。
 证据：`acceptance/s105-20260927.json`、`s105-android-default-evidence-20260927.json`。
+
+### S106：Android TLS 到原生默认表情服务（2026-09-27）
+
+新增 `test_pack_trial.py android-default-tls-{save,cancel,recovery}` 三条 L2
+入口。它们编译真实 mbedTLS / provision TLS / control pair / SDC1，再由真实
+JVM `ProvisionTls`、`ProvisionGattSession`、`DeviceControlProtocol`、
+`DeviceControlSession` 和 `DefaultSelectionController` 驱动原生选择、存储、
+缓存及渲染函数。只控制外部 ATT 分包、工作线程推进、挂载/卸载和 framebuffer
+输出；没有成功状态机替身。短查询不启动 worker，确认后显式推进同一生产 worker。
+
+- save：显式刷新默认后提交新名称，ACK 时不写入/绘制；完成后独立读持久版本与
+  名称，并检查两块屏幕每个像素。重复状态查询无额外保存或渲染。
+- cancel：任务排队时取消，实际取消终态不写入/渲染，后续 worker 不复活任务。
+- recovery：保存后卸载失败，App 保留 UNKNOWN；显式释放恢复不伪造已显示，
+  再刷新才能取得持久版本，帧数仍不增加。
+
+每条入口只接受本次新鲜 XML 中恰好一个匹配且未跳过的 JUnit 方法；缺失、
+陈旧、损坏、错身份或 Gradle 无断言失败报告的异常属于 SETUP_ERROR。
+普通 JVM 运行缺少原生夹具时该可选类会跳过；这不算上述强制入口的通过。
+证书来自既有合成身份夹具的固定有效期；仅用于主机测试，失败合成身份留在
+忽略目录 `out/tls-failures/`，不归档私钥。没有设备身份生成或变更。
+
+有效性反例：仅在临时提取副本将第二块 framebuffer 调用替换为返回成功，
+`SHANIU_TEST_MUTATE_FB1=1` 的 save 用例应因帧数不符失败；生产文件未修改。
+恢复后同例通过。该变异及恢复单列，不混入产品通过数量。
+
+边界：手机 owner 准入/撤销与 product 路由仍由 S104 的独立测试覆盖；本夹具
+直接绑定合成 scope/凭据，不是完整 owner 生命周期联测。真实 BLE、SD/DMA、
+物理屏幕、Activity 重建和已安装资源目录仍未验。接口、L1/L2、L3 缺口分别
+保留，不把这三个 L2 用例当成 RES-02 整项验收。本轮没有生产或依赖改动。
+
+最终625PASS＝原63（含2恢复）＋562累计新增；原622标识全部保留，19门禁与
+原2变异检出保持。额外1变异检出、1恢复通过单列。运行前后生产未变，所有
+冻结输入哈希匹配。完整结果见 `acceptance/s106-20260927.json`，分层与原始
+证据见 `s106-android-native-tls-evidence-20260927.json` / `s106-evidence-20260927/`。

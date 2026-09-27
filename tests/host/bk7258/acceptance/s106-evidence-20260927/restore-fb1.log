@@ -1,0 +1,233 @@
+RENDERER_SHA256=940a0e15cb465cef77f0b5c9fd8694f76bd1e9c1dd23e084eed49c13bf125ca4
+bk7258 package eye-pack: PASS output=/tmp/pack-trial-build-ypepgy2c/green.bkep id=shaniu-upload-v1 revision=1 entries=11 size=10494 sha256=c0136ca3b702c15f41d15aed1e0a5e8714b851332024347c2bf13b1b7fea8e47
+PACK_TRIAL_INPUT_SHA256=c0136ca3b702c15f41d15aed1e0a5e8714b851332024347c2bf13b1b7fea8e47
+CMake Deprecation Warning at CMakeLists.txt:21 (cmake_minimum_required):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+
+
+-- The C compiler identification is GNU 11.4.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Found Python3: /home/lijian/.local/bin/python3.11 (found version "3.11.15") found components: Interpreter
+-- Performing Test C_COMPILER_SUPPORTS_WFORMAT_SIGNEDNESS
+-- Performing Test C_COMPILER_SUPPORTS_WFORMAT_SIGNEDNESS - Success
+-- Configuring done (1.3s)
+-- Generating done (0.0s)
+-- Build files have been written to: /tmp/pack-trial-build-ypepgy2c/crypto
+[  0%] Building C object library/CMakeFiles/mbedcrypto.dir/aes.c.o
+[  1%] Building C object library/CMakeFiles/mbedcrypto.dir/aesni.c.o
+[  2%] Building C object library/CMakeFiles/mbedcrypto.dir/arc4.c.o
+[  3%] Building C object library/CMakeFiles/mbedcrypto.dir/aesce.c.o
+[  4%] Building C object library/CMakeFiles/mbedcrypto.dir/asn1parse.c.o
+[  5%] Building C object library/CMakeFiles/mbedcrypto.dir/aria.c.o
+[  6%] Building C object library/CMakeFiles/mbedcrypto.dir/base64.c.o
+[  7%] Building C object library/CMakeFiles/mbedcrypto.dir/asn1write.c.o
+[  7%] Building C object library/CMakeFiles/mbedcrypto.dir/bignum_core.c.o
+[  8%] Building C object library/CMakeFiles/mbedcrypto.dir/bignum.c.o
+[  9%] Building C object library/CMakeFiles/mbedcrypto.dir/bignum_mod.c.o
+[ 10%] Building C object library/CMakeFiles/mbedcrypto.dir/bignum_mod_raw.c.o
+[ 11%] Building C object library/CMakeFiles/mbedcrypto.dir/blowfish.c.o
+[ 12%] Building C object library/CMakeFiles/mbedcrypto.dir/camellia.c.o
+[ 13%] Building C object library/CMakeFiles/mbedcrypto.dir/ccm.c.o
+[ 14%] Building C object library/CMakeFiles/mbedcrypto.dir/chacha20.c.o
+[ 15%] Building C object library/CMakeFiles/mbedcrypto.dir/chachapoly.c.o
+[ 16%] Building C object library/CMakeFiles/mbedcrypto.dir/cipher.c.o
+[ 16%] Building C object library/CMakeFiles/mbedcrypto.dir/cipher_wrap.c.o
+[ 17%] Building C object library/CMakeFiles/mbedcrypto.dir/constant_time.c.o
+[ 18%] Building C object library/CMakeFiles/mbedcrypto.dir/cmac.c.o
+[ 19%] Building C object library/CMakeFiles/mbedcrypto.dir/ctr_drbg.c.o
+[ 20%] Building C object library/CMakeFiles/mbedcrypto.dir/des.c.o
+[ 21%] Building C object library/CMakeFiles/mbedcrypto.dir/dhm.c.o
+[ 22%] Building C object library/CMakeFiles/mbedcrypto.dir/ecdh.c.o
+[ 23%] Building C object library/CMakeFiles/mbedcrypto.dir/ecdsa.c.o
+[ 24%] Building C object library/CMakeFiles/mbedcrypto.dir/ecjpake.c.o
+[ 25%] Building C object library/CMakeFiles/mbedcrypto.dir/ecp.c.o
+[ 25%] Building C object library/CMakeFiles/mbedcrypto.dir/ecp_curves.c.o
+[ 26%] Building C object library/CMakeFiles/mbedcrypto.dir/entropy.c.o
+[ 27%] Building C object library/CMakeFiles/mbedcrypto.dir/entropy_poll.c.o
+[ 28%] Building C object library/CMakeFiles/mbedcrypto.dir/error.c.o
+[ 29%] Building C object library/CMakeFiles/mbedcrypto.dir/gcm.c.o
+[ 30%] Building C object library/CMakeFiles/mbedcrypto.dir/hash_info.c.o
+[ 31%] Building C object library/CMakeFiles/mbedcrypto.dir/hkdf.c.o
+[ 32%] Building C object library/CMakeFiles/mbedcrypto.dir/hmac_drbg.c.o
+[ 33%] Building C object library/CMakeFiles/mbedcrypto.dir/lmots.c.o
+[ 33%] Building C object library/CMakeFiles/mbedcrypto.dir/lms.c.o
+[ 34%] Building C object library/CMakeFiles/mbedcrypto.dir/md.c.o
+[ 35%] Building C object library/CMakeFiles/mbedcrypto.dir/md2.c.o
+[ 36%] Building C object library/CMakeFiles/mbedcrypto.dir/md4.c.o
+[ 37%] Building C object library/CMakeFiles/mbedcrypto.dir/md5.c.o
+[ 38%] Building C object library/CMakeFiles/mbedcrypto.dir/memory_buffer_alloc.c.o
+[ 39%] Building C object library/CMakeFiles/mbedcrypto.dir/nist_kw.c.o
+[ 40%] Building C object library/CMakeFiles/mbedcrypto.dir/oid.c.o
+[ 41%] Building C object library/CMakeFiles/mbedcrypto.dir/padlock.c.o
+[ 41%] Building C object library/CMakeFiles/mbedcrypto.dir/pem.c.o
+[ 43%] Building C object library/CMakeFiles/mbedcrypto.dir/pk.c.o
+[ 43%] Building C object library/CMakeFiles/mbedcrypto.dir/pk_wrap.c.o
+[ 44%] Building C object library/CMakeFiles/mbedcrypto.dir/pkcs12.c.o
+[ 45%] Building C object library/CMakeFiles/mbedcrypto.dir/pkcs5.c.o
+[ 46%] Building C object library/CMakeFiles/mbedcrypto.dir/pkparse.c.o
+[ 47%] Building C object library/CMakeFiles/mbedcrypto.dir/pkwrite.c.o
+[ 48%] Building C object library/CMakeFiles/mbedcrypto.dir/platform.c.o
+[ 49%] Building C object library/CMakeFiles/mbedcrypto.dir/platform_util.c.o
+[ 50%] Building C object library/CMakeFiles/mbedcrypto.dir/poly1305.c.o
+[ 50%] Building C object library/CMakeFiles/mbedcrypto.dir/psa_crypto.c.o
+[ 51%] Building C object library/CMakeFiles/mbedcrypto.dir/psa_crypto_aead.c.o
+[ 52%] Building C object library/CMakeFiles/mbedcrypto.dir/psa_crypto_cipher.c.o
+[ 53%] Building C object library/CMakeFiles/mbedcrypto.dir/psa_crypto_client.c.o
+[ 54%] Building C object library/CMakeFiles/mbedcrypto.dir/psa_crypto_driver_wrappers.c.o
+[ 55%] Building C object library/CMakeFiles/mbedcrypto.dir/psa_crypto_ecp.c.o
+[ 56%] Building C object library/CMakeFiles/mbedcrypto.dir/psa_crypto_hash.c.o
+/home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/library/psa_crypto_hash.c:75:26: warning: no previous prototype for ‘mbedtls_md_info_from_psa’ [-Wmissing-prototypes]
+   75 | const mbedtls_md_info_t *mbedtls_md_info_from_psa( psa_algorithm_t alg )
+      |                          ^~~~~~~~~~~~~~~~~~~~~~~~
+[ 57%] Building C object library/CMakeFiles/mbedcrypto.dir/psa_crypto_mac.c.o
+[ 58%] Building C object library/CMakeFiles/mbedcrypto.dir/psa_crypto_pake.c.o
+[ 58%] Building C object library/CMakeFiles/mbedcrypto.dir/psa_crypto_rsa.c.o
+[ 59%] Building C object library/CMakeFiles/mbedcrypto.dir/psa_crypto_se.c.o
+[ 60%] Building C object library/CMakeFiles/mbedcrypto.dir/psa_crypto_slot_management.c.o
+[ 61%] Building C object library/CMakeFiles/mbedcrypto.dir/psa_crypto_storage.c.o
+[ 62%] Building C object library/CMakeFiles/mbedcrypto.dir/psa_its_file.c.o
+[ 63%] Building C object library/CMakeFiles/mbedcrypto.dir/psa_util.c.o
+[ 64%] Building C object library/CMakeFiles/mbedcrypto.dir/ripemd160.c.o
+[ 65%] Building C object library/CMakeFiles/mbedcrypto.dir/rsa.c.o
+[ 66%] Building C object library/CMakeFiles/mbedcrypto.dir/rsa_alt_helpers.c.o
+[ 67%] Building C object library/CMakeFiles/mbedcrypto.dir/sha256.c.o
+[ 66%] Building C object library/CMakeFiles/mbedcrypto.dir/sha1.c.o
+[ 68%] Building C object library/CMakeFiles/mbedcrypto.dir/sha512.c.o
+[ 69%] Building C object library/CMakeFiles/mbedcrypto.dir/sha3.c.o
+[ 70%] Building C object library/CMakeFiles/mbedcrypto.dir/threading.c.o
+[ 71%] Building C object library/CMakeFiles/mbedcrypto.dir/timing.c.o
+[ 73%] Building C object library/CMakeFiles/mbedcrypto.dir/version_features.c.o
+[ 73%] Building C object library/CMakeFiles/mbedcrypto.dir/version.c.o
+[ 74%] Building C object library/CMakeFiles/mbedcrypto.dir/xtea.c.o
+[ 75%] Linking C static library libmbedcrypto.a
+[ 75%] Built target mbedcrypto
+[ 76%] Building C object library/CMakeFiles/mbedx509.dir/pkcs7.c.o
+[ 77%] Building C object library/CMakeFiles/mbedx509.dir/x509_create.c.o
+[ 78%] Building C object library/CMakeFiles/mbedx509.dir/x509.c.o
+[ 79%] Building C object library/CMakeFiles/mbedx509.dir/x509_crl.c.o
+[ 80%] Building C object library/CMakeFiles/mbedx509.dir/x509_crt.c.o
+[ 82%] Building C object library/CMakeFiles/mbedx509.dir/x509write_crt.c.o
+[ 82%] Building C object library/CMakeFiles/mbedx509.dir/x509_csr.c.o
+[ 83%] Building C object library/CMakeFiles/mbedx509.dir/x509write_csr.c.o
+[ 84%] Linking C static library libmbedx509.a
+[ 84%] Built target mbedx509
+[ 84%] Building C object library/CMakeFiles/mbedtls.dir/debug.c.o
+[ 85%] Building C object library/CMakeFiles/mbedtls.dir/mps_reader.c.o
+[ 86%] Building C object library/CMakeFiles/mbedtls.dir/mps_trace.c.o
+[ 87%] Building C object library/CMakeFiles/mbedtls.dir/ssl_cache.c.o
+[ 88%] Building C object library/CMakeFiles/mbedtls.dir/ssl_ciphersuites.c.o
+[ 90%] Building C object library/CMakeFiles/mbedtls.dir/net_sockets.c.o
+[ 90%] Building C object library/CMakeFiles/mbedtls.dir/ssl_client.c.o
+[ 91%] Building C object library/CMakeFiles/mbedtls.dir/ssl_cookie.c.o
+[ 92%] Building C object library/CMakeFiles/mbedtls.dir/ssl_debug_helpers_generated.c.o
+[ 92%] Building C object library/CMakeFiles/mbedtls.dir/ssl_msg.c.o
+[ 93%] Building C object library/CMakeFiles/mbedtls.dir/ssl_ticket.c.o
+[ 94%] Building C object library/CMakeFiles/mbedtls.dir/ssl_tls.c.o
+[ 95%] Building C object library/CMakeFiles/mbedtls.dir/ssl_tls12_client.c.o
+[ 96%] Building C object library/CMakeFiles/mbedtls.dir/ssl_tls12_server.c.o
+[ 97%] Building C object library/CMakeFiles/mbedtls.dir/ssl_tls13_keys.c.o
+[ 98%] Building C object library/CMakeFiles/mbedtls.dir/ssl_tls13_server.c.o
+[ 99%] Building C object library/CMakeFiles/mbedtls.dir/ssl_tls13_client.c.o
+[100%] Building C object library/CMakeFiles/mbedtls.dir/ssl_tls13_generic.c.o
+[100%] Linking C static library libmbedtls.a
+[100%] Built target mbedtls
+-----
+Using configuration from /tmp/pack-trial-build-ypepgy2c/test-cert-huvgm77i/ca.cnf
+40B7AB98177F0000:error:0700006C:configuration file routines:NCONF_get_string:no value:../crypto/conf/conf_lib.c:315:group=fixture name=email_in_dn
+40B7AB98177F0000:error:0700006C:configuration file routines:NCONF_get_string:no value:../crypto/conf/conf_lib.c:315:group=fixture name=rand_serial
+40B7AB98177F0000:error:0700006C:configuration file routines:NCONF_get_string:no value:../crypto/conf/conf_lib.c:315:group=fixture name=default_days
+Check that the request matches the signature
+Signature ok
+The Subject's Distinguished Name is as follows
+commonName            :ASN.1 12:'localhost'
+Certificate is to be certified until Jan  1 00:00:00 2030 GMT (1191 days)
+
+Write out database with 1 new entries
+Data Base Updated
+/tmp/pack-trial-build-ypepgy2c/cert.pem: OK
+TLS_CERT_SHA256=2bd8bcd89050dea2ffb7c261cc862e65ee5024f9c255a9888d9993d680971ef7
+WARNING: platform-tools package is not installed.
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:generateDebugBuildConfig
+> Task :app:generateDebugResValues
+> Task :app:checkDebugAarMetadata
+> Task :app:mapDebugSourceSetPaths
+> Task :app:generateDebugResources
+> Task :app:packageDebugResources
+> Task :app:createDebugCompatibleScreenManifests
+> Task :app:extractDeepLinksDebug
+> Task :app:parseDebugLocalResources
+> Task :app:processDebugMainManifest
+> Task :app:processDebugManifest
+> Task :app:preDebugUnitTestBuild UP-TO-DATE
+> Task :app:javaPreCompileDebug
+> Task :app:javaPreCompileDebugUnitTest
+> Task :app:processDebugManifestForPackage
+> Task :app:mergeDebugResources
+> Task :app:processDebugResources
+
+> Task :app:compileDebugKotlin
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:283:16 'var statusBarColor: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:284:16 'var navigationBarColor: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:285:16 'var isStatusBarContrastEnforced: Boolean' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:286:26 'var systemUiVisibility: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:287:18 'static field SYSTEM_UI_FLAG_LIGHT_STATUS_BAR: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:287:58 'static field SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:2824:70 'static field SOFT_INPUT_ADJUST_RESIZE: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:4494:16 'var statusBarColor: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:4495:16 'var navigationBarColor: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:4496:26 'var systemUiVisibility: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:4497:18 'static field SYSTEM_UI_FLAG_LIGHT_STATUS_BAR: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt:4497:58 'static field SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/ota/BkpackInspector.kt:79:64 Unchecked cast of 'kotlin.Any?' to 'kotlin.collections.Map<kotlin.String, kotlin.Any>'.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/ota/OtaPackageServer.kt:393:38 'val allNetworks: (Array<Network!>..Array<out Network!>)' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/AndroidProvisionGatt.kt:153:68 'var value: ByteArray!' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/DeviceSettingsEditor.kt:159:86 'static field SOFT_INPUT_ADJUST_RESIZE: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/DeviceSettingsEditor.kt:174:85 'static field SOFT_INPUT_ADJUST_RESIZE: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/ProvisionActivity.kt:141:16 'var statusBarColor: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/ProvisionActivity.kt:142:16 'var navigationBarColor: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/ProvisionActivity.kt:143:16 'var isStatusBarContrastEnforced: Boolean' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/ProvisionActivity.kt:144:26 'var systemUiVisibility: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/ProvisionActivity.kt:144:76 'static field SYSTEM_UI_FLAG_LIGHT_STATUS_BAR: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/ProvisionActivity.kt:144:116 'static field SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR: Int' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/ProvisionActivity.kt:167:54 'constructor(p0: Activity!): IntentIntegrator' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/ProvisionActivity.kt:168:84 'class IntentIntegrator : Any' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/ProvisionActivity.kt:371:60 'class IntentIntegrator : Any' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/ProvisionActivity.kt:371:77 'static fun parseActivityResult(p0: Int, p1: Int, p2: Intent!): IntentResult!' is deprecated. Deprecated in Java.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/ProvisionGattSession.kt:127:69 Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver of type 'kotlin.ByteArray?'.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/ProvisionGattSession.kt:128:43 Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver of type 'kotlin.ByteArray?'.
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/ProvisionGattSession.kt:144:27 Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver of type 'kotlin.ByteArray?'.
+
+> Task :app:compileDebugJavaWithJavac
+> Task :app:processDebugJavaRes
+> Task :app:bundleDebugClassesToRuntimeJar
+> Task :app:bundleDebugClassesToCompileJar
+
+> Task :app:compileDebugUnitTestKotlin
+w: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/PcPairingExchangeTest.kt:78:19 Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver of type 'kotlin.String?'.
+
+> Task :app:compileDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :app:processDebugUnitTestJavaRes
+> Task :app:testDebugUnitTest
+
+BUILD SUCCESSFUL in 14s
+24 actionable tasks: 24 executed
+NATIVE_TLS_JUNIT <?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.shaniu.companion.provision.DefaultSelectionNativeTlsTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-09-27T11:33:15.820Z" hostname="DESKTOP-0B20O0K" time="3.965">
+  <properties/>
+  <testcase name="authenticatedNativeSavePreservesAckAndRenderBoundary" classname="com.shaniu.companion.provision.DefaultSelectionNativeTlsTest" time="3.965"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
+
