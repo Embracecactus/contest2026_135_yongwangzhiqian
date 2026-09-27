@@ -26,6 +26,9 @@ static int bkdisplay_render_pixels_locked(struct bkdisplay_service_s *s, const c
   strcpy(s->status.expression, expression);
   return 0;
 }
+static int bkdisplay_render_pack_pixels_locked(struct bkdisplay_service_s *s,
+  const char *expression, const char *filename)
+{ assert(filename == NULL); return bkdisplay_render_pixels_locked(s, expression); }
 #include "bk7258_display_render_identity.inc"
 #include "bk7258_display_intent.inc"
 static void expect(uint32_t id, enum bkdisplay_trial_state_e expected)

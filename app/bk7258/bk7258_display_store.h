@@ -62,6 +62,16 @@ int bkdisplay_upload_quiesced(const struct bkdisplay_upload_s *upload);
 /* The root is a mounted FAT volume, not /dev/mmcsd0 itself. */
 
 int bkdisplay_store_ensure(const char *root);
+/* Open exactly this installed immutable pack for a volatile render. Never
+ * consult/change active.json or fall back on validation error.
+ * The caller owns the mounted-volume lease and closes the returned object.
+ */
+
+int bkdisplay_store_open_installed(
+  const char *root, const char *filename,
+  struct bkdisplay_store_selection_s *selection,
+  struct bkdisplay_pack_s **pack);
+
 /* Resolves and returns one fully validated pack.  The caller owns the pack
  * and must close it before releasing the mounted volume lease. */
 int bkdisplay_store_resolve_open(const char *root,

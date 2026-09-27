@@ -1,0 +1,20 @@
+[
+  {
+    "file": "app/bk7258/bk7258_display_store.c",
+    "before_sha256": "7b86e56a87fc1f6cb645f8b5382c2fa10fe6fa17a0c6d81b5f49565e18886262",
+    "after_sha256": "6bb07e8c1dbd7cfba4ace8878c7e5028f6730efc889465dd2136d638d4f6f5bb",
+    "noncomment_nonwhitespace_equal": true
+  },
+  {
+    "file": "app/bk7258/bk7258_display_store.h",
+    "before_sha256": "46c3f104dd1418eef6cec47f9bab96e23fe314173ea6fd0c430cf9615dfb117d",
+    "after_sha256": "f18e36aaae34a107a204a0c479059e9b64c907365e44489669ba42150c8685b2",
+    "noncomment_nonwhitespace_equal": true
+  },
+  {
+    "file": "app/bk7258/bk7258_display_service.h",
+    "before_sha256": "9b0d86eb03459dc852563b817fef6bfcda76f1a73eb3dca7ab8fa24db4c97938",
+    "after_sha256": "e3e6067ed3b50c81e0eef46f1282e44a30dbdc57afd0f04629bc8821eb0f7dbc",
+    "noncomment_nonwhitespace_equal": true
+  }
+]

@@ -541,7 +541,14 @@
     "RES-02.pc-trial-cli_preflight",
     "RES-02.pc-trial-lifecycle",
     "RES-02.pc-trial-retry_expiry",
-    "RES-02.pc-trial-stale_cancel"
+    "RES-02.pc-trial-stale_cancel",
+    "RES-02.pack-trial-cancel",
+    "RES-02.pack-trial-expiry",
+    "RES-02.pack-trial-queued-cancel",
+    "RES-02.pack-trial-queued-expiry",
+    "RES-02.pack-trial-supersede",
+    "RES-02.pack-trial-missing",
+    "RES-02.pack-trial-invalid"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1086,6 +1093,13 @@
     "RES-02.pc-trial-cli_preflight",
     "RES-02.pc-trial-lifecycle",
     "RES-02.pc-trial-retry_expiry",
-    "RES-02.pc-trial-stale_cancel"
+    "RES-02.pc-trial-stale_cancel",
+    "RES-02.pack-trial-cancel",
+    "RES-02.pack-trial-expiry",
+    "RES-02.pack-trial-queued-cancel",
+    "RES-02.pack-trial-queued-expiry",
+    "RES-02.pack-trial-supersede",
+    "RES-02.pack-trial-missing",
+    "RES-02.pack-trial-invalid"
   ]
 }

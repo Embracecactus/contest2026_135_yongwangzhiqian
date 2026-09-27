@@ -1,0 +1,42 @@
+[
+  {
+    "file": "bk7258_display_store.c",
+    "stage": "baseline",
+    "exit": 1
+  },
+  {
+    "file": "bk7258_display_store.c",
+    "stage": "final",
+    "exit": 1
+  },
+  {
+    "file": "bk7258_display_store.h",
+    "stage": "baseline",
+    "exit": 1
+  },
+  {
+    "file": "bk7258_display_store.h",
+    "stage": "final",
+    "exit": 1
+  },
+  {
+    "file": "bk7258_display_service.c",
+    "stage": "baseline",
+    "exit": 1
+  },
+  {
+    "file": "bk7258_display_service.c",
+    "stage": "final",
+    "exit": 1
+  },
+  {
+    "file": "bk7258_display_service.h",
+    "stage": "baseline",
+    "exit": 1
+  },
+  {
+    "file": "bk7258_display_service.h",
+    "stage": "final",
+    "exit": 1
+  }
+]

@@ -1,0 +1,36 @@
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:2:1: error: Relative file path does not match actual file
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:12:1: warning: #include outside of 'Included Files' section
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:13:1: warning: #include outside of 'Included Files' section
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:15:1: warning: #include outside of 'Included Files' section
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:16:1: warning: #include outside of 'Included Files' section
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:40:1: error: Missing blank line after comment
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:43:75: error: Block comment terminator must be on a separate line
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:43:1: error: Missing blank line after comment
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:45:1: error: Missing blank line before comment found
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:45:1: error: Missing blank line after comment
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:47:1: error: Missing blank line before comment found
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:47:1: error: Missing blank line after comment
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:60:78: error: Long line found
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:62:1: error: Missing blank line after comment
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:79:84: error: Long line found
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:83:1: error: Missing blank line after comment
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:87:80: error: Long line found
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:88:82: error: Long line found
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:89:78: error: Long line found
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:91:79: error: Long line found
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:92:1: error: Missing blank line after comment
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:113:85: error: Long line found
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:114:1: error: Missing blank line before comment found
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:114:1: error: Missing blank line after comment
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:115:78: error: Long line found
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:122:79: error: Long line found
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:123:80: error: Long line found
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:124:80: error: Long line found
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:125:75: error: Block comment terminator must be on a separate line
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:125:1: error: Missing blank line after comment
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:126:84: error: Long line found
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:133:1: error: Missing blank line before comment found
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:133:1: error: Missing blank line after comment
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:135:79: error: Long line found
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:136:64: error: Block comment terminator must be on a separate line
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_service.h:136:1: error: Missing blank line after comment

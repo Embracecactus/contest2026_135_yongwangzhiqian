@@ -114,6 +114,16 @@ int bk7258_display_trial(const char *expression, uint32_t duration_ms, uint32_t 
 /* Atomic expected-ID admission for independently authenticated clients. */
 int bk7258_display_trial_checked(const char *expression, uint32_t duration_ms,
                                   uint32_t expected_id, uint32_t *id);
+/* Volatile explicit installed-pack trial on the same worker and ID space.
+ * Admission copies a bounded filename without I/O. Failed validation never
+ * falls back or selects a default. Restore resolves the current default;
+ * a newer explicit render supersedes the trial using its render identity.
+ */
+
+int bk7258_display_trial_pack_checked(const char *filename,
+                                      const char *expression,
+                                      uint32_t duration_ms,
+                                      uint32_t expected_id, uint32_t *id);
 int bk7258_display_trial_status(struct bkdisplay_trial_status_s *status);
 int bk7258_display_cancel_trial(uint32_t id);
 

@@ -1,0 +1,9 @@
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.h:2:1: error: Relative file path does not match actual file
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.h:12:1: warning: #include outside of 'Included Files' section
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.h:14:1: warning: #include outside of 'Included Files' section
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.h:58:1: error: Missing blank line before comment found
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.h:66:65: error: Block comment terminator must be on a separate line
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.h:66:1: error: Missing blank line after comment
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.h:68:79: error: Long line found
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.h:75:68: error: Block comment terminator must be on a separate line
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.h:75:1: error: Missing blank line after comment

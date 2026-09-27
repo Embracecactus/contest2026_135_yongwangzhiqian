@@ -13,6 +13,9 @@ static uint64_t bkdisplay_now_ms(void) { return now_ms; }
 static unsigned renders;
 static int bkdisplay_render_pixels_locked(struct bkdisplay_service_s *s, const char *name)
 { renders++; strcpy(s->status.expression, name); return 0; }
+static int bkdisplay_render_pack_pixels_locked(struct bkdisplay_service_s *s,
+  const char *expression, const char *filename)
+{ assert(filename == NULL); return bkdisplay_render_pixels_locked(s, expression); }
 #include "bk7258_display_render_identity.inc"
 #include "bk7258_display_intent.inc"
 static struct bkcontrol_session_s session;

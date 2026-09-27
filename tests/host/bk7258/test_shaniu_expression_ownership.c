@@ -21,6 +21,9 @@ static int render_error, renders;
 static int bkdisplay_render_pixels_locked(struct bkdisplay_service_s *service, const char *expression)
 { renders++; if (render_error) return render_error;
   strcpy(service->status.expression, expression); return 0; }
+static int bkdisplay_render_pack_pixels_locked(struct bkdisplay_service_s *s,
+  const char *expression, const char *filename)
+{ assert(filename == NULL); return bkdisplay_render_pixels_locked(s, expression); }
 #include "bk7258_display_render_identity.inc"
 static uint64_t bkdisplay_now_ms(void) { return 100; }
 #include "bk7258_display_intent.inc"

@@ -8,9 +8,17 @@ static int bkdisplay_identity_advance(void)
   g_bkdisplay_expression_identity++;
   return 0;
 }
+static int bkdisplay_render_pack_locked(struct bkdisplay_service_s *service,
+                                        const char *expression,
+                                        const char *filename)
+{
+  int ret = bkdisplay_identity_advance();
+  return ret < 0 ? ret :
+         bkdisplay_render_pack_pixels_locked(service, expression, filename);
+}
+
 static int bkdisplay_render_locked(struct bkdisplay_service_s *service,
                                    const char *expression)
 {
-  int ret = bkdisplay_identity_advance();
-  return ret < 0 ? ret : bkdisplay_render_pixels_locked(service, expression);
+  return bkdisplay_render_pack_locked(service, expression, NULL);
 }

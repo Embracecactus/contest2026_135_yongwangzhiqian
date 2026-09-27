@@ -1,0 +1,15 @@
+[0/2] Re-checking globbed directories...
+[1/13] Generating bin output directories
+[2/13] cd /home/lijian/project/open-vela/nuttx && /home/lijian/project/open-vela/prebuilts/tools/cmake/bin/cmake -DKCONFIG_CONFIG=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/configs/mcuboot/ap/defconfig -DNUTTX_DIR=/home/lijian/project/open-vela/nuttx -DCMAKE_BINARY_DIR=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake -P /home/lijian/project/open-vela/nuttx/cmake/nuttx_generate_dts.cmake
+[3/13] cd /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/apps && cmake --build /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/bin_host --target mkdeps
+[200%] Built target mkdeps
+[4/13] cd /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/apps && cmake --build /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/bin_host --target incdir
+[200%] Built target incdir
+[5/13] Performing build step for 'ffmpeg_out_tree'
+[6/13] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_display_service.c.o
+[7/13] Linking CXX static library apps/libapps.a
+[8/13] Performing install step for 'ffmpeg_out_tree'
+[9/13] Completed 'ffmpeg_out_tree'
+[10/13] Linking CXX executable nuttx
+[11/13] Generating nuttx.bin
+[12/13] Generating System.map

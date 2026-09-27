@@ -690,3 +690,29 @@ trial transitions are tested through a host pipe with external renderer sink
 and monotonic clock; this layer intentionally does not claim TLS/PC grant/USB or
 actual pixels. Existing TLS/guard suites remain separate. Future pack-specific
 trial/default, light UI and physical combination acceptance remain open.
+
+### S95 volatile installed-pack render (2026-09-27)
+
+RES-02: the existing display worker accepts a bounded installed filename plus
+expression/TTL/expected trial ID, using the same trial slot, nonwrapping IDs,
+monotonic acceptance deadline, cancellation and render identity. Admission
+copies metadata only. The mounted-volume owner opens exactly that canonical
+installed pack, validates it and renders using the existing parser/cache/dual
+framebuffer path. Missing/invalid named packs fail; they do not fall back to a
+different pack while claiming the requested trial succeeded.
+
+A trial does not write the default marker. On expiry/cancel, restoration resolves
+the current persistent default and prior expression. A later explicit render,
+including a new default, supersedes the earlier trial; its late expiry does not
+overwrite the newer visible choice. Queue expiry/cancel renders nothing. All
+file objects close before the volume lease is released. This is the native
+service primitive; authenticated phone/PC pack-specific message routing and
+versioned default operations are still separate required work. The existing
+expression-only kind11 contract is unchanged.
+
+The test uses verbatim production render/cache/volume functions, real store/
+parser/lease and intent/identity transitions. Mount syscalls, monotonic time and
+framebuffer writes are external peers. An independently specified all-green
+source requires RGB565 0x07e0 at every pixel on both sinks; ordinary default
+background is checked separately. File writes are counted after setup. This
+proves host behavior, not DMA/SD power-loss/physical pixels or target latency.

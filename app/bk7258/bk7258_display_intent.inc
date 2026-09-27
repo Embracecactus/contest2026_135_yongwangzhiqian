@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #include <nuttx/spinlock.h>
+#include "bk7258_display_store.h"
 
 static spinlock_t g_bkdisplay_intent_lock = SP_UNLOCKED;
 static struct bkdisplay_expression_request_s g_bkdisplay_intent;
@@ -10,6 +11,7 @@ static struct bkdisplay_trial_status_s g_bkdisplay_trial;
 static uint64_t g_bkdisplay_trial_started;
 static uint64_t g_bkdisplay_trial_identity;
 static char g_bkdisplay_trial_restore[BKDISPLAY_EXPRESSION_SIZE];
+static char g_bkdisplay_trial_pack[BKDISPLAY_STORE_FILENAME_SIZE];
 
 /* Called under intent lock. Terminals never reopen; new request gets a new ID. */
 static bool bkdisplay_trial_busy(void)
@@ -124,7 +126,7 @@ int bk7258_display_cancel_expression(uint32_t id)
 
 static int bkdisplay_request(const char *expression, uint32_t *id,
                               uint32_t duration_ms, uint64_t now,
-                              bool check_id, uint32_t expected_id)
+                              bool check_id, uint32_t expected_id, const char *filename)
 {
   static const char *const allowed[] = {
     "neutral", "happy", "shy", "sad", "surprised", "thinking",
@@ -133,6 +135,12 @@ static int bkdisplay_request(const char *expression, uint32_t *id,
   bool valid = false;
   int ret = 0;
   if (expression == NULL || id == NULL) return -EINVAL;
+  if (filename != NULL)
+    {
+      size_t length = strnlen(filename, sizeof(g_bkdisplay_trial_pack));
+      if (length == 0 || length >= sizeof(g_bkdisplay_trial_pack) ||
+          strchr(filename, '/') || strchr(filename, '\\')) return -EINVAL;
+    }
   for (unsigned i = 0; i < sizeof(allowed) / sizeof(allowed[0]); i++)
     if (strcmp(expression, allowed[i]) == 0) valid = true;
   if (!valid) return -EINVAL;
@@ -154,6 +162,8 @@ static int bkdisplay_request(const char *expression, uint32_t *id,
       g_bkdisplay_intent.error = 0;
       strcpy(g_bkdisplay_intent_expression, expression);
       *id = g_bkdisplay_intent.id;
+      g_bkdisplay_trial_pack[0] = '\0';
+      if (filename != NULL) strcpy(g_bkdisplay_trial_pack, filename);
       if (duration_ms)
         {
           g_bkdisplay_trial = (struct bkdisplay_trial_status_s) {
@@ -171,19 +181,29 @@ static int bkdisplay_request(const char *expression, uint32_t *id,
 
 int bk7258_display_request_expression(const char *expression, uint32_t *id)
 {
-  return bkdisplay_request(expression, id, 0, 0, false, 0);
+  return bkdisplay_request(expression, id, 0, 0, false, 0, NULL);
 }
 int bk7258_display_trial(const char *expression, uint32_t duration_ms, uint32_t *id)
 {
   if (duration_ms == 0) return -EINVAL;
-  return bkdisplay_request(expression, id, duration_ms, bkdisplay_now_ms(), false, 0);
+  return bkdisplay_request(expression, id, duration_ms, bkdisplay_now_ms(), false, 0, NULL);
 }
 
 int bk7258_display_trial_checked(const char *expression, uint32_t duration_ms,
                                   uint32_t expected_id, uint32_t *id)
 {
   if (duration_ms == 0) return -EINVAL;
-  return bkdisplay_request(expression, id, duration_ms, bkdisplay_now_ms(), true, expected_id);
+  return bkdisplay_request(expression, id, duration_ms, bkdisplay_now_ms(), true, expected_id, NULL);
+}
+
+int bk7258_display_trial_pack_checked(const char *filename,
+                                      const char *expression,
+                                      uint32_t duration_ms,
+                                      uint32_t expected_id, uint32_t *id)
+{
+  if (filename == NULL || duration_ms == 0) return -EINVAL;
+  return bkdisplay_request(expression, id, duration_ms, bkdisplay_now_ms(),
+                            true, expected_id, filename);
 }
 
 /* Existing worker, rendering mutex held; short intent lock never covers I/O. */
@@ -224,6 +244,7 @@ static bool bkdisplay_intent_step(struct bkdisplay_service_s *service,
                                   bool devices_ready)
 {
   char expression[BKDISPLAY_EXPRESSION_SIZE];
+  char filename[BKDISPLAY_STORE_FILENAME_SIZE];
   uint64_t now = bkdisplay_now_ms();
   irqstate_t flags = spin_lock_irqsave(&g_bkdisplay_intent_lock);
   if (g_bkdisplay_intent.state != BKDISPLAY_EXPRESSION_PENDING)
@@ -249,10 +270,13 @@ static bool bkdisplay_intent_step(struct bkdisplay_service_s *service,
     }
   g_bkdisplay_intent.state = BKDISPLAY_EXPRESSION_RUNNING;
   memcpy(expression, g_bkdisplay_intent_expression, sizeof(expression));
+  memcpy(filename, g_bkdisplay_trial_pack, sizeof(filename));
   spin_unlock_irqrestore(&g_bkdisplay_intent_lock, flags);
 
   int ret = !devices_ready ? -ENODEV : trial && !g_bkdisplay_trial_restore[0] ?
-            -ENODATA : bkdisplay_render_locked(service, expression);
+            -ENODATA : filename[0] ?
+            bkdisplay_render_pack_locked(service, expression, filename) :
+            bkdisplay_render_locked(service, expression);
   flags = spin_lock_irqsave(&g_bkdisplay_intent_lock);
   if (trial)
     {

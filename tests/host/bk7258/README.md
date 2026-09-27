@@ -2801,3 +2801,24 @@ expected ID与operation ID，预检在凭据/端口访问前。受理不当渲�
 首次完整绿后补齐构建依赖/SETUP_ERROR退出与输入哈希，再冻结完整复跑。
 证据：`acceptance/s94-20260927.json`、`s94-trial-client-evidence-20260927.json`。
 没有固件生产变化，无AP重复构建/设备操作；历史TLS与现场门槛未关闭。
+
+### S95：原显示线程的包级试用原语（2026-09-27）
+
+新增有界文件名的原生试用入口，沿用既有trial/ID/期限/显示线程。指定已安装包
+精确读取并校验，不写默认、不失败回退到另一包；到期/取消恢复当前默认，后来的
+显式渲染覆盖旧试用资格。真实生产render/cache/volume函数逐字提取，链接真实
+store/parser/卷与trial状态；只替换时钟、挂载系统调用和framebuffer硬件sink。
+独立纯绿色源要求双屏每像素0x07e0，默认背景0x0842；统计初始化后的文件写入。
+7项新用例及“误用默认包”隔离变异/恢复通过，18门禁及原2变异保留。
+
+最终全量548收集：547PASS、1FAIL_ASSERTION（USB-01.tls-transport），原63保留。
+首错发生在Python/OpenSSL证书校验：certificate is not yet valid，尚未进入PC
+认证。存档时间比notBefore早约0.16s；独立指定验证时间前/中/后得到2/0/2。
+原报告不改写，不盲重跑消除Red，时钟来源继续定位。历史TLS故障也不由此销项。
+首次548PASS但源码在运行间有修正，production_unchanged=false，不算冻结验收。
+最终AP通过；之后仅注释/空白调整，记录哈希与去注释空白token一致，并重跑7项/AP。
+
+AP已链接渲染/存储与40B文件名槽；新trial_pack_checked入口尚无产品wire调用者，
+链接镜像不包含该入口。不能称手机/电脑已能试用新包。下一步接认证路由/默认/UI。
+证据：`acceptance/s95-20260927.json`、`s95-pack-trial-evidence-20260927.json`。
+未刷板/安装/清数据；目标资源高水位、物理屏幕/SD与完整发布仍未验收。

@@ -168,8 +168,9 @@ static struct bkdisplay_service_s g_bkdisplay_service =
   },
 };
 
-static int bkdisplay_render_pixels_locked(struct bkdisplay_service_s *service,
-                                    const char *expression);
+static int bkdisplay_render_pack_pixels_locked(
+  struct bkdisplay_service_s *service, const char *expression,
+  const char *filename);
 #include "bk7258_display_render_identity.inc"
 static uint64_t bkdisplay_now_ms(void);
 #include "bk7258_display_intent.inc"
@@ -460,8 +461,9 @@ static unsigned int bkdisplay_animate_locked(struct bkdisplay_service_s *service
   return delay_us[step];
 }
 
-static int bkdisplay_render_pixels_locked(struct bkdisplay_service_s *service,
-                                   const char *expression)
+static int bkdisplay_render_pack_pixels_locked(
+  struct bkdisplay_service_s *service, const char *expression,
+  const char *filename)
 {
   struct bkdisplay_store_selection_s selection;
   struct bkdisplay_pack_s *pack = NULL;
@@ -497,8 +499,10 @@ static int bkdisplay_render_pixels_locked(struct bkdisplay_service_s *service,
   if (ret == 0)
     {
       stage = BKDISPLAY_DIAG_STORE_RESOLVE;
-      ret = bkdisplay_store_resolve_open(BKDISPLAY_MOUNTPOINT, &selection,
-                                         &pack);
+      ret = filename != NULL ?
+        bkdisplay_store_open_installed(BKDISPLAY_MOUNTPOINT, filename,
+                                       &selection, &pack) :
+        bkdisplay_store_resolve_open(BKDISPLAY_MOUNTPOINT, &selection, &pack);
     }
 
   if (ret == 0)

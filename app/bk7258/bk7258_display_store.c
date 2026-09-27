@@ -502,6 +502,43 @@ static int bkdisplay_store_resolve_layout(
   }
 }
 
+int bkdisplay_store_open_installed(
+  const char *root, const char *filename,
+  struct bkdisplay_store_selection_s *selection,
+  struct bkdisplay_pack_s **pack)
+{
+  char directory[BKDISPLAY_PACK_PATH_SIZE];
+  char path[BKDISPLAY_PACK_PATH_SIZE];
+  int ret;
+
+  if (pack == NULL)
+    {
+      return -EINVAL;
+    }
+
+  *pack = NULL;
+  if (root == NULL || selection == NULL ||
+      !bkdisplay_store_filename(filename))
+    {
+      return -EINVAL;
+    }
+
+  ret = bkdisplay_store_path(directory, sizeof(directory), root,
+                             BKDISPLAY_STORE_PACKS);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (snprintf(path, sizeof(path), "%s/%s", directory, filename) >=
+      (int)sizeof(path))
+    {
+      return -ENAMETOOLONG;
+    }
+
+  return bkdisplay_store_validate(path, filename, selection, false, pack);
+}
+
 int bkdisplay_store_resolve_open(const char *root,
                                  struct bkdisplay_store_selection_s *selection,
                                  struct bkdisplay_pack_s **pack)

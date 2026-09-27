@@ -21,6 +21,9 @@ static int bkdisplay_render_locked(struct bkdisplay_service_s *service, const ch
 }
 static uint64_t bkdisplay_now_ms(void) { return 100; }
 static uint64_t g_bkdisplay_expression_identity;
+static int bkdisplay_render_pack_locked(struct bkdisplay_service_s *s,
+  const char *expression, const char *filename)
+{ assert(filename == NULL); return bkdisplay_render_locked(s, expression); }
 #include "bk7258_display_intent.inc"
 static int voice_result, replace_during_cancel;
 static uint32_t newer;
