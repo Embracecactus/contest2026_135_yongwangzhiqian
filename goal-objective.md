@@ -78,6 +78,8 @@
 - NET-03发现原生App在`CONFIG_BEGIN`仅排队、尚未发送时取消，会在当前STATUS完成后错误发送`CONFIG_CANCEL`；旧实现的线级反例为有效Red。现仅释放该未发送请求的本地写入占用，不向设备发送BEGIN或CANCEL；已经发送的配置事务仍保留原远端取消握手。相关83项JVM回归和当前完整777项合同集合通过，零FAIL/SETUP/NOT_RUN，两项既有变异继续检出并恢复。该切片只证明生产会话调度和协议边界，不称BLE、Android真机或板端配置持久化通过；固件未改，板端继续运行已确认的0.7.36+681。
 - LIFE-01认领清理在旧实现会等待display render mutex，先得到有效Red；现NULL关闭仅发布有界clear intent，由原worker消费。补充交错又证明旧实现会在渲染中收到新power意图后仍成功打开，修复后返回`-EAGAIN`、清QR且不让owner继续复制secret/开GATT。定向6项、抢占变异检出/恢复及完整779项合同集合通过，零FAIL/SETUP/NOT_RUN，原63和两项既有变异保留。
 - 最终匹配0.7.38+683已通过包和公开签名信任校验，由HIL一次有界写入CP/AP；板端确认A槽pair/counter 683、faults/recoveries 0。受控重启确认原模型完整哈希、frontend 1、阈值85、配置revision 6与眼睛包revision 3保持。未执行实体K2、物理QR/屏幕或BLE认领，不把匹配固件启动称这些L3通过。
+- AGENT-03注册工具`analyze_image`的取消缺口已闭环：旧Agent 95f54906在请求取消后仍走unchecked视觉调用并记guard成功，形成有效Red；Agent 52b12476将request checker贯穿registry、工具和HTTP，同例转Green且不发布旧结果。完整当前集合783/783通过、零FAIL/SETUP/NOT_RUN，两项既有变异继续检出；不以数量称整机完成。
+- 匹配0.7.41+686已通过包和公开签名信任校验；新鲜板端状态确认A活动/B非活动及准确范围后，HIL一次仅写B槽CP/AP。首次查询仍pending并在同一日志随后确认，二次查询及受控软件重启后均为B槽pair/counter 686、faults/recoveries 0；原模型完整哈希、frontend 1、阈值85、配置revision 6与眼睛包revision 3保持。没有安全的真实视觉HTTP取消注入或屏幕/相机观察，不把启动证据称AGENT-03外部端到端通过。
 - 本轮证据与匹配BIN/ELF/map：out/shaniu-core-20260928/、out/shaniu-core-20260929/cfg02-application/、out/shaniu-core-20260929/app-queued-config-cancel/；未执行人工K2、App或声学验收。
 
 ## 交付与停止条件
