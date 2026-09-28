@@ -80,8 +80,10 @@ static void product_power_fail(int error)
   (void)bk7258_display_power(3);
 }
 
-static void product_power_drain(void)
+static int product_power_drain(void)
 {
+  int voice = 0;
+
   /* Keep already-admitted work and cancellation progressing without opening
    * new admission. Once storage has stopped there can be no pending commit.
    */
@@ -92,7 +94,8 @@ static void product_power_drain(void)
       bkprov_config_step();
     }
 
-  if (atomic_load(&g_voice_initialized)) (void)voice_channel_recover();
+  if (atomic_load(&g_voice_initialized)) voice = voice_channel_recover();
+  return voice;
 }
 
 static int product_power_request(void)
@@ -260,7 +263,7 @@ static bool product_keys_step_impl(uint64_t now)
   if (g_shutdown_failed && !power)
     {
       (void)bkprov_owner_prepare_stop(now);
-      product_power_drain();
+      (void)product_power_drain();
       return true;
     }
 #else
@@ -347,8 +350,9 @@ static bool product_keys_step_impl(uint64_t now)
             }
         }
 
-      product_power_drain();
-      if (admission < 0 || trigger < 0 || nfc < 0 || motion < 0 || usb < 0 || pack < 0)
+      int voice = product_power_drain();
+      if (admission < 0 || trigger < 0 || nfc < 0 || motion < 0 ||
+          usb < 0 || pack < 0 || voice < 0)
         {
           int error = admission < 0 ? admission : trigger < 0 ? trigger : nfc < 0 ? nfc : motion;
           /* Quiescing is a handshake: EAGAIN/EBUSY is incomplete, not a
@@ -364,6 +368,8 @@ static bool product_keys_step_impl(uint64_t now)
             error = usb;
           if (pack < 0 && ((pack != -EAGAIN && pack != -EBUSY) || error == 0))
             error = pack;
+          if (voice < 0 && ((voice != -EAGAIN && voice != -EBUSY) || error == 0))
+            error = voice;
           if (error == -EAGAIN || error == -EBUSY)
             {
               if (now >= g_shutdown_deadline)
