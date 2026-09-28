@@ -1058,6 +1058,20 @@ Cancellation before/during delivery remains an error. This slice does not claim
 a complete mixed-tool ledger, full history commit, visual round, or measured
 physical latency; those remain separate integration/device gates.
 
+### AGENT-02 mixed tool and finalize ledger (2026-09-28)
+
+AGENT-02.mixed executes the production `run_react_loop`, assistant/tool history
+construction, parallel dispatcher and final-phase transition. A controlled LLM
+peer first returns `get_weather(real-1)` together with
+`agent_finalize(finish-1)`, then returns a sole finalize marker. The real tool
+must execute exactly once; the pseudo-tool must never enter the registry and
+must receive a matching deferred tool result. Final streaming may begin only
+after the second planning turn. AGENT-02.missing-id and duplicate-id require
+`-EPROTO` before any tool or reply side effect. The production parser separately
+accepts the same two-call batch and preserves both IDs. These host contracts do
+not identify the provider payload from the historical `-71` log or prove a live
+cloud, voice, or board round.
+
 
 ### R1 read-only power outcome (2026-09-28)
 

@@ -106,6 +106,19 @@ static void test_plan_phase(void)
   assert(response.tool_phase_complete && response.call_count == 1 &&
       !strcmp(response.calls[0].name, "agent_finalize"));
   llm_response_free(&response);
+  plan_calls = ",\"tool_calls\":[{\"id\":\"real-1\",\"type\":\"function\","
+      "\"function\":{\"name\":\"get_weather\",\"arguments\":\"{}\"}},"
+      "{\"id\":\"finish-1\",\"type\":\"function\",\"function\":{"
+      "\"name\":\"agent_finalize\",\"arguments\":\"{}\"}}]";
+  assert(llm_chat_plan_checked("system", messages, "[]", &response,
+      NULL, NULL) == 0);
+  assert(response.tool_phase_complete && response.tool_use &&
+      response.call_count == 2 &&
+      !strcmp(response.calls[0].id, "real-1") &&
+      !strcmp(response.calls[0].name, "get_weather") &&
+      !strcmp(response.calls[1].id, "finish-1") &&
+      !strcmp(response.calls[1].name, "agent_finalize"));
+  llm_response_free(&response);
   cJSON_Delete(messages);
   assert(llm_clear_transport() == 0);
 }
