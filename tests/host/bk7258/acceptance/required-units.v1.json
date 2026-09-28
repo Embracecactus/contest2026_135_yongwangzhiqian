@@ -781,7 +781,8 @@
     "provision.DeviceSettingsTest.unfinishedOrFailedPersistenceIsNeverReportedAsSaved",
     "provision.DeviceControlSessionTest.cancelingQueuedBeginNeverCancelsATransactionThatWasNotSent",
     "LIFE-02.power-cp-lost-reply-replay",
-    "AUD-03.agent-truncated-close"
+    "AUD-03.agent-truncated-close",
+    "AUD-03.agent-cancel-blocked-next"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1566,6 +1567,7 @@
     "provision.DeviceSettingsTest.unfinishedOrFailedPersistenceIsNeverReportedAsSaved",
     "provision.DeviceControlSessionTest.cancelingQueuedBeginNeverCancelsATransactionThatWasNotSent",
     "LIFE-02.power-cp-lost-reply-replay",
-    "AUD-03.agent-truncated-close"
+    "AUD-03.agent-truncated-close",
+    "AUD-03.agent-cancel-blocked-next"
   ]
 }

@@ -624,13 +624,18 @@ run-agent-tts-queue: $(BUILD)/test_agent_tts_queue
 	./$(BUILD)/test_agent_tts_queue
 
 $(BUILD)/test_agent_volc_tts_progress: test_agent_volc_tts_progress.c \
-	$(OPENVELA_ROOT)/packages/ai_agent/src/voice/volc_tts_ws.c | $(BUILD)
+	$(OPENVELA_ROOT)/packages/ai_agent/src/voice/volc_tts_ws.c \
+	$(OPENVELA_ROOT)/packages/ai_agent/src/voice/volc_tts.c \
+	$(OPENVELA_ROOT)/packages/ai_agent/src/voice/voice_tts.c | $(BUILD)
 	$(CC) $(CFLAGS) -DOK=0 -DERROR=-1 -ffunction-sections -fdata-sections \
 		-Wl,--gc-sections -I $(OPENVELA_ROOT)/packages/ai_agent/include \
 		-I $(OPENVELA_ROOT)/packages/ai_agent/src \
 		-I $(MOCKS) \
 		-I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON \
-		-I $(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/include $< -o $@
+		-I $(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/include $< \
+		$(OPENVELA_ROOT)/packages/ai_agent/src/voice/volc_tts.c \
+		$(OPENVELA_ROOT)/packages/ai_agent/src/voice/voice_tts.c \
+		$(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c -o $@
 
 .PHONY: run-agent-volc-tts-progress
 run-agent-volc-tts-progress: $(BUILD)/test_agent_volc_tts_progress
@@ -638,6 +643,7 @@ run-agent-volc-tts-progress: $(BUILD)/test_agent_volc_tts_progress
 	./$(BUILD)/test_agent_volc_tts_progress first-pcm-deadline
 	./$(BUILD)/test_agent_volc_tts_progress pcm-progress
 	./$(BUILD)/test_agent_volc_tts_progress truncated-close
+	./$(BUILD)/test_agent_volc_tts_progress cancel-blocked-next
 
 $(BUILD)/test_agent_funasr: test_bk7258_agent_media_player.c \
 	$(OPENVELA_ROOT)/packages/ai_agent/src/voice/funasr_asr.c | $(BUILD)

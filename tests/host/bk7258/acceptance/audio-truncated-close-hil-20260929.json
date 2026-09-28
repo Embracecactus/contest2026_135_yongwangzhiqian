@@ -1,0 +1,254 @@
+{
+  "format": "shaniu.audio-truncated-close-evidence/1",
+  "date": "2026-09-29",
+  "scope": "AUD-03 positive-sequence PCM followed by peer close is truncated failure, not successful EOF",
+  "source": {
+    "test_first_commit": "7e70c91dc1a4b8cf5b2c1301994e67dad348e6c5",
+    "main_product_commit": "0092bdc5f44c6ae80a4d8d1649f0cad43c4ac10f",
+    "agent_before": "f1a5e35a30d728613f52fb1007e8471a2dd3dc78",
+    "agent_after": "b53363b16a11a25c6a30a6fab7e5102ed837cdbd",
+    "test_sha256_at_test_first_commit": "2db303f039914c04f52f6f5560700cb96aec60a9ce806b00e83098a493528c38",
+    "agent_source_before_sha256": "ff425d6b93a941b66c57e3830fb0ef3ba05c96a94089469a615716efcc20fc2f",
+    "agent_source_after_sha256": "f089ee9552b98660860892d51a432a31542678f9cee84e219488d9082614a314"
+  },
+  "contract": {
+    "id": "AUD-03.agent-truncated-close",
+    "layer": "L2",
+    "expectation": "After positive-sequence PCM, transport close returns ECONNRESET and emits no terminal callback; delivered bytes remain observable. A negative-sequence terminal frame still completes once.",
+    "old_result": {
+      "status": "FAIL_ASSERTION",
+      "exit_code": 134,
+      "evidence": "out/audio-truncated-close/old-red.log",
+      "sha256": "6f23305ce53d1d4304672948bc6e3a145c21fefa705e241d503aa79d64d11a6d"
+    },
+    "old_green_control": {
+      "id": "AUD-02.pcm-progress",
+      "status": "PASS",
+      "evidence": "out/audio-truncated-close/old-green-control.log",
+      "sha256": "98859034dba8656c9d151f2cbbe39f9793a47bcd7b3179535e727071decb4ac1"
+    },
+    "new_result": {
+      "status": "PASS",
+      "evidence": "out/audio-truncated-close/new-green.log",
+      "sha256": "e43e36f1858d23404278bf56d0621f1b0021822fa4d639e06fbb2bf2d14a6650"
+    },
+    "selected_gate": {
+      "selected": 781,
+      "collected": 781,
+      "counts": {
+        "PASS": 781,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      },
+      "collection_errors": [],
+      "production_unchanged_during_run": true,
+      "case": {
+        "id": "AUD-03.agent-truncated-close",
+        "parent": "AUD-03",
+        "layer": "L2",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 0.00142622395651415,
+        "evidence": "AUD-03.agent-truncated-close.log",
+        "evidence_sha256": "b1c5a35d3597fa5614769074e3bc4b7aafc848a701c58a2d5f0d529dd9aa61c8"
+      },
+      "evidence": "out/audio-truncated-close/contracts/results.json",
+      "sha256": "fe8ff4182fea2b4dd45e3d31f2a329a6e400749596d73063ccb3a7bc050cbcfc"
+    },
+    "runner_selftest": {
+      "tests": 27,
+      "status": "PASS",
+      "evidence": "out/audio-truncated-close/runner-selftest.log",
+      "sha256": "f651841f670a614c7abc7fc035bd431b11dc9033401711f92e26bcb3245c0932"
+    }
+  },
+  "implementation": {
+    "behavior": "Removed the conversion of ECONNRESET after any PCM into success; the connection error now propagates and suppresses the terminal callback.",
+    "preserved": [
+      "negative-sequence successful terminal frame",
+      "valid PCM progress deadline",
+      "heartbeat does not refresh PCM progress",
+      "existing queue cancellation and playback adapter contracts"
+    ],
+    "affected_regression": "out/audio-truncated-close/affected-after-pin.log",
+    "affected_regression_sha256": "c6af7b43909a5c7ea58410d28fd2a3df201db517d7777990c24bbbf9f00e4fc5"
+  },
+  "artifact": {
+    "board": "aidk_ai_toy",
+    "version": "0.7.39+684",
+    "security_counter": 684,
+    "build_manifest": "out/audio-truncated-close/build-684/build-manifest.json",
+    "build_manifest_sha256": "11db3ff81c498cde59e5d2e0b6276278eaed9eb4ba137525cc7204515153d43c",
+    "provenance": {
+      "dependencies": {
+        "ai_agent": {
+          "dirty": false,
+          "input_count": 0,
+          "input_tree_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "source_commit": "b53363b16a11a25c6a30a6fab7e5102ed837cdbd"
+        },
+        "apps": {
+          "dirty": true,
+          "input_count": 33,
+          "input_tree_sha256": "e841e3a0e74fc5d78211802015ddb4ae7c7f6cef2a529c80bc0bf7af9b18a344",
+          "source_commit": "550cd3ba60a03f8ebf9ac7b72f6eed6aea3bedbe"
+        },
+        "nuttx": {
+          "dirty": true,
+          "input_count": 447,
+          "input_tree_sha256": "a71a6ba92af092490c60b8cfb18e86657874ea60fb8c4224da146deaa3a944a4",
+          "source_commit": "76354c637858ecb0aa4601629327acb6f44a26bb"
+        }
+      },
+      "dirty": false,
+      "input_count": 634,
+      "input_tree_sha256": "2e3d1180b14e2449e58a8ca0528e3d7c4f032cb1fde5bff1420dc39679963af6",
+      "product": null,
+      "profiles": {
+        "ap": "boards/bk7258/aidk_ai_toy/configs/openvela_ap",
+        "cp": "boards/bk7258/aidk_ai_toy/configs/app"
+      },
+      "scope": [
+        "chips/bk7258",
+        "boards/bk7258/common",
+        "boards/bk7258/aidk_ai_toy",
+        "nuttx",
+        "app/bk7258",
+        "app/dolphin",
+        "frameworks",
+        "external",
+        "tools/bk7258"
+      ],
+      "source_commit": "0092bdc5f44c6ae80a4d8d1649f0cad43c4ac10f"
+    },
+    "package": "out/audio-truncated-close/release-684-ota-final/package/shaniu-bk7258-aidk_ai_toy-app__openvela_ap-v0.7.39+684-bshaniu-tts-truncated-close-684-ota.bkpack",
+    "package_sha256": "4ceb5bd96a1f8fd1acd9d95bbb26d729de5ac17402dbe8cfc5365c81af61cf20",
+    "package_verify": "PASS",
+    "public_trust_verify": "PASS",
+    "package_erase_operations": [],
+    "ap_elf_sha256": "d4cc3afb4e7edf221c0a5c693837107684c882f899e5b347d5a4e4c2633a3967",
+    "ap_map_sha256": "db2c9b0b9f01607263ed9795d20138fae0401ce3f529a584b9dd51ff7c9da21f",
+    "cp_elf_sha256": "caa159be87168f48a4844b0007d97c52f8d2833c14851ad111b6610420ab08b1",
+    "cp_map_sha256": "d8fb4ceab1dfda974f67d16e43008fdebb924fe09078fa8ddd1c3209a6756af9",
+    "ap_linkage": {
+      "evidence": "out/audio-truncated-close/ap-elf-tts-string.txt",
+      "sha256": "321b0b33cb841744fd4155b4a69df24db9ca5a1ae0aee394b709dd1986e37840",
+      "new_error_path_present": true,
+      "old_success_path_absent": true
+    }
+  },
+  "hil": {
+    "pre_state": {
+      "version": "0.7.38+683",
+      "status": "passed",
+      "fault_pattern": [
+        {
+          "pattern": "HardFault|ASSERT|panic",
+          "matched": false
+        }
+      ],
+      "evidence": "out/audio-truncated-close/pre-hil-status/session.json",
+      "sha256": "3dff30cb16f5037c3244358da33191e3c64fe025b78855051a2834a22fb351e5"
+    },
+    "download": {
+      "status": "passed",
+      "port": "COM9",
+      "transport": "multi",
+      "automatic_retry": false,
+      "write_bounds": [
+        {
+          "offset": 69632,
+          "offset_hex": "0x11000",
+          "length": 1253376,
+          "length_hex": "0x132000",
+          "end": 1323008
+        },
+        {
+          "offset": 1323008,
+          "offset_hex": "0x143000",
+          "length": 2158592,
+          "length_hex": "0x20f000",
+          "end": 3481600
+        }
+      ],
+      "evidence": "out/audio-truncated-close/hil-684/result.json",
+      "sha256": "a374246bc06e7947e6dc012938aa4743a6d79933c81a92cdf49d521aa67649e5"
+    },
+    "boot": {
+      "status": "passed",
+      "expected": [
+        {
+          "pattern": "BKVOICE local wake active label=nihao_openvela frontend=1 sha256=922eba9175fcda60f7c8a4505ca4eb5a97c86ceb30fbe48c685fd612098ac910",
+          "matched": true
+        },
+        {
+          "pattern": "BKVOICE wake threshold restore=0 percent=85",
+          "matched": true
+        },
+        {
+          "pattern": "BKVOICE configuration ready=1 result=0 revision=6",
+          "matched": true
+        },
+        {
+          "pattern": "BKDISPLAY RENDER PASS expression=neutral pack=shaniu-cyan-v3 revision=3",
+          "matched": true
+        }
+      ],
+      "fail_patterns": [
+        {
+          "pattern": "HardFault|ASSERT|panic",
+          "matched": false
+        }
+      ],
+      "evidence": "out/audio-truncated-close/board/reboot-684/session.json",
+      "sha256": "51cce4919e41aea5211cec2add2a2fad89817ba464bcbf4caafd3746ad38a69b"
+    },
+    "runtime": {
+      "status": "passed",
+      "version": "0.7.39+684",
+      "slot": "A",
+      "pair": "confirmed",
+      "faults": 0,
+      "recoveries": 0,
+      "expected": [
+        {
+          "pattern": "pair=confirmed version=0\\.7\\.39\\+684 counter=684",
+          "matched": true
+        },
+        {
+          "pattern": "faults=0 recoveries=0",
+          "matched": true
+        }
+      ],
+      "evidence": "out/audio-truncated-close/board/post-hil-status-684/session.json",
+      "sha256": "aa8589e61d07b44755c7f74a604a7810aeebc2f4ccfb83947d916b03487a8183"
+    },
+    "preserved_identity": {
+      "wake_label": "nihao_openvela",
+      "frontend": 1,
+      "model_sha256": "922eba9175fcda60f7c8a4505ca4eb5a97c86ceb30fbe48c685fd612098ac910",
+      "threshold_percent": 85,
+      "configuration_revision": 6,
+      "eye_pack": "shaniu-cyan-v3",
+      "eye_pack_revision": 3
+    }
+  },
+  "ci": {
+    "run": "36481398412/1",
+    "head_sha": "0092bdc5f44c6ae80a4d8d1649f0cad43c4ac10f",
+    "status": "SUCCESS",
+    "url": "https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/actions/runs/36481398412"
+  },
+  "observer_corrections": [
+    "The first build-manifest verification used a caller-relative path that the CLI resolved against the workspace root; absolute-path verification passed.",
+    "release full correctly rejected the lack of a same-device base before output; the signed inactive-slot package used release ota.",
+    "The first OTA output path was pre-created by the caller and correctly rejected; the successful release used a previously nonexistent directory."
+  ],
+  "not_proven": [
+    "No controllable board-side TTS peer-close injection exists in the current normal firmware, so the exact truncated-close branch is L2 host evidence plus deployed-artifact linkage, not an on-board fault injection pass.",
+    "No acoustic capture or onsite listener; Media/digital evidence cannot claim absence of audible truncation, xrun or hiss.",
+    "No phone BLE or App OTA; HIL download is not App OTA.",
+    "No physical K2, deep sleep or power measurement."
+  ]
+}
