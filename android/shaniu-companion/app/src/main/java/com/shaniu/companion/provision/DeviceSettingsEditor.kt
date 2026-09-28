@@ -22,7 +22,7 @@ internal class DeviceSettingsEditor(
     private val appendMax: Int,
     private val cloudPage: Boolean = false,
     private val modelFocus: String? = null,
-    private val embeddedHost: LinearLayout? = null,
+    embeddedHost: LinearLayout? = null,
     private val navigateBack: (() -> Unit)? = null,
     private val finished: (String) -> Unit,
 ) : AutoCloseable {
@@ -31,6 +31,7 @@ internal class DeviceSettingsEditor(
     private val preferences = activity.getSharedPreferences("shaniu-settings-receipts", Activity.MODE_PRIVATE)
     private val previousSoftInputMode = activity.window.attributes.softInputMode
     private val secureFlagWasSet = activity.window.attributes.flags and android.view.WindowManager.LayoutParams.FLAG_SECURE != 0
+    private var embeddedHost: LinearLayout? = embeddedHost
     private val design = com.shaniu.companion.CompanionDesign(activity)
     private fun dp(value: Int) = (value * activity.resources.displayMetrics.density).toInt()
     private val box = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(16), dp(24), dp(16)) }
@@ -298,6 +299,15 @@ internal class DeviceSettingsEditor(
         if (embeddedHost != null) closeAction.visibility = View.GONE
         footer.setBackgroundColor(design.background)
         updateModelTab()
+    }
+
+    /** Keep the one live draft and transaction attached when the Activity
+     * rebuilds its view tree for an in-place configuration change. */
+    fun reattach(host: LinearLayout) {
+        if (!active || embeddedHost == null || embeddedHost === host) return
+        (editorContent.parent as? android.view.ViewGroup)?.removeView(editorContent)
+        embeddedHost = host
+        host.addView(editorContent, LinearLayout.LayoutParams(-1, -1))
     }
 
     private fun updateModelTab() {

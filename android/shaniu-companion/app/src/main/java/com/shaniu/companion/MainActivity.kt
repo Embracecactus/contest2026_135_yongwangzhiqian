@@ -4563,6 +4563,7 @@ class MainActivity : Activity() {
         val scroll = contentScroll.scrollY
         navigation.clear()
         setContentView(buildRoot().apply { applySystemInsets() })
+        if (cloudEditorEmbedded) settingsEditor?.reattach(cloudEditorHost)
         render()
         contentScroll.post { contentScroll.scrollTo(0, scroll) }
     }

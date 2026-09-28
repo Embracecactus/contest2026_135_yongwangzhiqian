@@ -992,7 +992,39 @@ internal object DeviceUiAcceptance {
                 check(findView(activity.window.decorView) { it is TextView && it.text.toString() == "对话" }!!.performClick())
                 val chat = DeviceSettingsEditor::class.java.getDeclaredField("chat").apply { isAccessible = true }.get(embedded) as EditText
                 check(chat.text.toString() == "draft-chat-model") { "tab switch lost model draft" }
-                chat.requestFocus(); chat.setSelection(chat.length())
+                activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            }
+            Thread.sleep(1000)
+            instrumentation.waitForIdleSync()
+            onUi(instrumentation) {
+                val decor = activity.window.decorView
+                val chat = checkNotNull(findView(decor) {
+                    it is EditText && it.contentDescription?.toString() == "对话 · 回答模型 ID"
+                }) as EditText
+                check(chat.text.toString() == "draft-chat-model") { "configuration change lost model draft" }
+                val save = checkNotNull(findView(decor) {
+                    it.contentDescription?.toString() == "保存云服务与模型配置"
+                })
+                check(save.isShown && save.isEnabled) { "configuration change hid the editor save action" }
+                activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            }
+            Thread.sleep(1000)
+            instrumentation.waitForIdleSync()
+            onUi(instrumentation) {
+                val decor = activity.window.decorView
+                check(activity.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT)
+                val chat = checkNotNull(findView(decor) {
+                    it is EditText && it.contentDescription?.toString() == "对话 · 回答模型 ID"
+                }) as EditText
+                check(chat.text.toString() == "draft-chat-model") { "second configuration change lost model draft" }
+                check(chat.requestFocus()) { "reattached model field could not receive focus" }
+                chat.setSelection(chat.length())
+            }
+            instrumentation.waitForIdleSync()
+            onUi(instrumentation) {
+                val chat = checkNotNull(findView(activity.window.decorView) {
+                    it is EditText && it.contentDescription?.toString() == "对话 · 回答模型 ID"
+                }) as EditText
                 activity.getSystemService(InputMethodManager::class.java).showSoftInput(chat, InputMethodManager.SHOW_IMPLICIT)
             }
             Thread.sleep(600)
