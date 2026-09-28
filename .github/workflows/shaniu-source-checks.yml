@@ -183,6 +183,7 @@ jobs:
           path: |
             ${{ runner.temp }}/shaniu-contracts/*.json
             ${{ runner.temp }}/shaniu-contracts/*.log
+            ${{ runner.temp }}/shaniu-contracts/*.xml
           retention-days: 7
           if-no-files-found: warn
 

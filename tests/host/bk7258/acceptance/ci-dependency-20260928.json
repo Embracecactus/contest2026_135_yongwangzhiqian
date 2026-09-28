@@ -27,5 +27,13 @@
     "ci-serial-install.log",
     "ci-serial-cases-after.log"
   ],
-  "next": "New exact commit must complete 729 selected units and independent artifact verification; this report does not declare that future run passed"
+  "next": "New exact commit must complete 729 selected units and independent artifact verification; this report does not declare that future run passed",
+  "download_audit": {
+    "verified_log_hashes": 605,
+    "missing_JUnit_backed_units": 120,
+    "cause": "artifact upload included *.json and *.log but omitted copied *.xml",
+    "guard_before": "FAIL_ASSERTION on old artifact file selection",
+    "fix": "Include raw *.xml; keep original failed run evidence unchanged",
+    "after": "23 runner selftests PASS; new exact-run artifact download still required"
+  }
 }

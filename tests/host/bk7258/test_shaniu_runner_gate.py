@@ -37,6 +37,18 @@ class CiContractGateTest(unittest.TestCase):
         ):
             self.assertTrue(any(fnmatch.fnmatchcase(relative, p) for p in paths), relative)
 
+    def test_contract_artifact_keeps_junit_evidence(self):
+        import fnmatch
+        uploads = [step for job in self.workflow()["jobs"].values()
+                   for step in job["steps"] if "upload-artifact@" in step.get("uses", "")
+                   and "contract" in step.get("with", {}).get("name", "")]
+        self.assertTrue(uploads)
+        for upload in uploads:
+            paths = upload["with"]["path"].splitlines()
+            self.assertTrue(any(fnmatch.fnmatchcase(
+                "TEST-com.shaniu.companion.ota.OtaControlUploadTest.xml",
+                path.rsplit("/", 1)[-1]) for path in paths), paths)
+
     def test_native_serial_dependency_precedes_contract_collection(self):
         jobs = self.workflow()["jobs"]
         checked = 0
