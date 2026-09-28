@@ -1,0 +1,31 @@
+{
+  "date": "2026-09-28",
+  "failed_run": 36391476387,
+  "attempt": 1,
+  "head": "ff103c25919249a58b5eab2655c060c87d40d71f",
+  "CI_counts": {
+    "PASS": 723,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 2
+  },
+  "CI_production_unchanged": true,
+  "failure": "pyserial absent in clean runner; native serial adapter tests cannot patch list_ports.comports because optional import is None",
+  "affected_ids": [
+    "USB-01.pc-client-native_adapter_preserves_partial_io_without_global_output_redirect",
+    "USB-01.pc-client-native_port_filter_rejects_uart_without_opening"
+  ],
+  "before": "New CI dependency-order guard fails on old workflow; original cloud logs retained",
+  "fix": "Install pyserial==3.5 before required contract collection; matches existing successful local baseline; no skip, threshold or business-code change",
+  "after": "22 runner selftests PASS; both original failing cases PASS in new isolated venv with only pinned pyserial installed",
+  "scope": "Host transport boundary tests; no serial device opened",
+  "artifact_status": "Failed run uploaded contract evidence; release staging and independent package verification were correctly skipped",
+  "evidence_root": "out/shaniu-core-20260928",
+  "logs": [
+    "ci-contracts-36391476387/results.json",
+    "ci-serial-before.log",
+    "ci-serial-after.log",
+    "ci-serial-install.log",
+    "ci-serial-cases-after.log"
+  ],
+  "next": "New exact commit must complete 729 selected units and independent artifact verification; this report does not declare that future run passed"
+}

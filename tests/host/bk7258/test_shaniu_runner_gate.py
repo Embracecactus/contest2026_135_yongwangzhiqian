@@ -37,6 +37,20 @@ class CiContractGateTest(unittest.TestCase):
         ):
             self.assertTrue(any(fnmatch.fnmatchcase(relative, p) for p in paths), relative)
 
+    def test_native_serial_dependency_precedes_contract_collection(self):
+        jobs = self.workflow()["jobs"]
+        checked = 0
+        for job in jobs.values():
+            commands = "\n".join(step.get("run", "") for step in job["steps"])
+            if "run-shaniu-contracts" not in commands:
+                continue
+            before = commands.split("run-shaniu-contracts", 1)[0]
+            # The native adapter is a required selected case, even though
+            # serial hardware itself is an external peer in the host suite.
+            self.assertRegex(before, r"pip install[^\n]*(?:\\\n[^\n]*)*pyserial==[0-9.]+")
+            checked += 1
+        self.assertGreater(checked, 0)
+
     def test_contracts_and_collector_selftest_are_enforced_with_evidence(self):
         jobs = self.workflow()["jobs"]
         for command in ("run-shaniu-contracts", "test_shaniu_runner_gate.py"):

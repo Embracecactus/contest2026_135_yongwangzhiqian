@@ -171,6 +171,7 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/shaniu-cold/contest2026_135_yongwangzhiqian"
+          python3 -m pip install --disable-pip-version-check --index-url https://pypi.org/simple pyserial==3.5
           python3 tests/host/bk7258/test_shaniu_runner_gate.py
           make -C tests/host/bk7258 run-shaniu-contracts
 
