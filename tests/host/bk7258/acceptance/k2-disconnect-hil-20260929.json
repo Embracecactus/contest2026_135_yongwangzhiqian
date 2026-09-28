@@ -1,0 +1,201 @@
+{
+  "format": "shaniu.k2-disconnect-hil-evidence/1",
+  "date": "2026-09-29",
+  "scope": "A release-qualified K2 power intent survives AP-CP RPMsg disconnect until the product coordinator consumes it exactly once, while an unfinished hold is revoked at the transport epoch boundary.",
+  "source": {
+    "test_first_commit": "0a7460ded0a446e0bd243e109f9a64272c201dc5",
+    "product_commit": "c0c594afe2ffa1e1df57784d7da3d7ef8d7dc14b",
+    "agent_commit": "52b12476145ed1870d596da367fb507de86e5edf",
+    "production_source": "app/bk7258/bk7258_agent_keys.c",
+    "production_source_sha256": "4ab2f29b7f0e43e2075500b6e386f416d4af12a432f76b190bf4d801231818aa",
+    "test_source": "tests/host/bk7258/test_shaniu_keys_transport.c",
+    "test_source_sha256": "926a9a5c669bb95329a8603db0808dd7af7cf9ffc13a7e7d35e8c130ad2e6748",
+    "required_units_sha256": "cb9aeb3ab22a57050234a9177517e7d1110ccfc2f4e8e7512b87cad60053d567"
+  },
+  "contract": {
+    "production_path": "real bk7258_agent_keys.c RPMsg receiver and disconnect callback; only the external RPMsg peer and monotonic clock are controlled",
+    "expectation": "Disconnect resets the unfinished hold and link epoch, but cannot delete a release-qualified power intent already accepted for the product coordinator. The accepted intent is returned once by bkvoice_keys_take and then consumed.",
+    "cases": {
+      "K2-01.accepted-disconnect": {
+        "old_status": "FAIL_ASSERTION",
+        "old_exit_code": 134,
+        "old_evidence": "out/k2-disconnect/old/accepted-disconnect.log",
+        "old_evidence_sha256": "0b73b6fbb7a14fdd72c8d13542bcf6538dde18fe10688ac68a1cbcc12e567c90",
+        "new_status": "PASS",
+        "new_evidence": "out/k2-disconnect/new/accepted-disconnect.log",
+        "new_evidence_sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+        "complete_gate_case_sha256": "4d2a6a018a6bd8687c7abc63a660fa312f37074cc484ee82582a5500305e6f7a"
+      },
+      "K2-03.unfinished-disconnect": {
+        "old_status": "PASS",
+        "old_evidence": "out/k2-disconnect/old/unfinished-disconnect.log",
+        "old_evidence_sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+        "new_status": "PASS",
+        "new_evidence": "out/k2-disconnect/new/unfinished-disconnect.log",
+        "new_evidence_sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+        "complete_gate_case_sha256": "13c424223bee92a839308f8fccb89f95be0ab5201dd1134cb2c8a808ee4f676c"
+      }
+    },
+    "affected_regression": {
+      "tests": 12,
+      "status": "PASS",
+      "evidence": "out/k2-disconnect/new/affected.log",
+      "sha256": "3c9a572c3bc60d0dac39baf5a88c6bd07b3a65ee18287e5728e61365f8399119"
+    },
+    "runner_selftest": {
+      "tests": 27,
+      "status": "PASS",
+      "evidence": "out/k2-disconnect/new/runner-gate.log",
+      "sha256": "e4c8d110779d9cb76637ebd80f223a2c5e67e474c7c3a43d21cc247adbd6aa59"
+    },
+    "complete_gate": {
+      "selected": 785,
+      "collected": 785,
+      "counts": {
+        "PASS": 785,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      },
+      "collection_errors": [],
+      "original_63_preserved": true,
+      "mutations_detected": [
+        "MSC-01.early-release",
+        "CFG-01.wifi-clears-cloud"
+      ],
+      "production_unchanged_during_run": true,
+      "checkout_head": "c0c594afe2ffa1e1df57784d7da3d7ef8d7dc14b",
+      "agent_head": "52b12476145ed1870d596da367fb507de86e5edf",
+      "evidence": "out/k2-disconnect/contracts-c0c594af/results.json",
+      "sha256": "760cdbad021ed8554e316e52333fcc26e14b8d2b8822740bdf0a9a9e5f2366c9"
+    }
+  },
+  "implementation": {
+    "behavior": "keys_disconnect no longer clears power_requested; it still clears transport state, volume aggregation, the unfinished hold policy, and advances the epoch. bkvoice_keys_take remains the sole exactly-once consumer.",
+    "preserved": [
+      "2999 ms release does not request power",
+      "3000 and 3001 ms release request power once without a threshold-time held message",
+      "old session, time rollback, combination key, repeated release, and K1/K3 volume protections",
+      "a held K2 on a new transport session cannot inherit the old hold"
+    ]
+  },
+  "artifact": {
+    "board": "aidk_ai_toy",
+    "version": "0.7.42+687",
+    "security_counter": 687,
+    "source_commit": "c0c594afe2ffa1e1df57784d7da3d7ef8d7dc14b",
+    "agent_commit": "52b12476145ed1870d596da367fb507de86e5edf",
+    "source_dirty": false,
+    "build_manifest": "out/k2-disconnect/release-687-ota/evidence/build-manifest.json",
+    "build_manifest_sha256": "5066ce84c47431ca4a42a94a67ab4340240963c85f43ab51db31404a05851fc4",
+    "layout_identity": "bk7258-510173147382a879",
+    "layout_sha256": "510173147382a879c3c3a1012a142bb5d87d64ffa8cb5881c27f1e289d8c1657",
+    "mcuboot_public_fingerprint": "7163228f3221da6e81fcf5e9c6f13ae6c4afbd1e3b91b7669783a37d2f12fbc0",
+    "package": "out/k2-disconnect/release-687-ota/package/shaniu-bk7258-aidk_ai_toy-app__openvela_ap-v0.7.42+687-bshaniu-k2-disconnect-687-ota.bkpack",
+    "package_sha256": "4b05cbfedbbcdb25ee04ebb9d92425c3e9cc5953400be4e7d4e97cc6c9dbdb17",
+    "package_verify": "PASS",
+    "public_trust_verify": "PASS",
+    "package_erase_operations": [],
+    "cp_image_sha256": "4ab6bd4e2fccfeff94d07a7fb5fd6c18d850982c5403fa93cb8f68daea92c9a3",
+    "ap_image_sha256": "687acc8e512d798c6c3d50f940b1e83efed8ea55389320f6ed145648facd283d",
+    "ap_elf_sha256": "7fb8259b89d012bb54616b041ad23cb7c0ce03739922803fa2b8e04ef81c126a",
+    "ap_map_sha256": "667999c49e0a060e205cd7635f77d21bd339879b353cfd3d9ad09affa65ee17a",
+    "cp_elf_sha256": "caa159be87168f48a4844b0007d97c52f8d2833c14851ad111b6610420ab08b1",
+    "cp_map_sha256": "d8fb4ceab1dfda974f67d16e43008fdebb924fe09078fa8ddd1c3209a6756af9"
+  },
+  "hil": {
+    "pre_state": {
+      "status": "PASS",
+      "running": "active B, inactive A, pair confirmed, version 0.7.41+686, counter 686, faults 0, recoveries 0",
+      "evidence": "out/k2-disconnect/board/pre-hil-687/session.json",
+      "sha256": "bac611864a4bda50da3da6b1971890fcd4040a1f3edee63cfa9e262445c50988"
+    },
+    "preflight": {
+      "status": "preflight-passed",
+      "port": "COM9",
+      "transport": "multi",
+      "evidence": "out/k2-disconnect/preflight-687.json",
+      "sha256": "4bb72b1a38cbe355540c8e52f0bcdab7cd2f6ed2c4bf4224cfab903222e15f7c"
+    },
+    "download": {
+      "status": "passed",
+      "port": "COM9",
+      "transport": "multi",
+      "automatic_retry": false,
+      "reset_strategy": "loader-software-reboot",
+      "write_bounds": [
+        "cp 0x11000+0x132000",
+        "ap 0x143000+0x20f000"
+      ],
+      "success_markers_complete": true,
+      "failure_markers": [],
+      "evidence": "out/k2-disconnect/hil-687/result.json",
+      "sha256": "73dceb5a284622a02b012df51d77216e25327aebe890824635858d49cad792e9"
+    },
+    "first_post_download_observer": {
+      "status": "EXPECTED_STATE_NOT_YET_REACHED",
+      "observed": "The first query saw A active and pair pending; the same capture later recorded BOTA TRIAL CONFIRMED slot=0 counter=687.",
+      "evidence": "out/k2-disconnect/board/post-hil-687/session.json",
+      "sha256": "fd80b174a1adf74037b5c1e9b3cf3ebabb4fad726a12a2faa7542437cc314367"
+    },
+    "confirmed_runtime": {
+      "status": "PASS",
+      "version": "0.7.42+687",
+      "slot": "A",
+      "pair": "confirmed",
+      "faults": 0,
+      "recoveries": 0,
+      "evidence": "out/k2-disconnect/board/final-status-687/session.json",
+      "sha256": "d8fe34b2996b4981c5f1079870b41bce543e31fea588882b9b4dbd70c66b45f7"
+    },
+    "controlled_reboot": {
+      "status": "PASS",
+      "kind": "software reboot, not physical K2 or cold boot",
+      "expected_identity_matched": true,
+      "hardfault_assert_panic": false,
+      "evidence": "out/k2-disconnect/board/reboot-687/session.json",
+      "sha256": "ee1ad7c79d44d3dce8ca0b598089a247d51cfb204a68ecaaba20578e7c997331"
+    },
+    "post_reboot_runtime": {
+      "status": "PASS",
+      "version": "0.7.42+687",
+      "slot": "A",
+      "pair": "confirmed",
+      "faults": 0,
+      "recoveries": 0,
+      "evidence": "out/k2-disconnect/board/post-reboot-status-687-corrected/session.json",
+      "sha256": "35cbd97c45742bcf3fc9d2a45498581c8061fc974e5eec8119e5086d4e722453"
+    },
+    "preserved_identity": {
+      "wake_label": "nihao_openvela",
+      "frontend": 1,
+      "model_sha256": "922eba9175fcda60f7c8a4505ca4eb5a97c86ceb30fbe48c685fd612098ac910",
+      "threshold_percent": 85,
+      "configuration_revision": 6,
+      "eye_pack": "shaniu-cyan-v3",
+      "eye_pack_revision": 3,
+      "plaintext_secrets_read": false
+    },
+    "ports_released": {
+      "before": ["COM16", "COM9"],
+      "after": ["COM16", "COM9"],
+      "before_sha256": "f14355133375b8cb7733bfe3dfe3d794ba7438e5dbbe36e34260cfe9228cffe5",
+      "after_sha256": "f14355133375b8cb7733bfe3dfe3d794ba7438e5dbbe36e34260cfe9228cffe5"
+    }
+  },
+  "ci": {
+    "status": "PENDING_FINAL_MAIN_HEAD",
+    "reason": "The exact-head run is created by the single branch push after this evidence file is committed."
+  },
+  "observer_corrections": [
+    "The first runner selftest command was started from the repository root and produced ModuleNotFoundError; the unchanged command run from its documented test directory passed 27 tests.",
+    "Two build verification invocations used an unsupported flag and then a caller-relative manifest path; the supported command with the absolute manifest path passed without changing the artifact.",
+    "The first post-reboot status observer fixed the former slot ranges and over-escaped the version regex. The raw device response already showed A active, pair confirmed 0.7.42+687, and faults/recoveries 0; the corrected generic-range observer passed and both records are retained."
+  ],
+  "not_proven": [
+    "The exact accepted-K2-then-RPMsg-disconnect sequence is L2 production-path host evidence. Normal firmware exposes no safe authenticated injection for that event, so HIL proves artifact linkage, bounded deployment, boot identity, and health rather than the injected sequence itself.",
+    "No physical K2 press, electrical debounce, actual shutdown/deep sleep, wake-up, or power measurement.",
+    "No phone BLE or App OTA; HIL download is not App OTA.",
+    "No acoustic listener, screen camera, NFC card, or motion stimulus."
+  ]
+}
