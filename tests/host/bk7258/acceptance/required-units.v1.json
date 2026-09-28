@@ -743,7 +743,10 @@
     "MSC-01.preferences-roundtrip",
     "MSC-01.preferences-failed-handoff",
     "MSC-01.preferences-failed-exit",
-    "MSC-01.preferences-failed-local-start"
+    "MSC-01.preferences-failed-local-start",
+    "AUD-02.first-pcm-deadline",
+    "AUD-02.heartbeat-deadline",
+    "AUD-02.pcm-progress"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1490,6 +1493,9 @@
     "MSC-01.preferences-roundtrip",
     "MSC-01.preferences-failed-handoff",
     "MSC-01.preferences-failed-exit",
-    "MSC-01.preferences-failed-local-start"
+    "MSC-01.preferences-failed-local-start",
+    "AUD-02.first-pcm-deadline",
+    "AUD-02.heartbeat-deadline",
+    "AUD-02.pcm-progress"
   ]
 }

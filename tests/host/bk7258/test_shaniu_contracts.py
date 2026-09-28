@@ -516,6 +516,7 @@ def main():
         "test_shaniu_models_durability",
         "test_shaniu_focus_wire",
         "test_agent_tts_queue",
+        "test_agent_volc_tts_progress",
         "test_bk7258_product_keys",
         "test_bk7258_usbmode_lease",
         "test_bk7258_motion_core",
@@ -1345,6 +1346,19 @@ def main():
             [HERE / "build/test_agent_tts_queue", variant],
             binaries["test_agent_tts_queue"],
         )
+    for variant in (
+        "first-pcm-deadline",
+        "heartbeat-deadline",
+        "pcm-progress",
+    ):
+        add(
+            suite,
+            "AUD-02." + variant,
+            "AUD-02",
+            "L2",
+            [HERE / "build/test_agent_volc_tts_progress", variant],
+            binaries["test_agent_volc_tts_progress"],
+        )
     for index, variant in enumerate(
         (
             "uid-empty",
@@ -1575,6 +1589,7 @@ def main():
         HERE / "test_provision_owner.c",
         HERE / "test_bk7258_agent_media_player.c",
         HERE / "test_agent_audio_playback.c",
+        HERE / "test_agent_volc_tts_progress.c",
         HERE / "test_bk7258_cloud_http.py",
         HERE / "test_sc7a20_sampling.py",
         HERE / "test_shaniu_usbcdc_rx.py",
@@ -1742,6 +1757,8 @@ def main():
         inputs=inputs,
         agent_playback_sha256=digest(
             ROOT.parent / "packages/ai_agent/src/voice/audio_playback.c"),
+        agent_tts_ws_sha256=digest(
+            ROOT.parent / "packages/ai_agent/src/voice/volc_tts_ws.c"),
         capture_inputs={
             str(p.relative_to(ROOT.parent)): digest(p)
             for p in (
