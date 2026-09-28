@@ -779,7 +779,7 @@ def main():
             [HERE / "build/test_shaniu_nfc_bindings", variant],
             binaries["test_shaniu_nfc_bindings"],
         )
-    for variant in ("queued", "active", "close-error", "rf-error", "prestart", "late"):
+    for variant in ("queued", "active", "close-error", "rf-error", "prestart", "late", "deferred-registration"):
         add(
             suite,
             "LIFE-02.nfc-" + variant,
@@ -825,7 +825,7 @@ def main():
     for variant in ("usb-failed", "usb-close", "pack-busy", "pack-failed",
                     "cp-pending-deadline", "cp-unknown-deadline",
                     "cp-new-pending", "cp-retry-unknown",
-                    "cp-retry-pending", "cp-retry-declined"):
+                    "cp-retry-pending", "cp-retry-declined", "cp-query"):
         add(suite, "LIFE-02.power-" + variant, "LIFE-02", "L1",
             [HERE / "build/test_shaniu_power_contract", variant],
             binaries["test_shaniu_power_contract"])

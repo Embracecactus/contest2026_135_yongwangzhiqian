@@ -19,6 +19,53 @@ static bool g_power_validation_started;
 #endif
 #endif
 
+#include "bk7258_agent_power.h"
+
+#ifdef CONFIG_BK7258_PM_SOFT_OFF
+/* Single coordinator writer; readers never touch participants or CP.
+ * Bounded sequence snapshot avoids a blocking lock during resource exit.
+ */
+static _Atomic uint32_t g_power_snapshot_sequence;
+static _Atomic uint32_t g_power_snapshot_state = UINT32_MAX;
+static _Atomic int32_t g_power_snapshot_error;
+
+static void product_power_publish(void)
+{
+  uint32_t state = g_shutdown_failed ? 3u : g_power_pending ? 2u :
+                   g_shutdown_requested ? 1u : 0u;
+  int32_t error = state ? g_product_error : 0;
+  if (g_power_unresolved) state |= 256u;
+  atomic_fetch_add(&g_power_snapshot_sequence, 1);
+  atomic_store(&g_power_snapshot_state, state);
+  atomic_store(&g_power_snapshot_error, error);
+  atomic_fetch_add(&g_power_snapshot_sequence, 1);
+}
+#endif
+
+int bk7258_agent_power_status(void *context, uint32_t *state, int32_t *error)
+{
+  (void)context;
+  if (!state || !error) return -EINVAL;
+#ifdef CONFIG_BK7258_PM_SOFT_OFF
+  for (unsigned int i = 0; i < 3; i++)
+    {
+      uint32_t before = atomic_load(&g_power_snapshot_sequence);
+      uint32_t value = atomic_load(&g_power_snapshot_state);
+      int32_t result = atomic_load(&g_power_snapshot_error);
+      if (!(before & 1u) && before == atomic_load(&g_power_snapshot_sequence) &&
+          value != UINT32_MAX)
+        {
+          *state = value;
+          *error = result;
+          return 0;
+        }
+    }
+  return -EAGAIN;
+#else
+  return -ENOTSUP;
+#endif
+}
+
 #ifdef CONFIG_BK7258_PM_SOFT_OFF
 static void product_power_fail(int error)
 {
@@ -29,6 +76,7 @@ static void product_power_fail(int error)
   g_shutdown_requested = false;
   g_power_pending = false;
   g_product_error = error;
+  product_power_publish();
   (void)bk7258_display_power(3);
 }
 
@@ -140,7 +188,7 @@ failed:
 }
 #endif
 
-static bool product_keys_step(uint64_t now)
+static bool product_keys_step_impl(uint64_t now)
 {
   unsigned int volume = 0;
   int steps;
@@ -226,6 +274,8 @@ static bool product_keys_step(uint64_t now)
 #endif
       g_shutdown_failed = false;
       g_shutdown_requested = true;
+      g_product_error = -EINPROGRESS;
+      product_power_publish();
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
       (void)bk7258_display_power(2);
 #endif
@@ -343,4 +393,13 @@ static bool product_keys_step(uint64_t now)
 #else
   return false;
 #endif
+}
+
+static bool product_keys_step(uint64_t now)
+{
+  bool stopped = product_keys_step_impl(now);
+#ifdef CONFIG_BK7258_PM_SOFT_OFF
+  product_power_publish();
+#endif
+  return stopped;
 }

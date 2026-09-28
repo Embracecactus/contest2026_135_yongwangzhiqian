@@ -1882,13 +1882,17 @@ $(BUILD)/test_shaniu_volume_transition: test_shaniu_volume_transition.c \
 	    $< $(VOICE_PACK_ROOT)/bk7258_media_volume.c -o $@
 
 $(BUILD)/test_shaniu_power_contract: test_shaniu_power_contract.c \
-    $(VOICE_PACK_ROOT)/bk7258_agent_product_power.inc | $(BUILD)
-	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) $< -o $@
+    $(VOICE_PACK_ROOT)/bk7258_agent_product_power.inc $(VOICE_PACK_ROOT)/bk7258_health_core.c \
+    $(VOICE_PACK_ROOT)/bk7258_agent_power.h $(VOICE_PACK_ROOT)/bk7258_health_core.h \
+    $(VOICE_PACK_ROOT)/bk7258_health_protocol.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) $< $(VOICE_PACK_ROOT)/bk7258_health_core.c -o $@
 
 $(BUILD)/test_shaniu_power_prepare: test_shaniu_power_contract.c \
-    $(VOICE_PACK_ROOT)/bk7258_agent_product_power.inc | $(BUILD)
+    $(VOICE_PACK_ROOT)/bk7258_agent_product_power.inc $(VOICE_PACK_ROOT)/bk7258_health_core.c \
+    $(VOICE_PACK_ROOT)/bk7258_agent_power.h $(VOICE_PACK_ROOT)/bk7258_health_core.h \
+    $(VOICE_PACK_ROOT)/bk7258_health_protocol.h | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -DCONFIG_BK7258_POWER_PREPARE_VALIDATION=1 \
-	    -I $(VOICE_PACK_ROOT) $< -o $@
+	    -I $(VOICE_PACK_ROOT) $< $(VOICE_PACK_ROOT)/bk7258_health_core.c -o $@
 
 $(BUILD)/test_shaniu_control_quiesce: test_shaniu_control_quiesce.c \
     $(VOICE_PACK_ROOT)/bk7258_control_session.c $(VOICE_PACK_ROOT)/bk7258_control_session.h | $(BUILD)
@@ -1906,9 +1910,11 @@ $(BUILD)/test_shaniu_owner: test_provision_owner.c $(OWNER_CONTRACT_SOURCES) $(O
 $(BUILD)/shaniu_owner_peer.o: test_provision_owner.c $(OWNER_CONTRACT_HEADERS) | $(BUILD)
 	$(CC) $(OWNER_CONTRACT_FLAGS) -DTEST_OWNER_LIBRARY -c $< -o $@
 $(BUILD)/test_shaniu_power_owner: test_shaniu_power_contract.c $(BUILD)/shaniu_owner_peer.o \
-    $(OWNER_CONTRACT_SOURCES) $(OWNER_CONTRACT_HEADERS) $(VOICE_PACK_ROOT)/bk7258_agent_product_power.inc | $(BUILD)
+    $(OWNER_CONTRACT_SOURCES) $(OWNER_CONTRACT_HEADERS) $(VOICE_PACK_ROOT)/bk7258_agent_product_power.inc $(VOICE_PACK_ROOT)/bk7258_health_core.c \
+    $(VOICE_PACK_ROOT)/bk7258_agent_power.h $(VOICE_PACK_ROOT)/bk7258_health_core.h \
+    $(VOICE_PACK_ROOT)/bk7258_health_protocol.h | $(BUILD)
 	$(CC) $(OWNER_CONTRACT_FLAGS) -DTEST_REAL_OWNER $< $(BUILD)/shaniu_owner_peer.o \
-	    $(OWNER_CONTRACT_SOURCES) -o $@
+	    $(OWNER_CONTRACT_SOURCES) $(VOICE_PACK_ROOT)/bk7258_health_core.c -o $@
 
 $(BUILD)/test_shaniu_power_pixels: test_shaniu_power_pixels.c \
     $(VOICE_PACK_ROOT)/bk7258_display_power_pixels.h | $(BUILD)

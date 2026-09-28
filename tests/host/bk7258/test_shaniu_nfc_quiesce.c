@@ -26,6 +26,23 @@ int main(int argc, char **argv)
   assert(bk7258_nfc_service_start() == 0);
   bknfc_device_created(&ap, &g_bknfc_client);
   bknfc_ns_bind(&cp, &g_bknfc_server, BKNFC_RPC_ENDPOINT, 1);
+  if (!strcmp(argv[1], "deferred-registration"))
+    {
+      /* The board registers /dev/nfc0 later. Initial RF-off cannot complete
+       * yet; shutdown must keep that cleanup pending without scanning cards.
+       */
+      open_error = ENOENT;
+      drain_worker();
+      assert(bk7258_nfc_service_quiesce(true) == -EBUSY);
+      drain_worker();
+      assert(bk7258_nfc_service_quiesce(true) == -EBUSY);
+      assert(!rf_on && !nfc_selects && !fd_live);
+      open_error = 0;
+      drain_worker();
+      assert(bk7258_nfc_service_quiesce(true) == 0);
+      assert(!rf_on && !nfc_selects && !fd_live);
+      puts("CONTRACT_PASS"); return 0;
+    }
   reset_case();
   struct bknfc_rpc_request_s r=request(1);
   if (!strcmp(argv[1], "queued"))

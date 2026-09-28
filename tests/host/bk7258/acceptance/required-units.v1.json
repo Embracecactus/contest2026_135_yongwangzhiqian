@@ -723,7 +723,9 @@
     "AGENT-01.final-body-empty",
     "AGENT-01.final-body-finalize",
     "AGENT-01.final-body-cancel",
-    "AGENT-01.final-body-sink-cancel"
+    "AGENT-01.final-body-sink-cancel",
+    "LIFE-02.power-cp-query",
+    "LIFE-02.nfc-deferred-registration"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1450,6 +1452,8 @@
     "AGENT-01.final-body-empty",
     "AGENT-01.final-body-finalize",
     "AGENT-01.final-body-cancel",
-    "AGENT-01.final-body-sink-cancel"
+    "AGENT-01.final-body-sink-cancel",
+    "LIFE-02.power-cp-query",
+    "LIFE-02.nfc-deferred-registration"
   ]
 }

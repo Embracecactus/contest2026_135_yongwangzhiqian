@@ -68,6 +68,7 @@ struct bknfc_server_s
   bool quiescing;
   bool io_active;
   bool release_pending;
+  bool initial_release_pending;
 #ifdef CONFIG_BK7258_PROVISION_GATT
   struct bknfc_bindings_s bindings;
   struct bknfc_job_request_s job;
@@ -142,7 +143,8 @@ int bk7258_nfc_service_quiesce(bool stop)
 
   if (server->quiescing)
     {
-      ret = server->io_active || server->release_pending ? -EBUSY :
+      ret = server->io_active || server->release_pending ||
+            server->initial_release_pending ? -EBUSY :
             __atomic_load_n(&server->source.release_error, __ATOMIC_ACQUIRE);
 #if !defined(CONFIG_CL_MFRC522_FRAME) && !defined(CONFIG_CL_MFRC522_RF)
       if (!ret && __atomic_load_n(&server->initialized, __ATOMIC_ACQUIRE))
@@ -584,7 +586,8 @@ static int bknfc_worker(int argc, char **argv)
 
       flags = spin_lock_irqsave(&server->request_lock);
       stopping = server->quiescing;
-      retry = stopping && server->release_pending;
+      retry = stopping && (server->release_pending ||
+                           server->initial_release_pending);
       if (retry)
         {
           server->release_pending = false;
@@ -603,10 +606,24 @@ static int bknfc_worker(int argc, char **argv)
 #endif
               __atomic_store_n(&server->source.release_error, released,
                                __ATOMIC_RELEASE);
+              flags = spin_lock_irqsave(&server->request_lock);
+              if (released != -ENOENT) server->initial_release_pending = false;
+              spin_unlock_irqrestore(&server->request_lock, flags);
               bknfc_end_io(server);
             }
 
-          (void)nxsem_wait_uninterruptible(&server->request_sem);
+          /* Deferred registration may not yet have created the RF device.
+           * Preserve initial cleanup during stop; never open RF or scan.
+           * The product coordinator retains its overall shutdown deadline.
+           */
+          flags = spin_lock_irqsave(&server->request_lock);
+          bool initial = server->initial_release_pending;
+          spin_unlock_irqrestore(&server->request_lock, flags);
+          if (initial)
+            (void)nxsem_tickwait_uninterruptible(&server->request_sem,
+                                                 MSEC2TICK(500));
+          else
+            (void)nxsem_wait_uninterruptible(&server->request_sem);
           continue;
         }
 
@@ -629,6 +646,9 @@ static int bknfc_worker(int argc, char **argv)
             }
 
           idle_error = ret;
+          flags = spin_lock_irqsave(&server->request_lock);
+          if (ret != -ENOENT) server->initial_release_pending = false;
+          spin_unlock_irqrestore(&server->request_lock, flags);
           __atomic_store_n(&server->source.release_error, ret, __ATOMIC_RELEASE);
           bknfc_end_io(server);
         }
@@ -957,12 +977,20 @@ int bk7258_nfc_service_start(void)
     }
   if (ret >= 0)
     {
+#if defined(CONFIG_CL_MFRC522_FRAME) || defined(CONFIG_CL_MFRC522_RF)
+      flags = spin_lock_irqsave(&server->request_lock);
+      server->initial_release_pending = true;
+      spin_unlock_irqrestore(&server->request_lock, flags);
+#endif
       pid = task_create("bknfc-rpc", CONFIG_BK7258_NFC_RPC_PRIORITY,
                         CONFIG_BK7258_NFC_RPC_STACKSIZE, bknfc_worker,
                         NULL);
       if (pid < 0)
         {
           ret = bknfc_errno();
+          flags = spin_lock_irqsave(&server->request_lock);
+          server->initial_release_pending = false;
+          spin_unlock_irqrestore(&server->request_lock, flags);
         }
     }
   if (ret >= 0)

@@ -10,6 +10,12 @@
 #include <string.h>
 #include <syslog.h>
 #include "bk7258_media_volume.h"
+#include "bk7258_health_core.h"
+/* Frozen read-only diagnostic contract: phase in low byte, unresolved CP
+ * ownership in bit 8, and a separate signed error. No transport side effects.
+ * Until the production getter exists this binding is BLOCKED_INTERFACE.
+ */
+int bk7258_agent_power_status(void *context, uint32_t *state, int32_t *error);
 #ifdef TEST_REAL_OWNER
 #include "bk7258_provision_owner.h"
 void test_owner_open(void);
@@ -151,6 +157,57 @@ static int bkvoice_volume_store_set(unsigned int volume) { (void)volume; return 
 int main(int argc, char **argv)
 {
   assert(argc == 2);
+  if (!strcmp(argv[1], "cp-query"))
+    {
+      uint32_t state;
+      int32_t error;
+      assert(product_keys_step(now));
+      assert(bk7258_agent_power_status(NULL, &state, &error) == 0);
+      assert(state == (2u | 256u) && error == -EINPROGRESS);
+      now = 30000;
+      assert(product_keys_step(now));
+      for (unsigned i = 0; i < 100; i++)
+        {
+          assert(bk7258_agent_power_status(NULL, &state, &error) == 0);
+          assert(state == (3u | 256u) && error == -ETIMEDOUT);
+        }
+      struct bkhealth_rpc_request_s request = {
+        .magic = BKHEALTH_RPC_MAGIC, .version = 1, .command = 2,
+        .session = 9, .sequence = 1
+      };
+      struct bkhealth_rpc_response_s response;
+      struct bkhealth_source_ops_s ops = {
+        .power_status = bk7258_agent_power_status
+      };
+      for (unsigned i = 0; i < 100; i++)
+        {
+          request.sequence++;
+          assert(bkhealth_rpc_handle_request(&request, &response, &ops, NULL) == 0);
+          assert(bkhealth_rpc_response_valid(&response));
+          assert(response.command == 0x8001 && response.flags == 0);
+          assert(response.session == 9 && response.sequence == request.sequence);
+          assert(response.reserved[0] == (3u | 256u));
+          assert((int32_t)response.reserved[1] == -ETIMEDOUT);
+        }
+      response.reserved[0] |= 512u;
+      assert(!bkhealth_rpc_response_valid(&response));
+      response.reserved[0] = 3;
+      response.reserved[1] = 1;
+      assert(!bkhealth_rpc_response_valid(&response));
+      response.reserved[1] = (uint32_t)-ETIMEDOUT;
+      response.flags = 1;
+      assert(!bkhealth_rpc_response_valid(&response));
+      response.flags = 0;
+      response.command = 0x8000; /* old STATUS cannot carry power data */
+      assert(!bkhealth_rpc_response_valid(&response));
+      ops.power_status = NULL;
+      assert(bkhealth_rpc_handle_request(&request, &response, &ops, NULL) == -ENOTSUP);
+      assert(bkhealth_rpc_response_valid(&response));
+      assert(response.reserved[0] == 0 && response.reserved[1] == 0);
+      assert(cp_calls == 1 && reopens == 0 && transport_closed);
+      puts("CONTRACT_PASS");
+      return 0;
+    }
   if (!strcmp(argv[1], "prepare-only"))
     {
       /* Development firmware may exercise the real exit participants but

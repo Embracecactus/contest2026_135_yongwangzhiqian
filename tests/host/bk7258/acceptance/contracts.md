@@ -1057,3 +1057,27 @@ one begin/delta. Empty bodies and explicit finalize retain final streaming.
 Cancellation before/during delivery remains an error. This slice does not claim
 a complete mixed-tool ledger, full history commit, visual round, or measured
 physical latency; those remain separate integration/device gates.
+
+
+### R1 read-only power outcome (2026-09-28)
+
+LIFE-02.power-cp-query binds the production coordinator to the existing health
+RPC core. A query after product transport exit returns preparing/pending/failed
+and a signed error; unresolved CP ownership remains explicit. Repeated reads do
+not resend CP requests, reopen resources, or sample battery/temperature. Query
+success is not power-off success. New read-only command 2/reply 0x8001 uses the
+same frame size, with phase 0..3 in low byte and unresolved bit 8 in reserved[0],
+int32 error in reserved[1]. Existing STATUS/reply 0x8000 still requires zero
+reserved fields. Session/sequence and reply kind must match. Before a coherent
+snapshot is published the getter returns EAGAIN; unavailable builds ENOTSUP.
+Missing pre-change getter/command binding is BLOCKED_INTERFACE, not a business
+Red. Existing CP timeout/unknown Red remains in its original evidence. Prepare-
+only board validation stops before CP submission and cannot certify deep sleep.
+
+LIFE-02.nfc-deferred-registration: after service start but before deferred device
+registration, RF-off open returning ENOENT remains unfinished cleanup. Shutdown
+keeps admission closed and retries only that initial RF-off at the existing
+500ms worker cadence; it never scans or enables RF. After registration, actual
+RF-off and descriptor close must finish before quiesce returns success. Other
+RF/close failures remain failures; the coordinator's 30s deadline is unchanged.
+The 668 board error -2 and matching production-worker host Red precede the fix.
