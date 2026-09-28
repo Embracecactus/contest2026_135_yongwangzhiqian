@@ -901,6 +901,10 @@ def main():
         add(suite, "LIFE-02.power-" + variant, "LIFE-02", "L1",
             [HERE / "build/test_shaniu_power_contract", variant],
             binaries["test_shaniu_power_contract"])
+    for variant in ("voice-cleanup-pending", "voice-cleanup-failure"):
+        add(suite, "LIFE-02.power-" + variant, "LIFE-02", "L1",
+            [HERE / "build/test_shaniu_power_contract", variant],
+            binaries["test_shaniu_power_contract"])
     for variant in ("usb_failed", "usb_before_identity", "pack_busy", "pack_failed"):
         add(suite, "RST-02." + variant, "RST-02", "L1",
             [sys.executable, HERE / "test_shaniu_reset_nfc.py",

@@ -64,6 +64,7 @@ static atomic_bool g_probe_running;
 static bool key_power = true;
 static int owner_error, storage_error, cp_error, cp_status = 1;
 static unsigned int cp_calls, storage_stops, reopens, cancel_calls;
+static unsigned int voice_recover_calls;
 static unsigned int trigger_stops;
 static int trigger_error;
 static bool trigger_closed;
@@ -76,14 +77,17 @@ static bool leased, storage_closed, vision_closed, haptic_closed;
 static bool owner_closed;
 #endif
 static uint64_t now;
+static bool voice_idle = true;
+static int voice_recover_error;
 static void bkvoice_keys_take(int *steps, bool *power)
 { *steps = 0; *power = key_power; key_power = false; }
 static bool bkvoice_keys_power_held(void) { return false; }
 static int display_phase;
 static int bk7258_display_power(int mode) { display_phase = mode; return 0; }
-static bool voice_channel_is_idle(void) { return true; }
+static bool voice_channel_is_idle(void) { return voice_idle; }
 static void voice_channel_cancel(void) { cancel_calls++; }
-static int voice_channel_recover(void) { return 0; }
+static int voice_channel_recover(void)
+{ voice_recover_calls++; return voice_recover_error; }
 static bool bkprov_network_busy(void) { return false; }
 static bool bkprov_config_busy(void) { return false; }
 #ifndef TEST_REAL_OWNER
@@ -334,6 +338,42 @@ int main(int argc, char **argv)
       key_power = true;
       assert(product_keys_step(200));
       assert(display_phase == 2 && cp_calls == 1);
+      puts("CONTRACT_PASS");
+      return 0;
+    }
+  if (!strcmp(argv[1], "voice-cleanup-pending") ||
+      !strcmp(argv[1], "voice-cleanup-failure"))
+    {
+      bool failed = !strcmp(argv[1], "voice-cleanup-failure");
+      voice_idle = false;
+      voice_recover_error = failed ? -EIO : -EBUSY;
+      assert(product_keys_step(0));
+      assert(cancel_calls == 1 && voice_recover_calls == 1 && cp_calls == 0);
+      if (failed)
+        {
+          /* A permanent cleanup failure is the observable shutdown failure.
+           * It must not be hidden until the generic 30-second deadline. */
+          assert(g_shutdown_failed && !g_shutdown_requested);
+          assert(g_product_error == -EIO && display_phase == 3);
+        }
+      else
+        {
+          assert(!g_shutdown_failed && g_shutdown_requested);
+          assert(g_product_error == -EINPROGRESS && display_phase == 2);
+        }
+
+      voice_recover_error = 0;
+      voice_idle = true;
+      assert(product_keys_step(100));
+      if (failed)
+        {
+          /* Polling continues cleanup but cannot turn a failed intent into a
+           * CP request. Only a new explicit intent may retry. */
+          assert(cp_calls == 0 && g_shutdown_failed && reopens == 0);
+          key_power = true;
+          assert(product_keys_step(200));
+        }
+      assert(cp_calls == 1 && reopens == 0);
       puts("CONTRACT_PASS");
       return 0;
     }

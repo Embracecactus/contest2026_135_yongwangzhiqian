@@ -785,7 +785,9 @@
     "AUD-03.agent-truncated-close",
     "AUD-03.agent-cancel-blocked-next",
     "K2-01.accepted-disconnect",
-    "K2-03.unfinished-disconnect"
+    "K2-03.unfinished-disconnect",
+    "LIFE-02.power-voice-cleanup-pending",
+    "LIFE-02.power-voice-cleanup-failure"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1574,6 +1576,8 @@
     "AUD-03.agent-truncated-close",
     "AUD-03.agent-cancel-blocked-next",
     "K2-01.accepted-disconnect",
-    "K2-03.unfinished-disconnect"
+    "K2-03.unfinished-disconnect",
+    "LIFE-02.power-voice-cleanup-pending",
+    "LIFE-02.power-voice-cleanup-failure"
   ]
 }

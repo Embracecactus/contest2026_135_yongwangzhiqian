@@ -1291,3 +1291,18 @@ owner/bootstrap caller copies its fresh secret and opens GATT only after a
 successful display return. The deterministic host case injects the production
 power request at the real framebuffer boundary; it proves this software
 ordering, not a physical K2 edge or BLE radio shutdown.
+
+### LIFE-02 voice cleanup outcome during power exit (2026-09-29)
+
+The product power coordinator must preserve the actual voice-owner teardown
+outcome. `-EAGAIN` and `-EBUSY` mean cleanup is still in progress: admission
+stays closed, no CP request is sent, and the existing shutdown deadline is not
+renewed. Any other negative cleanup result is a permanent participant failure
+and must be published immediately with that error instead of being discarded
+until it becomes a generic timeout. Completed participants remain stopped.
+
+After a permanent voice cleanup failure, ordinary polling may continue cleanup
+but cannot submit CP or reopen resources. A new explicit power intent may retry
+after the voice owner reports both successful cleanup and idle. These host cases
+execute the production coordinator with a controlled voice-owner boundary; they
+do not prove Media/DMA teardown, physical K2, deep sleep, or board recovery.
