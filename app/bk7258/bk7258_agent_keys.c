@@ -100,7 +100,10 @@ static void keys_disconnect(void)
   g_keys.sequence = 0;
   g_keys.last_sample = 0;
   g_keys.volume_steps = 0;
-  g_keys.power_requested = false;
+  /* A release-qualified power request already belongs to the product
+   * coordinator.  A transport epoch change revokes only the unfinished hold;
+   * bkvoice_keys_take() remains the sole consumer of the accepted intent.
+   */
   bkvoice_product_keys_reset(&g_keys.policy, ++g_keys.epoch);
   spin_unlock_irqrestore(&g_keys.lock, flags);
   if (g_keys.endpoint.rdev) rpmsg_destroy_ept(&g_keys.endpoint);
