@@ -853,6 +853,8 @@ def main():
             [sys.executable, HERE / "test_shaniu_mixed_tools.py", variant])
     add(suite, "AGENT-03.vision-cancel", "AGENT-03", "L2",
         [sys.executable, HERE / "test_shaniu_mixed_tools.py", "vision-cancel"])
+    add(suite, "AGENT-03.tool-vision-cancel", "AGENT-03", "L2",
+        [sys.executable, HERE / "test_shaniu_tool_vision_cancel.py"])
     for variant in ("stale-success", "stale-failure", "current-success",
                     "current-failure", "desired-unknown"):
         add(suite, "CFG-02.activation-" + variant, "CFG-02", "L1",

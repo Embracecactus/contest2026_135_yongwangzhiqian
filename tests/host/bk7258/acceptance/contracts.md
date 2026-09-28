@@ -1104,6 +1104,17 @@ return cannot commit a response after its checker observes cancellation. This
 host contract does not prove camera capture, live provider behavior, board
 display, or cross-turn persistence of a successful non-idempotent tool receipt.
 
+`AGENT-03.tool-vision-cancel` covers the separate registered
+`analyze_image` route. It executes the production builtin dispatcher and
+production image reader while a controlled vision HTTP peer changes the same
+request to `-ECANCELED`. The request checker must reach the raw-image vision
+call; a peer success racing with cancellation must return `-ECANCELED`, clear
+the uncommitted output, and must not record a successful guard call. The fixture
+extracts the production `analyze_image` registration and dispatcher so a legacy
+unchecked registration cannot pass. It does not claim live-provider interrupt
+latency, camera capture, persistent history, panel output, or that a canceled
+non-idempotent tool can be treated as never executed.
+
 ### CFG-02 durable desired revision versus late network result (2026-09-28)
 
 The durable storage revision is the selected configuration.  A network trial
