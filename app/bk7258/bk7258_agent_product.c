@@ -2845,12 +2845,30 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
       if (network_was_busy && !network_busy)
         {
           int network_result = bkprov_network_result();
+          uint64_t desired_revision = 0;
+          int desired_result = bkprov_storage_revision(&desired_revision);
+          bool result_current = desired_result == 0 &&
+                                desired_revision == g_config_revision;
           struct bk7258_wifi_result_s link = {0};
-          if (bk7258_wifi_read_link(&link) == 0)
+          if (result_current && bk7258_wifi_read_link(&link) == 0)
             link_expected = link.link_state == BK7258_WIFI_LINK_CONNECTED && link.ipaddr != 0;
-          g_configured = network_result == 0 && g_service_result == 0;
-          g_product_error = network_result ? network_result : g_service_result;
-          if (network_result && network_result != -ECANCELED)
+          else if (!result_current)
+            link_expected = false;
+          g_configured = result_current && network_result == 0 &&
+                         g_service_result == 0;
+          g_product_error = !result_current ?
+                            (desired_result ? desired_result : -EAGAIN) :
+                            (network_result ? network_result : g_service_result);
+          if (!result_current)
+            {
+              /* A newer durable selection superseded this trial.  Do not
+               * publish or retry the old result; activate the desired record
+               * through the normal owner below. */
+              pending = true;
+              network_retry_at = 0;
+              network_backoff = 5000;
+            }
+          else if (network_result && network_result != -ECANCELED)
             {
               network_retry_at = now + network_backoff;
               if (network_backoff < 60000) network_backoff *= 2;

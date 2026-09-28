@@ -1084,6 +1084,35 @@ return cannot commit a response after its checker observes cancellation. This
 host contract does not prove camera capture, live provider behavior, board
 display, or cross-turn persistence of a successful non-idempotent tool receipt.
 
+### CFG-02 durable desired revision versus late network result (2026-09-28)
+
+The durable storage revision is the selected configuration.  A network trial
+uses the revision captured when it starts.  If revision B becomes durable while
+trial A is still running, A's later success or failure must not publish ready,
+an error, a link expectation, or a retry as though it belonged to B.  The
+product reads only the stable durable revision at the storage publication
+boundary; it does not copy or expose the configuration.  An active storage job
+returns unavailable because its worker owns the backing revision.  A stale or
+temporarily unreadable completion leaves configuration not ready and requests
+activation of the latest durable record through the existing owner.
+
+CFG-02.activation-* executes the exact production completion block with only
+storage revision, Wi-Fi and network peers replaced.  On unchanged production,
+stale success, stale failure and unknown desired revision were assertion Reds;
+current-revision success and failure were baseline Green.  The same five cases
+pass after the coordinator fix.  An initial missing virtual clock in the test
+fixture was SETUP_ERROR and remains separate.  The real storage regression
+also checks the revision view across load, in-flight commit, durable commit,
+reset marker, empty reset result, blocked replacement commit and uncertain
+publication.  The extracted coordinator case proves the pending request and
+suppression of the old result; the downstream activation call remains covered
+by its existing production-path tests rather than this extraction.
+
+This closes stale-result publication, not the whole CFG-02 contract.  SCS1
+still exposes the durable stored revision and save outcome; a public applied
+revision schema, real Wi-Fi/TLS change, power-loss persistence and App display
+remain separate gates.
+
 
 ### R1 read-only power outcome (2026-09-28)
 

@@ -24,6 +24,10 @@ int bkprov_storage_identity_install(const void *record, size_t size);
  * positively read empty store. Output is untouched on failure. */
 int bkprov_storage_snapshot(void *bundle, size_t capacity, size_t *size,
                             uint64_t *revision, uint8_t transaction[16]);
+/* Read the stable durable main-config revision without copying secrets.  Any
+ * active worker job returns -EAGAIN because the backing revision may be owned
+ * by that worker until it publishes completion. */
+int bkprov_storage_revision(uint64_t *revision);
 /* Copy once, then poll by the same transaction, expected revision and exact
  * bytes. A different in-flight operation returns -EBUSY. Disconnect does not
  * cancel the file job. Only a trusted owner may submit verified settings. */

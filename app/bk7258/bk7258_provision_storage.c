@@ -537,6 +537,29 @@ int bkprov_storage_snapshot(void *bundle, size_t capacity, size_t *size,
   return ret;
 }
 
+int bkprov_storage_revision(uint64_t *revision)
+{
+  if (revision == NULL)
+    {
+      return -EINVAL;
+    }
+
+  pthread_mutex_lock(&g_lock);
+  struct storage_s *s = g_storage;
+  /* The worker owns revision while any job is non-idle and may update it
+   * outside g_lock before publishing completion.  Only expose the stable
+   * durable view after that publication boundary. */
+  int ret = s == NULL ? -ENODEV :
+            s->job != JOB_IDLE ? -EAGAIN : s->status;
+  if (ret == 0)
+    {
+      *revision = s->revision;
+    }
+
+  pthread_mutex_unlock(&g_lock);
+  return ret;
+}
+
 int bkprov_storage_commit(uint64_t expected, const uint8_t transaction[16],
                           const void *bundle, size_t size)
 {

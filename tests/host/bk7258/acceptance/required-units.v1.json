@@ -734,7 +734,12 @@
     "AUD-03.agent-cancel-next",
     "AUD-03.agent-close-failure",
     "AUD-03.agent-eof-failure",
-    "AUD-03.agent-cancel-closed-socket"
+    "AUD-03.agent-cancel-closed-socket",
+    "CFG-02.activation-stale-success",
+    "CFG-02.activation-stale-failure",
+    "CFG-02.activation-current-success",
+    "CFG-02.activation-current-failure",
+    "CFG-02.activation-desired-unknown"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1472,6 +1477,11 @@
     "AUD-03.agent-cancel-next",
     "AUD-03.agent-close-failure",
     "AUD-03.agent-eof-failure",
-    "AUD-03.agent-cancel-closed-socket"
+    "AUD-03.agent-cancel-closed-socket",
+    "CFG-02.activation-stale-success",
+    "CFG-02.activation-stale-failure",
+    "CFG-02.activation-current-success",
+    "CFG-02.activation-current-failure",
+    "CFG-02.activation-desired-unknown"
   ]
 }
