@@ -172,6 +172,7 @@ static int g_product_error;
 static int g_service_result = -ENOTCONN;
 static int g_probe_result = -ENOTCONN;
 static uint64_t g_config_revision;
+static uint64_t g_application_revision;
 static sem_t g_product_wake;
 static atomic_uint g_product_events;
 static atomic_bool g_agent_core_ready;
@@ -1762,11 +1763,27 @@ static int product_ota(void *context, enum bkcontrol_command_e command,
 }
 #endif
 
+static void product_application_loaded(int result)
+{
+  uint64_t revision = g_application_revision;
+  if (revision == 0)
+    {
+      return;
+    }
+
+  g_application_revision = 0;
+  (void)bkprov_config_application_publish(
+    revision, result == 0 ? BKPROV_CONFIG_APPLICATION_READY :
+                            BKPROV_CONFIG_APPLICATION_FAILED,
+    result == 0 ? 0 : result);
+}
+
 static int product_load_legacy(void *unused, const void *data, size_t size)
 {
   (void)unused;
   (void)data;
   (void)size;
+  product_application_loaded(-ENOTSUP);
   return -ENOTSUP;
 }
 
@@ -1910,11 +1927,20 @@ static int product_load_cloud(void *unused, const void *trust,
 {
   (void)unused;
   if (!g_save_first)
-    return product_load_cloud_models(trust, trust_size, cloud, cloud_size, NULL);
+    {
+      int ret = product_load_cloud_models(trust, trust_size, cloud,
+                                          cloud_size, NULL);
+      product_application_loaded(ret);
+      return ret;
+    }
   /* SCB4 is authoritative: an old separate preferences override must not
    * silently replace models just saved through the authenticated editor. */
   struct bkcloud_config_s *decoded = calloc(1, sizeof(*decoded));
-  if (!decoded) return -ENOMEM;
+  if (!decoded)
+    {
+      product_application_loaded(-ENOMEM);
+      return -ENOMEM;
+    }
   struct bkcloud_models_s models = {0};
   int ret = bkcloud_config_decode(decoded, cloud, cloud_size);
   if (!ret)
@@ -1926,6 +1952,7 @@ static int product_load_cloud(void *unused, const void *trust,
     }
   bkcloud_config_clear(decoded);
   free(decoded);
+  product_application_loaded(ret);
   return ret;
 }
 
@@ -2488,6 +2515,10 @@ static int bk7258_agent_activate_cloud(bool *storage_waiting)
       goto out;
     }
 
+  (void)bkprov_config_application_publish(
+    revision, BKPROV_CONFIG_APPLICATION_APPLYING, 0);
+  g_application_revision = 0;
+
   ret = bkprov_settings_decode(&work->settings, work->bundle, size);
   if (ret < 0)
     {
@@ -2541,6 +2572,8 @@ static int bk7258_agent_activate_cloud(bool *storage_waiting)
     {
       g_config_revision = revision;
       g_configured = false;
+      (void)bkprov_config_application_publish(
+        revision, BKPROV_CONFIG_APPLICATION_READY, 0);
       ret = 0;
       goto out;
     }
@@ -2554,6 +2587,9 @@ static int bk7258_agent_activate_cloud(bool *storage_waiting)
 
   if (g_configured && revision == g_config_revision)
     {
+      (void)bkprov_config_application_publish(
+        revision, BKPROV_CONFIG_APPLICATION_READY, 0);
+      ret = 0;
       goto out;
     }
 
@@ -2566,9 +2602,24 @@ static int bk7258_agent_activate_cloud(bool *storage_waiting)
   if (!ret)
     {
       g_config_revision = revision;
+      g_application_revision = revision;
+      if (!work->settings.ca_size)
+        {
+          product_application_loaded(0);
+        }
     }
 
 out:
+  if (ret < 0 && ret != -EBUSY && revision != 0)
+    {
+      if (g_application_revision == revision)
+        {
+          g_application_revision = 0;
+        }
+
+      (void)bkprov_config_application_publish(
+        revision, BKPROV_CONFIG_APPLICATION_FAILED, ret);
+    }
   mbedtls_platform_zeroize(work, sizeof(*work));
   free(work);
   return ret;
@@ -2862,6 +2913,14 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
       if (network_was_busy && !network_busy)
         {
           int network_result = bkprov_network_result();
+          if (g_application_revision == g_config_revision)
+            {
+              /* A restore can end before its local loader runs (for example,
+               * Wi-Fi/time failure).  Keep SCA1 APPLYING for the retry, but
+               * prevent an unrelated later claim from completing it. */
+              g_application_revision = 0;
+            }
+
           uint64_t desired_revision = 0;
           int desired_result = bkprov_storage_revision(&desired_revision);
           bool result_current = desired_result == 0 &&

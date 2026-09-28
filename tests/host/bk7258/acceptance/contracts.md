@@ -1133,6 +1133,30 @@ still exposes the durable stored revision and save outcome; a public applied
 revision schema, real Wi-Fi/TLS change, power-loss persistence and App display
 remain separate gates.
 
+The public applied-revision extension keeps frozen SCS1 byte-for-byte
+compatible.  SETTINGS kind 7 READ at offsets `0x8000` and `0x8010` returns the
+two chunks of a 32-byte SCA1 record: magic, BE32 application state, BE64
+durable desired revision, BE64 revision belonging to the current/latest
+application result, signed BE32 result and a zero BE32 reserved field.  States
+are UNKNOWN=0, APPLYING=1, READY=2 and FAILED=3.  A revision mismatch means a
+newer durable selection superseded the reported attempt; an old completion
+must not relabel the desired revision.  Old firmware returns `-ERANGE`, which
+clients treat as application state unavailable.  Reading SCA1 is side-effect
+free and never returns Wi-Fi, cloud or owner secrets.
+
+SCA1 describes local application of the durable selection, not Wi-Fi, TLS or
+cloud reachability.  READY means that the local product services accepted the
+selected revision (or that the revision deliberately contains no Wi-Fi
+selection).  A later network-trial failure or link loss remains in the
+existing connectivity status and must not rewrite READY as FAILED.  FAILED is
+reserved for a local load/decode/bind/restore rejection before the selection
+is accepted.  A cloud-bearing restore remains APPLYING until its local cloud
+loader returns; loader success publishes READY before any remote service
+probe, and loader failure publishes FAILED.  A remote probe result and later
+link loss do not rewrite that local result.  SCS1 PENDING, FAILED and
+UNCERTAIN must never be rendered as
+"saved" merely because an SCA1 record was read.
+
 
 ### R1 read-only power outcome (2026-09-28)
 

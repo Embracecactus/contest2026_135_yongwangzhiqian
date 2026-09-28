@@ -6,6 +6,19 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DeviceControlProtocolTest {
+    @Test fun applicationReadbackAcceptsOnlyTwoOptionalKindSevenFragments() {
+        val sent = mutableListOf<ByteArray>()
+        val states = mutableListOf<DeviceControlProtocol.Snapshot>()
+        val protocol = DeviceControlProtocol(ByteArray(32) { 42 }, { sent += it.copyOf() }, { _, s -> states += s })
+        protocol.start(); protocol.receive(response(sent.last()))
+        for (offset in listOf(0x8000, 0x8010)) {
+            assertTrue(protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_READ, be32((7 shl 16) or offset)))
+            protocol.receive(response(sent.last(), flags = 32))
+            assertEquals(32, states.last().configChunk!!.totalLength)
+        }
+        protocol.close()
+    }
+
     @Test fun authenticatedScanReadAcceptsBoundedRecordsButCannotWriteScanKind() {
         val sent = mutableListOf<ByteArray>()
         val states = mutableListOf<DeviceControlProtocol.Snapshot>()

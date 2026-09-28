@@ -10,6 +10,8 @@ import java.security.SecureRandom
 internal object DeviceSettings {
     const val KIND = 7
     const val MAX_PUBLIC = 824
+    const val APPLICATION_OFFSET = 0x8000
+    const val APPLICATION_SIZE = 32
     data class Public(val state: Int, val revision: Long, val operation: String,
         val result: Int, val hasWifi: Boolean, val hasPassword: Boolean,
         val hasCloud: Boolean, val hasKey: Boolean, val port: Int, val dialect: Int,
@@ -45,6 +47,53 @@ internal object DeviceSettings {
         return Public(state, revision, operation, result, flags and 1 != 0, flags and 2 != 0,
             flags and 4 != 0, flags and 8 != 0, port, dialect,
             fields[0], fields[1], fields[2], fields[3], fields[4], fields[5])
+    }
+
+    /** Optional SCA1 projection. It never contains a credential or changes SCS1. */
+    enum class ApplicationState { UNKNOWN, APPLYING, READY, FAILED }
+    data class Application(val state: ApplicationState, val desiredRevision: Long,
+                           val attemptedRevision: Long, val result: Int)
+    enum class ApplicationReadback {
+        SAVE_PENDING, SAVE_FAILED, SAVE_UNCERTAIN,
+        SAVED, APPLYING, READY, FAILED, UNAVAILABLE,
+    }
+
+    fun decodeApplication(bytes: ByteArray): Application {
+        require(bytes.size == APPLICATION_SIZE)
+        val b = ByteBuffer.wrap(bytes)
+        require(b.int == 0x53434131)
+        val state = b.int.let { code ->
+            ApplicationState.entries.getOrNull(code) ?: error("unknown application state")
+        }
+        val desiredRevision = b.long.also { require(it >= 0) }
+        val attemptedRevision = b.long.also { require(it >= 0) }
+        val result = b.int
+        require(b.int == 0)
+        when (state) {
+            ApplicationState.UNKNOWN -> require(attemptedRevision == 0L && result == 0)
+            ApplicationState.APPLYING, ApplicationState.READY -> require(attemptedRevision > 0 && result == 0)
+            ApplicationState.FAILED -> require(attemptedRevision > 0 && result < 0)
+        }
+        return Application(state, desiredRevision, attemptedRevision, result)
+    }
+
+    fun applicationReadback(current: Public, application: Application?): ApplicationReadback {
+        when (current.state) {
+            1 -> return ApplicationReadback.SAVE_PENDING
+            3 -> return ApplicationReadback.SAVE_FAILED
+            4 -> return ApplicationReadback.SAVE_UNCERTAIN
+            2 -> if (current.result != 0) return ApplicationReadback.SAVE_UNCERTAIN
+            else -> return ApplicationReadback.SAVE_UNCERTAIN
+        }
+        if (application == null) return ApplicationReadback.UNAVAILABLE
+        if (application.desiredRevision != current.revision ||
+            application.attemptedRevision != current.revision) return ApplicationReadback.SAVED
+        return when (application.state) {
+            ApplicationState.UNKNOWN -> ApplicationReadback.SAVED
+            ApplicationState.APPLYING -> ApplicationReadback.APPLYING
+            ApplicationState.READY -> ApplicationReadback.READY
+            ApplicationState.FAILED -> ApplicationReadback.FAILED
+        }
     }
 
     fun operation(): ByteArray = ByteArray(16).also { SecureRandom().nextBytes(it) }

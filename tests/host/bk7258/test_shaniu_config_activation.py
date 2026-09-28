@@ -44,14 +44,27 @@ def main() -> int:
 #define LOG_INFO 0
 #define LOG_WARNING 1
 #define BK7258_WIFI_LINK_CONNECTED 1
+#define BKPROV_CONFIG_APPLICATION_READY 2
+#define BKPROV_CONFIG_APPLICATION_FAILED 3
 struct bk7258_wifi_result_s { int link_state; uint32_t ipaddr; };
 static bool network_busy_value, network_was_busy=true, link_expected;
 static bool g_configured, pending;
 static int network_result_value, g_service_result, g_product_error;
 static int storage_revision_result;
 static uint64_t desired_revision=1, g_config_revision=1;
+static uint64_t g_application_revision;
 static uint64_t now=1000, network_retry_at;
 static uint32_t network_backoff=5000;
+static unsigned int application_publications;
+static uint64_t application_revision;
+static uint32_t application_state;
+static int application_result;
+static void bkprov_config_application_publish(uint64_t revision,
+                                               uint32_t state, int result) {
+  application_publications++;
+  application_revision=revision; application_state=state;
+  application_result=result;
+}
 static void bkprov_config_step(void) {}
 static void bkprov_network_step(void) {}
 static bool bkprov_network_busy(void) { return network_busy_value; }
@@ -80,10 +93,14 @@ int main(int argc,char **argv) {
       assert(!g_configured && g_product_error==-ETIMEDOUT);
       assert(network_retry_at>0 && network_backoff==10000);
     }
+    /* Connectivity completes after the selected revision was locally
+     * accepted.  It must not relabel the SCA1 application result. */
+    assert(application_publications==0);
   } else {
     assert(!g_configured && pending && !link_expected);
     assert(g_product_error==(storage_revision_result ? -EINPROGRESS : -EAGAIN));
     assert(network_retry_at==0 && network_backoff==5000);
+    assert(application_publications==0); /* never relabel B with A's result */
   }
   puts("CONTRACT_PASS"); return 0;
 }

@@ -95,6 +95,10 @@ internal class DeviceSettingsEditor(
     private var deadline = 0L
     private var offset = 0
     private var readBytes: ByteArray? = null
+    private var applicationOffset = 0
+    private var applicationBytes: ByteArray? = null
+    private var settingsRead: DeviceSettings.Public? = null
+    private var readingApplication = false
     private var payload: ByteArray? = null
     private var operation: ByteArray? = null
     private var current: DeviceSettings.Public? = null
@@ -458,6 +462,8 @@ internal class DeviceSettingsEditor(
         if (!live() || phase !in setOf(Phase.IDLE, Phase.VERIFY, Phase.READING)) return
         if (!verify && phase == Phase.IDLE) deadline = SystemClock.elapsedRealtime() + 15_000
         ticket++; offset = 0; readBytes?.fill(0); readBytes = null
+        applicationOffset = 0; applicationBytes?.fill(0); applicationBytes = null
+        settingsRead = null; readingApplication = false
         readVerifying = verify; phase = Phase.READING
         editable(false)
         submit(DeviceControlProtocol.Command.CONFIG_READ, ByteBuffer.allocate(4).putInt(DeviceSettings.KIND shl 16).array())
@@ -517,6 +523,11 @@ internal class DeviceSettingsEditor(
             }, onFailure = { note("扫描结果格式无效，可手动输入网络名称") })
             return
         }
+        if (command == DeviceControlProtocol.Command.CONFIG_READ && readingApplication && snapshot.error == -34) {
+            // -ERANGE is the defined response from firmware predating optional SCA1.
+            finishRead(requireNotNull(settingsRead), null)
+            return
+        }
         if (snapshot.error != 0) {
             if (command == DeviceControlProtocol.Command.CONFIG_READ && snapshot.error in listOf(-11, -16) &&
                 SystemClock.elapsedRealtime() < deadline) {
@@ -531,6 +542,26 @@ internal class DeviceSettingsEditor(
         when (command) {
             DeviceControlProtocol.Command.CONFIG_READ -> {
                 val chunk = snapshot.configChunk ?: run { fail("缺少配置回读"); return }
+                if (readingApplication) {
+                    if (chunk.totalLength != DeviceSettings.APPLICATION_SIZE) { fail("应用状态长度无效"); return }
+                    if (applicationBytes == null) applicationBytes = ByteArray(chunk.totalLength)
+                    val buffer = applicationBytes!!
+                    if (buffer.size != chunk.totalLength || applicationOffset !in buffer.indices) {
+                        fail("应用状态回读不一致"); return
+                    }
+                    val count = minOf(16, buffer.size - applicationOffset)
+                    chunk.bytes.copyInto(buffer, applicationOffset, 0, count); applicationOffset += count
+                    if (applicationOffset < buffer.size) {
+                        submit(command, ByteBuffer.allocate(4).putInt((DeviceSettings.KIND shl 16) or
+                            (DeviceSettings.APPLICATION_OFFSET + applicationOffset)).array())
+                    } else {
+                        val application = try { DeviceSettings.decodeApplication(buffer) }
+                        catch (_: Exception) { fail("应用状态回读格式无效"); return }
+                        buffer.fill(0); applicationBytes = null
+                        finishRead(requireNotNull(settingsRead), application)
+                    }
+                    return
+                }
                 if (chunk.totalLength !in 56..DeviceSettings.MAX_PUBLIC) { fail("配置长度无效"); return }
                 if (readBytes == null) readBytes = ByteArray(chunk.totalLength)
                 val buffer = readBytes!!
@@ -550,11 +581,10 @@ internal class DeviceSettingsEditor(
                         handler.postDelayed({ if (active) read(true) }, 250)
                         return
                     }
-                    reconcile(state)
-                    populate(state)
-                    phase = Phase.IDLE; applied = false
-                    session.finishConfigTransaction(lastMessage)
-                    editable(true)
+                    settingsRead = state; readingApplication = true; applicationOffset = 0
+                    note("已读取配置状态，正在读取设备应用状态；联网状态将单独更新")
+                    submit(command, ByteBuffer.allocate(4).putInt((DeviceSettings.KIND shl 16) or
+                        DeviceSettings.APPLICATION_OFFSET).array())
                 }
             }
             DeviceControlProtocol.Command.CONFIG_BEGIN, DeviceControlProtocol.Command.CONFIG_APPEND -> sendNext()
@@ -567,6 +597,29 @@ internal class DeviceSettingsEditor(
             DeviceControlProtocol.Command.CONFIG_CANCEL -> { phase = Phase.IDLE; editable(true) }
             else -> Unit
         }
+    }
+
+    private fun finishRead(state: DeviceSettings.Public, application: DeviceSettings.Application?) {
+        readingApplication = false; settingsRead = null
+        reconcile(state)
+        note("$lastMessage\n${applicationMessage(state, application)}")
+        populate(state)
+        phase = Phase.IDLE; applied = false
+        session.finishConfigTransaction(lastMessage)
+        editable(true)
+    }
+
+    private fun applicationMessage(state: DeviceSettings.Public, application: DeviceSettings.Application?): String = when (
+        DeviceSettings.applicationReadback(state, application)
+    ) {
+        DeviceSettings.ApplicationReadback.SAVE_PENDING -> "设备仍在持久化配置；尚未确认保存"
+        DeviceSettings.ApplicationReadback.SAVE_FAILED -> "设备保存配置失败（${state.result}）"
+        DeviceSettings.ApplicationReadback.SAVE_UNCERTAIN -> "设备保存结果暂不确定；请继续查询同一操作，不要重复提交"
+        DeviceSettings.ApplicationReadback.SAVED -> "配置已保存；设备尚未确认该版本已应用"
+        DeviceSettings.ApplicationReadback.APPLYING -> "配置已保存；设备正在应用该版本"
+        DeviceSettings.ApplicationReadback.READY -> "配置已保存且已应用到设备；联网状态在上方单独显示"
+        DeviceSettings.ApplicationReadback.FAILED -> "配置已保存，但设备应用失败（${application!!.result}）；联网状态在上方单独显示"
+        DeviceSettings.ApplicationReadback.UNAVAILABLE -> "配置已保存；当前固件未提供设备应用状态回读"
     }
     private fun operationHex() = operation?.joinToString("") { "%02x".format(it.toInt() and 255) }
     private fun reconcile(state: DeviceSettings.Public) {
@@ -655,6 +708,7 @@ internal class DeviceSettingsEditor(
     }
     private fun fail(reason: String) {
         ticket++; waiting = null; readBytes?.fill(0); readBytes = null
+        applicationBytes?.fill(0); applicationBytes = null; settingsRead = null; readingApplication = false
         retryBytes?.fill(0); retryBytes = null
         payload?.fill(0); payload = null
         note(reason)
@@ -673,7 +727,7 @@ internal class DeviceSettingsEditor(
         contentLayoutListener?.let { listener -> contentDecor?.removeOnLayoutChangeListener(listener) }
         contentDecor = null; contentLayoutListener = null
         if (!applied) session.cancelConfigTransaction() else session.finishConfigTransaction()
-        readBytes?.fill(0); payload?.fill(0); operation?.fill(0)
+        readBytes?.fill(0); applicationBytes?.fill(0); payload?.fill(0); operation?.fill(0)
         password.text.clear(); key.text.clear()
         dialog?.let { if (it.isShowing) it.dismiss() }; dialog = null
         if (embeddedHost != null) activity.getSystemService(android.view.inputmethod.InputMethodManager::class.java)

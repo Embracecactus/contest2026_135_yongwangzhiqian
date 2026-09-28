@@ -51,6 +51,25 @@ int __wrap_fsync(int fd)
 static void put16(uint8_t *p, size_t n) { p[0] = n >> 8; p[1] = n; }
 static void put64(uint8_t *p, uint64_t n)
 { for (int i = 7; i >= 0; i--) { p[i] = n; n >>= 8; } }
+static uint32_t read32(const uint8_t *p)
+{ return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) |
+         ((uint32_t)p[2] << 8) | p[3]; }
+static uint64_t read64(const uint8_t *p)
+{ return ((uint64_t)read32(p) << 32) | read32(p + 4); }
+static void read_application(uint8_t record[32],
+                             struct bkcontrol_status_s *status)
+{
+  memset(record, 0, 32);
+  assert(bkprov_config_control(BKCONTROL_CONFIG_READ, 0x8000, NULL, 0,
+                               status) == 0);
+  assert(status->config_total == 32);
+  memcpy(record, status->config_chunk, 16);
+  assert(bkprov_config_control(BKCONTROL_CONFIG_READ, 0x8010, NULL, 0,
+                               status) == 0);
+  assert(status->config_total == 32);
+  memcpy(record + 16, status->config_chunk, 16);
+  assert(!memcmp(record, "SCA1", 4));
+}
 static void tick(void)
 { const struct timespec t = {0, 1000000}; nanosleep(&t, NULL); }
 static int wait_loaded(uint8_t *record, size_t *size, uint64_t *revision)
@@ -125,6 +144,7 @@ int main(int argc, char **argv)
   assert(argc == 5); /* scenario, private root, public DER, independent golden */
   uint8_t cert[4096], cloud_record[256] = {0}, old[9216], saved[9216];
   uint8_t owner[32] = {0x73}, tx[16] = {1};
+  struct bkcontrol_status_s status = {0};
   size_t size = 0, n;
   uint64_t revision = 0;
   FILE *file = fopen(argv[3], "rb"); assert(file);
@@ -167,6 +187,59 @@ int main(int argc, char **argv)
   size_t ignored;
   assert(wait_loaded(saved, &ignored, &revision) == -ENOENT);
   assert(wait_commit(0, tx, old, size) == 0);
+  if (!strcmp(argv[1], "application-unknown"))
+    {
+      /* SCA1 is an optional read-only extension of SETTINGS kind 7.  It does
+       * not change the frozen SCS1 record or expose credentials.  Older
+       * firmware returns -ERANGE at this offset; the new contract requires an
+       * explicit UNKNOWN application snapshot instead. */
+      uint8_t application[32];
+      read_application(application, &status);
+      assert(read32(application + 4) == 0); /* UNKNOWN */
+      assert(read64(application + 8) == 1); /* durable desired revision */
+      assert(read64(application + 16) == 0); /* no attempted/applied revision */
+      assert(read32(application + 24) == 0 && read32(application + 28) == 0);
+      assert(bkprov_storage_stop() == 0);
+      puts("CONTRACT_PASS");
+      return 0;
+    }
+  if (!strcmp(argv[1], "application-states"))
+    {
+      uint8_t application[32];
+      assert(bkprov_config_application_publish(
+               1, BKPROV_CONFIG_APPLICATION_UNKNOWN, 0) == -EINVAL);
+      assert(bkprov_config_application_publish(
+               0, BKPROV_CONFIG_APPLICATION_APPLYING, 0) == -EINVAL);
+      assert(bkprov_config_application_publish(
+               1, BKPROV_CONFIG_APPLICATION_READY, -EIO) == -EINVAL);
+      assert(bkprov_config_application_publish(
+               1, BKPROV_CONFIG_APPLICATION_FAILED, 0) == -EINVAL);
+
+      assert(bkprov_config_application_publish(
+               1, BKPROV_CONFIG_APPLICATION_APPLYING, 0) == 0);
+      read_application(application, &status);
+      assert(read32(application + 4) == 1);
+      assert(read64(application + 8) == 1 && read64(application + 16) == 1);
+      assert(read32(application + 24) == 0 && read32(application + 28) == 0);
+
+      assert(bkprov_config_application_publish(
+               1, BKPROV_CONFIG_APPLICATION_READY, 0) == 0);
+      read_application(application, &status);
+      assert(read32(application + 4) == 2);
+      assert(read64(application + 8) == 1 && read64(application + 16) == 1);
+      assert(read32(application + 24) == 0 && read32(application + 28) == 0);
+
+      assert(bkprov_config_application_publish(
+               1, BKPROV_CONFIG_APPLICATION_FAILED, -ETIMEDOUT) == 0);
+      read_application(application, &status);
+      assert(read32(application + 4) == 3);
+      assert(read64(application + 8) == 1 && read64(application + 16) == 1);
+      assert((int32_t)read32(application + 24) == -ETIMEDOUT);
+      assert(read32(application + 28) == 0);
+      assert(bkprov_storage_stop() == 0);
+      puts("CONTRACT_PASS");
+      return 0;
+    }
   /* Golden SCP1 Wi-Fi-only patch: op=02 followed by zeros, revision=1,
    * flags=9, UTC=1800000000, two 9/10-byte fields, cloud/CA/address absent. */
   uint8_t patch[512] = {0};
@@ -201,7 +274,6 @@ int main(int argc, char **argv)
           patch_size += n;
         }
     }
-  struct bkcontrol_status_s status = {0};
   bool rename_failure = !strcmp(argv[1], "rename-unknown");
   bool sync_case = strstr(argv[1], "sync-") != NULL || rename_failure;
   if (sync_case)

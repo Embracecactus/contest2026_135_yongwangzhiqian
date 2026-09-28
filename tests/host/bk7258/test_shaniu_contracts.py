@@ -285,6 +285,8 @@ def mutations(temp, config_temp, cert):
 def run_jvm():
     classes = [
         "provision.DeviceControlSessionTest",
+        "provision.DeviceControlProtocolTest",
+        "provision.DeviceSettingsTest",
         "provision.ProvisionTlsTest",
         "provision.ProvisionSettingsTest",
         "provision.FocusTimerControllerTest",
@@ -410,6 +412,8 @@ def run_jvm():
                 parent = "NFC-02"
             if "ExpressionTrial" in name or "DefaultSelection" in name:
                 parent = "RES-02"
+            if name == "provision.DeviceSettingsTest":
+                parent = "CFG-02"
             if name in ("provision.ProvisionTlsTest", "provision.PcPairingExchangeTest"):
                 parent = "USB-01"
             logic_only = name == "provision.DefaultSelectionControllerTest" and node.attrib["name"] in (
@@ -851,6 +855,13 @@ def main():
                     "current-failure", "desired-unknown"):
         add(suite, "CFG-02.activation-" + variant, "CFG-02", "L1",
             [sys.executable, HERE / "test_shaniu_config_activation.py", variant])
+    add(suite, "CFG-02.activation-start", "CFG-02", "L2",
+        [sys.executable, HERE / "test_pc_product_route.py", "application-status"])
+    add(suite, "CFG-02.application-link-loss", "CFG-02", "L1",
+        [sys.executable, HERE / "test_shaniu_config_link_loss.py"])
+    for variant in ("success", "failure"):
+        add(suite, "CFG-02.local-load-" + variant, "CFG-02", "L1",
+            [sys.executable, HERE / "test_shaniu_config_local_apply.py", variant])
     for variant in ("online", "offline", "network-pending", "offline-event",
                     "core-unavailable", "identity-unavailable", "threshold-busy",
                     "model-failure", "cloud-retry", "offline-admission", "online-admission"):
@@ -1435,6 +1446,8 @@ def main():
             "public-cert",
         )
         for variant in (
+            "application-unknown",
+            "application-states",
             "wifi-reopen",
             "file-sync-failure",
             "file-sync-retry",
@@ -1449,6 +1462,7 @@ def main():
             parent = (
                 "STORE-02"
                 if "sync-" in variant
+                else "CFG-02" if variant.startswith("application-")
                 else "CFG-01" if variant == "wifi-reopen" else "CFG-03"
             )
             add(
@@ -1658,6 +1672,7 @@ def main():
         HERE / "test_pc_owner_binding.c",
         HERE / "test_pc_owner_binding.py",
         HERE / "test_pc_product_route.py",
+        HERE / "test_shaniu_config_local_apply.py",
         ROOT / "app/bk7258/bk7258_pc_authorization_owner.c",
         ROOT / "app/bk7258/bk7258_pc_authorization_owner.h",
         ROOT / "app/bk7258/bk7258_pc_authorization.c",

@@ -7,6 +7,16 @@
 #define BKPROV_PATCH_HEADER 52u
 #define BKPROV_PATCH_MAX 9216u
 #define BKPROV_SETTINGS_PUBLIC_MAX 824u
+#define BKPROV_CONFIG_APPLICATION_OFFSET 0x8000u
+#define BKPROV_CONFIG_APPLICATION_SIZE 32u
+
+enum bkprov_config_application_state_e
+{
+  BKPROV_CONFIG_APPLICATION_UNKNOWN = 0,
+  BKPROV_CONFIG_APPLICATION_APPLYING,
+  BKPROV_CONFIG_APPLICATION_READY,
+  BKPROV_CONFIG_APPLICATION_FAILED
+};
 
 /* SCP1: magic, operation[16], expected revision[8], flags[4], UTC[8],
  * four BE16 lengths (SSID, PSK, CCF1, CA DER), IPv4[4], then the fields.
@@ -19,6 +29,11 @@
 int bkprov_config_control(enum bkcontrol_command_e command, uint32_t offset,
                           const uint8_t *record, size_t size,
                           struct bkcontrol_status_s *status);
+/* Serialized product-owner publication for the optional SCA1 readback.  The
+ * revision identifies the attempt/result; SCA1 obtains desired_revision from
+ * the durable storage owner at read time. */
+int bkprov_config_application_publish(
+  uint64_t revision, enum bkprov_config_application_state_e state, int result);
 void bkprov_config_step(void);
 bool bkprov_config_busy(void);
 

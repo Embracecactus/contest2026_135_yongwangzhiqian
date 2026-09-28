@@ -43,6 +43,15 @@ static struct
   size_t public_size;
 } g_edit;
 
+static struct
+{
+  uint64_t revision;
+  enum bkprov_config_application_state_e state;
+  int result;
+  uint8_t public_record[BKPROV_CONFIG_APPLICATION_SIZE];
+  size_t public_size;
+} g_application;
+
 struct workspace_s
 {
   uint8_t previous[BKPROV_BUNDLE_MAX];
@@ -103,6 +112,28 @@ static bool nonzero(const uint8_t *p, size_t size)
 bool bkprov_config_busy(void)
 {
   return g_edit.state == EDIT_PENDING || g_edit.state == EDIT_UNCERTAIN;
+}
+
+int bkprov_config_application_publish(
+  uint64_t revision, enum bkprov_config_application_state_e state, int result)
+{
+  if (state > BKPROV_CONFIG_APPLICATION_FAILED ||
+      (state == BKPROV_CONFIG_APPLICATION_UNKNOWN &&
+       (revision != 0 || result != 0)) ||
+      (state == BKPROV_CONFIG_APPLICATION_APPLYING &&
+       (revision == 0 || result != 0)) ||
+      (state == BKPROV_CONFIG_APPLICATION_READY &&
+       (revision == 0 || result != 0)) ||
+      (state == BKPROV_CONFIG_APPLICATION_FAILED &&
+       (revision == 0 || result >= 0)))
+    {
+      return -EINVAL;
+    }
+
+  g_application.revision = revision;
+  g_application.state = state;
+  g_application.result = result;
+  return 0;
 }
 
 void bkprov_config_step(void)
@@ -459,6 +490,27 @@ out:
   return ret;
 }
 
+static int application_snapshot(void)
+{
+  uint64_t desired_revision = 0;
+  int ret = bkprov_storage_revision(&desired_revision);
+  if (ret < 0)
+    {
+      g_application.public_size = 0;
+      return ret;
+    }
+
+  memset(g_application.public_record, 0,
+         sizeof(g_application.public_record));
+  memcpy(g_application.public_record, "SCA1", 4);
+  put32(g_application.public_record + 4, g_application.state);
+  put64(g_application.public_record + 8, desired_revision);
+  put64(g_application.public_record + 16, g_application.revision);
+  put32(g_application.public_record + 24, g_application.result);
+  g_application.public_size = sizeof(g_application.public_record);
+  return 0;
+}
+
 int bkprov_config_control(enum bkcontrol_command_e command, uint32_t offset,
                           const uint8_t *record, size_t size,
                           struct bkcontrol_status_s *status)
@@ -482,6 +534,29 @@ int bkprov_config_control(enum bkcontrol_command_e command, uint32_t offset,
   if (command != BKCONTROL_CONFIG_READ || (offset & 15u))
     {
       return -EINVAL;
+    }
+
+  if (offset >= BKPROV_CONFIG_APPLICATION_OFFSET)
+    {
+      uint32_t relative = offset - BKPROV_CONFIG_APPLICATION_OFFSET;
+      if (relative == 0)
+        {
+          ret = application_snapshot();
+          if (ret < 0) return ret;
+        }
+
+      if (relative >= g_application.public_size) return -ERANGE;
+      count = g_application.public_size - relative;
+      if (count > sizeof(status->config_chunk))
+        {
+          count = sizeof(status->config_chunk);
+        }
+
+      status->config_total = g_application.public_size;
+      memset(status->config_chunk, 0, sizeof(status->config_chunk));
+      memcpy(status->config_chunk, g_application.public_record + relative,
+             count);
+      return 0;
     }
 
   if (offset == 0)

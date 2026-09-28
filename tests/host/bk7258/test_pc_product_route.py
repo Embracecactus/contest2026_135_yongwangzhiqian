@@ -21,6 +21,7 @@ if __name__ == "__main__":
 
     start = source.index("struct agent_config_workspace_s\n")
     workspace = source[start : source.index("};", start) + 2]
+    application_completion = function(source, "product_application_loaded")
     activation = function(source, "bk7258_agent_activate_cloud")
     prefix = r"""
 #include "bk7258_pc_authorization_owner.h"
@@ -35,6 +36,21 @@ static bool voice_idle=true;
 #include <mbedtls/platform_util.h>
 static bool g_identity_bound=true, g_control_bound, g_save_first, g_configured;
 static uint64_t g_config_revision;
+static uint64_t g_application_revision;
+#define BKPROV_CONFIG_APPLICATION_APPLYING 1
+#define BKPROV_CONFIG_APPLICATION_READY 2
+#define BKPROV_CONFIG_APPLICATION_FAILED 3
+static unsigned application_publications;
+static uint64_t application_revision;
+static unsigned application_state;
+static int application_result;
+static __attribute__((unused)) int
+bkprov_config_application_publish(uint64_t revision,
+                                  unsigned state, int result)
+{
+ application_publications++;application_revision=revision;
+ application_state=state;application_result=result;return 0;
+}
 static atomic_bool g_agent_core_ready, g_voice_initialized;
 static struct { mbedtls_x509_crt certificate; mbedtls_pk_context key; uint8_t secret[32]; } g_identity;
 #define bkprov_network_busy() false
@@ -45,7 +61,8 @@ static struct { mbedtls_x509_crt certificate; mbedtls_pk_context key; uint8_t se
 #define bkprov_identity_clear(...) ((void)0)
 #define storage_unavailable(ret) ((ret)==-ENODEV)
 #define product_clear(...) 0
-#define bkprov_network_restore(...) (-ENETDOWN)
+static int network_restore_result=-ENETDOWN;
+#define bkprov_network_restore(...) network_restore_result
 #define product_control execute
 static int ota_busy;
 #define bkagent_ota_busy() ota_busy
@@ -85,21 +102,41 @@ static int product_test_pc_snapshot(void *context, uint64_t *binding,
             + "\n"
             + workspace
             + "\n"
+            + application_completion
+            + "\n"
             + activation
             + "\nint main(int argc,char **argv)",
+        )
+        application_expectation = (
+            " assert(application_publications>=1 && application_revision==1 "
+            "&& application_state==2 && application_result==0);"
+            if sys.argv[1] == "application-status"
+            else ""
         )
         code = code.replace(
             "assert(prepare(1)==0 && read_current()==0);",
             """bool waiting = true;
+ %s
  assert(bk7258_agent_activate_cloud(&waiting)==0 && !waiting);
+%s
  product_visual_test(task_now); assert(painted==0);
  int ready=-EAGAIN;
  for(int i=0;i<3000 && ready==-EAGAIN;i++)
   {ready=read_current();if(ready==-EAGAIN)tick();}
  assert(ready==0 && g_control_bound && !g_configured);
-""",
+""" % (
+                "atomic_store(&g_agent_core_ready,true); "
+                "atomic_store(&g_voice_initialized,true); network_restore_result=0;"
+                if sys.argv[1] == "application-status" else "",
+                application_expectation,
+            ),
             1,
         )
+        if sys.argv[1] == "application-status":
+            code = code.replace(
+                "struct bkprov_settings_s settings={.control_key=key,.deferred=true,.utc=1750000000};",
+                "struct bkprov_settings_s settings={.control_key=key,.ssid=\"wifi\",.deferred=true,.utc=1750000000};",
+            )
         code = code.replace(
             " assert(set(1,0,tx,3)==0);",
             r"""
@@ -200,7 +237,8 @@ static int product_test_pc_snapshot(void *context, uint64_t *binding,
             [
                 temp / "test",
                 "offline"
-                if sys.argv[1] in ("tasks", "task-transient-authorization")
+                if sys.argv[1] in ("tasks", "task-transient-authorization",
+                                   "application-status")
                 else sys.argv[1],
                 temp / "data",
             ],
