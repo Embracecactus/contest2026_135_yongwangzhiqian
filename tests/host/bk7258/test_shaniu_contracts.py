@@ -484,6 +484,7 @@ def main():
         "test_pc_authorization",
         "test_pc_owner_binding",
         "test_shaniu_key_contract",
+        "test_shaniu_keys_transport",
         "test_shaniu_volume_contract",
         "test_shaniu_preferences_msc_epoch",
         "test_shaniu_volume_transition",
@@ -560,6 +561,18 @@ def main():
             "L1",
             [HERE / "build/test_shaniu_key_contract", variant],
             binaries["test_shaniu_key_contract"],
+        )
+    for variant, parent in (
+        ("accepted-disconnect", "K2-01"),
+        ("unfinished-disconnect", "K2-03"),
+    ):
+        add(
+            suite,
+            parent + "." + variant,
+            parent,
+            "L2",
+            [HERE / "build/test_shaniu_keys_transport", variant],
+            binaries["test_shaniu_keys_transport"],
         )
     for variant in ("missing", "pages", "cancel-before", "cancel-during",
                     "invalid-cursor", "read-error", "directory-close",

@@ -1948,6 +1948,16 @@ $(BUILD)/test_control_pair: $(REPOSITORY_ROOT)/app/bk7258/bk7258_control_session
 $(BUILD)/test_shaniu_key_contract: test_shaniu_key_contract.c $(VOICE_PACK_ROOT)/bk7258_product_keys.h | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) $< -I $(VOICE_PACK_ROOT) -o $@
 
+$(BUILD)/test_shaniu_keys_transport: test_shaniu_keys_transport.c \
+	$(VOICE_PACK_ROOT)/bk7258_agent_keys.c \
+	$(VOICE_PACK_ROOT)/bk7258_product_keys.h \
+	$(VOICE_PACK_ROOT)/bk7258_voice_button.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread \
+		-DCONFIG_BK7258_PRODUCT_KEYS -DCONFIG_BK7258_AP_CORE \
+		-I $(MOCKS) -I $(VOICE_PACK_ROOT) \
+		-I $(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/include \
+		$< mocks/mock_nuttx_ap.c -o $@
+
 $(BUILD)/test_shaniu_volume_contract: test_shaniu_volume_contract.c $(VOICE_PACK_ROOT)/bk7258_media_volume.c $(CHIP_ROOT)/ap/bk7258_usbmode.c | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -pthread -DCONFIG_BK7258_USBMODE -DCONFIG_BK7258_AP_CORE \
 		-DCONFIG_BK7258_USBCDC -DCONFIG_BK7258_USBMSC -DCONFIG_BK7258_OTA_SOURCE_FILE \
