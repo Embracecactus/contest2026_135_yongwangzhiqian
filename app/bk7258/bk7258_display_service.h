@@ -37,7 +37,10 @@ struct bkdisplay_service_status_s
   uint8_t source_sha256[32];
 };
 
-/* 107-char native QR or NULL; never exported in public status/RPC. */
+/* 107-char native QR or NULL; never exported in public status/RPC. Opening
+ * retains rendered-before-success semantics. NULL is a metadata-only close:
+ * the worker clears the QR later and ordinary display admission remains closed
+ * until then; it never waits for the render mutex, storage or framebuffer. */
 int bk7258_display_onboarding(const char *qr);
 /* 0 normal, 1 long-hold/release hint, 2 saving/shutdown in progress,
  * 3 shutdown failed (resources remain stopped; explicit retry required).

@@ -1,0 +1,129 @@
+{
+  "format": "shaniu.acceptance-evidence/1",
+  "date": "2026-09-29",
+  "scope": "LIFE-01 onboarding close and power precedence during owner exit",
+  "source": {
+    "checkout_head_before_submission": "1f39117c6eb649cbfc14246e49ac56dc407a877d",
+    "submission_commit": "see the commit containing this evidence file",
+    "agent_commit": "f1a5e35a30d728613f52fb1007e8471a2dd3dc78",
+    "build_input_tree_sha256": "2e3d1180b14e2449e58a8ca0528e3d7c4f032cb1fde5bff1420dc39679963af6",
+    "contract_production_sha256": "2f9a4496de274de8456050e43a1e26e4edf640871046fed00d851aa982fc0cc3"
+  },
+  "behavior": {
+    "ids": [
+      "LIFE-01.onboarding-clear-held-lock",
+      "LIFE-01.onboarding-power-preempts-open"
+    ],
+    "result": "NULL close publishes bounded metadata without the render mutex; a later power request observed during claim rendering prevents a successful open result",
+    "preserved": "claim open still returns success only after both framebuffer writes"
+  },
+  "before": [
+    {
+      "id": "LIFE-01.onboarding-clear-held-lock",
+      "classification": "FAIL_ASSERTION",
+      "evidence": "out/shaniu-core-20260929/onboarding-clear-held-lock/red/run.log",
+      "sha256": "53d20e2535a775a01eb0335a8a71eeda8af7612ff0ab424516b5b327ffbc9e5b"
+    },
+    {
+      "id": "LIFE-01.onboarding-power-preempts-open",
+      "classification": "FAIL_ASSERTION",
+      "evidence": "out/shaniu-core-20260929/onboarding-clear-held-lock/power-preempt-red-assert/run.log",
+      "sha256": "bea559c5a072ee36b679bdf163a40c244bbf831e953c11a9d0b4526e4451ce53"
+    }
+  ],
+  "host_after": {
+    "targeted": {
+      "cases": 6,
+      "status": "PASS",
+      "mutation": "lost power preemption detected; restored case passed",
+      "evidence": "out/shaniu-core-20260929/onboarding-clear-held-lock/final-targeted/summary.json",
+      "sha256": "96e3082ae2d664b87f7111d75bf16bf14eae44af3d5abeed002457f67441b7f9"
+    },
+    "full_contract": {
+      "selected": 779,
+      "pass": 779,
+      "fail_assertion": 0,
+      "setup_error": 0,
+      "not_run": 0,
+      "original_63_pass": 63,
+      "added_pass": 716,
+      "required_collection_errors": [],
+      "built_in_mutations_detected": 2,
+      "production_unchanged_during_run": true,
+      "evidence": "out/shaniu-core-20260929/onboarding-clear-held-lock/full-779/results.json",
+      "sha256": "f6fdd3e8d0a652de30c890d7260b16f25c7a4e2fe93d1f3767910e7ef5b2b29c"
+    }
+  },
+  "artifact": {
+    "board": "aidk_ai_toy",
+    "version": "0.7.38+683",
+    "security_counter": 683,
+    "package": "out/shaniu-core-20260929/onboarding-clear-held-lock/release-683/package/shaniu-bk7258-aidk_ai_toy-app__openvela_ap-v0.7.38+683-bshaniu-onboarding-exit-683-ota.bkpack",
+    "package_sha256": "000875bf2ea9803cee0b8e67f46a46ee593370bdddf961b0e098b37fe58e3eaf",
+    "build_manifest_sha256": "b35a2b8ec840422aaf1ac77c315553fbd26555faf82be02c158396d400898720",
+    "ap_elf_sha256": "1796a805d6f30f58fab8b3c60245fc1fc4645d5d82e5e72b7e6747714b61a3ac",
+    "ap_map_sha256": "317310ab6b79e79893af20064ee1aa8c2c80b01ad93988519a98b3e222446ebb",
+    "segments": [
+      {
+        "name": "cp",
+        "offset": "0x11000",
+        "length": "0x132000",
+        "sha256": "0a3a3ebefc290a47f8f19d5683e124457cd91645837d5823748a05c778860cea"
+      },
+      {
+        "name": "ap",
+        "offset": "0x143000",
+        "length": "0x20f000",
+        "sha256": "38cff966bb7dd21a249c3e9de4133709d147824e97dfdf8ed58698a6af054fd8"
+      }
+    ],
+    "package_verify": "PASS",
+    "public_trust_verify": "PASS",
+    "package_erase_operations": []
+  },
+  "hil": {
+    "flash": {
+      "status": "PASS",
+      "port": "COM9 CH340",
+      "automatic_retry": false,
+      "result": "out/shaniu-core-20260929/onboarding-clear-held-lock/hil-683/result.json",
+      "sha256": "fec49626a0b03e61440a4b6152d128448241daeb6c01f0a240e49f4c6b599c20"
+    },
+    "boot": {
+      "status": "PASS",
+      "result": "out/shaniu-core-20260929/onboarding-clear-held-lock/board/reboot-683/session.json",
+      "sha256": "fa17c3a8845cace521ca583452e5ad2051c9d4808cd5f149a1b39bd3191bf148"
+    },
+    "runtime": {
+      "status": "PASS",
+      "active": "A",
+      "inactive": "B",
+      "pair": "confirmed",
+      "version": "0.7.38+683",
+      "counter": 683,
+      "faults": 0,
+      "recoveries": 0,
+      "result": "out/shaniu-core-20260929/onboarding-clear-held-lock/board/post-hil-status-683/session.json",
+      "sha256": "73b5ea1a778cc3009d2ec431ccab2a3e8a3c6faccaa069b4804d4776c6fbb371"
+    },
+    "preserved_identity": {
+      "wake_label": "nihao_openvela",
+      "frontend": 1,
+      "model_sha256": "922eba9175fcda60f7c8a4505ca4eb5a97c86ceb30fbe48c685fd612098ac910",
+      "threshold_percent": 85,
+      "configuration_revision": 6,
+      "eye_pack": "shaniu-cyan-v3",
+      "eye_pack_revision": 3
+    }
+  },
+  "observer_corrections": [
+    "The first power-preemption fixture lacked BKDISPLAY_QR_VERSION and was SETUP_ERROR; it was fixed before recording the business Red.",
+    "Intermediate build 682 booted, but its first status observer incorrectly expected slot B. The raw output showed active A with version 682; the corrected observer passed. Build 682 is superseded by 683."
+  ],
+  "not_proven": [
+    "physical K2 edge, debounce, deep sleep, wake or current draw",
+    "physical QR pixels or screen appearance",
+    "BLE advertising, claim or Android flow",
+    "actual display-worker scheduling latency on the board"
+  ]
+}

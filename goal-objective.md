@@ -12,7 +12,7 @@
 - 手机与电脑断开，现场无人；不请求K2、扫码、插拔、听音或卡片动作，不新建手机桥接。
 - 板子连接；已核对 COM9 为 CH340 下载/NSH，COM16 为原生 CDC 二进制通道。
 - 正常固件 HIL 下载、必要受控复位、启动采集和非破坏性回归已获授权。
-- 已用现有 BK Loader 有界写入非活动槽；最新0.7.34+679在A槽确认启动，受控重启后仍确认pair/counter 679且可达。
+- 已用现有 BK Loader 有界写入清单固定CP/AP段；当前0.7.38+683在A槽确认启动，受控重启后仍确认pair/counter 683且可达。
 - CDC OTA HELLO超时，未进入写入；不把该结果记作App OTA。COM9软件复位下载成功不证明独立故障/深睡恢复。
 - 未证明独立恢复、硬件按键/电源控制、声学/电流/屏幕观测能力；仅暂停依赖这些能力的动作。
 - 不清owner、网络/Key、SD或硬件数据，不改OTP/eFuse/信任根，不降低防回滚。工厂首启单列。
@@ -76,6 +76,8 @@
 - CFG-02现将“已持久保存”“本地应用中/成功/失败”和网络/云连通分开：SCS1非终态不再显示已保存，SCA1只由匹配revision的真实本地loader结束。旧实现的网络回执误标、本地loader未发布及Android错误文案均先形成有效Red；同例修复后转Green。当前完整合同集合776/776通过、无FAIL/SETUP/NOT_RUN，历史63项和两项变异检出/恢复复验保留，不把该数量称整机完成。
 - 匹配0.7.36+681已通过包和公开签名信任校验，并由HIL仅写入非活动A槽CP/AP；板端确认A槽pair/counter 681、faults/recoveries 0，原生CDC重新枚举。受控重启后原模型完整哈希、frontend 1、阈值85、配置revision 6和既有眼睛包revision 3保持。当前没有已授权PC profile或手机，故SCA1外部协议读回仍待相应客户端恢复；不把启动/保持证据称该协议的板端端到端验收。
 - NET-03发现原生App在`CONFIG_BEGIN`仅排队、尚未发送时取消，会在当前STATUS完成后错误发送`CONFIG_CANCEL`；旧实现的线级反例为有效Red。现仅释放该未发送请求的本地写入占用，不向设备发送BEGIN或CANCEL；已经发送的配置事务仍保留原远端取消握手。相关83项JVM回归和当前完整777项合同集合通过，零FAIL/SETUP/NOT_RUN，两项既有变异继续检出并恢复。该切片只证明生产会话调度和协议边界，不称BLE、Android真机或板端配置持久化通过；固件未改，板端继续运行已确认的0.7.36+681。
+- LIFE-01认领清理在旧实现会等待display render mutex，先得到有效Red；现NULL关闭仅发布有界clear intent，由原worker消费。补充交错又证明旧实现会在渲染中收到新power意图后仍成功打开，修复后返回`-EAGAIN`、清QR且不让owner继续复制secret/开GATT。定向6项、抢占变异检出/恢复及完整779项合同集合通过，零FAIL/SETUP/NOT_RUN，原63和两项既有变异保留。
+- 最终匹配0.7.38+683已通过包和公开签名信任校验，由HIL一次有界写入CP/AP；板端确认A槽pair/counter 683、faults/recoveries 0。受控重启确认原模型完整哈希、frontend 1、阈值85、配置revision 6与眼睛包revision 3保持。未执行实体K2、物理QR/屏幕或BLE认领，不把匹配固件启动称这些L3通过。
 - 本轮证据与匹配BIN/ELF/map：out/shaniu-core-20260928/、out/shaniu-core-20260929/cfg02-application/、out/shaniu-core-20260929/app-queued-config-cancel/；未执行人工K2、App或声学验收。
 
 ## 交付与停止条件

@@ -63,6 +63,21 @@ def invalidate_junit_report(report):
         pass
 
 
+def public_function(source, name):
+    match = re.search(
+        r"^int " + re.escape(name) + r"\([^;{}]*\)\s*\{", source, re.M
+    )
+    if match is None:
+        raise RuntimeError("Required production interface missing: " + name)
+    start = match.start()
+    pos = match.end()
+    depth = 1
+    while depth:
+        depth += (source[pos] == "{") - (source[pos] == "}")
+        pos += 1
+    return source[start:pos]
+
+
 def main():
     if len(sys.argv) == 3 and sys.argv[1] == "build-tls":
         build_tls_crypto(Path(sys.argv[2]))
@@ -118,14 +133,31 @@ def main():
         )
         from test_nfc_rf_lifecycle import function
 
+        onboarding = public_function(source, "bk7258_display_onboarding")
+        if os.environ.get("SHANIU_TEST_MUTATE_ONBOARDING_PREEMPT") == "1":
+            needle = "if (preempted) ret = -EAGAIN;"
+            if onboarding.count(needle) != 1:
+                raise RuntimeError("onboarding preemption mutation target changed")
+            onboarding = onboarding.replace(
+                needle,
+                "if (preempted && false) ret = -EAGAIN; /* isolated lost preemption */",
+            )
+        (temp / "onboarding-request.inc").write_text(onboarding + "\n")
+
         power_start = source.index("int bk7258_display_power(")
         power_end = source.index("\nstatic uint64_t bkdisplay_now_ms", power_start)
         (temp / "power-request.inc").write_text(source[power_start:power_end])
+        power_apply = function(source, "bkdisplay_power_apply_locked")
+        if os.environ.get("SHANIU_TEST_MUTATE_ONBOARDING_CLEAR") == "1":
+            needle = "memset(service->claim_qr, 0, sizeof(service->claim_qr));"
+            if power_apply.count(needle) != 1:
+                raise RuntimeError("onboarding clear mutation target changed")
+            power_apply = power_apply.replace(
+                needle,
+                "service->claim_qr[0] = 'S'; /* isolated retained-QR mutation */",
+            )
         (temp / "power-render.inc").write_text(
-            function(source, "bkdisplay_power_apply_locked")
-            + "\n"
-            + function(source, "bkdisplay_builtin_locked")
-            + "\n"
+            power_apply + "\n" + function(source, "bkdisplay_builtin_locked") + "\n"
         )
 
         product = (APP / "bk7258_agent_product.c").read_text()

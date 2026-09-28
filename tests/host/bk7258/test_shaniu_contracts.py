@@ -1071,6 +1071,12 @@ def main():
         add(suite, "LIFE-01.power-request-" + variant, "LIFE-01", "L2",
             [sys.executable, HERE / "test_pack_trial.py", "power-request-" + variant],
             ready=binaries["test_display_upload"], setup_exit_code=2)
+    add(suite, "LIFE-01.onboarding-clear-held-lock", "LIFE-01", "L2",
+        [sys.executable, HERE / "test_pack_trial.py", "onboarding-clear-held-lock"],
+        ready=binaries["test_display_upload"], setup_exit_code=2)
+    add(suite, "LIFE-01.onboarding-power-preempts-open", "LIFE-01", "L2",
+        [sys.executable, HERE / "test_pack_trial.py", "onboarding-power-preempts-open"],
+        ready=binaries["test_display_upload"], setup_exit_code=2)
     for variant in ("normal", "conflict", "queued-cancel", "gate", "mount-cancel",
                     "scan-cancel", "release", "corrupt"):
         add(suite, "RES-02.catalog-job-" + variant, "RES-02", "L2",

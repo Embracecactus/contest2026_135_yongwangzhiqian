@@ -1239,3 +1239,26 @@ The JVM case exercises the production `DeviceControlSession` scheduler with a
 controlled transport peer. It is L1 session/serialization evidence; it does
 not establish BLE coexistence, Android lifecycle behavior, or board-side
 configuration persistence.
+
+### LIFE-01 claim-window close during display rendering (2026-09-29)
+
+Closing an existing native claim window is part of product exit. A NULL
+`bk7258_display_onboarding` request must publish a bounded clear intent without
+waiting for the display render mutex, mounting storage, or touching either
+framebuffer. Ordinary display work remains gated until the existing display
+worker consumes the clear intent. The worker clears the in-memory QR and marks
+the overlay dirty; rendering the replacement frame remains a separate result.
+
+Opening a claim window keeps its existing success contract: success is not
+returned until the QR has been rendered, so the owner must not expose a claim
+secret or open GATT merely because metadata was queued. This host case covers
+the NULL close path and production worker handoff only. It does not prove QR
+pixels, physical screens, BLE claiming, or K2/deep-sleep behavior.
+
+A power request that arrives after claim rendering starts has higher priority
+than opening the claim transport. The display open must return failure, clear
+the in-memory QR, and keep ordinary display admission closed. The existing
+owner/bootstrap caller copies its fresh secret and opens GATT only after a
+successful display return. The deterministic host case injects the production
+power request at the real framebuffer boundary; it proves this software
+ordering, not a physical K2 edge or BLE radio shutdown.

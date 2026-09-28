@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Real render/cache/volume functions are extracted verbatim by the driver. */
 #define _XOPEN_SOURCE 700
+#define CONFIG_BK7258_PROVISION_NATIVE 1
 #include <assert.h>
 #include <errno.h>
 #include <dirent.h>
@@ -33,6 +34,7 @@ static unsigned mounts,unmounts,frames,writes;
 static bool expect_green;
 static unsigned expect_power_phase;
 static bool power_on_read;
+static bool onboarding_render, power_on_frame;
 static bool cancel_on_mount, cancel_on_write, fail_frame, fail_unmount;
 static bool fail_directory_sync;
 static uint32_t selection_id;
@@ -86,7 +88,15 @@ static int test_umount(const char *p)
 static int bkdisplay_framebuffer_write(const char *path,const uint16_t *pixels)
 {
   assert(pixels && (!strcmp(path,"left")||!strcmp(path,"right")));
-  if (expect_power_phase)
+  if (onboarding_render)
+    {
+      if (power_on_frame)
+        {
+          power_on_frame=false;
+          assert(bk7258_display_power(2)==0);
+        }
+    }
+  else if (expect_power_phase)
     {
       unsigned center = 80 * 160 + 80;
       if (expect_power_phase == 3)
@@ -109,10 +119,31 @@ static inline bool bkdisplay_selection_storage_blocked(void);
 static struct bkdisplay_service_s *power_service;
 #define g_bkdisplay_service (*power_service)
 static unsigned power_lock_calls;
+static unsigned power_unlock_calls;
+static bool onboarding_lock_granted;
 int nxmutex_lock(mutex_t *lock)
-{ (void)lock; power_lock_calls++; return -EBUSY; }
+{ (void)lock; power_lock_calls++; return onboarding_lock_granted?0:-EBUSY; }
 void bkdisplay_unlock(struct bkdisplay_service_s *service)
-{ (void)service; assert(false); }
+{ assert(service==power_service && onboarding_lock_granted);power_unlock_calls++; }
+static bool bkdisplay_service_node(const char *path, bool block)
+{ (void)path; (void)block; return true; }
+#define qrcodegen_BUFFER_LEN_FOR_VERSION(version) 512
+#define BKDISPLAY_QR_VERSION 5
+#define qrcodegen_Ecc_MEDIUM 0
+#define qrcodegen_Mask_AUTO 0
+static bool qrcodegen_encodeText(const char *text,uint8_t *temp,uint8_t *qr,
+                                 int ecc,int minv,int maxv,int mask,bool boost)
+{ (void)text;(void)temp;(void)ecc;(void)minv;(void)maxv;(void)mask;(void)boost;
+  memset(qr,0,512);return true; }
+static int qrcodegen_getSize(const uint8_t *qr)
+{ (void)qr;return 37; }
+static bool qrcodegen_getModule(const uint8_t *qr,int x,int y)
+{ (void)qr;return ((x+y)&1)==0; }
+static void mbedtls_platform_zeroize(void *p,size_t n)
+{ volatile uint8_t *out=p;while(n--)*out++=0; }
+static int bkdisplay_builtin_locked(struct bkdisplay_service_s *service,
+                                    bool fallback);
+#include "onboarding-request.inc"
 #include "power-request.inc"
 #include "power-render.inc"
 
@@ -621,6 +652,57 @@ static int remove_entry(const char *p,const struct stat *s,int type,struct FTW *
 #include "catalog_wire_cases.inc"
 #include "power_request_cases.inc"
 
+static void onboarding_clear_case(struct bkdisplay_service_s *service)
+{
+  unsigned io=mounts,painted=frames,stored=writes;
+  uint32_t id=0;
+  memcpy(service->claim_qr,"SN1:",4);
+  memset(service->claim_qr+4,'A',103);
+  service->claim_qr[107]=0;
+  bkdisplay_intent_gate(false);
+
+  /* Closing an existing claim window is an exit intent. It must publish no
+   * framebuffer/storage work and must not wait for the render owner. */
+  assert(bk7258_display_onboarding(NULL)==0);
+  assert(power_lock_calls==0 && service->claim_qr[0]);
+  assert(frames==painted && mounts==io && writes==stored);
+
+  /* A stale readiness observation cannot reopen ordinary display work until
+   * the worker has consumed the clear request. */
+  bkdisplay_intent_gate(true);
+  assert(bk7258_display_request_expression("happy",&id)==-EBUSY);
+  bkdisplay_power_apply_locked(service);
+  assert(!service->claim_qr[0] && service->overlay_dirty);
+  assert(frames==painted && mounts==io && writes==stored);
+
+  bkdisplay_intent_gate(true);
+  assert(bk7258_display_request_expression("happy",&id)==0);
+  assert(bk7258_display_cancel_expression(id)==0);
+}
+
+static void onboarding_power_case(struct bkdisplay_service_s *service)
+{
+  char qr[108]="SN1:";
+  memset(qr+4,'A',103);
+  qr[107]=0;
+  service->started=true;
+  onboarding_lock_granted=true;
+  onboarding_render=true;
+  power_on_frame=true;
+  unsigned painted=frames;
+
+  /* The power request is injected by the real framebuffer boundary after
+   * onboarding's initial admission check. A newer shutdown intent must make
+   * the public open fail, so its caller cannot copy the secret or open GATT. */
+  assert(bk7258_display_onboarding(qr)==-EAGAIN);
+  assert(power_lock_calls==1 && power_unlock_calls==1);
+  assert(frames==painted+2 && !power_on_frame);
+  assert(!service->claim_qr[0]);
+  assert(g_bkdisplay_power_requested==2 && g_bkdisplay_power_pending);
+  uint32_t id=0;
+  assert(bk7258_display_request_expression("happy",&id)==-EBUSY);
+}
+
 int main(int argc,char **argv)
 {
   assert(argc==4 && mkdtemp(root));install(argv[1],true);install(argv[2],false);
@@ -632,6 +714,16 @@ int main(int argc,char **argv)
   const char *name=!strcmp(argv[3],"missing")?"missing.bkep":"shaniu-upload-v1.bkep";
   if (!strncmp(argv[3], "catalog-wire-", 13))
     catalog_wire_case(&service, argv[3]);
+  else if (!strcmp(argv[3], "onboarding-clear-held-lock"))
+    {
+      power_service=&service;
+      onboarding_clear_case(&service);
+    }
+  else if (!strcmp(argv[3], "onboarding-power-preempts-open"))
+    {
+      power_service=&service;
+      onboarding_power_case(&service);
+    }
   else if (!strncmp(argv[3], "power-request-", 14))
     {
       power_service = &service;

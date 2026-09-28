@@ -8,6 +8,7 @@ static char g_bkdisplay_intent_expression[BKDISPLAY_EXPRESSION_SIZE];
 static bool g_bkdisplay_intent_allowed;
 static unsigned int g_bkdisplay_power_requested;
 static bool g_bkdisplay_power_pending;
+static bool g_bkdisplay_onboarding_clear_pending;
 
 static struct bkdisplay_trial_status_s g_bkdisplay_trial;
 static uint64_t g_bkdisplay_trial_started;
@@ -64,7 +65,8 @@ int bk7258_display_cancel_trial(uint32_t id)
 static void bkdisplay_intent_gate_locked(bool allowed)
 {
   allowed = allowed && g_bkdisplay_power_requested == 0 &&
-            !g_bkdisplay_power_pending;
+            !g_bkdisplay_power_pending &&
+            !g_bkdisplay_onboarding_clear_pending;
   g_bkdisplay_intent_allowed = allowed;
   if (!allowed) bkdisplay_trial_supersede();
   if (!allowed) bkdisplay_selection_cancel_locked();

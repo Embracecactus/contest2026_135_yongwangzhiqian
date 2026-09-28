@@ -3336,3 +3336,24 @@ source_sha256，不冒充完整文件校验。手机owner和电脑RESOURCES授�
 证据见`acceptance/s117-20260927.json`、`s117-workbench-catalog-evidence-20260927.json`
 及`s117-evidence-20260927/`；截图留在out并记录摘要，临时访问口令不归档。
 原生Android目录选择与真实USB/SD/授权组合仍待执行。
+
+
+### LIFE-01：认领清理不阻塞安全退出
+
+`LIFE-01.onboarding-clear-held-lock` 在旧生产函数上得到有效Red：显示render
+mutex被占用时，NULL认领清理返回`-EBUSY`。现清理只在既有intent自旋锁内发布
+有界元数据，worker取得原render mutex后清QR并标记重绘；普通显示在消费前保持
+关闭。认领打开仍同步写完双屏才返回成功，不提前复制secret或开放GATT。
+
+独立复核增加`LIFE-01.onboarding-power-preempts-open`：在第一块framebuffer写入
+时发布真实power请求，旧实现仍返回成功；修复后返回`-EAGAIN`、清内存QR并保持
+门禁，现有owner不会继续复制新secret或打开GATT。隔离移除该抢占判断会被用例
+检出，恢复后通过。该夹具执行真实公开函数、worker apply及framebuffer边界，
+不证明真实K2、QR像素、BLE或调度时延。
+
+最终完整合同集合779/779通过，0 FAIL/SETUP/NOT_RUN；原63、累计新增716及两项
+既有变异均保留。匹配固件0.7.38+683通过包/公开签名校验和一次HIL有界下载，
+板端确认active A、pair/counter 683、faults/recoveries 0；受控重启保留原模型
+哈希、frontend 1、阈值85、配置revision 6及眼睛包revision 3。中间682的首个
+槽位观察器错误、二维码夹具SETUP_ERROR与原始日志均保留，未改写成业务结果。
+证据摘要见`acceptance/life01-onboarding-exit-evidence-20260929.json`。

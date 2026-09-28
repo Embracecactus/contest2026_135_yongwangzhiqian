@@ -651,39 +651,89 @@ static int bkdisplay_builtin_locked(struct bkdisplay_service_s *service,
 int bk7258_display_onboarding(const char *qr)
 {
   struct bkdisplay_service_s *service = &g_bkdisplay_service;
+  irqstate_t flags;
+
   if (qr && (strlen(qr) != 107 || strncmp(qr, "SN1:", 4))) return -EINVAL;
 #ifndef CONFIG_BK7258_PROVISION_NATIVE
   if (qr) return -ENOTSUP;
 #endif
+
+  /* Closing a claim window is part of resource exit. Publish the bounded
+   * clear intent without waiting behind storage, QR generation or framebuffer
+   * work already owned by the display worker. The worker keeps the ordinary
+   * admission gate closed until it has consumed the request.
+   */
+  if (qr == NULL)
+    {
+      flags = spin_lock_irqsave(&g_bkdisplay_intent_lock);
+      g_bkdisplay_onboarding_clear_pending = true;
+      bkdisplay_intent_gate_locked(false);
+      spin_unlock_irqrestore(&g_bkdisplay_intent_lock, flags);
+      return 0;
+    }
+
   int ret = nxmutex_lock(&service->lock);
   if (ret) return ret;
   bool ready = bkdisplay_service_node(BKDISPLAY_FB0, false) &&
                bkdisplay_service_node(BKDISPLAY_FB1, false);
-  if (qr && (!ready || service->power_overlay)) ret = -EAGAIN;
+  flags = spin_lock_irqsave(&g_bkdisplay_intent_lock);
+  bool power_pending = g_bkdisplay_power_requested != 0 ||
+                       g_bkdisplay_power_pending;
+  bool can_open = ready && !service->power_overlay && !power_pending;
+  if (can_open)
+    {
+      /* A newer explicit open supersedes an unconsumed close from an older
+       * owner window. Success below still means the QR reached both screens.
+       */
+      g_bkdisplay_onboarding_clear_pending = false;
+      bkdisplay_intent_gate_locked(false);
+    }
+  spin_unlock_irqrestore(&g_bkdisplay_intent_lock, flags);
+  if (!can_open) ret = -EAGAIN;
   else
     {
       memset(service->claim_qr, 0, sizeof(service->claim_qr));
-      if (qr) memcpy(service->claim_qr, qr, 107);
+      memcpy(service->claim_qr, qr, 107);
       service->overlay_dirty = true;
       service->status.state = BKDISPLAY_SERVICE_WAITING_ASSET;
-      if (ready)
+      ret = bkdisplay_builtin_locked(service, false);
+      if (!ret)
         {
-          ret = bkdisplay_builtin_locked(service, false);
-          if (!ret) service->overlay_dirty = false;
+          /* Rendering can yield at the framebuffer boundary. A newer power
+           * or close intent wins before success reaches the owner, which is
+           * what keeps the fresh secret and GATT window unopened.
+           */
+          flags = spin_lock_irqsave(&g_bkdisplay_intent_lock);
+          bool preempted = g_bkdisplay_power_requested != 0 ||
+                           g_bkdisplay_power_pending ||
+                           g_bkdisplay_onboarding_clear_pending;
+          spin_unlock_irqrestore(&g_bkdisplay_intent_lock, flags);
+          if (preempted) ret = -EAGAIN;
+          else service->overlay_dirty = false;
         }
-      if (ret && qr) memset(service->claim_qr, 0, sizeof(service->claim_qr));
+      if (ret) memset(service->claim_qr, 0, sizeof(service->claim_qr));
     }
   bkdisplay_intent_gate(service->started && !service->claim_qr[0] && !service->power_overlay);
   bkdisplay_unlock(service);
   return ret;
 }
 
-/* Display worker owns the rendering mutex. Requests only publish metadata;
- * copy the latest phase before choosing a frame, with no queue to accumulate.
+/* Display worker owns the rendering mutex. Exit/power requests only publish
+ * metadata; apply the latest overlay state with no queue to accumulate.
  */
 static void bkdisplay_power_apply_locked(struct bkdisplay_service_s *service)
 {
   irqstate_t flags = spin_lock_irqsave(&g_bkdisplay_intent_lock);
+  if (g_bkdisplay_onboarding_clear_pending)
+    {
+      if (service->claim_qr[0])
+        {
+          memset(service->claim_qr, 0, sizeof(service->claim_qr));
+          service->overlay_dirty = true;
+          service->status.state = BKDISPLAY_SERVICE_WAITING_ASSET;
+        }
+      g_bkdisplay_onboarding_clear_pending = false;
+    }
   if (service->power_overlay != g_bkdisplay_power_requested)
     {
       service->power_overlay = g_bkdisplay_power_requested;
