@@ -118,6 +118,13 @@ internal class DeviceControlSession(
     }
     fun requestOta(command: DeviceControlProtocol.Command, payload: ByteArray = ByteArray(0)): Boolean {
         if (!isOta(command) || configTransaction) return false
+        /* A new upload cannot safely wait behind a STATUS read: that result
+         * can invalidate the capability before BEGIN reaches the transport,
+         * while the Boolean admission result has already been returned to its
+         * owner. Existing upload fragments, cancellation and status recovery
+         * keep using the serialized queue after BEGIN was actually admitted. */
+        if (command == DeviceControlProtocol.Command.OTA_BEGIN &&
+            (!state.snapshotFresh || state.snapshot?.otaSupported != true || inFlight != null)) return false
         return enqueue(Request(command, payload = payload.copyOf()))
     }
     fun requestPayload(command: DeviceControlProtocol.Command, payload: ByteArray): Boolean {

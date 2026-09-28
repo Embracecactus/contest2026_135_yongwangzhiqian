@@ -53,7 +53,7 @@ class ControlKeyInstrumentation : Instrumentation() {
         if (settingsUnknownProbe) {
             val report = try {
                 DeviceUiAcceptance.runSettingsUnknown(this)
-                "PASS: UI-01.settings-unknown editor controls and stale factory-reset admission; synthetic snapshots, no BLE"
+                "PASS: UI-01.settings-unknown editor controls, stale factory-reset, stale OTA admission and source ownership/lifecycle; synthetic snapshots, no BLE"
             } catch (error: Throwable) {
                 "FAIL: " + generateSequence(error) { it.cause }.take(5).joinToString(" <- ") { "${it.javaClass.simpleName}: ${it.message}" }
             }

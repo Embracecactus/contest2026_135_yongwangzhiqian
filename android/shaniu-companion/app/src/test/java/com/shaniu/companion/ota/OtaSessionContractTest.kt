@@ -37,7 +37,9 @@ class OtaSessionContractTest {
             val command = source.int; val sequence = source.int
             val result = ByteBuffer.allocate(40).putInt(0x53444331)
                 .putInt(command or Int.MIN_VALUE).putInt(sequence).putInt(24)
-                .putInt(0).putInt(0).putInt(-1).putInt(-1).putInt(-1).putInt(0).array()
+                .putInt(0)
+                .putInt(if (command == DeviceControlProtocol.Command.STATUS.wire) 8192 else 0)
+                .putInt(-1).putInt(-1).putInt(-1).putInt(0).array()
             // Legal fragmentation must not alter dispatch.
             result.asList().chunked(3).forEach { protocol.receive(it.toByteArray()) }
             return result

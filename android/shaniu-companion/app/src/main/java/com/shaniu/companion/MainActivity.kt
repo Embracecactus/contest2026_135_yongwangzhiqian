@@ -1319,14 +1319,27 @@ class MainActivity : Activity() {
         null -> "无法建立本机升级来源，请检查 Wi‑Fi 和已验证的固件包。"
     }
 
+    private fun otaStartStateCurrent(): Boolean {
+        val state = directSession.current()
+        return OtaUpdatePolicy.mayAdmitStart(
+            state.authenticated, state.snapshotFresh,
+            state.snapshot?.otaSupported == true,
+        )
+    }
+
     private fun startLocalOta() {
         val file = selectedFirmwareFile ?: return
         val pack = inspectedFirmware ?: return
-        val snapshot = directSnapshot
         val connection = directConnection
         val info = directFirmwareInfo
-        android.util.Log.i("ShaniuOta", "start generation=$directEpoch authenticated=${directSession.current().authenticated} supported=${snapshot?.otaSupported} writePending=$directPending upload=${otaUpload?.state}")
-        if (connection == null || snapshot?.otaSupported != true || directPending || otaUpload != null ||
+        val sessionState = directSession.current()
+        android.util.Log.i("ShaniuOta", "start generation=$directEpoch authenticated=${sessionState.authenticated} fresh=${sessionState.snapshotFresh} supported=${sessionState.snapshot?.otaSupported} writePending=$directPending upload=${otaUpload?.state}")
+        if (!otaStartStateCurrent()) {
+            otaMessage = "设备状态已过期，请刷新后再试；未发送升级请求。"
+            render()
+            return
+        }
+        if (connection == null || directPending || otaUpload != null ||
             preferences.getBoolean(KEY_OTA_EXPECTED_PENDING, false)) return
         if (info == null) { otaMessage = "正在读取设备版本，暂不能开始升级。"; render(); return }
         if (!OtaUpdatePolicy.mayStart(pack.board, DEVICE_BOARD, info.securityCounter, pack.securityCounter)) {
@@ -1334,9 +1347,15 @@ class MainActivity : Activity() {
                 else "设备安全计数不低于目标固件，不能降级或重复升级。"
             render(); return
         }
-        if (!otaStartGate.acquire()) {
+        val sourceLease = otaStartGate.acquireLease()
+        if (sourceLease == null) {
             android.util.Log.i("ShaniuOta", "start generation=$directEpoch skipped=preparing")
             return
+        }
+        fun releaseSourceLease(): Boolean {
+            val released = otaStartGate.release(sourceLease)
+            if (released) setOtaKeepAwake(false)
+            return released
         }
         val epoch = directEpoch
         otaMessage = "正在准备本机升级来源…"
@@ -1350,19 +1369,29 @@ class MainActivity : Activity() {
             mainHandler.post {
                 if (epoch != directEpoch || !foreground || destroyed) {
                     opened.getOrNull()?.let { server -> ioExecutor.execute { server.close() } }
+                    if (releaseSourceLease() && epoch == directEpoch && !destroyed) {
+                        otaMessage = "已离开升级页面；未向设备发送升级请求。"
+                    }
                     return@post
                 }
                 val server = opened.getOrNull()
                 if (server == null) {
                     otaMessage = otaSourceOpenFailureMessage(opened.exceptionOrNull())
-                    otaStartGate.release(); setOtaKeepAwake(false)
+                    releaseSourceLease()
+                    render()
+                    return@post
+                }
+                if (!otaStartStateCurrent()) {
+                    ioExecutor.execute { server.close() }
+                    releaseSourceLease()
+                    otaMessage = "设备状态已过期，请刷新后再试；未发送升级请求。"
                     render()
                     return@post
                 }
                 val metadata = server.metadata
                 if (metadata == null || metadata.catalogSha256 != pack.catalogSha256 || !persistExpected(metadata)) {
                     ioExecutor.execute { server.close() }
-                    otaStartGate.release(); setOtaKeepAwake(false)
+                    releaseSourceLease()
                     otaMessage = "无法保存本次升级核验目标，未向设备发送升级请求。"
                     render()
                     return@post
@@ -1377,7 +1406,7 @@ class MainActivity : Activity() {
                 }
                 otaUpload = upload
                 if (!upload.start()) {
-                    otaUpload = null; closeOtaServer(); otaStartGate.release(); setOtaKeepAwake(false)
+                    otaUpload = null; closeOtaServer(); releaseSourceLease()
                     otaMessage = "设备控制通道不可用，未开始升级。"
                 } else {
                     otaMessage = "升级来源已准备，正在请求设备接受升级。"
@@ -1927,10 +1956,10 @@ class MainActivity : Activity() {
                     updateResources = it == 1; render()
                 }
                 if (updateResources) { renderResourceOverview(); return }
-                val localState = directSnapshot
+                val sessionState = directSession.current()
+                val localState = sessionState.snapshot
                 val ota = otaStatus
                 if (ota != null && ota.state != 0L) {
-                    val sessionState = directSession.current()
                     val otaCurrent = sessionState.authenticated &&
                         otaStatusGeneration == sessionState.generation && otaStatusReadError == null
                     val otaStaleReason = when {
@@ -1986,7 +2015,7 @@ class MainActivity : Activity() {
                     info?.let { "${it.major}.${it.minor}.${it.revision} · ${it.build}" } ?: "待真实设备回读",
                     inspectedFirmware?.let { "本地包 · ${it.version}" } ?: "尚未选择本地包")
                 val canStart = inspectedFirmware != null && selectedFirmwareFile != null &&
-                    localState?.otaSupported == true && directConnection != null &&
+                    sessionState.snapshotFresh && localState?.otaSupported == true && directConnection != null &&
                     otaUpload == null && !directPending && !preferences.getBoolean(KEY_OTA_EXPECTED_PENDING, false)
                 primaryButton("开始固件更新", canStart) { startLocalOta() }
                 actionButton(if (firmwareInspectionPending) "正在检查固件包…" else "选择本地更新包", !firmwareInspectionPending) {
@@ -2021,6 +2050,7 @@ class MainActivity : Activity() {
                 if (!canStart) addMuted(when {
                     inspectedFirmware == null -> "先选择普通 OTA 包；工厂全量包不能用于此入口。"
                     directConnection == null -> "需要连接已认领的设备，才能核对更新能力。"
+                    !sessionState.snapshotFresh -> "设备状态已过期，正在重新读取；暂不能开始升级。"
                     localState?.otaSupported != true -> "当前固件未提供此更新能力。"
                     else -> "当前设备事务尚未结束，请等待后重试。"
                 })

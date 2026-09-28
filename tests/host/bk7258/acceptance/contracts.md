@@ -1173,3 +1173,28 @@ not overwritten by later completion. All four are baseline PASS; no production
 change or artificial Red. This is L1 adapter evidence, not actual FFmpeg queue,
 DAC, acoustic or continuous-dialogue acceptance. The initial build setup errors
 are retained separately and are not business failures.
+
+### UI-01 stale OTA admission (2026-09-28)
+
+A retained OTA capability may remain visible after a STATUS read fails, but it
+cannot authorize a new update. The native update button, its action boundary,
+and the asynchronous source-open callback all require the current authenticated
+snapshot to be fresh and to advertise OTA support. A stale result closes any
+newly opened local source before saving an expected receipt or sending
+`OTA_BEGIN`. A new `OTA_BEGIN` also cannot queue behind an in-flight STATUS read,
+because its Boolean admission result cannot later report that the queued request
+was dropped when STATUS makes the capability stale. Leaving the Activity while
+the local source is opening releases the start gate and keep-awake ownership;
+it does not leave a blocked future update. A callback from an older transport
+epoch may release only the lease acquired by that source attempt, so it cannot
+unlock a replacement source after disconnect/reconnect. An already admitted
+upload and its cancel/result reconciliation keep their existing terminal-state
+rules.
+
+The emulator case uses synthetic snapshots and a test-owned package/preferences
+namespace, so it is App behavior evidence rather than BLE, board installation,
+or App OTA acceptance. The pure admission matrix and the serialized-session
+race are also part of the selected JVM contract set. Existing OTA session
+fixtures now state their previously implicit `otaSupported` precondition; their
+first run after the new admission guard failed before reaching the terminal-
+state assertions and is retained as a fixture correction, not a product Red.

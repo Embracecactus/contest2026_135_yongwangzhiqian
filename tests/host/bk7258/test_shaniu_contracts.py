@@ -294,6 +294,7 @@ def run_jvm():
         "provision.NfcBindingControllerTest",
         "provision.ExpressionTrialControllerTest",
         "provision.DefaultSelectionControllerTest",
+        "ota.OtaUpdatePolicyTest",
         "ota.OtaControlUploadTest",
         "ota.OtaSessionContractTest",
     ]
@@ -385,6 +386,7 @@ def run_jvm():
                 "delayedCurrentIdentityPublishesWithoutAdditionalCommands": "NET-02",
                 "peerIdentityRejectsMalformedAndOversizedCertificates": "USB-01",
                 "transportRejectedStatusMarksSnapshotStaleAndRetriesWithoutDisconnecting": "UI-01",
+                "staleStatusDropsQueuedOtaBeginButKeepsAdmittedRecoveryCommands": "UI-01",
             }
             parent = (
                 "TIMER-01"
@@ -401,6 +403,9 @@ def run_jvm():
             )
             if "PcAuthorization" in name or "SceneControl" in name:
                 parent = "NET-03"
+            if name == "ota.OtaUpdatePolicyTest" and node.attrib["name"] == \
+                    "staleOrUnauthenticatedSnapshotCannotAdmitNewOta":
+                parent = "UI-01"
             if "NfcBinding" in name:
                 parent = "NFC-02"
             if "ExpressionTrial" in name or "DefaultSelection" in name:

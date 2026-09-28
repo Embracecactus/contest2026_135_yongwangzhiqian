@@ -131,7 +131,7 @@ class DeviceControlSessionTest {
         assertTrue(f.session.current().operationMessage!!.contains("正在收音"))
     }
     @Test fun infoAndOtaDoNotReplaceStatusAndFragmentsStayContiguous() {
-        val f = Fixture(); f.connect(status.copy(infoSupported = true))
+        val f = Fixture(); f.connect(status.copy(infoSupported = true, otaSupported = true))
         assertEquals(DeviceControlProtocol.Command.INFO, f.peer.sent.single().command)
         val info = DeviceControlProtocol.FirmwareInfo(1, 2, 3, 4, 4)
         f.peer.reply(DeviceControlProtocol.Command.INFO, status.copy(volume = null, firmwareInfo = info))
@@ -151,6 +151,33 @@ class DeviceControlSessionTest {
         subscription.cancel()
         f.clock.advance(2000); f.peer.reply(DeviceControlProtocol.Command.STATUS, status.copy(infoSupported = true))
         assertEquals(1, f.peer.sent.count { it.command == DeviceControlProtocol.Command.INFO })
+    }
+    @Test fun staleStatusDropsQueuedOtaBeginButKeepsAdmittedRecoveryCommands() {
+        val queued = Fixture(); queued.connect(status.copy(otaSupported = true))
+        queued.clock.advance(2_000)
+        assertEquals(DeviceControlProtocol.Command.STATUS, queued.peer.sent.last().command)
+        assertFalse(queued.session.requestOta(
+            DeviceControlProtocol.Command.OTA_BEGIN, byteArrayOf(0, 0, 0, 44),
+        ))
+        assertEquals(1, queued.peer.sent.count { it.command == DeviceControlProtocol.Command.STATUS })
+        queued.peer.reply(DeviceControlProtocol.Command.STATUS, failure)
+        assertFalse(queued.session.current().snapshotFresh)
+        assertFalse(queued.peer.sent.any { it.command == DeviceControlProtocol.Command.OTA_BEGIN })
+        assertFalse(queued.session.current().writePending)
+
+        val admitted = Fixture(); admitted.connect(status.copy(otaSupported = true))
+        assertTrue(admitted.session.requestOta(
+            DeviceControlProtocol.Command.OTA_BEGIN, byteArrayOf(0, 0, 0, 44),
+        ))
+        admitted.peer.reply(DeviceControlProtocol.Command.OTA_BEGIN, status)
+        admitted.clock.advance(2_000)
+        admitted.peer.reply(DeviceControlProtocol.Command.STATUS, failure)
+        assertFalse(admitted.session.current().snapshotFresh)
+        assertTrue(admitted.session.requestOta(DeviceControlProtocol.Command.OTA_CANCEL))
+        assertEquals(DeviceControlProtocol.Command.OTA_CANCEL, admitted.peer.sent.last().command)
+        admitted.peer.reply(DeviceControlProtocol.Command.OTA_CANCEL, status)
+        assertTrue(admitted.session.requestOta(DeviceControlProtocol.Command.OTA_STATUS))
+        assertEquals(DeviceControlProtocol.Command.OTA_STATUS, admitted.peer.sent.last().command)
     }
     @Test fun reconnectDropsWritesAndOldCallbacksCannotPolluteNewState() {
         val f = Fixture(); f.connect(); f.clock.advance(2000)

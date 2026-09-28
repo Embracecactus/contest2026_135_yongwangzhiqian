@@ -25,6 +25,7 @@ import java.nio.ByteBuffer
 import java.security.KeyStore
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
@@ -149,13 +150,22 @@ internal object DeviceUiAcceptance {
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
         val deviceId = "ui-settings-" + UUID.randomUUID()
         val preferences = activity.getSharedPreferences("shaniu-settings-receipts", Context.MODE_PRIVATE)
+        val otaPreferencesName = "shaniu-stale-ota-${UUID.randomUUID()}"
+        val otaPreferences = activity.getSharedPreferences(otaPreferencesName, Context.MODE_PRIVATE)
+        val activityField = { name: String ->
+            MainActivity::class.java.getDeclaredField(name).apply { isAccessible = true }
+        }
+        lateinit var originalActivityPreferences: SharedPreferences
+        lateinit var session: DeviceControlSession
+        lateinit var sessionState: java.lang.reflect.Field
         try {
             onUi(instrumentation) {
-                val session = MainActivity::class.java.getDeclaredMethod("getDirectSession")
+                originalActivityPreferences = activityField("preferences").get(activity) as SharedPreferences
+                session = MainActivity::class.java.getDeclaredMethod("getDirectSession")
                     .apply { isAccessible = true }.invoke(activity) as DeviceControlSession
-                DeviceControlSession::class.java.getDeclaredField("state").apply { isAccessible = true }
-                    .set(session, DeviceControlSession.State(connection = DeviceControlSession.Connection.CONNECTED,
-                        authenticated = true, snapshotFresh = true))
+                sessionState = DeviceControlSession::class.java.getDeclaredField("state").apply { isAccessible = true }
+                sessionState.set(session, DeviceControlSession.State(connection = DeviceControlSession.Connection.CONNECTED,
+                    authenticated = true, snapshotFresh = true))
                 val editor = DeviceSettingsEditor(activity, session, deviceId, 32, true) { }
                 fun field(name: String) = DeviceSettingsEditor::class.java.getDeclaredField(name).apply { isAccessible = true }
                 val editable = DeviceSettingsEditor::class.java.getDeclaredMethod("editable", Boolean::class.javaPrimitiveType)
@@ -224,9 +234,218 @@ internal object DeviceUiAcceptance {
                     reset.close()
                     resetSession.disconnect()
                 }
+
+                /* A retained capability is display-only after STATUS becomes
+                 * stale. It cannot admit a new OTA transaction through either
+                 * the visible button or the action method behind that button. */
+                val image = BkpackInspector.Image(1, "0".repeat(64))
+                val metadata = BkpackInspector.Metadata(
+                    "aidk_ai_toy", "1.2.3+4", 4, "0".repeat(64), "1".repeat(64), image, image,
+                )
+                val packageFile = File(activity.cacheDir, "stale-ota-${UUID.randomUUID()}.bkpack")
+                    .apply { writeText("synthetic package; must not be opened") }
+                try {
+                    activityField("preferences").set(activity, otaPreferences)
+                    activityField("inspectedFirmware").set(activity, metadata)
+                    activityField("selectedFirmwareFile").set(activity, packageFile)
+                    activityField("currentTab").set(activity, 4)
+                    sessionState.set(session, DeviceControlSession.State(
+                        connection = DeviceControlSession.Connection.CONNECTED,
+                        authenticated = true,
+                        snapshot = DeviceControlProtocol.Snapshot(
+                            0, true, false, 50, 0, 0, 0, otaSupported = true,
+                        ),
+                        snapshotFresh = false,
+                        firmwareInfo = DeviceControlProtocol.FirmwareInfo(1, 2, 3, 1, 1),
+                    ))
+                    MainActivity::class.java.getDeclaredMethod("render").apply { isAccessible = true }
+                        .invoke(activity)
+                    val start = checkNotNull(findView(activity.window.decorView) {
+                        it is TextView && it.text.toString() == "开始固件更新"
+                    })
+                    check(!start.isEnabled) {
+                        "UI-01 stale STATUS retained a dangerous OTA start action"
+                    }
+                    MainActivity::class.java.getDeclaredMethod("startLocalOta").apply { isAccessible = true }
+                        .invoke(activity)
+                    check((activityField("otaMessage").get(activity) as String).contains("状态已过期")) {
+                        "UI-01 stale STATUS did not fail closed at the OTA action boundary"
+                    }
+                    check(activityField("otaServer").get(activity) == null &&
+                        activityField("otaUpload").get(activity) == null &&
+                        !otaPreferences.getBoolean("ota_expected_pending", false)) {
+                        "UI-01 stale STATUS created OTA side effects"
+                    }
+                } finally {
+                    activityField("preferences").set(activity, originalActivityPreferences)
+                    packageFile.delete()
+                }
+            }
+
+            /* Leaving the Activity while its source is opening must cancel
+             * only that preparation and release the UI-owned gate. The
+             * executor marker makes this deterministic without sleeping. */
+            val image = BkpackInspector.Image(1, "0".repeat(64))
+            val metadata = BkpackInspector.Metadata(
+                "aidk_ai_toy", "1.2.3+4", 4, "0".repeat(64), "1".repeat(64), image, image,
+            )
+            val packageFile = File(activity.cacheDir, "stopped-ota-${UUID.randomUUID()}.bkpack")
+                .apply { writeText("synthetic package; source open must abort") }
+            var gateReleased = false
+            var keepAwakeAfterAbort = true
+            try {
+                onUi(instrumentation) {
+                    activityField("preferences").set(activity, otaPreferences)
+                    activityField("inspectedFirmware").set(activity, metadata)
+                    activityField("selectedFirmwareFile").set(activity, packageFile)
+                    sessionState.set(session, DeviceControlSession.State(
+                        connection = DeviceControlSession.Connection.CONNECTED,
+                        authenticated = true,
+                        snapshot = DeviceControlProtocol.Snapshot(
+                            0, true, false, 50, 0, 0, 0, otaSupported = true,
+                        ),
+                        snapshotFresh = true,
+                        firmwareInfo = DeviceControlProtocol.FirmwareInfo(1, 2, 3, 1, 1),
+                    ))
+                    MainActivity::class.java.getDeclaredMethod("startLocalOta")
+                        .apply { isAccessible = true }.invoke(activity)
+                    check(activity.window.attributes.flags and
+                        android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON != 0) {
+                        "UI-01 OTA source preparation did not acquire keep-awake"
+                    }
+                    instrumentation.callActivityOnStop(activity)
+                }
+                val sourceFinished = CountDownLatch(1)
+                val executor = activityField("ioExecutor").get(activity) as ExecutorService
+                executor.execute { sourceFinished.countDown() }
+                check(sourceFinished.await(10, TimeUnit.SECONDS)) {
+                    "UI-01 OTA source preparation did not finish"
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    val gate = activityField("otaStartGate").get(activity)
+                    val acquire = gate.javaClass.getDeclaredMethod("acquire").apply { isAccessible = true }
+                    val release = gate.javaClass.getDeclaredMethod("release").apply { isAccessible = true }
+                    gateReleased = acquire.invoke(gate) as Boolean
+                    if (gateReleased) release.invoke(gate)
+                    keepAwakeAfterAbort = activity.window.attributes.flags and
+                        android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON != 0
+                    instrumentation.callActivityOnStart(activity)
+                }
+                check(gateReleased) {
+                    "UI-01 stopped OTA source preparation retained the start gate"
+                }
+                check(!keepAwakeAfterAbort) {
+                    "UI-01 stopped OTA source preparation retained keep-awake"
+                }
+            } finally {
+                onUi(instrumentation) {
+                    if (!activityField("foreground").getBoolean(activity)) {
+                        instrumentation.callActivityOnStart(activity)
+                    }
+                    val gate = activityField("otaStartGate").get(activity)
+                    gate.javaClass.getDeclaredMethod("release").apply { isAccessible = true }.invoke(gate)
+                    activity.window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    activityField("preferences").set(activity, originalActivityPreferences)
+                }
+                packageFile.delete()
+            }
+
+            /* An old source callback must not release a replacement start
+             * acquired after close/reconnect. Two executor barriers hold B's
+             * worker while A's epoch-mismatched callback reaches the UI. */
+            val racePackage = File(activity.cacheDir, "epoch-ota-${UUID.randomUUID()}.bkpack")
+                .apply { writeText("synthetic package; stale callback must not release replacement") }
+            val executor = activityField("ioExecutor").get(activity) as ExecutorService
+            val firstBlockEntered = CountDownLatch(1)
+            val releaseFirstBlock = CountDownLatch(1)
+            val secondBlockEntered = CountDownLatch(1)
+            val releaseSecondBlock = CountDownLatch(1)
+            var thirdStartAdmitted = false
+            var replacementKeepAwake = false
+            try {
+                executor.execute {
+                    firstBlockEntered.countDown()
+                    releaseFirstBlock.await(10, TimeUnit.SECONDS)
+                }
+                check(firstBlockEntered.await(10, TimeUnit.SECONDS)) {
+                    "UI-01 OTA epoch fixture did not acquire the worker"
+                }
+                onUi(instrumentation) {
+                    activityField("preferences").set(activity, otaPreferences)
+                    activityField("inspectedFirmware").set(activity, metadata)
+                    activityField("selectedFirmwareFile").set(activity, racePackage)
+                    sessionState.set(session, DeviceControlSession.State(
+                        connection = DeviceControlSession.Connection.CONNECTED,
+                        authenticated = true,
+                        snapshot = DeviceControlProtocol.Snapshot(
+                            0, true, false, 50, 0, 0, 0, otaSupported = true,
+                        ),
+                        snapshotFresh = true,
+                        firmwareInfo = DeviceControlProtocol.FirmwareInfo(1, 2, 3, 1, 1),
+                    ))
+                    MainActivity::class.java.getDeclaredMethod("startLocalOta")
+                        .apply { isAccessible = true }.invoke(activity)
+                    MainActivity::class.java.getDeclaredMethod(
+                        "closeDirect", Boolean::class.javaPrimitiveType,
+                    ).apply { isAccessible = true }.invoke(activity, false)
+                    sessionState.set(session, DeviceControlSession.State(
+                        connection = DeviceControlSession.Connection.CONNECTED,
+                        authenticated = true,
+                        snapshot = DeviceControlProtocol.Snapshot(
+                            0, true, false, 50, 0, 0, 0, otaSupported = true,
+                        ),
+                        snapshotFresh = true,
+                        firmwareInfo = DeviceControlProtocol.FirmwareInfo(1, 2, 3, 1, 1),
+                    ))
+                }
+                executor.execute {
+                    secondBlockEntered.countDown()
+                    releaseSecondBlock.await(10, TimeUnit.SECONDS)
+                }
+                onUi(instrumentation) {
+                    MainActivity::class.java.getDeclaredMethod("startLocalOta")
+                        .apply { isAccessible = true }.invoke(activity)
+                }
+                releaseFirstBlock.countDown()
+                check(secondBlockEntered.await(10, TimeUnit.SECONDS)) {
+                    "UI-01 stale source did not reach its callback boundary"
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    val gate = activityField("otaStartGate").get(activity)
+                    val acquire = gate.javaClass.getDeclaredMethod("acquire").apply { isAccessible = true }
+                    val release = gate.javaClass.getDeclaredMethod("release").apply { isAccessible = true }
+                    thirdStartAdmitted = acquire.invoke(gate) as Boolean
+                    if (thirdStartAdmitted) release.invoke(gate)
+                    replacementKeepAwake = activity.window.attributes.flags and
+                        android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON != 0
+                }
+            } finally {
+                releaseFirstBlock.countDown()
+                releaseSecondBlock.countDown()
+                val workersFinished = CountDownLatch(1)
+                executor.execute { workersFinished.countDown() }
+                workersFinished.await(10, TimeUnit.SECONDS)
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    val gate = activityField("otaStartGate").get(activity)
+                    gate.javaClass.getDeclaredMethod("release").apply { isAccessible = true }.invoke(gate)
+                    activity.window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    activityField("preferences").set(activity, originalActivityPreferences)
+                }
+                racePackage.delete()
+            }
+            check(!thirdStartAdmitted) {
+                "UI-01 stale OTA source callback released a replacement start"
+            }
+            check(replacementKeepAwake) {
+                "UI-01 stale OTA source callback cleared replacement keep-awake"
             }
         } finally {
             preferences.edit().remove("$deviceId.operation").remove("$deviceId.revision").commit()
+            otaPreferences.edit().clear().commit()
+            activity.deleteSharedPreferences(otaPreferencesName)
             onUi(instrumentation) { activity.finish() }
         }
     }
