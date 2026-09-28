@@ -11,6 +11,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <syslog.h>
 #include <time.h>
 #include <unistd.h>
 #include <media_player.h>
@@ -20,17 +21,20 @@ static struct {
   media_event_callback callback;
   void *cookie;
   int live, eof, stops, closes, failed_close, fail_eof;
+  int stop_closes_socket;
   unsigned completions;
   size_t bytes;
   unsigned char pcm[10000];
 } peer;
 static uint64_t now_ms;
+static int stop_retires_socket;
 static const int socket_id = 173;
 
 void *media_player_open(const char *stream)
 {
   assert(!strcmp(stream, MEDIA_STREAM_MUSIC) && !peer.live);
-  memset(&peer, 0, sizeof(peer)); peer.live = 1; return &peer;
+  memset(&peer, 0, sizeof(peer)); peer.live = 1;
+  peer.stop_closes_socket = stop_retires_socket; return &peer;
 }
 int media_player_set_event_callback(void *p, void *cookie, media_event_callback cb)
 { assert(p == &peer && peer.live); peer.callback = cb; peer.cookie = cookie; return 0; }
@@ -46,7 +50,11 @@ void media_player_close_socket(void *p)
   if (peer.fail_eof) peer.callback(peer.cookie, MEDIA_EVENT_COMPLETED, -EIO, NULL);
 }
 int media_player_stop(void *p)
-{ assert(p == &peer && peer.live); peer.stops++; return 0; }
+{
+  assert(p == &peer && peer.live); peer.stops++;
+  if (peer.stop_closes_socket) peer.eof = 1;
+  return 0;
+}
 int media_player_reset(void *p)
 { assert(p == &peer && peer.live); return 0; }
 int media_player_close(void *p, int pending)
@@ -83,9 +91,17 @@ static audio_playback_t *open_player(void)
   audio_playback_t *p = audio_playback_open(NULL, 16000, 1, 16);
   assert(p); return p;
 }
+#include "../../../app/bk7258/bk7258_agent_audio_validation.inc"
 int main(int argc, char **argv)
 {
   assert(argc == 2);
+  if (!strcmp(argv[1], "development-sequence"))
+    {
+      stop_retires_socket = 1;
+      assert(product_audio_validation() == 0);
+      assert(!peer.live && peer.bytes == 8192 && peer.completions == 1);
+      puts("CONTRACT_PASS"); return 0;
+    }
   unsigned char input[8002];
   for (unsigned i = 0; i < sizeof(input); i++) input[i] = (i * 17u + 31u) & 255;
   audio_playback_t *p = open_player();
@@ -98,8 +114,12 @@ int main(int argc, char **argv)
       assert(peer.completions == 1 && peer.live);
       assert(audio_playback_close(p) == 0 && !peer.live);
     }
-  else if (!strcmp(argv[1], "cancel-next"))
+  else if (!strcmp(argv[1], "cancel-next") ||
+           !strcmp(argv[1], "cancel-closed-socket"))
     {
+      /* Media may retire its data socket when stop is acknowledged. The
+       * public cancellation contract must not depend on that socket living. */
+      peer.stop_closes_socket = !strcmp(argv[1], "cancel-closed-socket");
       audio_playback_stop(p);
       peer.callback(peer.cookie, MEDIA_EVENT_COMPLETED, 0, NULL);
       assert(audio_playback_write(p, input, 2) == -ECANCELED);

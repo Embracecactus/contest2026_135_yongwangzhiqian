@@ -729,7 +729,8 @@
     "AUD-03.agent-tail",
     "AUD-03.agent-cancel-next",
     "AUD-03.agent-close-failure",
-    "AUD-03.agent-eof-failure"
+    "AUD-03.agent-eof-failure",
+    "AUD-03.agent-cancel-closed-socket"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1462,6 +1463,7 @@
     "AUD-03.agent-tail",
     "AUD-03.agent-cancel-next",
     "AUD-03.agent-close-failure",
-    "AUD-03.agent-eof-failure"
+    "AUD-03.agent-eof-failure",
+    "AUD-03.agent-cancel-closed-socket"
   ]
 }

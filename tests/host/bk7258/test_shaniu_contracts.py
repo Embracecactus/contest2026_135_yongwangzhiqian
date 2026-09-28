@@ -1135,7 +1135,8 @@ def main():
         [HERE / "build/test_shaniu_focus_wire"],
         binaries["test_shaniu_focus_wire"],
     )
-    for variant in ("tail", "cancel-next", "close-failure", "eof-failure"):
+    for variant in ("tail", "cancel-next", "cancel-closed-socket",
+                    "close-failure", "eof-failure"):
         add(suite, "AUD-03.agent-" + variant, "AUD-03", "L1",
             [HERE / "build/test_agent_audio_playback", variant],
             binaries["test_agent_audio_playback"])

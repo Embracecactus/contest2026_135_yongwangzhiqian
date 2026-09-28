@@ -2075,6 +2075,7 @@ $(BUILD)/test_display_catalog: test_display_catalog.c \
 # Full-Media product profiles use the Agent adapter, not the no-CONFIG_MEDIA
 # BK7258 bridge above. Keep both paths explicit and their evidence separate.
 $(BUILD)/test_agent_audio_playback: test_agent_audio_playback.c \
+    $(REPOSITORY_ROOT)/app/bk7258/bk7258_agent_audio_validation.inc \
     $(OPENVELA_ROOT)/packages/ai_agent/src/voice/audio_playback.c \
     $(OPENVELA_ROOT)/packages/ai_agent/include/voice/audio_playback.h | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -D_GNU_SOURCE -pthread \

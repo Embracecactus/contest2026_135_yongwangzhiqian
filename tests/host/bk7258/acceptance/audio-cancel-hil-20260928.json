@@ -1,0 +1,118 @@
+{
+  "format": "shaniu-audio-cancel-hil/1",
+  "date": "2026-09-28",
+  "scope": "AUD-03 cancellation after Media retires its socket, bounded Agent/Media board validation, and cold contract-runner integrity",
+  "source": {
+    "main_base": "529b277b7b49408f3efcf5116c0614ad33b01f72",
+    "agent_before": "831b8b54cef8763229431ae2750e2cdfbd825887",
+    "agent_after": "ac4b7fac7f1654c5c800655b2af483c15049ca81",
+    "agent_file_before_sha256": "29b1c5f13aa7b2f44fb10037ca0365e1b463a43fb68d3701fe91deb05a6b75ad",
+    "agent_file_after_sha256": "086f7efe4d51aa7da3c4d4c517b2219d18f9607e9305100dcee9416192b1bf9d"
+  },
+  "test_first": {
+    "id": "AUD-03.agent-cancel-closed-socket",
+    "expectation": "A confirmed stop remains ECANCELED after Media closes the data socket; late write or drain cannot reopen the old session.",
+    "old_result": {
+      "status": "FAIL_ASSERTION",
+      "exit_code": -6,
+      "evidence": "out/shaniu-core-20260928/audio-cancel-socket-before.json",
+      "evidence_sha256": "927333ffa219ba179a2816beac7bf6bef11d29c05fb78297966b41d9a33d281d"
+    },
+    "new_result": {
+      "status": "PASS",
+      "affected_cases": [
+        "AUD-03.agent-tail",
+        "AUD-03.agent-cancel-next",
+        "AUD-03.agent-cancel-closed-socket",
+        "AUD-03.agent-close-failure",
+        "AUD-03.agent-eof-failure"
+      ],
+      "evidence": "out/shaniu-core-20260928/audio-cancel-socket-after.json",
+      "evidence_sha256": "17866eca1a1fe4bdb5ed23b88c66bac99c27b235595a276b860b66c3b81a367c"
+    }
+  },
+  "contract_gate": {
+    "selected": 730,
+    "collected": 730,
+    "unique": 730,
+    "counts": {
+      "PASS": 730,
+      "FAIL_ASSERTION": 0,
+      "SETUP_ERROR": 0,
+      "NOT_RUN": 0
+    },
+    "production_unchanged": true,
+    "mutation_detection": [
+      "MSC-01.early-release",
+      "CFG-01.wifi-clears-cloud"
+    ],
+    "evidence_missing": 0,
+    "evidence_hash_mismatch": 0,
+    "results": "out/shaniu-core-20260928/contracts-audio-ci-fix-final2/results.json",
+    "results_sha256": "4e9662ba9920cdaff010b871ae908419edda0f1ebae75404e67948eddac66a76",
+    "runner_log_sha256": "32d8424a9a100af3a04d70310179beb9399e44f907355e44094529ec92e6ad1e"
+  },
+  "runner_regression": {
+    "ci_run": "36393760928/1",
+    "observed": "Cold cases rebuilt mbedTLS per selector; timeout descendants kept writing closed evidence; an up-to-date Gradle task could leave stale JUnit evidence.",
+    "test_before": {
+      "status": "FAIL",
+      "tests": 3,
+      "failures": 1,
+      "errors": 2,
+      "sha256": "c83ea8d799f2a697db398dcb2e51c1d05781bb5294727bdd3b93938095c3bc49"
+    },
+    "test_after": {
+      "status": "PASS",
+      "tests": 27,
+      "sha256": "54b212044c22f82c7e68337b1a44d8e9411cf730d279a7df8705c26697648433",
+      "behavior": "one explicit shared TLS build, selected JUnit refresh without rerunning compile tasks, and process-group quiescence before hashing"
+    }
+  },
+  "diagnostic_firmware": {
+    "profile": "app__openvela_ap_audio_validation",
+    "version": "0.7.27+672",
+    "package_sha256": "f5a1784fda6ce6ce265cb9e78d8fdcf5c001f2ab185e6578a91dbb5815c34deb",
+    "download": {
+      "status": "FLASH_PASS",
+      "port": "COM9",
+      "transport": "BK Loader CH340 multi-segment",
+      "result": "out/shaniu-core-20260928/audio-validation-hil/result.json",
+      "result_sha256": "385a9ee36d24eb6afeeb5df6e0d02db99c238c625f4cb36daf518d86c1e844ad"
+    },
+    "board": {
+      "status": "FUNCTION_PASS",
+      "observed": "Three 8192-byte 16 kHz mono PCM16 sessions completed through the deployed Agent/Media path; the middle stop returned write=-125 and drain=-125; the following session completed; Agent core became ready.",
+      "boot_session": "/tmp/shaniu-20260928-audio-validation-boot/session.json",
+      "boot_session_sha256": "68338332a33ca8a64762046f595ffddd454b971dbbe7d08d2fa701d64ab7674c",
+      "serial_sha256": "79351cd7e863574c1249b29efbfabd374ad866b511eb49bcd8472d1cbe4fe59a",
+      "fault_regex_matched": false
+    }
+  },
+  "normal_restore": {
+    "profile": "app__openvela_ap",
+    "version": "0.7.28+673",
+    "package": "out/shaniu-core-20260928/audio-normal-release/package/shaniu-bk7258-aidk_ai_toy-app__openvela_ap-v0.7.28+673-bshaniu-audio-normal-673-ota.bkpack",
+    "package_sha256": "28133f0147fe4a7a2129c3ede675d9251bc2a72af6eae6857d3ae3b503707d17",
+    "download_result_sha256": "1285dc7af2622e977ded91ed48a199f2de5ffae6a19fdad521d6e64b10556762",
+    "boot_session_sha256": "6442410cae7457435298f61384ee9d63d566e22b3da1d13c476320de8ce72c2d",
+    "serial_sha256": "c2e07c63c023573d091a48829b0cce0719e19eb7cdb73192be4aaa4add1b2693",
+    "running": "slot A confirmed, version 0.7.28+673, counter 673, power phase 0, unresolved 0, supervisor faults 0",
+    "preserved": "configuration revision 6, nihao_openvela frontend 1 model sha256 922eba9175fcda60f7c8a4505ca4eb5a97c86ceb30fbe48c685fd612098ac910, threshold 85",
+    "development_validation_enabled": false
+  },
+  "artifacts": {
+    "ap_elf_sha256": "9a82879fadc446ba8b5c2ee18d6dfeb36d49e27c173ca9be49ee2341e39dcea9",
+    "ap_bin_sha256": "e0aa848a282bce0f23fc569f8c2ada2ea374a737740e50213681ad6f02e712aa",
+    "ap_map_sha256": "df799bed552553cfeadfb372dc99b60a5744a1f0a5be6fae59dc5feff4150c73",
+    "cp_elf_sha256": "caa159be87168f48a4844b0007d97c52f8d2833c14851ad111b6610420ab08b1",
+    "cp_bin_sha256": "1c81c81f2fff0aa7b4fe14a37ad3f4a252c61c75cbec7fcb4bb6947edbc1bd83",
+    "cp_map_sha256": "d8fb4ceab1dfda974f67d16e43008fdebb924fe09078fa8ddd1c3209a6756af9"
+  },
+  "limits": {
+    "physical_acoustics": "NOT_RUN: no microphone or onsite listener; digital/Media evidence does not prove absence of audible glitches or natural volume.",
+    "physical_k2": "NOT_RUN: no human or GPIO fixture onsite.",
+    "app_ble_ota": "NOT_RUN: phone disconnected; HIL download is not App OTA.",
+    "factory_first_use": "NOT_RUN: this was a preserving inactive-slot update, not factory erase or first claim."
+  }
+}

@@ -3191,6 +3191,10 @@ static void install_product_skills(void)
  * or recovery scheduler.
  */
 
+#ifdef CONFIG_BK7258_AUDIO_PLAYBACK_VALIDATION
+#include "bk7258_agent_audio_validation.inc"
+#endif
+
 int ai_agent_main(int argc, FAR char *argv[])
 {
   static const char *directories[] =
@@ -3273,6 +3277,15 @@ int ai_agent_main(int argc, FAR char *argv[])
     {
       ret = voice_channel_init();
     }
+
+#ifdef CONFIG_BK7258_AUDIO_PLAYBACK_VALIDATION
+  if (!ret)
+    {
+      syslog(LOG_NOTICE, "BKAUDIO source=development-startup no-capture\n");
+      ret = product_audio_validation();
+      syslog(LOG_NOTICE, "BKAUDIO validation result=%d\n", ret);
+    }
+#endif
 
   if (!ret)
     {

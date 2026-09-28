@@ -70,6 +70,19 @@ config BK7258_POWER_PREPARE_VALIDATION
 		configuration. No remote command or physical-key acceptance is added.
 		Keep disabled in normal product and release configurations.
 
+config BK7258_AUDIO_PLAYBACK_VALIDATION
+	bool "Development-only one-shot Agent Media playback validation"
+	default n
+	depends on BK7258_APP_AGENT && MEDIA
+	depends on !BK7258_POWER_PREPARE_VALIDATION
+	help
+		Before publishing Agent core readiness, run three bounded low-amplitude
+		PCM sessions through the real Agent playback adapter: EOF, cancellation,
+		and a following session. Do not capture audio or change saved volume.
+		On failure retain core-not-ready; CP download remains available. This is
+		digital Media evidence, not acoustic or physical-button acceptance.
+		Keep disabled in normal product and release configurations.
+
 config BK7258_APP_DISPLAY
 	bool "BK7258 Shaniu display command (bkdisplay)"
 	default n
