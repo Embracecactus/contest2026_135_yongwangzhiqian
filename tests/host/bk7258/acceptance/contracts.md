@@ -1072,6 +1072,18 @@ accepts the same two-call batch and preserves both IDs. These host contracts do
 not identify the provider payload from the historical `-71` log or prove a live
 cloud, voice, or board round.
 
+### AGENT-03 vision cancellation handoff (2026-09-28)
+
+AGENT-03.vision-cancel executes the production vision adapter followed by the
+production ReAct coordinator. The vision peer cancels the same request during
+the call. The adapter must pass the request checker to the checked vision API,
+release the image once, and the coordinator must return `-ECANCELED` without a
+second planning request, tool side effect, reply stream, or stale vision body.
+The linked LLM regression additionally verifies that a successful transport
+return cannot commit a response after its checker observes cancellation. This
+host contract does not prove camera capture, live provider behavior, board
+display, or cross-turn persistence of a successful non-idempotent tool receipt.
+
 
 ### R1 read-only power outcome (2026-09-28)
 

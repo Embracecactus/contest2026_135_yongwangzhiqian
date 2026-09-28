@@ -29,6 +29,55 @@ int vela_https_post_json(const char *host, const char *port, const char *path,
 int vela_http_post_json(const char *host, const char *port, const char *path,
     const vela_header_t *headers, const char *body, char *out, size_t cap)
 { return vela_https_post_json(host, port, path, headers, body, out, cap); }
+int claw_config_set(const char *key, const char *value)
+{ (void)key; (void)value; return 0; }
+
+static int vision_transport_calls;
+static int vision_check_calls;
+static int vision_request_canceled;
+
+static int vision_request_check(void *context)
+{
+  assert(context == &vision_request_canceled);
+  vision_check_calls++;
+  return vision_request_canceled ? -ECANCELED : 0;
+}
+
+static int vision_transport(const char *request, char *response, size_t capacity,
+    size_t *length, int *status, void *context,
+    int (*check)(void *), void *request_context)
+{
+  assert(context == &vision_transport_calls);
+  assert(strstr(request, "\"image_url\"") && strstr(request, "aW1hZ2U="));
+  assert(check && check(request_context) == 0);
+  vision_transport_calls++;
+  vision_request_canceled = 1;
+  assert(check(request_context) == -ECANCELED);
+  int n = snprintf(response, capacity,
+      "{\"choices\":[{\"message\":{\"content\":\"stale\"}}]}");
+  assert(n > 0 && (size_t)n < capacity);
+  *length = (size_t)n;
+  *status = 200;
+  return 0;
+}
+
+static void test_vision_cancel(void)
+{
+  vision_transport_calls = 0;
+  vision_check_calls = 0;
+  vision_request_canceled = 0;
+  assert(llm_set_transport("fixture", "fixture", vision_transport, NULL,
+      &vision_transport_calls) == 0);
+  assert(llm_set_vision_model("fixture", "fixture", "test-key") == 0);
+  char response[256] = {0};
+  assert(llm_chat_vision_checked("describe", "aW1hZ2U=", "image/jpeg",
+      response, sizeof(response), vision_request_check,
+      &vision_request_canceled) == -ECANCELED);
+  assert(vision_transport_calls == 1 && vision_check_calls >= 3);
+  assert(!strcmp(response, "Error: Vision HTTP request failed"));
+  assert(llm_clear_transport() == 0);
+  assert(llm_set_vision_model(NULL, NULL, NULL) == 0);
+}
 
 static const char *plan_finish, *plan_calls;
 static int plan_transport(const char *request, char *response, size_t capacity,
@@ -145,6 +194,7 @@ static llm_final_stream_t *fresh(size_t limit)
 
 int main(void)
 {
+  test_vision_cancel();
   test_plan_phase();
   /* MiMo's documented SSE shape includes null optional delta fields. */
   const char nullable[] =

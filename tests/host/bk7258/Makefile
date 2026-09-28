@@ -1793,6 +1793,7 @@ run-cloud-request:
 $(BUILD)/test_agent_final_stream: test_bk7258_cloud_request.c \
 	$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_stream.c \
 	$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_proxy.c \
+	$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_vision.c \
 	$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_parse.c \
 	$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_stream.h | $(BUILD)
 	$(CC) $(CFLAGS) -Werror -Wno-error=stringop-truncation \
@@ -1800,9 +1801,11 @@ $(BUILD)/test_agent_final_stream: test_bk7258_cloud_request.c \
 		-ffunction-sections -fdata-sections -Wl,--gc-sections \
 		-I $(MOCKS) -I $(OPENVELA_ROOT)/packages/ai_agent/include \
 		-I $(OPENVELA_ROOT)/packages/ai_agent/src \
+		-I $(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/include \
 		-I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON $< \
 		$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_stream.c \
 		$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_proxy.c \
+		$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_vision.c \
 		$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_parse.c \
 		$(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c -o $@
 

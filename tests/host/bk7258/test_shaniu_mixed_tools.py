@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Exercise Agent's production ReAct loop for mixed tool/finalize batches.
+"""Exercise Agent's production ReAct loop and vision-cancel handoff.
 
 The LLM, tool registry, trace, and reply sink are controlled boundary peers.
 The coordinator, assistant/tool history construction, parallel tool dispatch,
-finalize deferral, and final-phase transition come from agent_loop.c itself.
+finalize deferral, final-phase transition, and vision adapter come from
+agent_loop.c itself.
 """
 
 import resource
@@ -16,7 +17,7 @@ from pathlib import Path
 from test_nfc_rf_lifecycle import ROOT
 
 
-CASES = ("mixed", "missing-id", "duplicate-id")
+CASES = ("mixed", "missing-id", "duplicate-id", "vision-cancel")
 MUTATION = "mutant-executes-finalize"
 
 
@@ -43,6 +44,12 @@ def probe_code(case: str) -> str:
 #include <stdlib.h>
 #include <string.h>
 
+#include "llm/llm_proxy.h"
+int llm_chat_vision_checked(const char *prompt, const char *image_b64,
+                            const char *mime_type, char *response_buf,
+                            size_t buf_size, int (*check)(void *),
+                            void *request_context);
+
 #include "agent_loop_under_test.c"
 
 static const char *scenario = "''' + scenario + r'''";
@@ -51,8 +58,41 @@ static unsigned final_requests;
 static unsigned registry_calls;
 static unsigned begin_events;
 static unsigned delta_events;
+static unsigned legacy_vision_calls;
+static unsigned checked_vision_calls;
+static int request_canceled;
 static char spoken[128];
 static size_t spoken_size;
+
+int llm_chat_vision(const char *prompt, const char *image_b64,
+                    const char *mime_type, char *response_buf,
+                    size_t buf_size)
+{
+    (void)prompt;
+    (void)image_b64;
+    (void)mime_type;
+    (void)response_buf;
+    (void)buf_size;
+    legacy_vision_calls++;
+    request_canceled = 1;
+    return -ECANCELED;
+}
+
+int llm_chat_vision_checked(const char *prompt, const char *image_b64,
+                            const char *mime_type, char *response_buf,
+                            size_t buf_size, int (*check)(void *),
+                            void *request_context)
+{
+    (void)mime_type;
+    assert(prompt != NULL && !strcmp(prompt, "describe image"));
+    assert(image_b64 != NULL && !strcmp(image_b64, "aW1hZ2U="));
+    assert(response_buf != NULL && buf_size >= TOOL_OUTPUT_SIZE_MIN);
+    assert(check != NULL && check(request_context) == 0);
+    checked_vision_calls++;
+    request_canceled = 1;
+    assert(check(request_context) == -ECANCELED);
+    return -ECANCELED;
+}
 
 static void set_call(llm_response_t *response, int index, const char *id,
                      const char *name)
@@ -227,7 +267,7 @@ int message_bus_push_outbound(const agent_msg_t *message)
 static int request_status(uint64_t request_id)
 {
     assert(request_id == 7);
-    return 0;
+    return request_canceled ? -ECANCELED : 0;
 }
 
 static int reply_sink(uint64_t request_id, int event,
@@ -262,6 +302,25 @@ int main(void)
     strcpy(message.channel, AGENT_CHAN_VOICE);
     strcpy(message.chat_id, "chat");
     int failure = 0;
+
+    if (!strcmp(scenario, "vision-cancel")) {
+        message.content = "describe image";
+        message.image_b64 = strdup("aW1hZ2U=");
+        assert(message.image_b64 != NULL);
+        char *text = handle_vision_message(&message);
+        if (text == NULL) {
+            text = run_react_loop("system", messages, "[]", tool_output,
+                                  sizeof(tool_output), &message, &failure);
+        }
+        assert(text == NULL && failure == -ECANCELED);
+        assert(message.image_b64 == NULL);
+        assert(checked_vision_calls == 1 && legacy_vision_calls == 0);
+        assert(planning_requests == 0 && final_requests == 0 && registry_calls == 0);
+        cJSON_Delete(messages);
+        puts("CONTRACT_PASS");
+        return 0;
+    }
+
     char *text = run_react_loop(
         "system", messages,
         "[{\"name\":\"get_weather\",\"description\":\"Weather\","
