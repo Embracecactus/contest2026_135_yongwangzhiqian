@@ -272,7 +272,17 @@ internal class DeviceControlSession(
                 inFlight = null
                 request.clear()
                 if (!request.read) confirmation = null
-                publish(state.copy(operationMessage = if (!request.read) "设备正在处理其他请求，请重试" else state.operationMessage))
+                val next = when {
+                    !request.read -> state.copy(operationMessage = "设备正在处理其他请求，请重试")
+                    request.command == DeviceControlProtocol.Command.STATUS -> state.copy(
+                        snapshotFresh = false,
+                        error = "读取状态失败（请求未受理），正在重试",
+                        operationMessage = if (request.verification) "设置结果未确认，正在重新读取"
+                            else state.operationMessage,
+                    )
+                    else -> state
+                }
+                publish(next)
                 armPoll()
             }
         } }

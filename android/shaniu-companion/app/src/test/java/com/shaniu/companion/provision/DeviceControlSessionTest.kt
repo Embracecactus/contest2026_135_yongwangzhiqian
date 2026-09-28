@@ -34,11 +34,12 @@ class DeviceControlSessionTest {
             val sent = mutableListOf<Sent>()
             var closed = false
             var automaticStatus = false
+            var acceptRequests = true
             override fun request(command: DeviceControlProtocol.Command, value: Int, accepted: (Boolean) -> Unit) {
                 check(!closed)
                 sent += Sent(command, value, accepted)
-                accepted(true)
-                if (automaticStatus && command == DeviceControlProtocol.Command.STATUS) reply(command, status)
+                accepted(acceptRequests)
+                if (acceptRequests && automaticStatus && command == DeviceControlProtocol.Command.STATUS) reply(command, status)
             }
             override fun requestOta(command: DeviceControlProtocol.Command, payload: ByteArray, accepted: (Boolean) -> Unit) {
                 request(command, 0, accepted)
@@ -104,6 +105,21 @@ class DeviceControlSessionTest {
         f.peer.reply(DeviceControlProtocol.Command.STATUS, status.copy(volume = 60))
         assertEquals(60, f.session.current().snapshot?.volume)
         assertFalse(f.session.current().writePending)
+    }
+    @Test fun transportRejectedStatusMarksSnapshotStaleAndRetriesWithoutDisconnecting() {
+        val f = Fixture(); f.connect(); f.peer.acceptRequests = false
+        f.clock.advance(2_000)
+        assertTrue(f.session.current().authenticated)
+        assertEquals(DeviceControlSession.Connection.CONNECTED, f.session.current().connection)
+        assertEquals(53, f.session.current().snapshot?.volume)
+        assertFalse(f.session.current().snapshotFresh)
+        assertFalse(f.session.current().readPending)
+        assertFalse(DeviceControlPresentation.volume(f.session.current()).enabled)
+        f.peer.acceptRequests = true; f.peer.automaticStatus = true
+        f.clock.advance(2_000)
+        assertTrue(f.session.current().snapshotFresh)
+        assertEquals(2, f.peer.sent.count { it.command == DeviceControlProtocol.Command.STATUS })
+        assertEquals(1, f.peers.size)
     }
     @Test fun ordinaryErrorIsNotDisconnectionAndDoesNotReplaceValue() {
         val f = Fixture(); f.connect()

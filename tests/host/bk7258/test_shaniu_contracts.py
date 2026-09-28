@@ -384,6 +384,7 @@ def run_jvm():
                 "disconnectAndOldIdentityCannotContaminateNewGeneration": "UI-03",
                 "delayedCurrentIdentityPublishesWithoutAdditionalCommands": "NET-02",
                 "peerIdentityRejectsMalformedAndOversizedCertificates": "USB-01",
+                "transportRejectedStatusMarksSnapshotStaleAndRetriesWithoutDisconnecting": "UI-01",
             }
             parent = (
                 "TIMER-01"
