@@ -139,8 +139,18 @@ internal class DeviceControlSession(
     }
     fun cancelConfigTransaction(): Boolean {
         if (!configTransaction) return false
-        configCancelRequested = true
+        val beginWasOnlyQueued = queued?.command == DeviceControlProtocol.Command.CONFIG_BEGIN
         queued?.clear(); queued = null
+        if (beginWasOnlyQueued) {
+            // CONFIG_BEGIN never reached the device, so a wire CANCEL could
+            // cancel another client's staging transaction. Release only the
+            // local reservation and let the current read finish normally.
+            configTransaction = false
+            configCancelRequested = false
+            publish(state.copy(operationMessage = null))
+            return true
+        }
+        configCancelRequested = true
         if (inFlight == null) pump()
         return true
     }

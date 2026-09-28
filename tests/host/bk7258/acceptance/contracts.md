@@ -1222,3 +1222,20 @@ race are also part of the selected JVM contract set. Existing OTA session
 fixtures now state their previously implicit `otaSupported` precondition; their
 first run after the new admission guard failed before reaching the terminal-
 state assertions and is retained as a fixture correction, not a product Red.
+
+### NET-03 queued configuration cancellation (2026-09-29)
+
+When an authenticated native session accepts `CONFIG_BEGIN` locally but it is
+still queued behind an in-flight read, canceling that local request must remove
+the queued payload and release the local writer reservation without sending
+either `CONFIG_BEGIN` or `CONFIG_CANCEL`. A cancel for a transaction that never
+reached the device must not alter device-side staging owned by another request
+or client. Once `CONFIG_BEGIN` has been sent, the existing remote cancellation
+handshake and terminal-state rules still apply. After the queued-only cancel,
+the current read may finish normally and a later configuration transaction may
+be admitted.
+
+The JVM case exercises the production `DeviceControlSession` scheduler with a
+controlled transport peer. It is L1 session/serialization evidence; it does
+not establish BLE coexistence, Android lifecycle behavior, or board-side
+configuration persistence.

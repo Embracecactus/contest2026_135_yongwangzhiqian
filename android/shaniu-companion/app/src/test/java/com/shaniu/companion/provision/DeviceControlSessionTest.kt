@@ -271,6 +271,23 @@ class DeviceControlSessionTest {
         f.session.disconnect()
     }
 
+    @Test fun cancelingQueuedBeginNeverCancelsATransactionThatWasNotSent() {
+        val f = Fixture(); f.connect(); f.clock.advance(2_000)
+        assertEquals(listOf(DeviceControlProtocol.Command.STATUS), f.peer.sent.map { it.command })
+        assertTrue(f.session.current().readPending)
+
+        assertTrue(f.session.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN, byteArrayOf(1)))
+        assertTrue(f.session.current().writePending)
+        assertTrue(f.session.cancelConfigTransaction())
+
+        f.peer.reply(DeviceControlProtocol.Command.STATUS, status)
+        assertEquals(listOf(DeviceControlProtocol.Command.STATUS), f.peer.sent.map { it.command })
+        assertFalse(f.session.current().writePending)
+        assertTrue(f.session.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN, byteArrayOf(2)))
+        assertEquals(DeviceControlProtocol.Command.CONFIG_BEGIN, f.peer.sent.last().command)
+        f.session.disconnect()
+    }
+
     @Test fun failedConfigAckDoesNotReleaseStagingUntilExplicitCancel() {
         val f = Fixture(); f.connect()
         assertTrue(f.session.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN, byteArrayOf(1)))

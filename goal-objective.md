@@ -75,7 +75,8 @@
 - UI-01发现旧STATUS保留`otaSupported=true`但已标stale时，原生更新页仍允许新OTA：旧生产页面断言形成有效Red。独立复核又检出STATUS正在读取时BEGIN可先返回已受理、随后在能力变stale后仍发送，以及来源准备期间离开页面会遗留启动锁/常亮标志；两项均先得到确定性Red。最终复核再以A断连、B重连准备、A迟到回调的交错检出旧回调会释放B的全局锁；反例先Red后改为来源lease所有权。现新事务准入要求认证、fresh、能力且没有在途读取，异步来源打开后再次复核；生命周期中止只归还本次资源，已受理上传的取消和结果查询语义未改。相同API 36模拟器及35项相关JVM回归转Green；4项旧OTA夹具因未声明原本隐含的能力前置而首次失败，补齐前置后原终态断言通过，原记录保留。完整当前集合752/752通过、无FAIL/SETUP/NOT_RUN且两项既有变异继续检出。手机断开，故不称BLE或App OTA实机通过；该切片不改固件，板端仍运行已确认的0.7.34+679。
 - CFG-02现将“已持久保存”“本地应用中/成功/失败”和网络/云连通分开：SCS1非终态不再显示已保存，SCA1只由匹配revision的真实本地loader结束。旧实现的网络回执误标、本地loader未发布及Android错误文案均先形成有效Red；同例修复后转Green。当前完整合同集合776/776通过、无FAIL/SETUP/NOT_RUN，历史63项和两项变异检出/恢复复验保留，不把该数量称整机完成。
 - 匹配0.7.36+681已通过包和公开签名信任校验，并由HIL仅写入非活动A槽CP/AP；板端确认A槽pair/counter 681、faults/recoveries 0，原生CDC重新枚举。受控重启后原模型完整哈希、frontend 1、阈值85、配置revision 6和既有眼睛包revision 3保持。当前没有已授权PC profile或手机，故SCA1外部协议读回仍待相应客户端恢复；不把启动/保持证据称该协议的板端端到端验收。
-- 本轮证据与匹配BIN/ELF/map：out/shaniu-core-20260928/、out/shaniu-core-20260929/cfg02-application/；未执行人工K2、App或声学验收。
+- NET-03发现原生App在`CONFIG_BEGIN`仅排队、尚未发送时取消，会在当前STATUS完成后错误发送`CONFIG_CANCEL`；旧实现的线级反例为有效Red。现仅释放该未发送请求的本地写入占用，不向设备发送BEGIN或CANCEL；已经发送的配置事务仍保留原远端取消握手。相关83项JVM回归和当前完整777项合同集合通过，零FAIL/SETUP/NOT_RUN，两项既有变异继续检出并恢复。该切片只证明生产会话调度和协议边界，不称BLE、Android真机或板端配置持久化通过；固件未改，板端继续运行已确认的0.7.36+681。
+- 本轮证据与匹配BIN/ELF/map：out/shaniu-core-20260928/、out/shaniu-core-20260929/cfg02-application/、out/shaniu-core-20260929/app-queued-config-cancel/；未执行人工K2、App或声学验收。
 
 ## 交付与停止条件
 

@@ -776,7 +776,8 @@
     "AUD-02.pcm-progress",
     "CFG-02.local-load-success",
     "CFG-02.local-load-failure",
-    "provision.DeviceSettingsTest.unfinishedOrFailedPersistenceIsNeverReportedAsSaved"
+    "provision.DeviceSettingsTest.unfinishedOrFailedPersistenceIsNeverReportedAsSaved",
+    "provision.DeviceControlSessionTest.cancelingQueuedBeginNeverCancelsATransactionThatWasNotSent"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1556,6 +1557,7 @@
     "AUD-02.pcm-progress",
     "CFG-02.local-load-success",
     "CFG-02.local-load-failure",
-    "provision.DeviceSettingsTest.unfinishedOrFailedPersistenceIsNeverReportedAsSaved"
+    "provision.DeviceSettingsTest.unfinishedOrFailedPersistenceIsNeverReportedAsSaved",
+    "provision.DeviceControlSessionTest.cancelingQueuedBeginNeverCancelsATransactionThatWasNotSent"
   ]
 }

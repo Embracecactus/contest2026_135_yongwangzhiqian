@@ -381,6 +381,7 @@ def run_jvm():
                 "claimHandoffDropsOldIdentityRetryAndCachedStatus": "UI-03",
                 "graceDisconnectCannotReopenAnExplicitlyClosedSession": "UI-02",
                 "configCancelWaitsForInFlightAckAndPreventsOtherWriters": "NET-03",
+                "cancelingQueuedBeginNeverCancelsATransactionThatWasNotSent": "NET-03",
                 "failedConfigAckDoesNotReleaseStagingUntilExplicitCancel": "NET-03",
                 "identityReleaseRejectsLateConfigResultAndDoesNotReplayIt": "UI-03",
                 "peerCertificateCannotAuthenticateSessionOrAppearBeforeStatus": "USB-01",
