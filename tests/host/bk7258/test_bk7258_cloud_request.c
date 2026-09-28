@@ -40,7 +40,7 @@ static int plan_transport(const char *request, char *response, size_t capacity,
   if (check && check(request_context)) return -ECANCELED;
   int n = snprintf(response, capacity,
       "{\"choices\":[{\"finish_reason\":\"%s\",\"message\":{"
-      "\"content\":\"draft\"%s}}]}", plan_finish, plan_calls);
+      "\"content\":\"A complete answer.\"%s}}]}", plan_finish, plan_calls);
   assert(n > 0 && (size_t)n < capacity);
   *length = (size_t)n; *status = 200;
   return 0;
@@ -69,7 +69,9 @@ static void test_plan_phase(void)
     assert(llm_chat_plan_checked("system", messages, "[]", &response,
         NULL, NULL) == 0);
     assert(response.tool_phase_complete && !response.tool_use &&
-        !response.call_count && !response.text && !response.reasoning_content);
+        !response.call_count && response.text &&
+        !strcmp(response.text, "A complete answer.") &&
+        response.text_len == strlen(response.text) && !response.reasoning_content);
     llm_response_free(&response);
   }
   const char *ambiguous[] = { ",\"tool_calls\":[{}]",
@@ -83,7 +85,7 @@ static void test_plan_phase(void)
   plan_calls = "";
   assert(llm_chat_tools_checked("system", messages, NULL, &response,
       NULL, NULL) == 0);
-  assert(!strcmp(response.text, "draft"));
+  assert(!strcmp(response.text, "A complete answer."));
   llm_response_free(&response);
   plan_finish = "end_turn"; /* Legacy synchronous provider compatibility. */
   assert(llm_chat_tools_checked("system", messages, NULL, &response,
@@ -197,7 +199,7 @@ int main(void)
   memset(oversized, 'x', sizeof(oversized));
   assert(llm_final_stream_feed(p, oversized, sizeof(oversized)) == -E2BIG);
   llm_final_stream_free(p);
-  puts("final-body SSE: planning stop discards draft, rejects truncated/ambiguous tools, sync and tool/finalize retained, fragmented UTF-8, early delta, reasoning/tool exclusion, EOF, bounds and cancellation PASS");
+  puts("final-body SSE: complete no-tool body retained, rejects truncated/ambiguous tools, sync and tool/finalize retained, fragmented UTF-8, early delta, reasoning/tool exclusion, EOF, bounds and cancellation PASS");
   return 0;
 }
 #elif defined(TEST_AGENT_ENDPOINT)

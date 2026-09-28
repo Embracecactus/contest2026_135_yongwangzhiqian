@@ -257,7 +257,11 @@ unsigned int bkpc_tasks_visual(const struct bkpc_tasks_s *state,
       return 0;
     }
 
-  if (focus)
+  /* An active/paused timer owns its live progress. A completed timer remains
+   * a completed fact, but its fallback visual must yield to a finite task
+   * result. Do not mutate the timer to canceled merely to free the display.
+   */
+  if (focus && (focus >> 8) != 3)
     {
       return focus;
     }
@@ -265,7 +269,7 @@ unsigned int bkpc_tasks_visual(const struct bkpc_tasks_s *state,
   if (!state->admitted || state->expired || now < state->observed ||
       now >= state->deadline || state->last[7] < 3)
     {
-      return 0;
+      return focus;
     }
 
   return (state->last[7] + 1u) << 8;

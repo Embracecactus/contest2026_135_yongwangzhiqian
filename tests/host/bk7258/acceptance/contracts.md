@@ -1008,3 +1008,52 @@ R2: contract, fixture and runner changes trigger the existing source workflow;
 its required job runs selected-contract completeness and collector selftests,
 fails normally, and retains result/log evidence even on failure. Future manual
 L3 specifications are not added to the executable set.
+
+### R4 local listening before cloud readiness (2026-09-28)
+
+BOOT-01.local-* executes the actual local-listener routing block from the
+production configuration worker; dependencies are explicit owner peers. Identity,
+core initialization, model verification and persisted wake-threshold availability
+remain prerequisites. Cloud unavailability or a network transaction alone must
+not prevent starting that local listener or consuming a local wake event. A busy
+threshold read must not arm the original model with a temporary default threshold.
+A local model/start failure does not overwrite cloud readiness or retry each tick.
+Cloud backend clearing while the official channel is idle does not own KWS capture.
+
+Offline matches are consumed through the real trigger processing function with
+cloud admission denied: release/rearm locally, no ASR request or wake acknowledgement.
+This explicit admission input is required by the newly reachable offline route;
+its initial guard failure is not evidence of an old reachable offline cloud turn.
+These are L1 routing/guard checks. They do not substitute for live inference,
+physical speech, radio coexistence, or retained hardware callbacks. Startup HIL
+must separately establish actual capture readiness relative to cloud activation.
+
+### R3 completed focus versus finite PC feedback (2026-09-28)
+
+PC-01.task-focus-completion links the real focus timer and PC task receiver.
+A completed focus remains completed in snapshots. Its fallback visual yields to
+a valid terminal PC event until that event's existing receiver TTL expires.
+Running/paused focus keeps priority. Voice unavailability suppresses both;
+resuming after expiry does not replay the old notification. No new TTL is
+invented, no timer is silently canceled, and acceptance is not a render receipt.
+The first attempted run used a stale binary after a Make dependency error and
+is SETUP_ERROR (see r3-observer-correction.json), not a product Red. The corrected
+build fails the intended notification-selection assertion on unchanged production.
+
+### AGENT-01 complete no-tool body reuse and test correction (2026-09-28)
+
+The frozen user requirement preserves a legal, complete no-tool answer rather
+than making an unnecessary second model request. The prior final-stream parser
+test instead asserted that this body was deleted; that internal assertion was
+incorrect for AGENT-01. Its earlier PASS is retained but does not establish
+requirement compliance. The corrected assertion fails on Agent 62a304ea.
+Incomplete/filtered responses and ambiguous tool payloads still fail closed.
+
+AGENT-01.plan-parser runs the real LLM proxy/parser against a controlled peer.
+AGENT-01.final-body-* executes Agent's actual final-phase, request check and
+assistant-message construction functions; only the final cloud request and body
+consumer are peers. A complete no-tool body uses zero extra cloud requests and
+one begin/delta. Empty bodies and explicit finalize retain final streaming.
+Cancellation before/during delivery remains an error. This slice does not claim
+a complete mixed-tool ledger, full history commit, visual round, or measured
+physical latency; those remain separate integration/device gates.

@@ -50,7 +50,8 @@ int bkpc_tasks_apply(struct bkpc_tasks_s *state, const void *record,
 void bkpc_tasks_step(struct bkpc_tasks_s *state, uint64_t now,
                      bool admitted);
 /* Existing display owner uses states 4/5/6 for task result shapes.
- * Voice availability gates all visuals; a timer keeps priority.
+ * Voice availability gates all visuals; an active/paused timer keeps priority.
+ * Completed focus feedback yields to a nonexpired terminal task notification.
  */
 
 unsigned int bkpc_tasks_visual(const struct bkpc_tasks_s *state,

@@ -444,6 +444,7 @@ def main():
         "test_control_serial",
         "test_pc_grants",
         "test_pc_tasks",
+        "test_agent_final_stream",
         "test_pc_reset",
         "test_pc_storage",
         "test_pc_authorization",
@@ -804,6 +805,16 @@ def main():
         add(suite, "MOT-01.quiesce-" + variant, "MOT-01", "L2",
             [HERE / "build/test_shaniu_motion_quiesce", variant],
             binaries["test_shaniu_motion_quiesce"])
+    add(suite, "AGENT-01.plan-parser", "AGENT-01", "L2",
+        [HERE / "build/test_agent_final_stream"], binaries["test_agent_final_stream"], marker=False)
+    for variant in ("reuse", "empty", "finalize", "cancel", "sink-cancel"):
+        add(suite, "AGENT-01.final-body-" + variant, "AGENT-01", "L1",
+            [sys.executable, HERE / "test_shaniu_final_body.py", variant])
+    for variant in ("online", "offline", "network-pending", "offline-event",
+                    "core-unavailable", "identity-unavailable", "threshold-busy",
+                    "model-failure", "cloud-retry", "offline-admission", "online-admission"):
+        add(suite, "BOOT-01.local-" + variant, "BOOT-01", "L1",
+            [sys.executable, HERE / "test_shaniu_local_ready.py", variant])
     add(suite, "LIFE-02.power-prepare-only", "LIFE-02", "L1",
         [HERE / "build/test_shaniu_power_prepare", "prepare-only"],
         binaries["test_shaniu_power_prepare"])
@@ -860,6 +871,8 @@ def main():
     for variant in ("terminal", "duplicate", "ordering", "expiry", "binding", "readonly", "invalid", "quiesce", "rate", "visual"):
         add(suite, "PC-01.task-" + variant, "PC-01", "L1",
             [HERE / "build/test_pc_tasks", variant], binaries["test_pc_tasks"])
+    add(suite, "PC-01.task-focus-completion", "PC-01", "L2",
+        [HERE / "build/test_pc_tasks", "focus-completion"], binaries["test_pc_tasks"])
     add(suite, "PC-01.task-product", "PC-01", "L2",
         [sys.executable, HERE / "test_pc_product_route.py", "tasks"])
     for variant in ("source", "source-revision"):

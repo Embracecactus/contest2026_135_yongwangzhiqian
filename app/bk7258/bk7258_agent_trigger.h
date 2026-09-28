@@ -32,7 +32,8 @@
 int bk7258_agent_trigger_prepare(void);
 int bk7258_agent_trigger_start(void);
 int bk7258_agent_trigger_stop(void);
-int bk7258_agent_trigger_process(void);
+/* Consume a local match; false rejects the cloud turn and rearms locally. */
+int bk7258_agent_trigger_process(bool admitted);
 /* Called synchronously while Agent's reader is paused and Media input is
  * discarded; playback must drain before the same recorder resumes. */
 int bk7258_agent_trigger_reply(void);

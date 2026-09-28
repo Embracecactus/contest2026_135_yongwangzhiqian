@@ -1140,7 +1140,7 @@ void bk7258_agent_trigger_reply_cancel(void)
   pthread_mutex_unlock(&g_reply_lock);
 }
 
-static int trigger_process_locked(void)
+static int trigger_process_locked(bool admitted)
 {
   int callback_error;
   int ret;
@@ -1158,6 +1158,11 @@ static int trigger_process_locked(void)
   ret = trigger_join();
   callback_error = atomic_exchange(&g_agent_trigger.callback_error, 0);
   if (!ret && callback_error) ret = callback_error;
+  /* A local match must be consumed even when cloud activation is incomplete.
+   * Release/rearm the existing owner without starting ASR or playing an ack
+   * that would falsely promise an admitted online turn.
+   */
+  if (!ret && !admitted) ret = -ENETDOWN;
   if (!ret)
     {
       /* Ownership transfers even if Agent startup fails and releases it.
@@ -1237,10 +1242,10 @@ bool bk7258_agent_trigger_armed(void)
   return armed;
 }
 
-int bk7258_agent_trigger_process(void)
+int bk7258_agent_trigger_process(bool admitted)
 {
   pthread_mutex_lock(&g_trigger_lock);
-  int ret = trigger_process_locked();
+  int ret = trigger_process_locked(admitted);
   pthread_mutex_unlock(&g_trigger_lock);
   return ret;
 }

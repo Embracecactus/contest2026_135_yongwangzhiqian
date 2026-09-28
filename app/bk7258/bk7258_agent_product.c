@@ -2176,17 +2176,10 @@ static int product_clear(void *unused)
       return -EBUSY;
     }
 
-  if (g_trigger_started)
-    {
-      int ret = bk7258_agent_trigger_stop();
-      if (ret < 0)
-        {
-          return ret;
-        }
-
-      g_trigger_started = false;
-    }
-
+  /* Cloud backend replacement does not own the local KWS recorder. The
+   * official channel-idle check above excludes a live cloud turn; keep the
+   * local listener alive across failed Wi-Fi/service activation attempts.
+   */
   int ret = bkagent_cloud_clear();
   if (ret < 0)
     {
@@ -2578,6 +2571,7 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
   bool storage_waiting = false;
   bool voice_interaction_active = false;
   bool preferences_pending = false;
+  bool threshold_ready = false;
   uint32_t connection_generation = bkprov_gatt_generation();
   uint64_t link_check_at = 0;
   bool link_expected = false;
@@ -2660,6 +2654,7 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
               voice_action = VOICE_ACTION_NONE;
               voice_interaction_active = false;
               preferences_pending = false;
+              threshold_ready = false;
               /* 完成撤销后必须重新绑定保留的设备身份；bootstrap 状态
                * 未必变化，不能依赖一次已被消费的存储通知。 */
               pending = reset == 1;
@@ -2780,6 +2775,12 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
           network_retry_at = 0;
           network_backoff = 5000;
           atomic_store(&g_trigger_prepare_pending, true);
+          trigger_retry_at = 0;
+        }
+
+      if (events & 1)
+        {
+          trigger_retry_at = 0;
         }
 
       uint32_t generation = bkprov_gatt_generation();
@@ -2937,13 +2938,14 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
       product_pc_usb_step();
 #endif
       if (!atomic_load(&g_agent_core_ready) ||
-          !atomic_load(&g_voice_initialized) || bkagent_ota_busy())
+          !atomic_load(&g_voice_initialized) || !g_identity_bound ||
+          bkagent_ota_busy())
         {
           continue;
         }
 
       bool model_was_pending = bk7258_agent_trigger_model_pending();
-      int model_result = bk7258_agent_trigger_model_step(g_configured);
+      int model_result = bk7258_agent_trigger_model_step(g_trigger_started);
       if (model_result < 0 && model_result != -EBUSY)
         {
           g_product_error = model_result;
@@ -2962,7 +2964,6 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
        */
 
       if (atomic_load(&g_trigger_prepare_pending) && g_identity_bound &&
-          !pending && !network_busy &&
           voice_channel_is_idle() && !bkprov_owner_busy() &&
           !bk7258_agent_trigger_model_pending())
         {
@@ -2981,12 +2982,9 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
              "BKVOICE wake model prepared=%d result=%d\n", ret == 0, ret);
     }
 
-      if (!g_configured || pending || bkprov_network_busy())
-        {
-          continue;
-        }
-
-      /* Display start-up briefly occupies the same SD; only the busy
+      /* Local model/listener progress does not depend on cloud activation
+       * or a Wi-Fi trial. Identity, storage and model checks still apply.
+       * Display start-up briefly occupies the same SD; only the busy
        * resource is retried, and it is not mistaken for lost
        * configuration.
        */
@@ -3002,13 +3000,16 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
             bk7258_preferences_wake_threshold_get(&threshold);
           if (!threshold_ret)
             {
-              bk7258_agent_trigger_threshold_set(threshold);
+              threshold_ret = bk7258_agent_trigger_threshold_set(threshold);
             }
 
+          threshold_ready = threshold_ret == 0;
           preferences_pending = threshold_ret == -EBUSY;
           syslog(threshold_ret ? LOG_WARNING : LOG_INFO,
                  "BKVOICE wake threshold restore=%d percent=%u\n",
                  threshold_ret, bk7258_agent_trigger_threshold_get());
+#else
+          threshold_ready = true;
 #endif
           /* Does not block voice start-up; the same configuration task
            * completes the restore once the session is idle.
@@ -3043,7 +3044,8 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
           preferences_retry_at = now + 1000;
         }
 
-      if (!g_trigger_started && now >= trigger_retry_at)
+      if (!g_trigger_started && threshold_ready &&
+          !atomic_load(&g_trigger_prepare_pending) && now >= trigger_retry_at)
         {
           unsigned int saved;
           unsigned int observed;
@@ -3078,13 +3080,18 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
             }
           else if (ret)
             {
-              g_configured = false;
+              /* A local model/media failure is not a cloud configuration
+               * failure. Retry only after a configuration/readiness event,
+               * rather than reopening the recorder every worker tick.
+               */
+              trigger_retry_at = UINT64_MAX;
             }
         }
 
       if (g_trigger_started && (events & 4))
         {
-          int ret = bk7258_agent_trigger_process();
+          int ret = bk7258_agent_trigger_process(g_configured && !pending &&
+                                                 !bkprov_network_busy());
           if (ret < 0)
             {
               voice_interaction_active = false;

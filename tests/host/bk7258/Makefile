@@ -2054,7 +2054,8 @@ $(BUILD)/test_pc_owner_binding: test_pc_owner_binding.c $(VOICE_PACK_ROOT)/bk725
 
 $(BUILD)/test_pc_owner_binding: test_pc_storage.c $(VOICE_PACK_ROOT)/bk7258_pc_authorization_owner.h $(VOICE_PACK_ROOT)/bk7258_provision_owner.h
 
-$(BUILD)/test_pc_tasks: test_pc_tasks.c $(VOICE_PACK_ROOT)/bk7258_pc_tasks.c $(VOICE_PACK_ROOT)/bk7258_pc_tasks.h | $(BUILD)
+$(BUILD)/test_pc_tasks: test_pc_tasks.c $(VOICE_PACK_ROOT)/bk7258_pc_tasks.c $(VOICE_PACK_ROOT)/bk7258_pc_tasks.h \
+	$(VOICE_PACK_ROOT)/bk7258_focus.c $(VOICE_PACK_ROOT)/bk7258_focus_pixels.h | $(BUILD)
 	$(CC) $(CFLAGS) -Werror -I$(VOICE_PACK_ROOT) $(filter %.c,$^) -o $@
 
 $(BUILD)/test_display_catalog: test_display_catalog.c \

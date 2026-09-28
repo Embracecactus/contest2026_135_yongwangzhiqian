@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #include "bk7258_pc_tasks.h"
+#include "bk7258_focus.h"
 #include <assert.h>
 #include <errno.h>
 #include <stdio.h>
@@ -21,7 +22,26 @@ int main(int argc,char **argv)
   struct bkpc_tasks_s s={0};
   bkpc_tasks_bind(&s,1,1);
   assert(send(&s,1,1,1000,100)==0);
-  if(!strcmp(argv[1],"visual"))
+  if(!strcmp(argv[1],"focus-completion"))
+    {
+      /* The real timer keeps its completed fact, but no longer owns the
+       * display ahead of a valid finite task result. Voice always wins.
+       */
+      struct bkfocus_request_s timer={.action=1,.operation=1,.duration_ms=10};
+      struct bkfocus_snapshot_s snapshot;
+      assert(bkfocus_execute(&timer,100)==0);
+      assert(bkfocus_step(110)==1);
+      unsigned done=bkfocus_visual(110);
+      assert((done>>8)==3);
+      assert(send(&s,3,2,1000,200)==0);
+      assert(bkpc_tasks_visual(&s,201,true,done)==(4u<<8));
+      assert(bkpc_tasks_visual(&s,202,false,done)==0);
+      assert(bkpc_tasks_visual(&s,1199,true,done)==(4u<<8));
+      assert(bkpc_tasks_visual(&s,1200,false,done)==0);
+      assert(bkpc_tasks_visual(&s,1201,true,done)==done);
+      assert(bkfocus_snapshot(&snapshot,1201)==0 && snapshot.state==3);
+    }
+  else if(!strcmp(argv[1],"visual"))
     {
       assert(bkpc_tasks_visual(&s,100,true,0)==0);
       assert(send(&s,3,2,1000,200)==0);
