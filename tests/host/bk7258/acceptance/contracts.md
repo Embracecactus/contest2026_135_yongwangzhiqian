@@ -1207,6 +1207,15 @@ change or artificial Red. This is L1 adapter evidence, not actual FFmpeg queue,
 DAC, acoustic or continuous-dialogue acceptance. The initial build setup errors
 are retained separately and are not business failures.
 
+AUD-03.agent-truncated-close binds the actual Volcengine WebSocket receiver.
+The provider's negative sequence is the only successful terminal audio marker.
+If the peer closes after one or more positive-sequence PCM frames, the receiver
+must return the connection error and must not emit the terminal callback; bytes
+already delivered remain observable but cannot relabel the truncated stream as
+complete. A negative-sequence final frame retains the existing single terminal
+callback behavior. This is source/parser evidence, not Media, DAC, or acoustic
+completion.
+
 ### UI-01 stale OTA admission (2026-09-28)
 
 A retained OTA capability may remain visible after a STATUS read fails, but it

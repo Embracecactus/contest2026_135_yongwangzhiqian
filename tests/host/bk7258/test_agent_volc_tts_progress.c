@@ -194,6 +194,18 @@ static void valid_pcm_refreshes_progress(void)
     assert(terminal == 1);
 }
 
+static void connection_close_before_terminal_sequence_is_error(void)
+{
+    reset_script();
+    append_pcm(1, 0x31, 0);
+
+    assert(run_receiver() == -ECONNRESET);
+    assert(wire_offset == wire_size);
+    assert(chunks == 1);
+    assert(sample_count == 1 && samples[0] == 0x31);
+    assert(terminal == 0);
+}
+
 int main(int argc, char** argv)
 {
     assert(argc == 2);
@@ -203,6 +215,8 @@ int main(int argc, char** argv)
         heartbeat_cannot_extend_first_pcm_deadline();
     } else if (strcmp(argv[1], "pcm-progress") == 0) {
         valid_pcm_refreshes_progress();
+    } else if (strcmp(argv[1], "truncated-close") == 0) {
+        connection_close_before_terminal_sequence_is_error();
     } else {
         return 2;
     }

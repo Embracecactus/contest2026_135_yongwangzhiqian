@@ -1390,6 +1390,14 @@ def main():
             [HERE / "build/test_agent_volc_tts_progress", variant],
             binaries["test_agent_volc_tts_progress"],
         )
+    add(
+        suite,
+        "AUD-03.agent-truncated-close",
+        "AUD-03",
+        "L2",
+        [HERE / "build/test_agent_volc_tts_progress", "truncated-close"],
+        binaries["test_agent_volc_tts_progress"],
+    )
     for index, variant in enumerate(
         (
             "uid-empty",
