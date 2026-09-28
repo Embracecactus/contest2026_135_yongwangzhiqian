@@ -37,7 +37,8 @@ internal class FactoryResetController(
 
     /** Call only after the user explicitly confirms the destructive impact. */
     fun begin(): Boolean {
-        if (!active || pending != null || !session.current().authenticated) return false
+        val current = session.current()
+        if (!active || pending != null || !current.authenticated || !current.snapshotFresh) return false
         phase = Phase.PREPARING; publish()
         return session.requestPayload(DeviceControlProtocol.Command.CONFIG_READ,
             ByteBuffer.allocate(4).putInt(7 shl 16).array()).also {
@@ -50,7 +51,8 @@ internal class FactoryResetController(
     /** Explicit user action only; this reuses the persisted exact SRT1. */
     fun retryDurableApply(): Boolean {
         val value = pending ?: return false
-        if (!active || phase != Phase.AWAITING_RECEIPT || !session.current().authenticated) return false
+        val current = session.current()
+        if (!active || phase != Phase.AWAITING_RECEIPT || !current.authenticated || !current.snapshotFresh) return false
         phase = Phase.BEGIN; publish()
         return sendBegin(value)
     }

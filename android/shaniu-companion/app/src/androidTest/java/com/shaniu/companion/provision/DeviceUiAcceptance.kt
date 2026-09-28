@@ -180,6 +180,50 @@ internal object DeviceUiAcceptance {
                     editable.invoke(editor, false)
                     check(!(field("saveAction").get(editor) as View).isEnabled)
                 } finally { editor.close() }
+
+                lateinit var resetEvents: DeviceControlSession.Events
+                val resetCommands = mutableListOf<DeviceControlProtocol.Command>()
+                val resetSession = DeviceControlSession(
+                    nowMs = { 1L },
+                    post = { it() },
+                    schedule = { _, _ -> object : DeviceControlSession.Cancel { override fun cancel() = Unit } },
+                )
+                resetSession.setForeground(true)
+                resetSession.connect(object : DeviceControlSession.Factory {
+                    override fun open(events: DeviceControlSession.Events): DeviceControlSession.Transport {
+                        resetEvents = events
+                        return object : DeviceControlSession.Transport {
+                            override fun request(command: DeviceControlProtocol.Command, value: Int,
+                                                 accepted: (Boolean) -> Unit) {
+                                resetCommands += command; accepted(true)
+                            }
+                            override fun requestOta(command: DeviceControlProtocol.Command, payload: ByteArray,
+                                                    accepted: (Boolean) -> Unit) {
+                                resetCommands += command; accepted(true)
+                            }
+                            override fun requestPayload(command: DeviceControlProtocol.Command, payload: ByteArray,
+                                                        accepted: (Boolean) -> Unit) {
+                                resetCommands += command; accepted(true)
+                            }
+                            override fun close() = Unit
+                        }
+                    }
+                })
+                resetEvents.result(DeviceControlProtocol.Command.STATUS,
+                    DeviceControlProtocol.Snapshot(0, true, false, 50, 0, 0, 0))
+                check(resetSession.request(DeviceControlProtocol.Command.STATUS))
+                resetEvents.result(DeviceControlProtocol.Command.STATUS,
+                    DeviceControlProtocol.Snapshot(-11, false, false, null, null, null, null))
+                check(!resetSession.current().snapshotFresh)
+                val reset = FactoryResetController(activity, resetSession, "stale-reset-${UUID.randomUUID()}") { }
+                try {
+                    val before = resetCommands.size
+                    check(!reset.begin()) { "UI-01 stale snapshot admitted factory-reset CONFIG_READ" }
+                    check(resetCommands.size == before) { "UI-01 stale snapshot sent a factory-reset command" }
+                } finally {
+                    reset.close()
+                    resetSession.disconnect()
+                }
             }
         } finally {
             preferences.edit().remove("$deviceId.operation").remove("$deviceId.revision").commit()
@@ -867,6 +911,14 @@ internal object DeviceUiAcceptance {
                 render.invoke(activity)
             }
             dismissSheet(privacySheet)
+            scene(5, session.current().copy(snapshotFresh = false))
+            onUi(instrumentation) {
+                val reset = checkNotNull(findView(activity.window.decorView) {
+                    it.contentDescription?.toString()?.startsWith("转交或恢复出厂，") == true
+                })
+                check(!reset.isEnabled) { "stale snapshot enabled the factory-reset entry" }
+            }
+            scene(5, session.current().copy(snapshotFresh = true))
             val resetSheet = showSheet("confirmFactoryReset")
             capture("reset-consent") { resetSheet.window!!.decorView }
             onUi(instrumentation) {
@@ -890,6 +942,24 @@ internal object DeviceUiAcceptance {
                 check(!submit.isEnabled && field("factoryReset").get(activity) == null)
             }
             dismissSheet(resetSheet)
+            val staleResetSheet = showSheet("confirmFactoryReset")
+            onUi(instrumentation) {
+                val submit = checkNotNull(findView(staleResetSheet.window!!.decorView) {
+                    it is TextView && it.text.toString() == "恢复出厂"
+                })
+                val consent = checkNotNull(findView(staleResetSheet.window!!.decorView) {
+                    it is android.widget.CheckBox
+                }) as android.widget.CheckBox
+                consent.isChecked = true
+                stateField.set(session, session.current().copy(snapshotFresh = false))
+                check(submit.performClick())
+                check(field("factoryReset").get(activity) == null) { "stale confirmation created a reset controller" }
+                check(field("directMessage").get(activity) == "设备状态已过期，请刷新后再试") {
+                    "stale confirmation did not fail closed before the reset transaction"
+                }
+                stateField.set(session, session.current().copy(snapshotFresh = true))
+                render.invoke(activity)
+            }
             scene(4)
             capture("update-idle")
             onUi(instrumentation) {

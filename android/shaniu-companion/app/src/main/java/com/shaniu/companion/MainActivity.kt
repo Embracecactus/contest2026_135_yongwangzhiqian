@@ -2130,7 +2130,8 @@ class MainActivity : Activity() {
         if (!bound) page.settingsRow("添加傻妞", "扫描设备屏幕，离线安全认领", iconName = "plus") { startProvisioning() }
         else {
             page.settingsRow("转交或恢复出厂", "清除用户配置，撤销旧控制凭据",
-                enabled = directSession.current().authenticated && !directPending && settingsEditor == null && factoryReset == null,
+                enabled = directSession.current().authenticated && directSession.current().snapshotFresh &&
+                    !directPending && settingsEditor == null && factoryReset == null,
                 danger = true, iconName = "refresh") { confirmFactoryReset() }
             if (com.shaniu.companion.provision.FactoryResetController.hasPending(this, provisionedDeviceId))
                 settingsRow("核对恢复出厂结果", "只查询回执，不重复清理", directSession.current().authenticated && !directPending) { queryFactoryReset() }
@@ -3947,6 +3948,11 @@ class MainActivity : Activity() {
 
     private fun confirmFactoryReset() {
         if (provisionedDeviceId.isBlank() || !directSession.current().authenticated || factoryReset != null) return
+        if (!directSession.current().snapshotFresh) {
+            directMessage = "设备状态已过期，请刷新后再试"
+            render()
+            return
+        }
         val expectedDevice = provisionedDeviceId
         confirm(
             title = "准备交给新主人？",
@@ -3955,6 +3961,11 @@ class MainActivity : Activity() {
         ) {
             if (expectedDevice != provisionedDeviceId || !directSession.current().authenticated || factoryReset != null)
                 return@confirm
+            if (!directSession.current().snapshotFresh) {
+                directMessage = "设备状态已过期，请刷新后再试"
+                render()
+                return@confirm
+            }
             val deviceId = provisionedDeviceId
             factoryReset = com.shaniu.companion.provision.FactoryResetController(this, directSession, deviceId) { state ->
                 if (state.message.isNotBlank()) directMessage = state.message
