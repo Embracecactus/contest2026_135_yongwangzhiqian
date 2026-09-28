@@ -1295,7 +1295,7 @@ static int product_install_eyes(const uint8_t *record, size_t size)
  */
 static struct bkpc_tasks_s g_pc_tasks;
 
-static void product_pc_task_step(uint64_t now, bool admitted)
+static int product_pc_task_step(uint64_t now, bool admitted)
 {
   struct bkprov_pc_snapshot_s view;
   uint64_t binding = 0;
@@ -1304,7 +1304,7 @@ static void product_pc_task_step(uint64_t now, bool admitted)
   if (!admitted)
     {
       bkpc_tasks_step(&g_pc_tasks, now, false);
-      return;
+      return 0;
     }
 
   ret = bkpc_authorization_snapshot(NULL, &binding, &view);
@@ -1315,7 +1315,7 @@ static void product_pc_task_step(uint64_t now, bool admitted)
        * its own monotonic deadline still bounds snapshots and visuals. */
 
       mbedtls_platform_zeroize(&view, sizeof(view));
-      return;
+      return ret;
     }
 
   if (ret == 0 && (view.capabilities & BKPC_CAP_TASKS) != 0)
@@ -1329,6 +1329,7 @@ static void product_pc_task_step(uint64_t now, bool admitted)
 
   mbedtls_platform_zeroize(&view, sizeof(view));
   bkpc_tasks_step(&g_pc_tasks, now, ret == 0);
+  return ret;
 }
 
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
@@ -1456,7 +1457,13 @@ static int product_config(void *context, enum bkcontrol_command_e command,
 
   if (kind == BKCONTROL_CONFIG_PC_TASK)
     {
-      product_pc_task_step(bkvoice_config_now_ms(NULL), g_control_bound);
+      int ret = product_pc_task_step(bkvoice_config_now_ms(NULL),
+                                     g_control_bound);
+      if (ret == -EAGAIN)
+        {
+          return ret;
+        }
+
       return bkpc_tasks_control(&g_pc_tasks, command, offset, record, size,
                                 status, bkvoice_config_now_ms(NULL));
     }

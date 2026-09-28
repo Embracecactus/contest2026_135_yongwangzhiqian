@@ -158,8 +158,10 @@ static int product_test_pc_snapshot(void *context, uint64_t *binding,
  assert(product_config(NULL,BKCONTROL_CONFIG_APPLY,15,0,task,40,&status)==0);
  product_visual_test(task_now);assert(painted==(4u<<8));
  task_now++;
+ unsigned char next[40]={'P','T','E','1',0,0,0,1,8};
+ next[31]=3;next[34]=0x27;next[35]=0x10;
  task_snapshot_eagain=true;
- product_pc_task_step(task_now,true);
+ assert(product_config(NULL,BKCONTROL_CONFIG_APPLY,15,0,next,40,&status)==-EAGAIN);
  task_now++;
  product_pc_task_step(task_now,true);
  product_visual_test(task_now);assert(painted==(4u<<8));
