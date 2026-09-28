@@ -12,6 +12,7 @@ on:
       - 'frameworks/**'
       - 'android/shaniu-companion/**'
       - 'tools/bk7258/**'
+      - 'tests/host/bk7258/**'
       - 'contest2026_135_yongwangzhiqian.xml'
       - 'openvela.xml'
   workflow_dispatch:
@@ -162,6 +163,27 @@ jobs:
             run-cloud-http test-control-session test-control-pair \
             run-agent-tts-queue run-voice-media-player run-agent-capture \
             run-agent-funasr run-agent-final-stream run-agent-endpoint
+
+      - name: Enforce the selected contracts and collector selftests
+        shell: bash
+        env:
+          SHANIU_CONTRACT_OUT: ${{ runner.temp }}/shaniu-contracts
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/shaniu-cold/contest2026_135_yongwangzhiqian"
+          python3 tests/host/bk7258/test_shaniu_runner_gate.py
+          make -C tests/host/bk7258 run-shaniu-contracts
+
+      - name: Preserve contract results on success or failure
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: shaniu-contracts-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/shaniu-contracts/*.json
+            ${{ runner.temp }}/shaniu-contracts/*.log
+          retention-days: 7
+          if-no-files-found: warn
 
       - name: Stage public delivery evidence without the development private key
         shell: bash

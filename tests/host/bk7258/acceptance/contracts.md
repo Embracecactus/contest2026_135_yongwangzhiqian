@@ -983,3 +983,28 @@ real BLE, actual SD or full paired PC acceptance. Native Android catalog picker
 remains separate outstanding work. Browser layout/DOM states and native protocol
 integration are separate evidence layers; no synthetic screenshot is hardware
 proof. No automatic refresh loop, firmware downgrade, MSC or arbitrary file path.
+
+## R1 CP outcome reconciliation (2026-09-28)
+
+LIFE-02 extends the existing 30 s exit budget across CP acceptance/query; this
+is a bounded failure policy, not a measured hardware completion guarantee.
+An explicit new off intent during pending returns in-progress without sending
+another CP request or renewing the deadline. After timeout, a new intent first
+queries CP: unknown or still pending retains stopped resources and reports the
+outcome; only an explicit not-pending response permits a new request. Late or
+repeated positive responses cannot restore resources or declare sleep success.
+An initial explicit refusal permits a fresh intent retry. Existing K2 edge,
+session, clock and chord protection remains unchanged. Hardware deep sleep and
+physical K2 are separate, unavailable without independent recovery/fixture proof.
+
+Development prepare-only validation is default-off and creates no remote command.
+An explicit diagnostic build supplies a one-shot software intent only after
+local listening is running and the voice session is idle. It exercises the
+production coordinator and actual participants, then blocks the sole final CP
+request after acknowledgements/sync. Stopped resources remain stopped; operator
+normal reset/download restores service. No sleep, physical key, current or
+acoustic acceptance is inferred. Normal release configuration must disable it.
+R2: contract, fixture and runner changes trigger the existing source workflow;
+its required job runs selected-contract completeness and collector selftests,
+fails normally, and retains result/log evidence even on failure. Future manual
+L3 specifications are not added to the executable set.

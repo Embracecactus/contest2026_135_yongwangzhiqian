@@ -58,6 +58,18 @@ config BK7258_PRODUCT_KEYS
 		the shared block-device lease so an active MSC export rejects the request.
 		Without the PM option the request reports ENOTSUP.
 
+config BK7258_POWER_PREPARE_VALIDATION
+	bool "Development-only automatic power preparation validation"
+	default n
+	depends on BK7258_APP_AGENT && BK7258_PRODUCT_KEYS && BK7258_PM_SOFT_OFF
+	help
+		One-shot development firmware: after local listening starts, feed an
+		explicit diagnostic intent to the real product exit coordinator.
+		Stop before the CP power request; retain stopped resources until a
+		normal operator-controlled reboot. Never enters deep sleep or clears
+		configuration. No remote command or physical-key acceptance is added.
+		Keep disabled in normal product and release configurations.
+
 config BK7258_APP_DISPLAY
 	bool "BK7258 Shaniu display command (bkdisplay)"
 	default n

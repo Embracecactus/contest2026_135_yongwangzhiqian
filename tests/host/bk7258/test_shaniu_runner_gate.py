@@ -19,6 +19,41 @@ import test_shaniu_contracts as runner
 JVM_IDS = [ident for ident in runner.REQUIRED if ident.startswith(("ota.", "provision."))]
 
 
+class CiContractGateTest(unittest.TestCase):
+    def workflow(self):
+        import yaml
+        path = runner.ROOT / ".github/workflows/shaniu-source-checks.yml"
+        return yaml.load(path.read_text(), Loader=yaml.BaseLoader)
+
+    def test_contract_inputs_trigger_formal_workflow(self):
+        import fnmatch
+        paths = self.workflow()["on"]["push"]["paths"]
+        for relative in (
+            "tests/host/bk7258/acceptance/contracts.md",
+            "tests/host/bk7258/acceptance/required-units.v1.json",
+            "tests/host/bk7258/test_shaniu_contracts.py",
+            "tests/host/bk7258/test_shaniu_runner_gate.py",
+            "tests/host/bk7258/mocks/nuttx/config.h",
+        ):
+            self.assertTrue(any(fnmatch.fnmatchcase(relative, p) for p in paths), relative)
+
+    def test_contracts_and_collector_selftest_are_enforced_with_evidence(self):
+        jobs = self.workflow()["jobs"]
+        for command in ("run-shaniu-contracts", "test_shaniu_runner_gate.py"):
+            matches = [(job, step) for job in jobs.values() for step in job["steps"]
+                       if command in step.get("run", "")]
+            self.assertTrue(matches, command)
+            for job, step in matches:
+                self.assertNotEqual(job.get("continue-on-error"), "true")
+                self.assertNotEqual(step.get("continue-on-error"), "true")
+                self.assertNotIn("|| true", step["run"])
+                self.assertIn("set -e", step["run"])
+                self.assertTrue(any(s.get("if") == "always()" and
+                    "upload-artifact@" in s.get("uses", "") and
+                    "contract" in s.get("with", {}).get("name", "")
+                    for s in job["steps"]))
+
+
 class JunitGateTest(unittest.TestCase):
     def collect(self, fault=None):
         with tempfile.TemporaryDirectory(prefix="shaniu-gate-") as directory:

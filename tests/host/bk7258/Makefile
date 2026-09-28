@@ -1885,6 +1885,11 @@ $(BUILD)/test_shaniu_power_contract: test_shaniu_power_contract.c \
     $(VOICE_PACK_ROOT)/bk7258_agent_product_power.inc | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) $< -o $@
 
+$(BUILD)/test_shaniu_power_prepare: test_shaniu_power_contract.c \
+    $(VOICE_PACK_ROOT)/bk7258_agent_product_power.inc | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -DCONFIG_BK7258_POWER_PREPARE_VALIDATION=1 \
+	    -I $(VOICE_PACK_ROOT) $< -o $@
+
 $(BUILD)/test_shaniu_control_quiesce: test_shaniu_control_quiesce.c \
     $(VOICE_PACK_ROOT)/bk7258_control_session.c $(VOICE_PACK_ROOT)/bk7258_control_session.h | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) $< \

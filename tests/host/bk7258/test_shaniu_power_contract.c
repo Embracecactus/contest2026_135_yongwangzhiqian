@@ -151,6 +151,69 @@ static int bkvoice_volume_store_set(unsigned int volume) { (void)volume; return 
 int main(int argc, char **argv)
 {
   assert(argc == 2);
+  if (!strcmp(argv[1], "prepare-only"))
+    {
+      /* Development firmware may exercise the real exit participants but
+       * must never submit the final power transition. This is a diagnostic
+       * safety contract, not physical K2/deep-sleep acceptance.
+       */
+      assert(product_keys_step(now));
+      assert(cp_calls == 0);
+      assert(storage_closed && trigger_closed && transport_closed && leased);
+      assert(vision_closed && haptic_closed && nfc_closed && motion_closed);
+      now = 40000;
+      assert(product_keys_step(now));
+      assert(cp_calls == 0 && reopens == 0);
+      puts("CONTRACT_PASS");
+      return 0;
+    }
+  if (!strcmp(argv[1], "cp-new-pending") ||
+      !strcmp(argv[1], "cp-retry-unknown") ||
+      !strcmp(argv[1], "cp-retry-pending") ||
+      !strcmp(argv[1], "cp-retry-declined"))
+    {
+      assert(product_keys_step(now));
+      bool during = !strcmp(argv[1], "cp-new-pending");
+      now = during ? 1000 : 30000;
+      assert(product_keys_step(now));
+      cp_status = !strcmp(argv[1], "cp-retry-unknown") ? -ETIMEDOUT :
+                  !strcmp(argv[1], "cp-retry-declined") ? 0 : 1;
+      key_power = true;
+      assert(product_keys_step(++now));
+      assert(reopens == 0 && storage_closed && trigger_closed);
+      assert(cp_calls == (cp_status == 0 ? 2u : 1u));
+      if (cp_status != 0)
+        {
+          assert(g_product_error == (cp_status < 0 ? -ETIMEDOUT : -EINPROGRESS));
+          assert(display_phase == (during ? 2 : 3));
+        }
+      else assert(display_phase == 2);
+      puts("CONTRACT_PASS");
+      return 0;
+    }
+  if (!strcmp(argv[1], "cp-pending-deadline") ||
+      !strcmp(argv[1], "cp-unknown-deadline"))
+    {
+      /* LIFE-02: the existing 30 s overall exit budget includes CP waiting.
+       * Acceptance is not completion; timeout must retain stopped resources
+       * and report failure, never reset the deadline or reopen admission.
+       */
+      cp_status = !strcmp(argv[1], "cp-unknown-deadline") ? -ETIMEDOUT : 1;
+      assert(product_keys_step(now));
+      now = 29999;
+      assert(product_keys_step(now));
+      assert(display_phase == 2 && cp_calls == 1 && reopens == 0);
+      now = 30000;
+      assert(product_keys_step(now));
+      assert(display_phase == 3 && g_product_error == -ETIMEDOUT);
+      cp_status = 1; /* A late CP acceptance cannot undo the timeout. */
+      now = 31000;
+      assert(product_keys_step(now));
+      assert(display_phase == 3 && cp_calls == 1 && reopens == 0);
+      assert(storage_closed && trigger_closed && transport_closed);
+      puts("CONTRACT_PASS");
+      return 0;
+    }
   if (!strcmp(argv[1], "motion-busy") || !strcmp(argv[1], "motion-failed"))
     {
       bool failed = !strcmp(argv[1], "motion-failed");

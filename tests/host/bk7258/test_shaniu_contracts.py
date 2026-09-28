@@ -453,6 +453,7 @@ def main():
         "test_shaniu_volume_transition",
         "test_bk7258_agent_capture",
         "test_shaniu_power_contract",
+        "test_shaniu_power_prepare",
         "test_shaniu_motion_quiesce",
         "test_shaniu_motion_actions",
         "test_shaniu_power_pixels",
@@ -803,11 +804,17 @@ def main():
         add(suite, "MOT-01.quiesce-" + variant, "MOT-01", "L2",
             [HERE / "build/test_shaniu_motion_quiesce", variant],
             binaries["test_shaniu_motion_quiesce"])
+    add(suite, "LIFE-02.power-prepare-only", "LIFE-02", "L1",
+        [HERE / "build/test_shaniu_power_prepare", "prepare-only"],
+        binaries["test_shaniu_power_prepare"])
     for variant in ("motion-busy", "motion-failed"):
         add(suite, "LIFE-01." + variant, "LIFE-01", "L1",
             [HERE / "build/test_shaniu_power_contract", variant],
             binaries["test_shaniu_power_contract"])
-    for variant in ("usb-failed", "usb-close", "pack-busy", "pack-failed"):
+    for variant in ("usb-failed", "usb-close", "pack-busy", "pack-failed",
+                    "cp-pending-deadline", "cp-unknown-deadline",
+                    "cp-new-pending", "cp-retry-unknown",
+                    "cp-retry-pending", "cp-retry-declined"):
         add(suite, "LIFE-02.power-" + variant, "LIFE-02", "L1",
             [HERE / "build/test_shaniu_power_contract", variant],
             binaries["test_shaniu_power_contract"])

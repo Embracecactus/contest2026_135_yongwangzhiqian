@@ -4,6 +4,7 @@
 
 #if defined(CONFIG_BK7258_PRODUCT_KEYS) && defined(CONFIG_BK7258_PM_SOFT_OFF)
 static bool g_power_pending;
+static bool g_power_unresolved;
 static bool g_shutdown_requested;
 static bool g_shutdown_failed;
 static uint64_t g_shutdown_deadline;
@@ -13,6 +14,9 @@ static bool g_power_trigger_stopped;
 static bool g_power_vision_quiesced;
 static bool g_power_haptic_quiesced;
 static uint64_t g_power_query_at;
+#ifdef CONFIG_BK7258_POWER_PREPARE_VALIDATION
+static bool g_power_validation_started;
+#endif
 #endif
 
 #ifdef CONFIG_BK7258_PM_SOFT_OFF
@@ -101,6 +105,15 @@ static int product_power_request(void)
   ret = bkprov_owner_quiesce(true);
   if (ret < 0) return ret;
   sync();
+#ifdef CONFIG_BK7258_POWER_PREPARE_VALIDATION
+  /* This guard is before the sole final power request, including retries.
+   * All participants above are the production implementations. CP/NSH stays
+   * available for the normal reboot used to restore a diagnostic run.
+   */
+  syslog(LOG_NOTICE, "BKPOWER prepare-only complete; CP request blocked\n");
+  product_power_fail(-ECANCELED);
+  return -ECANCELED;
+#endif
   ret = bk7258_pm_soft_off_request();
   if (ret < 0)
     {
@@ -116,6 +129,7 @@ static int product_power_request(void)
     }
 
   g_power_pending = true;
+  g_power_unresolved = true;
   g_power_query_at = bkvoice_config_now_ms(NULL) + 500;
   return ret;
 
@@ -133,6 +147,15 @@ static bool product_keys_step(uint64_t now)
   int ret;
   bool power;
   bkvoice_keys_take(&steps, &power);
+#ifdef CONFIG_BK7258_POWER_PREPARE_VALIDATION
+  if (!g_power_validation_started && g_trigger_started &&
+      atomic_load(&g_voice_initialized) && voice_channel_is_idle())
+    {
+      g_power_validation_started = true;
+      power = true;
+      syslog(LOG_NOTICE, "BKPOWER intent source=development-prepare-only\n");
+    }
+#endif
 #if defined(CONFIG_BK7258_PM_SOFT_OFF) && defined(CONFIG_BK7258_DISPLAY_SERVICE)
   if (!g_power_pending && !g_shutdown_requested && !g_shutdown_failed)
     (void)bk7258_display_power(bkvoice_keys_power_held() ? 1 : 0);
@@ -140,18 +163,50 @@ static bool product_keys_step(uint64_t now)
 #ifdef CONFIG_BK7258_PM_SOFT_OFF
   if (g_power_pending)
     {
-      if (now >= g_power_query_at)
+      if (power)
+        {
+          g_product_error = -EINPROGRESS;
+          syslog(LOG_INFO, "BKKEYS power already pending; no resubmit\n");
+        }
+      /* CP acceptance is not proof that reset/sleep completed. Keep the
+       * original exit deadline across this phase, including lost replies.
+       * On expiry leave resources stopped; never infer successful power-off.
+       */
+      if (now >= g_shutdown_deadline)
+        {
+          product_power_fail(-ETIMEDOUT);
+          syslog(LOG_ERR, "BKKEYS CP power completion timeout; intent retained\n");
+        }
+      else if (now >= g_power_query_at)
         {
           ret = bk7258_pm_soft_off_status();
           g_power_query_at = now + 500;
           if (ret == 0)
             {
+              g_power_unresolved = false;
               product_power_fail(-ECANCELED);
               syslog(LOG_WARNING, "BKKEYS power not accepted; intent retained\n");
             }
         }
 
       return g_power_pending || g_shutdown_failed;
+    }
+
+  if (power && g_power_unresolved)
+    {
+      /* A new intent is not evidence that the earlier CP request failed.
+       * Reconcile before retrying; keep both admission and resources stopped
+       * while CP still owns a pending request or its answer is unavailable.
+       */
+      ret = bk7258_pm_soft_off_status();
+      if (ret != 0)
+        {
+          product_power_fail(ret < 0 ? ret : -EINPROGRESS);
+          syslog(LOG_WARNING, "BKKEYS power retry unresolved=%d; no resubmit\n", ret);
+          return true;
+        }
+
+      g_power_unresolved = false;
     }
 
   if (g_shutdown_failed && !power)

@@ -698,7 +698,14 @@
     "RES-02.web-display-tls-catalog_lifecycle",
     "RES-02.web-display-tls-catalog_cancel_recovery",
     "RES-02.web-display-tls-catalog_stale_receipt",
-    "UI-01.catalog-browser-gates"
+    "UI-01.catalog-browser-gates",
+    "LIFE-02.power-cp-pending-deadline",
+    "LIFE-02.power-cp-unknown-deadline",
+    "LIFE-02.power-cp-new-pending",
+    "LIFE-02.power-cp-retry-unknown",
+    "LIFE-02.power-cp-retry-pending",
+    "LIFE-02.power-cp-retry-declined",
+    "LIFE-02.power-prepare-only"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1400,6 +1407,13 @@
     "RES-02.web-display-tls-catalog_lifecycle",
     "RES-02.web-display-tls-catalog_cancel_recovery",
     "RES-02.web-display-tls-catalog_stale_receipt",
-    "UI-01.catalog-browser-gates"
+    "UI-01.catalog-browser-gates",
+    "LIFE-02.power-cp-pending-deadline",
+    "LIFE-02.power-cp-unknown-deadline",
+    "LIFE-02.power-cp-new-pending",
+    "LIFE-02.power-cp-retry-unknown",
+    "LIFE-02.power-cp-retry-pending",
+    "LIFE-02.power-cp-retry-declined",
+    "LIFE-02.power-prepare-only"
   ]
 }
