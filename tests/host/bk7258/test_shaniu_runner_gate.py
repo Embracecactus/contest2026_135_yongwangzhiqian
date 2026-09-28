@@ -6,8 +6,10 @@ The external Gradle command and report files are fixtures. The real collector
 and gate must reject bad evidence without running Gradle or product logic.
 """
 import json
+import hashlib
 import os
 from pathlib import Path
+import sys
 import tempfile
 import time
 import unittest
@@ -15,6 +17,7 @@ from unittest.mock import patch
 import xml.etree.ElementTree as ET
 
 import test_shaniu_contracts as runner
+import test_pack_trial as pack_trial
 
 JVM_IDS = [ident for ident in runner.REQUIRED if ident.startswith(("ota.", "provision."))]
 
@@ -193,6 +196,67 @@ class SelectedCollectionGateTest(unittest.TestCase):
 
     def test_empty_selection_cannot_pass(self):
         self.assertTrue(runner.collection_errors([], []))
+
+
+class ColdFixtureGateTest(unittest.TestCase):
+    def test_pack_trial_tls_build_is_shared_by_selected_cases(self):
+        with tempfile.TemporaryDirectory(prefix="shaniu-pack-tls-") as directory, \
+             patch.object(runner, "OUT", Path(directory)), \
+             patch.object(runner, "build", return_value=True) as build, \
+             patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("SHANIU_PACK_TRIAL_TLS_BUILD", None)
+            self.assertTrue(runner.prepare_pack_trial_tls())
+            build.assert_called_once()
+            command = [str(value) for value in build.call_args.args[0]]
+            self.assertEqual(command[0], sys.executable)
+            self.assertEqual(command[1], str(runner.HERE / "test_pack_trial.py"))
+            self.assertEqual(command[2], "build-tls")
+            shared = Path(os.environ["SHANIU_PACK_TRIAL_TLS_BUILD"])
+            self.assertEqual(shared, Path(directory) / "pack-trial-tls")
+
+    def test_pack_trial_uses_shared_tls_build_and_incremental_gradle(self):
+        shared = Path("/tmp/shaniu-pack-trial-shared")
+        with patch.dict(os.environ, {"SHANIU_PACK_TRIAL_TLS_BUILD": str(shared)}):
+            self.assertEqual(pack_trial.tls_build_path(Path("/tmp/per-case")), shared)
+        command = pack_trial.android_gradle_command("example.Test", "method")
+        self.assertIn("--tests", command)
+        self.assertIn("example.Test.method", command)
+        self.assertIn("--no-build-cache", command)
+        self.assertNotIn("--rerun-tasks", command)
+
+    def test_pack_trial_invalidates_only_selected_junit_evidence(self):
+        with tempfile.TemporaryDirectory(prefix="shaniu-junit-refresh-") as directory:
+            root = Path(directory)
+            report = root / "reports" / "TEST-example.Test.xml"
+            compiled = root / "classes" / "Example.class"
+            report.parent.mkdir()
+            compiled.parent.mkdir()
+            report.write_text("old report")
+            compiled.write_bytes(b"compiled input")
+            pack_trial.invalidate_junit_report(report)
+            self.assertFalse(report.exists())
+            self.assertEqual(compiled.read_bytes(), b"compiled input")
+
+    def test_timeout_quiesces_descendants_and_freezes_evidence(self):
+        with tempfile.TemporaryDirectory(prefix="shaniu-command-tree-") as directory:
+            out = Path(directory)
+            child = out / "child.py"
+            child.write_text(
+                "import subprocess,sys,time\n"
+                "subprocess.Popen([sys.executable, '-c', "
+                "'import time; time.sleep(0.25); print(\\\"LATE_SENTINEL\\\", flush=True)'])\n"
+                "time.sleep(5)\n"
+            )
+            with patch.object(runner, "OUT", out):
+                code, _ = runner.command(
+                    [sys.executable, child], "tree.log", timeout=0.05
+                )
+            self.assertEqual(code, 124)
+            before = hashlib.sha256((out / "tree.log").read_bytes()).hexdigest()
+            time.sleep(0.4)
+            data = (out / "tree.log").read_bytes()
+            self.assertNotIn(b"LATE_SENTINEL", data)
+            self.assertEqual(before, hashlib.sha256(data).hexdigest())
 
 
 class NestedTlsGateTest(unittest.TestCase):

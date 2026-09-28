@@ -16,7 +16,59 @@ APP = ROOT / "app/bk7258"
 HERE = ROOT / "tests/host/bk7258"
 
 
+def build_tls_crypto(build):
+    crypto = ROOT.parent / "apps/crypto/mbedtls/mbedtls"
+    build.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        [
+            "cmake",
+            "-S",
+            str(crypto),
+            "-B",
+            str(build),
+            "-DENABLE_PROGRAMS=OFF",
+            "-DENABLE_TESTING=OFF",
+            "-DCMAKE_C_FLAGS=-Wno-error=missing-prototypes",
+            "-DCMAKE_BUILD_TYPE=Release",
+        ],
+        check=True,
+    )
+    subprocess.run(["cmake", "--build", str(build), "-j8"], check=True)
+    for name in ("mbedtls", "mbedx509", "mbedcrypto"):
+        if not (build / "library" / ("lib" + name + ".a")).is_file():
+            raise RuntimeError("missing shared TLS fixture library: " + name)
+    return build
+
+
+def tls_build_path(per_case):
+    shared = os.environ.get("SHANIU_PACK_TRIAL_TLS_BUILD")
+    return Path(shared) if shared else build_tls_crypto(per_case / "crypto")
+
+
+def android_gradle_command(name, method):
+    return [
+        "./gradlew",
+        ":app:testDebugUnitTest",
+        "--offline",
+        "--no-build-cache",
+        "--tests",
+        name + "." + method,
+    ]
+
+
+def invalidate_junit_report(report):
+    try:
+        report.unlink()
+    except FileNotFoundError:
+        pass
+
+
 def main():
+    if len(sys.argv) == 3 and sys.argv[1] == "build-tls":
+        build_tls_crypto(Path(sys.argv[2]))
+        return 0
+    if len(sys.argv) != 2:
+        raise RuntimeError("one pack-trial selector is required")
     source = (APP / "bk7258_display_service.c").read_text()
     fragments = []
     for marker in (
@@ -120,25 +172,11 @@ def main():
             from tls_test_identity import issue
 
             crypto = ROOT.parent / "apps/crypto/mbedtls/mbedtls"
-            build = temp / "crypto"
+            build = tls_build_path(temp)
 
             def run(args):
                 subprocess.run([str(x) for x in args], check=True)
 
-            run(
-                [
-                    "cmake",
-                    "-S",
-                    crypto,
-                    "-B",
-                    build,
-                    "-DENABLE_PROGRAMS=OFF",
-                    "-DENABLE_TESTING=OFF",
-                    "-DCMAKE_C_FLAGS=-Wno-error=missing-prototypes",
-                    "-DCMAKE_BUILD_TYPE=Release",
-                ]
-            )
-            run(["cmake", "--build", build, "-j8"])
             issue(run, temp)
             print(
                 "TLS_CERT_SHA256="
@@ -260,16 +298,15 @@ def main():
                 if trial
                 else "DefaultSelectionNativeTlsTest"
             )
+            report = (
+                app
+                / "app/build/test-results/testDebugUnitTest"
+                / ("TEST-" + name + ".xml")
+            )
+            invalidate_junit_report(report)
             start = time.time()
             result = subprocess.run(
-                [
-                    "./gradlew",
-                    ":app:testDebugUnitTest",
-                    "--offline",
-                    "--rerun-tasks",
-                    "--tests",
-                    name + "." + method,
-                ],
+                android_gradle_command(name, method),
                 cwd=app,
                 timeout=180,
                 env=dict(
@@ -278,11 +315,6 @@ def main():
                     SHANIU_TEST_CERT=str(temp / "cert.pem"),
                     SHANIU_TEST_KEY=str(temp / "key.pem"),
                 ),
-            )
-            report = (
-                app
-                / "app/build/test-results/testDebugUnitTest"
-                / ("TEST-" + name + ".xml")
             )
             if not report.exists() or report.stat().st_mtime < start:
                 raise RuntimeError("missing/stale native TLS JUnit report")

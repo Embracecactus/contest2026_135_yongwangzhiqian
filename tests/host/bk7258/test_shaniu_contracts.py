@@ -13,6 +13,7 @@ import json
 from pathlib import Path
 import platform
 import resource
+import signal
 import shutil
 import subprocess
 import sys
@@ -64,14 +65,26 @@ def command(args, log, cwd=HERE, timeout=180):
         stream.write(json.dumps([str(a) for a in args]) + "\n")
         stream.flush()
         try:
-            result = subprocess.run(
+            process = subprocess.Popen(
                 [str(a) for a in args],
                 cwd=cwd,
                 stdout=stream,
                 stderr=subprocess.STDOUT,
-                timeout=timeout,
+                start_new_session=True,
             )
-            code = result.returncode
+            try:
+                code = process.wait(timeout=timeout)
+            except subprocess.TimeoutExpired as error:
+                if os.name == "posix":
+                    try:
+                        os.killpg(process.pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                else:
+                    process.kill()
+                process.wait()
+                stream.write(type(error).__name__ + ": " + str(error) + "\n")
+                code = 124
         except (OSError, subprocess.TimeoutExpired) as error:
             stream.write(type(error).__name__ + ": " + str(error) + "\n")
             code = 124
@@ -83,6 +96,15 @@ def build(args, label):
     code, duration = command(args, log)
     BUILDS.append(dict(id=label, exit_code=code, seconds=duration, evidence=log))
     return code == 0
+
+
+def prepare_pack_trial_tls():
+    destination = OUT / "pack-trial-tls"
+    os.environ["SHANIU_PACK_TRIAL_TLS_BUILD"] = str(destination)
+    return build(
+        [sys.executable, HERE / "test_pack_trial.py", "build-tls", destination],
+        "build-pack-trial-tls",
+    )
 
 
 def case(case_id, parent, layer, args, ready=True, marker=True, setup_exit_code=None):
@@ -440,6 +462,7 @@ def main():
     before = production_digest()
     suite = unittest.TestSuite()
     binaries = {}
+    prepare_pack_trial_tls()
     for target in (
         "test_control_serial",
         "test_pc_grants",
