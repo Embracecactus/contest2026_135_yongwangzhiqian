@@ -3357,3 +3357,14 @@ mutex被占用时，NULL认领清理返回`-EBUSY`。现清理只在既有intent
 哈希、frontend 1、阈值85、配置revision 6及眼睛包revision 3。中间682的首个
 槽位观察器错误、二维码夹具SETUP_ERROR与原始日志均保留，未改写成业务结果。
 证据摘要见`acceptance/life01-onboarding-exit-evidence-20260929.json`。
+
+### LIFE-02：AP/CP 丢回复事务重放
+
+新增 `LIFE-02.power-cp-lost-reply-replay`，分别编译实际 AP PM client 与 CP PM
+server，仅替换 RPMsg peer、确定性等待及硬件边界。首个已提交回复丢失后，AP
+只重发同一 generation/sequence，CP 只执行一次 soft-off 并返回缓存结果；同序号
+改内容和旧序号分别拒绝且无副作用。旧生产实现基线即通过，没有制造产品 Red，
+也没有修改生产代码。该 L2 证据不代表产品协调器、深睡、物理 K2 或实板恢复通过。
+正式选择集合 780/780 PASS，运行器自测 27 PASS；隔离关闭 CP 重放缓存的可编译
+变异被一次执行副作用断言检出。证据见
+`acceptance/r1-pm-replay-evidence-20260929.json`。

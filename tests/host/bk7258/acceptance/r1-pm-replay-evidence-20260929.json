@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "date": "2026-09-29",
+  "production_head": "0aacaf8a2ad2b3d2f5331297032b53afd69d644c",
+  "agent_head": "f1a5e35a30d728613f52fb1007e8471a2dd3dc78",
+  "submission_commit": "see commit containing this evidence",
+  "contract_id": "LIFE-02.power-cp-lost-reply-replay",
+  "layer": "L2",
+  "production_changed": false,
+  "inputs": {
+    "chips/bk7258/ap/bk7258_pm_client.c": "ef99b08a878278b7495269d3edadbff118775a60d3d504c0eddf1dfd280ed72c",
+    "chips/bk7258/cp/bk7258_pm_server.c": "9ff44a7e435b09d2a28ac0695c982fbb4af79f6d115f7e9af39f1441676ebc5a",
+    "tests/host/bk7258/test_bk7258_pm_replay.c": "bc9f4e02669973756195c9412744af753cb8ad9d9f7acdb84a004235e8b84858",
+    "tests/host/bk7258/mocks/pm_replay/arm_internal.h": "607d00f1fd55b1d3114adeae1ba2f937b94d6ae4651847c02ba49853b3a65dda",
+    "tests/host/bk7258/mocks/pm_replay/nuttx/rpmsg/rpmsg.h": "9afe58374b69e29774bd156e32ff9ae6aa4ac8b9ea5dd8abe4ec5f25b3feeffb"
+  },
+  "initial_fixture_result": {
+    "status": "SETUP_ERROR",
+    "reason": "host copy did not yet neutralize the CP ARM dmb instruction",
+    "evidence": "out/r1-pm-replay/baseline-build-run.log",
+    "sha256": "bdd4b3d61a0f09dc10b8cfda1995e78ab43ee76b3d319ad6cc80ea8b5157b63b"
+  },
+  "production_baseline_result": {
+    "status": "PASS",
+    "production_change_before_result": false,
+    "evidence": "out/r1-pm-replay/baseline-build-run-2.log",
+    "sha256": "11bdb1ebbd84655a74f3f0f987b1470f5f31ceba10894ecaaccb5cbd063344e1"
+  },
+  "detection_mutation": {
+    "mutation": "disable CP replay cache publication",
+    "source_sha256": "9ff44a7e435b09d2a28ac0695c982fbb4af79f6d115f7e9af39f1441676ebc5a",
+    "compile_exit_code": 0,
+    "link_exit_code": 0,
+    "run_exit_code": -6,
+    "detected": true,
+    "output_tail": "test_bk7258_pm_replay_mutated: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_bk7258_pm_replay.c:398: main: Assertion `g_soft_off_calls == 1' failed.\n"
+  },
+  "full_gate": {
+    "counts": {
+      "PASS": 780,
+      "FAIL_ASSERTION": 0,
+      "SETUP_ERROR": 0,
+      "NOT_RUN": 0
+    },
+    "selected": 780,
+    "collected": 780,
+    "collection_errors": [],
+    "production_unchanged": true,
+    "case": {
+      "id": "LIFE-02.power-cp-lost-reply-replay",
+      "parent": "LIFE-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0018172190175391734,
+      "evidence": "LIFE-02.power-cp-lost-reply-replay.log",
+      "evidence_sha256": "70bee831a3b15c67bbebda2fe2ce7c7dae7addc92bc1058737f9f00b741bc908"
+    },
+    "evidence": "out/r1-pm-replay/contracts/results.json",
+    "sha256": "0a7d49f0edfefda25d02dbcc553989a33639f46b6c552e0c597e7bf3a6dc2dcb"
+  },
+  "runner_self_test": {
+    "tests": 27,
+    "status": "PASS"
+  },
+  "hil": {
+    "status": "NOT_RUN",
+    "reason": "no firmware production input changed; existing deployed identity remains the prior verified build"
+  },
+  "limits": [
+    "does not execute the product power coordinator",
+    "does not prove deep sleep or physical K2 input",
+    "does not prove independent board recovery"
+  ]
+}

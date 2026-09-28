@@ -42,6 +42,11 @@ PARTITION_HEADER := $(PARTITION_DIR)/bk7258_partitions.h
 TARGET  := $(BUILD)/test_bk7258_rptun_mbox
 POLICY_TARGET := $(BUILD)/test_boot_bl1_policy
 PM_ACTIVITY_TARGET := $(BUILD)/test_bk7258_pm_activity
+PM_REPLAY_DIR := $(BUILD)/pm-replay
+PM_REPLAY_INC := $(PM_REPLAY_DIR)/include
+PM_REPLAY_TARGET := $(BUILD)/test_bk7258_pm_replay
+PM_REPLAY_AP_OBJ := $(PM_REPLAY_DIR)/bk7258_pm_client.o
+PM_REPLAY_CP_OBJ := $(PM_REPLAY_DIR)/bk7258_pm_server.o
 RPTUN_CORE_CP_TARGET := $(BUILD)/test_bk7258_rptun_core_cp
 RPTUN_CORE_AP_TARGET := $(BUILD)/test_bk7258_rptun_core_ap
 STAGE_RUNNER_TARGET := $(BUILD)/test_bk7258_stage_runner
@@ -115,6 +120,26 @@ RESET_MARKER_TEST_SRCS := test_bk7258_reset_marker.c \
 POLICY_CFLAGS := -std=c11 -Wall -Wextra -Werror -O1 -g \
 	-fsanitize=address,undefined -fno-omit-frame-pointer
 PM_ACTIVITY_CFLAGS := -std=c11 -Wall -Wextra -Werror -O2
+PM_REPLAY_CFLAGS := -std=gnu11 -Wall -Wextra -Werror -O2 -pthread \
+	-ffunction-sections -fdata-sections -DCONFIG_BK7258_PM_CLOCK \
+	-DCONFIG_BK7258_PM_SOFT_OFF -DBK7258_PWR_MNG_ADDR=0 \
+	-DBK7258_PWR_AP_SLEEP_VOTE_OFFSET=0 \
+	-DBK7258_PWR_AP_CLOCK_VOTE_OFFSET=8 -DFAR= \
+	-include $(MOCKS)/nuttx/spinlock.h
+PM_REPLAY_INC_FLAGS := -I $(PM_REPLAY_INC) -I $(MOCKS)/pm_replay \
+	-I $(MOCKS) -I $(CHIP_ROOT)/common
+PM_REPLAY_AP_RENAMES := -Dbk7258_pm_initialize=ap_pm_initialize \
+	-Dbk7258_pm_soft_off_request=ap_pm_soft_off_request \
+	-Dbk7258_pm_soft_off_status=ap_pm_soft_off_status \
+	-Dbk7258_pm_clock_get=ap_pm_clock_get \
+	-Dbk7258_pm_clock_put=ap_pm_clock_put \
+	-Dbk7258_pm_frequency_vote=ap_pm_frequency_vote \
+	-Dbk7258_pm_frequency_get_status=ap_pm_frequency_get_status
+PM_REPLAY_CP_RENAMES := -Dbk7258_pm_initialize=cp_pm_initialize \
+	-Dbk7258_pm_soft_off_request=cp_pm_soft_off_request \
+	-Dbk7258_pm_soft_off_status=cp_pm_soft_off_status \
+	-Dbk7258_pm_frequency_vote=cp_pm_frequency_vote \
+	-Dbk7258_pm_frequency_get_status=cp_pm_frequency_get_status
 RPTUN_CORE_CFLAGS := -std=c11 -Wall -Wextra -Werror -O2 \
 	-DTEST_BK7258_RPTUN_CORE
 STAGE_RUNNER_CFLAGS := -std=c11 -Wall -Wextra -Werror -O2 -pthread
@@ -243,7 +268,7 @@ MEDIA_INCLUDE := $(OPENVELA_ROOT)/apps/frameworks/multimedia/media/include
 			run-voice-media-recorder \
 		ota-confirmation run-provision
 
-.PHONY: run-media-audio-session run-wifi-native-lease
+.PHONY: run-media-audio-session run-wifi-native-lease run-pm-replay
 .PHONY: run-motion-rpc run-nfc-rpc
 
 check:
@@ -273,7 +298,7 @@ check-package-tools:
 	@python3 ./test_bk7258_display_assets.py
 	@python3 ./test_bk7258_aidk_hil_contract.py
 
-all: $(TARGET) $(POLICY_TARGET) $(PM_ACTIVITY_TARGET) \
+all: $(TARGET) $(POLICY_TARGET) $(PM_ACTIVITY_TARGET) $(PM_REPLAY_TARGET) \
 	$(RPTUN_CORE_CP_TARGET) $(RPTUN_CORE_AP_TARGET) \
 	$(STAGE_RUNNER_TARGET) $(SDK_RUNTIME_TARGET) \
 	$(CP_PLATFORM_SUCCESS_TARGET) \
@@ -985,6 +1010,41 @@ $(PM_ACTIVITY_TARGET): test_bk7258_pm_activity.c \
 	  -I $(CHIP_ROOT)/common \
 	  -o $@
 
+$(PM_REPLAY_INC)/arch/chip/bk7258_pm.h: $(CHIP_ROOT)/include/bk7258_pm.h
+	mkdir -p $(dir $@)
+	cp $< $@
+
+$(PM_REPLAY_DIR)/bk7258_pm_client.c: $(CHIP_ROOT)/ap/bk7258_pm_client.c | $(BUILD)
+	mkdir -p $(dir $@)
+	sed 's/__asm volatile ("dmb sy" ::: "memory");/__asm__ volatile ("" ::: "memory");/g' $< > $@
+
+$(PM_REPLAY_DIR)/bk7258_pm_server.c: $(CHIP_ROOT)/cp/bk7258_pm_server.c | $(BUILD)
+	mkdir -p $(dir $@)
+	sed 's/__asm volatile ("dmb sy" ::: "memory");/__asm__ volatile ("" ::: "memory");/g' $< > $@
+
+$(PM_REPLAY_AP_OBJ): $(PM_REPLAY_DIR)/bk7258_pm_client.c \
+	$(PM_REPLAY_INC)/arch/chip/bk7258_pm.h \
+	$(MOCKS)/pm_replay/arm_internal.h \
+	$(MOCKS)/pm_replay/nuttx/rpmsg/rpmsg.h
+	$(CC) $(PM_REPLAY_CFLAGS) $(PM_REPLAY_AP_RENAMES) \
+		-DCONFIG_BK7258_AP_CORE $(PM_REPLAY_INC_FLAGS) -c $< -o $@
+
+$(PM_REPLAY_CP_OBJ): $(PM_REPLAY_DIR)/bk7258_pm_server.c \
+	$(PM_REPLAY_INC)/arch/chip/bk7258_pm.h \
+	$(MOCKS)/pm_replay/nuttx/rpmsg/rpmsg.h
+	$(CC) $(PM_REPLAY_CFLAGS) $(PM_REPLAY_CP_RENAMES) \
+		$(PM_REPLAY_INC_FLAGS) -c $< -o $@
+
+$(PM_REPLAY_TARGET): test_bk7258_pm_replay.c \
+	$(MOCKS)/pm_replay/arm_internal.h $(PM_REPLAY_AP_OBJ) \
+	$(PM_REPLAY_CP_OBJ)
+	$(CC) $(PM_REPLAY_CFLAGS) $(PM_REPLAY_INC_FLAGS) \
+		test_bk7258_pm_replay.c $(PM_REPLAY_AP_OBJ) $(PM_REPLAY_CP_OBJ) \
+		-Wl,--gc-sections -o $@
+
+run-pm-replay: $(PM_REPLAY_TARGET)
+	./$(PM_REPLAY_TARGET)
+
 $(RPTUN_CORE_CP_TARGET): $(BUILD)/bk7258_rptun.c \
                          test_bk7258_rptun_core.c
 	$(CC) $(RPTUN_CORE_CFLAGS) \
@@ -1355,12 +1415,13 @@ run-platform: platform $(CP_PLATFORM_HEAP_ORDER_TARGET)
 	./$(AP_PLATFORM_PM_FAIL_TARGET)
 	./$(AP_ENTRY_TARGET)
 
-run-core: $(TARGET) $(POLICY_TARGET) $(PM_ACTIVITY_TARGET) \
+run-core: $(TARGET) $(POLICY_TARGET) $(PM_ACTIVITY_TARGET) $(PM_REPLAY_TARGET) \
 	$(RPTUN_CORE_CP_TARGET) $(RPTUN_CORE_AP_TARGET) $(OTA_CONTRACT_TARGETS) \
 	$(RESET_MARKER_TARGETS)
 	./$(TARGET)
 	./$(POLICY_TARGET)
 	./$(PM_ACTIVITY_TARGET)
+	./$(PM_REPLAY_TARGET)
 	./$(RPTUN_CORE_CP_TARGET)
 	./$(RPTUN_CORE_AP_TARGET)
 	./$(STORAGE_UNCONFIGURED_TARGET)

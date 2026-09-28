@@ -533,6 +533,7 @@ def main():
         "test_bk7258_motion_core",
         "test_bk7258_nfc_core",
         "test_bk7258_nfc_rpc",
+        "test_bk7258_pm_replay",
     ):
         binaries[target] = build(["make", "build/" + target], "build-" + target)
     for variant in (
@@ -871,6 +872,9 @@ def main():
     add(suite, "LIFE-02.power-prepare-only", "LIFE-02", "L1",
         [HERE / "build/test_shaniu_power_prepare", "prepare-only"],
         binaries["test_shaniu_power_prepare"])
+    add(suite, "LIFE-02.power-cp-lost-reply-replay", "LIFE-02", "L2",
+        [HERE / "build/test_bk7258_pm_replay"],
+        binaries["test_bk7258_pm_replay"])
     for variant in ("motion-busy", "motion-failed"):
         add(suite, "LIFE-01." + variant, "LIFE-01", "L1",
             [HERE / "build/test_shaniu_power_contract", variant],

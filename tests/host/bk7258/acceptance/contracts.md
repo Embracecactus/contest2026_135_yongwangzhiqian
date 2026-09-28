@@ -1181,6 +1181,15 @@ RF-off and descriptor close must finish before quiesce returns success. Other
 RF/close failures remain failures; the coordinator's 30s deadline is unchanged.
 The 668 board error -2 and matching production-worker host Red precede the fix.
 
+LIFE-02.power-cp-lost-reply-replay links the actual AP PM client and CP PM
+server through a deterministic RPMsg peer. If the first CP response is lost
+after the operation is committed, AP retries the identical generation and
+sequence within its existing bounded request. CP must execute soft-off once and
+replay the cached result. Reusing that sequence with changed content returns
+EPROTO; an older sequence returns ESTALE; neither may repeat the side effect.
+This is L2 protocol reconciliation evidence, not product-coordinator timeout,
+deep-sleep, physical K2, or board recovery acceptance.
+
 
 ### AUD-03 deployed-path binding correction (2026-09-28)
 
