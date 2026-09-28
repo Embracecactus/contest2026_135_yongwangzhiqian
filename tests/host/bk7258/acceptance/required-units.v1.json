@@ -725,7 +725,11 @@
     "AGENT-01.final-body-cancel",
     "AGENT-01.final-body-sink-cancel",
     "LIFE-02.power-cp-query",
-    "LIFE-02.nfc-deferred-registration"
+    "LIFE-02.nfc-deferred-registration",
+    "AUD-03.agent-tail",
+    "AUD-03.agent-cancel-next",
+    "AUD-03.agent-close-failure",
+    "AUD-03.agent-eof-failure"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1454,6 +1458,10 @@
     "AGENT-01.final-body-cancel",
     "AGENT-01.final-body-sink-cancel",
     "LIFE-02.power-cp-query",
-    "LIFE-02.nfc-deferred-registration"
+    "LIFE-02.nfc-deferred-registration",
+    "AUD-03.agent-tail",
+    "AUD-03.agent-cancel-next",
+    "AUD-03.agent-close-failure",
+    "AUD-03.agent-eof-failure"
   ]
 }

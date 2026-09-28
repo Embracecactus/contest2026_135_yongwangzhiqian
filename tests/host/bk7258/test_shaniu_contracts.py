@@ -453,6 +453,7 @@ def main():
         "test_shaniu_volume_contract",
         "test_shaniu_volume_transition",
         "test_bk7258_agent_capture",
+        "test_agent_audio_playback",
         "test_shaniu_power_contract",
         "test_shaniu_power_prepare",
         "test_shaniu_motion_quiesce",
@@ -1111,6 +1112,10 @@ def main():
         [HERE / "build/test_shaniu_focus_wire"],
         binaries["test_shaniu_focus_wire"],
     )
+    for variant in ("tail", "cancel-next", "close-failure", "eof-failure"):
+        add(suite, "AUD-03.agent-" + variant, "AUD-03", "L1",
+            [HERE / "build/test_agent_audio_playback", variant],
+            binaries["test_agent_audio_playback"])
     for variant in ("tail", "cancel-next"):
         add(
             suite,
@@ -1524,6 +1529,7 @@ def main():
         HERE / "Makefile",
         HERE / "test_provision_owner.c",
         HERE / "test_bk7258_agent_media_player.c",
+        HERE / "test_agent_audio_playback.c",
         HERE / "test_bk7258_cloud_http.py",
         HERE / "test_sc7a20_sampling.py",
         HERE / "test_shaniu_usbcdc_rx.py",
@@ -1689,6 +1695,8 @@ def main():
             ).stderr.splitlines()[0],
         ),
         inputs=inputs,
+        agent_playback_sha256=digest(
+            ROOT.parent / "packages/ai_agent/src/voice/audio_playback.c"),
         capture_inputs={
             str(p.relative_to(ROOT.parent)): digest(p)
             for p in (

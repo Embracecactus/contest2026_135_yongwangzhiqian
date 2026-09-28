@@ -1081,3 +1081,20 @@ keeps admission closed and retries only that initial RF-off at the existing
 RF-off and descriptor close must finish before quiesce returns success. Other
 RF/close failures remain failures; the coordinator's 30s deadline is unchanged.
 The 668 board error -2 and matching production-worker host Red precede the fix.
+
+
+### AUD-03 deployed-path binding correction (2026-09-28)
+
+The existing AUD-03.media-tail/media-cancel-next execute the BK7258 PCM bridge
+compiled only when CONFIG_MEDIA is off. They remain valid for that profile;
+they do not prove the full-Media path enabled in AIDK firmware 671. Preserve
+all prior results and do not infer an AIDK playback pass from those two IDs.
+AUD-03.agent-{tail,cancel-next,close-failure,eof-failure} links the actual pinned
+Agent audio_playback.c with controlled external Media/socket/clock boundaries.
+The oracle requires exact ordered bytes across partial writes, waiting for a
+real completion callback after EOF, canceled writes/late events not reviving a
+session, a clean next player, retained ownership after failed close, and errors
+not overwritten by later completion. All four are baseline PASS; no production
+change or artificial Red. This is L1 adapter evidence, not actual FFmpeg queue,
+DAC, acoustic or continuous-dialogue acceptance. The initial build setup errors
+are retained separately and are not business failures.

@@ -2071,3 +2071,13 @@ $(BUILD)/test_display_catalog: test_display_catalog.c \
 	$(CC) $(VOICE_PACK_CFLAGS) -fstack-usage test_display_catalog.c \
 		$(VOICE_PACK_ROOT)/bk7258_display_pack.c $(VOICE_PACK_ROOT)/bk7258_display_store.c \
 		-I $(VOICE_PACK_ROOT) -Wl,--wrap=opendir,--wrap=readdir,--wrap=closedir,--wrap=close,--wrap=write -o $@
+
+# Full-Media product profiles use the Agent adapter, not the no-CONFIG_MEDIA
+# BK7258 bridge above. Keep both paths explicit and their evidence separate.
+$(BUILD)/test_agent_audio_playback: test_agent_audio_playback.c \
+    $(OPENVELA_ROOT)/packages/ai_agent/src/voice/audio_playback.c \
+    $(OPENVELA_ROOT)/packages/ai_agent/include/voice/audio_playback.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -D_GNU_SOURCE -pthread \
+	    -I $(OPENVELA_ROOT)/packages/ai_agent/include -I $(MEDIA_INCLUDE) -I $(MOCKS) \
+	    $< $(OPENVELA_ROOT)/packages/ai_agent/src/voice/audio_playback.c \
+	    -Wl,--wrap=write,--wrap=fcntl,--wrap=clock_gettime,--wrap=usleep,--wrap=sem_clockwait -o $@
