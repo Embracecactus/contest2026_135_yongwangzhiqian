@@ -24,6 +24,7 @@
 static mutex_t g_bk7258_usbmode_lock = NXMUTEX_INITIALIZER;
 static enum bk7258_usbmode_e g_bk7258_usbmode = BK7258_USBMODE_NONE;
 static unsigned int g_bk7258_blockdev_leases;
+static uint32_t g_bk7258_media_generation;
 /* Failed class startup may retain endpoints/storage until teardown succeeds. */
 static enum bk7258_usbmode_e g_bk7258_usbmode_cleanup;
 
@@ -172,6 +173,14 @@ int bk7258_usbmode_set(enum bk7258_usbmode_e mode)
   if (ret >= 0)
     {
       g_bk7258_usbmode = mode;
+      if (previous == BK7258_USBMODE_MSC && mode != BK7258_USBMODE_MSC)
+        {
+          /* Publish cache invalidation only after the local USB class is
+           * running again.  The USB lock still excludes a new lease here.
+           */
+          (void)__atomic_add_fetch(&g_bk7258_media_generation, 1u,
+                                   __ATOMIC_RELEASE);
+        }
       syslog(LOG_INFO, "BK7258 USBMODE: %s -> %s\n",
              bk7258_usbmode_name(previous), bk7258_usbmode_name(mode));
       nxmutex_unlock(&g_bk7258_usbmode_lock);
@@ -270,6 +279,14 @@ int bk7258_usbmode_blockdev_release(void)
   g_bk7258_blockdev_leases--;
   nxmutex_unlock(&g_bk7258_usbmode_lock);
   return OK;
+}
+
+uint32_t bk7258_usbmode_media_generation(void)
+{
+  /* Do not acquire the USB mutex from a preferences-locked path.  Successful
+   * MSC return publishes with release ordering above.
+   */
+  return __atomic_load_n(&g_bk7258_media_generation, __ATOMIC_ACQUIRE);
 }
 
 #endif /* CONFIG_BK7258_USBMODE */

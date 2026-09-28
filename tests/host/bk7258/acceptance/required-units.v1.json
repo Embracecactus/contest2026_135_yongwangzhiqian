@@ -739,7 +739,11 @@
     "CFG-02.activation-stale-failure",
     "CFG-02.activation-current-success",
     "CFG-02.activation-current-failure",
-    "CFG-02.activation-desired-unknown"
+    "CFG-02.activation-desired-unknown",
+    "MSC-01.preferences-roundtrip",
+    "MSC-01.preferences-failed-handoff",
+    "MSC-01.preferences-failed-exit",
+    "MSC-01.preferences-failed-local-start"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1482,6 +1486,10 @@
     "CFG-02.activation-stale-failure",
     "CFG-02.activation-current-success",
     "CFG-02.activation-current-failure",
-    "CFG-02.activation-desired-unknown"
+    "CFG-02.activation-desired-unknown",
+    "MSC-01.preferences-roundtrip",
+    "MSC-01.preferences-failed-handoff",
+    "MSC-01.preferences-failed-exit",
+    "MSC-01.preferences-failed-local-start"
   ]
 }

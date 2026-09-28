@@ -10,6 +10,7 @@
 #define __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_USBMODE_H
 
 #include <nuttx/config.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -36,6 +37,11 @@ const char *bk7258_usbmode_name(enum bk7258_usbmode_e mode);
 
 int bk7258_usbmode_blockdev_acquire(void);
 int bk7258_usbmode_blockdev_release(void);
+/* Changes only after host-writable MSC ownership has been returned to the
+ * local device successfully.  Local caches of block-device content compare
+ * this value before reuse; wraparound is intentionally modulo uint32_t.
+ */
+uint32_t bk7258_usbmode_media_generation(void);
 
 #endif
 

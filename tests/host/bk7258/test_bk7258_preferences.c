@@ -6,6 +6,7 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <unqlite.h>
@@ -31,6 +32,7 @@ static int g_storage_error;
 static int g_cleanup_error;
 static int g_storage_active;
 static unsigned int g_storage_calls;
+static uint32_t g_storage_generation;
 int nxmutex_lock(mutex_t *mutex) { return -pthread_mutex_lock(mutex); }
 int nxmutex_unlock(mutex_t *mutex) { return -pthread_mutex_unlock(mutex); }
 
@@ -51,6 +53,11 @@ int bk7258_preferences_storage_end(int status)
   assert(g_storage_active);
   g_storage_active = 0;
   return status < 0 ? status : g_cleanup_error;
+}
+
+uint32_t bk7258_preferences_storage_generation(void)
+{
+  return g_storage_generation;
 }
 
 int property_get_with_err(const char *key, char *value)

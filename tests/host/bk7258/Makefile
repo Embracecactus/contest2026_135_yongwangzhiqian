@@ -1872,6 +1872,20 @@ $(BUILD)/test_shaniu_volume_contract: test_shaniu_volume_contract.c $(VOICE_PACK
 		-I $(MOCKS) -I $(CHIP_ROOT)/include -I $(VOICE_PACK_ROOT) \
 		$^ mocks/mock_nuttx_ap.c -o $@
 
+$(BUILD)/test_shaniu_preferences_msc_epoch: test_shaniu_preferences_msc_epoch.c \
+	$(VOICE_PACK_ROOT)/bk7258_preferences.c \
+	$(VOICE_PACK_ROOT)/bk7258_preferences_storage.c \
+	$(VOICE_PACK_ROOT)/bk7258_media_volume.c \
+	$(CHIP_ROOT)/ap/bk7258_usbmode.c | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread -DCONFIG_BK7258_USBMODE -DCONFIG_BK7258_AP_CORE \
+		-DCONFIG_BK7258_USBCDC -DCONFIG_BK7258_USBMSC \
+		-DCONFIG_BK7258_USBMODE_BLOCKDEV=\"/dev/mmcsd0\" \
+		-DCONFIG_BK7258_PREFERENCES_BLOCKDEV=\"/dev/mmcsd0\" \
+		-DCONFIG_BK7258_USBMODE_REENUM_DELAY_MS=1 \
+		-I $(MOCKS) -I $(OPENVELA_ROOT)/external/unqlite/unqlite \
+		-I $(CHIP_ROOT)/include -I $(VOICE_PACK_ROOT) \
+		$^ mocks/mock_nuttx_ap.c -o $@
+
 .PHONY: run-shaniu-contracts
 run-shaniu-contracts:
 	python3 test_shaniu_contracts.py

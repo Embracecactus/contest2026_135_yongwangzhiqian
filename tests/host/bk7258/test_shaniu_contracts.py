@@ -474,6 +474,7 @@ def main():
         "test_pc_owner_binding",
         "test_shaniu_key_contract",
         "test_shaniu_volume_contract",
+        "test_shaniu_preferences_msc_epoch",
         "test_shaniu_volume_transition",
         "test_bk7258_agent_capture",
         "test_agent_audio_playback",
@@ -1315,6 +1316,17 @@ def main():
             "L2",
             [HERE / "build/test_shaniu_volume_contract", variant],
             binaries["test_shaniu_volume_contract"],
+        )
+    for variant in (
+        "roundtrip", "failed-handoff", "failed-exit", "failed-local-start"
+    ):
+        add(
+            suite,
+            "MSC-01.preferences-" + variant,
+            "MSC-01",
+            "L2",
+            [HERE / "build/test_shaniu_preferences_msc_epoch", variant],
+            binaries["test_shaniu_preferences_msc_epoch"],
         )
     for variant in (
         "pcm-1",

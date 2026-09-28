@@ -33,6 +33,7 @@
  */
 static mutex_t g_preferences_lock = NXMUTEX_INITIALIZER;
 static int g_playback_volume = -1;
+static uint32_t g_playback_volume_generation;
 
 int bk7258_preferences_with_storage(int (*operation)(void *), void *context)
 {
@@ -347,6 +348,7 @@ static int bk7258_preferences_read_all(struct bk7258_preferences_s *preferences)
 static int bk7258_preferences_get_locked(struct bk7258_preferences_s *preferences)
 {
   struct bk7258_preferences_s result;
+  uint32_t generation;
   int ret;
 
   if (preferences == NULL)
@@ -360,11 +362,17 @@ static int bk7258_preferences_get_locked(struct bk7258_preferences_s *preference
       return ret;
     }
 
+  /* The media lease held by storage_begin keeps this generation stable until
+   * the read finishes.  Capturing it after the lease also closes the race with
+   * a just-completed MSC round trip.
+   */
+  generation = bk7258_preferences_storage_generation();
   ret = bk7258_preferences_storage_end(bk7258_preferences_read_all(&result));
   if (ret >= 0)
     {
       *preferences = result;
       g_playback_volume = (int)result.volume_percent;
+      g_playback_volume_generation = generation;
     }
   else
     {
@@ -407,7 +415,7 @@ int bk7258_preferences_playback_volume(unsigned int *volume_percent)
   return ret;
 #else
   struct bk7258_preferences_s preferences;
-  int ret;
+  int ret = 0;
 
   if (volume_percent == NULL)
     {
@@ -418,6 +426,12 @@ int bk7258_preferences_playback_volume(unsigned int *volume_percent)
   if (ret < 0)
     {
       return ret;
+    }
+
+  if (g_playback_volume >= 0 &&
+      g_playback_volume_generation != bk7258_preferences_storage_generation())
+    {
+      g_playback_volume = -1;
     }
 
   if (g_playback_volume < 0)
@@ -438,6 +452,7 @@ int bk7258_preferences_playback_volume(unsigned int *volume_percent)
 static int bk7258_preferences_write(const char *key, const char *value,
                                    int volume_percent)
 {
+  uint32_t generation;
   int ret = nxmutex_lock(&g_preferences_lock);
   if (ret < 0)
     {
@@ -451,6 +466,7 @@ static int bk7258_preferences_write(const char *key, const char *value,
       return ret;
     }
 
+  generation = bk7258_preferences_storage_generation();
   ret = bk7258_preferences_backend_result(property_set(key, value));
   if (ret >= 0)
     {
@@ -466,6 +482,7 @@ static int bk7258_preferences_write(const char *key, const char *value,
   else if (volume_percent >= 0)
     {
       g_playback_volume = volume_percent;
+      g_playback_volume_generation = generation;
     }
 
   nxmutex_unlock(&g_preferences_lock);

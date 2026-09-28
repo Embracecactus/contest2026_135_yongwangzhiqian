@@ -74,7 +74,7 @@ KWS按来源/说话人先划分再增强；评价后调参的数据不再盲测�
 | reset / `bk7258_provision_storage.c`、owner/control服务 | 授权+物理确认+operation→持久撤销/回执；拒绝与未知区分；重启恢复回执而非旧权限 | 既有storage/owner测试可复用；完整鉴权+重置+新认领仍NOT_RUN，不能由存储测试关闭RST |
 | config / `bk7258_provision_config.c`、storage、settings、cloud HTTP | SCP1→持久回执、SCS1；仅Wi-Fi不改云；旧revision拒绝；保存/应用分开；网络失败后重开仍持有原配置 | CFG-01用真实合并、fsync/存储线程、重开、解码、HTTP/webclient生成Authorization；只替换TLS I/O，没有真实HTTPS/TLS认证或Wi-Fi、AP启动。独立ASR/LLM/TTS端点和desired/applied双版本还待schema/接口 |
 | store / `bk7258_provision_storage.c`、`bk7258_provision_store.c` | 原介质+写入/同步故障→旧/新有效或明确恢复态；durable前不得确认；刷新不将IOERR当空 | 不用内存成功mock代替POSIX存储。本轮未注入每个持久边界/真实掉电；STORE-01/02不能计完整PASS |
-| volume / `bk7258_media_volume.c` + `bk7258_usbmode.c` | 本地占用/维护请求/卸载结果→独占主机导出；失败保留阻挡；主机释放后本地可再获租约 | 真实两个模块链接，mount/umount和USB硬件边界替身；独立mounted/host-writable观察器。当前本地OTA挂载只读，未证明数据库写句柄/DMA排空、实际FS或旧缓存epoch |
+| volume / `bk7258_media_volume.c` + `bk7258_usbmode.c` | 本地占用/维护请求/卸载结果→独占主机导出；失败保留阻挡；主机释放后本地可再获租约且SD缓存失效 | 真实preferences/storage/media-volume/USB-mode链接，mount/umount、KVDB和USB硬件边界替身；独立mounted/host-writable及读次数观察器。成功MSC→CDC使SD播放音量缓存按generation重读，失败进入/退出不虚构交接；未证明数据库写句柄/DMA排空或实际FS缓存失效 |
 | audio / Agent `voice_channel.c`、`llm_stream.c`、Media adapter | PCM/文本事件、EOF、request-id、cancel→真实队列到sink字节与完成；旧回调拒绝；下一轮独立 | 现有include真实源码的队列夹具，初始化后置条件由fixture建立，不覆盖采集/完整Agent调用；真实队列/解析/历史与外部TTS供给、Media sink替身。PCM变分片、SSE已接入、取消旧回调；Base64/TCP变化及硬件drain尚未绑定 |
 | agent / `packages/ai_agent/src/core/agent_loop.c`与guard/后端 | peer响应/工具批次→独立副作用账本、完整历史/终答；无效批次先拒；未知非幂等不重试 | 未编造替代Agent；正式工具账本与取消注入需要在现有Agent测试接线，AGENT-01/02/03仍NOT_RUN或待设备，不把SSE parser测试算整个Agent |
 | session / 原生 `DeviceControlSession`、`DeviceControlProtocol`、设备control服务 | 认证会话+命令/结果序号→串行写、独立状态/结果；掉线查询补快照；旧代际丢弃 | 既有Session回归实跑；新增OTA接真实协议编解码。外部已认证Transport夹具不是TLS/BLE证明；手机+USB共用服务/短控预算待接口 |
@@ -98,8 +98,9 @@ KWS按来源/说话人先划分再增强；评价后调参的数据不再盲测�
    另一个用例专测Transport迟到callback经过真实Session过滤，明确其较窄层级。
 3. CFG-01：先持久保存测试owner/Key/CA；真实合并SCP1只改网；真实HTTP失败后停止/重启存储，
    再真实解码并请求peer核验Authorization。真实TLS建立、实际Wi-Fi联网与全产品重启仍未证明。
-4. MSC-01：生产租约和模式不能都mock；只有OS/USB边界可控。卸载失败后尝试导出，
-   观察器断言mounted与host-writable不同时为真；尚不宣称完整FS/数据库/DMA一致性。
+4. MSC-01：生产preferences/storage/租约/模式不能被夹具复制；只有KVDB、OS与USB硬件边界可控。
+   卸载失败后尝试导出，观察器断言mounted与host-writable不同时为真；成功MSC→CDC后下一次
+   playback必须重读主机改写值，进入或退出失败不得发布新generation。尚不宣称完整FS/数据库/DMA一致性。
 5. AUD-03：每个PCM字节对独立公式核验，共200000字节，EOF后drain/close一次；取消旧回调不得
    增加新轮TTS内容。生产回调/队列真实，Media sink是观察器，不是目标板出声/DMA证明。
 6. RES-02：必须观察持久默认版本、实际渲染确认与写计数；默认D→试A→默认B→旧A超时应仍B。

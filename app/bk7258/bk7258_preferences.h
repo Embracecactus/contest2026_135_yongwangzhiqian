@@ -29,8 +29,8 @@ struct bk7258_preferences_s
 };
 
 int bk7258_preferences_get(struct bk7258_preferences_s *preferences);
-/* Last confirmed volume, lazily loaded on first use. External MSC edits are
- * picked up by an explicit preferences_get refresh or after reboot.
+/* Last confirmed volume, lazily loaded on first use. A successful return from
+ * host-writable MSC invalidates the SD-backed cache before the next use.
  */
 int bk7258_preferences_playback_volume(unsigned int *volume_percent);
 int bk7258_preferences_set_volume(unsigned int volume_percent);
