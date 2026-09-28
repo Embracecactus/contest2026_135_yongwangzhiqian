@@ -220,6 +220,10 @@ int main(int argc, char** argv)
     } else {
         return 2;
     }
-    printf("CONTRACT_PASS AUD-02.%s\n", argv[1]);
+    if (strcmp(argv[1], "truncated-close") == 0) {
+        printf("CONTRACT_PASS AUD-03.agent-truncated-close\n");
+    } else {
+        printf("CONTRACT_PASS AUD-02.%s\n", argv[1]);
+    }
     return 0;
 }
