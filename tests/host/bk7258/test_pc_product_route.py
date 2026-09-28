@@ -59,6 +59,18 @@ static uint64_t task_now=100;
 #define product_response_mode(...) (-ENOTSUP)
 #define product_wake_threshold(...) (-ENOTSUP)
 #define bk7258_agent_trigger_control(...) (-ENOTSUP)
+static bool task_snapshot_eagain;
+static int product_test_pc_snapshot(void *context, uint64_t *binding,
+                                    struct bkprov_pc_snapshot_s *view)
+{
+ if(task_snapshot_eagain)
+  {
+   task_snapshot_eagain=false;*binding=0;memset(view,0,sizeof(*view));
+   return -EAGAIN;
+  }
+ return bkpc_authorization_snapshot(context,binding,view);
+}
+#define bkpc_authorization_snapshot product_test_pc_snapshot
 """
     with tempfile.TemporaryDirectory(prefix="pc-route-") as directory:
         temp = Path(directory)
@@ -133,6 +145,28 @@ static uint64_t task_now=100;
  assert(status.config_chunk[7]==0);
 """,
             )
+        elif sys.argv[1] == "task-transient-authorization":
+            code = code.replace(
+                "assert(set(1,0,tx,3)==0);",
+                r"""
+ assert(set(1,0,tx,7)==0);
+ product_pc_task_step(task_now,true);
+ unsigned char task[40]={'P','T','E','1',0,0,0,1,7};
+ task[31]=1;task[34]=0x27;task[35]=0x10;
+ assert(product_config(NULL,BKCONTROL_CONFIG_APPLY,15,0,task,40,&status)==0);
+ task[7]=3;task[31]=2;task[39]=100;
+ assert(product_config(NULL,BKCONTROL_CONFIG_APPLY,15,0,task,40,&status)==0);
+ product_visual_test(task_now);assert(painted==(4u<<8));
+ task_now++;
+ task_snapshot_eagain=true;
+ product_pc_task_step(task_now,true);
+ task_now++;
+ product_pc_task_step(task_now,true);
+ product_visual_test(task_now);assert(painted==(4u<<8));
+ assert(product_config(NULL,BKCONTROL_CONFIG_READ,15,32,NULL,0,&status)==0);
+ assert(status.config_total==48 && status.config_chunk[11]==5);
+""",
+            )
         (temp / "case.c").write_text(code)
         command = subprocess.check_output(
             ["make", "-n", "-B", "build/test_pc_owner_binding"],
@@ -163,7 +197,9 @@ static uint64_t task_now=100;
         subprocess.run(
             [
                 temp / "test",
-                "offline" if sys.argv[1] == "tasks" else sys.argv[1],
+                "offline"
+                if sys.argv[1] in ("tasks", "task-transient-authorization")
+                else sys.argv[1],
                 temp / "data",
             ],
             check=True,

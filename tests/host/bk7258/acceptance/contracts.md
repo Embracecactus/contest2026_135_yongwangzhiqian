@@ -1042,6 +1042,24 @@ The first attempted run used a stale binary after a Make dependency error and
 is SETUP_ERROR (see r3-observer-correction.json), not a product Red. The corrected
 build fails the intended notification-selection assertion on unchanged production.
 
+### PC-01 transient authorization snapshot (2026-09-28)
+
+An accepted task event retains its existing finite receiver TTL when the PC
+authorization snapshot is temporarily unavailable with `-EAGAIN`. This storage
+publication interval is neither a revocation nor an admission failure. The
+product must reject new authenticated traffic while the authority is unknown,
+but it must not permanently expire the existing volatile task ledger. When the
+same binding and grant revision become readable again before the task deadline,
+the prior terminal result remains eligible for local feedback. A real revoke,
+capability removal, changed binding/grant, quiesce, OTA admission closure, clock
+rollback or TTL expiry still invalidates it.
+
+`PC-01.task-transient-authorization` executes the extracted production routing
+function with the real authorization owner and task ledger. Only one external
+snapshot result is fault-injected; the recovery read uses the real persisted
+grant. The oracle checks both the product visual selection and PTS1 flags. It
+does not claim USB transport, panel pixels or a physical notification.
+
 ### AGENT-01 complete no-tool body reuse and test correction (2026-09-28)
 
 The frozen user requirement preserves a legal, complete no-tool answer rather

@@ -911,6 +911,9 @@ def main():
         [HERE / "build/test_pc_tasks", "focus-completion"], binaries["test_pc_tasks"])
     add(suite, "PC-01.task-product", "PC-01", "L2",
         [sys.executable, HERE / "test_pc_product_route.py", "tasks"])
+    add(suite, "PC-01.task-transient-authorization", "PC-01", "L2",
+        [sys.executable, HERE / "test_pc_product_route.py",
+         "task-transient-authorization"])
     for variant in ("source", "source-revision"):
         add(suite, "NET-03.pc-owner-" + variant, "NET-03", "L2",
             [sys.executable, HERE / "test_pc_owner_binding.py", variant],

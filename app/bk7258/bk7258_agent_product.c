@@ -1308,11 +1308,21 @@ static void product_pc_task_step(uint64_t now, bool admitted)
     }
 
   ret = bkpc_authorization_snapshot(NULL, &binding, &view);
+  if (ret == -EAGAIN)
+    {
+      /* A storage publication interval is not a grant revocation.  Keep the
+       * existing finite ledger unchanged until authority can be read again;
+       * its own monotonic deadline still bounds snapshots and visuals. */
+
+      mbedtls_platform_zeroize(&view, sizeof(view));
+      return;
+    }
+
   if (ret == 0 && (view.capabilities & BKPC_CAP_TASKS) != 0)
     {
       bkpc_tasks_bind(&g_pc_tasks, binding, view.revision);
     }
-  else if (ret != -EAGAIN)
+  else
     {
       bkpc_tasks_bind(&g_pc_tasks, 0, 0);
     }
