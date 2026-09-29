@@ -43,6 +43,105 @@ def _context(pem: str, pin: str) -> ssl.SSLContext:
         raise ControlError("Invalid pinned device certificate") from None
 
 
+def probe_channel_certificate(
+    channel,
+    expected_pin,
+    *,
+    timeout=10,
+    clock=time.monotonic,
+    sleep=time.sleep,
+):
+    """Read one TLS leaf and accept it only against the independent CP pin.
+
+    No SDC1 frame or PC principal is sent.  The borrowed channel is always
+    closed so the authenticated client starts a fresh TLS session.
+    """
+
+    last = clock()
+    incoming = ssl.MemoryBIO()
+    outgoing = ssl.MemoryBIO()
+    try:
+        if (
+            not re.fullmatch(r"[0-9a-f]{64}", expected_pin or "")
+            or not math.isfinite(timeout)
+            or not 0 < timeout <= 120
+            or not math.isfinite(last)
+        ):
+            raise ControlError("Invalid certificate probe parameters")
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+        tls = context.wrap_bio(incoming, outgoing, server_side=False)
+        deadline = last + timeout
+        received = 0
+
+        def check():
+            nonlocal last
+            now = clock()
+            if not math.isfinite(now) or now < last or now >= deadline:
+                raise ControlError("Certificate probe timed out")
+            last = now
+
+        def flush():
+            if outgoing.pending > 65536:
+                raise ControlError("Certificate probe output budget exceeded")
+            while outgoing.pending:
+                data = outgoing.read(4096)
+                offset = 0
+                while offset < len(data):
+                    check()
+                    count = channel.write(memoryview(data)[offset:])
+                    if type(count) is not int or not 0 <= count <= len(data) - offset:
+                        raise ControlError("Invalid certificate probe write")
+                    offset += count
+                    if count == 0:
+                        sleep(0.001)
+
+        while True:
+            check()
+            try:
+                tls.do_handshake()
+                flush()
+                break
+            except ssl.SSLWantReadError:
+                flush()
+                data = channel.read(4096)
+                if data is None:
+                    sleep(0.001)
+                    continue
+                if not isinstance(data, bytes) or not 0 < len(data) <= 4096:
+                    raise ControlError("Certificate probe transport closed")
+                received += len(data)
+                if received > 65536 or incoming.pending + len(data) > 65536:
+                    raise ControlError("Certificate probe input budget exceeded")
+                incoming.write(data)
+            except ssl.SSLWantWriteError:
+                flush()
+                sleep(0.001)
+
+        peer = tls.getpeercert(binary_form=True)
+        if not peer or not hmac.compare_digest(
+            hashlib.sha256(peer).hexdigest(), expected_pin
+        ):
+            raise ControlError("Factory pin does not match native USB TLS")
+        return ssl.DER_cert_to_PEM_cert(peer)
+    except Exception:
+        raise ControlError(
+            "Native USB certificate probe failed; no credential was sent"
+        ) from None
+    finally:
+        channel.close()
+
+
+def probe_certificate(port, expected_pin, timeout=10):
+    if not re.fullmatch(r"[0-9a-f]{64}", expected_pin or ""):
+        raise ControlError("Invalid factory certificate pin")
+    return probe_channel_certificate(
+        SerialChannel(port, timeout), expected_pin, timeout=timeout
+    )
+
+
 class ControlClient:
     """Single owner, one request at a time. Channel reads return None for idle,
     b'' for EOF; writes return an exact consumed count, zero for backpressure.
@@ -282,6 +381,53 @@ class ControlClient:
             self.close()
             raise ControlError(
                 "Engineering command unconfirmed; query board state before retry"
+            ) from None
+
+    def engineering_audio_status(self):
+        from . import hil_test
+
+        if self.closed or not self.authenticated:
+            raise ControlError("PC authentication is required")
+        try:
+            deadline = self._now() + self._timeout
+
+            def chunk(offset):
+                total, *words = self._exchange(
+                    15, struct.pack(">I", 20 << 16 | offset), deadline
+                )
+                if total != hil_test.AUDIO_STATUS_SIZE:
+                    raise ControlError("Invalid engineering audio snapshot size")
+                return struct.pack(">4I", *words)
+
+            data = b"".join(
+                chunk(offset)
+                for offset in range(0, hil_test.AUDIO_STATUS_SIZE, 16)
+            )
+            if chunk(0) != data[:16]:
+                raise ControlError("Engineering audio snapshot changed during read")
+            return hil_test.decode_audio_status(data)
+        except Exception:
+            self.close()
+            raise ControlError(
+                "Engineering audio status unconfirmed; no command was replayed"
+            ) from None
+
+    def engineering_audio_run(self, session):
+        from . import hil_test
+
+        record = hil_test.encode_audio_run(session=session)
+        if self.closed or not self.authenticated:
+            raise ControlError("PC authentication is required")
+        try:
+            deadline = self._now() + self._timeout
+            self._exchange(16, struct.pack(">II", 20, len(record)), deadline)
+            self._exchange(17, record, deadline)
+            self._exchange(18, b"", deadline)
+            return dict(accepted=True, completion_verified=False)
+        except Exception:
+            self.close()
+            raise ControlError(
+                "Engineering audio command unconfirmed; query before retry"
             ) from None
 
     def task_event(self, task_id, sequence, state, ttl_ms, progress=None):

@@ -394,3 +394,147 @@ int bkengtest_pm_status(struct bkengtest_s *state)
         return 0;
     }
 }
+
+static int audio_report_valid(const struct bkengaudio_report_s *report)
+{
+  return report->result == 0 && report->stages == 3 &&
+         report->accepted_bytes == 3u * BKENGAUDIO_STAGE_BYTES &&
+         report->eof_result == 0 && report->eof_close == 0 &&
+         report->cancel_write == -ECANCELED &&
+         report->cancel_drain == -ECANCELED &&
+         report->cancel_close == 0 && report->next_result == 0 &&
+         report->next_close == 0;
+}
+
+static int audio_apply(struct bkengaudio_s *state,
+                       const struct bkengtest_ops_s *ops, void *context,
+                       const uint8_t record[BKENGAUDIO_RECORD_SIZE])
+{
+  uint32_t operation;
+  uint32_t session;
+  uint32_t sequence;
+  uint32_t flags;
+  int ret;
+
+  if (memcmp(record, "BKA1", 4) != 0 ||
+      get32(record + 4) != BKENGAUDIO_VERSION)
+    {
+      return -EPROTO;
+    }
+
+  operation = get32(record + 8);
+  session = get32(record + 12);
+  sequence = get32(record + 16);
+  flags = get32(record + 20);
+  if (operation != BKENGAUDIO_OP_RUN || session == 0 || sequence != 1 ||
+      flags != 0 || get32(record + 24) != 0 || get32(record + 28) != 0)
+    {
+      return -EINVAL;
+    }
+
+  if (state->state == BKENGAUDIO_RUNNING)
+    {
+      return -EBUSY;
+    }
+
+  if (state->session != 0 && session <= state->session)
+    {
+      return session == state->session ? -EALREADY : -ESTALE;
+    }
+
+  memset(&state->report, 0, sizeof(state->report));
+  state->session = session;
+  state->sequence = sequence;
+  state->state = BKENGAUDIO_RUNNING;
+  ret = ops->audio_run(context, &state->report);
+  if (ret == 0 && !audio_report_valid(&state->report))
+    {
+      ret = state->report.result < 0 ? state->report.result : -EIO;
+    }
+
+  if (ret < 0 && state->report.result == 0)
+    {
+      state->report.result = ret;
+    }
+
+  state->state = ret < 0 ? BKENGAUDIO_FAILED : BKENGAUDIO_COMPLETE;
+  return ret;
+}
+
+static int audio_status_read(const struct bkengaudio_s *state,
+                             uint32_t offset,
+                             struct bkcontrol_status_s *status)
+{
+  uint8_t wire[BKENGAUDIO_STATUS_SIZE];
+
+  if ((offset & 15u) != 0 || offset >= sizeof(wire))
+    {
+      return -ERANGE;
+    }
+
+  memset(wire, 0, sizeof(wire));
+  memcpy(wire, "BAS1", 4);
+  put32(wire + 4, BKENGAUDIO_VERSION);
+  put32(wire + BKENGAUDIO_STATUS_STATE_OFFSET, state->state);
+  put32(wire + BKENGAUDIO_STATUS_SESSION_OFFSET, state->session);
+  put32(wire + BKENGAUDIO_STATUS_SEQUENCE_OFFSET, state->sequence);
+  put32(wire + BKENGAUDIO_STATUS_STAGES_OFFSET, state->report.stages);
+  put32(wire + BKENGAUDIO_STATUS_ACCEPTED_OFFSET,
+        state->report.accepted_bytes);
+  put32(wire + BKENGAUDIO_STATUS_RESULT_OFFSET,
+        (uint32_t)state->report.result);
+  put32(wire + BKENGAUDIO_STATUS_EOF_RESULT_OFFSET,
+        (uint32_t)state->report.eof_result);
+  put32(wire + BKENGAUDIO_STATUS_EOF_CLOSE_OFFSET,
+        (uint32_t)state->report.eof_close);
+  put32(wire + BKENGAUDIO_STATUS_CANCEL_WRITE_OFFSET,
+        (uint32_t)state->report.cancel_write);
+  put32(wire + BKENGAUDIO_STATUS_CANCEL_DRAIN_OFFSET,
+        (uint32_t)state->report.cancel_drain);
+  put32(wire + BKENGAUDIO_STATUS_CANCEL_CLOSE_OFFSET,
+        (uint32_t)state->report.cancel_close);
+  put32(wire + BKENGAUDIO_STATUS_NEXT_RESULT_OFFSET,
+        (uint32_t)state->report.next_result);
+  put32(wire + BKENGAUDIO_STATUS_NEXT_CLOSE_OFFSET,
+        (uint32_t)state->report.next_close);
+  status->config_total = sizeof(wire);
+  memcpy(status->config_chunk, wire + offset, sizeof(status->config_chunk));
+  return 0;
+}
+
+int bkengaudio_control(struct bkengaudio_s *state,
+                       const struct bkengtest_ops_s *ops, void *context,
+                       enum bkcontrol_command_e command, uint32_t offset,
+                       const uint8_t *record, size_t size,
+                       struct bkcontrol_status_s *status)
+{
+  if (state == NULL || ops == NULL || ops->audio_run == NULL ||
+      status == NULL)
+    {
+      return -EINVAL;
+    }
+
+  if (command == BKCONTROL_CONFIG_READ)
+    {
+      if (record != NULL || size != 0)
+        {
+          return -EINVAL;
+        }
+
+      return audio_status_read(state, offset, status);
+    }
+
+  if (command == BKCONTROL_CONFIG_BEGIN)
+    {
+      return offset == 0 && record == NULL &&
+             size == BKENGAUDIO_RECORD_SIZE ? 0 : -EINVAL;
+    }
+
+  if (command != BKCONTROL_CONFIG_APPLY || offset != 0 || record == NULL ||
+      size != BKENGAUDIO_RECORD_SIZE)
+    {
+      return -ENOTSUP;
+    }
+
+  return audio_apply(state, ops, context, record);
+}

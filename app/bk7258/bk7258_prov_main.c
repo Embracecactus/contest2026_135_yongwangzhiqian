@@ -273,6 +273,136 @@ static int bkprov_status(void)
   return ret;
 }
 
+#ifdef CONFIG_BK7258_FACTORY_DIAGNOSTICS
+static int bkprov_diagnostics_enable(void)
+{
+  struct termios original;
+  struct termios hidden;
+  uint8_t record[BKPROV_RPC_DIAGNOSTICS_RECORD_SIZE];
+  uint8_t certificate[BKPROV_RPC_DIAGNOSTICS_CERT_SIZE];
+  char line[BKPROV_RPC_DIAGNOSTICS_RECORD_SIZE * 2u + 1u];
+  uint32_t flags = 0;
+  uint32_t remaining_ms = 0;
+  bool termios_changed = false;
+  int ret;
+
+  memset(record, 0, sizeof(record));
+  memset(certificate, 0, sizeof(certificate));
+  memset(line, 0, sizeof(line));
+  if (tcgetattr(STDIN_FILENO, &original) < 0)
+    {
+      ret = -ENOTTY;
+      goto out;
+    }
+
+  hidden = original;
+  hidden.c_lflag &= ~(ECHO | ECHONL);
+  if (tcsetattr(STDIN_FILENO, TCSANOW, &hidden) < 0)
+    {
+      ret = errno > 0 ? -errno : -EIO;
+      goto out;
+    }
+
+  termios_changed = true;
+  (void)tcflush(STDIN_FILENO, TCIFLUSH);
+  printf("BKPROV DIAGNOSTICS READY bytes=%u\n",
+         BKPROV_RPC_DIAGNOSTICS_RECORD_SIZE);
+  fflush(stdout);
+  ret = bkprov_read_line(line, sizeof(line));
+  if (ret < 0 || bkprov_unhex(line, record, sizeof(record)) < 0)
+    {
+      ret = ret < 0 ? ret : -EINVAL;
+      goto restore;
+    }
+
+  ret = bkprov_rpc_diagnostics_enable(record, &flags, &remaining_ms);
+
+restore:
+  if (termios_changed)
+    {
+      (void)tcflush(STDIN_FILENO, TCIFLUSH);
+      if (tcsetattr(STDIN_FILENO, TCSANOW, &original) < 0 && ret >= 0)
+        {
+          ret = errno > 0 ? -errno : -EIO;
+        }
+    }
+
+  if (ret == 0)
+    {
+      for (uint32_t offset = 0; offset < sizeof(certificate); offset += 4)
+        {
+          uint32_t word = 0;
+
+          ret = bkprov_rpc_diagnostics_certificate(offset, &word);
+          if (ret < 0)
+            {
+              break;
+            }
+
+          certificate[offset] = word >> 24;
+          certificate[offset + 1] = word >> 16;
+          certificate[offset + 2] = word >> 8;
+          certificate[offset + 3] = word;
+        }
+    }
+
+  if (ret < 0)
+    {
+      (void)bkprov_rpc_diagnostics_revoke();
+    }
+
+out:
+  bkprov_wipe(line, sizeof(line));
+  bkprov_wipe(record, sizeof(record));
+  if (ret < 0)
+    {
+      fprintf(stderr, "BKPROV DIAGNOSTICS FAIL ret=%d\n", ret);
+    }
+  else
+    {
+      printf("BKPROV DIAGNOSTICS PASS flags=%lu ttl_ms=%lu certificate_sha256=",
+             (unsigned long)flags, (unsigned long)remaining_ms);
+      for (size_t i = 0; i < sizeof(certificate); i++)
+        {
+          printf("%02x", certificate[i]);
+        }
+
+      printf("\n");
+    }
+
+  bkprov_wipe(certificate, sizeof(certificate));
+  return ret;
+}
+
+static int bkprov_diagnostics_status(void)
+{
+  uint32_t flags = 0;
+  uint32_t remaining_ms = 0;
+  int ret = bkprov_rpc_diagnostics_status(&flags, &remaining_ms);
+
+  printf("BKPROV DIAGNOSTICS STATUS flags=%lu ttl_ms=%lu ret=%d\n",
+         (unsigned long)flags, (unsigned long)remaining_ms, ret);
+  return ret;
+}
+
+static int bkprov_diagnostics_revoke(void)
+{
+  int ret = bkprov_rpc_diagnostics_revoke();
+
+  if (ret < 0)
+    {
+      fprintf(stderr, "BKPROV DIAGNOSTICS REVOKE FAIL ret=%d\n", ret);
+    }
+  else
+    {
+      printf("BKPROV DIAGNOSTICS REVOKE PASS\n");
+    }
+
+  return ret;
+}
+
+#endif
+
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
@@ -289,12 +419,39 @@ int main(int argc, char *argv[])
       return bkprov_status() < 0 ? 1 : 0;
     }
 
+#ifdef CONFIG_BK7258_FACTORY_DIAGNOSTICS
+  if (argc == 2 && strcmp(argv[1], "diagnostics-enable") == 0)
+    {
+      return bkprov_diagnostics_enable() < 0 ? 1 : 0;
+    }
+
+  if (argc == 2 && strcmp(argv[1], "diagnostics-status") == 0)
+    {
+      return bkprov_diagnostics_status() < 0 ? 1 : 0;
+    }
+
+  if (argc == 2 && strcmp(argv[1], "diagnostics-revoke") == 0)
+    {
+      return bkprov_diagnostics_revoke() < 0 ? 1 : 0;
+    }
+
+#endif
+
   fprintf(stderr,
           "usage: %s supply\n"
           "       %s status\n"
+#ifdef CONFIG_BK7258_FACTORY_DIAGNOSTICS
+          "       %s diagnostics-enable\n"
+          "       %s diagnostics-status\n"
+          "       %s diagnostics-revoke\n"
+#endif
           "supply accepts one bounded BPI1 device identity record from the\n"
           "operator console; status is read-only.\n",
-          argv[0], argv[0]);
+          argv[0], argv[0]
+#ifdef CONFIG_BK7258_FACTORY_DIAGNOSTICS
+          , argv[0], argv[0], argv[0]
+#endif
+          );
   return 1;
 }
 

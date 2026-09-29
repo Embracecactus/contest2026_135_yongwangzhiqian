@@ -29,6 +29,10 @@
 #include <syslog.h>
 #include <unistd.h>
 #include <mbedtls/platform_util.h>
+#ifdef CONFIG_BK7258_FACTORY_DIAGNOSTICS
+#include <mbedtls/sha256.h>
+#include "bk7258_factory_diagnostics.h"
+#endif
 
 #include <nuttx/signal.h>
 #include <nuttx/mutex.h>
@@ -284,6 +288,8 @@ static void product_keys_notify(void)
 
 #ifdef CONFIG_BK7258_ENGINEERING_TEST
 static struct bkengtest_s g_engineering_test;
+static struct bkengaudio_s g_engineering_audio;
+static int product_audio_validation_report(struct bkengaudio_report_s *report);
 
 static int product_engineering_key_begin(void *context, uint32_t session,
                                          uint64_t now)
@@ -331,6 +337,34 @@ static int product_engineering_system_status(void *context, uint32_t *voice,
   return 0;
 }
 
+static int product_engineering_audio_run(
+  void *context, struct bkengaudio_report_s *report)
+{
+  uint32_t power_state;
+  int32_t power_error;
+  int ret;
+
+  (void)context;
+  if (report == NULL || !atomic_load(&g_voice_initialized) ||
+      !voice_channel_is_idle() || bkagent_ota_busy())
+    {
+      return -EBUSY;
+    }
+
+  ret = bk7258_agent_power_status(NULL, &power_state, &power_error);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (power_state != 0 || power_error != 0)
+    {
+      return -EBUSY;
+    }
+
+  return product_audio_validation_report(report);
+}
+
 static const struct bkengtest_ops_s g_engineering_test_ops =
 {
   .now_ms = bkvoice_config_now_ms,
@@ -339,6 +373,7 @@ static const struct bkengtest_ops_s g_engineering_test_ops =
   .key_end = product_engineering_key_end,
   .power_status = bk7258_agent_power_status,
   .system_status = product_engineering_system_status,
+  .audio_run = product_engineering_audio_run,
 };
 #endif
 
@@ -1704,6 +1739,13 @@ static int product_pc_config(void *context, enum bkcontrol_command_e command,
       return bkengtest_control(&g_engineering_test, &g_engineering_test_ops,
                                NULL, command, offset, record, size, status);
     }
+
+  if (kind == BKCONTROL_CONFIG_ENGINEERING_AUDIO)
+    {
+      return bkengaudio_control(&g_engineering_audio,
+                                &g_engineering_test_ops, NULL,
+                                command, offset, record, size, status);
+    }
 #endif
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
   if (kind == BKCONTROL_CONFIG_DEFAULT_SELECTION ||
@@ -1796,11 +1838,62 @@ static void product_pc_engineering_closed(void *context)
 
 static void product_pc_usb_step(void)
 {
-  static const struct bkpc_source_s source =
+  static const struct bkpc_source_s durable_source =
     { NULL, bkpc_authorization_snapshot };
+#ifdef CONFIG_BK7258_FACTORY_DIAGNOSTICS
+  static const struct bkpc_source_s factory_source =
+    { NULL, bkfactory_diagnostics_snapshot };
+  uint8_t certificate_sha256[32];
+  uint32_t diagnostic_flags = 0;
+  uint32_t diagnostic_remaining = 0;
+  uint64_t now = bkvoice_config_now_ms(NULL);
+  bool factory_eligible = g_identity_bound && g_identity.generated &&
+                          !g_control_bound && !bkagent_ota_busy() &&
+                          bkprov_bootstrap_status() == 1 &&
+                          g_identity.certificate.raw.p != NULL &&
+                          g_identity.certificate.raw.len != 0;
+  bool factory_active = false;
+  int diagnostic_result;
+
+  memset(certificate_sha256, 0, sizeof(certificate_sha256));
+  if (factory_eligible)
+    {
+      diagnostic_result = mbedtls_sha256(g_identity.certificate.raw.p,
+                                         g_identity.certificate.raw.len,
+                                         certificate_sha256, 0);
+      if (diagnostic_result == 0)
+        {
+          diagnostic_result = bkfactory_diagnostics_gate(
+            true, certificate_sha256, now);
+        }
+      else
+        {
+          diagnostic_result = -EIO;
+        }
+    }
+  else
+    {
+      diagnostic_result = bkfactory_diagnostics_gate(false, NULL, now);
+    }
+
+  if (diagnostic_result == 0)
+    {
+      diagnostic_result = bkfactory_diagnostics_status(
+        now, &diagnostic_flags, &diagnostic_remaining);
+    }
+
+  factory_active = diagnostic_result == 0 &&
+                   (diagnostic_flags & BKFACTORY_DIAGNOSTICS_ACTIVE) != 0;
+  mbedtls_platform_zeroize(certificate_sha256,
+                           sizeof(certificate_sha256));
+  const struct bkpc_source_s *source = factory_active ?
+    &factory_source : &durable_source;
+#else
+  const struct bkpc_source_s *source = &durable_source;
+#endif
   const struct bkpc_usb_config_s config =
     {
-      &source, &g_identity.certificate, &g_identity.key,
+      source, &g_identity.certificate, &g_identity.key,
       bkvoice_config_now_ms, NULL, product_control, product_pc_config, NULL
     };
 
@@ -1810,7 +1903,10 @@ static void product_pc_usb_step(void)
    */
 
   (void)bkpc_usb_owner_step(&g_pc_usb_owner, &config,
-    g_identity_bound && g_control_bound && !bkagent_ota_busy(),
+#ifdef CONFIG_BK7258_FACTORY_DIAGNOSTICS
+    factory_active ||
+#endif
+    (g_identity_bound && g_control_bound && !bkagent_ota_busy()),
     !atomic_load(&g_voice_initialized) || voice_channel_is_idle());
 #ifdef CONFIG_BK7258_ENGINEERING_TEST
   if (g_pc_usb_owner.usb.lease.open)
@@ -3376,7 +3472,8 @@ static void install_product_skills(void)
  * or recovery scheduler.
  */
 
-#ifdef CONFIG_BK7258_AUDIO_PLAYBACK_VALIDATION
+#if defined(CONFIG_BK7258_AUDIO_PLAYBACK_VALIDATION) || \
+    defined(CONFIG_BK7258_ENGINEERING_TEST)
 #include "bk7258_agent_audio_validation.inc"
 #endif
 

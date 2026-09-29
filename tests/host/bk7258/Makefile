@@ -1968,6 +1968,24 @@ $(BUILD)/test_bk7258_engineering_test: test_bk7258_engineering_test.c \
 	$(CC) $(VOICE_PACK_CFLAGS) -DCONFIG_BK7258_ENGINEERING_TEST=1 \
 		-I $(VOICE_PACK_ROOT) $(filter %.c,$^) -o $@
 
+$(BUILD)/test_bk7258_engineering_audio: test_bk7258_engineering_audio.c \
+	$(VOICE_PACK_ROOT)/bk7258_engineering_test.c \
+	$(VOICE_PACK_ROOT)/bk7258_engineering_test.h \
+	$(VOICE_PACK_ROOT)/bk7258_control_session.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -DCONFIG_BK7258_ENGINEERING_TEST=1 \
+		-I $(VOICE_PACK_ROOT) $(filter %.c,$^) -o $@
+
+$(BUILD)/test_factory_diagnostics: test_factory_diagnostics.c \
+	$(VOICE_PACK_ROOT)/bk7258_factory_diagnostics.c \
+	$(VOICE_PACK_ROOT)/bk7258_factory_diagnostics.h \
+	$(VOICE_PACK_ROOT)/bk7258_provision_storage.h \
+	$(VOICE_PACK_ROOT)/bk7258_pc_grants.h \
+	$(MOCKS)/mock_nuttx_ap.c $(VOICE_OTA_MBEDCRYPTO) | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(MOCKS) \
+		-I $(VOICE_PACK_ROOT) -I $(VOICE_OTA_MBEDTLS_SOURCE)/include \
+		$(filter %.c,$^) -Wl,--wrap=clock_gettime \
+		$(VOICE_OTA_MBEDCRYPTO) -o $@
+
 $(BUILD)/test_shaniu_volume_contract: test_shaniu_volume_contract.c $(VOICE_PACK_ROOT)/bk7258_media_volume.c $(CHIP_ROOT)/ap/bk7258_usbmode.c | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -pthread -DCONFIG_BK7258_USBMODE -DCONFIG_BK7258_AP_CORE \
 		-DCONFIG_BK7258_USBCDC -DCONFIG_BK7258_USBMSC -DCONFIG_BK7258_OTA_SOURCE_FILE \

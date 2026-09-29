@@ -190,6 +190,33 @@ class WorkbenchClientTest(unittest.TestCase):
         self.assertEqual(peer.requests, [])
         self.assertEqual(peer.sent, 0)
 
+    def test_factory_probe_matches_leaf_before_any_sdc1_secret(self):
+        peer = TlsPeer(self.cert, self.key)
+        pem = workbench.probe_channel_certificate(
+            peer,
+            self.pin,
+            timeout=1,
+            clock=peer.clock,
+            sleep=peer.sleep,
+        )
+        self.assertEqual(
+            hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem)).hexdigest(), self.pin
+        )
+        self.assertEqual(peer.requests, [])
+        self.assertTrue(peer.closed)
+
+        mismatch = TlsPeer(self.cert, self.key)
+        with self.assertRaises(workbench.ControlError):
+            workbench.probe_channel_certificate(
+                mismatch,
+                "00" * 32,
+                timeout=1,
+                clock=mismatch.clock,
+                sleep=mismatch.sleep,
+            )
+        self.assertEqual(mismatch.requests, [])
+        self.assertTrue(mismatch.closed)
+
     def test_valid_chain_with_wrong_leaf_never_receives_pc_key(self):
         peer = TlsPeer(self.alt_cert, self.alt_key)
         client = workbench.ControlClient(peer, self.pem, self.pin)

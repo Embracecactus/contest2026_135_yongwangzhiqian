@@ -19,6 +19,9 @@
 #include "bk7258_prov_rpc.h"
 #include "bk7258_provision_identity.h"
 #include "bk7258_provision_storage.h"
+#ifdef CONFIG_BK7258_FACTORY_DIAGNOSTICS
+#include "bk7258_factory_diagnostics.h"
+#endif
 
 #include <errno.h>
 #include <mbedtls/platform_util.h>
@@ -27,6 +30,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <syslog.h>
+#include <time.h>
 
 #include <nuttx/irq.h>
 #include <nuttx/mutex.h>
@@ -63,12 +67,14 @@ static struct bkprov_server_s g_bkprov =
 
 static void bkprov_send_answer(struct bkprov_server_s *s,
                                const struct bkprov_rpc_frame_s *frame,
-                               int status, uint32_t accepted)
+                               int status, uint32_t accepted,
+                               uint32_t detail)
 {
   struct bkprov_rpc_answer_s answer;
 
   bkprov_rpc_make_answer(&answer, frame, status);
   answer.accepted = accepted;
+  answer.detail = detail;
   if (nxmutex_lock(&s->endpoint_lock) >= 0)
     {
       if (s->endpoint_created && s->connected &&
@@ -81,14 +87,33 @@ static void bkprov_send_answer(struct bkprov_server_s *s,
     }
 }
 
+#ifdef CONFIG_BK7258_FACTORY_DIAGNOSTICS
+static int bkprov_now_ms(uint64_t *now_ms)
+{
+  struct timespec value;
+
+  if (now_ms == NULL || clock_gettime(CLOCK_MONOTONIC, &value) < 0 ||
+      value.tv_sec < 0 || value.tv_nsec < 0 ||
+      value.tv_nsec >= 1000000000L)
+    {
+      return -EIO;
+    }
+
+  *now_ms = (uint64_t)value.tv_sec * 1000u +
+            (uint64_t)value.tv_nsec / 1000000u;
+  return 0;
+}
+#endif
+
 static int bkprov_handle_frame(struct bkprov_server_s *s,
                                const struct bkprov_rpc_frame_s *frame,
-                               uint32_t *accepted)
+                               uint32_t *accepted, uint32_t *detail)
 {
   struct bkprov_identity_s probe;
   int ret;
 
   *accepted = (uint32_t)s->received;
+  *detail = 0;
   switch (frame->command)
     {
       case BKPROV_RPC_BEGIN:
@@ -156,6 +181,68 @@ static int bkprov_handle_frame(struct bkprov_server_s *s,
         s->received = 0;
         return ret;
 
+#ifdef CONFIG_BK7258_FACTORY_DIAGNOSTICS
+      case BKPROV_RPC_DIAGNOSTICS_ENABLE:
+        {
+          uint64_t now_ms;
+
+          if (s->total != 0)
+            {
+              return -EBUSY;
+            }
+
+          ret = bkprov_now_ms(&now_ms);
+          if (ret == 0)
+            {
+              ret = bkfactory_diagnostics_enable(frame->data,
+                                                  frame->length, now_ms);
+            }
+
+          if (ret == 0)
+            {
+              ret = bkfactory_diagnostics_status(now_ms, accepted, detail);
+            }
+
+          return ret;
+        }
+
+      case BKPROV_RPC_DIAGNOSTICS_REVOKE:
+        {
+          uint64_t now_ms;
+
+          if (s->total != 0)
+            {
+              return -EBUSY;
+            }
+
+          ret = bkprov_now_ms(&now_ms);
+          return ret < 0 ? ret : bkfactory_diagnostics_revoke(now_ms);
+        }
+
+      case BKPROV_RPC_DIAGNOSTICS_STATUS:
+        {
+          uint64_t now_ms;
+
+          if (s->total != 0)
+            {
+              return -EBUSY;
+            }
+
+          ret = bkprov_now_ms(&now_ms);
+          return ret < 0 ? ret :
+                 bkfactory_diagnostics_status(now_ms, accepted, detail);
+        }
+
+      case BKPROV_RPC_DIAGNOSTICS_CERTIFICATE:
+        if (s->total != 0)
+          {
+            return -EBUSY;
+          }
+
+        return bkfactory_diagnostics_certificate(frame->offset, accepted);
+
+#endif
+
       default:
         return -EINVAL;
     }
@@ -172,6 +259,7 @@ static int bkprov_worker(int argc, char *argv[])
       struct bkprov_rpc_frame_s frame;
       irqstate_t flags;
       uint32_t accepted = 0;
+      uint32_t detail = 0;
       int ret;
 
       while (nxsem_wait_uninterruptible(&s->sem) < 0)
@@ -186,12 +274,13 @@ static int bkprov_worker(int argc, char *argv[])
         }
 
       frame = s->request;
+      mbedtls_platform_zeroize(&s->request, sizeof(s->request));
       s->pending = false;
       spin_unlock_irqrestore(&s->lock, flags);
 
       ret = bkprov_rpc_frame_valid(&frame) ?
-            bkprov_handle_frame(s, &frame, &accepted) : -EINVAL;
-      bkprov_send_answer(s, &frame, ret, accepted);
+            bkprov_handle_frame(s, &frame, &accepted, &detail) : -EINVAL;
+      bkprov_send_answer(s, &frame, ret, accepted, detail);
       memset(&frame, 0, sizeof(frame));
     }
 

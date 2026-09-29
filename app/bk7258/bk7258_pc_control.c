@@ -92,7 +92,8 @@ static int config(void *context, enum bkcontrol_command_e command,
              kind == BKCONTROL_CONFIG_PC_TASK;
 #ifdef CONFIG_BK7258_ENGINEERING_TEST
   allowed |= (state->capabilities & BKPC_CAP_DIAGNOSTICS) != 0 &&
-             kind == BKCONTROL_CONFIG_ENGINEERING_TEST;
+             (kind == BKCONTROL_CONFIG_ENGINEERING_TEST ||
+              kind == BKCONTROL_CONFIG_ENGINEERING_AUDIO);
 #endif
   if (!allowed)
     {

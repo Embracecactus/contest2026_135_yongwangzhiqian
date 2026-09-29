@@ -44,6 +44,10 @@ if(CONFIG_BK7258_ENGINEERING_TEST)
   target_sources(apps PRIVATE bk7258_engineering_test.c)
 endif()
 
+if(CONFIG_BK7258_FACTORY_DIAGNOSTICS AND CONFIG_BK7258_AP_CORE)
+  target_sources(apps PRIVATE bk7258_factory_diagnostics.c)
+endif()
+
 if(CONFIG_BK7258_APP_AGENT AND CONFIG_BK7258_VOICE_TLS)
   if(CONFIG_BK7258_PREFERENCES)
     target_sources(apps PRIVATE bk7258_agent_memory.c bk7258_agent_memory_codec.c)

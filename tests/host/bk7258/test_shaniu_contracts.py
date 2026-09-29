@@ -536,6 +536,8 @@ def main():
         "test_bk7258_nfc_rpc",
         "test_bk7258_pm_replay",
         "test_bk7258_engineering_test",
+        "test_bk7258_engineering_audio",
+        "test_factory_diagnostics",
     ):
         binaries[target] = build(["make", "build/" + target], "build-" + target)
     for variant in (
@@ -611,6 +613,48 @@ def main():
         add(suite, "USB-01.bktest-cli." + name, "USB-01", "L1",
             [sys.executable, HERE / "test_hil_test.py",
              "HilTestContract." + name], marker=False)
+    for name in (
+        "test_long_key_cli_waits_for_independent_terminal_power_evidence",
+        "test_key_result_requires_real_terminal_power_evidence",
+    ):
+        add(suite, "K2-01.bktest-cli." + name, "K2-01", "L1",
+            [sys.executable, HERE / "test_hil_test.py",
+             "HilTestContract." + name], marker=False)
+    for name in (
+        "test_audio_client_uses_authenticated_kind20_without_external_media",
+        "test_audio_run_is_fixed_and_status_covers_all_three_sessions",
+        "test_audio_codec_rejects_caller_media_and_false_success",
+    ):
+        add(suite, "AUD-03.factory-bktest-cli." + name, "AUD-03", "L1",
+            [sys.executable, HERE / "test_hil_test.py",
+             "HilTestContract." + name], marker=False)
+    for name in (
+        "test_enroll_orders_physical_secret_pin_probe_and_dpapi_profile",
+        "test_pin_probe_failure_revokes_and_never_publishes_profile",
+        "test_existing_profile_is_rejected_before_console_secret",
+    ):
+        add(suite, "FACT-01.tool." + name, "FACT-01", "L1",
+            [sys.executable, HERE / "test_factory_diagnostics_tool.py",
+             "FactoryDiagnosticsToolTest." + name], marker=False)
+    for name in (
+        "test_power_status_is_read_from_coordinator_after_native_usb_closes",
+        "test_power_wait_is_bounded_and_requires_a_terminal_state",
+    ):
+        add(suite, "LIFE-02.factory-power-observer." + name, "LIFE-02", "L1",
+            [sys.executable, HERE / "test_factory_diagnostics_tool.py",
+             "FactoryDiagnosticsToolTest." + name], marker=False)
+    add(suite, "FACT-01.workbench-certificate-probe", "FACT-01", "L1",
+        [sys.executable, HERE / "test_workbench_client.py",
+         "WorkbenchClientTest.test_factory_probe_matches_leaf_before_any_sdc1_secret"],
+        marker=False)
+    for variant in ("enable", "expiry", "revoke", "owner"):
+        add(suite, "FACT-01.diagnostics-" + variant, "FACT-01", "L2",
+            [HERE / "build/test_factory_diagnostics", variant],
+            binaries["test_factory_diagnostics"])
+    for variant in ("run", "invalid", "failure"):
+        add(suite, "AUD-03.factory-bktest-audio-" + variant, "AUD-03", "L2",
+            [HERE / "build/test_bk7258_engineering_audio", variant],
+            binaries["test_bk7258_engineering_audio"])
     for identity in ("production", "engineering"):
         add(suite, "USB-01.bktest-pc-" + identity + "-gate", "USB-01", "L2",
             [sys.executable, HERE / "test_provision_tls.py",
@@ -1715,6 +1759,10 @@ def main():
         HERE / "test_provision_owner.c",
         HERE / "test_bk7258_agent_media_player.c",
         HERE / "test_agent_audio_playback.c",
+        HERE / "test_bk7258_engineering_audio.c",
+        HERE / "test_factory_diagnostics.c",
+        HERE / "test_factory_diagnostics_tool.py",
+        HERE / "test_hil_test.py",
         HERE / "test_agent_volc_tts_progress.c",
         HERE / "test_bk7258_cloud_http.py",
         HERE / "test_sc7a20_sampling.py",
@@ -1735,6 +1783,30 @@ def main():
         ROOT / "app/bk7258/bk7258_provision_tls.h",
         ROOT / "app/bk7258/bk7258_control_pair.c",
         ROOT / "app/bk7258/bk7258_control_pair.h",
+        ROOT / "app/bk7258/bk7258_factory_diagnostics.c",
+        ROOT / "app/bk7258/bk7258_factory_diagnostics.h",
+        ROOT / "app/bk7258/bk7258_engineering_test.c",
+        ROOT / "app/bk7258/bk7258_engineering_test.h",
+        ROOT / "app/bk7258/bk7258_agent_product.c",
+        ROOT / "app/bk7258/bk7258_agent_power.h",
+        ROOT / "app/bk7258/bk7258_health_core.c",
+        ROOT / "app/bk7258/bk7258_health_main.c",
+        ROOT / "app/bk7258/bk7258_health_protocol.h",
+        ROOT / "app/bk7258/bk7258_health_service.c",
+        ROOT / "app/bk7258/bk7258_prov_client.c",
+        ROOT / "app/bk7258/bk7258_prov_main.c",
+        ROOT / "app/bk7258/bk7258_prov_rpc.h",
+        ROOT / "app/bk7258/bk7258_prov_service.c",
+        ROOT / "app/bk7258/bk7258_control_session.c",
+        ROOT / "app/bk7258/bk7258_control_session.h",
+        ROOT / "app/bk7258/Kconfig",
+        ROOT / "app/bk7258/CMakeLists.txt",
+        ROOT / "boards/bk7258/aidk_ai_toy/configs/app_bktest/defconfig",
+        ROOT / "boards/bk7258/aidk_ai_toy/configs/app_bktest/profile.conf",
+        ROOT / "boards/bk7258/aidk_ai_toy/configs/openvela_ap_bktest/defconfig",
+        ROOT / "boards/bk7258/aidk_ai_toy/configs/openvela_ap_bktest/profile.conf",
+        ROOT / "boards/bk7258/aidk_ai_toy/configs/openvela_ap_audio_validation/defconfig",
+        ROOT / "boards/bk7258/aidk_ai_toy/configs/openvela_ap_audio_validation/profile.conf",
         HERE / "test_display_job.c",
         HERE / "test_display_job_service.c",
         HERE / "test_pack_product_route.py",
@@ -1781,6 +1853,8 @@ def main():
         ROOT / "app/bk7258/bk7258_pc_authorization.c",
         ROOT / "app/bk7258/bk7258_pc_authorization.h",
         ROOT / "tools/bk7258/_lib/workbench.py",
+        ROOT / "tools/bk7258/_lib/factory_diagnostics.py",
+        ROOT / "tools/bk7258/_lib/hil_test.py",
         ROOT / "tools/bk7258/_lib/workbench_profile.py",
         HERE / "test_workbench_profile.py",
         ROOT / "tools/bk7258/_lib/workbench_pairing.py",

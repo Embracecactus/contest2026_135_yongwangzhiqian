@@ -85,6 +85,18 @@ config BK7258_ENGINEERING_TEST
 		adds no shell, owner bypass, reset/erase primitive or production command.
 		Keep disabled in normal product and release configurations.
 
+config BK7258_FACTORY_DIAGNOSTICS
+	bool "Factory-only volatile BKTEST enrollment"
+	default n
+	depends on (BK7258_AP_CORE && BK7258_ENGINEERING_TEST && BK7258_PROVISION_NATIVE) || (!BK7258_AP_CORE && BK7258_APP_PROV)
+	help
+		Extend the existing physical bkprov-v1 operator channel in a matched
+		factory engineering CP/AP build.  It installs one diagnostics-only PC
+		principal in AP RAM after native identity generation, returns only the
+		public leaf-certificate SHA-256, and expires or revokes within one boot.
+		No PCG1, owner, Wi-Fi/cloud, identity, trust or external-SD byte is
+		written.  Keep disabled in every normal product/release profile.
+
 config BK7258_AUDIO_PLAYBACK_VALIDATION
 	bool "Development-only one-shot Agent Media playback validation"
 	default n
