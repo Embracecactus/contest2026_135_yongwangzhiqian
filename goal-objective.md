@@ -12,7 +12,7 @@
 - 手机与电脑断开，现场无人；不请求K2、扫码、插拔、听音或卡片动作，不新建手机桥接。
 - 板子连接；已核对 COM9 为 CH340 下载/NSH，COM16 为原生 CDC 二进制通道。
 - 正常固件 HIL 下载、必要受控复位、启动采集和非破坏性回归已获授权。
-- 已用现有 BK Loader 有界写入清单固定CP/AP段；当前0.7.38+683在A槽确认启动，受控重启后仍确认pair/counter 683且可达。
+- 已用现有 BK Loader 有界写入清单固定CP/AP段；当前0.7.43+688在B槽确认启动，受控重启后仍确认pair/counter 688且可达。
 - CDC OTA HELLO超时，未进入写入；不把该结果记作App OTA。COM9软件复位下载成功不证明独立故障/深睡恢复。
 - 未证明独立恢复、硬件按键/电源控制、声学/电流/屏幕观测能力；仅暂停依赖这些能力的动作。
 - 不清owner、网络/Key、SD或硬件数据，不改OTP/eFuse/信任根，不降低防回滚。工厂首启单列。
@@ -82,7 +82,9 @@
 - 匹配0.7.41+686已通过包和公开签名信任校验；新鲜板端状态确认A活动/B非活动及准确范围后，HIL一次仅写B槽CP/AP。首次查询仍pending并在同一日志随后确认，二次查询及受控软件重启后均为B槽pair/counter 686、faults/recoveries 0；原模型完整哈希、frontend 1、阈值85、配置revision 6与眼睛包revision 3保持。没有安全的真实视觉HTTP取消注入或屏幕/相机观察，不把启动证据称AGENT-03外部端到端通过。
 - K2真实接收路径发现已满足松手门槛的关机意图会被随后RPMsg断链清除：旧实现形成有效Red，未完成长按保持Green；现仅重置链路与未完成hold，已接受意图由产品协调器恰好消费一次。受影响12项、运行器27项及当前785个所选ID通过，两项既有变异继续检出；不以数量称整机完成。
 - 匹配0.7.42+687已验签并由HIL一次仅写非活动A槽CP/AP，确认pair/counter 687、faults/recoveries 0。受控软件重启后原模型完整哈希、frontend 1、阈值85、配置revision 6与眼睛包revision 3保持；没有安全板端RPMsg断链注入，也未执行实体K2/深睡，故精确缺陷记L2生产路径通过、匹配固件部署与稳态记HIL通过。
-- 本轮证据与匹配BIN/ELF/map：out/shaniu-core-20260928/、out/shaniu-core-20260929/cfg02-application/、out/shaniu-core-20260929/app-queued-config-cancel/；未执行人工K2、App或声学验收。
+- LIFE-02发现关机协调器丢弃`voice_channel_recover()`永久错误：旧实现的failure反例为有效Red，retryable pending基线为Green；现`-EAGAIN/-EBUSY`继续等待原期限，其他负值立即发布失败、禁止CP提交且轮询不重开资源，新明确意图只在清理成功并idle后重试。定向30项power、prepare-only、真实owner及4项Agent音频回归通过。
+- 当前完整合同集合788/788通过、零FAIL/SETUP/NOT_RUN，两项既有变异继续检出；运行器最初正确检出required ID元数据遗漏，单独修正后27项通过。复核补充的原期限边界在旧生产协调器和当前实现都为Green，证明持续pending不会更新30000ms截止点。匹配0.7.43+688已验签并由HIL一次仅写非活动B槽CP/AP，确认pair/counter 688、faults/recoveries 0。受控软件重启后原模型完整哈希、frontend 1、阈值85、配置revision 6与眼睛包revision 3保持。没有安全板端语音清理故障注入，也未执行实体K2/深睡/声学验收，精确故障记L1生产协调器通过，匹配部署与稳态记HIL通过。
+- 本轮证据与匹配BIN/ELF/map：out/shaniu-core-20260928/、out/shaniu-core-20260929/cfg02-application/、out/shaniu-core-20260929/app-queued-config-cancel/、out/shaniu-core-20260929/voice-exit/；未执行人工K2、App或声学验收。
 
 ## 交付与停止条件
 
