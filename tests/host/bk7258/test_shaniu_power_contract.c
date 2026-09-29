@@ -377,6 +377,31 @@ int main(int argc, char **argv)
       puts("CONTRACT_PASS");
       return 0;
     }
+  if (!strcmp(argv[1], "voice-cleanup-deadline"))
+    {
+      voice_idle = false;
+      voice_recover_error = -EBUSY;
+      assert(product_keys_step(0));
+      uint64_t deadline = g_shutdown_deadline;
+      assert(deadline == 30000 && g_shutdown_requested);
+      assert(!g_shutdown_failed && cp_calls == 0 && display_phase == 2);
+
+      assert(product_keys_step(1000));
+      assert(g_shutdown_deadline == deadline && g_shutdown_requested);
+      assert(!g_shutdown_failed && cp_calls == 0);
+      assert(product_keys_step(29999));
+      assert(g_shutdown_deadline == deadline && g_shutdown_requested);
+      assert(!g_shutdown_failed && cp_calls == 0);
+
+      /* Repeated cleanup progress cannot renew the original intent deadline.
+       * The exact boundary becomes a visible failure, never a CP request. */
+      assert(product_keys_step(30000));
+      assert(g_shutdown_deadline == deadline && g_shutdown_failed);
+      assert(!g_shutdown_requested && g_product_error == -ETIMEDOUT);
+      assert(cp_calls == 0 && reopens == 0 && display_phase == 3);
+      puts("CONTRACT_PASS");
+      return 0;
+    }
   if (!strcmp(argv[1], "final-close-drains"))
     {
       transport_error = -EAGAIN;

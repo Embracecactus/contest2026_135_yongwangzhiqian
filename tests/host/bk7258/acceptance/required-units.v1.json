@@ -787,7 +787,8 @@
     "K2-01.accepted-disconnect",
     "K2-03.unfinished-disconnect",
     "LIFE-02.power-voice-cleanup-pending",
-    "LIFE-02.power-voice-cleanup-failure"
+    "LIFE-02.power-voice-cleanup-failure",
+    "LIFE-02.power-voice-cleanup-deadline"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1578,6 +1579,7 @@
     "K2-01.accepted-disconnect",
     "K2-03.unfinished-disconnect",
     "LIFE-02.power-voice-cleanup-pending",
-    "LIFE-02.power-voice-cleanup-failure"
+    "LIFE-02.power-voice-cleanup-failure",
+    "LIFE-02.power-voice-cleanup-deadline"
   ]
 }

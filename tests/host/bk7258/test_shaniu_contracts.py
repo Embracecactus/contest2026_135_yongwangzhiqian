@@ -901,7 +901,8 @@ def main():
         add(suite, "LIFE-02.power-" + variant, "LIFE-02", "L1",
             [HERE / "build/test_shaniu_power_contract", variant],
             binaries["test_shaniu_power_contract"])
-    for variant in ("voice-cleanup-pending", "voice-cleanup-failure"):
+    for variant in ("voice-cleanup-pending", "voice-cleanup-failure",
+                    "voice-cleanup-deadline"):
         add(suite, "LIFE-02.power-" + variant, "LIFE-02", "L1",
             [HERE / "build/test_shaniu_power_contract", variant],
             binaries["test_shaniu_power_contract"])

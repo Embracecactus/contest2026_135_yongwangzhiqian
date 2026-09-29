@@ -1306,3 +1306,9 @@ but cannot submit CP or reopen resources. A new explicit power intent may retry
 after the voice owner reports both successful cleanup and idle. These host cases
 execute the production coordinator with a controlled voice-owner boundary; they
 do not prove Media/DMA teardown, physical K2, deep sleep, or board recovery.
+
+The deadline case keeps cleanup busy through 1000 ms and 29999 ms, then checks
+the exact 30000 ms boundary. It records that repeated progress does not change
+the original deadline and that expiry publishes `-ETIMEDOUT` without a CP
+request. This preserved behavior also passes against the pre-fix production
+coordinator; it is a Green baseline, not a manufactured Red.
