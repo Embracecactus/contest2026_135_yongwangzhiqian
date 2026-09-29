@@ -158,9 +158,9 @@ static void status_case(void)
   uint8_t wire[BKENGTEST_STATUS_SIZE];
   struct bkcontrol_status_s status;
 
+  start(17, BKENGTEST_PM_PENDING);
   g_power_state = 2u | 256u;
   g_power_error = -EINPROGRESS;
-  start(17, BKENGTEST_PM_PENDING);
   for (uint32_t offset = 0; offset < sizeof(wire); offset += 16)
     {
       memset(&status, 0, sizeof(status));
@@ -224,12 +224,16 @@ static void sequence_case(void)
 static void session_ownership_case(void)
 {
   start(21, BKENGTEST_PM_PENDING);
+  assert(apply(BKENGTEST_OP_KEY, 21, 2,
+               BKVOICE_PRODUCT_KEY_POWER, 0, 0) == 0);
+  assert(apply(BKENGTEST_OP_ADVANCE, 21, 3, 0, 3000, 0) == 0);
+  assert(apply(BKENGTEST_OP_KEY, 21, 4, 0, 3000, 0) == 0);
   assert(apply(BKENGTEST_OP_SESSION, 22, 1,
                BKENGTEST_PM_DECLINED, 0, 0) == -EBUSY);
   assert(bkengtest_pm_request(&g_test) == 0);
   assert(bkengtest_pm_status(&g_test) == 1);
 
-  assert(apply(BKENGTEST_OP_END, 21, 2, 0, 0, 0) == 0);
+  assert(apply(BKENGTEST_OP_END, 21, 5, 0, 3000, 0) == 0);
   g_power_state = 2u | 256u;
   g_power_error = -EINPROGRESS;
   assert(apply(BKENGTEST_OP_SESSION, 22, 1,
@@ -275,6 +279,10 @@ static void disconnect_case(void)
 static void pm_case(uint32_t mode)
 {
   start(11, mode);
+  assert(apply(BKENGTEST_OP_KEY, 11, 2,
+               BKVOICE_PRODUCT_KEY_POWER, 0, 0) == 0);
+  assert(apply(BKENGTEST_OP_ADVANCE, 11, 3, 0, 3000, 0) == 0);
+  assert(apply(BKENGTEST_OP_KEY, 11, 4, 0, 3000, 0) == 0);
   int request = bkengtest_pm_request(&g_test);
   int first = bkengtest_pm_status(&g_test);
   int second = bkengtest_pm_status(&g_test);

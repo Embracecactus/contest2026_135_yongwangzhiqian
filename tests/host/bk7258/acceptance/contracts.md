@@ -1418,3 +1418,7 @@ K2 policy remains an accepted product intent; its engineering PM peer stays
 bound long enough for the real coordinator to reconcile or reach its own
 deadline. The status flag identifies this retained intent. Repeated close is
 idempotent and cannot replay or cancel the accepted product action.
+
+The engineering PM peer is unavailable until the common production key policy
+has accepted a qualifying release. Tests cannot invoke the peer helper alone
+and count that as a K2 or coordinator result.
