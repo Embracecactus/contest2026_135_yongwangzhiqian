@@ -587,6 +587,9 @@ def main():
     add(suite, "LIFE-02.bktest-status", "LIFE-02", "L2",
         [HERE / "build/test_bk7258_engineering_test", "status"],
         binaries["test_bk7258_engineering_test"])
+    add(suite, "LIFE-02.bktest-session-expiry", "LIFE-02", "L2",
+        [HERE / "build/test_bk7258_engineering_test", "session-expiry"],
+        binaries["test_bk7258_engineering_test"])
     for variant in ("cp-declined", "cp-unknown", "cp-pending", "cp-late-ack"):
         add(suite, "LIFE-02.bktest-" + variant, "LIFE-02", "L2",
             [HERE / "build/test_bk7258_engineering_test", variant],

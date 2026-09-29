@@ -1399,3 +1399,7 @@ handler and the SDC1 capability gate. Board HIL may use `bkhealth power` as an
 independent read-only observer after product USB is quiesced. Host/HIL results
 do not close physical GPIO debounce, real K2, deep sleep/wakeup, current draw,
 phone BLE, App OTA, or subjective sound acceptance.
+
+An idle engineering input session expires after 60000 ms. Expiry releases the
+virtual source and reports `-ETIMEDOUT`; it must not leave physical input
+blocked or silently report an orderly explicit end.

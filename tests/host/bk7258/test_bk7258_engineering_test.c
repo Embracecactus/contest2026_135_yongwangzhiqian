@@ -178,6 +178,36 @@ static void status_case(void)
   assert((int32_t)get32(wire + 44) == g_power_error);
 }
 
+static void expiry_case(void)
+{
+  uint8_t wire[BKENGTEST_STATUS_SIZE];
+  struct bkcontrol_status_s status;
+
+  start(19, BKENGTEST_PM_BLOCKED);
+  bkengtest_step(&g_test, &g_ops, NULL,
+                 g_now + BKENGTEST_SESSION_IDLE_MS - 1u);
+  memset(&status, 0, sizeof(status));
+  assert(bkengtest_control(&g_test, &g_ops, NULL,
+                          BKCONTROL_CONFIG_READ, 0, NULL, 0,
+                          &status) == 0);
+  assert(get32(status.config_chunk + 8) & BKENGTEST_STATUS_ACTIVE);
+
+  bkengtest_step(&g_test, &g_ops, NULL,
+                 g_now + BKENGTEST_SESSION_IDLE_MS);
+  for (uint32_t offset = 0; offset < sizeof(wire); offset += 16)
+    {
+      memset(&status, 0, sizeof(status));
+      assert(bkengtest_control(&g_test, &g_ops, NULL,
+                              BKCONTROL_CONFIG_READ, offset, NULL, 0,
+                              &status) == 0);
+      memcpy(wire + offset, status.config_chunk, 16);
+    }
+
+  assert(!(get32(wire + 8) & BKENGTEST_STATUS_ACTIVE));
+  assert(get32(wire + 8) & BKENGTEST_STATUS_EXPIRED);
+  assert((int32_t)get32(wire + 48) == -ETIMEDOUT);
+}
+
 static void sequence_case(void)
 {
   start(9, BKENGTEST_PM_BLOCKED);
@@ -224,6 +254,7 @@ int main(int argc, char **argv)
   else if (!strcmp(argv[1], "release-3001")) release_case(3001, true);
   else if (!strcmp(argv[1], "no-held")) release_case(3000, true);
   else if (!strcmp(argv[1], "status")) status_case();
+  else if (!strcmp(argv[1], "session-expiry")) expiry_case();
   else if (!strcmp(argv[1], "sequence")) sequence_case();
   else if (!strcmp(argv[1], "cp-declined")) pm_case(BKENGTEST_PM_DECLINED);
   else if (!strcmp(argv[1], "cp-unknown")) pm_case(BKENGTEST_PM_UNKNOWN);
