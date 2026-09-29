@@ -1410,3 +1410,11 @@ new session. The CP peer mode therefore stays bound to the virtual release that
 created the power intent; a later client cannot change an in-flight request's
 declined, unknown, pending, or late-ack result. An accepted but not yet consumed
 power intent likewise prevents a new engineering key source from starting.
+
+Closing or revoking the authenticated PC lease ends an incomplete or
+non-qualifying virtual key session immediately, so it cannot block physical
+input until the idle deadline. A release already accepted by the production
+K2 policy remains an accepted product intent; its engineering PM peer stays
+bound long enough for the real coordinator to reconcile or reach its own
+deadline. The status flag identifies this retained intent. Repeated close is
+idempotent and cannot replay or cancel the accepted product action.

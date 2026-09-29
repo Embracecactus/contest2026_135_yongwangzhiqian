@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import json
 from pathlib import Path
+import struct
 import sys
 import unittest
 
@@ -82,6 +83,19 @@ class HilTestContract(unittest.TestCase):
         client.snapshot["enabled"] = False
         with self.assertRaisesRegex(hil_test.HilTestError, "engineering test"):
             hil_test.require_status(client)
+
+    def test_status_reports_retained_power_intent(self):
+        wire = struct.pack(
+            ">4s15I", b"BKS1", 1, 9, 42, 4, 3000, 0, 4,
+            1, 0, 0x102, 0xFFFFFF8C, 0, 0, 0, 0,
+        )
+        status = hil_test.decode_status(wire)
+        self.assertTrue(status["enabled"])
+        self.assertTrue(status["power_intent"])
+        self.assertEqual(status["pm_mode"], "late-ack")
+        self.assertEqual(status["power_state"], "pending")
+        self.assertTrue(status["power_unresolved"])
+        self.assertEqual(status["power_error"], -116)
 
     def test_json_result_keeps_identity_and_observation_layers(self):
         report = hil_test.report(

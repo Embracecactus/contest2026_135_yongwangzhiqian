@@ -60,12 +60,12 @@ static int key_begin(void *unused, uint32_t session, uint64_t now)
 }
 
 static int key_event(void *unused, uint32_t session, uint32_t sequence,
-                     uint32_t pressed, uint64_t now)
+                     uint32_t pressed, uint64_t now, bool *power_accepted)
 {
   bool power = false;
 
   (void)unused;
-  if (session == 0 || sequence != g_key_sequence + 1)
+  if (session == 0 || sequence != g_key_sequence + 1 || power_accepted == NULL)
     {
       return -ESTALE;
     }
@@ -77,6 +77,8 @@ static int key_event(void *unused, uint32_t session, uint32_t sequence,
     {
       g_power_intents++;
     }
+
+  *power_accepted = power;
 
   return 0;
 }
@@ -234,6 +236,42 @@ static void session_ownership_case(void)
                BKENGTEST_PM_DECLINED, 0, 0) == -EBUSY);
 }
 
+static void disconnect_case(void)
+{
+  uint8_t wire[BKENGTEST_STATUS_SIZE];
+  struct bkcontrol_status_s status;
+
+  start(41, BKENGTEST_PM_BLOCKED);
+  assert(apply(BKENGTEST_OP_KEY, 41, 2,
+               BKVOICE_PRODUCT_KEY_POWER, 0, 0) == 0);
+  assert(apply(BKENGTEST_OP_KEY, 41, 3, 0, 2999, 0) == 0);
+  assert(bkengtest_disconnect(&g_test, &g_ops, NULL) == 0);
+  memset(&status, 0, sizeof(status));
+  assert(bkengtest_control(&g_test, &g_ops, NULL,
+                          BKCONTROL_CONFIG_READ, 0, NULL, 0,
+                          &status) == 0);
+  assert(!(get32(status.config_chunk + 8) & BKENGTEST_STATUS_ACTIVE));
+
+  start(42, BKENGTEST_PM_LATE_ACK);
+  assert(apply(BKENGTEST_OP_KEY, 42, 2,
+               BKVOICE_PRODUCT_KEY_POWER, 0, 0) == 0);
+  assert(apply(BKENGTEST_OP_KEY, 42, 3, 0, 3000, 0) == 0);
+  assert(bkengtest_disconnect(&g_test, &g_ops, NULL) == 1);
+  for (uint32_t offset = 0; offset < sizeof(wire); offset += 16)
+    {
+      memset(&status, 0, sizeof(status));
+      assert(bkengtest_control(&g_test, &g_ops, NULL,
+                              BKCONTROL_CONFIG_READ, offset, NULL, 0,
+                              &status) == 0);
+      memcpy(wire + offset, status.config_chunk, 16);
+    }
+
+  assert(get32(wire + 8) & BKENGTEST_STATUS_ACTIVE);
+  assert(get32(wire + 8) & BKENGTEST_STATUS_POWER_INTENT);
+  assert(get32(wire + 12) == 42);
+  assert(get32(wire + 28) == BKENGTEST_PM_LATE_ACK);
+}
+
 static void pm_case(uint32_t mode)
 {
   start(11, mode);
@@ -272,6 +310,7 @@ int main(int argc, char **argv)
   else if (!strcmp(argv[1], "session-expiry")) expiry_case();
   else if (!strcmp(argv[1], "sequence")) sequence_case();
   else if (!strcmp(argv[1], "session-ownership")) session_ownership_case();
+  else if (!strcmp(argv[1], "disconnect")) disconnect_case();
   else if (!strcmp(argv[1], "cp-declined")) pm_case(BKENGTEST_PM_DECLINED);
   else if (!strcmp(argv[1], "cp-unknown")) pm_case(BKENGTEST_PM_UNKNOWN);
   else if (!strcmp(argv[1], "cp-pending")) pm_case(BKENGTEST_PM_PENDING);

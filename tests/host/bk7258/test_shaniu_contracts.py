@@ -588,6 +588,9 @@ def main():
     add(suite, "K2-03.bktest-session-ownership", "K2-03", "L2",
         [HERE / "build/test_bk7258_engineering_test", "session-ownership"],
         binaries["test_bk7258_engineering_test"])
+    add(suite, "K2-03.bktest-disconnect", "K2-03", "L2",
+        [HERE / "build/test_bk7258_engineering_test", "disconnect"],
+        binaries["test_bk7258_engineering_test"])
     add(suite, "LIFE-02.bktest-status", "LIFE-02", "L2",
         [HERE / "build/test_bk7258_engineering_test", "status"],
         binaries["test_bk7258_engineering_test"])
@@ -602,6 +605,7 @@ def main():
         "test_command_is_bounded_versioned_and_round_trips",
         "test_no_held_sequence_uses_real_command_path",
         "test_status_requires_test_identity",
+        "test_status_reports_retained_power_intent",
         "test_json_result_keeps_identity_and_observation_layers",
     ):
         add(suite, "USB-01.bktest-cli." + name, "USB-01", "L1",

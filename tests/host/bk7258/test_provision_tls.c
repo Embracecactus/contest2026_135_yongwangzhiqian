@@ -699,6 +699,12 @@ static void pc_change(uint32_t caps)
 {
   pc_change_result(caps, 0);
 }
+static unsigned int pc_close_callbacks;
+static void pc_closed(void *context)
+{
+  assert(context == &pc_close_callbacks);
+  pc_close_callbacks++;
+}
 static void pc_owner_lifecycle_tests(mbedtls_x509_crt *cert, mbedtls_pk_context *key)
 {
   if (!getenv("SHANIU_TLS_SERIAL")) return;
@@ -754,6 +760,8 @@ static void pc_guard_tests(mbedtls_ssl_context *client,
   pc_owner_lifecycle_tests(cert,key);
   pc_guarded = true;
   control_handshake_on(&control, client, cert, key, true);
+  assert(bkpc_control_set_close_handler(&pc_control, pc_closed,
+                                        &pc_close_callbacks) == 0);
   pc_exchange(&control, client, 1, 0, auth, 32, 0);
   uint32_t seq = 1;
   pc_exchange(&control, client, 2, seq++, NULL, 0, 0);
@@ -791,6 +799,9 @@ static void pc_guard_tests(mbedtls_ssl_context *client,
   assert(mbedtls_ssl_write(client, queued, sizeof(queued)) == sizeof(queued));
   pc_change(0);
   control_terminal(&control, -ESTALE);
+  assert(pc_close_callbacks == 1);
+  bkpc_control_close(&pc_control);
+  assert(pc_close_callbacks == 1);
   assert(pc_reads == 4 && pc_writes == 1);
   assert(!pc_control.open);
   /* Explicit regrant cannot resume or replay the old session. */

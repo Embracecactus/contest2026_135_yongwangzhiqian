@@ -147,13 +147,15 @@ int main(int argc, char **argv)
 #ifdef CONFIG_BK7258_ENGINEERING_TEST
   else if (!strcmp(argv[1], "engineering-no-held"))
     {
+      bool accepted = false;
       /* This source starts after the physical debounce/RPMsg boundary. The
        * same product policy must qualify release without a held heartbeat.
        */
       assert(bkvoice_keys_engineering_begin(17, 100) == 0);
       assert(bkvoice_keys_engineering_event(17, 1,
-        BKVOICE_PRODUCT_KEY_POWER, 100) == 0);
-      assert(bkvoice_keys_engineering_event(17, 2, 0, 3100) == 0);
+        BKVOICE_PRODUCT_KEY_POWER, 100, &accepted) == 0 && !accepted);
+      assert(bkvoice_keys_engineering_event(17, 2, 0, 3100,
+                                             &accepted) == 0 && accepted);
       assert(bkvoice_keys_engineering_end(17) == 0);
       bkvoice_keys_take(&volume, &power);
       assert(volume == 0 && power);
@@ -162,13 +164,17 @@ int main(int argc, char **argv)
     }
   else if (!strcmp(argv[1], "engineering-sequence"))
     {
+      bool accepted = false;
       assert(bkvoice_keys_engineering_begin(23, 100) == 0);
       assert(bkvoice_keys_engineering_event(23, 1,
-        BKVOICE_PRODUCT_KEY_POWER, 100) == 0);
-      assert(bkvoice_keys_engineering_event(23, 1, 0, 3100) == -ESTALE);
-      assert(bkvoice_keys_engineering_event(24, 2, 0, 3100) == -ESTALE);
+        BKVOICE_PRODUCT_KEY_POWER, 100, &accepted) == 0 && !accepted);
+      assert(bkvoice_keys_engineering_event(23, 1, 0, 3100,
+                                             &accepted) == -ESTALE);
+      assert(bkvoice_keys_engineering_event(24, 2, 0, 3100,
+                                             &accepted) == -ESTALE);
       assert(bkvoice_keys_engineering_end(23) == 0);
-      assert(bkvoice_keys_engineering_event(23, 2, 0, 3100) == -ESTALE);
+      assert(bkvoice_keys_engineering_event(23, 2, 0, 3100,
+                                             &accepted) == -ESTALE);
       bkvoice_keys_take(&volume, &power);
       assert(volume == 0 && !power);
     }
@@ -177,8 +183,9 @@ int main(int argc, char **argv)
       bool accepted = false;
       assert(bkvoice_keys_engineering_begin(31, 100) == 0);
       assert(bkvoice_keys_engineering_event(31, 1,
-        BKVOICE_PRODUCT_KEY_POWER, 100) == 0);
-      assert(bkvoice_keys_engineering_event(31, 2, 0, 3100) == 0);
+        BKVOICE_PRODUCT_KEY_POWER, 100, &accepted) == 0 && !accepted);
+      assert(bkvoice_keys_engineering_event(31, 2, 0, 3100,
+                                             &accepted) == 0 && accepted);
       assert(bkvoice_keys_engineering_end(31) == 0);
 
       /* The accepted release belongs to the coordinator. A new engineering
