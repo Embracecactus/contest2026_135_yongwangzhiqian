@@ -1,0 +1,57 @@
+{
+  "classification_note": "Undefined production entry points are BLOCKED_INTERFACE, not business assertion failures.",
+  "existing": {
+    "audio": {
+      "executed": 6,
+      "passed": 6
+    },
+    "k2": {
+      "executed": 13,
+      "passed": 13
+    }
+  },
+  "git_sha": "dad2df50cace7c4e7eb8b9b1cb3513382df45dfe",
+  "inputs": {
+    "app/bk7258/bk7258_engineering_test.h": "fe918014c6d292426c7560c4605ef815c9e24267d9c79c98d24d4d01e3d7e6a6",
+    "app/bk7258/bk7258_factory_diagnostics.h": "9870e1d46c96bbb786afa17281f6b15e535e01dc0314092ece110cefd317c8f9",
+    "tests/host/bk7258/test_bk7258_engineering_audio.c": "8524278ac25ec5ba5e06013847490cb6d5832366d0dc0fdaec8b1d7082e5d151",
+    "tests/host/bk7258/test_factory_diagnostics.c": "082761e44a173b5bbcf7127d3d1cc2b5993c213276f29052beb094afe42bcdc5"
+  },
+  "logs": {
+    "audio-existing.log": {
+      "bytes": 84,
+      "sha256": "b9b2710f7a0439daf07211cb2a5194474d04d187f73b0495486a956734ca0ebc"
+    },
+    "audio-interface-build.log": {
+      "bytes": 660,
+      "sha256": "e8515c795f23202da611aa440e739bd00200852c203a01024d696bafe2e2753a"
+    },
+    "build-existing.log": {
+      "bytes": 594,
+      "sha256": "85e1fdb90c5aee9b540880b0284df0de5a15988b9f269806f6f96bd25e8bd031"
+    },
+    "factory-interface-build.log": {
+      "bytes": 3236,
+      "sha256": "61d870cb27d58873c8012902b198f04e21acb7cd1396932a4e71568b3dce910f"
+    },
+    "k2-existing.log": {
+      "bytes": 182,
+      "sha256": "771ef1d4fbd96cb1e3e7f0a9c736bb88912fd2876b82b3db9ee37b9513a2059e"
+    }
+  },
+  "new_interfaces": {
+    "engineering_audio": {
+      "compile_exit": 1,
+      "status": "BLOCKED_INTERFACE"
+    },
+    "factory_diagnostics": {
+      "compile_exit": 1,
+      "status": "BLOCKED_INTERFACE"
+    }
+  },
+  "schema": "shaniu.factory-bktest-baseline/2",
+  "test_compile": {
+    "engineering_audio": "PASS",
+    "factory_diagnostics": "PASS"
+  }
+}

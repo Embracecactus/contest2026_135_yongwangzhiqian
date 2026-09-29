@@ -98,3 +98,47 @@ Future audio, resource, OTA, storage, and network engineering operations may
 add new BKT versions or operations behind the same authorization and build
 gate. They must keep their production state machine as the target and replace
 only external peers or clocks needed for deterministic fault injection.
+
+## Factory diagnostics profile
+
+The factory engineering image may select `CONFIG_BK7258_FACTORY_DIAGNOSTICS` on
+both cores.  The option defaults to `n` and is not selected by normal product
+profiles.  It extends the existing physical CH340 `bkprov-v1` operator channel;
+it does not add a USB protocol, public network listener, owner credential, or
+persisted PC grant.
+
+After the formal factory journal is READY, native BPI2 identity generation has
+finished, and no owner control key is bound, the operator may send one `BKD1`
+record with a random client ID and random 32-byte principal.  Console echo is
+disabled while that secret is read.  The AP retains the record only in RAM,
+publishes only `BKPC_CAP_DIAGNOSTICS`, and returns the public SHA-256 of the
+device leaf certificate through the same bounded CP/AP RPC.  The host compares
+that fingerprint with the certificate negotiated on the native USB TLS link
+before it creates a CurrentUser-DPAPI `.spc` profile.  A TLS certificate learned
+from USB alone is not sufficient.
+
+The transient source has a fixed ten-minute monotonic deadline.  Expiry,
+explicit factory-channel revocation, loss of factory/unclaimed eligibility,
+owner/control binding, or reboot zeroizes the principal and invalidates the USB
+lease.  It cannot be re-enabled in the same boot after expiry or revocation.
+Reboot contains no credential; another explicit physical factory enrollment is
+required.  No `PCG1`, owner, Wi-Fi/cloud configuration, factory identity, or
+external-SD byte is written.  The diagnostics-only lease may read public
+STATUS/INFO and reach engineering kinds; OTA, resource, task, scene, reset, and
+ordinary configuration mutations remain denied by the existing PC guard.
+
+## Fixed audio lifecycle operation
+
+Engineering configuration kind 20 carries `BKA1`/`BAS1` behind the same TLS,
+SDC1, diagnostics capability, and build gate.  It accepts one bounded `run`
+operation and no path, URL, arbitrary PCM, sample format, volume, shell text, or
+device name.  The product adapter generates the fixed low-amplitude 16-kHz mono
+PCM already used by the Agent playback validation and executes three finite
+sessions through the deployed `audio_playback` and Media owner: normal EOF and
+drain, cancel with post-cancel write/drain rejection, and a fresh following EOF
+session.  Each drain has the existing 2000-ms bound.
+
+`BAS1` reports only session/sequence, terminal state, accepted byte counts, and
+per-stage return codes.  It cannot claim acoustic output, DAC/I2S quality,
+absence of xrun/noise, cloud parser behavior, or user-perceived sound.  Those
+remain separate physical/online evidence.

@@ -1,107 +1,41 @@
-# 傻妞：BKTEST/HIL核心状态机验证（当前执行目标）
+# 傻妞：工厂工程验证闭环
 
-2026-09-29 用户最新 /goal 生效：先建立仅工程构建启用、经现有认证且驱动真实生产事件路径的
-BKTEST/HIL入口，完成K2/Power无人值守验证；之后再扩展Audio，最后才是存储/资源/网络。
-该目标替代旧的全局暂停、只读及人工操作前置条件。
-本文件只保留当前执行信息。冻结需求、Q01—Q10、N1—N3最终范围不缩减。
-历史记录：提交 fb71830cf9349d1e56208e3159bccda5f865f256 的本文件；
-本轮修正前原文保存在 out/shaniu-core-20260928/goal-before-latest-correction.md。
-合同：tests/host/bk7258/acceptance/contracts.md；执行集合：required-units.v1.json。
-测试审阅基线 e3ecd6b802c010a5063f10f13cc604496ec71af6 与旧 Red/夹具/哈希不改写。
+日期：2026-09-29
+执行基线：主仓 `dad2df50cace7c4e7eb8b9b1cb3513382df45dfe`；Agent `7f5fde721a0698e1e91ce0305f2097abc314e0d4`。
 
-## 当前事实与权限
+本目标替代此前暂停和保留设备状态的安排。冻结需求、历史 Red/Green、夹具与输入哈希仍按原证据文件保存，不改写归属。
 
-- 手机与电脑断开，现场无人；不请求K2、扫码、插拔、听音或卡片动作，不新建手机桥接。
-- 板子连接；已核对 COM9 为 CH340 下载/NSH，COM16 为原生 CDC 二进制通道。
-- 正常固件 HIL 下载、必要受控复位、启动采集和非破坏性回归已获授权。
-- 已用现有 BK Loader 有界写入清单固定CP/AP段；当前BKTEST工程固件0.7.46+691在A槽确认启动，受控重启后仍确认pair/counter 691且可达。
-- CDC OTA HELLO超时，未进入写入；不把该结果记作App OTA。COM9软件复位下载成功不证明独立故障/深睡恢复。
-- 未证明独立恢复、硬件按键/电源控制、声学/电流/屏幕观测能力；仅暂停依赖这些能力的动作。
-- 不清owner、网络/Key、SD或硬件数据，不改OTP/eFuse/信任根，不降低防回滚。工厂首启单列。
-- 原模型/前端/判据和“我在”、Canva原生App、独立运行保留；K2仅关机/恢复，K1/K3音量。
-- 不指定恢复出厂未知手势；不修改模型/provider，不固定模型分工、不强制委派。
-- 手机USB状态不用于推断BLE、热点或Wi-Fi状态。
+## 当前目标
 
-## 优先级与执行门槛
+生成匹配当前源码的 factory engineering 全镜像，经现有 HIL 对已连接的 AIDK 板执行一次正式 factory-init 全量烧录，验证首次启动、临时工厂诊断授权、BKTEST K2 状态机和固定 PCM 的 Audio/EOF/取消/下一轮路径。
 
-1. P0：BKTEST基础框架、K2边沿、CP未知/pending/迟到回执与可恢复状态；合同、运行器和HIL闭环。
-2. P1：在同一入口扩展音频EOF/取消/下一轮，不另建控制协议。
-3. P2：存储/资源/网络测试能力。继续暂停UI页面、NFC玩法、USB音频和桌面伙伴扩项。
+## 权限与边界
 
-每个问题：冻结行为与观察→旧实现结果→真实路径修改→同例及受影响回归→匹配构建
-→验签/布局/计数/范围→HIL下载→实际身份及安全板端用例→分层结论。
-替身只替换外部依赖；不删断言、扩超时、减集合、隐藏失败。环境错误不算业务Red。
-正常切片不全量冷构建/刷板；里程碑才完整门禁。失败保留准确产物和首个有效现场。
-没有独立恢复时不做真实关机/深睡；可复用开发诊断的prepare-only生产路径，默认产品禁用，
-不能新增免认证远程关机入口。实体K2、实际深睡、功耗与软件代理指标分别记账。
+- 已授权本轮 8 MiB 工厂全量烧录、factory-init、必要复位、启动日志和无人值守板端测试。
+- 用户数据可按正式 factory-init 清理；不写 OTP/eFuse，不更换 root key，不覆盖校准、设备唯一身份或其他 protected/immutable 区域。
+- 手机不可用；不等待扫码、BLE、热点、实体 K2、拔插、听音、NFC 或人工观察。
+- 工程诊断入口必须默认从 production 构建移除，仅允许工厂未认领状态通过现有 `bkprov-v1` 物理 HIL 通道装入一次性 RAM 主体，再经原生 USB TLS/SDC1 使用；超时、撤销、重启或认领后失效，不写 PCG1/owner。
+- K2 测试进入现役虚拟按键事件、按键接收器、power coordinator 和有界 CP peer，不直调 shutdown/reset。
+- Audio 使用固定低幅 PCM 和现役 Agent `audio_playback`/Media 所有权；无声学回采时只报告数字与 Media 证据。
 
-## 当前进度与下一动作
+## 当前证据
 
-- 主仓R1/R2提交9b23f888；Agent已固定并发布831b8b54cef8763229431ae2750e2cdfbd825887；历史62a304ea证据保留。
-- 工作树保留R1有限CP等待修复及先行测试，R1/R2已提交；后续R4/R3与Agent修复已构建并上板667。
-- 新CP持续pending/查询未知在旧生产路径2例Red，修改后通过；资源停止状态不被超时重新开启。
-- R1重试协调已补：未知/pending不重发，明确未受理才重试；针对性29例通过。开发prepare-only在663真实执行至CP提交前保护点；已恢复正常664，开关关闭。
-- 首轮完整门禁因沙箱socket/Gradle权限失败，原日志保留；解除限制后699 PASS、1 SETUP_ERROR
-  （Android跨TLS用例冷构建超过既有45秒执行期限）。原期限定向复跑36.12秒通过；不改写首轮结果。
-- R2触发与执行缺口2例先Red后Green，运行器/CI自检21例通过；本轮所选705执行单元完整通过，生产输入未变；待准确提交CI实跑。
-- 664确认原身份、revision 6、阈值85与既有表情包恢复。663退出时Media EOF/mix错误保留待查；不以到达保护点宣称DMA/声学验收。
-- R4先行反例修复，667在云就绪前约3.69秒启动真实采集并持续推理；非物理冷启动p95。
-- R3真实计时/任务组合Red转Green，尚无实板任务激励/屏幕证据；未改完成事实或TTL。
-- AGENT-01合法无工具正文不再丢弃重请求；已修正旧测试的错误预期并保留原记录；真实语音时延未测。
-- 后续所选723单元完整通过、原63标识及两项变异保留。证据见core-followup-20260928.json。
-- R1只读查询已接入现有bkhealth；668暴露NFC延迟注册退出失败，真实worker先Red后修，670安全准备到达CP前保护点且退出后查询成功；671正常恢复。
-- CI 36391476387/1：723 PASS、2 SETUP_ERROR（缺pyserial），源码身份不变；依赖前置检查先失败后修，隔离venv两例复验通过，等待新提交CI。
-- AUD-03发现真实Agent适配缺陷：Media停止时先关闭数据socket，旧实现把已确认取消从-ECANCELED改成-EBADF；先行反例Red后修复，Agent ac4b7fac已发布并待主仓固定。
-- 默认关闭的开发验证配置已通过HIL下载与实板数字路径：EOF、取消、下一会话均完成；随后恢复正常0.7.28+673，A槽确认，revision 6、原模型哈希及阈值85保持。无声学回采，不声称无吱响或主观听感通过。
-- CI 36393760928/1暴露冷环境夹具重复编译、超时子进程继续改日志及JUnit陈旧风险；先行运行器测试Red后修复。本地最终730个所选ID完整PASS、证据哈希无漂移、两项变异检出、生产摘要不变。
-- CI 36400499772/1 已在主仓59737124精确通过：730个所选合同、冷构建及交付校验成功；其覆盖不替代本轮后续生产改动。
-- AGENT-02混合工具/finalize已绑定真实协调器：当前实现保持Green，无效ID在副作用前拒绝；主仓4823f13已发布，完整门禁733/733。
-- AGENT-03视觉取消在旧Agent ac4b7fac形成有效Red：取消后终态未传播；Agent bb8ea997改为checked视觉调用并保留首轮取消结果，同例及真实LLM传输回归转Green。
-- 主仓076e1d95已固定Agent bb8ea997；完整门禁734/734、两项既有变异继续检出。匹配固件0.7.29+674已验签并由HIL有界写入B槽，板端确认pair、版本与计数674，监督器faults/recoveries为0。
-- 普通软件重启后的启动证据确认原模型哈希922eba9175fcda60f7c8a4505ca4eb5a97c86ceb30fbe48c685fd612098ac910、frontend 1、阈值85、配置revision 6与持续KWS推理；32秒窗口无HardFault/ASSERT/panic。没有现成视觉取消板端注入，不把启动证据称为AGENT-03实板事件通过。
-- CFG-02旧revision联网完成覆盖当前ready/error已取得3项有效Red、2项基线Green；生产协调器现以持久revision判定结果归属，同5项转Green。独立审阅又发现worker占用时读取revision的数据竞争，阻塞提交回归在旧实现有效Red、修复后真实存储/TLS集成通过；首次夹具时钟与加载时序错误分别保留为SETUP_ERROR/观察器修正。
-- 本轮完整合同门禁739/739通过、零FAIL/SETUP/NOT_RUN，历史63与既有变异保留；不把该数量称整机完成。主仓f341f84c、Agent bb8ea997的匹配0.7.30+675已验签并由HIL有界写入A槽，板端确认pair/counter 675、faults/recoveries为0。
-- 受控软件重启后确认原模型哈希、frontend 1、阈值85、配置revision 6、真实采集rearm及持续KWS推理；32秒窗口无HardFault/ASSERT/panic。CFG-02迟到完成缺少安全板端注入，只将构建、部署、稳态配置保持记为HIL通过。
-- 精确SHA f341f84c的冷交付CI 36409098405/1已成功；其结果只覆盖该提交，不预支后续差分。
-- MSC-01发现SD回退音量缓存跨主机MSC往返不失效：旧实现roundtrip/failed-exit两项有效Red，失败进入基线Green；现以USB成功MSC→CDC generation使下一次读取重载，进入失败、退出失败及CDC启动失败回滚均不发布假交接。受影响回归与完整743项当前执行集合通过，原63及两项变异保留。
-- 当前板型启用CP音量持久化，故上述SD回退缺陷不在当前播放音量路径；主仓5e591637、Agent bb8ea997的0.7.31+676已验签并由HIL有界写入B槽，确认pair/counter 676、faults/recoveries为0且USB仍为CDC。受控重启后原模型哈希、frontend 1、阈值85、配置revision 6、采集rearm及KWS推理恢复；未危险切MSC，不把稳态启动称主机改写SD实板通过。
-- AUD-02确认真实在线TTS接收缺陷：首段PCM前或首段后，ping/ACK可在没有有效PCM时无限续命。Agent旧bb8ea997的两项期限反例为Red、正常PCM进展为Green；f1a5e35仅让合法非空PCM刷新单调期限，超时不发成功终态。精确746项合同集合通过且两项既有变异继续检出。
-- 主仓c567c505固定Agent f1a5e35；匹配0.7.32+677已验签并由HIL有界写入A槽。首次读回早于自动确认而命中pending，同一日志随后确认counter 677；确认后及受控重启后均为pair confirmed、faults/recoveries 0、USB CDC。一次确认会话误用当前固件不存在的`bkvoice status`而记SETUP_ERROR，保留原记录；所需身份改由受控重启日志观察。启动恢复原模型完整哈希、frontend 1、阈值85、配置revision 6与持续KWS；无HardFault/ASSERT/panic。没有安全的在线心跳对端和声学回采，故AUD-02真实网络/听感层仍待验，不以匹配固件稳态启动替代。
-- 精确SHA c567c505的冷交付CI 36416645642/1已成功，build与verify-delivery均成功；两个产物已独立下载，合同结果仍为746项所选集合全通过，交付SHA256、package与公开签名信任复验通过。不把云端构建替代板端或声学验收。
-- UI-02发现嵌入式云配置编辑器在Activity原地配置变化后仍挂在旧视图树：旧实现的“编辑中旋转”断言为Red，草稿虽留在对象中但字段和保存/返回入口不可达。现将同一编辑器与事务重新挂入新host；API 36模拟器的相同gallery入口已验证双向旋转后草稿、保存入口、焦点/IME及离开释放均通过。首次复测在旋转后同一UI回调内请求焦点和IME而命中观察器同步失败，原记录保留；拆分焦点提交和IME请求后原IME可见断言通过。不把模拟器结果称BLE真机验收。
-- UI-01确认状态读取在传输层未受理时会保留旧快照为fresh，持续失败可让写控件长期依据旧状态开放。旧实现的新虚拟时钟用例在snapshotFresh断言处为Red；现保留旧值仅供展示，同时标stale、保持认证连接并按既有轮询恢复，不重发写操作。手机BLE层仍待手机恢复后验证。
-- UI-01/Q07确认恢复出厂入口与已打开的确认页未复核snapshot freshness，协调器也会在stale状态发送首个CONFIG_READ。旧实现在API 36模拟器得到页面和内存传输两个Red；现入口、确认回调及协调器均fail-closed，只读回执查询保持可用，未连接或清理真实设备。修复后的完整gallery首次停在既有IME可见性观察，未改断言后原样复跑通过；该不稳定性单列，不算手机BLE或恢复出厂验收。
-- PC-01确认电脑任务终态在授权存储短暂发布窗口返回`-EAGAIN`时会被旧产品协调器永久标为过期：修正观察器字段后的旧实现为有效Red。首次保留账本修复后，复核又以同一合同检出授权未知时仍可沿用旧admitted位接收新任务；该补充反例在已提交源码上有效Red，现BEGIN/APPLY返回`-EAGAIN`，只读结果和原有限终态保持，真实撤权、能力移除及绑定/revision变化仍清除。定向、受影响回归及本轮748个所选ID完整通过，两项既有变异继续检出；父用例缺口仍分层记录，不以748/748称整机完成。
-- 主仓a225f474固定Agent f1a5e35；匹配0.7.34+679已完成包/公开签名信任校验并由HIL有界写入A槽。下载只覆盖A槽CP/AP，板端自动确认pair/counter 679；受控重启后仍为A槽、faults/recoveries 0、USB CDC，原模型完整哈希、frontend 1、阈值85、配置revision 6、采集与持续KWS恢复。f955eeac/0.7.33+678的中间构建与B槽记录保留，不作为最终候选。当前无安全板端`-EAGAIN`注入和屏幕观测，因此精确PC终态场景记L2生产路径通过，最终匹配固件部署/稳态记HIL通过，不冒充物理通知验收。
-- 精确SHA 36eca061的CI 36441876258/1已成功；build 108994166779与verify-delivery 109004917885均通过，合同与冷交付产物已生成。该CI只覆盖36eca061，不预支后续App差分。
-- UI-01发现旧STATUS保留`otaSupported=true`但已标stale时，原生更新页仍允许新OTA：旧生产页面断言形成有效Red。独立复核又检出STATUS正在读取时BEGIN可先返回已受理、随后在能力变stale后仍发送，以及来源准备期间离开页面会遗留启动锁/常亮标志；两项均先得到确定性Red。最终复核再以A断连、B重连准备、A迟到回调的交错检出旧回调会释放B的全局锁；反例先Red后改为来源lease所有权。现新事务准入要求认证、fresh、能力且没有在途读取，异步来源打开后再次复核；生命周期中止只归还本次资源，已受理上传的取消和结果查询语义未改。相同API 36模拟器及35项相关JVM回归转Green；4项旧OTA夹具因未声明原本隐含的能力前置而首次失败，补齐前置后原终态断言通过，原记录保留。完整当前集合752/752通过、无FAIL/SETUP/NOT_RUN且两项既有变异继续检出。手机断开，故不称BLE或App OTA实机通过；该切片不改固件，板端仍运行已确认的0.7.34+679。
-- CFG-02现将“已持久保存”“本地应用中/成功/失败”和网络/云连通分开：SCS1非终态不再显示已保存，SCA1只由匹配revision的真实本地loader结束。旧实现的网络回执误标、本地loader未发布及Android错误文案均先形成有效Red；同例修复后转Green。当前完整合同集合776/776通过、无FAIL/SETUP/NOT_RUN，历史63项和两项变异检出/恢复复验保留，不把该数量称整机完成。
-- 匹配0.7.36+681已通过包和公开签名信任校验，并由HIL仅写入非活动A槽CP/AP；板端确认A槽pair/counter 681、faults/recoveries 0，原生CDC重新枚举。受控重启后原模型完整哈希、frontend 1、阈值85、配置revision 6和既有眼睛包revision 3保持。当前没有已授权PC profile或手机，故SCA1外部协议读回仍待相应客户端恢复；不把启动/保持证据称该协议的板端端到端验收。
-- NET-03发现原生App在`CONFIG_BEGIN`仅排队、尚未发送时取消，会在当前STATUS完成后错误发送`CONFIG_CANCEL`；旧实现的线级反例为有效Red。现仅释放该未发送请求的本地写入占用，不向设备发送BEGIN或CANCEL；已经发送的配置事务仍保留原远端取消握手。相关83项JVM回归和当前完整777项合同集合通过，零FAIL/SETUP/NOT_RUN，两项既有变异继续检出并恢复。该切片只证明生产会话调度和协议边界，不称BLE、Android真机或板端配置持久化通过；固件未改，板端继续运行已确认的0.7.36+681。
-- LIFE-01认领清理在旧实现会等待display render mutex，先得到有效Red；现NULL关闭仅发布有界clear intent，由原worker消费。补充交错又证明旧实现会在渲染中收到新power意图后仍成功打开，修复后返回`-EAGAIN`、清QR且不让owner继续复制secret/开GATT。定向6项、抢占变异检出/恢复及完整779项合同集合通过，零FAIL/SETUP/NOT_RUN，原63和两项既有变异保留。
-- 最终匹配0.7.38+683已通过包和公开签名信任校验，由HIL一次有界写入CP/AP；板端确认A槽pair/counter 683、faults/recoveries 0。受控重启确认原模型完整哈希、frontend 1、阈值85、配置revision 6与眼睛包revision 3保持。未执行实体K2、物理QR/屏幕或BLE认领，不把匹配固件启动称这些L3通过。
-- AGENT-03注册工具`analyze_image`的取消缺口已闭环：旧Agent 95f54906在请求取消后仍走unchecked视觉调用并记guard成功，形成有效Red；Agent 52b12476将request checker贯穿registry、工具和HTTP，同例转Green且不发布旧结果。完整当前集合783/783通过、零FAIL/SETUP/NOT_RUN，两项既有变异继续检出；不以数量称整机完成。
-- 匹配0.7.41+686已通过包和公开签名信任校验；新鲜板端状态确认A活动/B非活动及准确范围后，HIL一次仅写B槽CP/AP。首次查询仍pending并在同一日志随后确认，二次查询及受控软件重启后均为B槽pair/counter 686、faults/recoveries 0；原模型完整哈希、frontend 1、阈值85、配置revision 6与眼睛包revision 3保持。没有安全的真实视觉HTTP取消注入或屏幕/相机观察，不把启动证据称AGENT-03外部端到端通过。
-- K2真实接收路径发现已满足松手门槛的关机意图会被随后RPMsg断链清除：旧实现形成有效Red，未完成长按保持Green；现仅重置链路与未完成hold，已接受意图由产品协调器恰好消费一次。受影响12项、运行器27项及当前785个所选ID通过，两项既有变异继续检出；不以数量称整机完成。
-- 匹配0.7.42+687已验签并由HIL一次仅写非活动A槽CP/AP，确认pair/counter 687、faults/recoveries 0。受控软件重启后原模型完整哈希、frontend 1、阈值85、配置revision 6与眼睛包revision 3保持；没有安全板端RPMsg断链注入，也未执行实体K2/深睡，故精确缺陷记L2生产路径通过、匹配固件部署与稳态记HIL通过。
-- LIFE-02发现关机协调器丢弃`voice_channel_recover()`永久错误：旧实现的failure反例为有效Red，retryable pending基线为Green；现`-EAGAIN/-EBUSY`继续等待原期限，其他负值立即发布失败、禁止CP提交且轮询不重开资源，新明确意图只在清理成功并idle后重试。定向30项power、prepare-only、真实owner及4项Agent音频回归通过。
-- 当前完整合同集合788/788通过、零FAIL/SETUP/NOT_RUN，两项既有变异继续检出；运行器最初正确检出required ID元数据遗漏，单独修正后27项通过。复核补充的原期限边界在旧生产协调器和当前实现都为Green，证明持续pending不会更新30000ms截止点。匹配0.7.43+688已验签并由HIL一次仅写非活动B槽CP/AP，确认pair/counter 688、faults/recoveries 0。受控软件重启后原模型完整哈希、frontend 1、阈值85、配置revision 6与眼睛包revision 3保持。没有安全板端语音清理故障注入，也未执行实体K2/深睡/声学验收，精确故障记L1生产协调器通过，匹配部署与稳态记HIL通过。
-- AUD-03真实Volc WebSocket路径发现：收到正序PCM后、协议终止标记前收到Close帧时，旧Agent 52b12476会误发成功终态并允许下游drain截断音频；先行反例在旧实现为有效Red，95c57ae改为连接错误且不发终态，后续合法请求仍只完成一次。6项Volc边界、TTS队列、5项Agent尾部/取消回归和当前789个所选合同ID通过，两项既有变异继续检出；合同中“成功终止标记”的措辞同步澄清为负序列或已记录的frontend terminal，未改变断言。
-- 匹配0.7.44+689已通过构建清单、包与公开签名信任校验，AP ELF包含新的Close-before-terminal错误路径；HIL仅写非活动A槽CP/AP且无包级擦除项。板端确认A槽pair/counter 689、faults/recoveries 0；受控重启后trial清零，原模型完整哈希、frontend 1、阈值85、配置revision 6与眼睛包revision 3保持。当前没有安全在线对端可注入该精确Close序列，也无声学回采，因此精确缺陷记L2真实解析/协议路径通过，匹配部署与稳态记HIL通过，不宣称实际听感或在线播放截断已完成L3验收。
-- AGENT-03发现checked外部provider在执行期间取消后仍提交成功输出并记guard成功：旧Agent 95c57ae的生产dispatcher形成有效Red，builtin取消控制保持Green；Agent 7f5fde7在provider成功提交前复核原请求，同例返回`-ECANCELED`、清空输出且不记成功。混合工具、缺失/重复ID与视觉取消回归保持Green，完整当前集合790/790通过且两项既有变异继续检出。
-- 匹配0.7.45+690已通过构建清单、包与公开签名信任校验；新鲜状态确认A活动/B非活动后，HIL一次仅写B槽CP/AP。板端自动确认B槽pair/counter 690，受控重启后faults/recoveries为0，原模型完整哈希、frontend 1、阈值85、配置revision 6与眼睛包revision 3保持。没有安全在线provider取消注入，故精确竞态记L2生产dispatcher通过，匹配部署与稳态记HIL通过，不称云端工具竞态L3通过。
-- BKTEST已采用BKT1/BKS1版本化消息并复用认证SDC1/TLS PC-control；production默认关闭，虚拟K2进入现役按键接收器与产品协调器，末端仅用有界工程PM peer观察拒绝、未知、持续pending与迟到ACK。没有直接关机、擦除、恢复出厂或owner写入口。
-- 旧接口缺失按BLOCKED_INTERFACE保留；session expiry、session ownership及pending intent三个有效Red已由同例转Green。定向26项有效执行均通过；完整815项全部收集，814 PASS、1项既有RES-01资源取消断言失败、0 SETUP_ERROR，两项既有变异继续检出。
-- 匹配0.7.46+691已验签并由HIL仅写非活动A槽CP/AP，板端确认pair/counter 691、faults/recoveries 0；受控重启后原模型完整哈希、frontend 1、配置revision 6与眼睛包revision 3保持。
-- 当前板端`/data/shaniu/pc-grants`为空且主机无`.spc` diagnostics profile，实际`hil-test status/key`在打开COM16前fail-closed，记BLOCKED_CREDENTIAL。未增加CP NSH后门，故尚未把认证BKTEST命令送入板端状态机。
-- 本轮证据与匹配BIN/ELF/map：../out/shaniu-bktest-20260929/、out/bktest-phase1-20260929/及tests/host/bk7258/acceptance/bktest-k2-hil-20260929.json；未执行人工K2、App或声学验收。
+- 板上预烧录版本：`0.7.46+691`，A 槽 confirmed，CP online、RPMsg ready、supervisor faults/recoveries 为 0。
+- 预烧录证据：`../out/shaniu-factory-bktest-20260929/preflash/`。
+- 同板 accepted base：`../out/shaniu-board-20260922/relocated-base.bin`，8 MiB，SHA256 `cfbf8d2a3c7f8125d973db2401d84d727ce501e41f9857feaf639c333f967a63`；证据 `accepted-base.json` 绑定当前布局 `bk7258-510173147382a879` 和设备 `C8:47:8C:CB:7F:80`。
+- 当前 BKTEST 主机路径已通过，但板端命令因无 diagnostics grant/profile 而 fail-closed；这是本轮首先关闭的认证缺口。
 
-## 交付与停止条件
+## 执行顺序
 
-主仓只非强推Embracecactus/contest2026_135_yongwangzhiqian的dev-ai-contest-2026；
-必要Agent依赖用个人fork固定提交，不向官方仓推送/建PR，不发布秘密或私密同板镜像。
-交付准确源码/依赖、逐例前后与缺口、HIL记录/运行身份、产物哈希、CI run/attempt和板端可达状态。
-不以用例数量衡量整机完成；手机/人工缺口只挂对应层，不停止可执行核心工作。
-所有当前可执行核心项完成或有确证阻塞后交付；不为保持ACTIVE无限扩项、盲刷或长期循环。
-平台旧goal不能由当前工具替换（create_goal拒绝未完成目标；update_goal无修改/恢复接口）；
-不伪称旧目标完成。本文件及用户最新目标作为执行依据，继续授权工作。
+1. 冻结工厂临时诊断主体和 Audio 入口合同；在旧实现记录 `BLOCKED_INTERFACE`/既有主机基线，不伪造业务 Red。
+2. 实现现有 `bkprov-v1` 工厂通道的工程专用 RAM 诊断主体、原生 USB TLS/SDC1 profile 建立与撤销；production 保持关闭。
+3. 完成 K2 2999/3000/3001、无 held、CP reject/pending/timeout/late ACK、重复与失效会话；完成固定 PCM EOF/cancel/next/drain。
+4. 运行受影响测试及完整门禁，构建并签名 CP/AP/BL/resource/APK 交付集合，生成含 factory-init 的 8 MiB 同板镜像及哈希清单。
+5. 释放端口，使用既有 BK Loader 全量烧录；采集完整首次启动，核对 BL/CP/AP、服务、默认资源和实际源码身份。
+6. 建立临时 profile，执行 BKTEST，撤销并验证旧 profile 失败；生成 factory validation report。
+
+## 验收记账
+
+分别记录 `PASS`、`BLOCKED`、`NOT RUN`。下载成功不等于启动，BOOT PASS 不等于服务就绪，主机测试不等于板端，软件 K2 不等于实体按键，Media 完成不等于真实听感。实体 K2、深睡功耗、手机 BLE/App OTA、扫码认领与声学质量保留待现场层。
+
+平台 goal 工具仍保存旧 paused objective，且当前接口不能合法替换未完成目标；本文件与用户 2026-09-29 最新 `/goal` 是本轮执行依据。

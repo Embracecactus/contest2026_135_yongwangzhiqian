@@ -1428,3 +1428,45 @@ object names: voice is unavailable/idle/busy, storage is unavailable/ready,
 and network is offline/link/ready. Together with existing authenticated INFO,
 the HIL JSON carries firmware version/build/security counter, the manifest
 source SHA supplied by the runner, test-mode identity, and power state.
+
+### Factory diagnostics enrollment and audio BKTEST (2026-09-29)
+
+`USER-20260929-FACTORY-BKTEST` permits a destructive factory-init image but
+does not permit a lasting test backdoor.  A normal product build has no
+factory-diagnostics command and no engineering configuration kinds.  The
+factory engineering build may accept exactly one nonzero `BKD1` client/key
+through the existing echo-disabled CH340 `bkprov-v1` operator channel only
+after the SFJ1/SFB1 factory transaction is READY, a generated BPI2 identity is
+active, and no owner control key is bound.  Missing, malformed, already-used,
+expired, owner-bound, or non-factory states reject without opening native USB
+or changing persistent authorization.
+
+The accepted principal lives only in RAM, carries diagnostics capability only,
+and has a fixed monotonic deadline.  Expiry, explicit revoke, claim/control
+binding, or reboot clears it and causes the native USB lease to fail current
+snapshot validation.  Revocation is idempotent and never writes PCG1, owner,
+Wi-Fi/cloud settings, identity, trust, calibration, or external SD.  A fresh
+reboot is credential-free and requires another physical factory enrollment.
+
+The CP channel returns only public state and the device leaf-certificate
+SHA-256.  The host must match that value to the negotiated native-USB TLS leaf
+before sealing the random principal in a CurrentUser-DPAPI profile.  The random
+principal must not appear in argv, stdout/stderr, JSON evidence, or a retained
+plaintext file.  A pin mismatch or unavailable OS protection leaves no profile
+and revokes the transient source.
+
+`AUD-03.factory-bktest-audio` uses engineering config kind 20 and one fixed
+`BKA1 run` record.  It drives the deployed Agent `audio_playback` and Media
+owner through normal EOF/drain, cancel plus rejected post-cancel write/drain,
+and a fresh following EOF/drain.  It accepts no external PCM/path/URL, never
+changes volume or persistent data, and returns a bounded `BAS1` receipt with
+byte counts and stage results.  Host tests replace only Media/clock boundaries;
+board PASS proves digital lifecycle and owner release, not audible output,
+DMA/I2S, acoustic quality, online TTS parsing, or lack of xrun/noise.
+
+Before implementation the absent transient source, factory enrollment command,
+and audio kind are recorded as `BLOCKED_INTERFACE`, while the existing K2 and
+startup audio validation remain Green baselines.  Missing symbols or command
+routes are not counted as product assertion failures.  After implementation,
+the same selected cases must exercise the production PC guard, key/coordinator,
+Agent playback adapter, and explicit revoke path.
