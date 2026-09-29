@@ -1955,6 +1955,7 @@ $(BUILD)/test_shaniu_keys_transport: test_shaniu_keys_transport.c \
 	$(VOICE_PACK_ROOT)/bk7258_voice_button.h | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -pthread \
 		-DCONFIG_BK7258_PRODUCT_KEYS -DCONFIG_BK7258_AP_CORE \
+		-DCONFIG_BK7258_ENGINEERING_TEST=1 \
 		-I $(MOCKS) -I $(VOICE_PACK_ROOT) \
 		-I $(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/include \
 		$< mocks/mock_nuttx_ap.c -o $@

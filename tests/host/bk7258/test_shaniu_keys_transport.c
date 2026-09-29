@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Real AP key receiver; RPMsg transport and monotonic clock are peers. */
 #include <assert.h>
+#include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -143,6 +144,35 @@ int main(int argc, char **argv)
       bkvoice_keys_take(&volume, &power);
       assert(volume == 0 && !power);
     }
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  else if (!strcmp(argv[1], "engineering-no-held"))
+    {
+      /* This source starts after the physical debounce/RPMsg boundary. The
+       * same product policy must qualify release without a held heartbeat.
+       */
+      assert(bkvoice_keys_engineering_begin(17, 100) == 0);
+      assert(bkvoice_keys_engineering_event(17, 1,
+        BKVOICE_PRODUCT_KEY_POWER, 100) == 0);
+      assert(bkvoice_keys_engineering_event(17, 2, 0, 3100) == 0);
+      assert(bkvoice_keys_engineering_end(17) == 0);
+      bkvoice_keys_take(&volume, &power);
+      assert(volume == 0 && power);
+      bkvoice_keys_take(&volume, &power);
+      assert(volume == 0 && !power);
+    }
+  else if (!strcmp(argv[1], "engineering-sequence"))
+    {
+      assert(bkvoice_keys_engineering_begin(23, 100) == 0);
+      assert(bkvoice_keys_engineering_event(23, 1,
+        BKVOICE_PRODUCT_KEY_POWER, 100) == 0);
+      assert(bkvoice_keys_engineering_event(23, 1, 0, 3100) == -ESTALE);
+      assert(bkvoice_keys_engineering_event(24, 2, 0, 3100) == -ESTALE);
+      assert(bkvoice_keys_engineering_end(23) == 0);
+      assert(bkvoice_keys_engineering_event(23, 2, 0, 3100) == -ESTALE);
+      bkvoice_keys_take(&volume, &power);
+      assert(volume == 0 && !power);
+    }
+#endif
   else
     {
       return 2;

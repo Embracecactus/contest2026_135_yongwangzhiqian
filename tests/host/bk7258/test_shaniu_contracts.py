@@ -566,6 +566,8 @@ def main():
     for variant, parent in (
         ("accepted-disconnect", "K2-01"),
         ("unfinished-disconnect", "K2-03"),
+        ("engineering-no-held", "K2-01"),
+        ("engineering-sequence", "K2-03"),
     ):
         add(
             suite,

@@ -48,6 +48,15 @@ bool bkvoice_button_running(void);
 int bkvoice_keys_listen(void (*notify)(void));
 void bkvoice_keys_take(int *volume_steps, bool *power_requested);
 bool bkvoice_keys_power_held(void);
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+/* Authenticated BKTEST owns the session; these normalized events still pass
+ * through the production AP key policy and product intent accumulator.
+ */
+int bkvoice_keys_engineering_begin(uint32_t session, uint64_t now);
+int bkvoice_keys_engineering_event(uint32_t session, uint32_t sequence,
+                                   uint32_t pressed, uint64_t now);
+int bkvoice_keys_engineering_end(uint32_t session);
+#endif
 #endif
 
 #endif /* __APP_BK7258_BK7258_VOICE_BUTTON_H */

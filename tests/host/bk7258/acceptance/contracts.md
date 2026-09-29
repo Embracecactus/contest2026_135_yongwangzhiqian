@@ -1377,6 +1377,12 @@ one power intent; a duplicate or stale session/sequence produces no event or
 side effect. Existing K2 session, rollback, combination and volume contracts
 remain required and are not replaced by BKTEST.
 
+The transport fixture also compiles the actual AP key receiver with the
+engineering build symbol. It checks that a normalized engineering session uses
+the same product intent accumulator, that a down/up edge separated by 3000 ms
+needs no synthetic held heartbeat, and that duplicate, wrong-session, or
+post-end events cannot create an intent.
+
 LIFE-02 binds declined, unknown, pending and late-ack outcomes at the existing
 PM peer dependency. The engineering command handler cannot call the PM request,
 sleep, reset, shutdown, or factory-reset terminal functions. The real product
