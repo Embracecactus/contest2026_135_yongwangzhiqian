@@ -87,7 +87,7 @@ class HilTestContract(unittest.TestCase):
     def test_status_reports_retained_power_intent(self):
         wire = struct.pack(
             ">4s15I", b"BKS1", 1, 9, 42, 4, 3000, 0, 4,
-            1, 0, 0x102, 0xFFFFFF8C, 0, 0, 0, 0,
+            1, 0, 0x102, 0xFFFFFF8C, 0, 1, 1, 2,
         )
         status = hil_test.decode_status(wire)
         self.assertTrue(status["enabled"])
@@ -96,6 +96,9 @@ class HilTestContract(unittest.TestCase):
         self.assertEqual(status["power_state"], "pending")
         self.assertTrue(status["power_unresolved"])
         self.assertEqual(status["power_error"], -116)
+        self.assertEqual(status["voice_state"], "idle")
+        self.assertEqual(status["storage_state"], "ready")
+        self.assertEqual(status["network_state"], "ready")
 
     def test_json_result_keeps_identity_and_observation_layers(self):
         report = hil_test.report(

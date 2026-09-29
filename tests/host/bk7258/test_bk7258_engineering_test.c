@@ -21,6 +21,9 @@ static unsigned int g_power_intents;
 static uint64_t g_now = 10000;
 static uint32_t g_power_state;
 static int32_t g_power_error;
+static uint32_t g_voice_state = 1;
+static uint32_t g_storage_state = 1;
+static uint32_t g_network_state = 2;
 
 static void put32(uint8_t *p, uint32_t value)
 {
@@ -103,6 +106,16 @@ static int power_status(void *unused, uint32_t *state, int32_t *error)
   return 0;
 }
 
+static int system_status(void *unused, uint32_t *voice, uint32_t *storage,
+                         uint32_t *network)
+{
+  (void)unused;
+  *voice = g_voice_state;
+  *storage = g_storage_state;
+  *network = g_network_state;
+  return 0;
+}
+
 static const struct bkengtest_ops_s g_ops =
 {
   .now_ms = now_ms,
@@ -110,6 +123,7 @@ static const struct bkengtest_ops_s g_ops =
   .key_event = key_event,
   .key_end = key_end,
   .power_status = power_status,
+  .system_status = system_status,
 };
 
 static struct bkengtest_s g_test;
@@ -178,6 +192,9 @@ static void status_case(void)
   assert(get32(wire + 28) == BKENGTEST_PM_PENDING);
   assert(get32(wire + 40) == g_power_state);
   assert((int32_t)get32(wire + 44) == g_power_error);
+  assert(get32(wire + 52) == g_voice_state);
+  assert(get32(wire + 56) == g_storage_state);
+  assert(get32(wire + 60) == g_network_state);
 }
 
 static void expiry_case(void)

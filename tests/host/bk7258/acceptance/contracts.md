@@ -1422,3 +1422,9 @@ idempotent and cannot replay or cancel the accepted product action.
 The engineering PM peer is unavailable until the common production key policy
 has accepted a qualifying release. Tests cannot invoke the peer helper alone
 and count that as a K2 or coordinator result.
+
+The read-only BKS1 snapshot reports bounded product observations, not internal
+object names: voice is unavailable/idle/busy, storage is unavailable/ready,
+and network is offline/link/ready. Together with existing authenticated INFO,
+the HIL JSON carries firmware version/build/security counter, the manifest
+source SHA supplied by the runner, test-mode identity, and power state.
