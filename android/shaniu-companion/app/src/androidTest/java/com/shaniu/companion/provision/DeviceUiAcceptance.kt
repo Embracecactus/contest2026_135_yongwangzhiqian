@@ -33,6 +33,85 @@ import java.util.concurrent.atomic.AtomicReference
  * mutation. Reflection keeps fixture injection out of the production APK API.
  */
 internal object DeviceUiAcceptance {
+    /** RES-01: real Activity/session lifecycle with an in-memory transport. */
+    fun runEyeBackgroundCancel(instrumentation: Instrumentation) {
+        check(android.os.Build.FINGERPRINT.contains("generic") || android.os.Build.MODEL.contains("sdk"))
+        val activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
+        fun field(name: String) = MainActivity::class.java.getDeclaredField(name).apply { isAccessible = true }
+        val session = MainActivity::class.java.getDeclaredMethod("getDirectSession").apply { isAccessible = true }
+            .invoke(activity) as DeviceControlSession
+        val commands = mutableListOf<DeviceControlProtocol.Command>()
+        var closes = 0
+        try {
+            onUi(instrumentation) {
+                session.connect(object : DeviceControlSession.Factory {
+                    override fun open(value: DeviceControlSession.Events): DeviceControlSession.Transport {
+                        return object : DeviceControlSession.Transport {
+                            override fun request(command: DeviceControlProtocol.Command, value: Int,
+                                                 accepted: (Boolean) -> Unit) {
+                                commands += command; accepted(true)
+                            }
+                            override fun requestOta(command: DeviceControlProtocol.Command, payload: ByteArray,
+                                                    accepted: (Boolean) -> Unit) {
+                                commands += command; accepted(true)
+                            }
+                            override fun requestPayload(command: DeviceControlProtocol.Command, payload: ByteArray,
+                                                        accepted: (Boolean) -> Unit) {
+                                commands += command; accepted(true)
+                            }
+                            override fun close() { closes++ }
+                        }
+                    }
+                })
+                /* Authentication is an explicit external fixture. Avoid
+                 * invoking MainActivity's normal post-STATUS discovery here:
+                 * this case owns only lifecycle versus an admitted install. */
+                DeviceControlSession::class.java.getDeclaredField("state").apply { isAccessible = true }.set(
+                    session,
+                    session.current().copy(
+                        connection = DeviceControlSession.Connection.CONNECTED,
+                        authenticated = true,
+                        snapshotFresh = true,
+                        snapshot = DeviceControlProtocol.Snapshot(
+                            0, true, false, null, null, null, null,
+                            publicConfigSupported = true,
+                        ),
+                    ),
+                )
+                val flow = field("configFlow")
+                val eyes = checkNotNull(flow.type.enumConstants).first {
+                    (it as Enum<*>).name == "EYES"
+                }
+                flow.set(activity, eyes)
+                field("eyeReadingOnly").setBoolean(activity, false)
+                check(session.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN,
+                    ByteBuffer.allocate(8).putInt(5).putInt(44).array()))
+                check(commands.last() == DeviceControlProtocol.Command.CONFIG_BEGIN)
+                instrumentation.callActivityOnStop(activity)
+            }
+            instrumentation.waitForIdleSync()
+            onUi(instrumentation) {
+                check(closes == 1) { "background eye install retained the GATT grace connection" }
+                check(session.current().connection == DeviceControlSession.Connection.SUSPENDED &&
+                    !session.current().authenticated) {
+                    "background eye install did not invalidate its authenticated generation"
+                }
+                check(commands.none { it == DeviceControlProtocol.Command.CONFIG_CANCEL }) {
+                    "serialized CANCEL was sent behind an in-flight install"
+                }
+                check((field("eyeMessage").get(activity) as? String)?.contains("结果未知") == true) {
+                    "background eye install was presented as a confirmed cancellation"
+                }
+            }
+        } finally {
+            onUi(instrumentation) {
+                session.disconnect()
+                activity.finish()
+            }
+        }
+    }
+
     /** UI-01/NET-03: native confirmation and unknown states; emulator-only snapshots. */
     fun runPcAuthorization(instrumentation: Instrumentation) {
         check(android.os.Build.FINGERPRINT.contains("generic") || android.os.Build.MODEL.contains("sdk"))

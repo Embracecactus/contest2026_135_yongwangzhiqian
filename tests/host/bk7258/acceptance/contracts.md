@@ -1123,6 +1123,28 @@ success, the dispatcher must check the original request again, return
 successful guard call. This contract does not claim that a non-idempotent
 provider side effect was undone, or measure provider interrupt latency.
 
+### RES-01 phone eye install background boundary (2026-09-29)
+
+Once the phone has sent the eye source and APPLY is in flight, leaving the
+Activity cannot claim that the device canceled the operation: CONFIG_CANCEL is
+serialized behind APPLY.  The phone closes the short-lived HTTPS source and
+immediately closes this authenticated control generation instead of retaining
+the ordinary 30-second Activity grace.  The device may cancel only before its
+persistent activation commit; if that boundary already passed, the outcome is
+unknown and the next authenticated connection must read the actual eye state.
+No request is replayed and the previous selected pack remains active when the
+generation changes before commit.
+
+`RES-01.eye-install-disconnect-cleanup` extracts the production phone install
+adapter.  A controlled peer changes the real GATT generation after a complete,
+digest-valid HTTP body while cloud TLS cleanup is finishing.  The adapter must
+return `-ECANCELED` and must not enter display import.  The stable control case
+still imports exactly once.  `eye_background_probe=1` separately drives the
+real MainActivity and DeviceControlSession against an in-memory transport; it
+requires immediate transport close, no queued wire CANCEL, and an unknown
+result message.  These tests do not prove BLE radio disconnect timing, SD
+durability, panel rendering, or a physical phone.
+
 ### CFG-02 durable desired revision versus late network result (2026-09-28)
 
 The durable storage revision is the selected configuration.  A network trial

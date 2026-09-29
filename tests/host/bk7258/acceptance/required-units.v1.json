@@ -790,7 +790,9 @@
     "K2-03.unfinished-disconnect",
     "LIFE-02.power-voice-cleanup-pending",
     "LIFE-02.power-voice-cleanup-failure",
-    "LIFE-02.power-voice-cleanup-deadline"
+    "LIFE-02.power-voice-cleanup-deadline",
+    "RES-01.eye-install-stable",
+    "RES-01.eye-install-disconnect-cleanup"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1584,6 +1586,8 @@
     "K2-03.unfinished-disconnect",
     "LIFE-02.power-voice-cleanup-pending",
     "LIFE-02.power-voice-cleanup-failure",
-    "LIFE-02.power-voice-cleanup-deadline"
+    "LIFE-02.power-voice-cleanup-deadline",
+    "RES-01.eye-install-stable",
+    "RES-01.eye-install-disconnect-cleanup"
   ]
 }

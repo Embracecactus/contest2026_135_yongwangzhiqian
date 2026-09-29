@@ -588,6 +588,10 @@ def main():
             [HERE / "build/test_display_upload",
              HERE / "build/shaniu-default-v1.bkep", variant,
              HERE / "build/upload-second.bkep"], binaries["test_display_upload"])
+    for variant in ("stable", "disconnect-cleanup"):
+        add(suite, "RES-01.eye-install-" + variant, "RES-01", "L2",
+            [sys.executable, HERE / "test_eye_install_cancel.py", variant],
+            setup_exit_code=2)
     for variant in ("activate-collision", "activate-directory-failure"):
         add(suite, "RES-02." + variant, "RES-02", "L2",
             [HERE / "build/test_display_upload",
@@ -1763,6 +1767,7 @@ def main():
         HERE / "test_workbench_trial.py",
         HERE / "test_pack_trial.py",
         HERE / "test_pack_trial.c",
+        HERE / "test_eye_install_cancel.py",
         HERE / "selection_tls_peer.inc",
         ROOT / "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionNativeTlsTest.kt",
         ROOT / "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/NativeDisplayTlsFixture.kt",
