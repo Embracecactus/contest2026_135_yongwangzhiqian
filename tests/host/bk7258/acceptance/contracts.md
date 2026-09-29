@@ -1115,6 +1115,14 @@ unchecked registration cannot pass. It does not claim live-provider interrupt
 latency, camera capture, persistent history, panel output, or that a canceled
 non-idempotent tool can be treated as never executed.
 
+`AGENT-03.tool-provider-cancel` covers the checked external-provider branch of
+the same production dispatcher. The provider sees an initially live request,
+then a controlled peer completes while cancellation wins. Before publishing
+success, the dispatcher must check the original request again, return
+`-ECANCELED`, clear the uncommitted provider output, and avoid recording a
+successful guard call. This contract does not claim that a non-idempotent
+provider side effect was undone, or measure provider interrupt latency.
+
 ### CFG-02 durable desired revision versus late network result (2026-09-28)
 
 The durable storage revision is the selected configuration.  A network trial

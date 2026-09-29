@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Exercise cancellation through the production builtin vision-tool route.
+"""Exercise cancellation through production checked tool routes.
 
-The registry dispatcher and analyze_image implementation come from the Agent
-checkout.  Only the external vision HTTP boundary, guard ledger, and tiny image
-file are controlled.  Cancellation is raised while that boundary is active.
+The registry dispatcher and registration paths come from the Agent checkout.
+Only the external provider/vision boundary, guard ledger, and tiny image file
+are controlled.  Cancellation is raised while that boundary is active.
 """
 
 import resource
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -34,6 +35,10 @@ def registry_slice(agent: Path) -> str:
     start = source.index("    /* Vision tool */")
     end = source.index("    /* Camera capture tool */", start)
     registration = source[start:end]
+    register_provider = extract_function(source, "static void register_provider(")
+    register_checked = extract_function(
+        source, "void tool_registry_register_provider_checked("
+    )
     execute = extract_function(source, "int tool_registry_execute_checked(")
     return r'''
 #include "tools/tool_registry.h"
@@ -63,6 +68,8 @@ static void register_tool(const agent_tool_t *tool)
 {
     s_tools[s_tool_count++] = *tool;
 }
+
+''' + register_provider + "\n\n" + register_checked + r'''
 
 void test_register_vision_tool(void)
 {
@@ -185,7 +192,88 @@ int main(int argc, char **argv)
 '''
 
 
+def provider_probe_code() -> str:
+    return r'''
+#include <assert.h>
+#include <errno.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <string.h>
+
+#include "tools/tool_guard.h"
+#include "tools/tool_registry.h"
+
+static int canceled;
+static int checked_calls;
+static int guard_records;
+
+static int request_check(void *context)
+{
+    assert(context == &canceled);
+    return canceled ? -ECANCELED : 0;
+}
+
+tool_guard_result_t tool_guard_check(const char *name,
+    const char *input, size_t input_len)
+{
+    assert(!strcmp(name, "provider_tool"));
+    assert(input != NULL && input_len == strlen(input));
+    return GUARD_ALLOW;
+}
+
+void tool_guard_record_call(const char *name)
+{
+    assert(!strcmp(name, "provider_tool"));
+    guard_records++;
+}
+
+static int provider_execute_checked(const char *name, const char *input,
+    char *output, size_t output_size, int (*check)(void *),
+    void *request_context)
+{
+    assert(!strcmp(name, "provider_tool"));
+    assert(!strcmp(input, "{}"));
+    assert(check != NULL && check(request_context) == 0);
+    checked_calls++;
+    canceled = 1;
+    /* The peer completed at the same boundary at which cancellation won. */
+    snprintf(output, output_size, "late provider success");
+    return 0;
+}
+
+int main(void)
+{
+    tool_registry_register_provider_checked(
+        "product", NULL, provider_execute_checked);
+
+    char output[128] = {0};
+    int ret = tool_registry_execute_checked("provider_tool", "{}",
+        output, sizeof(output), request_check, &canceled);
+
+    printf("ret=%d checked_calls=%d guard_records=%d output_size=%zu\n",
+           ret, checked_calls, guard_records, strlen(output));
+    fflush(stdout);
+    assert(ret == -ECANCELED);
+    assert(checked_calls == 1);
+    assert(guard_records == 0);
+    assert(output[0] == '\0');
+    puts("CONTRACT_PASS");
+    return 0;
+}
+'''
+
+
 def main() -> int:
+    case = "builtin"
+    if len(sys.argv) == 2:
+        case = sys.argv[1]
+    elif len(sys.argv) > 2:
+        print("usage: test_shaniu_tool_vision_cancel.py [builtin|provider]")
+        return 2
+    if case not in ("builtin", "provider"):
+        print("usage: test_shaniu_tool_vision_cancel.py [builtin|provider]")
+        return 2
+
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
     agent = ROOT.parent / "packages/ai_agent"
     cjson = ROOT.parent / "apps/netutils/cjson/cJSON"
@@ -195,7 +283,9 @@ def main() -> int:
         image = temp / "fixture.png"
         image.write_bytes(b"\x89PNG\r\n\x1a\nfixture")
         (temp / "registry_slice.c").write_text(registry_slice(agent))
-        (temp / "probe.c").write_text(probe_code())
+        (temp / "probe.c").write_text(
+            provider_probe_code() if case == "provider" else probe_code()
+        )
         command = [
             "cc",
             "-std=gnu11",
@@ -232,9 +322,10 @@ def main() -> int:
         if built.returncode:
             print("SETUP_ERROR", built.stderr, end="")
             return 2
-        result = subprocess.run(
-            [str(temp / "probe"), str(image)], capture_output=True, text=True
-        )
+        args = [str(temp / "probe")]
+        if case == "builtin":
+            args.append(str(image))
+        result = subprocess.run(args, capture_output=True, text=True)
         print(result.stdout + result.stderr, end="")
         return 0 if result.returncode == 0 else 1
 
