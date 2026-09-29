@@ -1,0 +1,211 @@
+{
+  "schema": "shaniu-core-slice-evidence/v1",
+  "date": "2026-09-29",
+  "scope": "AGENT-03 checked provider cancellation commit boundary",
+  "source": {
+    "test_commit": "cd342aeaa8b08c40ab758d17d500e1506587a68c",
+    "build_main_commit": "99ecc8a3dc21d4d98218d2bafd56af351c438fa9",
+    "old_agent_commit": "95c57ae1e1ba6e070b436e913dacd251654a7e33",
+    "fixed_agent_commit": "7f5fde721a0698e1e91ce0305f2097abc314e0d4",
+    "branch": "dev-ai-contest-2026"
+  },
+  "contract": {
+    "id": "AGENT-03.tool-provider-cancel",
+    "production_path": "tool_registry_execute_checked -> registered checked provider -> post-execution request check -> guard success ledger",
+    "old_result": {
+      "status": "FAIL_ASSERTION",
+      "observed": {
+        "return": 0,
+        "checked_provider_calls": 1,
+        "guard_success_records": 1,
+        "uncommitted_output_bytes": 21
+      },
+      "evidence": {
+        "path": "out/shaniu-core-20260929/tool-provider-cancel/old-agent-provider.log",
+        "sha256": "f99fba69e1c7e71cdd6172b5cc7b27a87df4fbc0962b2e8d8c9683bcd19bad89"
+      },
+      "green_control": {
+        "id": "AGENT-03.tool-vision-cancel",
+        "status": "PASS",
+        "evidence_sha256": "dbd16e91ee6e57058dee81f232c59141ac40d80fd3dd938fa3ae2ea61b136c8b"
+      }
+    },
+    "fix": {
+      "file": "packages/ai_agent/src/tools/tool_registry.c",
+      "behavior": "A checked provider success is rechecked before publication; cancellation clears uncommitted output, returns the request status and does not record guard success.",
+      "non_claims": [
+        "No non-idempotent provider side effect is claimed to be undone.",
+        "Provider interrupt latency is not measured."
+      ]
+    },
+    "selected_regression": {
+      "status": "PASS",
+      "ids": [
+        "AGENT-03.tool-provider-cancel",
+        "AGENT-03.tool-vision-cancel",
+        "AGENT-02.mixed",
+        "AGENT-02.missing-id",
+        "AGENT-02.duplicate-id",
+        "AGENT-03.vision-cancel"
+      ],
+      "evidence": {
+        "path": "out/shaniu-core-20260929/tool-provider-cancel/fixed-selected-summary.json",
+        "sha256": "b87af7f8768a31878b6a44fd3afbc7bea7047892e56e2b1cecd10a1b60a94003"
+      }
+    },
+    "complete_gate": {
+      "selected": 790,
+      "collected": 790,
+      "counts": {
+        "PASS": 790,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      },
+      "collection_errors": [],
+      "mutations_detected": [
+        "MSC-01.early-release",
+        "CFG-01.wifi-clears-cloud"
+      ],
+      "production_unchanged_during_gate": true,
+      "evidence": {
+        "path": "out/shaniu-core-20260929/tool-provider-cancel/contracts-99ecc8a3/results.json",
+        "sha256": "8c3556d410652c8c26166d20b89510fa77ecd06b5c75bf2d85c108ebd7ac1809"
+      }
+    }
+  },
+  "artifact": {
+    "version": "0.7.45+690",
+    "security_counter": 690,
+    "board": "aidk_ai_toy",
+    "layout": "bk7258-510173147382a879",
+    "build_manifest": {
+      "path": "/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json",
+      "verify": "PASS",
+      "main_commit": "99ecc8a3dc21d4d98218d2bafd56af351c438fa9",
+      "agent_commit": "7f5fde721a0698e1e91ce0305f2097abc314e0d4",
+      "source_dirty": false
+    },
+    "package": {
+      "path": "out/shaniu-core-20260929/tool-provider-cancel/release-690-ota/package/shaniu-bk7258-aidk_ai_toy-app__openvela_ap-v0.7.45+690-bshaniu-tool-provider-cancel-690-ota-ota.bkpack",
+      "sha256": "2cda7f80373e4e1017d73481f14a14db8578b73ef243c1318a0e0c4465266e0c",
+      "package_verify": "PASS",
+      "public_trust_verify": "PASS",
+      "erase_operations": []
+    },
+    "segments": [
+      {
+        "role": "cp",
+        "sha256": "d6bdbf3b9d0f549542634f014365d93c7af16d304f801bc7ddb5dda56b2c1054",
+        "offset": "0x352000",
+        "length": "0x132000"
+      },
+      {
+        "role": "ap",
+        "sha256": "37f79d977b4a348c118f5f9cddf2c08f5f07a5801c5c7ec167f801dce0a13f7d",
+        "offset": "0x484000",
+        "length": "0x20f000"
+      }
+    ]
+  },
+  "hil": {
+    "pre_state": {
+      "status": "PASS",
+      "running": "active A, inactive B, pair confirmed, version 0.7.44+689, counter 689, supervisor faults 0, recoveries 0",
+      "evidence": {
+        "path": "out/shaniu-core-20260929/tool-provider-cancel/pre-hil-status-689.raw",
+        "sha256": "f035016264840b5c640c9e358da79bfce561138e075fd3d4558e746b4324a079"
+      }
+    },
+    "preflight": {
+      "status": "preflight-passed",
+      "port": "COM9",
+      "transport": "multi",
+      "target_slot": "B",
+      "profile_overrides": [],
+      "rts_dtr": "disabled",
+      "evidence": {
+        "path": "out/shaniu-core-20260929/tool-provider-cancel/preflight-690.json",
+        "sha256": "1014ab3c5bac7f611988ac3bf7bbb130029425e64b72958ca5946bb951d84587"
+      }
+    },
+    "download": {
+      "status": "passed",
+      "automatic_retry": false,
+      "success_markers_complete": true,
+      "failure_markers": [],
+      "loader_exit_code_advisory": 1,
+      "evidence": {
+        "path": "out/shaniu-core-20260929/tool-provider-cancel/hil-690/result.json",
+        "sha256": "5ab93c093fcda6c8c2f930d083514848a55263b32364feaf13e60cafd38b3a3e"
+      }
+    },
+    "first_boot": {
+      "status": "PASS",
+      "observed": "B active, 0.7.45+690 pending; the same capture then recorded BOTA TRIAL CONFIRMED slot=1 counter=690.",
+      "faults": 0,
+      "recoveries": 0,
+      "evidence": {
+        "path": "out/shaniu-core-20260929/tool-provider-cancel/board/post-hil-status-690.raw",
+        "sha256": "8a68f8867db6b70d65e4a2bf84cbe87161521bdd7959670c766f786857771caa"
+      }
+    },
+    "confirmed_runtime": {
+      "status": "PASS",
+      "slot": "B",
+      "pair": "confirmed",
+      "version": "0.7.45+690",
+      "counter": 690,
+      "faults": 0,
+      "recoveries": 0,
+      "evidence": {
+        "path": "out/shaniu-core-20260929/tool-provider-cancel/board/confirmed-status-690.raw",
+        "sha256": "dc0236f250ed08e34798dffaca62298708b4213ac92f3448348545235f0ad2f7"
+      }
+    },
+    "controlled_reboot": {
+      "status": "PASS",
+      "kind": "software reboot; not physical K2 or cold power cycle",
+      "hardfault_assert_panic": false,
+      "preserved_identity": {
+        "wake_label": "nihao_openvela",
+        "frontend": 1,
+        "model_sha256": "922eba9175fcda60f7c8a4505ca4eb5a97c86ceb30fbe48c685fd612098ac910",
+        "threshold_percent": 85,
+        "configuration_revision": 6,
+        "eye_pack": "shaniu-cyan-v3",
+        "eye_pack_revision": 3,
+        "plaintext_secrets_read": false
+      },
+      "evidence": {
+        "path": "out/shaniu-core-20260929/tool-provider-cancel/board/reboot-690.raw",
+        "sha256": "f20041187447d78003d1a08a5dd3f2b0539dde4f53011ae8f54785efe619c80f"
+      }
+    },
+    "post_reboot_runtime": {
+      "status": "PASS",
+      "slot": "B",
+      "pair": "confirmed",
+      "trial_state": 0,
+      "version": "0.7.45+690",
+      "counter": 690,
+      "faults": 0,
+      "recoveries": 0,
+      "evidence": {
+        "path": "out/shaniu-core-20260929/tool-provider-cancel/board/final-status-690.raw",
+        "sha256": "9328c4b9151fde92c7a3a98d1d309cd7f196024537a4b15c9037cac7f4b0fd64"
+      }
+    },
+    "ports_released": {
+      "status": "PASS",
+      "present": [
+        "COM9 CH340",
+        "COM16 native USB CDC"
+      ]
+    },
+    "functional_limit": "No safe live provider cancellation injector was available. HIL proves exact artifact deployment, boot, state preservation and steady runtime, not the cloud/provider race itself."
+  },
+  "ci": {
+    "status": "PENDING_FINAL_MAIN_HEAD"
+  }
+}
