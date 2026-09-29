@@ -1,0 +1,314 @@
+{
+  "format": "shaniu.audio-ws-close-hil-evidence/1",
+  "date": "2026-09-29",
+  "scope": "A WebSocket transport Close received after positive-sequence PCM but before a documented Volc TTS protocol terminal is a truncated stream. It must return a connection error, emit no successful terminal callback and release the request so the next conversation can complete once.",
+  "source": {
+    "test_first_commit": "a21ca26418150aa7c3931a49fc938a44ce97904e",
+    "old_agent_commit": "52b12476145ed1870d596da367fb507de86e5edf",
+    "fixed_agent_commit": "95c57ae1e1ba6e070b436e913dacd251654a7e33",
+    "manifest_pin_commit": "0feece7f26347274830b3f89e9331fed10bc0479",
+    "production_source": "packages/ai_agent/src/voice/volc_tts_ws.c",
+    "old_production_source_sha256": "4057eb7fcb6f18ad7366b875728b6303c221506ca6d6a4ba4744e9a3104ac0e1",
+    "new_production_source_sha256": "607e8969797ad44bdf189f38c098b2d300699da2dd9f80d854d73d0d2622c131",
+    "test_source": "tests/host/bk7258/test_agent_volc_tts_progress.c",
+    "test_source_sha256": "e9584e958b3bad3b37da26446b9b42dad6fb7d2c98e1fd2605e14a6cbac220af",
+    "required_units_sha256": "a132ccf4944a3e498b02cc8dcdf8b3cdb79a4f5880ab74a3a053a7c4ce2438f6",
+    "contracts_sha256": "1dbfe2d42fb39e00c0bfbfd08a5505ff16252572e5999accf94742b2f86ad5e0"
+  },
+  "contract": {
+    "production_path": "The test enters the real voice_tts_speak_stream registry, Volc backend and WebSocket parser. Only TLS I/O and time are controlled external boundaries.",
+    "expectation": "Positive PCM followed by transport Close before a negative-sequence or documented frontend terminal returns ECONNRESET, emits zero terminal callbacks, releases the request, and does not prevent a subsequent valid request from completing exactly once.",
+    "case": {
+      "id": "AUD-03.agent-ws-close-before-terminal",
+      "old_status": "FAIL_ASSERTION",
+      "old_exit_code": 134,
+      "old_agent_commit": "52b12476145ed1870d596da367fb507de86e5edf",
+      "old_evidence": {
+        "path": "out/shaniu-core-20260929/audio-ws-close/old-agent/ws-close-before-terminal.log",
+        "sha256": "2f2a373e6fbd5b9825a0b70bb0a44a6022e5d485e1aa15b54d2a1856276baa93"
+      },
+      "old_assertion": "first_result == -ECONNRESET",
+      "old_controls": [
+        {
+          "id": "AUD-03.agent-truncated-close",
+          "status": "PASS",
+          "evidence": {
+            "path": "out/shaniu-core-20260929/audio-ws-close/old-agent/truncated-close.log",
+            "sha256": "ae70b5c675a3dfa7f61867832ec7f9c3712aa75648707b2828c77ef71192e41b"
+          }
+        },
+        {
+          "id": "AUD-03.agent-cancel-blocked-next",
+          "status": "PASS",
+          "evidence": {
+            "path": "out/shaniu-core-20260929/audio-ws-close/old-agent/cancel-blocked-next.log",
+            "sha256": "4e37eb16dd45b59ef8f4a02a2a16835487e11a104b8fd7a5d08a44135dcbc3b7"
+          }
+        }
+      ],
+      "new_status": "PASS",
+      "new_exit_code": 0,
+      "complete_gate_case_sha256": "eabb57606dd03fcb80effd80ec410d74a4834d311c73a7f90f9279636c6351fb",
+      "new_evidence": {
+        "path": "out/shaniu-core-20260929/audio-ws-close/contracts-0feece7f/AUD-03.agent-ws-close-before-terminal.log",
+        "sha256": "eabb57606dd03fcb80effd80ec410d74a4834d311c73a7f90f9279636c6351fb"
+      }
+    },
+    "affected_regression": {
+      "volc_cases": 6,
+      "volc_status": "PASS",
+      "volc_evidence": {
+        "path": "out/shaniu-core-20260929/audio-ws-close/new-agent/volc-progress.log",
+        "sha256": "c61862c6befaa2bdbe8145c8a4621fd3fea469c5cab111d803e6cc81d52a0192"
+      },
+      "tts_queue_status": "PASS",
+      "tts_queue_evidence": {
+        "path": "out/shaniu-core-20260929/audio-ws-close/new-agent/tts-queue.log",
+        "sha256": "75b2412bb859e7268d6fac81ff80da3af0b3d0ad17a1cae0cb77fae5aea95a6f"
+      },
+      "agent_audio_playback_cases": 5,
+      "agent_audio_playback_status": "PASS",
+      "agent_audio_playback_evidence": {
+        "path": "out/shaniu-core-20260929/audio-ws-close/new-agent/audio-playback.log",
+        "sha256": "b7dc7dfa85c44f72acca444217c29c3901d7acafe7b57f74e18f1c1cb7e4b028"
+      },
+      "runner_selftest_cases": 27,
+      "runner_selftest_status": "PASS",
+      "runner_selftest_evidence": {
+        "path": "out/shaniu-core-20260929/audio-ws-close/runner-gate-789.log",
+        "sha256": "8153fa165e61e7d2d343a9b46afb56e0ec8b10b0a92af8f5306e5df89b62e71d"
+      }
+    },
+    "complete_gate": {
+      "selected": 789,
+      "collected": 789,
+      "counts": {
+        "PASS": 789,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      },
+      "collection_errors": [],
+      "original_63_preserved": true,
+      "mutations_detected": [
+        "MSC-01.early-release",
+        "CFG-01.wifi-clears-cloud"
+      ],
+      "production_unchanged_during_run": true,
+      "checkout_head": "0feece7f26347274830b3f89e9331fed10bc0479",
+      "agent_head": "95c57ae1e1ba6e070b436e913dacd251654a7e33",
+      "evidence": {
+        "path": "out/shaniu-core-20260929/audio-ws-close/contracts-0feece7f/results.json",
+        "sha256": "b3d18037feed27c9049b4522a6b3bfdc4026f0a9bccd7cf365623437db45391f"
+      }
+    }
+  },
+  "implementation": {
+    "behavior": "WS_OPCODE_CLOSE before a protocol terminal now records ECONNRESET and exits through the existing error cleanup path. The callback remains suppressed because terminal_audio is false.",
+    "preserved": [
+      "negative-sequence and documented frontend terminal frames remain successful completion paths",
+      "valid audio chunks remain ordered and are not duplicated",
+      "cancellation remains ECANCELED and does not reopen a completed request",
+      "the following valid request completes once"
+    ],
+    "contract_wording_correction": "The contract now states that either a provider negative sequence or the documented frontend terminal may complete audio. This corrects prose only; no assertion or acceptance threshold changed."
+  },
+  "artifact": {
+    "board": "aidk_ai_toy",
+    "version": "0.7.44+689",
+    "security_counter": 689,
+    "source_commit": "0feece7f26347274830b3f89e9331fed10bc0479",
+    "agent_commit": "95c57ae1e1ba6e070b436e913dacd251654a7e33",
+    "source_dirty": false,
+    "build_manifest": {
+      "path": "/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json",
+      "sha256": "e1b9daf9b28d9d0c2ac22a0a363521bbbb95b814b19e032c81e099dfc7c9a6ce"
+    },
+    "build_manifest_verify": {
+      "status": "PASS",
+      "evidence": {
+        "path": "out/shaniu-core-20260929/audio-ws-close/build-689-verify.log",
+        "sha256": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac"
+      }
+    },
+    "build_log": {
+      "path": "out/shaniu-core-20260929/audio-ws-close/build-689.log",
+      "sha256": "e7b873b2d782577c743c3e4d41909fd4b34a86d705b1438786d687b80cc50528"
+    },
+    "layout_identity": "bk7258-510173147382a879",
+    "layout_sha256": "510173147382a879c3c3a1012a142bb5d87d64ffa8cb5881c27f1e289d8c1657",
+    "mcuboot_public_fingerprint": "7163228f3221da6e81fcf5e9c6f13ae6c4afbd1e3b91b7669783a37d2f12fbc0",
+    "package": {
+      "path": "out/shaniu-core-20260929/audio-ws-close/release-689-ota/package/shaniu-bk7258-aidk_ai_toy-app__openvela_ap-v0.7.44+689-bshaniu-audio-ws-close-689-ota-ota.bkpack",
+      "sha256": "4fbc72727027db34823e35653cf5277d92b2bb5d50aa47a825c13601cf250824"
+    },
+    "package_verify": {
+      "status": "PASS",
+      "evidence": {
+        "path": "out/shaniu-core-20260929/audio-ws-close/package-689-verify.log",
+        "sha256": "0387db50a5cc95f4ec06e8d436be64e862228f89ff3b5904bcebd75b453dbac3"
+      }
+    },
+    "public_trust_verify": {
+      "status": "PASS",
+      "evidence": {
+        "path": "out/shaniu-core-20260929/audio-ws-close/package-689-trust.log",
+        "sha256": "12f899426465b363f10be20502328bb12cd1d6f9236ba68918f414596e4e413d"
+      }
+    },
+    "package_erase_operations": [],
+    "cp_image_sha256": "835f066ecf96edae72b51de4fa9674a8d575cc2bf1147deeb182b38e423062ad",
+    "ap_image_sha256": "8e3d2ed0f28902f8221424901ff51c3b96a736d836920f873384e3d123efe6c3",
+    "ap_elf": {
+      "path": "/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx",
+      "sha256": "a980e2ceeb46fdc6b7db314a43fe8f3cda47f84155689be5cc7b7b63c2aaaf39"
+    },
+    "ap_map": {
+      "path": "/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.map",
+      "sha256": "ef3faca09a6b68efe58d1b30647af5501abce03e3ac5d23f9edca71d9b3a08a3"
+    },
+    "cp_elf": {
+      "path": "/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx",
+      "sha256": "caa159be87168f48a4844b0007d97c52f8d2833c14851ad111b6610420ab08b1"
+    },
+    "cp_map": {
+      "path": "/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.map",
+      "sha256": "d8fb4ceab1dfda974f67d16e43008fdebb924fe09078fa8ddd1c3209a6756af9"
+    },
+    "artifact_linkage": {
+      "path": "out/shaniu-core-20260929/audio-ws-close/artifact-linkage-689.log",
+      "sha256": "b89459210f19e135c6e33304be75837b02d350b3129c77446058ec3eff875ff3"
+    }
+  },
+  "hil": {
+    "pre_state": {
+      "confirmed_previous_runtime": "active B, inactive A, pair confirmed, version 0.7.43+688, counter 688, faults 0, recoveries 0",
+      "confirmed_evidence": {
+        "path": "out/shaniu-core-20260929/voice-exit/board/final-status-688/session.json",
+        "sha256": "3bcac561d015d345446a18041ea262c27c572d8d1f8c17f1d8b50060f6f83335"
+      },
+      "fresh_liveness": "Current COM9 capture immediately before Flash showed active KWS input/inference and no HardFault, ASSERT or panic. It did not issue bkota status, so version and slot checks were not observed in that capture.",
+      "fresh_evidence": [
+        {
+          "path": "out/shaniu-core-20260929/audio-ws-close/board/pre-hil-689/session.json",
+          "sha256": "2dc9df4826d311f5a7ee5d893bf9116c4117631fcf31f048e641dd91cc8653f5"
+        },
+        {
+          "path": "out/shaniu-core-20260929/audio-ws-close/board/pre-hil-689-recheck/session.json",
+          "sha256": "b48eb7b0a7cb2a79aebc654ff78cc9efd274d10568d188a88260b12e11407e9e"
+        }
+      ],
+      "classification": "The two fresh capture sessions are observer setup mismatches, not product assertion failures. Slot selection used the last confirmed B/A status, current liveness and no intervening deployment."
+    },
+    "preflight": {
+      "status": "preflight-passed",
+      "port": "COM9",
+      "transport": "multi",
+      "target_slot": "A",
+      "write_bounds": [
+        "cp 0x11000+0x132000",
+        "ap 0x143000+0x20f000"
+      ],
+      "evidence": {
+        "path": "out/shaniu-core-20260929/audio-ws-close/preflight-689.json",
+        "sha256": "704d16f4dde1cfb9de79c29545519d2f1f4936ccd58149c59394e61326818917"
+      }
+    },
+    "download": {
+      "status": "passed",
+      "automatic_retry": false,
+      "reset_strategy": "loader-software-reboot",
+      "success_markers_complete": true,
+      "failure_markers": [],
+      "evidence": {
+        "path": "out/shaniu-core-20260929/audio-ws-close/hil-689/result.json",
+        "sha256": "aaecf2bfdcc2a52e767f7c55c6281c10a970e7e1cbb55f892aa71e01e903bf26"
+      }
+    },
+    "first_boot": {
+      "status": "PASS",
+      "slot": "A",
+      "counter": 689,
+      "trial_confirmed": true,
+      "configuration_revision": 6,
+      "eye_pack": "shaniu-cyan-v3",
+      "eye_pack_revision": 3,
+      "kws_active": true,
+      "hardfault_assert_panic": false,
+      "evidence": {
+        "path": "out/shaniu-core-20260929/audio-ws-close/board/post-hil-689/serial.txt",
+        "sha256": "14a9096c925d3f63c74133dc2287ba0a6ccfb33e73cf40f0ead5efa07a65e57f"
+      }
+    },
+    "confirmed_runtime": {
+      "status": "PASS",
+      "version": "0.7.44+689",
+      "slot": "A",
+      "pair": "confirmed",
+      "faults": 0,
+      "recoveries": 0,
+      "evidence": {
+        "path": "out/shaniu-core-20260929/audio-ws-close/board/status-689/session.json",
+        "sha256": "2cf90d86b6705e360fbc9f6449f12ef8289742dcb543594b68391438cdb29ae0"
+      }
+    },
+    "controlled_reboot": {
+      "status": "PASS",
+      "kind": "software reboot, not physical K2 or cold boot",
+      "hardfault_assert_panic": false,
+      "evidence": {
+        "path": "out/shaniu-core-20260929/audio-ws-close/board/reboot-689/session.json",
+        "sha256": "60ba024cdb93c6d06f99d407732c1c7e5ed23b9e06e299a53e11534a1605f0f7"
+      }
+    },
+    "post_reboot_runtime": {
+      "status": "PASS",
+      "version": "0.7.44+689",
+      "slot": "A",
+      "pair": "confirmed",
+      "trial_state": 0,
+      "faults": 0,
+      "recoveries": 0,
+      "evidence": {
+        "path": "out/shaniu-core-20260929/audio-ws-close/board/final-status-689/session.json",
+        "sha256": "6785fda61abd82f5d75c7a99608bc6df81b755ce2592bce4962e54044933d73e"
+      }
+    },
+    "preserved_identity": {
+      "wake_label": "nihao_openvela",
+      "frontend": 1,
+      "model_sha256": "922eba9175fcda60f7c8a4505ca4eb5a97c86ceb30fbe48c685fd612098ac910",
+      "threshold_percent": 85,
+      "configuration_revision": 6,
+      "eye_pack": "shaniu-cyan-v3",
+      "eye_pack_revision": 3,
+      "plaintext_secrets_read": false
+    },
+    "ports_released": {
+      "status": "PASS",
+      "present": [
+        "COM9 CH340",
+        "COM16 native USB CDC"
+      ],
+      "evidence": {
+        "path": "out/shaniu-core-20260929/audio-ws-close/ports-after-689.json",
+        "sha256": "3aee486c981107efb6905ea7368ed1e091ebfc9a4adc76fa3687a4fee7d39750"
+      }
+    }
+  },
+  "ci": {
+    "status": "PENDING_FINAL_MAIN_HEAD",
+    "reason": "The exact-head run is created by the single branch push after this evidence file is committed."
+  },
+  "observer_corrections": [
+    "Two passive pre-HIL captures requested version and supervisor text without sending the established read-only bkota status command. They captured live KWS activity but correctly failed the requested regex checks. They are retained as setup mismatches and not counted as product failures.",
+    "The first post-HIL passive capture began after the boot identity lines. It nevertheless captured configuration revision 6, BOTA trial confirmation, eye-pack render and KWS activity. The following read-only bkota status and controlled reboot sessions provide the definitive version and slot evidence.",
+    "The contract sentence saying a negative sequence was the only successful terminal contradicted the already documented frontend terminal. The prose was corrected without changing executable expectations."
+  ],
+  "not_proven": [
+    "The exact WebSocket Close sequence is L2 production registry, backend and parser evidence. The current board has no safe unattended authenticated endpoint injector for this remote peer event, so HIL proves artifact linkage, bounded deployment, boot identity and steady-state health rather than the injected event itself.",
+    "No acoustic capture or onsite listener; digital and Media evidence cannot claim absence of audible truncation, underrun, hiss or unnatural pacing.",
+    "No physical K2, deep sleep, power measurement, phone BLE or App OTA. HIL download is not App OTA.",
+    "No screen camera, NFC card or physical motion stimulus."
+  ]
+}

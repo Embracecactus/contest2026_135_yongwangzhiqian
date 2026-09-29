@@ -1219,7 +1219,8 @@ DAC, acoustic or continuous-dialogue acceptance. The initial build setup errors
 are retained separately and are not business failures.
 
 AUD-03.agent-truncated-close binds the actual Volcengine WebSocket receiver.
-The provider's negative sequence is the only successful terminal audio marker.
+The provider's negative sequence or the documented frontend terminal is a
+successful terminal audio marker.
 If the peer closes after one or more positive-sequence PCM frames, the receiver
 must return the connection error and must not emit the terminal callback; bytes
 already delivered remain observable but cannot relabel the truncated stream as
