@@ -1,0 +1,273 @@
+{
+  "format": "shaniu.bktest-k2-hil-evidence/1",
+  "date": "2026-09-29",
+  "scope": "Phase-1 engineering-only BKTEST transport, production K2 event path, bounded power-peer outcomes, package deployment, and boot identity. The authenticated board command remained fail-closed because this host has no diagnostics grant/profile.",
+  "evidence_path_base": "All relative evidence paths resolve from the checkout root; ../out is the OpenVela workspace evidence directory.",
+  "source": {
+    "baseline_commit": "79b15cc4bb06f654e60a323e39acf12d587dd57a",
+    "test_first_commits": [
+      "3567580ac4a76ad0714b9681bad847ba91544af9",
+      "eaa0106e1df13532ef57712fa3dda27f99f798ad",
+      "a5a1bdc92b842bf0d9a5d9dd46a5cb58621a1351",
+      "fea01868ad799468ee5868079450108c0eaa95cc",
+      "6c5872d1f569ab5031e76bb15f09839e13025cfe",
+      "94e896948dd189037f9f1b84df722d892529e420",
+      "65d8438aa7c438b76f2337a73999bde736be21d9",
+      "beeffaada3277e6cdc9094e6ec186d29a6d3749a"
+    ],
+    "product_commit": "f2b4ee2fb1af53647fc9d9cc8a02027f3c404b3f",
+    "agent_commit": "7f5fde721a0698e1e91ce0305f2097abc314e0d4",
+    "required_units_sha256": "3d558dd98f6a5b07070bd4c67b856d13a4eaaa7598e367ab9255d41d7313bb4b",
+    "interface_document_sha256": "ca4d143733cbab7746e8dfb917e942ad5c1567f5bc1c68114f3f851b9ad351bb",
+    "engine_source_sha256": "ad4de29a59c2432597aae68090dbab62e26a20369bac03efed9da588a69a78ce",
+    "engine_header_sha256": "1524f2ab2d79421710b179ea2974c1c11b1dacf42644ea23b5894208714cfb53",
+    "engine_test_sha256": "d30a9c2aebd25bcc29fc54025142202f3db00e4a338544983d435632b114b075",
+    "hil_client_sha256": "3b7e3d4820cd63b761b9b2b5f3662946e46e1c3a46ecf6b2b14ae584ee9a5ad2"
+  },
+  "test_first": {
+    "old_baseline": {
+      "status": "PASS_WITH_BLOCKED_INTERFACE",
+      "existing_cases_passed": 17,
+      "new_interface": "BLOCKED_INTERFACE",
+      "evidence": "out/bktest-phase1-20260929/old/baseline-summary.json",
+      "sha256": "c76471fbdb7a328914c940be2498fece1ec993d2197ca501a63a9ce980db5efc"
+    },
+    "valid_business_reds": [
+      {
+        "id": "LIFE-02.bktest-session-expiry",
+        "expectation": "an idle engineering session expires with -ETIMEDOUT instead of remaining active",
+        "status": "FAIL_ASSERTION",
+        "evidence": "out/bktest-phase1-20260929/session-expiry-red/run.log",
+        "sha256": "df0666329b368efba31732914f343460a5fbf270adab82caf935a9cdaef187c1"
+      },
+      {
+        "id": "K2-03.bktest-session-ownership",
+        "expectation": "a new session cannot replace a pending accepted power intent",
+        "status": "FAIL_ASSERTION",
+        "evidence": "out/bktest-phase1-20260929/session-ownership-red/session.log",
+        "sha256": "5baba9ae84102887d0b1acfedea83a37aa50d80462a461b01c80396161f71a65"
+      },
+      {
+        "id": "K2-03.bktest-pending-intent",
+        "expectation": "the real key receiver rejects a replacement engineering session while an accepted power intent is pending",
+        "status": "FAIL_ASSERTION",
+        "evidence": "out/bktest-phase1-20260929/session-ownership-red/pending-intent.log",
+        "sha256": "61f870be767e8a03258375ee1f1e4b07aa1ff593aa95a210d844e04f7fc63b5f"
+      }
+    ],
+    "blocked_interface_snapshots": [
+      "the initial engine and CLI contracts could not compile/import before the public test interface existed",
+      "status observer fields initially did not exist; those compile/import failures were not counted as business Red"
+    ],
+    "focused_after": {
+      "status": "PASS",
+      "effective_selected": 26,
+      "effective_passed": 26,
+      "engine_cases": 13,
+      "real_key_receiver_cases": 5,
+      "cli_cases": 5,
+      "workbench_cases": 1,
+      "pack_route_cases": 2,
+      "result_evidence": "out/bktest-phase1-20260929/implementation/focused-results-v3.json",
+      "result_sha256": "c67d6f2b042e882a6a781b25ba89cf4bdabe2bf0b87a5dd690fbf32b48eb4f51",
+      "tls_gates": {
+        "production_control": "PASS",
+        "engineering_control": "PASS",
+        "evidence": "out/bktest-phase1-20260929/final-focused/tls-summary.json",
+        "sha256": "f796eeaf57affc529bf9af8693bb953921ea86f26e018b96987e2b278216eb56"
+      }
+    },
+    "complete_contract_gate": {
+      "selected": 815,
+      "collected": 815,
+      "counts": {
+        "PASS": 814,
+        "FAIL_ASSERTION": 1,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      },
+      "bktest_k2_regressions": "PASS",
+      "remaining_failure": "RES-01.eye-install-disconnect-cleanup",
+      "remaining_failure_scope": "pre-existing resource-install cancellation assertion; not hidden and not part of this BKTEST/K2 slice",
+      "mutations_detected": [
+        "MSC-01.early-release",
+        "CFG-01.wifi-clears-cloud"
+      ],
+      "production_unchanged_during_run": true,
+      "evidence": "out/shaniu-contract-20260929-120818/results.json",
+      "sha256": "aa9067fa04e473451ab9b95a1f9d56e5ce7eb010c0c9886bffdf946e7769d58e"
+    }
+  },
+  "implementation": {
+    "build_boundary": "CONFIG_BK7258_ENGINEERING_TEST defaults n and the engine source is only linked by the dedicated engineering AP configuration",
+    "authorization_boundary": "SDC1 kind 19 is admitted only by the existing authenticated PC-control lease with BKPC_CAP_DIAGNOSTICS; loss of the lease closes the unfinished test session",
+    "production_path": "BKT1 command -> bkengtest_control -> bkvoice_keys_engineering_event -> shared keys_apply_locked/bkvoice_product_keys_step -> product coordinator -> bounded engineering PM peer",
+    "forbidden_shortcut_absent": "the interface does not call power_off, factory_reset, reboot, erase, provisioning supply, or owner mutation",
+    "status_observers": "read-only production power, voice, storage, and network snapshots; status reads do not start scans, mounts, decoders, or microphones",
+    "future_extension": "the versioned command/status envelopes reserve an operation namespace; audio, resource, OTA, storage, and network commands are not implemented in this phase"
+  },
+  "artifact": {
+    "board": "aidk_ai_toy",
+    "version": "0.7.46+691",
+    "security_counter": 691,
+    "source_commit": "f2b4ee2fb1af53647fc9d9cc8a02027f3c404b3f",
+    "agent_commit": "7f5fde721a0698e1e91ce0305f2097abc314e0d4",
+    "source_dirty": false,
+    "dependency_inputs": {
+      "ai_agent": {
+        "commit": "7f5fde721a0698e1e91ce0305f2097abc314e0d4",
+        "dirty": false
+      },
+      "apps": {
+        "commit": "550cd3ba60a03f8ebf9ac7b72f6eed6aea3bedbe",
+        "dirty": true,
+        "input_tree_sha256": "e841e3a0e74fc5d78211802015ddb4ae7c7f6cef2a529c80bc0bf7af9b18a344"
+      },
+      "nuttx": {
+        "commit": "76354c637858ecb0aa4601629327acb6f44a26bb",
+        "dirty": true,
+        "input_tree_sha256": "a71a6ba92af092490c60b8cfb18e86657874ea60fb8c4224da146deaa3a944a4"
+      }
+    },
+    "ap_profile": "boards/bk7258/aidk_ai_toy/configs/openvela_ap_bktest",
+    "cp_profile": "boards/bk7258/aidk_ai_toy/configs/app",
+    "layout_identity": "bk7258-510173147382a879",
+    "layout_sha256": "510173147382a879c3c3a1012a142bb5d87d64ffa8cb5881c27f1e289d8c1657",
+    "build_manifest": "../out/bk7258/aidk_ai_toy/app__openvela_ap_bktest/bk7258-510173147382a879/releases/mcuboot/build-manifest.json",
+    "build_manifest_sha256": "79ac9ce03b7648dcf113fce1a768073e69b28437df1907baa00fc8f1cd08068e",
+    "package": "../out/shaniu-bktest-20260929/release-691-ota/package/shaniu-bk7258-aidk_ai_toy-app__openvela_ap_bktest-v0.7.46+691-bshaniu-bktest-k2-691-ota-ota.bkpack",
+    "package_sha256": "9247cae9a5a15fbba028c69dcc198eb92ee636cf28df4e0a74cd3a5013054b48",
+    "build_manifest_verify": {
+      "status": "PASS",
+      "evidence": "../out/shaniu-bktest-20260929/verify-manifest-691.log",
+      "sha256": "31ff3da738b05d102f4e61e9eb243ab4214386525b687b817c87af3f169c9c61"
+    },
+    "package_verify": {
+      "status": "PASS",
+      "evidence": "../out/shaniu-bktest-20260929/release-691-ota/verify-package.log",
+      "sha256": "973c58434ad09294e57e6f42ca51fc86e399045e4c834be61098afea5195b8e8"
+    },
+    "public_trust_verify": {
+      "status": "PASS",
+      "evidence": "../out/shaniu-bktest-20260929/release-691-ota/verify-trust.log",
+      "sha256": "12f899426465b363f10be20502328bb12cd1d6f9236ba68918f414596e4e413d"
+    },
+    "artifact_trust_verified_by_hil_helper": false,
+    "package_erase_operations": [],
+    "cp_image_sha256": "53a6853e3beb41a4f141f84679eebd23a9d8e997fde7af044857ee6d14d21041",
+    "ap_image_sha256": "7eceb66f280e5e24054f7bccd7088ade6f3c34ce3f88eb19cb1b33847a61e37d",
+    "cp_elf_sha256": "caa159be87168f48a4844b0007d97c52f8d2833c14851ad111b6610420ab08b1",
+    "cp_map_sha256": "d8fb4ceab1dfda974f67d16e43008fdebb924fe09078fa8ddd1c3209a6756af9",
+    "ap_elf_sha256": "88841dc04610ce85cc2d4e5a2076630b23b4d1ea9f8fce68c3e59451bc604c20",
+    "ap_map_sha256": "03b085d0941fcdc580ef9d20877c078e411c5cb797ce4bfc7704ceea8ac1a880"
+  },
+  "hil": {
+    "pre_state": {
+      "status": "PASS",
+      "observed": "0.7.45+690, active B, inactive A, pair confirmed, fault magic 0",
+      "evidence": "../out/shaniu-bktest-20260929/board/pre-hil-status-690.raw",
+      "sha256": "ae72ba98246199d33ed411c5d003ab87b86b1f786605716debf508314d4eee3e"
+    },
+    "preflight": {
+      "status": "preflight-passed",
+      "download_port": "COM9",
+      "product_port": "COM16",
+      "evidence": "../out/shaniu-bktest-20260929/preflight-691.json",
+      "sha256": "d8a486470600a2caab3cc4f3a30503be785d03b2fee9ce50e5956de27a409791"
+    },
+    "download": {
+      "status": "passed",
+      "transport": "bounded multi-segment",
+      "automatic_retry": false,
+      "reset_strategy": "loader-software-reboot",
+      "write_bounds": [
+        "cp 0x11000+0x132000",
+        "ap 0x143000+0x20f000"
+      ],
+      "success_markers_complete": true,
+      "failure_markers": [],
+      "protected_data_first_offset": "0x693000",
+      "external_sd_not_targeted_by_declared_write_bounds": true,
+      "evidence": "../out/shaniu-bktest-20260929/hil-691/result.json",
+      "sha256": "c50c7b1a6d7c74bb4a701e6b590f76a09163b6e4158fb5a91eb6454d899fd7f4"
+    },
+    "confirmed_runtime": {
+      "status": "PASS",
+      "version": "0.7.46+691",
+      "slot": "A",
+      "pair": "confirmed",
+      "ap_state": 2,
+      "cpu2": "ready/online",
+      "rpmsg": "ready",
+      "supervisor": "healthy",
+      "faults": 0,
+      "recoveries": 0,
+      "fault_magic": 0,
+      "evidence": "../out/shaniu-bktest-20260929/board/post-reboot-status-691.raw",
+      "sha256": "ed9f64f42bb17084a5d0ef920711abca446782448d8e373c9e271cc9338f0424"
+    },
+    "controlled_reboot": {
+      "status": "PASS",
+      "kind": "software reboot, not physical K2 or cold boot",
+      "hardfault_assert_panic": false,
+      "boot_markers": [
+        "BPSR BOOT PASS",
+        "BK7258 FINALINIT PASS",
+        "AP DAC/LCD/SDIO boot PASS"
+      ],
+      "evidence": "../out/shaniu-bktest-20260929/board/reboot-691.raw",
+      "sha256": "4ca52b399d905bb7dadb2213153ec47aaf7d37513622f55829c4282fa2823715"
+    },
+    "preserved_identity": {
+      "wake_label": "nihao_openvela",
+      "frontend": 1,
+      "model_sha256": "922eba9175fcda60f7c8a4505ca4eb5a97c86ceb30fbe48c685fd612098ac910",
+      "configuration_revision": 6,
+      "eye_pack_revision": 3,
+      "wifi_stack_initialized": true,
+      "configured_backend_activation": {
+        "asr": "mimo result=0",
+        "llm": "result=0; backend name not present in this observation",
+        "tts": "mimo remote result=0",
+        "configuration_revision": 6
+      },
+      "plaintext_secrets_read": false
+    },
+    "authenticated_bktest_command": {
+      "status": "BLOCKED_CREDENTIAL",
+      "diagnostics_grant_present": false,
+      "local_profile_present": false,
+      "attempt_result": "Profile unavailable or invalid; no credential fallback",
+      "product_port_opened": false,
+      "unsafe_nsh_fallback_added": false,
+      "grant_observation": "../out/shaniu-bktest-20260929/board/pc-grant-list-691.raw",
+      "grant_observation_sha256": "52288d9103626757bcc275c30804c507e1307feb5dc08d2b875b2787c6fa31d2",
+      "attempt_evidence": "../out/shaniu-bktest-20260929/bktest-status-blocked.log",
+      "attempt_evidence_sha256": "95c0298f1016a55c5780fd0c7c5199cbf6576e896293b2cc313b74a89a99fabe"
+    },
+    "end_state": {
+      "board_reachable": true,
+      "running_version": "0.7.46+691",
+      "download_port_present": true,
+      "product_port_present": true,
+      "ports_released_by_tools": true
+    }
+  },
+  "ci": {
+    "status": "PENDING_EXACT_HEAD_PUSH",
+    "reason": "The branch workflow run is created by the single authorized push after this evidence record is committed."
+  },
+  "observer_corrections": [
+    "The first focused runner invoked two pack-route cases with unittest-style selectors unsupported by that executable. The retained summary reports two exit-2 invocation errors; rerunning the unchanged production path with its documented session and revoke selectors produced CONTRACT_PASS for both, yielding 26 effective focused passes.",
+    "The actual BKTEST board command was attempted only through the authenticated profile loader. Because profile validation failed before client construction, COM16 was not opened and no K2 event reached the board; this is BLOCKED_CREDENTIAL, not a board test failure."
+  ],
+  "not_proven": [
+    "No authenticated BKTEST status/key command reached the deployed board, so the HIL record proves deployment, boot identity and fail-closed authorization rather than a live injected K2 state-machine sequence.",
+    "No physical K2 press, GPIO/electrical debounce, actual shutdown/deep sleep, wake-up, or current measurement.",
+    "No destructive factory-reset confirmation/completion; owner, credentials, persistent flash and external SD were preserved.",
+    "No phone BLE, App install, App OTA, scan, claim, or hotspot acceptance.",
+    "No successful remote ASR, LLM, or TTS transaction was performed; backend activation logs do not prove cloud reachability.",
+    "No acoustic capture, subjective audio, screen camera, NFC card, or motion stimulus.",
+    "Audio/resource/OTA/storage/network BKTEST extensions remain future scope and are not implemented by this milestone."
+  ]
+}

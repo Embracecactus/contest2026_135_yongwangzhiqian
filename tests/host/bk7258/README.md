@@ -83,6 +83,20 @@ make -C tests/host/bk7258 run-shaniu-contracts
 不修业务。未绑定接口/设备不计通过。下方为首轮提交272b3b2f的历史测试记录，
 其文件数量约束已由v2覆盖，结果不替代本轮基线。
 
+### BKTEST K2/HIL 第一阶段
+
+工程接口、认证边界、BKT1/BKS1 wire 格式和结果语义见
+[`docs/platforms/bk7258/bktest-hil-interface.md`](../../../docs/platforms/bk7258/bktest-hil-interface.md)。
+它只在专用 engineering AP 配置中编译，且复用现有 SDC1/TLS PC-control 的
+`BKPC_CAP_DIAGNOSTICS` 授权；production 默认不含该入口。虚拟 K2 事件进入现役按键接收器
+和产品协调器，测试层不直接调用关机、复位、擦除或 owner 接口。
+
+2026-09-29 的测试、构建、受限下载、启动身份以及实际凭据阻塞记录在
+[`acceptance/bktest-k2-hil-20260929.json`](acceptance/bktest-k2-hil-20260929.json)。
+当前固件已通过 HIL 下载并启动，但主机没有 diagnostics grant/profile，因此真实板端
+`bk7258.py hil-test status/key` 保持 fail-closed，未把命令送到设备。主机生产路径 PASS、
+HIL 下载或启动 PASS 均不代表实体 K2、GPIO 去抖、深睡/唤醒、BLE、App OTA 或声学验收。
+
 ## 2026-09-24 架构计划：测试先行审阅稿
 
 本节是用户实施计划的测试规格，不是新增实板验收报告。当前检查点为：先写测试、

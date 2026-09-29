@@ -1,6 +1,8 @@
-# 傻妞：核心稳定性与架构收敛（当前执行目标）
+# 傻妞：BKTEST/HIL核心状态机验证（当前执行目标）
 
-2026-09-28 用户最新 /goal 生效，替代旧的全局暂停、只读及人工操作前置条件。
+2026-09-29 用户最新 /goal 生效：先建立仅工程构建启用、经现有认证且驱动真实生产事件路径的
+BKTEST/HIL入口，完成K2/Power无人值守验证；之后再扩展Audio，最后才是存储/资源/网络。
+该目标替代旧的全局暂停、只读及人工操作前置条件。
 本文件只保留当前执行信息。冻结需求、Q01—Q10、N1—N3最终范围不缩减。
 历史记录：提交 fb71830cf9349d1e56208e3159bccda5f865f256 的本文件；
 本轮修正前原文保存在 out/shaniu-core-20260928/goal-before-latest-correction.md。
@@ -12,7 +14,7 @@
 - 手机与电脑断开，现场无人；不请求K2、扫码、插拔、听音或卡片动作，不新建手机桥接。
 - 板子连接；已核对 COM9 为 CH340 下载/NSH，COM16 为原生 CDC 二进制通道。
 - 正常固件 HIL 下载、必要受控复位、启动采集和非破坏性回归已获授权。
-- 已用现有 BK Loader 有界写入清单固定CP/AP段；当前0.7.45+690在B槽确认启动，受控重启后仍确认pair/counter 690且可达。
+- 已用现有 BK Loader 有界写入清单固定CP/AP段；当前BKTEST工程固件0.7.46+691在A槽确认启动，受控重启后仍确认pair/counter 691且可达。
 - CDC OTA HELLO超时，未进入写入；不把该结果记作App OTA。COM9软件复位下载成功不证明独立故障/深睡恢复。
 - 未证明独立恢复、硬件按键/电源控制、声学/电流/屏幕观测能力；仅暂停依赖这些能力的动作。
 - 不清owner、网络/Key、SD或硬件数据，不改OTP/eFuse/信任根，不降低防回滚。工厂首启单列。
@@ -22,9 +24,9 @@
 
 ## 优先级与执行门槛
 
-1. P0：R1 CP未知/pending与资源退出、有效Fault取证；R2合同/运行器/CI门禁。
-2. P1：音频EOF/取消/下一轮、普通/视觉/工具回合；本地监听与云解耦、配置和SD一致性。
-3. P2：已有App/BLE、R3专注完成与电脑通知冲突、阻断核心的资源安装。暂停新目录/协议/外观扩项。
+1. P0：BKTEST基础框架、K2边沿、CP未知/pending/迟到回执与可恢复状态；合同、运行器和HIL闭环。
+2. P1：在同一入口扩展音频EOF/取消/下一轮，不另建控制协议。
+3. P2：存储/资源/网络测试能力。继续暂停UI页面、NFC玩法、USB音频和桌面伙伴扩项。
 
 每个问题：冻结行为与观察→旧实现结果→真实路径修改→同例及受影响回归→匹配构建
 →验签/布局/计数/范围→HIL下载→实际身份及安全板端用例→分层结论。
@@ -88,7 +90,11 @@
 - 匹配0.7.44+689已通过构建清单、包与公开签名信任校验，AP ELF包含新的Close-before-terminal错误路径；HIL仅写非活动A槽CP/AP且无包级擦除项。板端确认A槽pair/counter 689、faults/recoveries 0；受控重启后trial清零，原模型完整哈希、frontend 1、阈值85、配置revision 6与眼睛包revision 3保持。当前没有安全在线对端可注入该精确Close序列，也无声学回采，因此精确缺陷记L2真实解析/协议路径通过，匹配部署与稳态记HIL通过，不宣称实际听感或在线播放截断已完成L3验收。
 - AGENT-03发现checked外部provider在执行期间取消后仍提交成功输出并记guard成功：旧Agent 95c57ae的生产dispatcher形成有效Red，builtin取消控制保持Green；Agent 7f5fde7在provider成功提交前复核原请求，同例返回`-ECANCELED`、清空输出且不记成功。混合工具、缺失/重复ID与视觉取消回归保持Green，完整当前集合790/790通过且两项既有变异继续检出。
 - 匹配0.7.45+690已通过构建清单、包与公开签名信任校验；新鲜状态确认A活动/B非活动后，HIL一次仅写B槽CP/AP。板端自动确认B槽pair/counter 690，受控重启后faults/recoveries为0，原模型完整哈希、frontend 1、阈值85、配置revision 6与眼睛包revision 3保持。没有安全在线provider取消注入，故精确竞态记L2生产dispatcher通过，匹配部署与稳态记HIL通过，不称云端工具竞态L3通过。
-- 本轮证据与匹配BIN/ELF/map：out/shaniu-core-20260928/、out/shaniu-core-20260929/cfg02-application/、out/shaniu-core-20260929/app-queued-config-cancel/、out/shaniu-core-20260929/voice-exit/；未执行人工K2、App或声学验收。
+- BKTEST已采用BKT1/BKS1版本化消息并复用认证SDC1/TLS PC-control；production默认关闭，虚拟K2进入现役按键接收器与产品协调器，末端仅用有界工程PM peer观察拒绝、未知、持续pending与迟到ACK。没有直接关机、擦除、恢复出厂或owner写入口。
+- 旧接口缺失按BLOCKED_INTERFACE保留；session expiry、session ownership及pending intent三个有效Red已由同例转Green。定向26项有效执行均通过；完整815项全部收集，814 PASS、1项既有RES-01资源取消断言失败、0 SETUP_ERROR，两项既有变异继续检出。
+- 匹配0.7.46+691已验签并由HIL仅写非活动A槽CP/AP，板端确认pair/counter 691、faults/recoveries 0；受控重启后原模型完整哈希、frontend 1、配置revision 6与眼睛包revision 3保持。
+- 当前板端`/data/shaniu/pc-grants`为空且主机无`.spc` diagnostics profile，实际`hil-test status/key`在打开COM16前fail-closed，记BLOCKED_CREDENTIAL。未增加CP NSH后门，故尚未把认证BKTEST命令送入板端状态机。
+- 本轮证据与匹配BIN/ELF/map：../out/shaniu-bktest-20260929/、out/bktest-phase1-20260929/及tests/host/bk7258/acceptance/bktest-k2-hil-20260929.json；未执行人工K2、App或声学验收。
 
 ## 交付与停止条件
 
