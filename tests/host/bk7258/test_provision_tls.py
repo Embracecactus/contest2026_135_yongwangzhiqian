@@ -22,6 +22,8 @@ from tls_test_identity import issue as issue_test_identity
 
 ROOT = Path(__file__).resolve().parents[3]
 RESOURCE_CASE = None
+ENGINEERING_CONTROL = False
+PRODUCTION_CONTROL = False
 
 
 class ProvisionTlsTest(unittest.TestCase):
@@ -136,6 +138,11 @@ class ProvisionTlsTest(unittest.TestCase):
                         sys.executable,
                         ROOT / "tests/host/bk7258/test_tls_entropy_tape.py",
                     ]
+                )
+                product_defines = (
+                    ["-DCONFIG_BK7258_ENGINEERING_TEST=1"]
+                    if ENGINEERING_CONTROL
+                    else []
                 )
                 run(
                     [
@@ -299,7 +306,19 @@ class ProvisionTlsTest(unittest.TestCase):
                         "-o",
                         temp / "test",
                     ]
+                    + product_defines
                 )
+                if ENGINEERING_CONTROL or PRODUCTION_CONTROL:
+                    issue_test_identity(run, temp)
+                    gate_store = temp / "engineering-gate"
+                    gate_store.mkdir(mode=0o700)
+                    run(
+                        [temp / "test", temp / "cert.pem", temp / "key.pem", gate_store],
+                        env={**os.environ, "SHANIU_TLS_STREAM": "1"},
+                    )
+                    identity = "ENGINEERING" if ENGINEERING_CONTROL else "PRODUCTION"
+                    print(f"BKTEST_PC_{identity}_GATE=PASS", flush=True)
+                    return
                 if RESOURCE_CASE is not None:
                     issue_test_identity(run, temp)
                     run(
@@ -604,6 +623,12 @@ class ProvisionTlsTest(unittest.TestCase):
 
 
 if __name__ == "__main__":
+    if len(sys.argv) >= 2 and sys.argv[1] == "--engineering-control":
+        ENGINEERING_CONTROL = True
+        del sys.argv[1]
+    if len(sys.argv) >= 2 and sys.argv[1] == "--production-control":
+        PRODUCTION_CONTROL = True
+        del sys.argv[1]
     if len(sys.argv) >= 3 and sys.argv[1] == "--resource-case":
         RESOURCE_CASE = sys.argv[2]
         if RESOURCE_CASE not in ("upload", "reconnect", "cancel", "wrong_principal"):

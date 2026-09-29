@@ -1362,6 +1362,13 @@ have `BKPC_CAP_DIAGNOSTICS`; the new kind remains unbound when
 `CONFIG_BK7258_ENGINEERING_TEST` is absent. Port access, DTR, a browser grant,
 or a production firmware image cannot enable it.
 
+The PC permission boundary is executed through the existing pinned-TLS SDC1
+guard. A non-diagnostics principal is denied kind 19 in every build. A
+diagnostics-only principal is denied when the engineering symbol is absent and
+may reach the product config adapter only when that symbol is present. The
+adapter remains responsible for the BKT1/BKS1 contract; the PC guard cannot
+perform a power action itself.
+
 K2-01 binds exact 2999/3000/3001 ms sequences to the production key policy.
 Every session begins with an explicit released baseline. `advance` changes the
 engineering input clock and emits no KEY1 record, so `down -> advance -> up`

@@ -262,6 +262,17 @@ static int pc_config(void *context, enum bkcontrol_command_e command,
                       size_t size, struct bkcontrol_status_s *status)
 {
   assert(context == &pc_reads);
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  if (kind == BKCONTROL_CONFIG_ENGINEERING_TEST)
+    {
+      assert(command == BKCONTROL_CONFIG_READ);
+      assert(offset == 0 && record == NULL && size == 0);
+      pc_reads++;
+      status->config_total = 64;
+      memcpy(status->config_chunk, "BKS1", 4);
+      return 0;
+    }
+#endif
   if (kind == BKCONTROL_CONFIG_PC_TASK)
     return bkpc_tasks_control(&pc_tasks, command, offset, record, size, status, now);
   if (kind == BKCONTROL_CONFIG_DEFAULT_SELECTION)
@@ -729,9 +740,15 @@ static void pc_owner_lifecycle_tests(mbedtls_x509_crt *cert, mbedtls_pk_context 
 static void pc_guard_tests(mbedtls_ssl_context *client,
                             mbedtls_x509_crt *cert, mbedtls_pk_context *key)
 {
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  const unsigned int engineering_reads = 1;
+#else
+  const unsigned int engineering_reads = 0;
+#endif
   struct bkcontrol_pair_s control = {0};
   const uint8_t auth[32] = {84}, volume[4] = {0,0,0,73};
   const uint8_t focus[4] = {0,10,0,0}, eye[4] = {0,5,0,0};
+  const uint8_t engineering[4] = {0,19,0,0};
   const uint8_t begin[8] = {0,0,0,10,0,0,0,4};
   const uint8_t denied_kinds[] = {1,2,3,4,6,7,8,9,12,13,14,15};
   pc_owner_lifecycle_tests(cert,key);
@@ -754,6 +771,8 @@ static void pc_guard_tests(mbedtls_ssl_context *client,
   assert(pc_reads == 2 && pc_writes == 0);
   pc_exchange(&control, client, 15, seq++, focus, 4, 0);
   pc_exchange(&control, client, 15, seq++, eye, 4, 0);
+  /* A valid TLS/SDC1 PC principal without diagnostics remains denied. */
+  pc_exchange(&control, client, 15, seq++, engineering, 4, -EACCES);
   const uint8_t resource_query[20] = {0,16,0,0,1};
   pc_exchange(&control, client, 15, seq++, resource_query, 20, -ENOTSUP);
   const uint8_t selection_query[20]={0,17,0,0,1};
@@ -784,7 +803,12 @@ static void pc_guard_tests(mbedtls_ssl_context *client,
   pc_exchange(&control, client, 15, 3, resource_query, 20, -EACCES);
   pc_exchange(&control,client,15,4,selection_query,20,-EACCES);
   pc_exchange(&control,client,16,5,selection_begin,8,-EACCES);
-  assert(pc_reads == 4 && pc_writes == 1);
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  pc_exchange(&control, client, 15, 6, engineering, 4, 0);
+#else
+  pc_exchange(&control, client, 15, 6, engineering, 4, -EACCES);
+#endif
+  assert(pc_reads == 4 + engineering_reads && pc_writes == 1);
   pc_change(BKPC_CAP_SCENES); /* Changing scope also invalidates current AUTH. */
   control_terminal(&control, -ESTALE);
   control_handshake_on(&control, client, cert, key, true);
@@ -872,7 +896,7 @@ static void pc_guard_tests(mbedtls_ssl_context *client,
   pc_change_result(0, -EIO);
   pc_sync_fault = 0;
   pc_exchange(&control, client, 2, task_sequence, NULL, 0, 0);
-  assert(pc_reads == 5);
+  assert(pc_reads == 5 + engineering_reads);
   pc_sync_fault = 2;
   pc_change_result(0, -EINPROGRESS);
   pc_sync_fault = 0;

@@ -806,7 +806,9 @@
     "USB-01.bktest-cli.test_command_is_bounded_versioned_and_round_trips",
     "USB-01.bktest-cli.test_no_held_sequence_uses_real_command_path",
     "USB-01.bktest-cli.test_status_requires_test_identity",
-    "USB-01.bktest-cli.test_json_result_keeps_identity_and_observation_layers"
+    "USB-01.bktest-cli.test_json_result_keeps_identity_and_observation_layers",
+    "USB-01.bktest-pc-production-gate",
+    "USB-01.bktest-pc-engineering-gate"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1616,6 +1618,8 @@
     "USB-01.bktest-cli.test_command_is_bounded_versioned_and_round_trips",
     "USB-01.bktest-cli.test_no_held_sequence_uses_real_command_path",
     "USB-01.bktest-cli.test_status_requires_test_identity",
-    "USB-01.bktest-cli.test_json_result_keeps_identity_and_observation_layers"
+    "USB-01.bktest-cli.test_json_result_keeps_identity_and_observation_layers",
+    "USB-01.bktest-pc-production-gate",
+    "USB-01.bktest-pc-engineering-gate"
   ]
 }

@@ -598,6 +598,10 @@ def main():
         add(suite, "USB-01.bktest-cli." + name, "USB-01", "L1",
             [sys.executable, HERE / "test_hil_test.py",
              "HilTestContract." + name], marker=False)
+    for identity in ("production", "engineering"):
+        add(suite, "USB-01.bktest-pc-" + identity + "-gate", "USB-01", "L2",
+            [sys.executable, HERE / "test_provision_tls.py",
+             "--" + identity + "-control"], marker=False)
     for variant in ("missing", "pages", "cancel-before", "cancel-during",
                     "invalid-cursor", "read-error", "directory-close",
                     "file-close", "scan-limit", "symlink", "corrupt"):
