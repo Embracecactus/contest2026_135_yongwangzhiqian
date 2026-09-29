@@ -172,6 +172,24 @@ int main(int argc, char **argv)
       bkvoice_keys_take(&volume, &power);
       assert(volume == 0 && !power);
     }
+  else if (!strcmp(argv[1], "engineering-pending-intent"))
+    {
+      bool accepted = false;
+      assert(bkvoice_keys_engineering_begin(31, 100) == 0);
+      assert(bkvoice_keys_engineering_event(31, 1,
+        BKVOICE_PRODUCT_KEY_POWER, 100) == 0);
+      assert(bkvoice_keys_engineering_event(31, 2, 0, 3100) == 0);
+      assert(bkvoice_keys_engineering_end(31) == 0);
+
+      /* The accepted release belongs to the coordinator. A new engineering
+       * source cannot merge another session into that unconsumed intent.
+       */
+      assert(bkvoice_keys_engineering_begin(32, 3200) == -EBUSY);
+      bkvoice_keys_take(&volume, &accepted);
+      assert(volume == 0 && accepted);
+      assert(bkvoice_keys_engineering_begin(32, 3200) == 0);
+      assert(bkvoice_keys_engineering_end(32) == 0);
+    }
 #endif
   else
     {

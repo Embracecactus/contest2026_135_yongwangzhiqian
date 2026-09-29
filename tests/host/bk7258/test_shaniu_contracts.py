@@ -568,6 +568,7 @@ def main():
         ("unfinished-disconnect", "K2-03"),
         ("engineering-no-held", "K2-01"),
         ("engineering-sequence", "K2-03"),
+        ("engineering-pending-intent", "K2-03"),
     ):
         add(
             suite,
@@ -583,6 +584,9 @@ def main():
             binaries["test_bk7258_engineering_test"])
     add(suite, "K2-03.bktest-sequence", "K2-03", "L2",
         [HERE / "build/test_bk7258_engineering_test", "sequence"],
+        binaries["test_bk7258_engineering_test"])
+    add(suite, "K2-03.bktest-session-ownership", "K2-03", "L2",
+        [HERE / "build/test_bk7258_engineering_test", "session-ownership"],
         binaries["test_bk7258_engineering_test"])
     add(suite, "LIFE-02.bktest-status", "LIFE-02", "L2",
         [HERE / "build/test_bk7258_engineering_test", "status"],

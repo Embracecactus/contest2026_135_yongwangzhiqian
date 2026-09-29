@@ -219,6 +219,21 @@ static void sequence_case(void)
   assert(g_key_events == before);
 }
 
+static void session_ownership_case(void)
+{
+  start(21, BKENGTEST_PM_PENDING);
+  assert(apply(BKENGTEST_OP_SESSION, 22, 1,
+               BKENGTEST_PM_DECLINED, 0, 0) == -EBUSY);
+  assert(bkengtest_pm_request(&g_test) == 0);
+  assert(bkengtest_pm_status(&g_test) == 1);
+
+  assert(apply(BKENGTEST_OP_END, 21, 2, 0, 0, 0) == 0);
+  g_power_state = 2u | 256u;
+  g_power_error = -EINPROGRESS;
+  assert(apply(BKENGTEST_OP_SESSION, 22, 1,
+               BKENGTEST_PM_DECLINED, 0, 0) == -EBUSY);
+}
+
 static void pm_case(uint32_t mode)
 {
   start(11, mode);
@@ -256,6 +271,7 @@ int main(int argc, char **argv)
   else if (!strcmp(argv[1], "status")) status_case();
   else if (!strcmp(argv[1], "session-expiry")) expiry_case();
   else if (!strcmp(argv[1], "sequence")) sequence_case();
+  else if (!strcmp(argv[1], "session-ownership")) session_ownership_case();
   else if (!strcmp(argv[1], "cp-declined")) pm_case(BKENGTEST_PM_DECLINED);
   else if (!strcmp(argv[1], "cp-unknown")) pm_case(BKENGTEST_PM_UNKNOWN);
   else if (!strcmp(argv[1], "cp-pending")) pm_case(BKENGTEST_PM_PENDING);

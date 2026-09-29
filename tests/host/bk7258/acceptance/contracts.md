@@ -1403,3 +1403,10 @@ phone BLE, App OTA, or subjective sound acceptance.
 An idle engineering input session expires after 60000 ms. Expiry releases the
 virtual source and reports `-ETIMEDOUT`; it must not leave physical input
 blocked or silently report an orderly explicit end.
+
+An active engineering session cannot be replaced by a second session. After a
+session ends, a non-idle or unresolved product power snapshot also rejects a
+new session. The CP peer mode therefore stays bound to the virtual release that
+created the power intent; a later client cannot change an in-flight request's
+declined, unknown, pending, or late-ack result. An accepted but not yet consumed
+power intent likewise prevents a new engineering key source from starting.
