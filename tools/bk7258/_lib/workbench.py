@@ -26,6 +26,53 @@ class ControlError(ValueError):
     pass
 
 
+NATIVE_REOPEN_SETTLE_SECONDS = 1.1
+
+
+class CertificateProbeError(ControlError):
+    """Public, secret-free stage for factory TLS probe failures."""
+
+    _STAGES = {
+        "parameters",
+        "host_open",
+        "client_hello",
+        "hello_written",
+        "first_rx",
+        "tls_established",
+        "pin_mismatch",
+    }
+    _REASONS = {"invalid", "transport", "transport_closed", "timeout", "tls", "mismatch"}
+
+    def __init__(self, stage, reason):
+        if stage not in self._STAGES or reason not in self._REASONS:
+            stage, reason = "parameters", "invalid"
+        self.stage = stage
+        self.reason = reason
+        super().__init__(
+            f"Native USB certificate probe failed stage={stage} reason={reason}; "
+            "no credential was sent"
+        )
+
+
+class AuthenticationError(ControlError):
+    _STAGES = {"parameters", "tls_handshake", "pin_check", "auth_exchange"}
+
+    def __init__(self, stage):
+        if stage not in self._STAGES:
+            stage = "parameters"
+        self.stage = stage
+        super().__init__(
+            f"PC authentication failed stage={stage}; no command was replayed"
+        )
+
+
+class CommandUnconfirmed(ControlError):
+    def __init__(self):
+        super().__init__(
+            "Engineering command unconfirmed; query board state before retry"
+        )
+
+
 def _context(pem: str, pin: str) -> ssl.SSLContext:
     try:
         if len(pem) > 16384 or not re.fullmatch(r"[0-9a-f]{64}", pin):
@@ -57,6 +104,7 @@ def probe_channel_certificate(
     closed so the authenticated client starts a fresh TLS session.
     """
 
+    stage = "parameters"
     last = clock()
     incoming = ssl.MemoryBIO()
     outgoing = ssl.MemoryBIO()
@@ -67,12 +115,13 @@ def probe_channel_certificate(
             or not 0 < timeout <= 120
             or not math.isfinite(last)
         ):
-            raise ControlError("Invalid certificate probe parameters")
+            raise CertificateProbeError(stage, "invalid")
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         context.check_hostname = False
         context.verify_mode = ssl.CERT_NONE
         context.minimum_version = ssl.TLSVersion.TLSv1_2
         tls = context.wrap_bio(incoming, outgoing, server_side=False)
+        stage = "client_hello"
         deadline = last + timeout
         received = 0
 
@@ -80,10 +129,11 @@ def probe_channel_certificate(
             nonlocal last
             now = clock()
             if not math.isfinite(now) or now < last or now >= deadline:
-                raise ControlError("Certificate probe timed out")
+                raise CertificateProbeError(stage, "timeout")
             last = now
 
         def flush():
+            nonlocal stage
             if outgoing.pending > 65536:
                 raise ControlError("Certificate probe output budget exceeded")
             while outgoing.pending:
@@ -93,8 +143,10 @@ def probe_channel_certificate(
                     check()
                     count = channel.write(memoryview(data)[offset:])
                     if type(count) is not int or not 0 <= count <= len(data) - offset:
-                        raise ControlError("Invalid certificate probe write")
+                        raise CertificateProbeError(stage, "transport")
                     offset += count
+                    if count and stage == "client_hello":
+                        stage = "hello_written"
                     if count == 0:
                         sleep(0.001)
 
@@ -111,7 +163,8 @@ def probe_channel_certificate(
                     sleep(0.001)
                     continue
                 if not isinstance(data, bytes) or not 0 < len(data) <= 4096:
-                    raise ControlError("Certificate probe transport closed")
+                    raise CertificateProbeError(stage, "transport_closed")
+                stage = "first_rx"
                 received += len(data)
                 if received > 65536 or incoming.pending + len(data) > 65536:
                     raise ControlError("Certificate probe input budget exceeded")
@@ -120,16 +173,25 @@ def probe_channel_certificate(
                 flush()
                 sleep(0.001)
 
+        stage = "tls_established"
         peer = tls.getpeercert(binary_form=True)
         if not peer or not hmac.compare_digest(
             hashlib.sha256(peer).hexdigest(), expected_pin
         ):
-            raise ControlError("Factory pin does not match native USB TLS")
-        return ssl.DER_cert_to_PEM_cert(peer)
+            raise CertificateProbeError("pin_mismatch", "mismatch")
+        pem = ssl.DER_cert_to_PEM_cert(peer)
+        try:
+            tls.unwrap()
+        except (ssl.SSLWantReadError, ssl.SSLWantWriteError):
+            pass
+        flush()
+        return pem
+    except CertificateProbeError:
+        raise
+    except ssl.SSLError:
+        raise CertificateProbeError(stage, "tls") from None
     except Exception:
-        raise ControlError(
-            "Native USB certificate probe failed; no credential was sent"
-        ) from None
+        raise CertificateProbeError(stage, "transport") from None
     finally:
         channel.close()
 
@@ -137,9 +199,11 @@ def probe_channel_certificate(
 def probe_certificate(port, expected_pin, timeout=10):
     if not re.fullmatch(r"[0-9a-f]{64}", expected_pin or ""):
         raise ControlError("Invalid factory certificate pin")
-    return probe_channel_certificate(
-        SerialChannel(port, timeout), expected_pin, timeout=timeout
-    )
+    try:
+        channel = SerialChannel(port, timeout)
+    except Exception:
+        raise CertificateProbeError("host_open", "transport") from None
+    return probe_channel_certificate(channel, expected_pin, timeout=timeout)
 
 
 class ControlClient:
@@ -235,23 +299,25 @@ class ControlClient:
     def start(self, pc_key):
         if self.closed or self.authenticated:
             raise ControlError("Control client cannot be reopened")
+        stage = "parameters"
         try:
             if len(pc_key) != 32 or not any(pc_key):
                 raise ControlError("Invalid independent PC credential")
             deadline = self._now() + self._timeout
+            stage = "tls_handshake"
             self._call(self._tls.do_handshake, deadline)
+            stage = "pin_check"
             peer = self._tls.getpeercert(binary_form=True)
             if not hmac.compare_digest(hashlib.sha256(peer).hexdigest(), self._pin):
                 raise ControlError("Device identity does not match")
+            stage = "auth_exchange"
             fields = self._exchange(1, pc_key, deadline)
             if fields != (0, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0):
                 raise ControlError("Invalid authentication response")
             self.authenticated = True
         except Exception:
             self.close()
-            raise ControlError(
-                "PC authentication failed; no command was replayed"
-            ) from None
+            raise AuthenticationError(stage) from None
 
     def _exchange(self, command, payload, deadline):
         if self._sequence >= 0x7FFFFFFF:
@@ -379,9 +445,7 @@ class ControlClient:
             return dict(accepted=True, completion_verified=False)
         except Exception:
             self.close()
-            raise ControlError(
-                "Engineering command unconfirmed; query board state before retry"
-            ) from None
+            raise CommandUnconfirmed() from None
 
     def engineering_audio_status(self):
         from . import hil_test
@@ -750,13 +814,44 @@ class ControlClient:
 
     def close(self):
         if not self.closed:
-            self.closed = True
-            self.authenticated = False
-            self._tls = None
-            self.channel.close()
+            notified = False
+            try:
+                if (
+                    self.authenticated
+                    and self._tls is not None
+                    and getattr(self.channel, "tls_close_notify", False) is True
+                ):
+                    deadline = self._now() + min(self._timeout, 2.0)
+                    try:
+                        self._tls.unwrap()
+                    except (ssl.SSLWantReadError, ssl.SSLWantWriteError):
+                        pass
+                    self._flush(deadline)
+                    notified = True
+                settle = getattr(self.channel, "reopen_settle_seconds", 0)
+                if (
+                    notified
+                    and type(settle) in (int, float)
+                    and 0 < settle <= 2.0
+                ):
+                    self._sleep(settle)
+            except Exception:
+                # Closing never turns an already completed command into a
+                # replay candidate. The descriptor remains the final owner.
+                pass
+            finally:
+                self.closed = True
+                self.authenticated = False
+                self._tls = None
+                self.channel.close()
 
 
 class SerialChannel:
+    # The device's native owner deliberately backs off before reopening after
+    # a real USB TLS owner exits. Synthetic/in-process transports do not.
+    tls_close_notify = True
+    reopen_settle_seconds = NATIVE_REOPEN_SETTLE_SECONDS
+
     def __init__(self, port, timeout):
         deploy_usb._require_pyserial()
         matches = [

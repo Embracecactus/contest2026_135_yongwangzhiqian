@@ -833,7 +833,18 @@
     "K2-01.bktest-cli.test_long_key_cli_waits_for_independent_terminal_power_evidence",
     "K2-01.bktest-cli.test_key_result_requires_real_terminal_power_evidence",
     "LIFE-02.factory-power-observer.test_power_status_is_read_from_coordinator_after_native_usb_closes",
-    "LIFE-02.factory-power-observer.test_power_wait_is_bounded_and_requires_a_terminal_state"
+    "LIFE-02.factory-power-observer.test_power_wait_is_bounded_and_requires_a_terminal_state",
+    "K2-01.bktest-cli.test_long_release_may_close_native_usb_before_ack_without_replay",
+    "FACT-01.tool.test_enroll_waits_for_bounded_native_owner_reopen",
+    "FACT-01.tool.test_pin_probe_stage_is_preserved_after_confirmed_revoke",
+    "FACT-01.tool.test_console_bridge_binds_inputs_without_putting_secret_in_argv",
+    "LIFE-02.factory-power-observer.test_power_wait_retries_read_only_observer_noise_within_same_deadline",
+    "LIFE-02.factory-power-observer.test_power_wait_passes_remaining_deadline_to_real_observer",
+    "FACT-01.workbench-reports_no_response_after_client_hello",
+    "FACT-01.workbench-reports_native_port_open_failure",
+    "USB-01.pc-client-authenticated_close_sends_tls_close_notify",
+    "USB-01.pc-client-authentication_failure_reports_tls_handshake_stage",
+    "USB-01.pc-client-authentication_failure_reports_auth_exchange_stage"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1670,6 +1681,17 @@
     "K2-01.bktest-cli.test_long_key_cli_waits_for_independent_terminal_power_evidence",
     "K2-01.bktest-cli.test_key_result_requires_real_terminal_power_evidence",
     "LIFE-02.factory-power-observer.test_power_status_is_read_from_coordinator_after_native_usb_closes",
-    "LIFE-02.factory-power-observer.test_power_wait_is_bounded_and_requires_a_terminal_state"
+    "LIFE-02.factory-power-observer.test_power_wait_is_bounded_and_requires_a_terminal_state",
+    "K2-01.bktest-cli.test_long_release_may_close_native_usb_before_ack_without_replay",
+    "FACT-01.tool.test_enroll_waits_for_bounded_native_owner_reopen",
+    "FACT-01.tool.test_pin_probe_stage_is_preserved_after_confirmed_revoke",
+    "FACT-01.tool.test_console_bridge_binds_inputs_without_putting_secret_in_argv",
+    "LIFE-02.factory-power-observer.test_power_wait_retries_read_only_observer_noise_within_same_deadline",
+    "LIFE-02.factory-power-observer.test_power_wait_passes_remaining_deadline_to_real_observer",
+    "FACT-01.workbench-reports_no_response_after_client_hello",
+    "FACT-01.workbench-reports_native_port_open_failure",
+    "USB-01.pc-client-authenticated_close_sends_tls_close_notify",
+    "USB-01.pc-client-authentication_failure_reports_tls_handshake_stage",
+    "USB-01.pc-client-authentication_failure_reports_auth_exchange_stage"
   ]
 }

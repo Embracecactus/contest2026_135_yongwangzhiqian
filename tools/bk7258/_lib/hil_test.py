@@ -224,6 +224,8 @@ def require_status(client):
 
 
 def key_sequence(client, *, session, held_ms, pm_mode="blocked", query=True):
+    from . import workbench
+
     require_status(client)
     commands = (
         encode_command("session", session=session, sequence=1, value=pm_mode),
@@ -231,8 +233,23 @@ def key_sequence(client, *, session, held_ms, pm_mode="blocked", query=True):
         encode_command("advance", session=session, sequence=3, elapsed_ms=held_ms),
         encode_command("key", session=session, sequence=4, elapsed_ms=held_ms),
     )
-    for record in commands:
-        result = client.engineering_command(record)
+    for index, record in enumerate(commands):
+        try:
+            result = client.engineering_command(record)
+        except workbench.CommandUnconfirmed:
+            if not query and held_ms >= 3000 and index == len(commands) - 1:
+                return dict(
+                    enabled=True,
+                    session=session,
+                    sequence=4,
+                    elapsed_ms=held_ms,
+                    key_mask=0,
+                    pm_mode=pm_mode,
+                    accepted=None,
+                    completion_verified=False,
+                    final_command="unconfirmed",
+                )
+            raise
         if result.get("accepted") is not True:
             raise HilTestError("Engineering command was not accepted")
     if query:

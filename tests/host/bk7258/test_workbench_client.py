@@ -38,6 +38,7 @@ class TlsPeer:
         self.partial = 7
         self.tick = 100.0
         self.sent = 0
+        self.close_notify = False
 
     def clock(self):
         return self.tick
@@ -70,8 +71,15 @@ class TlsPeer:
             except ssl.SSLWantReadError:
                 return
         try:
-            self.plain.extend(self.tls.read(4096))
+            data = self.tls.read(4096)
+            if data == b"":
+                self.close_notify = True
+                return
+            self.plain.extend(data)
         except ssl.SSLWantReadError:
+            return
+        except ssl.SSLZeroReturnError:
+            self.close_notify = True
             return
         while len(self.plain) >= 16:
             magic, command, sequence, size = struct.unpack(">4I", self.plain[:16])
@@ -203,10 +211,11 @@ class WorkbenchClientTest(unittest.TestCase):
             hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem)).hexdigest(), self.pin
         )
         self.assertEqual(peer.requests, [])
+        self.assertTrue(peer.close_notify)
         self.assertTrue(peer.closed)
 
         mismatch = TlsPeer(self.cert, self.key)
-        with self.assertRaises(workbench.ControlError):
+        with self.assertRaises(workbench.CertificateProbeError) as rejected:
             workbench.probe_channel_certificate(
                 mismatch,
                 "00" * 32,
@@ -214,8 +223,76 @@ class WorkbenchClientTest(unittest.TestCase):
                 clock=mismatch.clock,
                 sleep=mismatch.sleep,
             )
+        self.assertEqual(rejected.exception.stage, "pin_mismatch")
         self.assertEqual(mismatch.requests, [])
         self.assertTrue(mismatch.closed)
+
+    def test_authenticated_close_sends_tls_close_notify(self):
+        client, peer = self.client()
+        peer.tls_close_notify = True
+        client.start(PC_KEY)
+        before_close = peer.tick
+        client.close()
+        self.assertTrue(peer.close_notify)
+        self.assertTrue(peer.closed)
+        self.assertEqual(peer.tick, before_close)
+
+    def test_authentication_failure_reports_tls_handshake_stage(self):
+        client, peer = self.client(fault="blocked_write")
+        with self.assertRaises(workbench.AuthenticationError) as rejected:
+            client.start(PC_KEY)
+        self.assertEqual(rejected.exception.stage, "tls_handshake")
+        self.assertEqual(peer.requests, [])
+
+    def test_authentication_failure_reports_auth_exchange_stage(self):
+        client, peer = self.client()
+        with self.assertRaises(workbench.AuthenticationError) as rejected:
+            client.start(bytes([85]) + bytes(31))
+        self.assertEqual(rejected.exception.stage, "auth_exchange")
+        self.assertEqual(len(peer.requests), 1)
+
+    def test_factory_probe_reports_no_response_after_client_hello(self):
+        class NoResponseChannel:
+            def __init__(self):
+                self.written = 0
+                self.closed = False
+
+            def write(self, data):
+                self.written += len(data)
+                return len(data)
+
+            def read(self, size):
+                return None
+
+            def close(self):
+                self.closed = True
+
+        channel = NoResponseChannel()
+        ticks = iter((0.0, 0.1, 0.2, 1.0))
+        with self.assertRaises(workbench.CertificateProbeError) as rejected:
+            workbench.probe_channel_certificate(
+                channel,
+                self.pin,
+                timeout=1,
+                clock=lambda: next(ticks),
+                sleep=lambda unused: None,
+            )
+        self.assertEqual(rejected.exception.stage, "hello_written")
+        self.assertEqual(rejected.exception.reason, "timeout")
+        self.assertGreater(channel.written, 0)
+        self.assertTrue(channel.closed)
+
+    def test_factory_probe_reports_native_port_open_failure(self):
+        with patch.object(
+            workbench,
+            "SerialChannel",
+            side_effect=TimeoutError("private operating system detail"),
+        ):
+            with self.assertRaises(workbench.CertificateProbeError) as rejected:
+                workbench.probe_certificate("COM16", self.pin, timeout=1)
+        self.assertEqual(rejected.exception.stage, "host_open")
+        self.assertEqual(rejected.exception.reason, "transport")
+        self.assertNotIn("private operating system detail", str(rejected.exception))
 
     def test_valid_chain_with_wrong_leaf_never_receives_pc_key(self):
         peer = TlsPeer(self.alt_cert, self.alt_key)

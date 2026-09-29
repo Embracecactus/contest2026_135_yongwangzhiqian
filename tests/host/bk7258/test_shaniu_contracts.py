@@ -616,6 +616,7 @@ def main():
     for name in (
         "test_long_key_cli_waits_for_independent_terminal_power_evidence",
         "test_key_result_requires_real_terminal_power_evidence",
+        "test_long_release_may_close_native_usb_before_ack_without_replay",
     ):
         add(suite, "K2-01.bktest-cli." + name, "K2-01", "L1",
             [sys.executable, HERE / "test_hil_test.py",
@@ -632,6 +633,9 @@ def main():
         "test_enroll_orders_physical_secret_pin_probe_and_dpapi_profile",
         "test_pin_probe_failure_revokes_and_never_publishes_profile",
         "test_existing_profile_is_rejected_before_console_secret",
+        "test_enroll_waits_for_bounded_native_owner_reopen",
+        "test_pin_probe_stage_is_preserved_after_confirmed_revoke",
+        "test_console_bridge_binds_inputs_without_putting_secret_in_argv",
     ):
         add(suite, "FACT-01.tool." + name, "FACT-01", "L1",
             [sys.executable, HERE / "test_factory_diagnostics_tool.py",
@@ -639,6 +643,8 @@ def main():
     for name in (
         "test_power_status_is_read_from_coordinator_after_native_usb_closes",
         "test_power_wait_is_bounded_and_requires_a_terminal_state",
+        "test_power_wait_retries_read_only_observer_noise_within_same_deadline",
+        "test_power_wait_passes_remaining_deadline_to_real_observer",
     ):
         add(suite, "LIFE-02.factory-power-observer." + name, "LIFE-02", "L1",
             [sys.executable, HERE / "test_factory_diagnostics_tool.py",
@@ -647,6 +653,21 @@ def main():
         [sys.executable, HERE / "test_workbench_client.py",
          "WorkbenchClientTest.test_factory_probe_matches_leaf_before_any_sdc1_secret"],
         marker=False)
+    for name in (
+        "test_factory_probe_reports_no_response_after_client_hello",
+        "test_factory_probe_reports_native_port_open_failure",
+    ):
+        add(suite, "FACT-01.workbench-" + name.removeprefix("test_factory_probe_"),
+            "FACT-01", "L1", [sys.executable, HERE / "test_workbench_client.py",
+            "WorkbenchClientTest." + name], marker=False)
+    for name in (
+        "test_authenticated_close_sends_tls_close_notify",
+        "test_authentication_failure_reports_tls_handshake_stage",
+        "test_authentication_failure_reports_auth_exchange_stage",
+    ):
+        add(suite, "USB-01.pc-client-" + name.removeprefix("test_"),
+            "USB-01", "L1", [sys.executable, HERE / "test_workbench_client.py",
+            "WorkbenchClientTest." + name], marker=False)
     for variant in ("enable", "expiry", "revoke", "owner"):
         add(suite, "FACT-01.diagnostics-" + variant, "FACT-01", "L2",
             [HERE / "build/test_factory_diagnostics", variant],

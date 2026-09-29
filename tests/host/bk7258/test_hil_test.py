@@ -190,6 +190,31 @@ class HilTestContract(unittest.TestCase):
         self.assertEqual(client.records[-1]["key_mask"], 0)
         self.assertEqual(result["sequence"], 4)
 
+    def test_long_release_may_close_native_usb_before_ack_without_replay(self):
+        class ClosingClient(FakeClient):
+            def engineering_command(self, record):
+                decoded = hil_test.decode_command(record)
+                if decoded["operation"] == "key" and decoded["key_mask"] == 0:
+                    self.records.append(decoded)
+                    raise workbench.CommandUnconfirmed()
+                return super().engineering_command(record)
+
+        client = ClosingClient()
+        result = hil_test.key_sequence(
+            client, session=24, held_ms=3000, pm_mode="pending", query=False
+        )
+        self.assertEqual(
+            [item["operation"] for item in client.records],
+            ["session", "key", "advance", "key"],
+        )
+        self.assertIsNone(result["accepted"])
+        self.assertEqual(result["final_command"], "unconfirmed")
+
+        with self.assertRaises(workbench.CommandUnconfirmed):
+            hil_test.key_sequence(
+                ClosingClient(), session=25, held_ms=2999, pm_mode="blocked"
+            )
+
     def test_status_requires_test_identity(self):
         client = FakeClient()
         client.snapshot["enabled"] = False

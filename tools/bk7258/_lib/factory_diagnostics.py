@@ -19,17 +19,22 @@ class FactoryDiagnosticsError(ValueError):
 
 _CONSOLE = re.compile(r"COM[1-9][0-9]{0,2}")
 _PIN = re.compile(r"[0-9a-f]{64}")
+# The device owner applies a one-second backoff after the certificate-only TLS
+# probe closes.  Settle once before the first authenticated connection; do not
+# replay AUTH or product commands while ownership is being reopened.
+NATIVE_REOPEN_SETTLE_SECONDS = workbench.NATIVE_REOPEN_SETTLE_SECONDS
 
 _POWERSHELL = r"""
-param([string]$Port, [ValidateSet('enable','status','revoke','power')][string]$Action)
 $ErrorActionPreference = 'Stop'
+$header = [Console]::In.ReadLine()
+$Port = ''
+$Action = ''
+if ($header -match '^BKF1 (COM[1-9][0-9]{0,2}) (enable|status|revoke|power)$') {
+  $Port = $Matches[1]
+  $Action = $Matches[2]
+}
 $secret = [Console]::In.ReadToEnd().Trim()
-$serial = New-Object System.IO.Ports.SerialPort($Port, 115200,
-    [System.IO.Ports.Parity]::None, 8, [System.IO.Ports.StopBits]::One)
-$serial.DtrEnable = $false
-$serial.RtsEnable = $false
-$serial.ReadTimeout = 100
-$serial.WriteTimeout = 1000
+$serial = $null
 $total = [System.Diagnostics.Stopwatch]::StartNew()
 function Read-Public([int]$Milliseconds, [bool]$Preamble) {
   $watch = [System.Diagnostics.Stopwatch]::StartNew()
@@ -54,10 +59,20 @@ function Read-Public([int]$Milliseconds, [bool]$Preamble) {
   throw 'target status timeout'
 }
 try {
+  if ($Port -notmatch '^COM[1-9][0-9]{0,2}$' -or
+      $Action -notmatch '^(enable|status|revoke|power)$') {
+    throw 'invalid public input'
+  }
   if ($Action -eq 'enable' -and $secret -notmatch '^[0-9a-f]{104}$') {
     throw 'invalid private input'
   }
   if ($Action -ne 'enable' -and $secret.Length -ne 0) { throw 'unexpected input' }
+  $serial = New-Object System.IO.Ports.SerialPort($Port, 115200,
+      [System.IO.Ports.Parity]::None, 8, [System.IO.Ports.StopBits]::One)
+  $serial.DtrEnable = $false
+  $serial.RtsEnable = $false
+  $serial.ReadTimeout = 100
+  $serial.WriteTimeout = 1000
   $serial.Open()
   $serial.DiscardInBuffer()
   if ($Action -eq 'power') { $serial.Write("bkhealth power`r") }
@@ -114,13 +129,13 @@ try {
   }
 } catch {
   $reason = $_.Exception.Message
-  if ($reason -notmatch '^(target-rejected:-?[0-9]+|unexpected target status|invalid target status|target status timeout|invalid private input|unexpected input)$') {
+  if ($reason -notmatch '^(target-rejected:-?[0-9]+|unexpected target status|invalid target status|target status timeout|invalid private input|invalid public input|unexpected input)$') {
     $reason = 'transport failure'
   }
   [Console]::Error.WriteLine('BKPROV_DIAGNOSTICS_ERROR action=' + $Action + ' reason=' + $reason)
   exit 1
 } finally {
-  if ($serial.IsOpen) { $serial.Close() }
+  if ($null -ne $serial -and $serial.IsOpen) { $serial.Close() }
   $secret = $null
 }
 """
@@ -141,9 +156,15 @@ def _powershell():
     raise FactoryDiagnosticsError("PowerShell serial bridge is unavailable")
 
 
-def _run_console(port, action, secret=""):
+def _run_console(port, action, secret="", *, timeout=35):
     if not _CONSOLE.fullmatch(port or ""):
         raise FactoryDiagnosticsError("Invalid CH340 console port")
+    if action not in ("enable", "status", "revoke", "power"):
+        raise FactoryDiagnosticsError("Invalid factory diagnostics action")
+    if type(timeout) not in (int, float) or not 0 < timeout <= 35:
+        raise FactoryDiagnosticsError("Invalid factory diagnostics timeout")
+    private_input = secret.encode("ascii")
+    request = f"BKF1 {port} {action}\n".encode("ascii") + private_input
     try:
         result = subprocess.run(
             [
@@ -152,15 +173,11 @@ def _run_console(port, action, secret=""):
                 "-NonInteractive",
                 "-Command",
                 _POWERSHELL,
-                "-Port",
-                port,
-                "-Action",
-                action,
             ],
-            input=secret.encode("ascii"),
+            input=request,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            timeout=35,
+            timeout=timeout,
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as error:
@@ -170,7 +187,7 @@ def _run_console(port, action, secret=""):
     output = result.stdout.decode("ascii", errors="strict").strip()
     if result.returncode != 0:
         match = re.search(
-            rb"BKPROV_DIAGNOSTICS_ERROR action=(enable|status|revoke|power) reason=(target-rejected:-?[0-9]+|unexpected target status|invalid target status|target status timeout|invalid private input|unexpected input|transport failure)",
+            rb"BKPROV_DIAGNOSTICS_ERROR action=(enable|status|revoke|power) reason=(target-rejected:-?[0-9]+|unexpected target status|invalid target status|target status timeout|invalid private input|invalid public input|unexpected input|transport failure)",
             result.stderr,
         )
         detail = match.group(0).decode("ascii") if match else "unclassified failure"
@@ -218,8 +235,8 @@ def console_revoke(port):
     return {"revoked": True}
 
 
-def console_power(port):
-    output = _run_console(port, "power")
+def console_power(port, *, timeout=35):
+    output = _run_console(port, "power", timeout=timeout)
     match = re.fullmatch(r"POWER ([0-9]+) (-?[0-9]+) (-?[0-9]+)", output)
     if not match:
         raise FactoryDiagnosticsError("Invalid power status receipt")
@@ -251,7 +268,7 @@ def wait_power(
     *,
     timeout,
     interval=0.25,
-    query=console_power,
+    query=None,
     clock=time.monotonic,
     sleep=time.sleep,
 ):
@@ -259,19 +276,56 @@ def wait_power(
         raise FactoryDiagnosticsError("Invalid power wait timeout")
     deadline = clock() + timeout
     timeline = []
+    observer_failures = 0
     while True:
-        status = query(port)
+        now = clock()
+        if now >= deadline:
+            reason = (
+                "Power observer did not produce a terminal state within its deadline"
+                if observer_failures and not timeline
+                else "Power transition did not reach an observable terminal state"
+            )
+            raise FactoryDiagnosticsError(reason)
+        remaining = deadline - now
+        try:
+            status = (
+                console_power(port, timeout=remaining)
+                if query is None
+                else query(port)
+            )
+        except FactoryDiagnosticsError:
+            observer_failures += 1
+            now = clock()
+            if now >= deadline:
+                raise FactoryDiagnosticsError(
+                    "Power observer did not produce a terminal state within its deadline"
+                ) from None
+            sleep(min(interval, deadline - now))
+            continue
         timeline.append(status)
-        if status.get("contract_state") == "FAILED":
-            return {"timeline": timeline, "final": status}
-        if clock() >= deadline:
+        now = clock()
+        if now >= deadline:
             raise FactoryDiagnosticsError(
                 "Power transition did not reach an observable terminal state"
             )
-        sleep(interval)
+        if status.get("contract_state") == "FAILED":
+            return {
+                "timeline": timeline,
+                "final": status,
+                "observer_failures": observer_failures,
+            }
+        sleep(min(interval, deadline - now))
 
 
-def enroll(console_port, native_port, profile, *, timeout=10, random=os.urandom):
+def enroll(
+    console_port,
+    native_port,
+    profile,
+    *,
+    timeout=10,
+    random=os.urandom,
+    sleep=time.sleep,
+):
     profile = Path(profile)
     if profile.exists() or profile.is_symlink() or not profile.parent.is_dir():
         raise FactoryDiagnosticsError("Factory profile destination is unavailable")
@@ -292,6 +346,7 @@ def enroll(console_port, native_port, profile, *, timeout=10, random=os.urandom)
         pem = workbench.probe_certificate(
             native_port, receipt["certificate_sha256"], timeout
         )
+        sleep(NATIVE_REOPEN_SETTLE_SECONDS)
         workbench_profile.create(
             profile, pem, receipt["certificate_sha256"], key
         )
@@ -310,6 +365,11 @@ def enroll(console_port, native_port, profile, *, timeout=10, random=os.urandom)
                 ) from error
         if isinstance(error, FactoryDiagnosticsError):
             raise
+        if isinstance(error, workbench.CertificateProbeError):
+            raise FactoryDiagnosticsError(
+                "Factory enrollment failed "
+                f"stage={error.stage} reason={error.reason}; diagnostics revoked"
+            ) from None
         raise FactoryDiagnosticsError(
             "Factory enrollment failed; no plaintext fallback"
         ) from error

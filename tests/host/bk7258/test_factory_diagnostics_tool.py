@@ -3,6 +3,7 @@
 import importlib
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 import sys
 import tempfile
@@ -55,6 +56,36 @@ class FactoryDiagnosticsToolTest(unittest.TestCase):
         self.assertNotIn(bytes(range(32, 64)).hex(), encoded)
         self.assertNotIn(bytes(range(1, 17)).hex(), encoded)
 
+    def test_enroll_waits_for_bounded_native_owner_reopen(self):
+        events = []
+        with patch.object(
+            self.module,
+            "console_enable",
+            return_value={"flags": 3, "ttl_ms": 600000, "certificate_sha256": "a" * 64},
+        ), patch.object(
+            self.module.workbench,
+            "probe_certificate",
+            return_value="-----BEGIN CERTIFICATE-----\nZmFrZQ==\n-----END CERTIFICATE-----\n",
+        ), patch.object(
+            self.module.workbench_profile,
+            "create",
+            side_effect=lambda *unused: events.append("profile"),
+        ):
+            self.module.enroll(
+                "COM9",
+                "COM16",
+                self.profile,
+                random=lambda n: bytes([n]) * n,
+                sleep=lambda seconds: events.append(("settle", seconds)),
+            )
+
+        self.assertEqual(
+            events,
+            [("settle", self.module.NATIVE_REOPEN_SETTLE_SECONDS), "profile"],
+        )
+        self.assertGreaterEqual(self.module.NATIVE_REOPEN_SETTLE_SECONDS, 1.0)
+        self.assertLessEqual(self.module.NATIVE_REOPEN_SETTLE_SECONDS, 2.0)
+
     def test_pin_probe_failure_revokes_and_never_publishes_profile(self):
         revoked = []
         with patch.object(
@@ -76,6 +107,31 @@ class FactoryDiagnosticsToolTest(unittest.TestCase):
         create.assert_not_called()
         self.assertFalse(self.profile.exists())
 
+    def test_pin_probe_stage_is_preserved_after_confirmed_revoke(self):
+        revoked = []
+        failure = self.module.workbench.CertificateProbeError(
+            "hello_written", "timeout"
+        )
+        with patch.object(
+            self.module,
+            "console_enable",
+            return_value={"flags": 3, "ttl_ms": 600000, "certificate_sha256": "b" * 64},
+        ), patch.object(
+            self.module.workbench, "probe_certificate", side_effect=failure
+        ), patch.object(
+            self.module, "console_revoke", side_effect=lambda port: revoked.append(port)
+        ):
+            with self.assertRaises(self.module.FactoryDiagnosticsError) as rejected:
+                self.module.enroll(
+                    "COM9", "COM16", self.profile, random=lambda n: bytes([n]) * n
+                )
+        self.assertEqual(revoked, ["COM9"])
+        self.assertEqual(
+            str(rejected.exception),
+            "Factory enrollment failed stage=hello_written reason=timeout; diagnostics revoked",
+        )
+        self.assertFalse(self.profile.exists())
+
     def test_existing_profile_is_rejected_before_console_secret(self):
         self.profile.write_bytes(b"existing")
         with patch.object(self.module, "console_enable") as enable:
@@ -84,13 +140,27 @@ class FactoryDiagnosticsToolTest(unittest.TestCase):
         enable.assert_not_called()
         self.assertEqual(self.profile.read_bytes(), b"existing")
 
+    def test_console_bridge_binds_inputs_without_putting_secret_in_argv(self):
+        completed = SimpleNamespace(
+            returncode=0, stdout=b"STATUS 3 1000 0\n", stderr=b""
+        )
+        with patch.object(self.module, "_powershell", return_value="powershell.exe"), \
+             patch.object(self.module.subprocess, "run", return_value=completed) as run:
+            output = self.module._run_console("COM9", "status")
+
+        argv = run.call_args.args[0]
+        options = run.call_args.kwargs
+        self.assertEqual(output, "STATUS 3 1000 0")
+        self.assertNotIn("COM9", argv)
+        self.assertEqual(options["input"], b"BKF1 COM9 status\n")
+
     def test_power_status_is_read_from_coordinator_after_native_usb_closes(self):
         with patch.object(
             self.module, "_run_console", return_value="POWER 258 -115 0"
         ) as bridge:
             result = self.module.console_power("COM9")
 
-        bridge.assert_called_once_with("COM9", "power")
+        bridge.assert_called_once_with("COM9", "power", timeout=35)
         self.assertEqual(result["raw_state"], 258)
         self.assertEqual(result["phase"], "pending")
         # The public health wire exposes the CP-pending phase plus one
@@ -108,7 +178,7 @@ class FactoryDiagnosticsToolTest(unittest.TestCase):
                 {"contract_state": "FAILED", "raw_state": 3, "error": -110},
             )
         )
-        ticks = iter((0.0, 0.1, 0.2, 0.3))
+        ticks = iter((0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6))
         result = self.module.wait_power(
             "COM9",
             timeout=1.0,
@@ -122,6 +192,54 @@ class FactoryDiagnosticsToolTest(unittest.TestCase):
             ["WAIT_CP_OR_UNKNOWN", "WAIT_CP_OR_UNKNOWN", "FAILED"],
         )
         self.assertEqual(result["final"]["error"], -110)
+
+    def test_power_wait_retries_read_only_observer_noise_within_same_deadline(self):
+        observations = iter(
+            (
+                self.module.FactoryDiagnosticsError("interleaved target log"),
+                {"contract_state": "WAIT_CP_OR_UNKNOWN", "raw_state": 258},
+                {"contract_state": "FAILED", "raw_state": 259, "error": -110},
+            )
+        )
+        ticks = iter((0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6))
+
+        def query(unused):
+            value = next(observations)
+            if isinstance(value, Exception):
+                raise value
+            return value
+
+        result = self.module.wait_power(
+            "COM9",
+            timeout=1.0,
+            interval=0.01,
+            query=query,
+            clock=lambda: next(ticks),
+            sleep=lambda unused: None,
+        )
+        self.assertEqual(result["observer_failures"], 1)
+        self.assertEqual(result["final"]["contract_state"], "FAILED")
+        self.assertEqual(len(result["timeline"]), 2)
+
+    def test_power_wait_passes_remaining_deadline_to_real_observer(self):
+        timeouts = []
+
+        def run_console(unused_port, unused_action, unused_secret="", *, timeout=None):
+            timeouts.append(timeout)
+            return "POWER 259 -110 0"
+
+        with patch.object(self.module, "_run_console", side_effect=run_console):
+            result = self.module.wait_power(
+                "COM9",
+                timeout=0.75,
+                clock=lambda: 10.0,
+                sleep=lambda unused: None,
+            )
+
+        self.assertEqual(result["final"]["contract_state"], "FAILED")
+        self.assertEqual(len(timeouts), 1)
+        self.assertGreater(timeouts[0], 0)
+        self.assertLessEqual(timeouts[0], 0.75)
 
 
 if __name__ == "__main__":
