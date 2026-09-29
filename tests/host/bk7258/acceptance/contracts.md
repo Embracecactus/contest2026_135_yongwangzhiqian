@@ -1139,8 +1139,12 @@ generation changes before commit.
 adapter.  A controlled peer changes the real GATT generation after a complete,
 digest-valid HTTP body while cloud TLS cleanup is finishing.  The adapter must
 return `-ECANCELED` and must not enter display import.  The stable control case
-still imports exactly once.  `eye_background_probe=1` separately drives the
-real MainActivity and DeviceControlSession against an in-memory transport; it
+still imports exactly once.  `RES-01.eye-install-disconnect-after-commit`
+changes the generation only after display import has begun and requires the
+completed import result to remain authoritative; cancellation at that point
+cannot be reported as having prevented the commit.  `eye_background_probe=1`
+separately drives the real MainActivity and DeviceControlSession against an
+in-memory transport; it
 requires immediate transport close, no queued wire CANCEL, and an unknown
 result message.  These tests do not prove BLE radio disconnect timing, SD
 durability, panel rendering, or a physical phone.

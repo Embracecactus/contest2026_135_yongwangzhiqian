@@ -1336,6 +1336,8 @@ def _source_provenance(
     if product is not None and re.fullmatch(r"[a-z][a-z0-9_-]{0,47}", product) is None:
         raise BuildError("product must be a stable lowercase identifier")
     scopes = [
+        "contest2026_135_yongwangzhiqian.xml",
+        "openvela.xml",
         "chips/bk7258",
         "boards/bk7258/common",
         f"boards/bk7258/{cp.board}",
@@ -1452,6 +1454,7 @@ def _source_tree_state(
         ".csv",
         ".conf",
         ".json",
+        ".xml",
         ".patch",
         ".pfw",
         ".txt",

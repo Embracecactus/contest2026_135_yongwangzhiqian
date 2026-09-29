@@ -246,12 +246,21 @@ class BuildWorkspaceTest(unittest.TestCase):
         )
         ap.root.mkdir(parents=True)
         (ap.root / "defconfig").write_text("", encoding="utf-8")
+        base_manifest = self.repository / "openvela.xml"
+        team_manifest = self.repository / "contest2026_135_yongwangzhiqian.xml"
+        base_manifest.write_text("<manifest/>\n", encoding="utf-8")
+        team_manifest.write_text("<manifest/>\n", encoding="utf-8")
         source = self.repository / "chips/bk7258/input.c"
         source.write_text("int value = 1;\n")
+        lvgl_config = self.repository / "boards/bk7258/common/include/lv_conf.h"
+        lvgl_config.parent.mkdir(parents=True, exist_ok=True)
+        lvgl_config.write_text("#define LV_ATTRIBUTE_FAST_MEM\n", encoding="utf-8")
         subprocess.run(["git", "init", "-q", str(self.repository)], check=True)
         subprocess.run(
             ["git", "-C", str(self.repository), "add", "chips/bk7258/input.c",
-             "boards/bk7258/aidk_ai_toy/configs/openvela_ap/defconfig"],
+             "boards/bk7258/aidk_ai_toy/configs/openvela_ap/defconfig",
+             "boards/bk7258/common/include/lv_conf.h",
+             "openvela.xml", "contest2026_135_yongwangzhiqian.xml"],
             check=True,
         )
         subprocess.run(
@@ -275,6 +284,8 @@ class BuildWorkspaceTest(unittest.TestCase):
             )
         original = build_domain._source_provenance(self.repository, cp, ap, "shaniu")
         self.assertFalse(original["dirty"])
+        self.assertIn("openvela.xml", original["scope"])
+        self.assertIn("contest2026_135_yongwangzhiqian.xml", original["scope"])
         self.assertEqual(set(original["dependencies"]), {"nuttx", "apps"})
         self.assertEqual(build_domain.validate_provenance(original), original)
         copied = self.root / "copied-source"
@@ -299,6 +310,27 @@ class BuildWorkspaceTest(unittest.TestCase):
         self.assertEqual(
             original["profiles"]["cp"], "boards/bk7258/aidk_ai_toy/configs/app"
         )
+        base_manifest.write_text("<manifest><project/></manifest>\n", encoding="utf-8")
+        changed_manifest = build_domain._source_provenance(
+            self.repository, cp, ap, "shaniu"
+        )
+        self.assertTrue(changed_manifest["dirty"])
+        self.assertNotEqual(
+            original["input_tree_sha256"], changed_manifest["input_tree_sha256"]
+        )
+        base_manifest.write_text("<manifest/>\n", encoding="utf-8")
+        lvgl_config.write_text(
+            "#define LV_ATTRIBUTE_FAST_MEM __attribute__((hot))\n",
+            encoding="utf-8",
+        )
+        changed_lvgl = build_domain._source_provenance(
+            self.repository, cp, ap, "shaniu"
+        )
+        self.assertTrue(changed_lvgl["dirty"])
+        self.assertNotEqual(
+            original["input_tree_sha256"], changed_lvgl["input_tree_sha256"]
+        )
+        lvgl_config.write_text("#define LV_ATTRIBUTE_FAST_MEM\n", encoding="utf-8")
         for path in (
             "chips/bk7258/logs/log.json",
             "chips/bk7258/secrets/key.json",

@@ -16,8 +16,14 @@ from test_nfc_rf_lifecycle import ROOT, function
 
 
 def main() -> int:
-    if len(sys.argv) != 2 or sys.argv[1] not in ("stable", "disconnect-cleanup"):
-        raise RuntimeError("selector must be stable or disconnect-cleanup")
+    if len(sys.argv) != 2 or sys.argv[1] not in (
+        "stable",
+        "disconnect-cleanup",
+        "disconnect-after-commit",
+    ):
+        raise RuntimeError(
+            "selector must be stable, disconnect-cleanup, or disconnect-after-commit"
+        )
 
     product = (ROOT / "app/bk7258/bk7258_agent_product.c").read_text()
     body = function(product, "product_asset_time") + function(
@@ -68,6 +74,7 @@ struct url_s
 
 static uint32_t generation = 7;
 static bool disconnect_cleanup;
+static bool disconnect_after_commit;
 static unsigned import_calls;
 static struct bkvoice_wss_tls_ops_s tls_ops;
 
@@ -117,7 +124,11 @@ static int bkcloud_http_get(struct bkcloud_http_s *http,
   assert(capacity >= 129); memset(data,0x31,128); http->received=128; return 0;
 }
 static int bk7258_display_import(const void *data, size_t size)
-{ assert(data && size==128); import_calls++; return 0; }
+{
+  assert(data && size==128); import_calls++;
+  if(disconnect_after_commit) generation++;
+  return 0;
+}
 
 ''' + body + r'''
 
@@ -126,12 +137,19 @@ int main(int argc, char **argv)
   uint8_t record[44]={0};
   assert(argc==2);
   disconnect_cleanup=!strcmp(argv[1],"disconnect-cleanup");
+  disconnect_after_commit=!strcmp(argv[1],"disconnect-after-commit");
   int ret=product_install_eyes(record,sizeof(record));
   if(disconnect_cleanup)
     {
       assert(ret==-ECANCELED);
       assert(import_calls==0);
       puts("CONTRACT_PASS eye install disconnect before commit");
+    }
+  else if(disconnect_after_commit)
+    {
+      assert(ret==0);
+      assert(import_calls==1);
+      puts("CONTRACT_PASS eye install disconnect after commit");
     }
   else
     {

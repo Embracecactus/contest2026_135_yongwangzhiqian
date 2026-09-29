@@ -694,7 +694,7 @@ def main():
             [HERE / "build/test_display_upload",
              HERE / "build/shaniu-default-v1.bkep", variant,
              HERE / "build/upload-second.bkep"], binaries["test_display_upload"])
-    for variant in ("stable", "disconnect-cleanup"):
+    for variant in ("stable", "disconnect-cleanup", "disconnect-after-commit"):
         add(suite, "RES-01.eye-install-" + variant, "RES-01", "L2",
             [sys.executable, HERE / "test_eye_install_cancel.py", variant],
             setup_exit_code=2)

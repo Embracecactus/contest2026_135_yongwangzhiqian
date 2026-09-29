@@ -1362,18 +1362,22 @@ static int product_install_eyes(const uint8_t *record, size_t size)
   if (!ret && memcmp(digest, download->source.catalog_sha256,
                      sizeof(digest)))
     ret = -EBADMSG;
-  /* Resources are not activated once the control connection is gone; the
-   * download borrows no cloud session and changes no firmware update state.
+  if (download->tls.initialized)
+    {
+      bkvoice_tls_uninitialize(&download->tls);
+    }
+
+  /* The authenticated GATT generation is the commit lease.  TLS teardown may
+   * yield long enough for that connection to close, so validate the lease
+   * only after every pre-commit transport owner has been released and
+   * immediately before the persistent display import.  Once import starts,
+   * its result remains authoritative; a later disconnect cannot claim that
+   * the commit was canceled.
    */
 
   if (!ret && generation != bkprov_gatt_generation())
     {
       ret = -ECANCELED;
-    }
-
-  if (download->tls.initialized)
-    {
-      bkvoice_tls_uninitialize(&download->tls);
     }
 
   if (!ret)
