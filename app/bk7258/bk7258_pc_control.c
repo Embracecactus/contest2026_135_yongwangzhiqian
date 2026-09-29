@@ -90,6 +90,10 @@ static int config(void *context, enum bkcontrol_command_e command,
               kind == BKCONTROL_CONFIG_RESOURCE_CATALOG);
   allowed |= (state->capabilities & BKPC_CAP_TASKS) != 0 &&
              kind == BKCONTROL_CONFIG_PC_TASK;
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  allowed |= (state->capabilities & BKPC_CAP_DIAGNOSTICS) != 0 &&
+             kind == BKCONTROL_CONFIG_ENGINEERING_TEST;
+#endif
   if (!allowed)
     {
       return -EACCES;
@@ -110,17 +114,51 @@ static int config(void *context, enum bkcontrol_command_e command,
 
 void bkpc_control_close(struct bkpc_control_s *state)
 {
+  void (*closed)(void *context);
+  void *closed_context;
+
   if (state == NULL)
     {
       return;
     }
 
+  closed = state->open ? state->closed : NULL;
+  closed_context = state->closed_context;
   if (state->open)
     {
       bkcontrol_pair_close(state->pair);
     }
 
   mbedtls_platform_zeroize(state, sizeof(*state));
+  if (closed != NULL)
+    {
+      closed(closed_context);
+    }
+}
+
+int bkpc_control_set_close_handler(struct bkpc_control_s *state,
+                                   void (*closed)(void *context),
+                                   void *context)
+{
+  if (state == NULL || closed == NULL)
+    {
+      return -EINVAL;
+    }
+
+  if (!state->open)
+    {
+      return -ENOTCONN;
+    }
+
+  if (state->closed != NULL)
+    {
+      return state->closed == closed && state->closed_context == context ?
+             0 : -EBUSY;
+    }
+
+  state->closed = closed;
+  state->closed_context = context;
+  return 0;
 }
 
 int bkpc_control_start(struct bkpc_control_s *state,

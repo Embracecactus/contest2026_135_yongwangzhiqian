@@ -118,6 +118,10 @@
 #ifdef CONFIG_BK7258_PM_SOFT_OFF
 #include "bk7258_media_volume.h"
 #include <arch/chip/bk7258_pm.h>
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+#include "bk7258_agent_power.h"
+#include "bk7258_engineering_test.h"
+#endif
 #ifdef CONFIG_BK7258_VISION_SERVICE
 #include "bk7258_vision_service.h"
 #endif
@@ -277,6 +281,66 @@ static void product_keys_notify(void)
 {
   sem_post(&g_product_wake);
 }
+
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+static struct bkengtest_s g_engineering_test;
+
+static int product_engineering_key_begin(void *context, uint32_t session,
+                                         uint64_t now)
+{
+  (void)context;
+  return bkvoice_keys_engineering_begin(session, now);
+}
+
+static int product_engineering_key_event(void *context, uint32_t session,
+                                         uint32_t sequence,
+                                         uint32_t pressed, uint64_t now,
+                                         bool *power_accepted)
+{
+  (void)context;
+  return bkvoice_keys_engineering_event(session, sequence, pressed, now,
+                                         power_accepted);
+}
+
+static int product_engineering_key_end(void *context, uint32_t session)
+{
+  (void)context;
+  return bkvoice_keys_engineering_end(session);
+}
+
+static int product_engineering_system_status(void *context, uint32_t *voice,
+                                             uint32_t *storage,
+                                             uint32_t *network)
+{
+  struct bk7258_wifi_result_s wifi;
+  uint64_t revision;
+
+  (void)context;
+  *voice = !atomic_load(&g_voice_initialized) ? BKENGTEST_VOICE_UNAVAILABLE :
+           voice_channel_is_idle() ? BKENGTEST_VOICE_IDLE :
+           BKENGTEST_VOICE_BUSY;
+  *storage = bkprov_storage_revision(&revision) == 0 ?
+             BKENGTEST_STORAGE_READY : BKENGTEST_STORAGE_UNAVAILABLE;
+  *network = BKENGTEST_NETWORK_OFFLINE;
+  if (bk7258_wifi_read_link(&wifi) == 0)
+    {
+      *network = wifi.ipaddr && bk7258_wifi_native_lease_matches(&wifi) ?
+                 BKENGTEST_NETWORK_READY : BKENGTEST_NETWORK_LINK;
+    }
+
+  return 0;
+}
+
+static const struct bkengtest_ops_s g_engineering_test_ops =
+{
+  .now_ms = bkvoice_config_now_ms,
+  .key_begin = product_engineering_key_begin,
+  .key_event = product_engineering_key_event,
+  .key_end = product_engineering_key_end,
+  .power_status = bk7258_agent_power_status,
+  .system_status = product_engineering_system_status,
+};
+#endif
 
 #include "bk7258_agent_product_power.inc"
 #endif
@@ -1634,6 +1698,13 @@ static int product_pc_config(void *context, enum bkcontrol_command_e command,
   uint32_t kind, uint32_t offset, const uint8_t *record, size_t size,
   struct bkcontrol_status_s *status)
 {
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  if (kind == BKCONTROL_CONFIG_ENGINEERING_TEST)
+    {
+      return bkengtest_control(&g_engineering_test, &g_engineering_test_ops,
+                               NULL, command, offset, record, size, status);
+    }
+#endif
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
   if (kind == BKCONTROL_CONFIG_DEFAULT_SELECTION ||
       kind == BKCONTROL_CONFIG_RESOURCE_CATALOG)
@@ -1714,6 +1785,15 @@ static int product_pc_usb_stop(void)
   return bkpc_usb_owner_stop(&g_pc_usb_owner);
 }
 
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+static void product_pc_engineering_closed(void *context)
+{
+  (void)context;
+  (void)bkengtest_disconnect(&g_engineering_test, &g_engineering_test_ops,
+                             NULL);
+}
+#endif
+
 static void product_pc_usb_step(void)
 {
   static const struct bkpc_source_s source =
@@ -1732,6 +1812,14 @@ static void product_pc_usb_step(void)
   (void)bkpc_usb_owner_step(&g_pc_usb_owner, &config,
     g_identity_bound && g_control_bound && !bkagent_ota_busy(),
     !atomic_load(&g_voice_initialized) || voice_channel_is_idle());
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  if (g_pc_usb_owner.usb.lease.open)
+    {
+      (void)bkpc_control_set_close_handler(&g_pc_usb_owner.usb.lease,
+                                           product_pc_engineering_closed,
+                                           NULL);
+    }
+#endif
 }
 #endif
 
@@ -2741,6 +2829,9 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
           continue;
         }
 #ifdef CONFIG_BK7258_PRODUCT_KEYS
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+      bkengtest_step(&g_engineering_test, &g_engineering_test_ops, NULL, now);
+#endif
       if (product_keys_step(now))
         {
           product_nfc_scene_gate(false);

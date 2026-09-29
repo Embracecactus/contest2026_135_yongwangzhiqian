@@ -24,6 +24,7 @@ from _lib import build as build_domain  # noqa: E402
 from _lib import deploy as deploy_domain  # noqa: E402
 from _lib import display_assets as display_assets_domain  # noqa: E402
 from _lib import factory as factory_domain  # noqa: E402
+from _lib import hil_test as hil_test_domain  # noqa: E402
 from _lib import image as image_domain  # noqa: E402
 from _lib import layout as layout_domain  # noqa: E402
 from _lib import layers as layers_domain  # noqa: E402
@@ -43,6 +44,12 @@ def _parser() -> argparse.ArgumentParser:
     workbench_domain.add_arguments(
         commands.add_parser(
             "workbench", help="read status using an independently authorized PC credential"
+        )
+    )
+
+    hil_test_domain.add_arguments(
+        commands.add_parser(
+            "hil-test", help="drive authenticated engineering BKTEST input"
         )
     )
 
@@ -1252,6 +1259,9 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(voice_domain.run(args), indent=2))
         elif args.command == "workbench":
             print(json.dumps(workbench_domain.run(args), indent=2))
+        elif args.command == "hil-test":
+            command = ["bk7258.py", "hil-test", args.operation]
+            print(json.dumps(hil_test_domain.run(args, command), indent=2))
         else:
             _verify(args)
     except (

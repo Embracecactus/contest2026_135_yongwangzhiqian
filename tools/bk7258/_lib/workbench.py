@@ -240,6 +240,50 @@ class ControlClient:
             )
         )
 
+    def engineering_status(self):
+        from . import hil_test
+
+        if self.closed or not self.authenticated:
+            raise ControlError("PC authentication is required")
+        try:
+            deadline = self._now() + self._timeout
+
+            def chunk(offset):
+                total, *words = self._exchange(
+                    15, struct.pack(">I", 19 << 16 | offset), deadline
+                )
+                if total != hil_test.STATUS_SIZE:
+                    raise ControlError("Invalid engineering snapshot size")
+                return struct.pack(">4I", *words)
+
+            data = b"".join(chunk(offset) for offset in range(0, 64, 16))
+            if chunk(0) != data[:16]:
+                raise ControlError("Engineering snapshot changed during read")
+            return hil_test.decode_status(data)
+        except Exception:
+            self.close()
+            raise ControlError(
+                "Engineering status unconfirmed; no command was replayed"
+            ) from None
+
+    def engineering_command(self, record):
+        from . import hil_test
+
+        hil_test.decode_command(record)
+        if self.closed or not self.authenticated:
+            raise ControlError("PC authentication is required")
+        try:
+            deadline = self._now() + self._timeout
+            self._exchange(16, struct.pack(">II", 19, len(record)), deadline)
+            self._exchange(17, record, deadline)
+            self._exchange(18, b"", deadline)
+            return dict(accepted=True, completion_verified=False)
+        except Exception:
+            self.close()
+            raise ControlError(
+                "Engineering command unconfirmed; query board state before retry"
+            ) from None
+
     def task_event(self, task_id, sequence, state, ttl_ms, progress=None):
         from . import workbench_tasks
 
@@ -593,6 +637,15 @@ class SerialChannel:
         self.port.close()
 
 
+def add_connection_arguments(parser, *, port_required=False):
+    parser.add_argument("--port", required=port_required)
+    parser.add_argument("--profile", type=Path)
+    parser.add_argument("--certificate", type=Path)
+    parser.add_argument("--certificate-sha256")
+    parser.add_argument("--pc-key-file", type=Path)
+    parser.add_argument("--timeout", type=float, default=10)
+
+
 def add_arguments(parser):
     parser.add_argument(
         "operation",
@@ -702,12 +755,7 @@ def add_arguments(parser):
         default=0,
         help="Loopback port; 0 chooses a free port",
     )
-    parser.add_argument("--port")
-    parser.add_argument("--profile", type=Path)
-    parser.add_argument("--certificate", type=Path)
-    parser.add_argument("--certificate-sha256")
-    parser.add_argument("--pc-key-file", type=Path)
-    parser.add_argument("--timeout", type=float, default=10)
+    add_connection_arguments(parser)
     parser.add_argument("--request", type=Path)
     parser.add_argument("--pending", type=Path)
     parser.add_argument("--response", type=Path)
@@ -734,7 +782,10 @@ def _credentials(args):
 
     profile_path = getattr(args, "profile", None)
     legacy = (args.certificate, args.certificate_sha256, args.pc_key_file)
-    if profile_path is not None and args.operation != "save-profile":
+    if (
+        profile_path is not None
+        and getattr(args, "operation", None) != "save-profile"
+    ):
         if any(value is not None for value in legacy):
             raise ControlError(
                 "A profile cannot be combined with plaintext credentials"
@@ -753,6 +804,31 @@ def _credentials(args):
         yield certificate, args.certificate_sha256, key
     finally:
         key[:] = bytes(len(key))
+
+
+@contextmanager
+def authorized_client(args):
+    client = None
+    try:
+        with _credentials(args) as (certificate, pin, key):
+            if (
+                not args.port
+                or not math.isfinite(args.timeout)
+                or not 0 < args.timeout <= 120
+            ):
+                raise ControlError("Invalid port or deadline")
+            client = ControlClient(
+                SerialChannel(args.port, args.timeout),
+                certificate,
+                pin,
+                timeout=args.timeout,
+            )
+            client.start(key)
+            key[:] = bytes(len(key))
+            yield client
+    finally:
+        if client is not None:
+            client.close()
 
 
 def run(args, *, observe=None, cancel_requested=None):
@@ -792,30 +868,16 @@ def run(args, *, observe=None, cancel_requested=None):
         return workbench_pairing.run(args)
     from . import workbench_profile
 
-    client = None
     try:
-        with _credentials(args) as (certificate, pin, key):
-            if args.operation == "save-profile":
+        if args.operation == "save-profile":
+            with _credentials(args) as (certificate, pin, key):
                 if getattr(args, "profile", None) is None or args.port is not None:
                     raise ControlError(
                         "Offline profile import requires only a profile destination"
                     )
                 workbench_profile.create(args.profile, certificate, pin, key)
                 return dict(profile_saved=True, device_authorization_verified=False)
-            if (
-                not args.port
-                or not math.isfinite(args.timeout)
-                or not 0 < args.timeout <= 120
-            ):
-                raise ControlError("Invalid port or deadline")
-            client = ControlClient(
-                SerialChannel(args.port, args.timeout),
-                certificate,
-                pin,
-                timeout=args.timeout,
-            )
-            client.start(key)
-            key[:] = bytes(len(key))
+        with authorized_client(args) as client:
             if args.operation.startswith("catalog-"):
                 return workbench_catalog.perform(client, args)
             if args.operation.startswith("default-"):
@@ -859,7 +921,5 @@ def run(args, *, observe=None, cancel_requested=None):
             "Workbench operation failed; no credential fallback or command replay"
         ) from None
     finally:
-        if client is not None:
-            client.close()
         if resource_plan is not None:
             resource_plan.close()

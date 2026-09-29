@@ -54,7 +54,8 @@ bool bkvoice_keys_power_held(void);
  */
 int bkvoice_keys_engineering_begin(uint32_t session, uint64_t now);
 int bkvoice_keys_engineering_event(uint32_t session, uint32_t sequence,
-                                   uint32_t pressed, uint64_t now);
+                                   uint32_t pressed, uint64_t now,
+                                   bool *power_accepted);
 int bkvoice_keys_engineering_end(uint32_t session);
 #endif
 #endif

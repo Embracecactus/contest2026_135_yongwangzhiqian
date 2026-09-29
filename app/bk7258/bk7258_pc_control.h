@@ -40,6 +40,8 @@ struct bkpc_control_s
   struct bkcontrol_pair_s *pair;
   bkcontrol_execute_t execute;
   bkcontrol_config_t config;
+  void (*closed)(void *context);
+  void *closed_context;
   void *context;
   uint64_t revision;
   uint32_t capabilities;
@@ -53,7 +55,8 @@ struct bkpc_control_s
  * RESOURCE_JOB installation and DEFAULT_SELECTION jobs. Legacy HTTPS import
  * is not the USB file installer.
  * All other config/basic mutations are denied, no OTA handler or SPV1 entry
- * is installed. TASKS permits PTE1/PTS1 only. DIAGNOSTICS is unbound.
+ * is installed. TASKS permits PTE1/PTS1 only. DIAGNOSTICS remains unbound in
+ * production; an engineering build may bind only config kind 19.
  */
 
 int bkpc_control_start(struct bkpc_control_s *state,
@@ -65,6 +68,9 @@ int bkpc_control_start(struct bkpc_control_s *state,
                        bkcontrol_config_t config, void *context,
                        const struct bkprov_tls_transport_s *transport);
 int bkpc_control_step(struct bkpc_control_s *state);
+int bkpc_control_set_close_handler(struct bkpc_control_s *state,
+                                   void (*closed)(void *context),
+                                   void *context);
 void bkpc_control_close(struct bkpc_control_s *state);
 
 #endif

@@ -22,6 +22,24 @@ static bool g_power_validation_started;
 #include "bk7258_agent_power.h"
 
 #ifdef CONFIG_BK7258_PM_SOFT_OFF
+static int product_power_peer_request(void)
+{
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  return bkengtest_pm_request(&g_engineering_test);
+#else
+  return bk7258_pm_soft_off_request();
+#endif
+}
+
+static int product_power_peer_status(void)
+{
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  return bkengtest_pm_status(&g_engineering_test);
+#else
+  return bk7258_pm_soft_off_status();
+#endif
+}
+
 /* Single coordinator writer; readers never touch participants or CP.
  * Bounded sequence snapshot avoids a blocking lock during resource exit.
  */
@@ -165,14 +183,14 @@ static int product_power_request(void)
   product_power_fail(-ECANCELED);
   return -ECANCELED;
 #endif
-  ret = bk7258_pm_soft_off_request();
+  ret = product_power_peer_request();
   if (ret < 0)
     {
       /* A timeout does not mean the CP did not receive it; when the state is
        * unknown, the cleaned-up resource boundary is retained.
        */
 
-      int pending = bk7258_pm_soft_off_status();
+      int pending = product_power_peer_status();
       if (pending == 0)
         {
           goto failed;
@@ -230,7 +248,7 @@ static bool product_keys_step_impl(uint64_t now)
         }
       else if (now >= g_power_query_at)
         {
-          ret = bk7258_pm_soft_off_status();
+          ret = product_power_peer_status();
           g_power_query_at = now + 500;
           if (ret == 0)
             {
@@ -249,7 +267,7 @@ static bool product_keys_step_impl(uint64_t now)
        * Reconcile before retrying; keep both admission and resources stopped
        * while CP still owns a pending request or its answer is unavailable.
        */
-      ret = bk7258_pm_soft_off_status();
+      ret = product_power_peer_status();
       if (ret != 0)
         {
           product_power_fail(ret < 0 ? ret : -EINPROGRESS);

@@ -70,6 +70,21 @@ config BK7258_POWER_PREPARE_VALIDATION
 		configuration. No remote command or physical-key acceptance is added.
 		Keep disabled in normal product and release configurations.
 
+config BK7258_ENGINEERING_TEST
+	bool "Development-only authenticated BKTEST interface"
+	default n
+	depends on BK7258_APP_AGENT && BK7258_PRODUCT_KEYS && BK7258_PM_SOFT_OFF
+	depends on BK7258_PROVISION_GATT && BK7258_VOICE_TLS && BK7258_USBCDC
+	depends on !BK7258_POWER_PREPARE_VALIDATION
+	help
+		Bind SDC1 configuration kind 19 only for an independently authorized
+		PC principal with the diagnostics capability. Versioned virtual key
+		events enter the production AP key policy and lifecycle coordinator.
+		The final CP request is replaced at its existing dependency boundary by
+		a bounded fault peer, so this build cannot enter deep sleep. This option
+		adds no shell, owner bypass, reset/erase primitive or production command.
+		Keep disabled in normal product and release configurations.
+
 config BK7258_AUDIO_PLAYBACK_VALIDATION
 	bool "Development-only one-shot Agent Media playback validation"
 	default n
