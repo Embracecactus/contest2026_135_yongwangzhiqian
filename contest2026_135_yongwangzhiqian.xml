@@ -15,7 +15,7 @@
   <remote name="speexdsp-official" fetch="https://github.com/xiph/"/>
   <extend-project name="packages_ai_agent" path="packages/ai_agent"
                   remote="shaniu-agent"
-                  revision="52b12476145ed1870d596da367fb507de86e5edf"
+                  revision="95c57ae1e1ba6e070b436e913dacd251654a7e33"
                   upstream="refs/heads/dev"/>
 
   <project path="vendor/beken/bk_avdk_smp"
