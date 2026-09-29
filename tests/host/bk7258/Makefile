@@ -1959,6 +1959,14 @@ $(BUILD)/test_shaniu_keys_transport: test_shaniu_keys_transport.c \
 		-I $(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/include \
 		$< mocks/mock_nuttx_ap.c -o $@
 
+$(BUILD)/test_bk7258_engineering_test: test_bk7258_engineering_test.c \
+	$(VOICE_PACK_ROOT)/bk7258_engineering_test.c \
+	$(VOICE_PACK_ROOT)/bk7258_engineering_test.h \
+	$(VOICE_PACK_ROOT)/bk7258_product_keys.h \
+	$(VOICE_PACK_ROOT)/bk7258_control_session.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -DCONFIG_BK7258_ENGINEERING_TEST=1 \
+		-I $(VOICE_PACK_ROOT) $(filter %.c,$^) -o $@
+
 $(BUILD)/test_shaniu_volume_contract: test_shaniu_volume_contract.c $(VOICE_PACK_ROOT)/bk7258_media_volume.c $(CHIP_ROOT)/ap/bk7258_usbmode.c | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -pthread -DCONFIG_BK7258_USBMODE -DCONFIG_BK7258_AP_CORE \
 		-DCONFIG_BK7258_USBCDC -DCONFIG_BK7258_USBMSC -DCONFIG_BK7258_OTA_SOURCE_FILE \

@@ -1350,3 +1350,39 @@ the exact 30000 ms boundary. It records that repeated progress does not change
 the original deadline and that expiry publishes `-ETIMEDOUT` without a CP
 request. This preserved behavior also passes against the pre-fix production
 coordinator; it is a Green baseline, not a manufactured Red.
+
+### BKTEST authenticated engineering input (2026-09-29)
+
+`USER-20260929-BKTEST` requires an unattended development-build path from an
+authorized HIL client into the existing K2 and power state machines. The public
+behavior and negative boundary are frozen in
+`docs/platforms/bk7258/bktest-hil-interface.md`. The transport is the existing
+pinned-TLS SDC1 connection. A live, independently granted PC principal must
+have `BKPC_CAP_DIAGNOSTICS`; the new kind remains unbound when
+`CONFIG_BK7258_ENGINEERING_TEST` is absent. Port access, DTR, a browser grant,
+or a production firmware image cannot enable it.
+
+K2-01 binds exact 2999/3000/3001 ms sequences to the production key policy.
+Every session begins with an explicit released baseline. `advance` changes the
+engineering input clock and emits no KEY1 record, so `down -> advance -> up`
+proves that no threshold heartbeat is required. A qualifying release produces
+one power intent; a duplicate or stale session/sequence produces no event or
+side effect. Existing K2 session, rollback, combination and volume contracts
+remain required and are not replaced by BKTEST.
+
+LIFE-02 binds declined, unknown, pending and late-ack outcomes at the existing
+PM peer dependency. The engineering command handler cannot call the PM request,
+sleep, reset, shutdown, or factory-reset terminal functions. The real product
+coordinator remains responsible for admission close, resource handshakes,
+deadline, retry/reconciliation and its public power snapshot. An engineering
+build fails closed at that PM boundary, including physical input while test
+mode is compiled, so unattended HIL cannot enter real deep sleep.
+
+The old source has no authenticated engineering kind and is therefore
+`BLOCKED_INTERFACE`, not a business assertion Red. The pre-existing K2 and
+power cases are saved as Green baseline evidence before implementation. After
+the interface exists, the same new cases must run through the production key
+handler and the SDC1 capability gate. Board HIL may use `bkhealth power` as an
+independent read-only observer after product USB is quiesced. Host/HIL results
+do not close physical GPIO debounce, real K2, deep sleep/wakeup, current draw,
+phone BLE, App OTA, or subjective sound acceptance.

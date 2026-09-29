@@ -792,7 +792,21 @@
     "LIFE-02.power-voice-cleanup-failure",
     "LIFE-02.power-voice-cleanup-deadline",
     "RES-01.eye-install-stable",
-    "RES-01.eye-install-disconnect-cleanup"
+    "RES-01.eye-install-disconnect-cleanup",
+    "K2-01.bktest-release-2999",
+    "K2-01.bktest-release-3000",
+    "K2-01.bktest-release-3001",
+    "K2-01.bktest-no-held",
+    "K2-03.bktest-sequence",
+    "LIFE-02.bktest-status",
+    "LIFE-02.bktest-cp-declined",
+    "LIFE-02.bktest-cp-unknown",
+    "LIFE-02.bktest-cp-pending",
+    "LIFE-02.bktest-cp-late-ack",
+    "USB-01.bktest-cli.test_command_is_bounded_versioned_and_round_trips",
+    "USB-01.bktest-cli.test_no_held_sequence_uses_real_command_path",
+    "USB-01.bktest-cli.test_status_requires_test_identity",
+    "USB-01.bktest-cli.test_json_result_keeps_identity_and_observation_layers"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1588,6 +1602,20 @@
     "LIFE-02.power-voice-cleanup-failure",
     "LIFE-02.power-voice-cleanup-deadline",
     "RES-01.eye-install-stable",
-    "RES-01.eye-install-disconnect-cleanup"
+    "RES-01.eye-install-disconnect-cleanup",
+    "K2-01.bktest-release-2999",
+    "K2-01.bktest-release-3000",
+    "K2-01.bktest-release-3001",
+    "K2-01.bktest-no-held",
+    "K2-03.bktest-sequence",
+    "LIFE-02.bktest-status",
+    "LIFE-02.bktest-cp-declined",
+    "LIFE-02.bktest-cp-unknown",
+    "LIFE-02.bktest-cp-pending",
+    "LIFE-02.bktest-cp-late-ack",
+    "USB-01.bktest-cli.test_command_is_bounded_versioned_and_round_trips",
+    "USB-01.bktest-cli.test_no_held_sequence_uses_real_command_path",
+    "USB-01.bktest-cli.test_status_requires_test_identity",
+    "USB-01.bktest-cli.test_json_result_keeps_identity_and_observation_layers"
   ]
 }

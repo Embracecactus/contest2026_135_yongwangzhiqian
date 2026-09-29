@@ -535,6 +535,7 @@ def main():
         "test_bk7258_nfc_core",
         "test_bk7258_nfc_rpc",
         "test_bk7258_pm_replay",
+        "test_bk7258_engineering_test",
     ):
         binaries[target] = build(["make", "build/" + target], "build-" + target)
     for variant in (
@@ -574,6 +575,29 @@ def main():
             [HERE / "build/test_shaniu_keys_transport", variant],
             binaries["test_shaniu_keys_transport"],
         )
+    for variant in ("release-2999", "release-3000", "release-3001", "no-held"):
+        add(suite, "K2-01.bktest-" + variant, "K2-01", "L2",
+            [HERE / "build/test_bk7258_engineering_test", variant],
+            binaries["test_bk7258_engineering_test"])
+    add(suite, "K2-03.bktest-sequence", "K2-03", "L2",
+        [HERE / "build/test_bk7258_engineering_test", "sequence"],
+        binaries["test_bk7258_engineering_test"])
+    add(suite, "LIFE-02.bktest-status", "LIFE-02", "L2",
+        [HERE / "build/test_bk7258_engineering_test", "status"],
+        binaries["test_bk7258_engineering_test"])
+    for variant in ("cp-declined", "cp-unknown", "cp-pending", "cp-late-ack"):
+        add(suite, "LIFE-02.bktest-" + variant, "LIFE-02", "L2",
+            [HERE / "build/test_bk7258_engineering_test", variant],
+            binaries["test_bk7258_engineering_test"])
+    for name in (
+        "test_command_is_bounded_versioned_and_round_trips",
+        "test_no_held_sequence_uses_real_command_path",
+        "test_status_requires_test_identity",
+        "test_json_result_keeps_identity_and_observation_layers",
+    ):
+        add(suite, "USB-01.bktest-cli." + name, "USB-01", "L1",
+            [sys.executable, HERE / "test_hil_test.py",
+             "HilTestContract." + name], marker=False)
     for variant in ("missing", "pages", "cancel-before", "cancel-during",
                     "invalid-cursor", "read-error", "directory-close",
                     "file-close", "scan-limit", "symlink", "corrupt"):
