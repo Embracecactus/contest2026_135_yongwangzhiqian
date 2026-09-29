@@ -643,6 +643,7 @@ run-agent-volc-tts-progress: $(BUILD)/test_agent_volc_tts_progress
 	./$(BUILD)/test_agent_volc_tts_progress first-pcm-deadline
 	./$(BUILD)/test_agent_volc_tts_progress pcm-progress
 	./$(BUILD)/test_agent_volc_tts_progress truncated-close
+	./$(BUILD)/test_agent_volc_tts_progress ws-close-before-terminal
 	./$(BUILD)/test_agent_volc_tts_progress cancel-blocked-next
 
 $(BUILD)/test_agent_funasr: test_bk7258_agent_media_player.c \

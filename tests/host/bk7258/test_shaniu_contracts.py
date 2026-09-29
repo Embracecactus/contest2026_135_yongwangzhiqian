@@ -1420,6 +1420,15 @@ def main():
     )
     add(
         suite,
+        "AUD-03.agent-ws-close-before-terminal",
+        "AUD-03",
+        "L2",
+        [HERE / "build/test_agent_volc_tts_progress",
+         "ws-close-before-terminal"],
+        binaries["test_agent_volc_tts_progress"],
+    )
+    add(
+        suite,
         "AUD-03.agent-cancel-blocked-next",
         "AUD-03",
         "L2",

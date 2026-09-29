@@ -478,6 +478,33 @@ static void connection_close_before_terminal_sequence_is_error(void)
     assert(terminal == 0);
 }
 
+static void websocket_close_before_terminal_sequence_is_error(void)
+{
+    reset_script();
+    read_mode = READ_NEXT_SUCCESS;
+    append_pcm(1, 0x32, 0);
+    append_ws(WS_OPCODE_CLOSE, NULL, 0, 1);
+    assert(volc_tts_register() == 0);
+
+    int first_result = voice_tts_speak_stream("truncated request", received,
+        NULL);
+    assert(first_result == -ECONNRESET);
+    assert(wire_offset == wire_size);
+    assert(chunks == 1);
+    assert(sample_count == 1 && samples[0] == 0x32);
+    assert(terminal == 0);
+
+    reset_script();
+    read_mode = READ_NEXT_SUCCESS;
+    append_pcm(-1, 0x33, 0);
+
+    assert(voice_tts_speak_stream("next request", received, NULL) == 0);
+    assert(wire_offset == wire_size);
+    assert(chunks == 1);
+    assert(sample_count == 1 && samples[0] == 0x33);
+    assert(terminal == 1);
+}
+
 static void* speak_worker(void* unused)
 {
     (void)unused;
@@ -569,6 +596,8 @@ int main(int argc, char** argv)
         valid_pcm_refreshes_progress();
     } else if (strcmp(argv[1], "truncated-close") == 0) {
         connection_close_before_terminal_sequence_is_error();
+    } else if (strcmp(argv[1], "ws-close-before-terminal") == 0) {
+        websocket_close_before_terminal_sequence_is_error();
     } else if (strcmp(argv[1], "cancel-blocked-next") == 0) {
         blocked_cancel_ends_old_request_and_next_request_succeeds();
     } else {
@@ -576,6 +605,8 @@ int main(int argc, char** argv)
     }
     if (strcmp(argv[1], "truncated-close") == 0) {
         printf("CONTRACT_PASS AUD-03.agent-truncated-close\n");
+    } else if (strcmp(argv[1], "ws-close-before-terminal") == 0) {
+        printf("CONTRACT_PASS AUD-03.agent-ws-close-before-terminal\n");
     } else if (strcmp(argv[1], "cancel-blocked-next") == 0) {
         printf("CONTRACT_PASS AUD-03.agent-cancel-blocked-next\n");
     } else {

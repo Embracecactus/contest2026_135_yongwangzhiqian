@@ -1227,6 +1227,13 @@ complete. A negative-sequence final frame retains the existing single terminal
 callback behavior. This is source/parser evidence, not Media, DAC, or acoustic
 completion.
 
+AUD-03.agent-ws-close-before-terminal executes the same registry, Volc backend
+and WebSocket parser. A WebSocket Close frame after positive-sequence PCM but
+before the provider's negative sequence or frontend terminal is a truncated
+stream: it returns a connection error, emits no terminal callback and releases
+the request so a subsequent valid request completes once. Transport closure is
+not a successful protocol EOF and must not start downstream final drain.
+
 ### UI-01 stale OTA admission (2026-09-28)
 
 A retained OTA capability may remain visible after a STATUS read fails, but it
