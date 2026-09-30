@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: Apache-2.0
+name: BK7258 QEMU diagnostic
+on:
+  push:
+    branches: [dev-ai-contest-2026]
+    paths:
+      - '.github/workflows/bk7258-qemu.yml'
+      - 'contest2026_135_yongwangzhiqian.xml'
+      - 'tools/bk7258/_lib/qemu.py'
+      - 'tools/bk7258/bk7258.py'
+      - 'tests/host/bk7258/qemu/**'
+      - 'tests/host/bk7258/test_bk7258_qemu.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y gcc g++ make \
+            libglib2.0-dev ninja-build pkg-config python3-venv python3-pip \
+            gcc-arm-none-eabi binutils-arm-none-eabi
+      - name: Materialize only the manifest-pinned QEMU dependency
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, re, subprocess, xml.etree.ElementTree as ET
+          root = ET.parse('contest2026_135_yongwangzhiqian.xml').getroot()
+          projects = [p for p in root.findall('project') if p.get('name') == 'qemu-bk7258']
+          assert len(projects) == 1
+          project = projects[0]
+          sha = project.get('revision')
+          assert re.fullmatch('[0-9a-f]{40}', sha)
+          remote = next(r for r in root.findall('remote') if r.get('name') == project.get('remote'))
+          url = remote.get('fetch').rstrip('/') + '/' + project.get('name') + '.git'
+          source = pathlib.Path(os.environ['RUNNER_TEMP']) / project.get('path')
+          source.mkdir(parents=True)
+          subprocess.run(['git', 'init', str(source)], check=True)
+          subprocess.run(['git', '-C', str(source), 'fetch', '--depth=1', url, sha], check=True)
+          subprocess.run(['git', '-C', str(source), 'checkout', '--detach', sha], check=True)
+          PY
+      - name: Build and execute all board diagnostics
+        run: |
+          python3 tools/bk7258/bk7258.py qemu build \
+            --workspace "$RUNNER_TEMP" --build-dir "$RUNNER_TEMP/qemu-build" --jobs 2
+          python3 tools/bk7258/bk7258.py qemu smoke \
+            --qemu "$RUNNER_TEMP/qemu-build/qemu-system-arm" \
+            --cc "$(command -v arm-none-eabi-gcc)" --output "$RUNNER_TEMP/qemu-evidence"
+          BK7258_QEMU="$RUNNER_TEMP/qemu-build/qemu-system-arm" \
+            python3 tests/host/bk7258/test_bk7258_qemu.py -v
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bk7258-qemu-diagnostic
+          path: |
+            ${{ runner.temp }}/qemu-evidence
+            ${{ runner.temp }}/qemu-build/bk7258-build.log

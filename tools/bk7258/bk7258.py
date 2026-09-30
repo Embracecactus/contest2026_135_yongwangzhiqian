@@ -30,6 +30,7 @@ from _lib import layout as layout_domain  # noqa: E402
 from _lib import layers as layers_domain  # noqa: E402
 from _lib import package as package_domain  # noqa: E402
 from _lib import product as product_domain  # noqa: E402
+from _lib import qemu as qemu_domain  # noqa: E402
 from _lib import sdk as sdk_domain  # noqa: E402
 from _lib import toolchain as toolchain_domain  # noqa: E402
 from _lib import trust as trust_domain  # noqa: E402
@@ -40,6 +41,10 @@ from _lib import workbench as workbench_domain  # noqa: E402
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="bk7258.py")
     commands = parser.add_subparsers(dest="command", required=True)
+
+    qemu_domain.add_arguments(
+        commands.add_parser("qemu", help="build or run the experimental BK7258 emulator")
+    )
 
     workbench_domain.add_arguments(
         commands.add_parser(
@@ -1241,7 +1246,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = _parser()
     args = parser.parse_args(argv)
     try:
-        if args.command == "identity":
+        if args.command == "qemu":
+            print(json.dumps(qemu_domain.run(REPOSITORY, args), indent=2))
+        elif args.command == "identity":
             _identity(args)
         elif args.command == "build":
             _build(args)
@@ -1265,6 +1272,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             _verify(args)
     except (
+        qemu_domain.QemuError,
         build_domain.BuildError,
         image_domain.ImageError,
         layout_domain.LayoutError,

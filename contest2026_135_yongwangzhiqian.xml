@@ -11,6 +11,12 @@
   <!-- Agent extensions are pinned fork commits; publish a new dependency
        commit before publishing this manifest. No build-time patch is used. -->
   <remote name="shaniu-agent" fetch="https://github.com/Embracecactus/"/>
+  <!-- Optional native simulator; never overlay this into the QEMU prebuilts. -->
+  <project path="external/qemu-bk7258" name="qemu-bk7258"
+           remote="shaniu-agent"
+           revision="7e351cfed31c9c87e0fc24904dfba10f3dcaaffa"
+           upstream="refs/heads/master" clone-depth="1"
+           groups="notdefault,bk7258-qemu"/>
   <remote name="mcuboot-official" fetch="https://github.com/mcu-tools/"/>
   <remote name="speexdsp-official" fetch="https://github.com/xiph/"/>
   <extend-project name="packages_ai_agent" path="packages/ai_agent"

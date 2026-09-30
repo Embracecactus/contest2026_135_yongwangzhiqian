@@ -512,3 +512,16 @@ not a claim of atomic simultaneous three-axis conversion or physical calibration
 生成于临时目录并已删除，没有提交私钥。该文件不属于任何设备身份、签名信任链或
 发布资源，只用于 Session 元数据与有界DER解析测试；真实TLS测试另生成各自短期
 合成身份并执行握手。新增生产导出/生命周期适配为本项目原创，没有复制第三方代码。
+
+## BK7258 QEMU diagnostic integration
+
+`tools/bk7258/_lib/qemu.py`, `tests/host/bk7258/test_bk7258_qemu.py` and
+`tests/host/bk7258/qemu/diagnostic.{c,ld}` are new Apache-2.0 integration/test
+sources. Register facts follow the existing team headers at
+28894814cb7967054847ac147e83b8b8e68fed5c and Apache-2.0 SDK
+Embracecactus/bk_avdk_smp cb080de1655d579c7593ecf504c440997c4c137b:
+`cp/include/soc/bk7258/reg_base.h`, `cp/middleware/soc/bk7258/soc/uart_struct.h`,
+`sys_struct.h`, `sys_reg.h`, and `cp/components/bk_startup/system_main.c`.
+The fixture is a bare-metal emulator input, not copied production firmware.
+Native GPL-2.0-or-later QEMU models remain in the separate qemu-bk7258 repository;
+its `docs/system/arm/bk7258.rst` records model provenance and limitations.
