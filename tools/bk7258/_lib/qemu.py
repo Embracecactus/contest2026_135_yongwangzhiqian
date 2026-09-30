@@ -57,6 +57,11 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     nsh.add_argument("--build-manifest", type=Path, required=True)
     nsh.add_argument("--output", type=Path, required=True)
     nsh.add_argument("--timeout", type=float, default=10)
+    nsh.add_argument(
+        "--physical-nor",
+        action="store_true",
+        help="create a fresh simulated NOR in output and enter CP through CRC XIP",
+    )
 
 
 def _call(command: list[str], **kwargs: object) -> subprocess.CompletedProcess:
@@ -324,6 +329,57 @@ def _native_nsh(repository: Path, args: argparse.Namespace) -> dict:
         raise QemuError(f"native NSH failed: {error}") from error
 
 
+def _diagnostic_nor(manifest, output: Path) -> tuple[list[str], dict]:
+    """Create only a fresh simulation image, never reuse device-unique material."""
+    if manifest.boot != "direct" or manifest.layout.flash_size != 8 * 1024 * 1024:
+        raise QemuError("diagnostic NOR requires a direct 8-MiB build")
+    image, status = output / "diagnostic-nor.bin", output / "diagnostic-nor.status"
+    if image.exists() or status.exists():
+        raise QemuError(
+            "diagnostic NOR already exists; choose a fresh output directory"
+        )
+    data = bytearray(b"\xff" * manifest.layout.flash_size)
+    placements = []
+    # pair.bin starts at the CP partition, not physical offset zero. The
+    # authoritative layout selects each independently finalized artifact.
+    for row in manifest.layout.partitions:
+        if row.artifact not in {"boot", "cp", "ap"}:
+            continue
+        payload = manifest.finalized_artifacts[row.artifact].read_bytes()
+        if len(payload) > row.size:
+            raise QemuError(f"diagnostic NOR artifact exceeds {row.name}")
+        data[row.offset : row.offset + len(payload)] = payload
+        placements.append(
+            {
+                "artifact": row.artifact,
+                "offset": row.offset,
+                "size": len(payload),
+                "sha256": hashlib.sha256(payload).hexdigest(),
+            }
+        )
+    if {row["artifact"] for row in placements} != {"boot", "cp", "ap"}:
+        raise QemuError(
+            "diagnostic NOR requires exactly the direct boot/CP/AP artifacts"
+        )
+    with image.open("xb") as stream:
+        stream.write(data)
+    with status.open("xb") as stream:
+        stream.write(b"\x00\x00\x20" + bytes(509))
+    argv = []
+    for unit, path in enumerate((image, status)):
+        argv += [
+            "-drive",
+            f"if=pflash,unit={unit},format=raw,file={str(path).replace(',', ',,')}",
+        ]
+    return argv, {
+        "scope": "fresh simulation NOR; no device identity/calibration; CP entry only",
+        "part": "GD25WQ64E model choice",
+        "placements": placements,
+        "initial_array_sha256": _sha256(image),
+        "initial_status_sha256": _sha256(status),
+    }
+
+
 def _native_nsh_run(repository: Path, args: argparse.Namespace) -> dict:
     from . import build as build_domain
 
@@ -355,6 +411,12 @@ def _native_nsh_run(repository: Path, args: argparse.Namespace) -> dict:
         "cases": cases,
     }
     argv = command(repository, args.qemu, manifest.physical_board, elf)
+    if getattr(args, "physical_nor", False):
+        drives, report["nor"] = _diagnostic_nor(manifest, output)
+        index = argv.index("-kernel")
+        del argv[index : index + 2]
+        argv += drives
+    report["launch_argv"] = argv
     with (output / "stderr.log").open("wb") as stderr:
         process = subprocess.Popen(
             argv + ["-d", "guest_errors,unimp", "-D", str(mmio)],
@@ -470,6 +532,13 @@ def _native_nsh_run(repository: Path, args: argparse.Namespace) -> dict:
                 observed
                 == Counter({key: value * 2 for key, value in _DEBUG_PROBES.items()}),
             )
+            if "nor" in report:
+                report["nor"]["final_array_sha256"] = _sha256(
+                    output / "diagnostic-nor.bin"
+                )
+                report["nor"]["final_status_sha256"] = _sha256(
+                    output / "diagnostic-nor.status"
+                )
             report["status"] = "passed"
             report["debug_probe_counts"] = dict(observed)
             report["uptime_before_sleep"] = before

@@ -16,6 +16,7 @@ import json
 import re
 import hashlib
 import argparse
+import shutil
 from unittest import mock
 from pathlib import Path
 
@@ -25,6 +26,53 @@ from _lib import qemu  # noqa: E402
 
 
 class Inputs(unittest.TestCase):
+    def test_fresh_nor_uses_physical_layout_offsets_not_pair_offset_zero(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            artifacts = {}
+            rows = []
+            for index, name in enumerate(("boot", "cp", "ap")):
+                artifacts[name] = root / f"{name}.bin"
+                artifacts[name].write_bytes(bytes([index + 1]) * 34)
+                rows.append(
+                    argparse.Namespace(
+                        artifact=name, offset=index * 0x11000, size=0x10000, name=name
+                    )
+                )
+            artifacts["pair"] = root / "pair.bin"
+            artifacts["pair"].write_bytes(b"this is not a complete physical image")
+            manifest = argparse.Namespace(
+                boot="direct",
+                finalized_artifacts=artifacts,
+                layout=argparse.Namespace(flash_size=8 * 1024 * 1024, partitions=rows),
+            )
+            argv, evidence = qemu._diagnostic_nor(manifest, root)
+            image = (root / "diagnostic-nor.bin").read_bytes()
+            self.assertEqual(len(image), 8 * 1024 * 1024)
+            for index in range(3):
+                self.assertEqual(
+                    image[index * 0x11000 : index * 0x11000 + 34],
+                    bytes([index + 1]) * 34,
+                )
+            self.assertEqual(image[-4096:], b"\xff" * 4096)
+            self.assertEqual(
+                (root / "diagnostic-nor.status").read_bytes(),
+                b"\x00\x00\x20" + bytes(509),
+            )
+            self.assertEqual(len(evidence["placements"]), 3)
+            self.assertIn("unit=0", argv[1])
+            with self.assertRaisesRegex(qemu.QemuError, "already exists"):
+                qemu._diagnostic_nor(manifest, root)
+            self.assertEqual((root / "diagnostic-nor.bin").read_bytes(), image)
+
+    def test_fresh_nor_rejects_non_direct_or_non_8m_geometry(self):
+        for boot, size in (("mcuboot", 8 * 1024 * 1024), ("direct", 4 * 1024 * 1024)):
+            manifest = argparse.Namespace(
+                boot=boot, layout=argparse.Namespace(flash_size=size)
+            )
+            with self.subTest(boot=boot, size=size), self.assertRaises(qemu.QemuError):
+                qemu._diagnostic_nor(manifest, Path("unused"))
+
     def test_boards_are_discovered(self):
         self.assertEqual(
             qemu.boards(REPOSITORY), ["aidk_ai_toy", "t5_board", "t5ai_core"]
@@ -159,7 +207,8 @@ class NativeModel(unittest.TestCase):
                 f"pipe:{self.root / 'serial'}",
                 "-qtest",
                 "stdio",
-            ],
+            ]
+            + getattr(self, "extra_args", []),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=self.stderr,
@@ -630,6 +679,281 @@ class NativeModel(unittest.TestCase):
         self.assertEqual(self.qt("readl 0x44010018"), 10)
 
 
+@unittest.skipUnless(os.environ.get("BK7258_QEMU"), "set BK7258_QEMU for Flash checks")
+class FlashModel(unittest.TestCase):
+    qt = NativeModel.qt
+    stop = NativeModel.stop
+
+    def setUp(self):
+        self.images = tempfile.TemporaryDirectory()
+        self.addCleanup(self.images.cleanup)
+        self.image = Path(self.images.name) / "nor.bin"
+        self.status_image = Path(self.images.name) / "nor.status"
+        self.image.write_bytes(b"\xff" * (8 * 1024 * 1024))
+        self.status_image.write_bytes(b"\x00\x00\x20" + bytes(509))
+        self.extra_args = [
+            "-drive",
+            f"if=pflash,unit=0,format=raw,file={self.image}",
+            "-drive",
+            f"if=pflash,unit=1,format=raw,file={self.status_image}",
+            "-d",
+            "guest_errors,unimp",
+        ]
+        NativeModel.setUp(self)
+        self.qt("writel 0x44030008 1")
+
+    def qmp(self, command):
+        os.write(
+            self.qmp_in,
+            json.dumps({"execute": command, "id": command}).encode() + b"\n",
+        )
+        deadline = time.monotonic() + 5
+        data = bytearray()
+        while time.monotonic() < deadline:
+            ready, _, _ = select.select([self.qmp_out], [], [], 0.1)
+            if ready:
+                data.extend(os.read(self.qmp_out, 65536))
+                while b"\n" in data:
+                    line, _, rest = data.partition(b"\n")
+                    data[:] = rest
+                    row = json.loads(line)
+                    if row.get("id") == command:
+                        self.assertIn("return", row, row)
+                        return row["return"]
+        self.fail("QMP command timed out")
+
+    def restart_with_qmp(self, readonly=False):
+        self.stop()
+        root = Path(self.images.name)
+        for name in ("qmp.in", "qmp.out"):
+            os.mkfifo(root / name)
+        self.qmp_in = os.open(root / "qmp.in", os.O_RDWR | os.O_NONBLOCK)
+        self.qmp_out = os.open(root / "qmp.out", os.O_RDWR | os.O_NONBLOCK)
+        self.addCleanup(os.close, self.qmp_in)
+        self.addCleanup(os.close, self.qmp_out)
+        if readonly:
+            self.extra_args[1] += ",readonly=on"
+        self.extra_args += ["-qmp", f"pipe:{root / 'qmp'}"]
+        NativeModel.setUp(self)
+        self.qmp("qmp_capabilities")
+        self.qt("writel 0x44030008 1")
+
+    def test_flash_readonly_host_image_stops_vm_without_claiming_commit(self):
+        before = hashlib.sha256(self.image.read_bytes()).hexdigest()
+        self.restart_with_qmp(readonly=True)
+        self.program(0x2000, b"\x00" * 32)
+        self.assertEqual(self.qmp("query-status")["status"], "io-error")
+        self.assertEqual(hashlib.sha256(self.image.read_bytes()).hexdigest(), before)
+        self.assertEqual(self.qt("readl 0x02002000"), 0xFFFFFFFF)
+
+    def test_flash_out_of_array_program_stops_without_claiming_commit(self):
+        self.restart_with_qmp()
+        self.program(0x800000, bytes(32))
+        self.assertEqual(self.qmp("query-status")["status"], "internal-error")
+        self.assertEqual(self.image.read_bytes(), b"\xff" * (8 * 1024 * 1024))
+
+    def test_flash_invalid_sr3_write_stops_without_claiming_commit(self):
+        self.restart_with_qmp()
+        self.qt("writel 0x4403001c 0x10011")  # custom WRSR opcode 11h
+        self.qt("writel 0x44030028 0x0c000800")  # reserved SR3 bit 1
+        self.operation(4)
+        self.assertEqual(self.qmp("query-status")["status"], "internal-error")
+        self.assertEqual(self.status_image.read_bytes(), b"\x00\x00\x20" + bytes(509))
+
+    def test_flash_unsupported_physical_status_mode_stops_without_success(self):
+        self.restart_with_qmp()
+        self.write_status(0x0100)  # SRP1 special-order mode has no model.
+        self.assertEqual(self.qmp("query-status")["status"], "internal-error")
+        self.assertEqual(self.status_image.read_bytes(), b"\x00\x00\x20" + bytes(509))
+
+    def operation(self, operation, address=0, wait=True):
+        self.qt(f"writel 0x44030054 {operation << 24 | address:#x}")
+        self.qt("writel 0x44030010 0x60000000")
+        if wait:
+            self.assertTrue(self.qt("readl 0x44030010") & 0x80000000)
+            self.qt("clock_step 1000")
+            self.assertFalse(self.qt("readl 0x44030010") & 0x80000000)
+
+    def program(self, address, data, wait=True):
+        self.assertEqual(len(data), 32)
+        for pos in range(0, 32, 4):
+            value = int.from_bytes(data[pos : pos + 4], "little")
+            self.qt(f"writel 0x44030014 {value:#x}")
+        self.operation(12, address, wait)
+
+    def read_array(self, address):
+        self.operation(5, address)
+        return b"".join(
+            self.qt("readl 0x44030018").to_bytes(4, "little") for _ in range(8)
+        )
+
+    def write_status(self, value):
+        self.qt(f"writel 0x44030028 {0x0c000000 | value << 10:#x}")
+        self.operation(7)
+
+    def read_status(self):
+        self.operation(3)
+        low = self.qt("readl 0x44030024") & 0xFF
+        self.operation(6)
+        return low | (self.qt("readl 0x44030024") & 0xFF) << 8
+
+    def test_flash_id_requires_transaction_and_array_program_is_and_only(self):
+        self.assertEqual(self.qt("readl 0x44030020"), 0)
+        self.operation(20, wait=False)
+        self.qt("clock_step 999")
+        self.assertEqual(self.qt("readl 0x44030020"), 0)
+        self.assertTrue(self.qt("readl 0x44030010") & 0x80000000)
+        self.qt("clock_step 1")
+        self.assertEqual(self.qt("readl 0x54030020"), 0xC86517)
+        self.program(0x1000, b"\x5a" * 32)
+        self.program(0x1000, b"\xf0" * 32)
+        self.assertEqual(self.read_array(0x1000), b"\x50" * 32)
+        self.operation(13, 0x1000)
+        self.assertEqual(self.read_array(0x1000), b"\xff" * 32)
+
+    def test_flash_status_protects_real_range_and_reset_preserves_nv(self):
+        self.write_status(0x0238)  # QE=1, BP=01110: lower 4 MiB protected
+        self.assertEqual(self.read_status(), 0x0238)
+        self.program(0x1000, bytes(32))
+        self.assertEqual(self.read_array(0x1000), b"\xff" * 32)
+        self.program(0x500000, b"\x12" * 32)
+        self.assertEqual(self.read_array(0x500000), b"\x12" * 32)
+        self.qt("writel 0x44030008 0")
+        self.qt("writel 0x44030008 1")
+        self.assertEqual(self.read_status(), 0x0238)
+        self.write_status(0x0200)  # remove BP while keeping QE
+        self.program(0x1000, bytes(32))
+        self.write_status(0x0238)
+        self.operation(13, 0x1000)
+        self.assertEqual(self.read_array(0x1000), bytes(32))
+        self.operation(13, 0x500000)
+        self.assertEqual(self.read_array(0x500000), b"\xff" * 32)
+
+    def test_flash_busy_reset_cancel_and_fresh_process_persistence(self):
+        self.program(0x2000, b"\xa5" * 32, wait=False)
+        self.qt("clock_step 999")
+        self.assertEqual(self.image.read_bytes()[0x2000:0x2020], b"\xff" * 32)
+        self.qt("writel 0x44030008 0")
+        self.qt("clock_step 1000000")
+        self.qt("writel 0x44030008 1")
+        self.assertEqual(self.read_array(0x2000), b"\xff" * 32)
+        self.program(0x2000, b"\x3c" * 32)
+        self.write_status(0x0200)
+        self.stop()
+        self.assertEqual(self.image.read_bytes()[0x2000:0x2020], b"\x3c" * 32)
+        self.assertEqual(self.status_image.read_bytes(), b"\x00\x02\x20" + bytes(509))
+        NativeModel.setUp(self)
+        self.qt("writel 0x44030008 1")
+        self.assertEqual(self.read_array(0x2000), b"\x3c" * 32)
+        self.assertEqual(self.read_status(), 0x0200)
+
+    def test_flash_rejects_incoherent_entry_and_backing_selection(self):
+        self.stop()
+        elf = Path(self.images.name) / "unused.elf"
+        elf.write_bytes(b"\x7fELF")
+        for args, message in (
+            (self.extra_args[2:4], "status drive requires the array drive"),
+            (self.extra_args + ["-kernel", str(elf)], "choose physical NOR image"),
+            (
+                self.extra_args + ["-global", "bk7258-soc.xip-size=4096"],
+                "requires its exact XIP size",
+            ),
+        ):
+            with self.subTest(message=message):
+                result = subprocess.run(
+                    [
+                        os.environ["BK7258_QEMU"],
+                        "-M",
+                        "t5_board",
+                        "-S",
+                        "-display",
+                        "none",
+                        "-monitor",
+                        "none",
+                        "-serial",
+                        "null",
+                        "-qmp",
+                        "stdio",
+                        *args,
+                    ],
+                    input=b'{"execute":"qmp_capabilities"}\n{"execute":"quit"}\n',
+                    capture_output=True,
+                    timeout=5,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(message, result.stderr.decode())
+
+    def test_flash_rejects_malformed_image_geometry_and_status(self):
+        self.stop()
+        for array_size, status, message in (
+            (4096, b"\x00\x00\x20" + bytes(509), "drive must be exactly"),
+            (8 * 1024 * 1024, bytes(1024), "status-drive must be exactly"),
+            (
+                8 * 1024 * 1024,
+                b"\x01\x00\x20" + bytes(509),
+                "unsupported or volatile bits",
+            ),
+            (8 * 1024 * 1024, b"\x00\x00\x20\x01" + bytes(508), "reserved padding"),
+        ):
+            with self.subTest(
+                array_size=array_size, status_size=len(status), message=message
+            ):
+                self.image.write_bytes(b"\xff" * array_size)
+                self.status_image.write_bytes(status)
+                result = subprocess.run(
+                    [
+                        os.environ["BK7258_QEMU"],
+                        "-M",
+                        "t5_board",
+                        "-S",
+                        "-display",
+                        "none",
+                        "-monitor",
+                        "none",
+                        "-serial",
+                        "null",
+                        "-qmp",
+                        "stdio",
+                        *self.extra_args,
+                    ],
+                    input=b'{"execute":"qmp_capabilities"}\n{"execute":"quit"}\n',
+                    capture_output=True,
+                    timeout=5,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(message, result.stderr.decode())
+
+    def test_flash_quad_reads_require_qe_and_failed_reads_do_not_reuse_fifo(self):
+        self.qt("writel 0x44030028 0x0c000020")
+        self.qt("readl 0x02000000")
+        self.stderr.flush()
+        self.assertIn("quad XIP without QE", (self.root / "stderr").read_text())
+        self.write_status(0x0200)
+        self.qt("writel 0x44030028 0x0c000020")
+        self.assertEqual(self.qt("readl 0x02000000"), 0xFFFFFFFF)
+        self.operation(5, 0)
+        self.operation(5, 0xFFFFF0)  # outside the modeled physical array
+        self.qt("readl 0x44030018")
+        self.stderr.flush()
+        self.assertIn("RX FIFO underflow", (self.root / "stderr").read_text())
+
+    def test_flash_xip_crc_aliases_and_raw_array_share_one_backing(self):
+        from _lib.image import crc16
+
+        data = bytes(range(32))
+        self.program(0, data)
+        self.qt("readl 0x02000000")  # data programmed, CRC still erased
+        self.assertEqual((self.qt("readl 0x44030024") >> 8) & 0xFF, 1)
+        self.program(32, crc16(data).to_bytes(2, "big") + b"\xff" * 30)
+        self.assertEqual(self.qt("readl 0x02000000"), 0x03020100)
+        self.assertEqual(self.qt("readl 0x1200001c"), 0x1F1E1D1C)
+        self.assertEqual(self.read_array(0), data)
+        self.assertEqual(self.read_array(32)[:2], crc16(data).to_bytes(2, "big"))
+        self.operation(13, 0)
+        self.assertEqual(self.qt("readl 0x02000000"), 0xFFFFFFFF)
+        self.assertEqual(self.qt("readl 0x12000000"), 0xFFFFFFFF)
+
+
 def product_stop_contract(manifest):
     """Bind a known missing device to the actual, hash-checked CP config."""
     profile = "boards/bk7258/aidk_ai_toy/configs/app"
@@ -657,7 +981,7 @@ def product_stop_contract(manifest):
     # MCUboot enables OTA, which makes the product soft-off path reachable.
     # Its reset-cause read precedes Flash initialization. Direct excludes it.
     contracts = {
-        "direct": ((False, False, False), "0x44030008", "Flash controller"),
+        "direct": ((False, False, False), "0x4980c000", "RF controller"),
         "mcuboot": ((True, True, True), "0x440001e8", "AON PMU R7A reset cause"),
     }
     if manifest.boot not in contracts or flags != contracts[manifest.boot][0]:
@@ -702,8 +1026,8 @@ class ProductStopInputs(unittest.TestCase):
                 )
             )
 
-    def test_direct_has_the_flash_stop(self):
-        self.assertEqual(self.contract()[0], "0x44030008")
+    def test_direct_physical_nor_has_the_rf_stop(self):
+        self.assertEqual(self.contract()[0], "0x4980c000")
 
     def test_mcuboot_has_the_earlier_reset_cause_stop(self):
         self.assertEqual(
@@ -743,6 +1067,12 @@ class ProductCPStop(unittest.TestCase):
     def test_original_product_stops_at_its_known_missing_device(self):
         from _lib import build
 
+        if os.environ.get("BK7258_QEMU_EVIDENCE"):
+            attempted = Path(os.environ["BK7258_QEMU_EVIDENCE"])
+            attempted.mkdir(parents=True, exist_ok=True)
+            (attempted / "product-stop.json").write_text(
+                '{"status":"failed","error":"probe attempt has not completed"}\n'
+            )
         manifest = build.load_build_manifest(
             REPOSITORY, Path(os.environ["BK7258_PRODUCT_BUILD_MANIFEST"])
         )
@@ -765,6 +1095,12 @@ class ProductCPStop(unittest.TestCase):
             argv = qemu.command(
                 REPOSITORY, Path(os.environ["BK7258_QEMU"]), "aidk_ai_toy", elf
             )
+            nor = None
+            if manifest.boot == "direct":
+                drives, nor = qemu._diagnostic_nor(manifest, output)
+                index = argv.index("-kernel")
+                del argv[index : index + 2]
+                argv += drives
             argv[argv.index("stdio")] = f"file:{uart}"
             with (output / "product-stop-stderr.log").open("wb") as stderr:
                 process = subprocess.Popen(
@@ -785,7 +1121,7 @@ class ProductCPStop(unittest.TestCase):
                 )
                 trace = ""
                 try:
-                    deadline = time.monotonic() + 5
+                    deadline = time.monotonic() + 30
                     while time.monotonic() < deadline and process.poll() is None:
                         if mmio.exists():
                             trace = mmio.read_text(errors="replace")
@@ -827,6 +1163,8 @@ class ProductCPStop(unittest.TestCase):
                 "first_fault": faults[0] if faults else None,
                 "expected_first_fault": expected,
                 "expected_missing_device": device,
+                "physical_nor": nor,
+                "launch_argv": argv,
             }
             (output / "product-stop.json").write_text(
                 json.dumps(evidence, indent=2) + "\n"
@@ -835,6 +1173,141 @@ class ProductCPStop(unittest.TestCase):
             self.assertEqual(faults[0], expected)
             self.assertEqual(process.returncode, 0, "QEMU did not exit cleanly")
             self.assertNotIn(b"NuttShell (NSH)", uart.read_bytes())
+
+
+@unittest.skipUnless(
+    os.environ.get("BK7258_QEMU")
+    and (os.environ.get("BK7258_CC") or shutil.which("arm-none-eabi-gcc")),
+    "set BK7258_QEMU and BK7258_CC for native MMIO instruction-fetch checks",
+)
+class FlashInstructionFetch(unittest.TestCase):
+    def test_split_thumb_instruction_and_recorded_disassembly(self):
+        from _lib.image import crc_encode
+
+        compiler = Path(
+            os.environ.get("BK7258_CC") or shutil.which("arm-none-eabi-gcc")
+        )
+        objcopy = compiler.with_name("arm-none-eabi-objcopy")
+        fixture = REPOSITORY / "tests/host/bk7258/qemu"
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            for bad, bad_crc, expected in (
+                (False, False, 0),
+                (True, False, 1),
+                (False, True, 2),
+            ):
+                with self.subTest(bad_result=bad, bad_crc=bad_crc):
+                    elf, raw = output / "cross.elf", output / "cross.bin"
+                    subprocess.run(
+                        [
+                            str(compiler),
+                            "-nostdlib",
+                            "-mcpu=cortex-m33",
+                            "-mthumb",
+                            *(["-DBAD_RESULT"] if bad else []),
+                            "-T",
+                            str(fixture / "xip_cross_page.ld"),
+                            str(fixture / "xip_cross_page.S"),
+                            "-o",
+                            str(elf),
+                        ],
+                        check=True,
+                        timeout=30,
+                    )
+                    subprocess.run(
+                        [str(objcopy), "-O", "binary", str(elf), str(raw)],
+                        check=True,
+                        timeout=10,
+                    )
+                    image = bytearray(b"\xff" * (8 * 1024 * 1024))
+                    encoded = crc_encode(raw.read_bytes())
+                    image[0x11000 : 0x11000 + len(encoded)] = encoded
+                    if bad_crc:
+                        image[(0x11000 // 32) * 34] ^= 1
+                    nor = output / "nor.bin"
+                    nor.write_bytes(image)
+                    # No ELF loader: instruction bytes must come from CRC XIP.
+                    result = subprocess.run(
+                        [
+                            os.environ["BK7258_QEMU"],
+                            "-M",
+                            "t5_board",
+                            "-display",
+                            "none",
+                            "-monitor",
+                            "none",
+                            "-serial",
+                            "null",
+                            "-semihosting-config",
+                            "enable=on,target=native",
+                            "-drive",
+                            f"if=pflash,unit=0,format=raw,file={nor}",
+                            "-d",
+                            "in_asm,guest_errors",
+                            "-D",
+                            str(output / "instructions.log"),
+                        ],
+                        capture_output=True,
+                        timeout=10,
+                    )
+                    self.assertEqual(
+                        result.returncode, expected, result.stderr.decode()
+                    )
+                    trace = (output / "instructions.log").read_text()
+                    self.assertIn("0x02010040" if bad_crc else "0x02010ffe", trace)
+                    if bad_crc:
+                        self.assertIn("XIP CRC mismatch", trace)
+
+
+@unittest.skipUnless(
+    os.environ.get("BK7258_QEMU_SOURCE") and os.environ.get("BK7258_QEMU_BUILD"),
+    "set BK7258_QEMU_SOURCE and BK7258_QEMU_BUILD for production NOR helper checks",
+)
+class NorBackendModel(unittest.TestCase):
+    def test_production_nor_helpers_with_injected_block_errors(self):
+        source = Path(os.environ["BK7258_QEMU_SOURCE"]).resolve()
+        build = Path(os.environ["BK7258_QEMU_BUILD"]).resolve()
+        flags = shlex.split(
+            subprocess.check_output(
+                ["pkg-config", "--cflags", "--libs", "glib-2.0"], text=True
+            )
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            binary = Path(temporary) / "nor_backend_test"
+            subprocess.run(
+                [
+                    os.environ.get("CC", "cc"),
+                    "-std=gnu11",
+                    "-O1",
+                    "-g",
+                    "-ffunction-sections",
+                    "-fdata-sections",
+                    "-Wall",
+                    "-Werror",
+                    "-Wno-unused-function",
+                    "-D_GNU_SOURCE",
+                    "-DCONFIG_SOFTMMU",
+                    "-DCOMPILING_SYSTEM_VS_USER",
+                    "-fsanitize=address,undefined",
+                    "-fno-sanitize-recover=all",
+                    f'-DNOR_SOURCE="{source}/hw/block/bk7258_nor.c"',
+                    f"-I{build}",
+                    f"-I{source}",
+                    f"-I{source}/include",
+                    f"-I{source}/host/include/{platform.machine()}",
+                    f"-I{source}/host/include/generic",
+                    "-isystem",
+                    str(source / "linux-headers"),
+                    str(REPOSITORY / "tests/host/bk7258/qemu/nor_backend_test.c"),
+                    "-Wl,--gc-sections",
+                    *flags,
+                    "-o",
+                    str(binary),
+                ],
+                check=True,
+                timeout=60,
+            )
+            subprocess.run([str(binary)], check=True, timeout=60)
 
 
 @unittest.skipUnless(

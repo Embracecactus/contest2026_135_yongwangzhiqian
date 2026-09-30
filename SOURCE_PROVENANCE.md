@@ -525,3 +525,12 @@ Embracecactus/bk_avdk_smp cb080de1655d579c7593ecf504c440997c4c137b:
 The fixture is a bare-metal emulator input, not copied production firmware.
 Native GPL-2.0-or-later QEMU models remain in the separate qemu-bk7258 repository;
 its `docs/system/arm/bk7258.rst` records model provenance and limitations.
+
+`tests/host/bk7258/qemu/xip_cross_page.{S,ld}` are new Apache-2.0 native
+Thumb-2 regression fixtures. `nor_backend_test.c` is a new GPL-2.0-or-later
+helper harness including the fork's production NOR source at build time,
+with explicitly mocked BlockBackend failures. Its independent protection
+oracle uses GigaDevice GD25WQ64E Rev1.2 tables 4/5:
+https://download.gigadevice.com/Datasheet/DS-00476-GD25WQ64E-Rev1.2.pdf
+No vendor source or datasheet text is copied; no hardware or OTP behavior
+beyond the model's documented subset is claimed.

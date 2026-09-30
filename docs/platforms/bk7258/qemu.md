@@ -93,10 +93,10 @@ FPB/DWT/debug-monitor。验收只允许每次启动准确的 8 条探测日志�
 定向测试与上游现有 576 个 ptimer 测试；未设置时明确 skip，不能当已运行。
 
 未改 AIDK app 产品 CP 的停点按已验证构建配置区分：`direct` 已越过 CKMN 和
-MBOX0 初始化，首个缺失设备为 Flash 控制器 `0x44030008`；`mcuboot` 开启 OTA
+MBOX0 与物理 NOR 初始化，首个缺失设备为 RF 控制器 `0x4980c000`；`mcuboot` 开启 OTA
 及 soft-off，启动时先读取尚未建模的 AON PMU R7A reset cause `0x440001e8`。
 测试从构建 manifest 校验 ELF 与 SDK，并核对 ELF 旁 `.config` 的哈希及上述
-Kconfig 组合，只接受对应地址；未知配置或其他停点均失败。MCUboot 模式也是直接
+Kconfig 组合，只接受对应地址；未知配置或其他停点均失败。direct 产品探测从新建的物理 NOR 取指，需选择全新的证据目录。MCUboot 模式也是直接
 进入产品 CP ELF，未执行 bootloader。回归通过只表示准确保留已知缺口，不能作为
 产品启动成功证据。用正常产品构建的 manifest 复测：
 
@@ -110,8 +110,31 @@ BK7258_QEMU_EVIDENCE=/path/to/product-stop-evidence \
 
 CKMN 已按真实时钟比计数并验证失钟/取消，MBOX0 v2 已用真实八槽队列和每核 IRQ63
 验证顺序、满队列、保护及原生三核往返。其未知边界以模型文档的显式策略为准，
-不代表完整时钟校准或 RPMsg 软件验收。当前还缺 Flash 控制器/JEDEC/持久化、PSRAM、
+不代表完整时钟校准或 RPMsg 软件验收。当前已覆盖受限 Flash 控制器/GD25WQ64E/文件持久化；仍缺 PSRAM、
 legacy MBOX1、RPMsg、真实 AP SMP 和 boot/OTA；其支持状态由模型文档统一定义，不凭 NSH 或三个 machine 名称推断。
+
+## 物理 NOR 诊断入口
+
+在全新的输出目录中添加 `--physical-nor`，会按经过校验的 direct manifest 分区
+偏移放置已带 CRC 的 boot/CP/AP 字节，建立 8-MiB 仿真 NOR 与 512-byte NV
+status 文件，然后直接进入 CP。不会执行 ROM/BL1/BL2，保留数据、设备身份与
+校准区域均为空白，也不生成设备下载包。已有 NOR 文件会被拒绝覆盖：
+
+```sh
+python3 tools/bk7258/bk7258.py qemu native-nsh \
+  --qemu /path/to/qemu-system-arm --build-manifest /path/to/direct/build-manifest.json \
+  --physical-nor --output /path/to/fresh-nor-evidence --timeout 30
+```
+
+这条路径已用真实 native_nsh CP 验证同样 14 项 NSH/任务/时钟/重启检查，证据
+记录实际启动参数与 NOR/status 前后哈希。规范型号选择为 GD25WQ64E，不推断
+各实体板装配的具体厂商。模型支持的状态位、保护、CRC 与失败处理边界见 QEMU
+模型文档；其 1-us 异步事务只是功能测试期限，不表示 Flash 性能。
+
+宿主测试另覆盖文件持久化、软复位取消、BP/CMP 保护、只读介质停止、非法几何/
+状态输入、未知状态模式、坏 CRC 与跨页 Thumb-2 取指。设置 SOURCE/BUILD 后的
+NOR helper 回归直接编译生产源码，在 ASan/UBSan 下用模拟 BlockBackend 注入
+写入与 flush 错误；不能将该注入测试当作实际存储故障测试。
 
 ## Manifest 同步
 
