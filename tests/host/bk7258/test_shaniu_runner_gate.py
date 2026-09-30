@@ -8,6 +8,7 @@ and gate must reject bad evidence without running Gradle or product logic.
 import json
 import hashlib
 import os
+import re
 from pathlib import Path
 import sys
 import tempfile
@@ -113,7 +114,7 @@ class JunitGateTest(unittest.TestCase):
             elif fault == "corrupt":
                 selected.write_text("<testsuite><")
                 os.utime(selected, (time.time() + 10, time.time() + 10))
-            elif fault in ("zero", "skip", "missing_case", "duplicate", "error"):
+            elif fault in ("zero", "skip", "missing_case", "duplicate", "unexpected", "error"):
                 tree = ET.parse(selected)
                 suite = tree.getroot()
                 if fault == "zero":
@@ -125,6 +126,10 @@ class JunitGateTest(unittest.TestCase):
                     suite.set("skipped", "1")
                 elif fault == "missing_case":
                     suite.remove(suite.find("testcase"))
+                    suite.set("tests", str(len(suite.findall("testcase"))))
+                elif fault == "unexpected":
+                    ET.SubElement(suite, "testcase", name="unregisteredRegression",
+                                  classname=suite.attrib["name"], time="0.001")
                     suite.set("tests", str(len(suite.findall("testcase"))))
                 elif fault == "duplicate":
                     suite.append(ET.fromstring(ET.tostring(suite.find("testcase"))))
@@ -169,6 +174,15 @@ class JunitGateTest(unittest.TestCase):
     def test_duplicate_method_is_not_complete_collection(self):
         self.assertNotEqual(self.collect("duplicate")[0], 0)
 
+    def test_extra_passing_method_is_rejected(self):
+        code, results = self.collect("unexpected")
+        self.assertNotEqual(code, 0)
+        self.assertTrue(all(r["status"] == "PASS" for r in results))
+        self.assertIn(
+            "unexpected: ota.OtaControlUploadTest.unregisteredRegression",
+            runner.collection_errors(results, JVM_IDS),
+        )
+
     def test_junit_error_is_not_pass(self):
         code, results = self.collect("error")
         self.assertNotEqual(code, 0)
@@ -193,6 +207,40 @@ class SelectedCollectionGateTest(unittest.TestCase):
         self.assertEqual(len(baseline), 63)
         self.assertFalse(set(baseline) & set(added))
         self.assertCountEqual(baseline + added, runner.REQUIRED)
+
+    def test_selected_lifecycle_kotlin_methods_match_registration(self):
+        source_root = runner.ROOT / "android/shaniu-companion/app/src/test/java/com/shaniu/companion"
+        for name in ("provision.DeviceControlSessionTest", "ota.OtaSourceLeaseTest"):
+            with self.subTest(name=name):
+                source = (source_root / (name.replace(".", "/") + ".kt")).read_text()
+                methods = re.findall(r"@Test(?:\([^)]*\))?\s+fun\s+(\w+)\s*\(", source)
+                self.assertTrue(methods)
+                # Fail closed if a new annotation shape needs parser support.
+                self.assertEqual(len(methods), len(re.findall(r"(?m)^\s*@Test\b", source)))
+                self.assertCountEqual(
+                    [name + "." + method for method in methods],
+                    [ident for ident in runner.REQUIRED if ident.startswith(name + ".")],
+                )
+
+    def test_lifecycle_host_methods_are_collected_and_registered(self):
+        import importlib
+        with patch.object(runner, "add") as add:
+            runner.add_lifecycle_regressions(unittest.TestSuite())
+        cases = [call.args for call in add.call_args_list]
+        self.assertEqual(len(cases), 19)
+        ids = [case[1] for case in cases]
+        prefixes = {ident.rsplit(".", 1)[0] + "." for ident in ids}
+        self.assertCountEqual(ids, [ident for ident in runner.REQUIRED
+                                   if any(ident.startswith(prefix) for prefix in prefixes)])
+        by_class = {}
+        for _, _, _, _, command in cases:
+            module = Path(command[1]).stem
+            cls, method = command[2].split(".")
+            by_class.setdefault((module, cls), []).append(method)
+        for (module, cls), methods in by_class.items():
+            with self.subTest(module=module, cls=cls):
+                test_class = getattr(importlib.import_module(module), cls)
+                self.assertCountEqual(methods, unittest.defaultTestLoader.getTestCaseNames(test_class))
 
     def test_empty_selection_cannot_pass(self):
         self.assertTrue(runner.collection_errors([], []))

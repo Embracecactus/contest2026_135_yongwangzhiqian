@@ -159,6 +159,48 @@ def add(suite, case_id, parent, layer, args, ready=True, marker=True, setup_exit
     suite.addTest(unittest.FunctionTestCase(run, description=case_id))
 
 
+def add_lifecycle_regressions(suite):
+    """Collect the selected capture, reset and OTA lifecycle host regressions."""
+    for parent, label, module, cls, methods in (
+        ("AGENT-03", "capture-lifecycle", "test_agent_capture_lifecycle.py",
+         "CaptureLifecycleTest", (
+             "test_detached_close_asr_and_cleanup",
+             "test_start_failure_detaches_before_close",
+         )),
+        ("RST-02", "trigger", "test_shaniu_reset_nfc.py",
+         "ResetTriggerTest", (
+             "test_cloud_clear_keeps_local_listener",
+             "test_started_trigger_stops_before_cleanup",
+             "test_trigger_stop_busy_retries_before_cleanup",
+             "test_trigger_stop_failure_remains_retryable",
+             "test_stopped_trigger_is_not_stopped_again",
+             "test_cloud_failure_after_trigger_stop_retries",
+         )),
+        ("RST-01", "receipt-query", "test_provision_pair_query.py",
+         "PairReceiptQueryTest", (
+             "test_completed_and_absent_receipts",
+             "test_pending_receipt_retries",
+             "test_receipt_errors_are_uncertain",
+             "test_pending_receipt_keeps_original_deadline",
+             "test_query_rejects_clock_rollback",
+             "test_query_rejects_stale_generation",
+             "test_query_waits_for_tls_and_preserves_deadline",
+             "test_tls_failure_closes_query_before_receipt",
+             "test_receipt_is_not_repeated_when_output_is_busy",
+         )),
+        ("OTA-01", "transport", "test_bk7258_ota_transport.py",
+         "OtaTransportTest", (
+             "test_http_timeout",
+             "test_reboot_prepare_commit",
+         )),
+    ):
+        for method in methods:
+            add(
+                suite, parent + "." + label + "." + method, parent, "L1",
+                [sys.executable, HERE / module, cls + "." + method], marker=False,
+            )
+
+
 def git(*args, cwd=ROOT):
     return subprocess.check_output(["git", *args], cwd=cwd, text=True).strip()
 
@@ -299,6 +341,7 @@ def run_jvm():
         "ota.OtaUpdatePolicyTest",
         "ota.OtaControlUploadTest",
         "ota.OtaSessionContractTest",
+        "ota.OtaSourceLeaseTest",
     ]
     app = ROOT / "android/shaniu-companion"
     args = ["./gradlew", ":app:testDebugUnitTest", "--offline", "--rerun-tasks"]
@@ -376,6 +419,12 @@ def run_jvm():
                 "temporaryReadFailurePreservesConnectionAndUnconfirmedWrite": "NET-01",
                 "ordinaryErrorIsNotDisconnectionAndDoesNotReplaceValue": "UI-01",
                 "infoAndOtaDoNotReplaceStatusAndFragmentsStayContiguous": "OTA-01",
+                "transientInfoFailureRetriesAfterDelayWithoutBlockingQueuedWrite": "OTA-01",
+                "infoRetryBudgetIsBoundedButConfirmedTransitionRefreshesItOnce": "OTA-01",
+                "permanentInfoErrorDoesNotRetryAndTransportBusyUsesRetryBudget": "OTA-01",
+                "confirmedStatusInvalidatesEarlierInfoAndDoesNotRearmAnExhaustedBudget": "OTA-01",
+                "infoRetryDoesNotInterruptAConfigTransactionOrRunInBackground": "OTA-01",
+                "reconnectInvalidatesFirmwareInfoAndCancelsOldRetry": "OTA-01",
                 "failedReconnectKeepsOneCappedForegroundRetry": "NET-01",
                 "otherActivityGraceAndForegroundReturnHaveDifferentPolicies": "UI-02",
                 "claimHandoffDropsOldIdentityRetryAndCachedStatus": "UI-03",
@@ -472,6 +521,7 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     before = production_digest()
     suite = unittest.TestSuite()
+    add_lifecycle_regressions(suite)
     binaries = {}
     prepare_pack_trial_tls()
     for target in (
@@ -1780,6 +1830,11 @@ def main():
         HERE / "test_provision_owner.c",
         HERE / "test_bk7258_agent_media_player.c",
         HERE / "test_agent_audio_playback.c",
+        HERE / "test_agent_capture_lifecycle.py",
+        HERE / "test_provision_pair_query.py",
+        HERE / "test_bk7258_ota_transport.py",
+        HERE / "test_bk7258_ota_http_timeout.c",
+        HERE / "test_bk7258_ota_reboot_race.c",
         HERE / "test_bk7258_engineering_audio.c",
         HERE / "test_factory_diagnostics.c",
         HERE / "test_factory_diagnostics_tool.py",
@@ -1986,6 +2041,7 @@ def main():
             str(p.relative_to(ROOT.parent)): digest(p)
             for p in (
                 ROOT.parent / "packages/ai_agent/src/voice/audio_capture.c",
+                ROOT.parent / "packages/ai_agent/src/voice/voice_channel.c",
                 ROOT.parent / "packages/ai_agent/include/voice/audio_capture.h",
                 HERE / "test_bk7258_agent_media_recorder.c",
             )
@@ -2025,11 +2081,13 @@ def main():
         json.dumps(report, ensure_ascii=False, indent=2) + "\n"
     )
     print(json.dumps(counts), "production_unchanged=", before == after)
+    for error in report["collection_errors"]:
+        print("COLLECTION_ERROR: " + error, file=sys.stderr)
     return (
         0
         if (
             result.wasSuccessful()
-            and not collection_errors(RESULTS, REQUIRED)
+            and not report["collection_errors"]
             and jvm_code == 0
             and before == after
             and restore_result is not None
