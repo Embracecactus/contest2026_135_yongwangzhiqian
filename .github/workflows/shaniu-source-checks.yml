@@ -150,14 +150,9 @@ jobs:
             --build-dir "$RUNNER_TEMP/qemu-native-build" --jobs 4
           product_manifest=$(find "$cold/out/bk7258/aidk_ai_toy" \
             -path '*/releases/mcuboot/build-manifest.json' -type f -print -quit)
-          product_elf=$(python3 - "$product_manifest" <<'PYTHON'
-          import json, pathlib, sys
-          manifest = pathlib.Path(sys.argv[1])
-          print(manifest.parents[2] / json.loads(manifest.read_text())['elfs']['cp']['path'])
-          PYTHON
-          )
+          test -n "$product_manifest" && test -f "$product_manifest"
           BK7258_QEMU="$RUNNER_TEMP/qemu-native-build/qemu-system-arm" \
-          BK7258_PRODUCT_CP_ELF="$product_elf" \
+          BK7258_PRODUCT_BUILD_MANIFEST="$product_manifest" \
           BK7258_NM="$project/prebuilt/gcc-arm-none-eabi-10.3-2021.10/bin/arm-none-eabi-nm" \
           BK7258_QEMU_EVIDENCE="$RUNNER_TEMP/qemu-native-evidence/product-stop" \
             python3 tests/host/bk7258/test_bk7258_qemu.py ProductCPStop -v

@@ -92,12 +92,17 @@ FPB/DWT/debug-monitor。验收只允许每次启动准确的 8 条探测日志�
 设置上面的 SOURCE/BUILD 环境变量还会编译真实 SysTick/ptimer 源码，执行 15 个
 定向测试与上游现有 576 个 ptimer 测试；未设置时明确 skip，不能当已运行。
 
-未改产品 CP 已越过 CKMN 和 MBOX0 初始化，最早缺失设备目前为 Flash 控制器
-`0x44030008`。回归通过表示仍准确停在已知缺口，绝不表示产品启动成功。用正常产品构建生成的 ELF 可复测：
+未改 AIDK app 产品 CP 的停点按已验证构建配置区分：`direct` 已越过 CKMN 和
+MBOX0 初始化，首个缺失设备为 Flash 控制器 `0x44030008`；`mcuboot` 开启 OTA
+及 soft-off，启动时先读取尚未建模的 AON PMU R7A reset cause `0x440001e8`。
+测试从构建 manifest 校验 ELF 与 SDK，并核对 ELF 旁 `.config` 的哈希及上述
+Kconfig 组合，只接受对应地址；未知配置或其他停点均失败。MCUboot 模式也是直接
+进入产品 CP ELF，未执行 bootloader。回归通过只表示准确保留已知缺口，不能作为
+产品启动成功证据。用正常产品构建的 manifest 复测：
 
 ```sh
 BK7258_QEMU=/path/to/qemu-system-arm \
-BK7258_PRODUCT_CP_ELF=/path/to/product/cp/cmake/nuttx \
+BK7258_PRODUCT_BUILD_MANIFEST=/path/to/product/releases/mcuboot/build-manifest.json \
 BK7258_NM=/path/to/locked/arm-none-eabi-nm \
 BK7258_QEMU_EVIDENCE=/path/to/product-stop-evidence \
   python3 tests/host/bk7258/test_bk7258_qemu.py ProductCPStop -v

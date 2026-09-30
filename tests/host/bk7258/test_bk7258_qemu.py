@@ -630,15 +630,124 @@ class NativeModel(unittest.TestCase):
         self.assertEqual(self.qt("readl 0x44010018"), 10)
 
 
+def product_stop_contract(manifest):
+    """Bind a known missing device to the actual, hash-checked CP config."""
+    profile = "boards/bk7258/aidk_ai_toy/configs/app"
+    if (
+        manifest.physical_board != "aidk_ai_toy"
+        or manifest.provenance is None
+        or manifest.provenance["profiles"]["cp"] != profile
+    ):
+        raise ValueError("product stop probe requires the AIDK app profile")
+    config = manifest.elfs["cp"].parent / ".config"
+    raw = config.read_bytes()
+    digest = hashlib.sha256(raw).hexdigest()
+    document = json.loads(manifest.source.read_text())
+    if digest != document["roles"]["cp"]["resolved_config_sha256"]:
+        raise ValueError("product CP resolved config hash mismatch")
+    enabled = set(re.findall(r"(?m)^(CONFIG_\w+)=y$", raw.decode()))
+    flags = tuple(
+        name in enabled
+        for name in (
+            "CONFIG_BK7258_MCUBOOT_IMAGE",
+            "CONFIG_BK7258_OTA",
+            "CONFIG_BK7258_PM_SOFT_OFF",
+        )
+    )
+    # MCUboot enables OTA, which makes the product soft-off path reachable.
+    # Its reset-cause read precedes Flash initialization. Direct excludes it.
+    contracts = {
+        "direct": ((False, False, False), "0x44030008", "Flash controller"),
+        "mcuboot": ((True, True, True), "0x440001e8", "AON PMU R7A reset cause"),
+    }
+    if manifest.boot not in contracts or flags != contracts[manifest.boot][0]:
+        raise ValueError("unsupported product boot/config stop contract")
+    _, address, device = contracts[manifest.boot]
+    return address, device, digest
+
+
+class ProductStopInputs(unittest.TestCase):
+    def contract(self, boot="direct", flags=(), profile="app", corrupt=False):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            raw = "".join(f"CONFIG_BK7258_{name}=y\n" for name in flags).encode()
+            (root / ".config").write_bytes(raw)
+            source = root / "build-manifest.json"
+            source.write_text(
+                json.dumps(
+                    {
+                        "roles": {
+                            "cp": {
+                                "resolved_config_sha256": (
+                                    "0" * 64
+                                    if corrupt
+                                    else hashlib.sha256(raw).hexdigest()
+                                )
+                            }
+                        }
+                    }
+                )
+            )
+            return product_stop_contract(
+                argparse.Namespace(
+                    boot=boot,
+                    physical_board="aidk_ai_toy",
+                    source=source,
+                    elfs={"cp": root / "nuttx"},
+                    provenance={
+                        "profiles": {
+                            "cp": f"boards/bk7258/aidk_ai_toy/configs/{profile}"
+                        }
+                    },
+                )
+            )
+
+    def test_direct_has_the_flash_stop(self):
+        self.assertEqual(self.contract()[0], "0x44030008")
+
+    def test_mcuboot_has_the_earlier_reset_cause_stop(self):
+        self.assertEqual(
+            self.contract("mcuboot", ("MCUBOOT_IMAGE", "OTA", "PM_SOFT_OFF"))[0],
+            "0x440001e8",
+        )
+
+    def test_other_profiles_are_not_product_evidence(self):
+        with self.assertRaisesRegex(ValueError, "AIDK app profile"):
+            self.contract(profile="native_nsh")
+
+    def test_modified_config_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "hash mismatch"):
+            self.contract(corrupt=True)
+
+    def test_unknown_or_mismatched_boot_config_is_rejected(self):
+        for boot, flags in (
+            ("unknown", ()),
+            ("mcuboot", ()),
+            ("direct", ("MCUBOOT_IMAGE",)),
+            ("mcuboot", ("MCUBOOT_IMAGE", "OTA")),
+            ("direct", ("PM_SOFT_OFF",)),
+        ):
+            with self.subTest(boot=boot, flags=flags), self.assertRaisesRegex(
+                ValueError, "unsupported product boot/config"
+            ):
+                self.contract(boot, flags)
+
+
 @unittest.skipUnless(
     os.environ.get("BK7258_QEMU")
-    and os.environ.get("BK7258_PRODUCT_CP_ELF")
+    and os.environ.get("BK7258_PRODUCT_BUILD_MANIFEST")
     and os.environ.get("BK7258_NM"),
-    "set BK7258_PRODUCT_CP_ELF and BK7258_NM for the unchanged product stop probe",
+    "set BK7258_PRODUCT_BUILD_MANIFEST and BK7258_NM for the product stop probe",
 )
 class ProductCPStop(unittest.TestCase):
-    def test_original_product_stops_at_unimplemented_flash_controller(self):
-        elf = Path(os.environ["BK7258_PRODUCT_CP_ELF"]).resolve()
+    def test_original_product_stops_at_its_known_missing_device(self):
+        from _lib import build
+
+        manifest = build.load_build_manifest(
+            REPOSITORY, Path(os.environ["BK7258_PRODUCT_BUILD_MANIFEST"])
+        )
+        expected, device, config_digest = product_stop_contract(manifest)
+        elf = manifest.elfs["cp"]
         symbols = subprocess.check_output(
             [os.environ["BK7258_NM"], "-n", str(elf)], text=True, timeout=10
         )
@@ -694,19 +803,37 @@ class ProductCPStop(unittest.TestCase):
                         process.communicate(timeout=5)
                 trace = mmio.read_text(errors="replace")
             faults = re.findall(r"fault address (0x[0-9a-f]+)", trace)
+            known_stop = (
+                faults
+                and faults[0] == expected
+                and process.returncode == 0
+                and b"NuttShell (NSH)" not in uart.read_bytes()
+            )
+            (output / "resolved.config").write_bytes(
+                (elf.parent / ".config").read_bytes()
+            )
+            (output / "build-manifest.json").write_bytes(manifest.source.read_bytes())
             evidence = {
-                "status": "blocked",
-                "scope": "unchanged product CP direct ELF probe",
+                "status": "blocked" if known_stop else "failed",
+                "scope": "unchanged product CP ELF entry probe; bootloader not executed",
+                "boot": manifest.boot,
+                "cp_profile": manifest.provenance["profiles"]["cp"],
+                "resolved_config_sha256": config_digest,
+                "build_manifest_sha256": hashlib.sha256(
+                    manifest.source.read_bytes()
+                ).hexdigest(),
                 "elf_sha256": hashlib.sha256(elf.read_bytes()).hexdigest(),
                 "vector": f"0x{vectors[0]}",
                 "first_fault": faults[0] if faults else None,
-                "expected_missing_device": "Flash controller at 0x44030008",
+                "expected_first_fault": expected,
+                "expected_missing_device": device,
             }
             (output / "product-stop.json").write_text(
                 json.dumps(evidence, indent=2) + "\n"
             )
             self.assertTrue(faults, "product did not reach the known MMIO stop")
-            self.assertEqual(faults[0], "0x44030008")
+            self.assertEqual(faults[0], expected)
+            self.assertEqual(process.returncode, 0, "QEMU did not exit cleanly")
             self.assertNotIn(b"NuttShell (NSH)", uart.read_bytes())
 
 
