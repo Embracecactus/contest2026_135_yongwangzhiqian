@@ -395,6 +395,187 @@ class NativeModel(unittest.TestCase):
         self.assertEqual(self.qt("readl 0x44010100"), 0)
         self.assertEqual(self.qt("readl 0x440100e8"), 0)
 
+    def test_clock_monitor_timed_ratio_mask_and_peer_routes(self):
+        self.qt("writel 0x448a0008 1")
+        self.qt("writel 0x44010080 0x200000")
+        self.qt("writel 0x44010088 0x200000")
+        for window in (32, 64, 128, 1023):
+            self.qt("writel 0x448a0014 0")
+            self.qt("writel 0x448a0020 7")
+            self.qt(f"writel 0x448a0010 {window}")
+            self.qt("writel 0x448a0014 1")  # count, completion masked
+            self.qt(f"clock_step {window * 31250 - 1}")
+            self.assertEqual(self.qt("readl 0x448a0020"), 0)
+            self.qt("clock_step 1")
+            self.assertEqual(self.qt("readl 0x548a0018"), 26000000 * window // 32000)
+            self.assertEqual(self.qt("readl 0x448a0020"), 1)
+            self.assertEqual(self.qt("readl 0x440100a0"), 0)
+            self.qt("writel 0x448a0014 3")  # late unmask preserves completion
+            self.assertEqual(self.qt("readl 0x440100a0"), 0x200000)
+            self.assertEqual(self.qt("readl 0x440100a8"), 0x200000)
+            self.qt("writel 0x44010080 0")
+            self.assertEqual(self.qt("readl 0x440100a8"), 0x200000)
+            self.qt("writel 0x44010080 0x200000")
+            self.qt("writel 0x448a0020 1")
+            self.assertEqual(self.qt("readl 0x440100a0"), 0)
+            self.assertEqual(self.qt("readl 0x440100a8"), 0)
+            self.qt("clock_step 50000000")
+            self.assertEqual(self.qt("readl 0x448a0020"), 0)  # no auto-retrigger
+
+    def test_clock_monitor_busy_disable_and_reset_cancel(self):
+        self.qt("writel 0x448a0008 1")
+        self.qt("writel 0x448a0010 64")
+        self.qt("writel 0x448a0014 3")
+        self.qt("writel 0x448a0010 128")
+        self.assertEqual(self.qt("readl 0x448a0010"), 64)
+        self.qt("clock_step 1000000")
+        self.qt("writel 0x448a0014 0")
+        self.qt("clock_step 5000000")
+        self.assertEqual(self.qt("readl 0x448a0020"), 0)
+        self.qt("writel 0x448a0014 3")
+        self.qt("clock_step 1000000")
+        self.qt("writel 0x448a0008 0")
+        self.qt("clock_step 5000000")
+        for offset in (0x10, 0x14, 0x18, 0x20):
+            self.assertEqual(self.qt(f"readl {0x448a0000 + offset:#x}"), 0)
+        self.qt("writel 0x448a0010 32")  # held reset ignores configuration
+        self.assertEqual(self.qt("readl 0x448a0010"), 0)
+        self.qt("writel 0x448a0008 1")
+        self.qt("writel 0x448a0014 3")  # zero window cannot fabricate completion
+        self.qt("clock_step 5000000")
+        self.assertEqual(self.qt("readl 0x448a0020"), 0)
+        self.assertEqual(self.qt("readl 0x448a0018"), 0)
+
+    def test_clock_monitor_lost_source_invalidates_and_requires_rearm(self):
+        self.qt("writel 0x448a0008 1")
+        self.qt("writel 0x448a0010 64")
+        self.qt("writel 0x448a0014 3")
+        self.qt("clock_step 1000000")
+        self.qt("writel 0x44010114 0x4000")  # ANA5 ROSC power-down
+        self.qt("clock_step 1000")
+        self.qt("clock_step 5000000")
+        self.assertEqual(self.qt("readl 0x448a0020"), 0)
+        self.qt("writel 0x448a0014 0")
+        self.qt("writel 0x448a0014 3")  # stopped source also rejects a new start
+        self.qt("clock_step 5000000")
+        self.assertEqual(self.qt("readl 0x448a0020"), 0)
+        self.qt("writel 0x44010114 0")
+        self.qt("clock_step 5000000")
+        self.assertEqual(self.qt("readl 0x448a0020"), 0)
+        self.qt("writel 0x448a0014 0")
+        self.qt("writel 0x448a0014 3")
+        self.qt("clock_step 2000000")
+        self.assertEqual(self.qt("readl 0x448a0020"), 1)
+        self.assertEqual(self.qt("readl 0x448a0018"), 52000)
+
+    def mailbox_setup(self):
+        self.qt("writel 0x41000008 5")  # reset released, cross-channel setup allowed
+        for channel, (start, length) in enumerate(((0, 2), (2, 3), (5, 3))):
+            base = 0x41000040 + channel * 0x40
+            self.qt(f"writel {base:#x} {0x100 | start:#x}")
+            self.qt(f"writel {base + 4:#x} {length << 1 | 1:#x}")
+            self.qt(f"writel {0x44010084 + channel * 8:#x} 0x80000000")
+
+    def mailbox_send(self, source, destination, data0, data1):
+        base = 0x41000040 + source * 0x40
+        for offset, value in ((8, data0), (12, data1), (16, destination)):
+            self.qt(f"writel {base + offset:#x} {value:#x}")
+
+    def mailbox_receive(self, destination):
+        base = 0x41000040 + destination * 0x40
+        return tuple(self.qt(f"readl {base + offset:#x}") for offset in (20, 24, 28))
+
+    def test_mailbox_cross_channel_payloads_and_private_irq_routes(self):
+        self.mailbox_setup()
+        self.assertEqual(self.qt("readl 0x51000000"), 0x6D61696C)
+        self.assertEqual(self.qt("readl 0x41000004"), 0x20000)
+        for source in range(3):
+            for destination in range(3):
+                if source == destination:
+                    continue
+                data = (0x28001000 + source, 0 if destination == 2 else 16)
+                self.mailbox_send(source, destination, *data)
+                base = 0x41000040 + destination * 0x40
+                self.assertEqual(self.qt(f"readl {base + 0x20:#x}"), 4)
+                for core in range(3):
+                    self.assertEqual(
+                        self.qt(f"readl {0x440100a4 + core * 8:#x}"),
+                        0x80000000 if core == destination else 0,
+                    )
+                self.assertEqual(self.mailbox_receive(destination), (source, *data))
+                self.assertEqual(self.qt(f"readl {base + 0x20:#x}"), 2)
+                # RX-data reads are latches, not additional FIFO pop operations.
+                self.assertEqual(self.qt(f"readl {base + 0x18:#x}"), data[0])
+                self.assertEqual(self.qt("readl 0x4100000c"), 0)
+
+    def test_mailbox_full_preserves_order_wraparound_and_w1c(self):
+        self.mailbox_setup()
+        for value in (11, 22, 33):
+            self.mailbox_send(0, 1, value, 16)
+        self.assertEqual(self.qt("readl 0x410000a0"), 13)
+        self.mailbox_send(0, 1, 44, 16)
+        self.assertTrue(self.qt("readl 0x41000040") & (1 << 18))
+        self.qt("writel 0x41000040 0x40100")
+        self.assertFalse(self.qt("readl 0x41000040") & (1 << 18))
+        self.assertEqual(self.mailbox_receive(1), (0, 11, 16))
+        self.mailbox_send(2, 1, 55, 0)
+        self.assertEqual(self.mailbox_receive(1), (0, 22, 16))
+        self.assertEqual(self.mailbox_receive(1), (0, 33, 16))
+        self.assertEqual(self.mailbox_receive(1), (2, 55, 0))
+        self.assertEqual(self.qt("readl 0x410000a0"), 2)
+        self.mailbox_send(0, 7, 99, 16)
+        self.assertTrue(self.qt("readl 0x41000040") & (1 << 16))
+        self.qt("writel 0x41000040 0x10100")
+        self.assertFalse(self.qt("readl 0x41000040") & (1 << 16))
+        self.assertEqual(self.qt("readl 0x4100000c"), 0)
+
+    def test_mailbox_protection_mask_and_nonempty_disable(self):
+        self.mailbox_setup()
+        self.mailbox_send(0, 1, 0x1234, 16)
+        self.qt("writel 0x41000080 2")  # channel RX IRQ mask, keep FIFO start
+        self.assertEqual(self.qt("readl 0x440100ac"), 0)
+        self.assertEqual(self.qt("readl 0x410000a0"), 4)
+        self.qt("writel 0x41000080 0x102")
+        self.assertEqual(self.qt("readl 0x440100ac"), 0x80000000)
+        self.qt("writel 0x4401008c 0")
+        self.assertEqual(self.qt("readl 0x440100ac"), 0)
+        self.qt("writel 0x4401008c 0x80000000")
+        self.qt("writel 0x41000084 6")  # model disable preserves queued entries
+        self.assertEqual(self.qt("readl 0x440100ac"), 0)
+        self.qt("writel 0x41000084 7")
+        self.assertEqual(self.qt("readl 0x440100ac"), 0x80000000)
+        self.qt("writel 0x41000008 1")  # hardware channel ownership enforced
+        self.assertEqual(self.qt("readl 0x41000094"), 0xF)
+        self.assertTrue(self.qt("readl 0x41000080") & (1 << 17))
+        self.assertEqual(self.qt("readl 0x410000a0"), 4)
+        self.qt("writel 0x41000090 2")  # CPU0 cannot send through channel1
+        self.assertTrue(self.qt("readl 0x41000080") & (1 << 16))
+        self.assertEqual(self.qt("readl 0x410000e0"), 2)
+        self.qt("writel 0x41000008 5")
+        self.qt("writel 0x41000080 0x20102")
+        self.assertTrue(self.qt("readl 0x41000080") & (1 << 16))
+        self.assertFalse(self.qt("readl 0x41000080") & (1 << 17))
+        self.assertEqual(self.mailbox_receive(1), (0, 0x1234, 16))
+
+    def test_mailbox_invalid_partition_and_reset_cancel(self):
+        self.mailbox_setup()
+        self.mailbox_send(0, 1, 1, 16)
+        self.qt("writel 0x41000084 6")
+        self.qt("writel 0x410000c4 6")
+        self.qt("writel 0x410000c0 0x102")
+        self.qt("writel 0x410000c4 7")  # cannot overlap a disabled nonempty FIFO
+        self.assertEqual(self.qt("readl 0x410000c4"), 6)
+        self.qt("writel 0x410000c0 0x107")
+        self.qt("writel 0x410000c4 7")  # cannot address beyond eight total slots
+        self.assertEqual(self.qt("readl 0x410000c4"), 6)
+        self.qt("writel 0x41000008 0")
+        for channel in range(3):
+            self.assertEqual(self.qt(f"readl {0x41000060 + channel * 0x40:#x}"), 2)
+            self.assertEqual(self.qt(f"readl {0x440100a4 + channel * 8:#x}"), 0)
+        self.mailbox_send(0, 1, 2, 16)
+        self.assertEqual(self.qt("readl 0x410000a0"), 2)
+        self.assertEqual(self.qt("readl 0x4100000c"), 0)
+
     def test_three_physical_cpus(self):
         result = subprocess.run(
             [
@@ -456,7 +637,7 @@ class NativeModel(unittest.TestCase):
     "set BK7258_PRODUCT_CP_ELF and BK7258_NM for the unchanged product stop probe",
 )
 class ProductCPStop(unittest.TestCase):
-    def test_original_product_stops_at_unimplemented_clock_monitor(self):
+    def test_original_product_stops_at_unimplemented_flash_controller(self):
         elf = Path(os.environ["BK7258_PRODUCT_CP_ELF"]).resolve()
         symbols = subprocess.check_output(
             [os.environ["BK7258_NM"], "-n", str(elf)], text=True, timeout=10
@@ -519,13 +700,13 @@ class ProductCPStop(unittest.TestCase):
                 "elf_sha256": hashlib.sha256(elf.read_bytes()).hexdigest(),
                 "vector": f"0x{vectors[0]}",
                 "first_fault": faults[0] if faults else None,
-                "expected_missing_device": "CKMN clock monitor at 0x448a0008",
+                "expected_missing_device": "Flash controller at 0x44030008",
             }
             (output / "product-stop.json").write_text(
                 json.dumps(evidence, indent=2) + "\n"
             )
             self.assertTrue(faults, "product did not reach the known MMIO stop")
-            self.assertEqual(faults[0], "0x448a0008")
+            self.assertEqual(faults[0], "0x44030008")
             self.assertNotIn(b"NuttShell (NSH)", uart.read_bytes())
 
 

@@ -247,6 +247,7 @@ def _smoke(repository: Path, args: argparse.Namespace) -> dict:
                         b"BK7258 EXTERNAL 32K SYSTICK OK",
                         b"BK7258 CPU1 CPU2 RELEASE AND PRIVATE TCM OK",
                         b"BK7258 HALT RESUME AND RESET OK",
+                        b"BK7258 MAILBOX THREE CORE IRQ AND PROTECTION OK",
                         b"BK7258 UART RX IRQ OK",
                         b"BK7258 SYSTEM RESET OK",
                     )

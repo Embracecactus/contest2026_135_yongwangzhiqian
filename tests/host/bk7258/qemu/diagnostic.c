@@ -6,10 +6,12 @@
 #define UART 0x44820000u
 #define SHARED 0x28000000u
 #define DTCM 0x20000000u
+#define MBOX 0x41000000u
 
 static volatile uint32_t ticks;
 static volatile uint32_t received;
 static volatile uint32_t nmi_seen;
+static volatile uint32_t mail_seen;
 static void cp_start(void);
 static void ap1_start(void);
 static void ap2_start(void);
@@ -17,6 +19,9 @@ static void fault(void);
 static void tick(void);
 static void nmi(void);
 static void uart_irq(void);
+static void cp_mail_irq(void);
+static void ap1_mail_irq(void);
+static void ap2_mail_irq(void);
 
 __attribute__((section(".vectors.cp"), used))
 const uintptr_t cp_vectors[80] =
@@ -30,22 +35,25 @@ const uintptr_t cp_vectors[80] =
   [6] = (uintptr_t)fault,
   [15] = (uintptr_t)tick,
   [20] = (uintptr_t)uart_irq,
+  [79] = (uintptr_t)cp_mail_irq,
 };
 
 __attribute__((section(".vectors.ap1"), used))
-static const uintptr_t ap1_vectors[16] =
+static const uintptr_t ap1_vectors[80] =
 {
   [0] = 0x20004000,
   [1] = (uintptr_t)ap1_start,
   [3] = (uintptr_t)fault,
+  [79] = (uintptr_t)ap1_mail_irq,
 };
 
 __attribute__((section(".vectors.ap2"), used))
-static const uintptr_t ap2_vectors[16] =
+static const uintptr_t ap2_vectors[80] =
 {
   [0] = 0x20004000,
   [1] = (uintptr_t)ap2_start,
   [3] = (uintptr_t)fault,
+  [79] = (uintptr_t)ap2_mail_irq,
 };
 
 static void text(const char *p)
@@ -96,8 +104,68 @@ static void uart_irq(void)
   REG(UART + 0x24) = 0xff;
 }
 
+static void mail_send(unsigned channel, unsigned destination,
+                      uint32_t data0, uint32_t data1)
+{
+  uintptr_t base = MBOX + 0x40 + channel * 0x40;
+  REG(base + 8) = data0;
+  REG(base + 12) = data1;
+  REG(base + 16) = destination;
+}
+
+static void cp_mail_irq(void)
+{
+  while (!(REG(MBOX + 0x60) & 2))
+    {
+      uint32_t source = REG(MBOX + 0x54);
+      uint32_t data0 = REG(MBOX + 0x58);
+      uint32_t data1 = REG(MBOX + 0x5c);
+      if ((source != 1 && source != 2) ||
+          data0 != (0x72000000u | source) ||
+          data1 != (source == 1 ? 16u : 0u)) { fault(); }
+      mail_seen |= 1u << source;
+    }
+}
+
+static void ap_mail_irq(unsigned channel)
+{
+  uintptr_t base = MBOX + 0x40 + channel * 0x40;
+  if ((REG(base + 0x20) & 2) || REG(base + 0x14) != 0 ||
+      REG(base + 0x18) != (0x71000000u | channel) ||
+      REG(base + 0x1c) != (channel == 1 ? 16u : 0u)) { fault(); }
+  /* These protected wrong-core operations must neither send nor pop. */
+  if (channel == 1)
+    {
+      REG(MBOX + 0x50) = 2;
+    }
+  else if (REG(MBOX + 0x54) != 0xf) { fault(); }
+  mail_send(channel, 0, 0x72000000u | channel, channel == 1 ? 16 : 0);
+}
+
+static void ap1_mail_irq(void)
+{
+  ap_mail_irq(1);
+}
+
+static void ap2_mail_irq(void)
+{
+  ap_mail_irq(2);
+}
+
+static void mail_wait(unsigned source)
+{
+  uint32_t start = ticks;
+  while (!(mail_seen & (1u << source)))
+    {
+      if (ticks - start > 100) { fault(); }
+      __asm__ volatile("wfi");
+    }
+}
+
 static void ap1_start(void)
 {
+  REG(0x4401008c) = 1u << 31;
+  REG(0xe000e104) = 1u << 31;
   REG(DTCM) = 1;
   REG(SHARED + 4) = 0xa1000001;
   for (;;) { __asm__ volatile("wfi"); }
@@ -105,6 +173,8 @@ static void ap1_start(void)
 
 static void ap2_start(void)
 {
+  REG(0x44010094) = 1u << 31;
+  REG(0xe000e104) = 1u << 31;
   REG(DTCM) = 2;
   REG(SHARED + 12)++;
   REG(SHARED + 8) = 0xa2000002;
@@ -113,7 +183,7 @@ static void ap2_start(void)
 
 static void cp_start(void)
 {
-  ticks = received = nmi_seen = 0;
+  ticks = received = nmi_seen = mail_seen = 0;
   REG(UART + 0x08) = 1;
   REG(UART + 0x10) = 0xe11b; /* 26 MHz, 115200 baud, 8N1, TX/RX */
   REG(UART + 0x14) = 0x100;
@@ -159,6 +229,18 @@ static void cp_start(void)
   while (ticks < 2) { __asm__ volatile("wfi"); }
   text("BK7258 EXTERNAL 32K SYSTICK OK\n");
 
+  /* Allocate the actual eight slots before starting the other cores. */
+  REG(MBOX + 8) = 5;
+  REG(MBOX + 0x40) = 0x100;
+  REG(MBOX + 0x44) = 5;
+  REG(MBOX + 0x80) = 0x102;
+  REG(MBOX + 0x84) = 7;
+  REG(MBOX + 0xc0) = 0x105;
+  REG(MBOX + 0xc4) = 7;
+  REG(MBOX + 8) = 1;
+  REG(0x44010084) = 1u << 31;
+  REG(0xe000e104) = 1u << 31;
+
   REG(DTCM) = 0;
   REG(SHARED + 4) = REG(SHARED + 8) = REG(SHARED + 12) = 0;
   REG(0x44010014) = (uintptr_t)ap1_vectors | 1;
@@ -183,6 +265,17 @@ static void cp_start(void)
   REG(0x44010018) |= 1;
   while (REG(SHARED + 12) != 2) { __asm__ volatile("wfi"); }
   text("BK7258 HALT RESUME AND RESET OK\n");
+  mail_send(0, 1, 0x71000001, 16);
+  mail_wait(1);
+  if (!(REG(MBOX + 0x40) & (1u << 16))) { fault(); }
+  REG(MBOX + 0x40) = 0x10100;
+  mail_send(0, 2, 0x71000002, 0);
+  mail_wait(2);
+  if (!(REG(MBOX + 0x40) & (1u << 17))) { fault(); }
+  REG(MBOX + 0x40) = 0x20100;
+  if (REG(MBOX + 0x0c) || mail_seen != 6) { fault(); }
+  text("BK7258 MAILBOX THREE CORE IRQ AND PROTECTION OK\n");
+
   if (REG(SHARED + 16) == 0x7258abcd)
     {
       REG(SHARED + 16) = 0;

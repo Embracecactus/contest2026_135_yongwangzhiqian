@@ -24,7 +24,8 @@ ELF SHA-256，以及 `evidence.json`。超时、错误退出、缺少成功标�
 都会使 smoke 失败。
 
 fixture 验证 UART、SRAM 四别名、内部及外部参考 SysTick 中断、真实看门狗 NMI、CPU1/CPU2 释放、
-每核 TCM、halt/resume、reset、UART RX IRQ 及完整系统重启。输入 `X` 必须进入
+每核 TCM、halt/resume、reset、UART RX IRQ、三核独立 mailbox IRQ63 往返与错核保护，
+及完整系统重启。输入 `X` 必须进入
 失败分支；输入 `Z` 才能成功。这不是 NuttX、NSH、AP 双核 SMP 或生产 CP/AP
 启动验收。三个 machine 当前使用相同基础模型，各板独有外围尚未实现。
 
@@ -91,8 +92,8 @@ FPB/DWT/debug-monitor。验收只允许每次启动准确的 8 条探测日志�
 设置上面的 SOURCE/BUILD 环境变量还会编译真实 SysTick/ptimer 源码，执行 15 个
 定向测试与上游现有 576 个 ptimer 测试；未设置时明确 skip，不能当已运行。
 
-未改产品 CP 的最早缺失设备目前为 CKMN `0x448a0008`。回归通过表示仍准确停在
-已知缺口，绝不表示产品启动成功。用正常产品构建生成的 ELF 可复测：
+未改产品 CP 已越过 CKMN 和 MBOX0 初始化，最早缺失设备目前为 Flash 控制器
+`0x44030008`。回归通过表示仍准确停在已知缺口，绝不表示产品启动成功。用正常产品构建生成的 ELF 可复测：
 
 ```sh
 BK7258_QEMU=/path/to/qemu-system-arm \
@@ -102,8 +103,10 @@ BK7258_QEMU_EVIDENCE=/path/to/product-stop-evidence \
   python3 tests/host/bk7258/test_bk7258_qemu.py ProductCPStop -v
 ```
 
-当前还缺 CKMN、Flash 控制器/JEDEC/持久化、PSRAM、mailbox/RPMsg、真实 AP SMP
-和 boot/OTA；其支持状态由模型文档统一定义，不凭 NSH 或三个 machine 名称推断。
+CKMN 已按真实时钟比计数并验证失钟/取消，MBOX0 v2 已用真实八槽队列和每核 IRQ63
+验证顺序、满队列、保护及原生三核往返。其未知边界以模型文档的显式策略为准，
+不代表完整时钟校准或 RPMsg 软件验收。当前还缺 Flash 控制器/JEDEC/持久化、PSRAM、
+legacy MBOX1、RPMsg、真实 AP SMP 和 boot/OTA；其支持状态由模型文档统一定义，不凭 NSH 或三个 machine 名称推断。
 
 ## Manifest 同步
 
