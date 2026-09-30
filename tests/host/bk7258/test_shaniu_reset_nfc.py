@@ -24,6 +24,7 @@ static int usb_error, usb_stops;
 static bool usb_closed;
 static int product_pc_usb_stop(void) { usb_stops++;usb_closed=!usb_error;return usb_error; }
 #define CONFIG_BK7258_NFC_SERVICE 1
+#define CONFIG_BK7258_PROVISION_GATT 1
 #define CONFIG_BK7258_MOTION_SERVICE 1
 static int motion_error, motion_resume_error, motion_stops, motion_resumes;
 static bool motion_closed;
@@ -37,10 +38,13 @@ enum { PRODUCT_RESET_IDLE, PRODUCT_RESET_QUIESCING, PRODUCT_RESET_FINISHING };
 static int g_reset_phase, pending=1, nfc_error, resume_error, owner_error;
 static int stops, resumes, finishes, clears, owner_opens, g_identity, owner_resume_error;
 static int g_config_revision;
+static int g_service_result, g_probe_result;
+static int trigger_error, trigger_stops, cloud_error, cleanup_calls;
+static bool g_trigger_started;
 static bool owner_closed=true;
 static bool nfc_closed, g_shutdown_requested, g_shutdown_failed, g_power_pending;
 static bool g_identity_bound=true, g_control_bound=true, g_configured=true, g_cloud_loaded=true;
-static atomic_bool g_voice_initialized, g_trigger_prepare_pending;
+static atomic_bool g_voice_initialized, g_trigger_prepare_pending, g_probe_running;
 static atomic_int g_active_persona;
 static int bkprov_storage_reset_pending(void) { return pending; }
 static int bk7258_nfc_service_quiesce(bool stop) {
@@ -57,8 +61,15 @@ static bool bkprov_network_busy(void){return false;}
 static bool voice_channel_is_idle(void){return true;}
 static void voice_channel_cancel(void){}
 static int voice_channel_recover(void){return 0;}
-static int product_clear(void *p){(void)p;clears++;return 0;}
-static int product_reset_cleanup(void){return 0;}
+static int bk7258_agent_trigger_stop(void) {
+ assert(g_reset_phase==PRODUCT_RESET_QUIESCING && owner_closed && !finishes);
+ trigger_stops++;return trigger_error;
+}
+static int bkagent_cloud_clear(void){clears++;return cloud_error;}
+static int bk7258_nfc_bindings_reset(void) {
+ assert(!g_trigger_started && nfc_closed);return 0;
+}
+static int bk7258_display_reset_selection(void){cleanup_calls++;return 0;}
 static int bkprov_storage_reset_finish(int (*cleanup)(void)) {
  assert(nfc_closed && nfc_error==0);finishes++;return cleanup();
 }
@@ -72,7 +83,9 @@ static void bkprov_identity_clear(int *p){*p=0;}
 class ResetNfcTest(unittest.TestCase):
     def run_case(self, body):
         source = (ROOT / "app/bk7258/bk7258_agent_product.c").read_text()
-        code = PREFIX + function(source, "product_reset_step")
+        code = PREFIX
+        for name in ("product_clear", "product_reset_cleanup", "product_reset_step"):
+            code += function(source, name)
         code += (
             "\nint main(void){bkpc_tasks_bind(&g_pc_tasks,1,1);"
             + body
@@ -226,6 +239,73 @@ class ResetMotionTest(ResetNfcTest):
  pending=1;g_shutdown_requested=true;assert(product_reset_step()==-EAGAIN);
  pending=0;assert(product_reset_step()==1);
  assert(motion_closed && motion_stops==1 && !motion_resumes && !owner_opens);"""
+        )
+
+
+class ResetTriggerTest(unittest.TestCase):
+    run_case = ResetNfcTest.run_case
+
+    def test_cloud_clear_keeps_local_listener(self):
+        self.run_case(
+            """g_trigger_started=true;
+ assert(product_clear(NULL)==0);
+ assert(g_trigger_started && !trigger_stops && clears==1);
+ assert(!g_configured && !g_cloud_loaded && !finishes && !cleanup_calls);"""
+        )
+
+    def test_started_trigger_stops_before_cleanup(self):
+        self.run_case(
+            """g_trigger_started=true;
+ assert(product_reset_step()==-EAGAIN);
+ assert(!g_trigger_started && trigger_stops==1);
+ assert(clears==1 && finishes==1 && cleanup_calls==1);
+ assert(g_reset_phase==PRODUCT_RESET_FINISHING && !owner_opens);
+ pending=0;assert(product_reset_step()==1);
+ assert(g_reset_phase==PRODUCT_RESET_IDLE && owner_opens==1);
+ assert(trigger_stops==1 && cleanup_calls==1);"""
+        )
+
+    def test_trigger_stop_busy_retries_before_cleanup(self):
+        for error in ("EBUSY", "EAGAIN"):
+            with self.subTest(error=error):
+                self.run_case(
+                    "g_trigger_started=true;trigger_error=-" + error + ";"
+                    "assert(product_reset_step()==-" + error + ");"
+                    """
+ assert(g_reset_phase==PRODUCT_RESET_QUIESCING && g_trigger_started);
+ assert(trigger_stops==1 && !finishes && !clears && !cleanup_calls);
+ assert(owner_closed && nfc_closed && !resumes);
+ trigger_error=0;assert(product_reset_step()==-EAGAIN);
+ assert(!g_trigger_started && trigger_stops==2 && finishes==1 && cleanup_calls==1);
+ pending=0;assert(product_reset_step()==1 && owner_opens==1);"""
+                )
+
+    def test_trigger_stop_failure_remains_retryable(self):
+        self.run_case(
+            """g_trigger_started=true;trigger_error=-EIO;
+ for(int i=0;i<3;i++)assert(product_reset_step()==-EIO);
+ assert(g_reset_phase==PRODUCT_RESET_QUIESCING && g_trigger_started);
+ assert(trigger_stops==3 && !finishes && !clears && !cleanup_calls);
+ assert(owner_closed && nfc_closed && !resumes);
+ trigger_error=0;assert(product_reset_step()==-EAGAIN);
+ assert(!g_trigger_started && trigger_stops==4 && finishes==1 && cleanup_calls==1);
+ pending=0;assert(product_reset_step()==1 && owner_opens==1);"""
+        )
+
+    def test_stopped_trigger_is_not_stopped_again(self):
+        self.run_case(
+            """assert(product_reset_step()==-EAGAIN);
+ assert(!trigger_stops && finishes==1 && cleanup_calls==1);"""
+        )
+
+    def test_cloud_failure_after_trigger_stop_retries(self):
+        self.run_case(
+            """g_trigger_started=true;cloud_error=-EIO;
+ assert(product_reset_step()==-EIO);
+ assert(!g_trigger_started && trigger_stops==1 && !finishes && !cleanup_calls);
+ assert(g_reset_phase==PRODUCT_RESET_QUIESCING);
+ cloud_error=0;assert(product_reset_step()==-EAGAIN);
+ assert(trigger_stops==1 && finishes==1 && cleanup_calls==1);"""
         )
 
 

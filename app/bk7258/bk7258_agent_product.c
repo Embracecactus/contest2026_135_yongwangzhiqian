@@ -2511,6 +2511,23 @@ static int product_reset_step(void)
           (void)voice_channel_recover();
           return -EAGAIN;
         }
+
+      /* Reset owns local recorder shutdown; ordinary cloud replacement
+       * deliberately keeps KWS alive. Do not submit cleanup until its
+       * worker and recorder have stopped successfully.
+       */
+
+      if (g_trigger_started)
+        {
+          ret = bk7258_agent_trigger_stop();
+          if (ret < 0)
+            {
+              return ret;
+            }
+
+          g_trigger_started = false;
+        }
+
       ret = product_clear(NULL);
       if (ret < 0) return ret;
       g_reset_phase = PRODUCT_RESET_FINISHING;

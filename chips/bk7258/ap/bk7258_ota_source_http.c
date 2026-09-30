@@ -81,6 +81,7 @@ struct bk7258_ota_http_source_priv_s
   mbedtls_pk_context *borrowed_client_key;
   struct in_addr peer_address;
   struct socket socket;
+  struct timespec io_deadline;
   mbedtls_ssl_context ssl;
   mbedtls_ssl_config config;
   uint8_t *range_cache;
@@ -253,6 +254,74 @@ static void bk7258_ota_http_disconnect(
   priv->tls_active = false;
 }
 
+/* Share one deadline across the handshake, headers and response body.  A
+ * peer that makes partial progress must not renew the request indefinitely.
+ */
+
+static int bk7258_ota_http_io_remaining(
+  struct bk7258_ota_http_source_priv_s *priv, struct timeval *timeout)
+{
+  struct timespec now;
+  int64_t remaining;
+
+  if (__atomic_load_n(&priv->canceled, __ATOMIC_ACQUIRE))
+    {
+      return -ECANCELED;
+    }
+  if (clock_gettime(CLOCK_MONOTONIC, &now) < 0)
+    {
+      return -EIO;
+    }
+
+  remaining = ((int64_t)priv->io_deadline.tv_sec - now.tv_sec) *
+              1000000000 + priv->io_deadline.tv_nsec - now.tv_nsec;
+  if (remaining <= 0)
+    {
+      return -ETIMEDOUT;
+    }
+  if (timeout != NULL)
+    {
+      /* Round up so a positive remainder never disables the socket timeout. */
+
+      remaining = (remaining + 999) / 1000;
+      timeout->tv_sec = remaining / 1000000;
+      timeout->tv_usec = remaining % 1000000;
+    }
+
+  return 0;
+}
+
+static int bk7258_ota_http_socket_timeout(
+  struct bk7258_ota_http_source_priv_s *priv, int option)
+{
+  struct timeval timeout;
+  int ret = bk7258_ota_http_io_remaining(priv, &timeout);
+
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  return psock_setsockopt(&priv->socket, SOL_SOCKET, option,
+                          &timeout, sizeof(timeout));
+}
+
+static int bk7258_ota_http_io_error(
+  struct bk7258_ota_http_source_priv_s *priv, int ret)
+{
+  if (__atomic_load_n(&priv->canceled, __ATOMIC_ACQUIRE))
+    {
+      return -ECANCELED;
+    }
+  if (ret == MBEDTLS_ERR_SSL_TIMEOUT || ret == -ETIMEDOUT ||
+      (!priv->tls_active && (ret == -EAGAIN || ret == -EWOULDBLOCK)))
+    {
+      return -ETIMEDOUT;
+    }
+
+  return ret == 0 ? -ECONNRESET : -EIO;
+}
+
 static int bk7258_ota_http_read_tls(
   struct bk7258_ota_http_source_priv_s *priv, uint8_t *buffer, size_t size)
 {
@@ -260,11 +329,13 @@ static int bk7258_ota_http_read_tls(
 
   while (done < size)
     {
-      int ret;
+      int ret = priv->tls_active ?
+                bk7258_ota_http_io_remaining(priv, NULL) :
+                bk7258_ota_http_socket_timeout(priv, SO_RCVTIMEO);
 
-      if (__atomic_load_n(&priv->canceled, __ATOMIC_ACQUIRE))
+      if (ret < 0)
         {
-          return -ECANCELED;
+          return ret;
         }
       ret = priv->tls_active ?
             mbedtls_ssl_read(&priv->ssl, buffer + done, size - done) :
@@ -279,7 +350,7 @@ static int bk7258_ota_http_read_tls(
           syslog(LOG_ERR, "BKOTA HTTP read tls=%u result=%d done=%u size=%u\n",
                  priv->tls_active ? 1u : 0u, ret,
                  (unsigned int)done, (unsigned int)size);
-          return ret == 0 ? -ECONNRESET : -EIO;
+          return bk7258_ota_http_io_error(priv, ret);
         }
       done += (size_t)ret;
     }
@@ -296,8 +367,16 @@ static int bk7258_ota_http_write_tls(
   while (done < size)
     {
       int ret = priv->tls_active ?
-                mbedtls_ssl_write(&priv->ssl, buffer + done, size - done) :
-                psock_send(&priv->socket, buffer + done, size - done, 0);
+                bk7258_ota_http_io_remaining(priv, NULL) :
+                bk7258_ota_http_socket_timeout(priv, SO_SNDTIMEO);
+
+      if (ret < 0)
+        {
+          return ret;
+        }
+      ret = priv->tls_active ?
+            mbedtls_ssl_write(&priv->ssl, buffer + done, size - done) :
+            psock_send(&priv->socket, buffer + done, size - done, 0);
       if (ret == MBEDTLS_ERR_SSL_WANT_READ ||
           ret == MBEDTLS_ERR_SSL_WANT_WRITE)
         {
@@ -305,7 +384,7 @@ static int bk7258_ota_http_write_tls(
         }
       if (ret <= 0)
         {
-          return -EIO;
+          return bk7258_ota_http_io_error(priv, ret);
         }
       done += (size_t)ret;
     }
@@ -317,11 +396,19 @@ static int bk7258_ota_http_tls_send(void *context,
                                     const unsigned char *buffer,
                                     size_t size)
 {
-  ssize_t ret = psock_send((struct socket *)context, buffer, size, 0);
+  struct bk7258_ota_http_source_priv_s *priv = context;
+  ssize_t ret = bk7258_ota_http_socket_timeout(priv, SO_SNDTIMEO);
 
-  if (ret == -EAGAIN || ret == -EWOULDBLOCK)
+  if (ret == 0)
     {
-      return MBEDTLS_ERR_SSL_WANT_WRITE;
+      ret = psock_send(&priv->socket, buffer, size, 0);
+    }
+
+  /* The connected socket is blocking: EAGAIN is SO_SNDTIMEO expiry. */
+
+  if (ret == -EAGAIN || ret == -EWOULDBLOCK || ret == -ETIMEDOUT)
+    {
+      return MBEDTLS_ERR_SSL_TIMEOUT;
     }
 
   return ret < 0 ? MBEDTLS_ERR_NET_SEND_FAILED : (int)ret;
@@ -330,14 +417,49 @@ static int bk7258_ota_http_tls_send(void *context,
 static int bk7258_ota_http_tls_recv(void *context, unsigned char *buffer,
                                     size_t size)
 {
-  ssize_t ret = psock_recv((struct socket *)context, buffer, size, 0);
+  struct bk7258_ota_http_source_priv_s *priv = context;
+  ssize_t ret = bk7258_ota_http_socket_timeout(priv, SO_RCVTIMEO);
 
-  if (ret == -EAGAIN || ret == -EWOULDBLOCK)
+  if (ret == 0)
     {
-      return MBEDTLS_ERR_SSL_WANT_READ;
+      ret = psock_recv(&priv->socket, buffer, size, 0);
+    }
+
+  /* Do not turn a blocking receive timeout into an unbounded TLS retry. */
+
+  if (ret == -EAGAIN || ret == -EWOULDBLOCK || ret == -ETIMEDOUT)
+    {
+      return MBEDTLS_ERR_SSL_TIMEOUT;
     }
 
   return ret < 0 ? MBEDTLS_ERR_NET_RECV_FAILED : (int)ret;
+}
+
+static int bk7258_ota_http_handshake(
+  struct bk7258_ota_http_source_priv_s *priv)
+{
+  int ret;
+
+  do
+    {
+      ret = bk7258_ota_http_io_remaining(priv, NULL);
+      if (ret < 0)
+        {
+          return ret;
+        }
+      ret = mbedtls_ssl_handshake(&priv->ssl);
+    }
+  while (ret == MBEDTLS_ERR_SSL_WANT_READ ||
+         ret == MBEDTLS_ERR_SSL_WANT_WRITE);
+
+  if (ret != 0)
+    {
+      int error = bk7258_ota_http_io_error(priv, ret);
+
+      return error == -EIO ? -EKEYREJECTED : error;
+    }
+
+  return 0;
 }
 
 static int bk7258_ota_http_wait_connected(
@@ -554,6 +676,20 @@ static int bk7258_ota_http_connect(
       return ret;
     }
 
+  if (clock_gettime(CLOCK_MONOTONIC, &priv->io_deadline) < 0)
+    {
+      bk7258_ota_http_disconnect(priv);
+      return -EIO;
+    }
+  priv->io_deadline.tv_sec += BK7258_OTA_HTTP_IO_TIMEOUT_MS / 1000u;
+  priv->io_deadline.tv_nsec +=
+    (BK7258_OTA_HTTP_IO_TIMEOUT_MS % 1000u) * 1000000u;
+  if (priv->io_deadline.tv_nsec >= 1000000000)
+    {
+      priv->io_deadline.tv_sec++;
+      priv->io_deadline.tv_nsec -= 1000000000;
+    }
+
   priv->tls_active = url->secure;
   if (!url->secure)
     {
@@ -590,15 +726,14 @@ static int bk7258_ota_http_connect(
     }
   if (ret == 0)
     {
-      mbedtls_ssl_set_bio(&priv->ssl, &priv->socket,
-                          bk7258_ota_http_tls_send,
+      mbedtls_ssl_set_bio(&priv->ssl, priv, bk7258_ota_http_tls_send,
                           bk7258_ota_http_tls_recv, NULL);
-      do
+      ret = bk7258_ota_http_handshake(priv);
+      if (ret < 0)
         {
-          ret = mbedtls_ssl_handshake(&priv->ssl);
+          bk7258_ota_http_disconnect(priv);
+          return ret;
         }
-      while (ret == MBEDTLS_ERR_SSL_WANT_READ ||
-             ret == MBEDTLS_ERR_SSL_WANT_WRITE);
     }
   if (ret != 0 || mbedtls_ssl_get_verify_result(&priv->ssl) != 0u)
     {

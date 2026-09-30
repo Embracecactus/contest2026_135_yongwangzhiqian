@@ -152,6 +152,137 @@ class DeviceControlSessionTest {
         f.clock.advance(2000); f.peer.reply(DeviceControlProtocol.Command.STATUS, status.copy(infoSupported = true))
         assertEquals(1, f.peer.sent.count { it.command == DeviceControlProtocol.Command.INFO })
     }
+    @Test fun transientInfoFailureRetriesAfterDelayWithoutBlockingQueuedWrite() {
+        val f = Fixture(); f.connect(status.copy(infoSupported = true))
+        assertTrue(f.session.request(DeviceControlProtocol.Command.VOLUME, 60))
+        f.peer.reply(DeviceControlProtocol.Command.INFO, failure.copy(error = -11))
+        assertEquals(DeviceControlProtocol.Command.VOLUME, f.peer.sent.last().command)
+        f.peer.reply(DeviceControlProtocol.Command.VOLUME, status.copy(volume = 60))
+        f.peer.reply(DeviceControlProtocol.Command.STATUS, status.copy(volume = 60))
+        f.clock.advance(1_999)
+        assertEquals(1, f.peer.sent.count { it.command == DeviceControlProtocol.Command.INFO })
+        f.clock.advance(1)
+        assertEquals(DeviceControlProtocol.Command.INFO, f.peer.sent.last().command)
+        val info = DeviceControlProtocol.FirmwareInfo(1, 2, 3, 5, 5)
+        f.peer.reply(DeviceControlProtocol.Command.INFO, status.copy(firmwareInfo = info))
+        assertEquals(info, f.session.current().firmwareInfo)
+        assertEquals(60, f.session.current().snapshot?.volume)
+        assertTrue(f.session.current().authenticated)
+    }
+
+    @Test fun infoRetryBudgetIsBoundedButConfirmedTransitionRefreshesItOnce() {
+        val f = Fixture(); f.poll = DeviceControlProtocol.Command.OTA_STATUS
+        f.connect(status.copy(infoSupported = true, otaSupported = true))
+        repeat(3) { attempt ->
+            assertEquals(DeviceControlProtocol.Command.INFO, f.peer.sent.last().command)
+            f.peer.reply(DeviceControlProtocol.Command.INFO, failure.copy(error = -11))
+            if (attempt < 2) f.clock.advance(2_000)
+        }
+        val trial = status.copy(otaStatus = DeviceControlProtocol.OtaStatus(2, 5, 0, 0, 0))
+        repeat(4) {
+            f.clock.advance(2_000)
+            assertEquals(DeviceControlProtocol.Command.OTA_STATUS, f.peer.sent.last().command)
+            f.peer.reply(DeviceControlProtocol.Command.OTA_STATUS, trial)
+        }
+        assertEquals(3, f.peer.sent.count { it.command == DeviceControlProtocol.Command.INFO })
+        val confirmed = trial.copy(otaStatus = DeviceControlProtocol.OtaStatus(3, 6, 0, 0, 0))
+        f.clock.advance(2_000)
+        f.peer.reply(DeviceControlProtocol.Command.OTA_STATUS, confirmed)
+        assertEquals(DeviceControlProtocol.Command.INFO, f.peer.sent.last().command)
+        f.peer.reply(DeviceControlProtocol.Command.INFO, failure.copy(error = -11))
+        f.clock.advance(2_000)
+        val info = DeviceControlProtocol.FirmwareInfo(1, 2, 3, 6, 6)
+        f.peer.reply(DeviceControlProtocol.Command.INFO, status.copy(firmwareInfo = info))
+        repeat(3) {
+            f.clock.advance(2_000)
+            f.peer.reply(DeviceControlProtocol.Command.OTA_STATUS, confirmed)
+        }
+        assertEquals(5, f.peer.sent.count { it.command == DeviceControlProtocol.Command.INFO })
+        assertEquals(info, f.session.current().firmwareInfo)
+    }
+
+    @Test fun permanentInfoErrorDoesNotRetryAndTransportBusyUsesRetryBudget() {
+        val unsupported = Fixture(); unsupported.connect(status.copy(infoSupported = true))
+        unsupported.peer.reply(DeviceControlProtocol.Command.INFO, failure.copy(error = -95))
+        unsupported.peer.automaticStatus = true
+        unsupported.clock.advance(10_000)
+        assertEquals(1, unsupported.peer.sent.count { it.command == DeviceControlProtocol.Command.INFO })
+
+        val busy = Fixture()
+        busy.session.setForeground(true); busy.session.connect(busy.factory)
+        busy.peer.acceptRequests = false
+        busy.peer.reply(DeviceControlProtocol.Command.STATUS, status.copy(infoSupported = true))
+        busy.clock.advance(4_000)
+        assertEquals(3, busy.peer.sent.count { it.command == DeviceControlProtocol.Command.INFO })
+        busy.peer.acceptRequests = true; busy.peer.automaticStatus = true
+        busy.clock.advance(10_000)
+        assertEquals(3, busy.peer.sent.count { it.command == DeviceControlProtocol.Command.INFO })
+        assertTrue(busy.session.current().snapshotFresh)
+    }
+
+    @Test fun confirmedStatusInvalidatesEarlierInfoAndDoesNotRearmAnExhaustedBudget() {
+        val f = Fixture(); f.poll = DeviceControlProtocol.Command.OTA_STATUS
+        f.connect(status.copy(infoSupported = true, otaSupported = true))
+        val info = DeviceControlProtocol.FirmwareInfo(1, 2, 3, 4, 4)
+        f.peer.reply(DeviceControlProtocol.Command.INFO, status.copy(firmwareInfo = info))
+        val confirmed = status.copy(otaStatus = DeviceControlProtocol.OtaStatus(3, 6, 0, 0, 0))
+        f.clock.advance(2_000)
+        f.peer.reply(DeviceControlProtocol.Command.OTA_STATUS, confirmed)
+        assertNull(f.session.current().firmwareInfo)
+        repeat(3) { attempt ->
+            assertEquals(DeviceControlProtocol.Command.INFO, f.peer.sent.last().command)
+            f.peer.reply(DeviceControlProtocol.Command.INFO, failure.copy(error = -11))
+            if (attempt < 2) f.clock.advance(2_000)
+        }
+        repeat(5) {
+            f.clock.advance(2_000)
+            assertEquals(DeviceControlProtocol.Command.OTA_STATUS, f.peer.sent.last().command)
+            f.peer.reply(DeviceControlProtocol.Command.OTA_STATUS, confirmed)
+        }
+        assertEquals(4, f.peer.sent.count { it.command == DeviceControlProtocol.Command.INFO })
+        assertNull(f.session.current().firmwareInfo)
+    }
+
+    @Test fun infoRetryDoesNotInterruptAConfigTransactionOrRunInBackground() {
+        val f = Fixture(); f.connect(status.copy(infoSupported = true))
+        f.peer.reply(DeviceControlProtocol.Command.INFO, failure.copy(error = -11))
+        assertTrue(f.session.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN, byteArrayOf(1)))
+        f.clock.advance(3_000)
+        f.peer.reply(DeviceControlProtocol.Command.CONFIG_BEGIN, status)
+        assertEquals(DeviceControlProtocol.Command.CONFIG_BEGIN, f.peer.sent.last().command)
+        assertEquals(1, f.peer.sent.count { it.command == DeviceControlProtocol.Command.INFO })
+        assertTrue(f.session.requestPayload(DeviceControlProtocol.Command.CONFIG_APPLY, byteArrayOf()))
+        f.peer.reply(DeviceControlProtocol.Command.CONFIG_APPLY, status)
+        f.session.finishConfigTransaction()
+        assertEquals(DeviceControlProtocol.Command.INFO, f.peer.sent.last().command)
+        f.peer.reply(DeviceControlProtocol.Command.INFO, failure.copy(error = -11))
+        f.session.setForeground(false)
+        f.clock.advance(3_000)
+        assertEquals(2, f.peer.sent.count { it.command == DeviceControlProtocol.Command.INFO })
+        f.session.setForeground(true)
+        f.clock.advance(2_000)
+        assertEquals(3, f.peer.sent.count { it.command == DeviceControlProtocol.Command.INFO })
+    }
+
+    @Test fun reconnectInvalidatesFirmwareInfoAndCancelsOldRetry() {
+        val f = Fixture(); f.connect(status.copy(infoSupported = true))
+        val old = f.peer
+        val oldInfo = DeviceControlProtocol.FirmwareInfo(1, 2, 3, 4, 4)
+        old.reply(DeviceControlProtocol.Command.INFO, status.copy(firmwareInfo = oldInfo))
+        assertEquals(oldInfo, f.session.current().firmwareInfo)
+        old.events.closed("reboot")
+        assertNull(f.session.current().firmwareInfo)
+        f.clock.advance(1_000)
+        f.peer.reply(DeviceControlProtocol.Command.STATUS, status.copy(infoSupported = true))
+        old.reply(DeviceControlProtocol.Command.INFO, status.copy(firmwareInfo = oldInfo))
+        assertNull(f.session.current().firmwareInfo)
+        f.peer.reply(DeviceControlProtocol.Command.INFO, failure.copy(error = -11))
+        f.session.disconnect()
+        val count = f.peer.sent.size
+        f.clock.advance(10_000)
+        assertEquals(count, f.peer.sent.size)
+    }
+
     @Test fun staleStatusDropsQueuedOtaBeginButKeepsAdmittedRecoveryCommands() {
         val queued = Fixture(); queued.connect(status.copy(otaSupported = true))
         queued.clock.advance(2_000)

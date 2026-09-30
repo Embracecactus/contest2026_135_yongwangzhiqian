@@ -1443,6 +1443,13 @@ static int bk7258_ota_rpmsg_lifecycle_worker(
         {
           operation = -EPERM;
         }
+
+      /* Publish the token and release this request before AP can receive
+       * its reply and immediately queue COMMIT.  Nothing below may clear
+       * stage_busy: a newly queued request owns it after this release.
+       */
+
+      __atomic_store_n(&priv->stage_busy, false, __ATOMIC_RELEASE);
       spin_unlock_irqrestore(&priv->lock, flags);
 
       ret = bk7258_ota_rpmsg_control_reply(session, operation, NULL, 0u,
@@ -1452,13 +1459,13 @@ static int bk7258_ota_rpmsg_lifecycle_worker(
           flags = spin_lock_irqsave(&priv->lock);
           if (priv->reboot_prepared &&
               priv->reboot_prepared_session == session &&
-              priv->reboot_prepared_generation == generation)
+              priv->reboot_prepared_generation == generation &&
+              priv->reboot_prepared_candidate_epoch == candidate_epoch)
             {
               priv->reboot_prepared = false;
             }
           spin_unlock_irqrestore(&priv->lock, flags);
         }
-      __atomic_store_n(&priv->stage_busy, false, __ATOMIC_RELEASE);
       return ret < 0 ? ret : operation;
     }
 

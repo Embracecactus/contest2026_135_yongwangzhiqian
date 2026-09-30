@@ -325,7 +325,7 @@ all: $(TARGET) $(POLICY_TARGET) $(PM_ACTIVITY_TARGET) $(PM_REPLAY_TARGET) \
 	$(VOICE_MEDIA_RECORDER_TARGET) \
 	bl1 bl2 ap
 
-run: run-motion-rpc run-nfc-rpc run-wifi-native-lease run-camera-storage run-vision-record run-media-volume run-headers run-core run-platform run-flash run-ota-confirmation run-ota-manager run-active-image \
+run: run-motion-rpc run-nfc-rpc run-wifi-native-lease run-camera-storage run-vision-record run-media-volume run-headers run-core run-platform run-flash run-ota-confirmation run-ota-transport run-ota-manager run-active-image \
 	run-bl1 run-bl2 run-ap run-display-pack run-display-rpc \
 	run-health-core run-motion-core run-nfc-core run-vision-core run-vision-feedback \
 	run-usbmode-lease run-product-keys \
@@ -556,10 +556,12 @@ run-product-keys: product-keys
 # Keep them outside all/check/run until their CMake/OpenSSL requirements are
 # intentionally added to those broader host-test contracts.
 provision: test_provision_gatt.py \
+	test_provision_pair_query.py \
 	test_provision_tls.py
 
 run-provision: provision
 	python3 test_provision_gatt.py
+	python3 test_provision_pair_query.py
 	python3 test_provision_tls.py
 
 $(BUILD)/test_bk7258_voice_tls_concurrency: test_bk7258_voice_tls_concurrency.c \
@@ -593,8 +595,12 @@ $(BUILD)/test_bk7258_agent_capture: test_bk7258_agent_media_recorder.c \
 		-I $(MOCKS) -I $(OPENVELA_ROOT)/packages/ai_agent/include \
 		-I $(OPENVELA_ROOT)/packages/ai_agent/src -o $@
 
-run-agent-capture: $(BUILD)/test_bk7258_agent_capture
+run-agent-capture: run-agent-capture-lifecycle $(BUILD)/test_bk7258_agent_capture
 	./$(BUILD)/test_bk7258_agent_capture
+
+.PHONY: run-agent-capture-lifecycle
+run-agent-capture-lifecycle:
+	python3 test_agent_capture_lifecycle.py
 
 $(BUILD)/test_bk7258_agent_media_player: test_bk7258_agent_media_player.c \
 	$(VOICE_PACK_ROOT)/bk7258_agent_media_player.c \
@@ -1372,6 +1378,10 @@ run-ota-contract: run-storage-contract $(BOOT_SLOT_TARGET)
 	./$(BOOT_SLOT_TARGET)
 
 ota-confirmation: $(OTA_CONFIRMATION_TARGETS)
+
+.PHONY: run-ota-transport
+run-ota-transport:
+	python3 test_bk7258_ota_transport.py
 
 run-ota-confirmation: ota-confirmation
 	./$(OTA_CONFIRM_NO_SUPERVISOR_TARGET)

@@ -74,6 +74,7 @@ import com.shaniu.companion.ota.OtaControlUpload
 import com.shaniu.companion.ota.OtaPackageServer
 import com.shaniu.companion.ota.OtaPackageServerException
 import com.shaniu.companion.ota.OtaPackageServerStage
+import com.shaniu.companion.ota.OtaSourceLease
 import com.shaniu.companion.ota.OtaStartGate
 import com.shaniu.companion.ota.OtaUpdatePolicy
 import java.util.concurrent.Executors
@@ -119,7 +120,8 @@ class MainActivity : Activity() {
     private var firmwareInspectionPending = false
     private var firmwareInspectionMessage: String? = null
     private var firmwareInspectionEpoch = 0L
-    private var otaServer: OtaPackageServer? = null
+    private var otaSource: OtaSourceLease<OtaPackageServer>? = null
+    private val otaServer get() = otaSource?.current()
     private var otaUpload: OtaControlUpload? = null
     private var otaStatus: DeviceControlProtocol.OtaStatus? = null
     private var otaStatusGeneration: Long? = null
@@ -267,7 +269,7 @@ class MainActivity : Activity() {
     private var selectedEyeAssetSha256: ByteArray? = null
     private var eyeMessage: String? = null
     private var eyeImportPending = false
-    private var eyeServer: OtaPackageServer? = null
+    private var eyeSource: OtaSourceLease<OtaPackageServer>? = null
     private var eyeRecord: ByteArray? = null
     private var eyeOffset = 0
     private var eyeRead = ByteArray(0)
@@ -350,10 +352,9 @@ class MainActivity : Activity() {
                 // A new transport cannot resume a partially sent OTA record.
                 // An accepted HTTP source may finish during the foreground or
                 // the bounded Activity grace; the next connection reads status.
-                val accepted = otaVerificationPending &&
-                    (otaUpload?.state == OtaControlUpload.State.ACCEPTED || otaStatus?.state in 1L..2L)
+                val accepted = otaVerificationPending && otaSource?.accepted == true
                 otaUpload?.close(); otaUpload = null
-                if (otaServer != null && (!accepted || !foreground || destroyed)) {
+                if (otaSource != null && (!accepted || !foreground || destroyed)) {
                     otaStatus = null; otaStatusGeneration = null; otaVerificationPending = false
                     otaStartGate.release()
                     setOtaKeepAwake(false)
@@ -713,8 +714,7 @@ class MainActivity : Activity() {
         closeEyeServer()
         if (configFlow == ConfigFlow.EYES) finishEyeInstall("连接已关闭；未完成的眼睛安装不会重发")
         val preserveOtaSource = preserveAcceptedOtaSource && foreground && !destroyed &&
-            otaServer?.running == true && otaVerificationPending &&
-            (otaUpload?.state == OtaControlUpload.State.ACCEPTED || otaStatus?.state in 1L..2L)
+            otaServer?.running == true && otaVerificationPending && otaSource?.accepted == true
         directEpoch++
         clearDirectDiscovery()
         directDialog?.dismiss(); directDialog = null
@@ -759,16 +759,16 @@ class MainActivity : Activity() {
     }
 
     private fun closeOtaServer(message: String? = null) {
-        val server = otaServer ?: return
-        otaServer = null
-        ioExecutor.execute { server.close() }
+        val source = otaSource ?: return
+        otaSource = null
+        source.close()
         if (message != null) otaMessage = message
     }
 
     private fun closeEyeServer() {
-        val server = eyeServer ?: return
-        eyeServer = null
-        ioExecutor.execute { server.close() }
+        val source = eyeSource ?: return
+        eyeSource = null
+        source.close()
     }
 
     private fun setOtaKeepAwake(keep: Boolean) {
@@ -1231,6 +1231,13 @@ class MainActivity : Activity() {
                 otaStatus = snapshot.otaStatus
                 otaStatusGeneration = directSession.current().generation
                 otaStatusReadError = null
+                if (otaSource?.shouldCloseAfterStatus(snapshot.otaStatus.state, otaUpload != null) == true) {
+                    // A terminal source no longer needs Wi-Fi, even if INFO is
+                    // still pending before the separate version confirmation.
+                    closeOtaServer()
+                    otaStartGate.release()
+                    setOtaKeepAwake(false)
+                }
                 if (snapshot.otaStatus.state == 0L && otaUpload == null &&
                     preferences.getBoolean(KEY_OTA_EXPECTED_PENDING, false)) {
                     preferences.edit().putBoolean(KEY_OTA_EXPECTED_PENDING, false).commit()
@@ -1285,11 +1292,20 @@ class MainActivity : Activity() {
                 "$message 已断开设备连接，请重新连接后重试。"
             }
             upload?.state == OtaControlUpload.State.ACCEPTED -> {
+                otaSource?.accept()
                 otaStatus = null; otaStatusGeneration = null
                 otaVerificationPending = true
                 "设备已接受升级来源，正在等待设备报告升级状态。"
             }
-            upload?.state == OtaControlUpload.State.CANCELED -> "设备已确认取消升级请求。"
+            upload?.state == OtaControlUpload.State.CANCELED -> {
+                otaUpload = null
+                otaVerificationPending = false
+                closeOtaServer()
+                otaStartGate.release()
+                setOtaKeepAwake(false)
+                preferences.edit().putBoolean(KEY_OTA_EXPECTED_PENDING, false).commit()
+                "设备已确认取消升级请求。"
+            }
             command == DeviceControlProtocol.Command.OTA_BEGIN ->
                 "设备已接受升级来源准备，正在发送来源记录（0/${upload?.totalBytes ?: 0} 字节）。"
             command == DeviceControlProtocol.Command.OTA_APPEND && upload != null &&
@@ -1359,6 +1375,8 @@ class MainActivity : Activity() {
         }
         val epoch = directEpoch
         otaMessage = "正在准备本机升级来源…"
+        val source = OtaSourceLease<OtaPackageServer> { server -> ioExecutor.execute { server.close() } }
+        otaSource = source
         setOtaKeepAwake(true)
         render()
         ioExecutor.execute {
@@ -1366,23 +1384,30 @@ class MainActivity : Activity() {
             val opened = runCatching { OtaPackageServer.open(applicationContext, file) }
             val failure = opened.exceptionOrNull()
             android.util.Log.i("ShaniuOta", "source generation=$epoch elapsedMs=${android.os.SystemClock.elapsedRealtime() - started} stage=${(failure as? OtaPackageServerException)?.stage ?: "READY"} error=${failure?.javaClass?.simpleName ?: "none"}")
+            val server = opened.getOrNull()
+            if (server != null && !source.publish(server)) {
+                server.close()
+                return@execute
+            }
             mainHandler.post {
+                if (otaSource !== source) return@post
                 if (epoch != directEpoch || !foreground || destroyed) {
-                    opened.getOrNull()?.let { server -> ioExecutor.execute { server.close() } }
+                    source.close()
+                    if (otaSource === source) otaSource = null
                     if (releaseSourceLease() && epoch == directEpoch && !destroyed) {
                         otaMessage = "已离开升级页面；未向设备发送升级请求。"
                     }
                     return@post
                 }
-                val server = opened.getOrNull()
                 if (server == null) {
+                    if (otaSource === source) closeOtaServer()
                     otaMessage = otaSourceOpenFailureMessage(opened.exceptionOrNull())
                     releaseSourceLease()
                     render()
                     return@post
                 }
                 if (!otaStartStateCurrent()) {
-                    ioExecutor.execute { server.close() }
+                    closeOtaServer()
                     releaseSourceLease()
                     otaMessage = "设备状态已过期，请刷新后再试；未发送升级请求。"
                     render()
@@ -1390,13 +1415,12 @@ class MainActivity : Activity() {
                 }
                 val metadata = server.metadata
                 if (metadata == null || metadata.catalogSha256 != pack.catalogSha256 || !persistExpected(metadata)) {
-                    ioExecutor.execute { server.close() }
+                    closeOtaServer()
                     releaseSourceLease()
                     otaMessage = "无法保存本次升级核验目标，未向设备发送升级请求。"
                     render()
                     return@post
                 }
-                otaServer = server
                 lateinit var upload: OtaControlUpload
                 upload = OtaControlUpload(server.requestRecord) { command, payload ->
                     if (epoch != directEpoch || !foreground || directConnection == null) false
@@ -1430,6 +1454,7 @@ class MainActivity : Activity() {
     }
 
     private fun expectedOtaConfirmed(): Boolean {
+        if (!OtaSourceLease.mayApplyVerification(otaSource)) return false
         val sessionState = directSession.current()
         if (!sessionState.authenticated || otaStatusGeneration != sessionState.generation ||
             otaStatusReadError != null) return false
@@ -1445,6 +1470,7 @@ class MainActivity : Activity() {
     }
 
     private fun confirmExpectedOta() {
+        if (!OtaSourceLease.mayApplyVerification(otaSource)) return
         val sessionState = directSession.current()
         if (!sessionState.authenticated || otaStatusGeneration != sessionState.generation ||
             otaStatusReadError != null) return
@@ -3079,19 +3105,27 @@ class MainActivity : Activity() {
         if (!configAvailable() || eyeImportPending) return
         val epoch = directEpoch
         configFlow = ConfigFlow.EYES; eyeMessage = "正在准备 Wi-Fi 眼睛素材来源…"; render()
+        val source = OtaSourceLease<OtaPackageServer> { server -> ioExecutor.execute { server.close() } }
+        eyeSource = source
         ioExecutor.execute {
             val opened = runCatching { OtaPackageServer.openAsset(applicationContext, file, assetSha256) }
+            val server = opened.getOrNull()
+            if (server != null && !source.publish(server)) {
+                server.close()
+                return@execute
+            }
             mainHandler.post {
+                if (eyeSource !== source) return@post
                 if (epoch != directEpoch || !foreground || destroyed || configFlow != ConfigFlow.EYES) {
-                    opened.getOrNull()?.let { server -> ioExecutor.execute { server.close() } }; return@post
+                    source.close()
+                    if (eyeSource === source) eyeSource = null
+                    return@post
                 }
-                val server = opened.getOrNull()
                 if (server == null) { finishEyeInstall(otaSourceOpenFailureMessage(opened.exceptionOrNull())); render(); return@post }
                 if (server.requestRecord.size !in 44..3371) {
-                    ioExecutor.execute { server.close() }
                     finishEyeInstall("本机眼睛素材来源请求长度无效"); render(); return@post
                 }
-                eyeServer = server; eyeRecord = server.requestRecord; eyeOffset = 0; eyeRead = ByteArray(0)
+                eyeRecord = server.requestRecord; eyeOffset = 0; eyeRead = ByteArray(0)
                 if (!directConfigRequest(DeviceControlProtocol.Command.CONFIG_BEGIN,
                         ByteBuffer.allocate(8).putInt(5).putInt(server.requestRecord.size).array()))
                     finishEyeInstall("设备控制通道不可用，未开始眼睛安装")

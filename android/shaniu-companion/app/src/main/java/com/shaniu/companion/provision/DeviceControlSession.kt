@@ -64,6 +64,9 @@ internal class DeviceControlSession(
     private var requestToken = 0L
     private var pendingIdentity: ProvisionPeerIdentity? = null
     private var infoNeeded = false
+    private var infoAttempts = 0
+    private var infoRetryAt = 0L
+    private var otaConfirmed = false
     private var configTransaction = false
     private var configCancelRequested = false
 
@@ -207,7 +210,7 @@ internal class DeviceControlSession(
         requestToken++
         request?.clear()
         var next = state.copy(connection = Connection.CONNECTED, authenticated = true, peerIdentity = pendingIdentity)
-        if (initial) infoNeeded = snapshot.infoSupported
+        if (initial && snapshot.infoSupported) queueInfo()
         when (command) {
             DeviceControlProtocol.Command.STATUS -> {
                 next = if (snapshot.error == 0) next.copy(snapshot = snapshot, snapshotFresh = true,
@@ -227,7 +230,21 @@ internal class DeviceControlSession(
                 }
             }
             DeviceControlProtocol.Command.INFO -> {
-                if (snapshot.error == 0) next = next.copy(firmwareInfo = snapshot.firmwareInfo)
+                next = next.copy(firmwareInfo = if (snapshot.error == 0) snapshot.firmwareInfo else null)
+                if (snapshot.error == -11 || snapshot.error == -16) retryInfo()
+            }
+            DeviceControlProtocol.Command.OTA_STATUS -> {
+                if (snapshot.error == 0 && snapshot.otaStatus != null) {
+                    val ota = snapshot.otaStatus
+                    val confirmed = ota.state == 3L && ota.phase == 6L && ota.result == 0
+                    if (confirmed && !otaConfirmed && state.snapshot?.infoSupported == true) {
+                        // Trial may outlast the initial INFO retry budget. A
+                        // confirmed transition starts one fresh bounded read.
+                        queueInfo()
+                        next = next.copy(firmwareInfo = null)
+                    }
+                    otaConfirmed = confirmed
+                }
             }
             else -> if (isConfig(command)) {
                 // The transaction owner cancels a failed partial upload. A
@@ -267,14 +284,31 @@ internal class DeviceControlSession(
             }
             confirmation != null -> Request(DeviceControlProtocol.Command.STATUS, verification = true)
             queued != null -> queued.also { queued = null }
-            infoNeeded -> { infoNeeded = false; Request(DeviceControlProtocol.Command.INFO) }
+            infoReady() -> { infoNeeded = false; Request(DeviceControlProtocol.Command.INFO) }
             else -> null
         }
         if (next == null) { publish(state); armPoll(); return }
         send(next)
     }
+    private fun queueInfo() {
+        infoNeeded = true
+        infoAttempts = 0
+        infoRetryAt = 0
+    }
+    private fun retryInfo() {
+        if (infoAttempts < INFO_ATTEMPTS) {
+            infoNeeded = true
+            infoRetryAt = nowMs() + INFO_RETRY_MS
+        }
+    }
+    private fun infoReady(): Boolean = foreground && infoNeeded && !configTransaction && nowMs() >= infoRetryAt
+
     private fun send(request: Request) {
         val target = transport ?: return
+        if (request.command == DeviceControlProtocol.Command.INFO) {
+            infoNeeded = false
+            infoAttempts++
+        }
         val generation = state.generation
         val token = ++requestToken
         inFlight = request
@@ -289,6 +323,7 @@ internal class DeviceControlSession(
                 inFlight = null
                 request.clear()
                 if (!request.read) confirmation = null
+                if (request.command == DeviceControlProtocol.Command.INFO) retryInfo()
                 val next = when {
                     !request.read -> state.copy(operationMessage = "设备正在处理其他请求，请重试")
                     request.command == DeviceControlProtocol.Command.STATUS -> state.copy(
@@ -316,7 +351,7 @@ internal class DeviceControlSession(
         poll = schedule(2_000) { post {
             poll = null
             if (generation != state.generation || !foreground || inFlight != null || transport == null) return@post
-            if (confirmation != null || queued != null) pump()
+            if (confirmation != null || queued != null || infoReady()) pump()
             else send(Request(pollCommand()))
         } }
     }
@@ -345,13 +380,15 @@ internal class DeviceControlSession(
         queued?.clear(); queued = null
         inFlight?.clear(); inFlight = null
         confirmation = null
+        infoNeeded = false; infoAttempts = 0; infoRetryAt = 0; otaConfirmed = false
         configTransaction = false; configCancelRequested = false
         requestToken++
         val old = transport
         pendingIdentity = null
         transport = null
         publish(state.copy(generation = state.generation + 1, connection = connection,
-            authenticated = false, snapshotFresh = false, peerIdentity = null, error = null, operationMessage = null))
+            authenticated = false, snapshotFresh = false, firmwareInfo = null,
+            peerIdentity = null, error = null, operationMessage = null))
         old?.close()
     }
     private fun publish(next: State) {
@@ -360,6 +397,9 @@ internal class DeviceControlSession(
         observers.toList().forEach { it(state) }
     }
     companion object {
+        private const val INFO_ATTEMPTS = 3
+        private const val INFO_RETRY_MS = 2_000L
+
         fun operationError(error: Int): String = when (error) {
             -16 -> "设备正在收音、播报或处理设置，请结束后再试"
             -95 -> "设备固件暂不支持此操作"
