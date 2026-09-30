@@ -52,6 +52,8 @@ jobs:
             --qemu "$RUNNER_TEMP/qemu-build/qemu-system-arm" \
             --cc "$(command -v arm-none-eabi-gcc)" --output "$RUNNER_TEMP/qemu-evidence"
           BK7258_QEMU="$RUNNER_TEMP/qemu-build/qemu-system-arm" \
+          BK7258_QEMU_SOURCE="$RUNNER_TEMP/external/qemu-bk7258" \
+          BK7258_QEMU_BUILD="$RUNNER_TEMP/qemu-build" \
             python3 tests/host/bk7258/test_bk7258_qemu.py -v
       - uses: actions/upload-artifact@v4
         if: always()

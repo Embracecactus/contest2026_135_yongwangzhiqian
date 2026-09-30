@@ -9,11 +9,13 @@
 
 static volatile uint32_t ticks;
 static volatile uint32_t received;
+static volatile uint32_t nmi_seen;
 static void cp_start(void);
 static void ap1_start(void);
 static void ap2_start(void);
 static void fault(void);
 static void tick(void);
+static void nmi(void);
 static void uart_irq(void);
 
 __attribute__((section(".vectors.cp"), used))
@@ -21,7 +23,7 @@ const uintptr_t cp_vectors[80] =
 {
   [0] = 0x20004000,
   [1] = (uintptr_t)cp_start,
-  [2] = (uintptr_t)fault,
+  [2] = (uintptr_t)nmi,
   [3] = (uintptr_t)fault,
   [4] = (uintptr_t)fault,
   [5] = (uintptr_t)fault,
@@ -72,6 +74,14 @@ static void fault(void)
   finish(1);
 }
 
+static void nmi(void)
+{
+  uint32_t exception;
+  __asm__ volatile("mrs %0, ipsr" : "=r"(exception));
+  if (exception != 2) { fault(); }
+  nmi_seen++;
+}
+
 static void tick(void)
 {
   ticks++;
@@ -103,7 +113,7 @@ static void ap2_start(void)
 
 static void cp_start(void)
 {
-  ticks = received = 0;
+  ticks = received = nmi_seen = 0;
   REG(UART + 0x08) = 1;
   REG(UART + 0x10) = 0xe11b; /* 26 MHz, 115200 baud, 8N1, TX/RX */
   REG(UART + 0x14) = 0x100;
@@ -119,6 +129,21 @@ static void cp_start(void)
       fault();
     }
   text("BK7258 SRAM ALIASES OK\n");
+
+  /* APB watchdog must execute CP NMI even with maskable interrupts off. */
+  REG(0x44010028) = 0xc;
+  REG(0x44010030) = 1u << 31;
+  REG(0x44800008) = 1;
+  __asm__ volatile("cpsid i" ::: "memory");
+  REG(0x44800010) = 0x5a0002;
+  REG(0x44800010) = 0xa50002;
+  for (uint32_t n = 0; !nmi_seen && n < 10000000; n++)
+    { __asm__ volatile("nop"); }
+  __asm__ volatile("cpsie i" ::: "memory");
+  if (nmi_seen != 1) { fault(); }
+  REG(0x44800010) = 0x5a0000;
+  REG(0x44800010) = 0xa50000;
+  text("BK7258 WATCHDOG NMI OK\n");
 
   /* Use the real CPU's secure SysTick and exception entry. */
   REG(0xe000e014) = 25999;

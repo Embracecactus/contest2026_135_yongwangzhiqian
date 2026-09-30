@@ -293,7 +293,7 @@ ifeq ($(CONFIG_BK7258_WDT),y)
 BK7258_CP_CSRCS += bk7258_wdt.c
 endif
 
-ifneq ($(filter y,$(CONFIG_BK7258_WDT) $(CONFIG_BK7258_OTA)),)
+ifneq ($(filter y,$(CONFIG_BK7258_WDT) $(CONFIG_BK7258_OTA) $(CONFIG_BOARDCTL_RESET)),)
 BK7258_CP_CSRCS += bk7258_system_reset.c
 endif
 

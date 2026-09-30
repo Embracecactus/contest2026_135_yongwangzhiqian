@@ -14,7 +14,7 @@
   <!-- Optional native simulator; never overlay this into the QEMU prebuilts. -->
   <project path="external/qemu-bk7258" name="qemu-bk7258"
            remote="shaniu-agent"
-           revision="7e351cfed31c9c87e0fc24904dfba10f3dcaaffa"
+           revision="1aba63cc2b695074a14a208914ad807ed54be0ea"
            upstream="refs/heads/master" clone-depth="1"
            groups="notdefault,bk7258-qemu"/>
   <remote name="mcuboot-official" fetch="https://github.com/mcu-tools/"/>
