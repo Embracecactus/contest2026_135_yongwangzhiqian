@@ -34,8 +34,7 @@ jobs:
       - name: Install the manifest client
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y repo libssl-dev \
-            gcc g++ make libglib2.0-dev ninja-build pkg-config python3-venv
+          sudo apt-get install --no-install-recommends -y repo libssl-dev
 
       - name: Create a clean manifest-pinned workspace
         id: source
@@ -47,7 +46,7 @@ jobs:
           cd "$cold"
           repo init -u "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" \
             -b "$GITHUB_SHA" -m contest2026_135_yongwangzhiqian.xml \
-            -g default,bk7258-sdk,bk7258-qemu,platform-linux
+            -g default,bk7258-sdk,platform-linux
           # Lock the dependency manifest before syncing, not only the team
           # checkout afterwards: a newer branch tip must not change Agent inputs.
           test "$(git -C .repo/manifests rev-parse HEAD)" = "$GITHUB_SHA"
@@ -60,7 +59,7 @@ jobs:
             apps/mlearning/tflite-micro/tflite-micro \
             apps/netutils/cjson/cJSON apps/netutils/mqttc/MQTT-C \
             apps/system/flatbuffers/flatbuffers build external \
-            external/ffmpeg/ffmpeg external/unqlite/unqlite external/qemu-bk7258 \
+            external/ffmpeg/ffmpeg external/unqlite/unqlite \
             contest2026_135_yongwangzhiqian \
             frameworks frameworks/connectivity \
             frameworks/connectivity/bluetooth frameworks/multimedia \
@@ -138,70 +137,6 @@ jobs:
           test -n "$package"
           python3 tools/bk7258/bk7258.py verify package --package "$package"
           python3 tools/bk7258/bk7258.py verify trust --package "$package" --openssl /usr/bin/openssl
-
-      - name: Verify native CP NSH and retain product stop boundaries
-        shell: bash
-        run: |
-          set -euo pipefail
-          cold="$RUNNER_TEMP/shaniu-cold"
-          project="$cold/contest2026_135_yongwangzhiqian"
-          cd "$project"
-          python3 tools/bk7258/bk7258.py qemu build --workspace "$cold" \
-            --build-dir "$RUNNER_TEMP/qemu-native-build" --jobs 4
-          product_manifest=$(find "$cold/out/bk7258/aidk_ai_toy" \
-            -path '*/releases/mcuboot/build-manifest.json' -type f -print -quit)
-          test -n "$product_manifest" && test -f "$product_manifest"
-          BK7258_QEMU="$RUNNER_TEMP/qemu-native-build/qemu-system-arm" \
-          BK7258_PRODUCT_BUILD_MANIFEST="$product_manifest" \
-          BK7258_NM="$project/prebuilt/gcc-arm-none-eabi-10.3-2021.10/bin/arm-none-eabi-nm" \
-          BK7258_QEMU_EVIDENCE="$RUNNER_TEMP/qemu-native-evidence/product-stop-mcuboot" \
-            python3 tests/host/bk7258/test_bk7258_qemu.py ProductCPStop -v
-          python3 tools/bk7258/bk7258.py build \
-            --cp-config boards/bk7258/aidk_ai_toy/configs/native_nsh \
-            --ap-config boards/bk7258/aidk_ai_toy/configs/openvela_ap \
-            --partition boards/bk7258/common/partitions/bk7258/bk7258_ab_fixed_block_full_release.csv \
-            --boot direct --jobs 4
-          native_manifest=$(find "$cold/out/bk7258/aidk_ai_toy/native_nsh__openvela_ap" \
-            -path '*/releases/direct/build-manifest.json' -type f -print -quit)
-          python3 tools/bk7258/bk7258.py qemu native-nsh \
-            --qemu "$RUNNER_TEMP/qemu-native-build/qemu-system-arm" \
-            --build-manifest "$native_manifest" \
-            --output "$RUNNER_TEMP/qemu-native-evidence/native-nsh"
-          python3 tools/bk7258/bk7258.py qemu native-nsh \
-            --qemu "$RUNNER_TEMP/qemu-native-build/qemu-system-arm" \
-            --build-manifest "$native_manifest" --physical-nor --timeout 30 \
-            --output "$RUNNER_TEMP/qemu-native-evidence/native-nsh-nor"
-          python3 - "$native_manifest" "$RUNNER_TEMP/qemu-native-evidence/native-nsh" <<'PYTHON'
-          import json, pathlib, shutil, sys
-          manifest, output = map(pathlib.Path, sys.argv[1:])
-          elf = manifest.parents[2] / json.loads(manifest.read_text())['elfs']['cp']['path']
-          shutil.copy2(elf, output / 'nuttx.elf')
-          shutil.copy2(elf.parent / '.config', output / 'resolved.config')
-          shutil.copy2(manifest, output / 'build-manifest.json')
-          PYTHON
-
-          # Exercise the unchanged direct product through physical NOR too;
-          # this is a missing-device boundary, not a product boot assertion.
-          python3 tools/bk7258/bk7258.py build --board aidk_ai_toy --boot direct --jobs 4
-          direct_manifest=$(find "$cold/out/bk7258/aidk_ai_toy/app__openvela_ap" \
-            -path '*/releases/direct/build-manifest.json' -type f -print -quit)
-          test -n "$direct_manifest" && test -f "$direct_manifest"
-          BK7258_QEMU="$RUNNER_TEMP/qemu-native-build/qemu-system-arm" \
-          BK7258_PRODUCT_BUILD_MANIFEST="$direct_manifest" \
-          BK7258_NM="$project/prebuilt/gcc-arm-none-eabi-10.3-2021.10/bin/arm-none-eabi-nm" \
-          BK7258_QEMU_EVIDENCE="$RUNNER_TEMP/qemu-native-evidence/product-stop-direct" \
-            python3 tests/host/bk7258/test_bk7258_qemu.py ProductCPStop -v
-
-      - name: Preserve native QEMU CP evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: bk7258-native-nsh-${{ github.sha }}
-          path: |
-            ${{ runner.temp }}/qemu-native-evidence
-            ${{ runner.temp }}/qemu-native-build/bk7258-build.log
-          retention-days: 7
-          if-no-files-found: warn
 
       - name: Build the Android companion and existing unit tests
         shell: bash

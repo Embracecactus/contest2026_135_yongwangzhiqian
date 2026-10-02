@@ -174,25 +174,7 @@ Official pytest drives that CMocka program over the UART0 CP NuttShell,
 applies a BK7258-wide boot baseline, then selects additional markers from an
 explicit `t5_board` or `t5ai_core` board contract.
 
-`aidk_ai_toy/configs/native_nsh` is a second, narrowly scoped simulator
-acceptance exception. It is a native CP NuttX/NSH diagnostic, with the same
-`aidk_ai_toy_openvela_v1` ABI and `cp-aidk` SDK. It keeps ordinary reset,
-board-late initialization, SDK UART0/IRQ routing, and the 32 kHz SysTick path.
-It disables optional radio, AP autostart, mailbox, storage, PSRAM, PM/DVFS,
-watchdog supervision and product applications through existing Kconfig.
-It does not introduce emulator-detection branches or alter the production
-`app`, `openvela_ap`, or `openvela.conf` selection. Pair it with the existing
-AP profile for an unsigned direct build, but run only CP for this milestone.
-Acceptance requires interactive commands, native task scheduling/time, and
-reset/error recovery without unknown BK7258 MMIO. The exact eight upstream
-Cortex-M33 debug-monitor capability probes per boot are preserved/count-checked
-as documented by the QEMU entry; debug/performance-counter support is not
-claimed. A prompt alone is insufficient.
-This profile does not establish production AIDK boot, AP SMP, or flash/OTA
-correctness; the unchanged product image remains a separate startup regression.
-It has no ROMFS/final-init product startup-script contract.
-
-`t5_board/configs/perf` is the narrow measurement-policy exception to the
+`t5_board/configs/perf` is the one narrow measurement-policy exception to the
 profile-directory rule below.  It does not introduce another physical-board
 or CP/AP ABI boundary: its `profile.conf` remains in compatibility group
 `t5_board_openvela_v1`.  A separate seed is necessary because trustworthy timing
@@ -249,7 +231,6 @@ Do not add product catalogs, generated full configs, boot-mode copies or
 arbitrary feature-specific profile directories. Add a persistent seed only
 for a real board/role compatibility boundary, or for a reviewed measurement
 policy whose required negative configuration cannot coexist with the normal
-or diagnostic image, plus the explicitly bounded `native_nsh` exception above.
-New measurement exceptions must document their negative
+or diagnostic image.  New measurement exceptions must document their negative
 contract and remain in the existing compatibility group unless the ABI really
 changes.
