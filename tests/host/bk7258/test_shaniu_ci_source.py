@@ -265,6 +265,23 @@ class SourceResolutionTest(unittest.TestCase):
                 (public / "firmware/release.json").write_text(json.dumps({
                     "build_manifest": {"path": "evidence/build-manifest.json"}}))
                 source_module().verify_build_evidence(public)
+                (public / "source-inputs.json").write_text(json.dumps({
+                    **identity, "manifest_sha": SHA, "source_sha": SHA, "event_sha": SHA}))
+                exported = ElementTree.parse(delivery / "declared-manifest.xml")
+                # repo manifest elides path when it equals name.
+                project = exported.getroot().find("project")
+                del project.attrib["path"]
+                exported.write(public / "declared-manifest.xml")
+                source_module().verify_delivery(identity, public)
+                project.set("revision", BASE)
+                exported.write(public / "declared-manifest.xml")
+                with self.assertRaises(ValueError):
+                    source_module().verify_delivery(identity, public)
+                project.set("revision", SHA)
+                exported.getroot().append(ElementTree.fromstring(ElementTree.tostring(project)))
+                exported.write(public / "declared-manifest.xml")
+                with self.assertRaises(ValueError):
+                    source_module().verify_delivery(identity, public)
                 copied = public / "build-evidence/cp.config"
                 original = copied.read_bytes()
                 copied.write_bytes(b"CONFIG_BK7258_ENGINEERING_TEST=y\n")

@@ -64,6 +64,16 @@ workspace 用真实远端验证后，manifest 和团队源码均为上述候选 
 涵盖错哈希、越界路径、缺 map、与哈希一致但误开的工程配置。不增加同类测试组。
 最终候选的可下载工件和结果仍以 PR 对应 CI 为准，本文不把本地文件充当公开附件。
 
+[运行 37906784140](https://github.com/open-vela/contest2026_135_yongwangzhiqian/actions/runs/37906784140)
+的候选 `c68e39139e27f926efecd29cf2e2067c3c34b6f2` 完成固件、APK、
+888/888 合同、70 个 host 构建与两个变异检查，并导出上述 17 项；运行整体失败，
+原因是独立校验器要求 manifest 显式含 `path`，而 Repo 在 path 与 name 相同
+时合法省略该属性。先在现有来源测试组复现 Red，再按 Repo 缺省规则修复，
+保留唯一项目、SHA 和 remote URL 严格检查。来源 12 项、runner 30 项通过；
+下载该候选原始工件后，哈希、源码、标准配置、包签名及 release/build 一致性
+在修正后的校验器下通过。该本地复验不改变原 CI 失败结论；修复提交的新候选
+仍须自动完成全部门禁。
+
 ## 已有 CI 证据（复用，不是新候选评分）
 
 来源提交的 [GitHub Actions run 37890100009](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/actions/runs/37890100009)（attempt 1）已完成并成功：`build` 与 `verify-delivery` 两个 job 均通过。
