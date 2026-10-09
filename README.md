@@ -210,6 +210,8 @@ workspace 创建临时开发身份，完整编译并在独立 job 下载、校�
 官方 PR 使用 `refs/pull/<编号>/merge` 对应的精确候选 SHA，并在同步前仅覆盖团队项目的
 来源；fork push、官方合并后 push 和手动触发也使用各自事件 SHA。`source-inputs.json`
 记录 base/head/candidate 与 manifest/source 实际 HEAD，独立交付 job 再次校验。
+`build-evidence/` 定向携带 BL1/BL2/CP/AP 的 ELF、map、原始 BIN，CP/AP 原始及
+展开配置和分区 CSV；ELF、BIN、配置按构建清单核对，全部文件纳入 SHA256SUMS。
 不要将 PR 的 `编号/merge` 拼成分支，也不要让团队源码偷偷跟随个人 fork 尖端。
 
 PR/push 自动触发后先查看同一提交的运行，不再手动重复触发。只有没有适用运行时，
