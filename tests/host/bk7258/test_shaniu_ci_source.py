@@ -190,7 +190,10 @@ class SourceResolutionTest(unittest.TestCase):
         self.assertIn("permissions:\n  contents: read\n", workflow)
         self.assertNotIn("pull_request_target", workflow)
         self.assertNotIn("heads/$GITHUB_REF_NAME", workflow)
-        self.assertIn('--manifest-upstream-branch "$GITHUB_REF"', workflow)
+        self.assertIn('-b "$GITHUB_REF"', workflow)
+        self.assertNotIn("--manifest-upstream-branch", workflow)
+        self.assertLess(workflow.index('test "$(git -C .repo/manifests rev-parse HEAD)" = "$GITHUB_SHA"'),
+                        workflow.index("repo sync -j4"))
         self.assertNotIn("${{ secrets.", workflow)
         self.assertLess(workflow.index("shaniu_source.py\" override"),
                         workflow.index("repo sync -j4"))
