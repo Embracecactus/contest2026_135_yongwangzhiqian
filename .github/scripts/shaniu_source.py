@@ -188,7 +188,8 @@ def verify_delivery(identity, delivery):
         if archived.get(field) != identity['candidate_sha']:
             raise ValueError(f'delivered {field} differs from candidate')
     root = ET.parse(delivery / 'declared-manifest.xml').getroot()
-    project = root.find(f"./project[@path='{TEAM}']")
+    projects = [p for p in root.findall('project') if p.get('path', p.get('name')) == TEAM]
+    project = projects[0] if len(projects) == 1 else None
     if project is None or project.get('revision') != identity['candidate_sha']:
         raise ValueError('delivered manifest does not pin team source')
     remotes = {r.get('name'): r.get('fetch') for r in root.findall('remote')}
