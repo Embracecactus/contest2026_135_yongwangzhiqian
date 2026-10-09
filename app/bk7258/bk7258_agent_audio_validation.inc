@@ -20,16 +20,53 @@ static int product_capture_validation(void)
 
       int result = audio_capture_start(cap);
       int bytes = 0;
+      unsigned int frames = 0;
+      uint64_t next_sample = 0;
       uint64_t deadline = bkvoice_config_now_ms(NULL) + 2000;
-      while (result == 0 && bytes == 0)
+      /* Ten 20 ms frames distinguish a startup transient from sustained
+       * clipping. Keep only aggregate statistics and clear every frame. */
+
+      while (result == 0 && frames < 10)
         {
           uint64_t first_sample;
           int n = audio_capture_read_local(cap, pcm, sizeof(pcm),
                                            &first_sample);
-          memset(pcm, 0, sizeof(pcm));
           if (n > 0)
             {
-              bytes = n;
+              int64_t sum = 0;
+              unsigned int peak = 0;
+              unsigned int clipped = 0;
+              unsigned int samples = (unsigned int)n / sizeof(pcm[0]);
+
+              if (n % sizeof(pcm[0]) != 0 ||
+                  (frames > 0 && first_sample != next_sample))
+                {
+                  result = -EPROTO;
+                }
+
+              for (unsigned int i = 0; i < samples; i++)
+                {
+                  int value = pcm[i];
+                  unsigned int magnitude = value < 0 ? -value : value;
+                  sum += value;
+                  if (magnitude > peak)
+                    {
+                      peak = magnitude;
+                    }
+
+                  clipped += magnitude >= 32767;
+                }
+
+              memset(pcm, 0, sizeof(pcm));
+              syslog(LOG_NOTICE,
+                     "BKCAPTURE session=%u frame=%u sample=%llu bytes=%d "
+                     "peak=%u dc=%ld clipped_permyriad=%u result=%d\n",
+                     session, frames, (unsigned long long)first_sample, n,
+                     peak, samples ? (long)(sum / samples) : 0,
+                     samples ? clipped * 10000 / samples : 0, result);
+              next_sample = first_sample + samples;
+              frames++;
+              bytes += n;
             }
           else if (n != -EAGAIN)
             {
@@ -39,6 +76,8 @@ static int product_capture_validation(void)
             {
               result = -ETIMEDOUT;
             }
+
+          memset(pcm, 0, sizeof(pcm));
         }
 
       /* The startup owner is exclusive until core readiness is published. */
