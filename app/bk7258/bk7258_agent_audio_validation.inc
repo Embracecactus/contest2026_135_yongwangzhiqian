@@ -105,6 +105,100 @@ static int product_capture_validation(void)
 
   return 0;
 }
+
+static int product_voice_capture_validation(void)
+{
+  for (unsigned int session = 0; session < 2; session++)
+    {
+      struct bkcloud_models_s models;
+      const char *backend = voice_asr_get_backend();
+
+      /* Before core readiness the product cannot load cloud settings. Only
+       * an unconfigured batch backend is safe here: it cannot preconnect,
+       * and even an unexpected endpoint fails prepare before any transport.
+       * Do not change the selected backend, saved configuration or callback. */
+
+      if (atomic_load(&g_agent_core_ready) || !voice_channel_is_idle() ||
+          voice_asr_stream_supported() || backend == NULL ||
+          (strcmp(backend, "mimo") && strcmp(backend, "openai-audio")) ||
+          bkagent_cloud_models_get(&models) != -ENOKEY)
+        {
+          syslog(LOG_NOTICE, "BKVOICECAP session=%u skipped=guard\n", session);
+          return 0;
+        }
+
+      audio_capture_t *cap = audio_capture_open_local(NULL, 16000, 1, 16);
+      if (cap == NULL)
+        {
+          return errno ? -errno : -EIO;
+        }
+
+      int result = audio_capture_start(cap);
+      int16_t pcm[320];
+      uint64_t first_sample = 0;
+      uint64_t deadline = bkvoice_config_now_ms(NULL) + 2000;
+      int n = 0;
+      while (result == 0)
+        {
+          n = audio_capture_read_local(cap, pcm, sizeof(pcm), &first_sample);
+          memset(pcm, 0, sizeof(pcm));
+          if (n == sizeof(pcm))
+            {
+              result = audio_capture_handoff_at(cap, first_sample + 320);
+              break;
+            }
+
+          if (n != -EAGAIN)
+            {
+              result = n < 0 ? n : -EPROTO;
+            }
+          else if (bkvoice_config_now_ms(NULL) >= deadline)
+            {
+              result = -ETIMEDOUT;
+            }
+        }
+
+      if (!result)
+        {
+          result = voice_channel_start_auto();
+        }
+
+      if (result)
+        {
+          /* No auto task owns the pending handoff when start fails. */
+
+          audio_capture_abort(cap);
+          audio_capture_close(cap);
+          audio_capture_cleanup(2000);
+          return result;
+        }
+
+      /* Ownership has transferred. Never access cap from this caller again.
+       * The delay bounds capture; existing recorder logs, not the delay,
+       * establish whether cancellation actually reached a recording turn. */
+
+      nxsig_usleep(250000);
+      int canceled = voice_channel_cancel();
+      deadline = bkvoice_config_now_ms(NULL) + 3000;
+      while (!voice_channel_is_idle() &&
+             bkvoice_config_now_ms(NULL) < deadline)
+        {
+          nxsig_usleep(20000);
+        }
+
+      int idle = voice_channel_is_idle();
+      int cleanup = idle ? audio_capture_cleanup(2000) : -ETIMEDOUT;
+      syslog(LOG_NOTICE,
+             "BKVOICECAP session=%u handoff_bytes=%d cancel=%d idle=%d "
+             "cleanup=%d no-cloud\n", session, n, canceled, idle, cleanup);
+      if (canceled || !idle || cleanup)
+        {
+          return canceled ? canceled : cleanup;
+        }
+    }
+
+  return 0;
+}
 #endif
 
 static int product_audio_validation_report(struct bkengaudio_report_s *report)

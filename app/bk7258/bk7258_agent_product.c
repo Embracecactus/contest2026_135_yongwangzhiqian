@@ -3589,6 +3589,11 @@ int ai_agent_main(int argc, FAR char *argv[])
       ret = product_capture_validation();
       syslog(LOG_NOTICE, "BKCAPTURE validation result=%d\n", ret);
     }
+  if (!ret)
+    {
+      ret = product_voice_capture_validation();
+      syslog(LOG_NOTICE, "BKVOICECAP validation result=%d\n", ret);
+    }
 #endif
   if (!ret)
     {
