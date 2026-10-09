@@ -68,6 +68,7 @@ internal object OtaSourceAcceptance {
             try {
                 stage = "open"
                 server = OtaPackageServer.open(context, candidate)
+                val metadata = checkNotNull(server.metadata)
                 diagnosticServer = server
                 check(server.running)
                 val aliasesDuring = ownAliases()
@@ -83,7 +84,7 @@ internal object OtaSourceAcceptance {
                 check(source.uri.scheme == "https" && source.uri.host == LOGICAL_HOST)
                 check(source.uri.port in 1..65535 && source.uri.rawQuery == null &&
                     source.uri.rawFragment == null)
-                check(source.catalogDigest.equals(server.metadata.catalogSha256, true))
+                check(source.catalogDigest.equals(metadata.catalogSha256, true))
                 val certificate = CertificateFactory.getInstance("X.509")
                     .generateCertificate(ByteArrayInputStream(source.certificatePem)) as X509Certificate
                 identityShape = if (certificate.subjectAlternativeNames.orEmpty().any { name ->
@@ -106,22 +107,22 @@ internal object OtaSourceAcceptance {
                 val catalog = get(trusted, address, source.uri.port, LOGICAL_HOST,
                     source.uri.rawPath, null, deadline)
                 check(catalog.status == 200 && catalog.contentRange == null)
-                check(sha256(catalog.body).equals(server.metadata.catalogSha256, true))
+                check(sha256(catalog.body).equals(metadata.catalogSha256, true))
                 requests++
                 transferred += catalog.body.size
 
                 val prefix = source.uri.rawPath.removeSuffix("catalog.json")
                 stage = "ap-ranges"
                 val ap = rangedDigest(trusted, address, source.uri.port,
-                    "$prefix${"images/ap/ap.bin"}", server.metadata.ap.size, deadline)
-                check(ap.sha256.equals(server.metadata.ap.sha256, true))
+                    "$prefix${"images/ap/ap.bin"}", metadata.ap.size, deadline)
+                check(ap.sha256.equals(metadata.ap.sha256, true))
                 requests += ap.requests
                 transferred += ap.bytes
 
                 stage = "cp-ranges"
                 val cp = rangedDigest(trusted, address, source.uri.port,
-                    "$prefix${"images/cp/cp.bin"}", server.metadata.cp.size, deadline)
-                check(cp.sha256.equals(server.metadata.cp.sha256, true))
+                    "$prefix${"images/cp/cp.bin"}", metadata.cp.size, deadline)
+                check(cp.sha256.equals(metadata.cp.sha256, true))
                 requests += cp.requests
                 transferred += cp.bytes
 

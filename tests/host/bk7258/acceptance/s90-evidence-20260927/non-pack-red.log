@@ -1,0 +1,19 @@
+F
+======================================================================
+FAIL: test_non_pack_rejected_before_connect (__main__.ResourceFlow)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_resource_flow.py", line 184, in test_non_pack_rejected_before_connect
+    channel.assert_not_called();creds.assert_not_called()
+  File "/usr/lib/python3.10/unittest/mock.py", line 890, in assert_not_called
+    raise AssertionError(msg)
+AssertionError: Expected '_credentials' to not have been called. Called 1 times.
+Calls: [call(Namespace(operation='resource-upload', file=PosixPath('/tmp/tmp4i0qz19h/not-a-pack'), receipt=PosixPath('/tmp/tmp4i0qz19h/receipt.json'), ttl_ms=5000)),
+ call().__enter__(),
+ call().__enter__().__iter__(),
+ call().__exit__(<class 'ValueError'>, ValueError('not enough values to unpack (expected 3, got 0)'), <traceback object at 0x7efe733cbb40>)].
+
+----------------------------------------------------------------------
+Ran 1 test in 0.003s
+
+FAILED (failures=1)

@@ -1,0 +1,9 @@
+{
+  "mutation": "PC encoder substitutes a different installed filename",
+  "status": "DETECTED",
+  "exit": 1,
+  "restored_exit": 0,
+  "source_sha256": "36be0a598790708946deae947e8b9cd614dc8a1a2e4844beb76c9680cc55747f",
+  "mutant_sha256": "a3252d9b8e6354f18f3c8ef9b4c71ece424690beb5c0d1c8fe50e5bde86ebb88",
+  "oracle": "Actual native renderer remains default after missing package; independent client assertion requires chosen pack rendered. No production state machine substitute."
+}

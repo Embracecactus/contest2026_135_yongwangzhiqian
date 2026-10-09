@@ -1,0 +1,8 @@
+{
+  "mutation": "allow catalog DONE despite release failure",
+  "compiled": true,
+  "assertion": "status.state == BKDISPLAY_SELECTION_UNKNOWN",
+  "mutant_exit": 1,
+  "restore_exit": 0,
+  "production_modified": false
+}

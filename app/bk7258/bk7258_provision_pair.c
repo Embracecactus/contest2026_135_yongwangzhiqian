@@ -130,6 +130,14 @@ static int packet(struct bkprov_pair_s *pair)
         {
           if (p[4] != 5 || sequence != 1 || size != 0 ||
               pair->claim.state != BKPROV_READY) return -EPROTO;
+
+          /* A receipt query has no network trial, even in a normal claim
+           * window. Keep the shared deadline/generation checks while using
+           * only the read-only backend until the receipt becomes terminal.
+           */
+
+          pair->claim.ops = &recovery_ops;
+          pair->claim.context = NULL;
           pair->claim.state = BKPROV_CHECKING;
           pair->query_pending = true;
           pair->request_sequence = sequence;

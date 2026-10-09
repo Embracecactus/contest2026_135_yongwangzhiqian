@@ -1,0 +1,41 @@
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:11:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:13:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:14:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:15:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:16:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:17:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:18:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:19:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:20:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:21:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:22:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:23:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:26:3: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:27:3: warning: #define outside of 'Pre-processor Definitions' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:29:3: warning: #define outside of 'Pre-processor Definitions' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:32:1: warning: #define outside of 'Pre-processor Definitions' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:33:1: warning: #define outside of 'Pre-processor Definitions' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:34:1: warning: #define outside of 'Pre-processor Definitions' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:35:1: warning: #define outside of 'Pre-processor Definitions' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:36:1: warning: #define outside of 'Pre-processor Definitions' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:37:1: warning: #define outside of 'Pre-processor Definitions' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:38:1: warning: #define outside of 'Pre-processor Definitions' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:39:1: warning: #define outside of 'Pre-processor Definitions' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:40:1: warning: #define outside of 'Pre-processor Definitions' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:41:1: warning: #define outside of 'Pre-processor Definitions' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:43:1: warning: #define outside of 'Pre-processor Definitions' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:45:1: warning: #define outside of 'Pre-processor Definitions' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:46:1: warning: #define outside of 'Pre-processor Definitions' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:47:1: warning: #define outside of 'Pre-processor Definitions' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:132:79: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:228:83: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:245:78: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:249:63: error: Block comment terminator must be on a separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:249:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:254:84: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:395:79: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:543:78: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:668:79: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:714:79: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:915:78: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:1297:1: error: "Private/Public Functions" not found! File will not be checked

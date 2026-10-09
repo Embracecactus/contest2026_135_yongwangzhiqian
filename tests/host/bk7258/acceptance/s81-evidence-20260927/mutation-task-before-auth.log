@@ -1,0 +1,13 @@
+F
+======================================================================
+FAIL: test_failure (__main__.TasksTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/shaniu-s81-mutation-di8ml5_i/tests/host/bk7258/test_workbench_tasks.py", line 130, in test_failure
+    with self.assertRaises(w.ControlError):
+AssertionError: ControlError not raised
+
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+FAILED (failures=1)

@@ -1,0 +1,61 @@
+{
+  "parent": "705611f5c7c65dc2beb3197364337e0977f77565",
+  "scope": "Test runner only; no production source, device or dependency change",
+  "red": {
+    "compiler_classification": "FAIL_ASSERTION before fix; error expected",
+    "new_argument": "TypeError before interface added; setup error, not business assertion"
+  },
+  "counts": {
+    "selected": 472,
+    "original": 63,
+    "added": 409,
+    "new_product_ids": 0,
+    "runner_gates": 17,
+    "new_gate_methods": 4
+  },
+  "exit_contract": {
+    "tls_setup_error": 2,
+    "tls_assertion": 1,
+    "tls_success": 0
+  },
+  "mutations": [
+    {
+      "id": "MSC-01.early-release",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.007821431965567172,
+      "source": "app/bk7258/bk7258_media_volume.c",
+      "original_sha256": "58ebb18ae63adccf21262253da18f153bbb7c680cc0b64719ca20e8a6d9681c8",
+      "mutant_sha256": "bf298373a95ac54d5587f93ece34a30a7f661a65a969c69db9e27c6570770c57",
+      "expected_assertion": "!mounted",
+      "evidence": "MSC-01.early-release.log"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.06419303396251053,
+      "source": "app/bk7258/bk7258_provision_config.c",
+      "original_sha256": "98f5100ca49ca44e45fe3e5da4bb2da0add7466f0e357a205ca8b1e307a5818e",
+      "mutant_sha256": "4c0c615b8ffc99247b0fd91bd934d3df0409a1180769cb939b2820f9e6f69427",
+      "expected_assertion": "bkcloud_config_decode",
+      "evidence": "CFG-01.wifi-clears-cloud.log"
+    }
+  ],
+  "limitations": [
+    "Nested Gradle and other child runners still use their existing reporting semantics",
+    "Historical TLS faults remain open",
+    "No physical USB or device acceptance"
+  ],
+  "inputs": {
+    "tests/host/bk7258/test_provision_tls.py": "99336d40b8a9dde386aa570bbefdb9dae9cefd8a9b80aa32fd2c4a286dd91185",
+    "tests/host/bk7258/test_shaniu_contracts.py": "2ae15a9cbd0bb2a5338d2420ae7ffbe346cb01028a46220cd4743cdfb77fc4dc",
+    "tests/host/bk7258/test_shaniu_runner_gate.py": "d8ff1a5fc16444fd29262c0842a26e30a4f67eaf74479b5c35f9eae8d6826cb1"
+  },
+  "evidence": {
+    "before.log": "35207dd2bbdeafa5a863b23772ecafaa9d1c7b1ccd140f25911dce6ac7eb927a",
+    "full.log": "7f4c137df88fdf6b5f691c44bb87d4357683673afb73c68d83f1b003c9084244",
+    "USB-01.tls-transport.log": "feb7888a0b467fd043c1e63e751835f6e7176a7a014a87a19fe95cacf4c2ebb7",
+    "gates.log": "df06bb62bf49d5fcdd95bd28294f884301a1b8d9dc3afd1cac3ad180315e7b35"
+  }
+}

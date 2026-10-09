@@ -80,10 +80,15 @@ class DeviceControlTlsInteropTest {
                     }
                 }
                 try {
+                    assertNull(session.peerIdentity)
                     session.start()
                     pumpUntil { session.established }
                     protocol.start()
                     pumpUntil { protocol.authenticated }
+                    val identity = requireNotNull(session.peerIdentity)
+                    assertEquals(pin.joinToString("") { "%02x".format(it.toInt() and 255) }, identity.sha256)
+                    assertArrayEquals(cert.encoded, CertificateFactory.getInstance("X.509")
+                        .generateCertificate(identity.certificatePem.byteInputStream()).encoded)
                     assertEquals(DeviceControlProtocol.Command.AUTH, replies.single().first)
                     assertTrue(protocol.request(DeviceControlProtocol.Command.VOLUME, 73))
                     pumpUntil { replies.size == 2 }
@@ -94,7 +99,7 @@ class DeviceControlTlsInteropTest {
                     assertTrue(peer.waitFor(3, TimeUnit.SECONDS))
                     assertEquals(0, peer.exitValue())
                 } finally {
-                    protocol.close(); session.close()
+                    protocol.close(); session.close(); assertNull(session.peerIdentity)
                     outgoing.forEach { it.fill(0) }
                     peer.destroyForcibly(); peer.inputStream.close(); peer.outputStream.close()
                     reader.cancel(true); executor.shutdownNow()

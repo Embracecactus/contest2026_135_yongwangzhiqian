@@ -1,0 +1,491 @@
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2:1: error: Path relative to repository other than "nuttx" must begin with the root directory
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:176:47: error: Block comment terminator must be on a separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:176:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:177:48: error: Multiple data definitions
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:177:27: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:178:53: error: Right bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:205:3: error: Right brace must be followed by a blank line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:209:70: error: Block comment terminator must be on a separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:209:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:212:3: error: Right brace must be followed by a blank line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:217:3: error: Right brace must be followed by a blank line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:222:3: error: Right brace must be followed by a blank line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:255:92: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:256:89: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:270:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:374:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:562:78: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:563:79: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:613:80: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:672:11: error: Right brace must be followed by a blank line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:678:7: error: Right brace must be followed by a blank line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:803:79: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:803:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:805:100: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:845:85: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:886:79: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:887:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:906:3: error: Right brace must be followed by a blank line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:927:3: error: Right brace must be followed by a blank line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:942:3: error: Right brace must be followed by a blank line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:950:3: error: Right brace must be followed by a blank line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:954:81: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:989:75: error: Block comment terminator must be on a separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:989:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:996:30: error: Multiple data definitions
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:996:44: error: Right bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:996:7: error: Right brace must be followed by a blank line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:997:83: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:998:8: error: Bad alignment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:1001:83: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:1002:89: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:1007:85: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:1010:3: error: Right brace must be followed by a blank line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:1013:84: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:1014:4: error: Bad alignment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:1285:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:1339:79: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:1343:84: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:1344:4: error: Bad alignment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:1349:4: error: Bad alignment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:1350:80: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:1351:4: error: Bad alignment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:1357:3: error: Right brace must be followed by a blank line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:1359:4: error: Bad alignment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:1364:4: error: Bad alignment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:1377:79: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:1671:81: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:1671:4: error: Bad alignment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:1673:75: error: Block comment terminator must be on a separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:1673:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:1676:37: error: Right bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:1676:3: error: Right brace must be followed by a blank line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:1681:80: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:1683:85: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:1684:3: error: Right brace must be followed by a blank line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:1919:4: error: Bad alignment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:1981:75: error: Block comment terminator must be on a separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:1981:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:1987:4: error: Bad alignment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:1989:88: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:1989:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2009:75: error: Block comment terminator must be on a separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2009:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2014:78: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2016:78: error: Block comment terminator must be on a separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2016:78: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2016:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2021:82: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2030:92: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2030:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2048:1: error: Missing blank line before comment found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2048:96: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2048:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2051:7: error: Right brace must be followed by a blank line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2061:76: error: Block comment terminator must be on a separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2061:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2064:3: error: Right brace must be followed by a blank line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2066:60: error: Block comment terminator must be on a separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2066:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2086:1: error: Missing blank line before comment found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2100:80: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2100:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2105:7: error: Right brace must be followed by a blank line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2118:3: error: Right brace must be followed by a blank line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2135:73: error: Block comment terminator must be on a separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2135:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2142:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2203:19: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2203:56: error: Right bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2204:7: error: Right brace must be followed by a blank line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2230:80: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2231:19: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2231:60: error: Right bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2232:7: error: Right brace must be followed by a blank line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2260:4: error: Bad alignment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2261:6: error: Bad left brace alignment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2263:6: error: Bad right brace alignment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2266:4: error: Bad alignment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2267:6: error: Bad left brace alignment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2269:6: error: Bad right brace alignment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2272:4: error: Bad alignment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2273:6: error: Bad left brace alignment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2274:8: error: Bad alignment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2275:6: error: Bad right brace alignment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2401:65: error: Block comment terminator must be on a separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2401:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2410:90: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2411:82: error: Block comment terminator must be on a separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2411:82: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2411:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2421:1: error: Missing blank line before comment found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2421:94: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2421:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2423:11: error: Right brace must be followed by a blank line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2427:7: error: Right brace must be followed by a blank line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2440:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2587:7: error: Right brace must be followed by a blank line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2594:47: error: Right bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2594:11: error: Right brace must be followed by a blank line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2596:94: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2598:79: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2609:11: error: Right brace must be followed by a blank line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2619:47: error: Right bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2619:11: error: Right brace must be followed by a blank line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2629:78: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2631:7: error: Right brace must be followed by a blank line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2636:7: error: Right brace must be followed by a blank line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2657:88: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2658:91: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:2659:86: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:3236:1: error: Missing blank line before comment found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product.c:3236:78: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:2:1: error: Path relative to repository other than "nuttx" must begin with the root directory
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:13:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:17:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:18:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:19:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:20:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:21:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:23:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:24:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:25:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:26:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:27:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:28:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:29:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:30:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:31:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:32:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:33:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:34:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:35:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:36:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:38:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:39:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:42:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:43:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:44:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:46:1: error: Too many blank lines
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:47:1: warning: #define outside of 'Pre-processor Definitions' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:48:1: warning: #define outside of 'Pre-processor Definitions' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:49:1: warning: #define outside of 'Pre-processor Definitions' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:50:1: warning: #define outside of 'Pre-processor Definitions' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:51:1: warning: #define outside of 'Pre-processor Definitions' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:52:1: warning: #define outside of 'Pre-processor Definitions' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:53:1: warning: #define outside of 'Pre-processor Definitions' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:54:1: warning: #define outside of 'Pre-processor Definitions' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:55:1: warning: #define outside of 'Pre-processor Definitions' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:58:68: error: Block comment terminator must be on a separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:59:1: warning: #define outside of 'Pre-processor Definitions' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:85:88: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:171:78: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:173:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:175:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:176:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:368:78: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:400:64: error: Block comment terminator must be on a separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:400:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:416:81: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:418:37: error: Multiple data definitions
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:418:34: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:420:79: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:463:78: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:585:64: error: Block comment terminator must be on a separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:585:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:597:17: error: Mixed case identifier found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:598:19: error: Mixed case identifier found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:599:11: error: Mixed case identifier found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:600:14: error: Mixed case identifier found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:600:79: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:601:14: error: Mixed case identifier found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:605:24: error: Mixed case identifier found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:614:44: error: Mixed case identifier found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:625:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:632:78: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:666:94: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:683:94: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:695:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:702:7: error: Missing whitespace after semicolon
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:702:8: error: Missing whitespace after semicolon
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:705:19: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:709:78: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:719:88: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:743:78: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:758:79: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:760:80: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:765:78: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:785:79: error: Block comment terminator must be on a separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:785:79: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:785:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:843:82: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:932:15: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:933:1: error: Blank line follows left brace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:1085:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:1102:92: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:1103:88: error: Block comment terminator must be on a separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:1103:88: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:1103:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:1114:1: error: Too many blank lines
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c:1115:1: error: "Private/Public Functions" not found! File will not be checked
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h: error: No block comments found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:2:0: error: Path relative to repository other than "nuttx" must begin with the root directory
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:4:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:5:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:13:81: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:19:85: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:21:38: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:22:6: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:22:6: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:22:11: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:22:12: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:22:15: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:22:15: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:22:20: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:22:21: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:22:24: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:22:24: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:22:29: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:22:30: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:22:33: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:22:33: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:22:38: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:22:39: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:22:42: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:22:42: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:22:47: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:22:48: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:22:51: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:22:51: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:22:56: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:22:57: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:22:60: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:22:60: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:22:65: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:22:66: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:22:69: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:22:69: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:23:7: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:23:10: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:23:11: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:23:14: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:23:18: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:23:19: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:23:22: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:23:26: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:23:27: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:23:30: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:23:34: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:23:35: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:23:38: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:23:42: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:23:43: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:23:46: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:23:50: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:23:51: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:23:54: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:23:58: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:23:59: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:23:62: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:24:6: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:24:10: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:24:11: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:24:11: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:24:15: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:24:19: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:24:20: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:24:20: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:24:24: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:24:28: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:24:29: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:24:29: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:24:33: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:24:37: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:24:38: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:24:38: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:24:42: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:24:46: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:24:47: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:24:47: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:24:51: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:24:55: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:24:56: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:24:56: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:24:60: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:24:64: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:24:65: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:24:65: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:24:69: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:4: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:8: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:11: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:12: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:12: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:16: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:16: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:21: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:22: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:22: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:26: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:26: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:31: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:32: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:32: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:36: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:36: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:41: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:42: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:42: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:46: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:46: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:51: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:52: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:52: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:56: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:56: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:61: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:62: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:62: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:66: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:66: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:71: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:72: error: Left bracket not on separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:72: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:76: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:76: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:80: error: Garbage follows right bracket
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:25:83: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:26:8: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:26:8: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:26:11: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:27:8: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:27:9: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:27:11: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:27:21: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:27:22: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:27:24: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:27:45: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:27:45: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:27:47: error: Missing whitespace after semicolon
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:27:49: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:27:49: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:27:52: error: Missing whitespace after semicolon
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:29:28: error: Multiple data definitions
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:29:12: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:29:12: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:29:13: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:29:27: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:29:30: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:29:30: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:29:31: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:30:14: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:30:21: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:30:22: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:30:35: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:30:35: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:32:11: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:32:12: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:34:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:35:16: error: Multiple data definitions
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:35:11: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:35:11: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:35:12: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:35:15: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:35:17: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:35:17: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:35:18: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:36:14: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:36:15: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:36:15: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:36:24: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:36:25: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:36:33: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:36:34: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:36:34: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:36:43: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:36:44: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:37:11: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:37:12: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:37:12: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:37:20: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:37:21: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:37:24: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:37:25: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:37:28: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:37:29: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:37:29: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:37:37: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:37:38: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:39:11: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:39:12: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:41:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:42:14: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:42:15: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:42:15: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:42:24: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:42:25: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:42:33: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:42:34: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:42:34: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:42:42: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:42:43: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:44:11: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:44:12: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:44:23: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:44:24: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:46:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:47:18: error: Multiple data definitions
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:47:11: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:47:11: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:47:12: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:47:14: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:47:17: error: Missing whitespace after comma
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:47:19: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:47:19: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:47:20: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:47:22: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:48:16: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:48:17: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:48:17: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:48:26: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:48:27: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:48:34: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:48:35: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:48:35: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:48:43: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:48:44: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:49:16: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:49:17: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:49:24: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:49:25: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:49:33: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:49:34: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:49:34: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:49:42: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:49:43: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:51:11: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:51:12: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:51:19: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:51:20: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:51:28: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:51:29: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:52:9: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:52:10: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:52:10: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:52:19: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:52:20: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:52:20: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:52:24: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:52:25: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:52:28: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:52:29: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:52:36: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:52:37: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:53:11: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:53:11: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:53:13: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:53:23: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:53:23: error: Operator/assignment must be followed with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_pixels.h:53:24: error: Operator/assignment must be preceded with whitespace
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_pc_tasks.c:2:1: error: Path relative to repository other than "nuttx" must begin with the root directory
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_pc_tasks.h:2:1: error: Path relative to repository other than "nuttx" must begin with the root directory

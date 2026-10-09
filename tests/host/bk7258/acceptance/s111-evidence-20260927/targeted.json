@@ -1,0 +1,18 @@
+[
+  {
+    "case": "trial_cancel",
+    "exit": 0
+  },
+  {
+    "case": "missing_pack",
+    "exit": 0
+  },
+  {
+    "case": "default_supersedes_trial",
+    "exit": 0
+  },
+  {
+    "case": "release_recovery_stays_unknown",
+    "exit": 0
+  }
+]

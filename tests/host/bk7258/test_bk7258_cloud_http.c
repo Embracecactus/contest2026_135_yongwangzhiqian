@@ -2,6 +2,7 @@
 #include "bk7258_cloud_http.h"
 #include <assert.h>
 #include <errno.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -24,7 +25,11 @@ static void post(const char *reply, int expected, int failure, size_t capacity)
   struct bkcloud_config_s config = {.port = 443};
   struct peer_s peer = {.reply = reply, .failure = failure}; char output[128];
   assert(http != NULL); strcpy(config.host, "cloud.example"); strcpy(config.base_path, "/v1"); strcpy(config.api_key, "test-only-key"); memset(output, 'x', sizeof(output));
-  assert(bkcloud_http_post(http, &config, "chat/completions", &g_tls, &peer, 123456, body, NULL, 2, output, capacity) == expected);
+  int actual = bkcloud_http_post(http, &config, "chat/completions", &g_tls,
+                                 &peer, 123456, body, NULL, 2, output, capacity);
+  if (actual != expected)
+    fprintf(stderr, "cloud HTTP expected=%d actual=%d\n", expected, actual);
+  assert(actual == expected);
   assert(peer.opens == 1 && peer.closes == 1);
   assert(!http->connected && http->config == NULL && http->response == NULL);
   if (expected == 0) { assert(!strcmp(output, "{}")); assert(strstr(peer.request, "POST /v1/chat/completions HTTP/1.1\r\n")); assert(strstr(peer.request, "Authorization: Bearer test-only-key\r\n")); }
@@ -34,7 +39,8 @@ int main(void)
 {
   post("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}", 0, 0, 128);
   post("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n1\r\n{\r\n1\r\n}\r\n0\r\n\r\n", 0, 0, 128);
-  post("HTTP/1.1 302 Found\r\nContent-Length: 0\r\n\r\n", -EPERM, 0, 128);
+  post("HTTP/1.1 302 Found\r\nContent-Length: 0\r\n\r\n", -EPROTO, 0, 128);
+  post("HTTP/1.1 302 Found\r\nLocation: https://other.example/\r\nContent-Length: 0\r\n\r\n", -EPERM, 0, 128);
   post("HTTP/1.1 401 Unauthorized\r\nContent-Length: 2\r\n\r\n{}", -EACCES, 0, 128);
   post("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}", -E2BIG, 0, 2);
   post("", -ECANCELED, -ECANCELED, 128);

@@ -15,12 +15,15 @@
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
 
 #include "bk7258_display_rpc.h"
+#include "bk7258_display_power_pixels.h"
+#include "bk7258_focus_pixels.h"
 #include "bk7258_display_service.h"
 #include "bk7258_media_volume.h"
 
 #include <errno.h>
 #include <fcntl.h>
 #include <stdbool.h>
+#include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,6 +33,11 @@
 #include <sys/stat.h>
 #include <syslog.h>
 #include <unistd.h>
+#include <time.h>
+#ifdef CONFIG_BK7258_PROVISION_NATIVE
+#include "qrcodegen.h"
+#include <mbedtls/platform_util.h>
+#endif
 
 #include <nuttx/mutex.h>
 #include <nuttx/signal.h>
@@ -45,6 +53,10 @@
 #define BKDISPLAY_DEVICE_POLL_US 100000u
 #define BKDISPLAY_MAPPING_FB0_RGB565 0x07ffu
 #define BKDISPLAY_MAPPING_FB1_RGB565 0xf81fu
+/* SN1 carries 107 alphanumeric characters. Version 4-M holds only 90;
+ * 5-M fits the complete pin/secret and its 90-pixel quiet-zone square
+ * remains inside the 160-pixel round panel at integer 2x scaling. */
+#define BKDISPLAY_QR_VERSION 5
 
 struct bkdisplay_service_s
 {
@@ -57,8 +69,27 @@ struct bkdisplay_service_s
   uint8_t diagnostic_stage;
   int diagnostic_error;
   uint16_t *frames[5];
+  uint16_t *speaking_frame;
+  bool speaking_painted;
   unsigned int animation_step;
+  char claim_qr[108];
+  unsigned int power_overlay;
+  bool overlay_dirty;
+  unsigned focus_painted;
 };
+
+static atomic_bool g_speaking;
+static atomic_uint g_focus_visual;
+void bk7258_display_focus(unsigned visual)
+{
+  if (visual && ((visual >> 8) < 1 || (visual >> 8) > 6 || (visual & 255) > 32)) return;
+  atomic_store(&g_focus_visual, visual);
+}
+
+void bk7258_display_speaking(bool active)
+{
+  atomic_store(&g_speaking, active);
+}
 
 enum bkdisplay_diagnostic_stage_e
 {
@@ -137,6 +168,14 @@ static struct bkdisplay_service_s g_bkdisplay_service =
   },
 };
 
+static int bkdisplay_render_pack_pixels_locked(
+  struct bkdisplay_service_s *service, const char *expression,
+  const char *filename);
+#include "bk7258_display_render_identity.inc"
+static uint64_t bkdisplay_now_ms(void);
+#include "bk7258_display_intent.inc"
+#include "bk7258_display_snapshot.inc"
+
 static int bkdisplay_service_errno(void)
 {
   return errno > 0 ? -errno : -EIO;
@@ -164,6 +203,11 @@ static bool bkdisplay_service_node(const char *path, bool block)
 static int bkdisplay_volume_open(struct bkdisplay_service_s *service)
 {
   int ret;
+
+  if (bkdisplay_selection_storage_blocked())
+    {
+      return -EBUSY;
+    }
 
   if (service->volume_mounted)
     {
@@ -358,6 +402,21 @@ static void bkdisplay_cache_frames(struct bkdisplay_service_s *service,
     }
 
   service->animation_step = 0;
+  /* One optional 51,200-byte frame, bounded independently of pack size.
+   * Prepare with the pack lease, never in the audio callback. */
+  free(service->speaking_frame);
+  service->speaking_frame = malloc(BKDISPLAY_CANVAS_PIXELS * sizeof(*base));
+  if (service->speaking_frame &&
+      bkdisplay_pack_render(pack, "speaking", BKDISPLAY_SIDE_UNMAPPED,
+                            service->speaking_frame,
+                            BKDISPLAY_CANVAS_PIXELS) < 0)
+    {
+      free(service->speaking_frame);
+      service->speaking_frame = NULL;
+    }
+  service->speaking_painted = false;
+  if (!service->speaking_frame)
+    syslog(LOG_WARNING, "BKDISPLAY speaking frame unavailable\n");
 }
 
 static unsigned int bkdisplay_animate_locked(struct bkdisplay_service_s *service)
@@ -407,8 +466,9 @@ static unsigned int bkdisplay_animate_locked(struct bkdisplay_service_s *service
   return delay_us[step];
 }
 
-static int bkdisplay_render_locked(struct bkdisplay_service_s *service,
-                                   const char *expression)
+static int bkdisplay_render_pack_pixels_locked(
+  struct bkdisplay_service_s *service, const char *expression,
+  const char *filename)
 {
   struct bkdisplay_store_selection_s selection;
   struct bkdisplay_pack_s *pack = NULL;
@@ -417,10 +477,8 @@ static int bkdisplay_render_locked(struct bkdisplay_service_s *service,
   int ret;
   uint8_t stage = BKDISPLAY_DIAG_NONE;
 
-  if (!service->devices_ready)
-    {
-      return -EAGAIN;
-    }
+  if (!service->devices_ready) return -EAGAIN;
+  if (service->claim_qr[0] || service->power_overlay) return -EBUSY;
 
   stage = BKDISPLAY_DIAG_ALLOCATE;
   pixels = malloc(BKDISPLAY_CANVAS_PIXELS * sizeof(*pixels));
@@ -446,12 +504,10 @@ static int bkdisplay_render_locked(struct bkdisplay_service_s *service,
   if (ret == 0)
     {
       stage = BKDISPLAY_DIAG_STORE_RESOLVE;
-      ret = bkdisplay_store_resolve(BKDISPLAY_MOUNTPOINT, &selection);
-    }
-  if (ret == 0)
-    {
-      stage = BKDISPLAY_DIAG_PACK_OPEN;
-      ret = bkdisplay_pack_open(selection.path, &pack, NULL);
+      ret = filename != NULL ?
+        bkdisplay_store_open_installed(BKDISPLAY_MOUNTPOINT, filename,
+                                       &selection, &pack) :
+        bkdisplay_store_resolve_open(BKDISPLAY_MOUNTPOINT, &selection, &pack);
     }
 
   if (ret == 0)
@@ -534,97 +590,292 @@ out:
   return ret;
 }
 
-static int bkdisplay_wait_for_devices(void)
+/* Product overlays are painted by this same service, never a second display
+ * owner. They need neither SD NAND nor an installed eye pack. */
+static int bkdisplay_builtin_locked(struct bkdisplay_service_s *service,
+                                    bool fallback)
 {
-  unsigned int elapsed = 0;
-
-  while (elapsed < CONFIG_BK7258_DISPLAY_DEVICE_TIMEOUT_MS)
+  (void)fallback;
+  int identity_ret = bkdisplay_identity_advance();
+  if (identity_ret < 0) return identity_ret;
+  uint16_t *pixels = calloc(BKDISPLAY_CANVAS_PIXELS, sizeof(*pixels));
+  if (!pixels) return -ENOMEM;
+  int ret = 0;
+#ifdef CONFIG_BK7258_PROVISION_NATIVE
+  if (service->claim_qr[0] && !service->power_overlay && !fallback)
     {
-      if (bkdisplay_service_node(BKDISPLAY_BLOCKDEV, true) &&
-          bkdisplay_service_node(BKDISPLAY_FB0, false) &&
-          bkdisplay_service_node(BKDISPLAY_FB1, false))
+      uint8_t qr[qrcodegen_BUFFER_LEN_FOR_VERSION(BKDISPLAY_QR_VERSION)];
+      uint8_t temp[qrcodegen_BUFFER_LEN_FOR_VERSION(BKDISPLAY_QR_VERSION)];
+      if (!qrcodegen_encodeText(service->claim_qr, temp, qr,
+              qrcodegen_Ecc_MEDIUM, BKDISPLAY_QR_VERSION, BKDISPLAY_QR_VERSION,
+              qrcodegen_Mask_AUTO, false))
+        ret = -E2BIG;
+      else
         {
-          return 0;
+          int modules = qrcodegen_getSize(qr);
+          int extent = (modules + 8) * 2;
+          int origin = (BKDISPLAY_CANVAS_WIDTH - extent) / 2;
+          for (int y = 0; y < extent; y++)
+            for (int x = 0; x < extent; x++)
+              {
+                int mx = x / 2 - 4;
+                int my = y / 2 - 4;
+                bool dark = mx >= 0 && my >= 0 && mx < modules &&
+                            my < modules && qrcodegen_getModule(qr, mx, my);
+                pixels[(origin + y) * BKDISPLAY_CANVAS_WIDTH + origin + x] =
+                  dark ? 0 : 0xffff;
+              }
         }
+      mbedtls_platform_zeroize(qr, sizeof(qr));
+      mbedtls_platform_zeroize(temp, sizeof(temp));
+    }
+  else
+#endif
+    {
+      /* Ring/stem = power intent; iris = built-in fallback eyes. */
+      int cx = BKDISPLAY_CANVAS_WIDTH / 2;
+      int cy = BKDISPLAY_CANVAS_HEIGHT / 2;
+      for (int y = 0; y < (int)BKDISPLAY_CANVAS_HEIGHT; y++)
+        for (int x = 0; x < (int)BKDISPLAY_CANVAS_WIDTH; x++)
+          {
+            pixels[y * BKDISPLAY_CANVAS_WIDTH + x] =
+                bkdisplay_power_pixel(service->power_overlay, x - cx, y - cy);
+          }
+    }
+  if (!ret) ret = bkdisplay_framebuffer_write(BKDISPLAY_FB0, pixels);
+  if (!ret) ret = bkdisplay_framebuffer_write(BKDISPLAY_FB1, pixels);
+  free(pixels);
+  return ret;
+}
 
-      (void)nxsig_usleep(BKDISPLAY_DEVICE_POLL_US);
-      elapsed += BKDISPLAY_DEVICE_POLL_US / 1000u;
+int bk7258_display_onboarding(const char *qr)
+{
+  struct bkdisplay_service_s *service = &g_bkdisplay_service;
+  irqstate_t flags;
+
+  if (qr && (strlen(qr) != 107 || strncmp(qr, "SN1:", 4))) return -EINVAL;
+#ifndef CONFIG_BK7258_PROVISION_NATIVE
+  if (qr) return -ENOTSUP;
+#endif
+
+  /* Closing a claim window is part of resource exit. Publish the bounded
+   * clear intent without waiting behind storage, QR generation or framebuffer
+   * work already owned by the display worker. The worker keeps the ordinary
+   * admission gate closed until it has consumed the request.
+   */
+  if (qr == NULL)
+    {
+      flags = spin_lock_irqsave(&g_bkdisplay_intent_lock);
+      g_bkdisplay_onboarding_clear_pending = true;
+      bkdisplay_intent_gate_locked(false);
+      spin_unlock_irqrestore(&g_bkdisplay_intent_lock, flags);
+      return 0;
     }
 
-  return -ETIMEDOUT;
+  int ret = nxmutex_lock(&service->lock);
+  if (ret) return ret;
+  bool ready = bkdisplay_service_node(BKDISPLAY_FB0, false) &&
+               bkdisplay_service_node(BKDISPLAY_FB1, false);
+  flags = spin_lock_irqsave(&g_bkdisplay_intent_lock);
+  bool power_pending = g_bkdisplay_power_requested != 0 ||
+                       g_bkdisplay_power_pending;
+  bool can_open = ready && !service->power_overlay && !power_pending;
+  if (can_open)
+    {
+      /* A newer explicit open supersedes an unconsumed close from an older
+       * owner window. Success below still means the QR reached both screens.
+       */
+      g_bkdisplay_onboarding_clear_pending = false;
+      bkdisplay_intent_gate_locked(false);
+    }
+  spin_unlock_irqrestore(&g_bkdisplay_intent_lock, flags);
+  if (!can_open) ret = -EAGAIN;
+  else
+    {
+      memset(service->claim_qr, 0, sizeof(service->claim_qr));
+      memcpy(service->claim_qr, qr, 107);
+      service->overlay_dirty = true;
+      service->status.state = BKDISPLAY_SERVICE_WAITING_ASSET;
+      ret = bkdisplay_builtin_locked(service, false);
+      if (!ret)
+        {
+          /* Rendering can yield at the framebuffer boundary. A newer power
+           * or close intent wins before success reaches the owner, which is
+           * what keeps the fresh secret and GATT window unopened.
+           */
+          flags = spin_lock_irqsave(&g_bkdisplay_intent_lock);
+          bool preempted = g_bkdisplay_power_requested != 0 ||
+                           g_bkdisplay_power_pending ||
+                           g_bkdisplay_onboarding_clear_pending;
+          spin_unlock_irqrestore(&g_bkdisplay_intent_lock, flags);
+          if (preempted) ret = -EAGAIN;
+          else service->overlay_dirty = false;
+        }
+      if (ret) memset(service->claim_qr, 0, sizeof(service->claim_qr));
+    }
+  bkdisplay_intent_gate(service->started && !service->claim_qr[0] && !service->power_overlay);
+  bkdisplay_unlock(service);
+  return ret;
 }
+
+/* Display worker owns the rendering mutex. Exit/power requests only publish
+ * metadata; apply the latest overlay state with no queue to accumulate.
+ */
+static void bkdisplay_power_apply_locked(struct bkdisplay_service_s *service)
+{
+  irqstate_t flags = spin_lock_irqsave(&g_bkdisplay_intent_lock);
+  if (g_bkdisplay_onboarding_clear_pending)
+    {
+      if (service->claim_qr[0])
+        {
+          memset(service->claim_qr, 0, sizeof(service->claim_qr));
+          service->overlay_dirty = true;
+          service->status.state = BKDISPLAY_SERVICE_WAITING_ASSET;
+        }
+      g_bkdisplay_onboarding_clear_pending = false;
+    }
+  if (service->power_overlay != g_bkdisplay_power_requested)
+    {
+      service->power_overlay = g_bkdisplay_power_requested;
+      service->overlay_dirty = true;
+      service->status.state = BKDISPLAY_SERVICE_WAITING_ASSET;
+    }
+  g_bkdisplay_power_pending = false;
+  spin_unlock_irqrestore(&g_bkdisplay_intent_lock, flags);
+}
+
+int bk7258_display_power(unsigned int phase)
+{
+  irqstate_t flags;
+
+  if (phase > 3) return -EINVAL;
+  flags = spin_lock_irqsave(&g_bkdisplay_intent_lock);
+  if (g_bkdisplay_power_requested != phase) g_bkdisplay_power_pending = true;
+  g_bkdisplay_power_requested = phase;
+  if (phase != 0) bkdisplay_intent_gate_locked(false);
+  /* Clearing a hint does not reopen business here: only the worker can
+   * observe started/claim/power state together and reopen the gate.
+   */
+  spin_unlock_irqrestore(&g_bkdisplay_intent_lock, flags);
+  return 0;
+}
+
+static uint64_t bkdisplay_now_ms(void)
+{
+  struct timespec now;
+  return clock_gettime(CLOCK_MONOTONIC, &now) == 0 ?
+         (uint64_t)now.tv_sec * 1000 + now.tv_nsec / 1000000 : 0;
+}
+
+#include "bk7258_display_focus.inc"
+
+#include "bk7258_display_selection.inc"
 
 static int bkdisplay_worker(int argc, char *argv[])
 {
   struct bkdisplay_service_s *service = &g_bkdisplay_service;
-  unsigned int delay;
-  int ret;
-
-  (void)argc;
-  (void)argv;
-
-  ret = bkdisplay_wait_for_devices();
-  if (ret < 0)
-    {
-      if (nxmutex_lock(&service->lock) >= 0)
-        {
-          bkdisplay_status_error(service, ret);
-          service->started = false;
-          nxmutex_unlock(&service->lock);
-        }
-
-      syslog(LOG_ERR, "BKDISPLAY START FAIL stage=device-wait ret=%d\n",
-             ret);
-      return ret;
-    }
-
+  uint64_t next = 0;
+  (void)argc; (void)argv;
   for (;;)
     {
-      ret = nxmutex_lock(&service->lock);
-      if (ret < 0)
+      int ret = nxmutex_lock(&service->lock);
+      if (ret < 0) { bkdisplay_intent_gate(false); return ret; }
+      bkdisplay_power_apply_locked(service);
+      uint64_t now = bkdisplay_now_ms();
+      unsigned focus = atomic_load(&g_focus_visual);
+      if (atomic_load(&g_speaking)) service->focus_painted = 0;
+      service->devices_ready = bkdisplay_service_node(BKDISPLAY_FB0, false) &&
+                               bkdisplay_service_node(BKDISPLAY_FB1, false);
+      bkdisplay_intent_gate(service->started && !service->claim_qr[0] &&
+                            !service->power_overlay);
+      (void)bkdisplay_selection_recover_step(service);
+      if (!service->devices_ready)
         {
-          return ret;
+          service->status.state = BKDISPLAY_SERVICE_WAITING_DEVICES;
+          (void)bkdisplay_selection_step(service, false);
+          (void)bkdisplay_intent_step(service, false);
+          (void)bkdisplay_trial_step(service, false);
         }
-
-      /* A command may have rendered the first expression while this worker
-       * was sleeping for a missing asset.  Preserve that newer operator
-       * choice instead of overwriting it with the boot-time neutral frame.
-       */
-
-      if (service->status.state == BKDISPLAY_SERVICE_READY)
+      else if (service->claim_qr[0] || service->power_overlay || service->overlay_dirty)
         {
-          delay = bkdisplay_animate_locked(service);
-          nxmutex_unlock(&service->lock);
-          (void)nxsig_usleep(delay);
-          continue;
+          service->speaking_painted = false;
+          service->focus_painted = 0;
+          if (service->overlay_dirty)
+            {
+              ret = bkdisplay_builtin_locked(service, false);
+              if (!ret) service->overlay_dirty = false;
+              else service->status.last_error = ret;
+            }
+          next = now;
         }
-
-      service->devices_ready = true;
-      service->status.state = BKDISPLAY_SERVICE_WAITING_ASSET;
-      ret = bkdisplay_render_locked(service, "neutral");
-      if (ret < 0 && !bkdisplay_service_retryable(ret))
+      else if (bkdisplay_selection_step(service, true))
         {
-          service->started = false;
+          service->focus_painted = 0;
+          service->speaking_painted = false;
+          next = now;
         }
-      nxmutex_unlock(&service->lock);
-      if (ret == 0)
+      else if (bkdisplay_intent_step(service, true))
         {
-          syslog(LOG_INFO,
-                 "BKDISPLAY SERVICE READY dev=/dev/fb0,/dev/fb1 "
-                 "storage=" BKDISPLAY_BLOCKDEV " mount=short-lived\n");
-          (void)nxsig_usleep(2600000);
-          continue;
+          service->focus_painted = 0;
+          service->speaking_painted = false;
+          next = now;
         }
-
-      if (!bkdisplay_service_retryable(ret))
+      else if (bkdisplay_trial_step(service, true))
         {
-          syslog(LOG_ERR,
-                 "BKDISPLAY START FAIL stage=neutral-render ret=%d\n",
-                 ret);
-          return ret;
+          service->focus_painted = 0;
+          service->speaking_painted = false;
+          next = now;
         }
-
-      (void)nxsig_usleep(BKDISPLAY_RETRY_US);
+      else if (!atomic_load(&g_speaking) && (focus || service->focus_painted))
+        {
+          (void)bkdisplay_focus_present_locked(service, focus);
+          next = now;
+        }
+      else if (service->status.state == BKDISPLAY_SERVICE_READY &&
+               service->speaking_frame &&
+               (atomic_load(&g_speaking) || service->speaking_painted))
+        {
+          bool active = atomic_load(&g_speaking);
+          service->focus_painted = 0;
+          if (active != service->speaking_painted)
+            {
+              uint16_t *frame = active ? service->speaking_frame :
+                                        service->frames[0];
+              ret = frame ? bkdisplay_framebuffer_write(BKDISPLAY_FB0, frame) :
+                            -ENODATA;
+              if (!ret) ret = bkdisplay_framebuffer_write(BKDISPLAY_FB1, frame);
+              if (!ret)
+                {
+                  service->speaking_painted = active;
+                  service->status.render_sequence++;
+                  syslog(LOG_INFO, "BKDISPLAY voice speaking=%d rendered=1\n",
+                         active);
+                }
+              else service->status.last_error = ret;
+            }
+          next = now + 100;
+        }
+      else if (now >= next)
+        {
+          if (service->status.state == BKDISPLAY_SERVICE_READY)
+            next = now + bkdisplay_animate_locked(service) / 1000;
+          else
+            {
+              service->status.state = BKDISPLAY_SERVICE_WAITING_ASSET;
+              ret = bkdisplay_service_node(BKDISPLAY_BLOCKDEV, true) ?
+                    bkdisplay_render_locked(service, "neutral") : -ENODEV;
+              if (ret)
+                {
+                  service->status.last_error = ret;
+                  /* A missing/corrupt asset is not a ready installed pack.
+                   * Keep management/power displays alive with built-in eyes. */
+                  (void)bkdisplay_builtin_locked(service, true);
+                }
+              next = now + (ret ? 2000 : 2600);
+            }
+        }
+      bkdisplay_unlock(service);
+      (void)nxsig_usleep(BKDISPLAY_DEVICE_POLL_US);
     }
 }
 
@@ -647,7 +898,7 @@ int bk7258_display_service_start(void)
 
   if (service->started)
     {
-      nxmutex_unlock(&service->lock);
+      bkdisplay_unlock(service);
       return 0;
     }
 
@@ -675,6 +926,7 @@ int bk7258_display_service_start(void)
       else
         {
           service->started = true;
+          bkdisplay_intent_gate(!service->claim_qr[0] && !service->power_overlay);
           ret = 0;
           syslog(LOG_INFO,
                  "BKDISPLAY SERVICE SCHEDULED storage=" BKDISPLAY_BLOCKDEV
@@ -683,7 +935,7 @@ int bk7258_display_service_start(void)
         }
     }
 
-  nxmutex_unlock(&service->lock);
+  bkdisplay_unlock(service);
   return ret;
 }
 
@@ -700,33 +952,51 @@ int bk7258_display_set_expression(const char *expression)
   ret = nxmutex_lock(&service->lock);
   if (ret >= 0)
     {
+      bkdisplay_intent_supersede();
       ret = bkdisplay_render_locked(service, expression);
-      nxmutex_unlock(&service->lock);
+      bkdisplay_unlock(service);
     }
 
   return ret;
 }
 
-int bk7258_display_replace_expression(const char *expected,
+int bk7258_display_set_expression_owned(const char *expression,
+                                         uint64_t *identity)
+{
+  struct bkdisplay_service_s *service = &g_bkdisplay_service;
+  if (identity == NULL) return -EINVAL;
+  *identity = 0;
+  if (expression == NULL || *expression == '\0') return -EINVAL;
+  int ret = nxmutex_lock(&service->lock);
+  if (ret < 0) return ret;
+  if (bkdisplay_intent_pending()) ret = -EAGAIN;
+  else if (g_bkdisplay_expression_identity == UINT64_MAX) ret = -EOVERFLOW;
+  else
+    {
+      ret = bkdisplay_render_locked(service, expression);
+      *identity = g_bkdisplay_expression_identity;
+    }
+  bkdisplay_unlock(service);
+  return ret;
+}
+
+int bk7258_display_replace_expression(uint64_t *identity,
                                       const char *replacement)
 {
   struct bkdisplay_service_s *service = &g_bkdisplay_service;
-  int ret;
-
-  if (expected == NULL || *expected == '\0' ||
-      replacement == NULL || *replacement == '\0')
+  if (identity == NULL || *identity == 0 ||
+      replacement == NULL || *replacement == '\0') return -EINVAL;
+  int ret = nxmutex_lock(&service->lock);
+  if (ret < 0) return ret;
+  if (bkdisplay_intent_pending() ||
+      *identity != g_bkdisplay_expression_identity) ret = -ESTALE;
+  else if (g_bkdisplay_expression_identity == UINT64_MAX) ret = -EOVERFLOW;
+  else
     {
-      return -EINVAL;
+      ret = bkdisplay_render_locked(service, replacement);
+      *identity = g_bkdisplay_expression_identity;
     }
-
-  ret = nxmutex_lock(&service->lock);
-  if (ret >= 0)
-    {
-      ret = strcmp(service->status.expression, expected) == 0 ?
-            bkdisplay_render_locked(service, replacement) : -EAGAIN;
-      nxmutex_unlock(&service->lock);
-    }
-
+  bkdisplay_unlock(service);
   return ret;
 }
 
@@ -743,6 +1013,9 @@ int bk7258_display_show_mapping_test(void)
     {
       return ret;
     }
+
+  ret = bkdisplay_identity_advance();
+  if (ret < 0) { bkdisplay_unlock(service); return ret; }
 
   /* Calibration is meaningful only after the normal resource-backed frame
    * has reached both displays.  Keep this diagnostic independent of the
@@ -809,7 +1082,7 @@ failed:
 
 out:
   free(pixels);
-  nxmutex_unlock(&service->lock);
+  bkdisplay_unlock(service);
   return ret;
 }
 
@@ -849,7 +1122,7 @@ static int bkdisplay_update_pack(const char *filename, bool install)
       bkdisplay_status_error(service, ret);
     }
 
-  nxmutex_unlock(&service->lock);
+  bkdisplay_unlock(service);
   return ret;
 }
 
@@ -892,31 +1165,37 @@ int bk7258_display_import(const void *data, size_t size)
       ret = bkdisplay_render_locked(service, "neutral");
     }
 
-  nxmutex_unlock(&service->lock);
+  bkdisplay_unlock(service);
   /* After a start failure caused by a missing pack, a successful import
    * reuses the same display worker.
    */
   return ret == 0 ? bk7258_display_service_start() : ret;
 }
 
-int bk7258_display_get_status(struct bkdisplay_service_status_s *status)
+int bk7258_display_reset_selection(void)
 {
   struct bkdisplay_service_s *service = &g_bkdisplay_service;
-  int ret;
-
-  if (status == NULL)
+  int ret = nxmutex_lock(&service->lock);
+  int close_ret;
+  if (ret < 0) return ret;
+  ret = service->devices_ready ? bkdisplay_volume_open(service) : -EAGAIN;
+  if (ret == 0)
     {
-      return -EINVAL;
+      ret = bkdisplay_store_reset_selection(BKDISPLAY_MOUNTPOINT);
+      close_ret = bkdisplay_volume_close(service);
+      if (ret == 0 && close_ret < 0) ret = close_ret;
     }
-
-  ret = nxmutex_lock(&service->lock);
-  if (ret >= 0)
+  /* 清理成功不依赖可选眼睛包存在；首启认领画面有独立内置路径。
+   * 渲染错误继续报告，不能因缺少资源永远阻塞已撤销的事务。 */
+  if (ret == 0)
     {
-      *status = service->status;
-      nxmutex_unlock(&service->lock);
+      int render_ret = bkdisplay_render_locked(service, "neutral");
+      if (render_ret < 0) bkdisplay_status_error(service, render_ret);
     }
-
+  if (ret < 0) bkdisplay_status_error(service, ret);
+  bkdisplay_unlock(service);
   return ret;
 }
+
 
 #endif /* CONFIG_BK7258_DISPLAY_SERVICE */

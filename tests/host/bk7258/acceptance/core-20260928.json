@@ -1,0 +1,297 @@
+{
+  "scope": "R1 bounded CP wait and reconciled retry; default-off prepare-only guard; R2 formal CI wiring",
+  "source_base": "fb71830cf9349d1e56208e3159bccda5f865f256",
+  "agent": "62a304ea69c4076f0f3ef7955a9af69a5ed35277",
+  "before": {
+    "deadline": "2 FAIL_ASSERTION on unchanged original production",
+    "retry": "2 FAIL_ASSERTION, 2 baseline PASS on 662 production",
+    "ci": "2 FAIL_ASSERTION on original workflow",
+    "prepare_only": "new diagnostic safety contract; absent guard is not an old product defect"
+  },
+  "after": {
+    "power_variants": [
+      {
+        "id": "admission-drains",
+        "exit": 0
+      },
+      {
+        "id": "admission-failure",
+        "exit": 0
+      },
+      {
+        "id": "admission-stops-trigger",
+        "exit": 0
+      },
+      {
+        "id": "cp-declined",
+        "exit": 0
+      },
+      {
+        "id": "cp-new-pending",
+        "exit": 0
+      },
+      {
+        "id": "cp-pending-deadline",
+        "exit": 0
+      },
+      {
+        "id": "cp-retry-declined",
+        "exit": 0
+      },
+      {
+        "id": "cp-retry-pending",
+        "exit": 0
+      },
+      {
+        "id": "cp-retry-unknown",
+        "exit": 0
+      },
+      {
+        "id": "cp-unknown",
+        "exit": 0
+      },
+      {
+        "id": "cp-unknown-deadline",
+        "exit": 0
+      },
+      {
+        "id": "failed-drains",
+        "exit": 0
+      },
+      {
+        "id": "failure-display",
+        "exit": 0
+      },
+      {
+        "id": "final-close-drains",
+        "exit": 0
+      },
+      {
+        "id": "motion-busy",
+        "exit": 0
+      },
+      {
+        "id": "motion-failed",
+        "exit": 0
+      },
+      {
+        "id": "nfc-busy",
+        "exit": 0
+      },
+      {
+        "id": "nfc-failed",
+        "exit": 0
+      },
+      {
+        "id": "normal",
+        "exit": 0
+      },
+      {
+        "id": "owner-integration",
+        "exit": 0
+      },
+      {
+        "id": "pack-busy",
+        "exit": 0
+      },
+      {
+        "id": "pack-failed",
+        "exit": 0
+      },
+      {
+        "id": "partial-failure",
+        "exit": 0
+      },
+      {
+        "id": "prepare-only",
+        "exit": 0
+      },
+      {
+        "id": "storage-stops-trigger",
+        "exit": 0
+      },
+      {
+        "id": "trigger-failure",
+        "exit": 0
+      },
+      {
+        "id": "unpublished-trigger",
+        "exit": 0
+      },
+      {
+        "id": "usb-close",
+        "exit": 0
+      },
+      {
+        "id": "usb-failed",
+        "exit": 0
+      }
+    ],
+    "collector_and_ci_selftests": "21 PASS",
+    "prior_complete_selection": {
+      "PASS": 699,
+      "FAIL_ASSERTION": 0,
+      "SETUP_ERROR": 1,
+      "NOT_RUN": 0
+    },
+    "prior_original_63": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "cold_gradle_setup_error_recheck": {
+      "id": "RES-02.android-trial-tls-expiry",
+      "exit": 0,
+      "seconds": 36.12216535798507,
+      "timeout_seconds": 45,
+      "original": "contracts-unrestricted/results.json",
+      "reason": "Reuse already built toolchain/Gradle dependencies; unchanged test and deadline"
+    },
+    "complete_gate_for_final_source": {
+      "status": "PASS",
+      "counts": {
+        "PASS": 705,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      },
+      "evidence": "out/shaniu-core-20260928/contracts-final/results.json",
+      "sha256": "f51f208a4a787084a0e951344533f3a5308b2b17cdce55f9a4cba6d6359e1991",
+      "scope": "selected software contract set; no physical product completion claim"
+    }
+  },
+  "hil": {
+    "deployed": "0.7.19+664",
+    "slot": "B confirmed",
+    "transport": "existing BK Loader signed inactive CP/AP segments via COM9",
+    "written_range": "0x352000-0x693000",
+    "package_sha256": "533734a5aafe939bd0c0f4e674a57b8d899b13a3b5310e603e62c8e0b26b6f73",
+    "runtime": "fresh readback confirmed 664, healthy AP/CPU2/RPMsg; identity present; persisted configuration revision 6 and threshold 85 restored; original display pack ready",
+    "scope": "664 includes all R1 changes with prepare validation disabled",
+    "cdc": "HELLO timeout before START; manager idle; not App OTA",
+    "physical_K2_sleep_acoustic": "NOT_RUN; unattended, independent wake/recovery not evidenced",
+    "old_661_elf": "No matching ELF available; no historical HardFault decoding claimed",
+    "previous_662": {
+      "deployed": "0.7.17+662",
+      "slot": "B confirmed",
+      "transport": "existing BK Loader signed inactive CP/AP segments via COM9",
+      "written_range": "0x352000-0x693000",
+      "package_sha256": "82494ff11accc9ec8a22eb9f8ef206101b60e8090a5141b8d52931ab4571cfb0",
+      "runtime": "confirmed version/counter 662; healthy AP/CPU2/RPMsg; normal reboot and capture ready; identity present",
+      "scope": "662 includes deadline fix only; retry reconciliation/prepare-only not yet deployed",
+      "cdc": "HELLO timeout before START; manager idle; not App OTA",
+      "physical_K2_sleep_acoustic": "NOT_RUN; unattended, independent wake/recovery not evidenced",
+      "old_661_elf": "No matching ELF available; no historical HardFault decoding claimed"
+    },
+    "prepare_only_663": {
+      "status": "HIL production preparation reached CP-submit guard; CP power request blocked",
+      "capture": "/tmp/shaniu-20260928-prepare-boot/serial.txt",
+      "sha256": "ab9432cd7c6fdf148edf4432d123e6f8509578f7e28a894b44020332cc8b6110",
+      "limitations": "No physical K2, deep sleep, DMA instrumentation or acoustic acceptance; Media EOF encode and late mix-write errors retained for audio investigation",
+      "restored": "normal 664, no prepare-only auto intent observed"
+    }
+  },
+  "evidence": {
+    "before.json": {
+      "path": "out/shaniu-core-20260928/before.json",
+      "sha256": "6e2a86f68c7d49033707a8f800762d096450a1f365b2d967ca4e5552c89c9e26"
+    },
+    "r1-reconcile-before.json": {
+      "path": "out/shaniu-core-20260928/r1-reconcile-before.json",
+      "sha256": "be8f316f10b220694b279923ff4bc59d851c2fcfc6343432c987c507c7099bba"
+    },
+    "r1-reconcile-after.json": {
+      "path": "out/shaniu-core-20260928/r1-reconcile-after.json",
+      "sha256": "39d2aaa2d7ac97179ba95266a93b9f408f11a7eb94f0bad7732f67b32feae861"
+    },
+    "r1-final.json": {
+      "path": "out/shaniu-core-20260928/r1-final.json",
+      "sha256": "fde9f7e9c3999fb12d729613584fd82c914c6cd753c14b372b57e974715abe38"
+    },
+    "prepare-before.json": {
+      "path": "out/shaniu-core-20260928/prepare-before.json",
+      "sha256": "dcd5712578ccf901f424ebb82116f5ae92aa9eaa90b04d6f0f9f333253c2fce2"
+    },
+    "prepare-after.log": {
+      "path": "out/shaniu-core-20260928/prepare-after.log",
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4"
+    },
+    "r2-before.json": {
+      "path": "out/shaniu-core-20260928/r2-before.json",
+      "sha256": "172f5e8fa4448c46efbb974a1eb6a83aa3dea84e5e7a0410c57174ac348f2a0f"
+    },
+    "r2-before-exit.log": {
+      "path": "out/shaniu-core-20260928/r2-before-exit.log",
+      "sha256": "5644c90ba71dcc9d4ce52bee61dc8632e036507aa734f1ddf77e40772426e873"
+    },
+    "r2-final.log": {
+      "path": "out/shaniu-core-20260928/r2-final.log",
+      "sha256": "68f4126853b6b5102f6f1da4c07be9f3c5057ce00ad05625a82ff2b9ce0c6c42"
+    },
+    "tls-expiry-recheck.json": {
+      "path": "out/shaniu-core-20260928/tls-expiry-recheck.json",
+      "sha256": "a4df296224bd7526c6f34eebb799a13b0082ced115265602cbc9fe6c38614620"
+    },
+    "hil-loader/result.json": {
+      "path": "out/shaniu-core-20260928/hil-loader/result.json",
+      "sha256": "0c743cb6f7db92b896b03314a09d81f91f1af45254f4eb480afdb822b3123f5c"
+    },
+    "preflight.json": {
+      "path": "out/shaniu-core-20260928/preflight.json",
+      "sha256": "8d8d3a87eb002ab0b775682b2cf79819d584e449e4451dde2e58b1fc554f2ff9"
+    },
+    "old-elf-check.json": {
+      "path": "out/shaniu-core-20260928/old-elf-check.json",
+      "sha256": "2ae07b26479e6762b562947f42b565c7a93e6dfc72464f112889afc839e2bc19"
+    },
+    "normal-hil/result.json": {
+      "path": "out/shaniu-core-20260928/normal-hil/result.json",
+      "sha256": "76e83327984037a24e3d3c7fbc6db05096b20017e1c8489e069907434c9d12ec"
+    },
+    "normal-build-artifacts/sha256.json": {
+      "path": "out/shaniu-core-20260928/normal-build-artifacts/sha256.json",
+      "sha256": "7976a2a9296fafa257376bc58a0931af0d6e881b4883a779f12090632093ed5c"
+    },
+    "normal-release/evidence/build-manifest.json": {
+      "path": "out/shaniu-core-20260928/normal-release/evidence/build-manifest.json",
+      "sha256": "1746bf07cd5e2598e853cbd0312d691839c51511f788d8ba507730c7f01d0ada"
+    },
+    "normal-hil-preflight.json": {
+      "path": "out/shaniu-core-20260928/normal-hil-preflight.json",
+      "sha256": "412ef4ddf928e81f10c5f7dfbdd7bbc0fb06c6acfd80576abb633b685b3dc2d0"
+    },
+    "prepare-hil/result.json": {
+      "path": "out/shaniu-core-20260928/prepare-hil/result.json",
+      "sha256": "9879e8543af1d75516dc4f1a8d527fc8263b9313546b2f45229b17de2fe896cf"
+    },
+    "normal-boot": {
+      "path": "/tmp/shaniu-20260928-normal-boot/serial.txt",
+      "sha256": "e9e18152a2520e5e8fd7105a3f5126ea886660981a431ba3ac4e7c59ef298aab",
+      "publication": "raw local only; may contain device-private data"
+    },
+    "normal-status": {
+      "path": "/tmp/shaniu-20260928-normal-status/serial.txt",
+      "sha256": "587eb45a38767c26142d74d8c088ed8d8568120b7519ba6aa8ec52175e4c8731",
+      "publication": "raw local only; may contain device-private data"
+    },
+    "post-prepare": {
+      "path": "/tmp/shaniu-20260928-post-prepare/serial.txt",
+      "sha256": "34c734b3e5f6e056644c3dc0842c590df4c0b810b098eebde0ae162b000382ee",
+      "publication": "raw local only; may contain device-private data"
+    }
+  },
+  "production_inputs": {
+    "app/bk7258/Kconfig": "519090e869e2b88e5d0aed290cbab455343ee49c6cef9c740ede889a2b4e23fa",
+    "app/bk7258/bk7258_agent_product_power.inc": "7e1f7ac4190a8b2e4bac118dc58328cb81b6ad087c53d801a32302ba3a9dd1f6"
+  },
+  "remaining": [
+    "R1 remote product transport is intentionally closed after preparation; error feedback is not proof of client queryability after that boundary",
+    "No independent deep-sleep recovery, GPIO key or acoustic measurement capability evidenced",
+    "Media shutdown EOF/mix errors need correlation; no HardFault diagnosis inferred",
+    "R3/R4 and other core requirements not closed by this milestone"
+  ]
+}

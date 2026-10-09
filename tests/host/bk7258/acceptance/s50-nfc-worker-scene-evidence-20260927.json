@@ -1,0 +1,697 @@
+{
+  "slice": "S50",
+  "date": "2026-09-27",
+  "parent": "e97f0b8dbeb9f8b9b5109c5461ed4bf9aa90b233",
+  "counts": {
+    "PASS": 262,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 163,
+      "counts": {
+        "PASS": 163,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "new_cases": [
+    {
+      "id": "NFC-02.worker-dwell",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.03167156100971624,
+      "evidence": "NFC-02.worker-dwell.log",
+      "evidence_sha256": "f6e790ab53b9f26ae479721c739a0cdad8169968010e3eaa63f228b3808b0477"
+    },
+    {
+      "id": "NFC-02.worker-unknown",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.015588940004818141,
+      "evidence": "NFC-02.worker-unknown.log",
+      "evidence_sha256": "9e9febbb3ff194bdc9ade560adbb119f9f1926ac7a1d24883ddcee735283a18b"
+    },
+    {
+      "id": "NFC-02.worker-enroll",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.031685730966273695,
+      "evidence": "NFC-02.worker-enroll.log",
+      "evidence_sha256": "5c1c7c2ef4309fb68ea4abe029222c8af73b418bbfd2eabb91b19bb3648251a2"
+    },
+    {
+      "id": "NFC-02.worker-pending-cancel",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.03175252000801265,
+      "evidence": "NFC-02.worker-pending-cancel.log",
+      "evidence_sha256": "1571b1ed5fff32d9dc07fe1240b9a46aedb95a79ed65117be42f10a1c0dde22e"
+    },
+    {
+      "id": "NFC-02.worker-revoke",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.015593717980664223,
+      "evidence": "NFC-02.worker-revoke.log",
+      "evidence_sha256": "3b906a062384945f5c3f1e6005d839a10770b6058189376a10fe3d7a64e46da1"
+    },
+    {
+      "id": "NFC-02.worker-stop",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.03166587604209781,
+      "evidence": "NFC-02.worker-stop.log",
+      "evidence_sha256": "2d6cc283e790630ac47c9a892ad32718141afed608d5b84c9f91b58bfd4fdbc5"
+    },
+    {
+      "id": "NFC-02.worker-release",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.015597355959471315,
+      "evidence": "NFC-02.worker-release.log",
+      "evidence_sha256": "f760e9e0d2c73b64a3d757cb702c8a8d29b5a56a035fa51463f37c2ea1665fea"
+    },
+    {
+      "id": "NFC-02.worker-error",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.03171053895493969,
+      "evidence": "NFC-02.worker-error.log",
+      "evidence_sha256": "e5ca16d5b215a476a57dc3417fef5816beafb862410ce3f7b2cc2ee8e615d54b"
+    },
+    {
+      "id": "NFC-02.worker-load-revoke",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0316843279870227,
+      "evidence": "NFC-02.worker-load-revoke.log",
+      "evidence_sha256": "0c8a7c5f74e9bf5e88520fdd2d28cae1017e000073076d54fc129d59927fa985"
+    },
+    {
+      "id": "NFC-02.worker-first-enroll",
+      "parent": "NFC-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.031645187991671264,
+      "evidence": "NFC-02.worker-first-enroll.log",
+      "evidence_sha256": "ff97156fc2d774119db14e034f3a75a061045ccdf690bb2ba4c420ef5d8bc19a"
+    }
+  ],
+  "initial_cases": [
+    {
+      "id": "NFC-02.worker-dwell",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.017986683000344783
+    },
+    {
+      "id": "NFC-02.worker-unknown",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.01593994803261012
+    },
+    {
+      "id": "NFC-02.worker-enroll",
+      "status": "FAIL_ASSERTION",
+      "exit_code": -6,
+      "seconds": 0.02473551098955795
+    },
+    {
+      "id": "NFC-02.worker-pending-cancel",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.02049695997266099
+    },
+    {
+      "id": "NFC-02.worker-revoke",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.014991878008004278
+    },
+    {
+      "id": "NFC-02.worker-stop",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.015761636954266578
+    },
+    {
+      "id": "NFC-02.worker-release",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.015998320013750345
+    },
+    {
+      "id": "NFC-02.worker-error",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.016112014011014253
+    }
+  ],
+  "mutations": [
+    {
+      "id": "late-load-admission",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "restore": "PASS",
+      "sha256": "68abcbf76225e6395bfe9749286b731993714a31f6f09472286f691957649b50"
+    },
+    {
+      "id": "release-is-success",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "restore": "PASS",
+      "sha256": "8366051fe56ffd47f5c8fbfc3d8cdd8f5b4068ea3098b3f8ad52042ce51ddf1b"
+    }
+  ],
+  "initial_mutations": [
+    {
+      "id": "late-load-admission",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "restore": "PASS",
+      "sha256": "68abcbf76225e6395bfe9749286b731993714a31f6f09472286f691957649b50"
+    },
+    {
+      "id": "release-is-success",
+      "status": "SURVIVED",
+      "exit_code": 0,
+      "restore": "PASS",
+      "sha256": "8366051fe56ffd47f5c8fbfc3d8cdd8f5b4068ea3098b3f8ad52042ce51ddf1b"
+    }
+  ],
+  "existing_mutations": [
+    {
+      "id": "MSC-01.early-release",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.007715528015978634,
+      "source": "app/bk7258/bk7258_media_volume.c",
+      "original_sha256": "58ebb18ae63adccf21262253da18f153bbb7c680cc0b64719ca20e8a6d9681c8",
+      "mutant_sha256": "bf298373a95ac54d5587f93ece34a30a7f661a65a969c69db9e27c6570770c57",
+      "expected_assertion": "!mounted",
+      "evidence": "MSC-01.early-release.log"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.06401555298361927,
+      "source": "app/bk7258/bk7258_provision_config.c",
+      "original_sha256": "98f5100ca49ca44e45fe3e5da4bb2da0add7466f0e357a205ca8b1e307a5818e",
+      "mutant_sha256": "4c0c615b8ffc99247b0fd91bd934d3df0409a1180769cb939b2820f9e6f69427",
+      "expected_assertion": "bkcloud_config_decode",
+      "evidence": "CFG-01.wifi-clears-cloud.log"
+    }
+  ],
+  "test_corrections": [
+    "Initial host link required libm; no assertion changed",
+    "Enrollment fixture added the missing owner admission publication after explicit job",
+    "Initial RF release mutant SURVIVED: fault was injected at startup idle release. Same mutant detected after moving fault to RF read hook and asserting actual observation count.",
+    "Reused scheduler reenters worker per drain; does not preserve idle_ready local or establish continuous wall-clock timing."
+  ],
+  "sha256": {
+    "app/bk7258/bk7258_nfc_service.c": "f900750fffaa40951713dcbbf39454fc0ac9f9949102e16b53cfd312357127b3",
+    "app/bk7258/bk7258_nfc_service.h": "709ae5ad0415ec39d23ecb55e58cc684e0594e11035e0503208abc091bd58ff1",
+    "app/bk7258/bk7258_nfc_jobs.inc": "4fbcd62ef4fef8d086fa99c848d1a9f07cb4ee0ed2453feabc511f91468c9961",
+    "app/bk7258/bk7258_nfc_worker_scene.inc": "526921d147aaa87616a6f641aa3ec6f23805e53f5b8803face9b4356a50754d6",
+    "app/bk7258/bk7258_agent_product.c": "185b6f62c3d18b71f3e39a10115701007832564cdc8a6085fe72c5e311ae9617",
+    "tests/host/bk7258/test_shaniu_nfc_worker_scene.c": "74f1a3971bbd4182ad3cae199015f28a02c5855553a8e065b5f3af4d234258d9",
+    "tests/host/bk7258/bk7258_sensor_rpc_test.h": "f7c3c36728bcb487649ac229b6d9a76f9880bc38200efec56c49e1300e52d98d",
+    "tests/host/bk7258/Makefile": "8430f6447ea76dd800acabc6a3a47c3a9335814cd421aba7496506836e43a16a",
+    "tests/host/bk7258/test_shaniu_contracts.py": "21064799ed05d230d5a53bc36252c9b296f7a50a5f9178b2c188c9f411619f3e",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "0de431116ed539d17198d315ad791a8d6fe449bb42209a2ed0add778a491fd3a"
+  },
+  "logs": {
+    "revoke.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "build-host.log": {
+      "sha256": "c5f722b977a1f9b924679a2f7ee33d76bee0daf696b037740ead13e093cbf055",
+      "tail": [
+        "\t-I build/sensor-rpc-include -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_bk7258_nfc_rpc.c -o build/test_bk7258_nfc_rpc",
+        "cc -std=gnu11 -Wall -Wextra -Werror -Wno-unused-function -pthread \\",
+        "  -I build/sensor-rpc-include -I mocks -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/nuttx/include \\",
+        "  -I /home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/include -I /home/lijian/project/open-vela/apps/netutils/cjson/cJSON \\",
+        "  test_shaniu_nfc_worker_scene.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_bindings.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_store.c \\",
+        "  /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_scene.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.c build/shaniu-focus-intent.o \\",
+        "  /home/lijian/project/open-vela/apps/netutils/cjson/cJSON/cJSON.c -Wl,--wrap=fsync build/voice-ota-store-mbedtls/library/libmbedcrypto.a -o build/test_shaniu_nfc_worker_scene",
+        "/usr/bin/ld: /tmp/ccn2y5Bg.o: in function `print_number':",
+        "cJSON.c:(.text+0xc28): undefined reference to `floor'",
+        "collect2: error: ld returned 1 exit status",
+        "make: *** [Makefile:1951: build/test_shaniu_nfc_worker_scene] Error 1",
+        "make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'"
+      ]
+    },
+    "dwell.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "first-enroll.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "dwell-fixed.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "contracts.log": {
+      "sha256": "4f60d2ca1c20bd793c89ee08c2d00007f6d78188734503e1c10874d83632f9fa",
+      "tail": [
+        "",
+        "OK",
+        "unittest.case.FunctionTestCase (run)",
+        "CFG-01.restored ... ok",
+        "unittest.case.FunctionTestCase (run)",
+        "MSC-01.restored ... ok",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 2 tests in 0.066s",
+        "",
+        "OK",
+        "{\"PASS\": 261, \"FAIL_ASSERTION\": 0, \"SETUP_ERROR\": 0, \"NOT_RUN\": 0} production_unchanged= True"
+      ]
+    },
+    "unknown-fixed.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "release-is-success-restore.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "build-load-revoke.log": {
+      "sha256": "07aaaaa9549fd213c4380061878c0f0260f4a647edd5315adacf6c15ebd75e27",
+      "tail": [
+        "printf '#define _CLIOC(nr) (0x2400 | (nr))\\n' > build/sensor-rpc-include/nuttx/fs/ioctl.h",
+        "touch build/sensor-rpc-include/.ready",
+        "cc -std=c11 -Wall -Wextra -Werror -Wno-unused-function \\",
+        "\t-fsanitize=undefined -fno-sanitize-recover=all \\",
+        "\t-I build/sensor-rpc-include -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_bk7258_nfc_rpc.c -o build/test_bk7258_nfc_rpc",
+        "cc -std=gnu11 -Wall -Wextra -Werror -Wno-unused-function -pthread \\",
+        "  -I build/sensor-rpc-include -I mocks -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/nuttx/include \\",
+        "  -I /home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/include -I /home/lijian/project/open-vela/apps/netutils/cjson/cJSON \\",
+        "  test_shaniu_nfc_worker_scene.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_bindings.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_store.c \\",
+        "  /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_scene.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.c build/shaniu-focus-intent.o \\",
+        "  /home/lijian/project/open-vela/apps/netutils/cjson/cJSON/cJSON.c -Wl,--wrap=fsync -Wl,--wrap=read build/voice-ota-store-mbedtls/library/libmbedcrypto.a -lm -o build/test_shaniu_nfc_worker_scene",
+        "make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'"
+      ]
+    },
+    "interface-wired.log": {
+      "sha256": "ce2dfc7a6ce0fa329085e84f4543628e4347df864c436ebac60a65c5c24df836",
+      "tail": [
+        "  -I build/sensor-rpc-include -I mocks -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/nuttx/include \\",
+        "  -I /home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/include -I /home/lijian/project/open-vela/apps/netutils/cjson/cJSON \\",
+        "  test_shaniu_nfc_worker_scene.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_bindings.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_store.c \\",
+        "  /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_scene.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.c build/shaniu-focus-intent.o \\",
+        "  /home/lijian/project/open-vela/apps/netutils/cjson/cJSON/cJSON.c -Wl,--wrap=fsync build/voice-ota-store-mbedtls/library/libmbedcrypto.a -o build/test_shaniu_nfc_worker_scene",
+        "test_shaniu_nfc_worker_scene.c: In function ‘revoke’:",
+        "test_shaniu_nfc_worker_scene.c:7:28: error: implicit declaration of function ‘bk7258_nfc_scene_admit’ [-Werror=implicit-function-declaration]",
+        "    7 | static void revoke(void) { bk7258_nfc_scene_admit(false); }",
+        "      |                            ^~~~~~~~~~~~~~~~~~~~~~",
+        "cc1: all warnings being treated as errors",
+        "make: *** [Makefile:1951: build/test_shaniu_nfc_worker_scene] Error 1",
+        "make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'"
+      ]
+    },
+    "build-fixed.log": {
+      "sha256": "d054ee5713ebf6e11117f8da8b8da5b303c0099965e72dc23276f8cc2ddf4bdc",
+      "tail": [
+        "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'",
+        "cc -std=gnu11 -Wall -Wextra -Werror -Wno-unused-function -pthread \\",
+        "  -I build/sensor-rpc-include -I mocks -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/nuttx/include \\",
+        "  -I /home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/include -I /home/lijian/project/open-vela/apps/netutils/cjson/cJSON \\",
+        "  test_shaniu_nfc_worker_scene.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_bindings.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_store.c \\",
+        "  /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_scene.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.c build/shaniu-focus-intent.o \\",
+        "  /home/lijian/project/open-vela/apps/netutils/cjson/cJSON/cJSON.c -Wl,--wrap=fsync -Wl,--wrap=read build/voice-ota-store-mbedtls/library/libmbedcrypto.a -lm -o build/test_shaniu_nfc_worker_scene",
+        "make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'"
+      ]
+    },
+    "release-is-success-final.log": {
+      "sha256": "081c1268c3d17534753a4db4610d4b4cccdfe28096c7b544c1946620696f3dc8",
+      "tail": [
+        "release-is-success: test_shaniu_nfc_worker_scene.c:43: main: Assertion `intent.phase==0' failed."
+      ]
+    },
+    "contracts-delivery.log": {
+      "sha256": "bc137b69d0e05739f7726482a1a04933f19d7837ed994857d656e6ad5ae0e923",
+      "tail": [
+        "",
+        "OK",
+        "unittest.case.FunctionTestCase (run)",
+        "CFG-01.restored ... ok",
+        "unittest.case.FunctionTestCase (run)",
+        "MSC-01.restored ... ok",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 2 tests in 0.066s",
+        "",
+        "OK",
+        "{\"PASS\": 262, \"FAIL_ASSERTION\": 0, \"SETUP_ERROR\": 0, \"NOT_RUN\": 0} production_unchanged= True"
+      ]
+    },
+    "release.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "stop-fixed.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "release-is-success-final-restore.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "release-fixed.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "release-strengthened.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "late-load-admission.log": {
+      "sha256": "1478e609b8fa107de0a7bc57c93d833b028447445d5bc1ba96067333b77b63fb",
+      "tail": [
+        "late-load-admission: test_shaniu_nfc_worker_scene.c:38: main: Assertion `nfc_observations==0' failed."
+      ]
+    },
+    "release-is-success-final-build.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tail": []
+    },
+    "load-revoke-before.log": {
+      "sha256": "894d7e5b809417d657986e2360eb11675ca56216575f200919c9c89106dcc96c",
+      "tail": [
+        "test_shaniu_nfc_worker_scene: test_shaniu_nfc_worker_scene.c:38: main: Assertion `nfc_observations==0' failed."
+      ]
+    },
+    "interface-missing.log": {
+      "sha256": "72320e0a04fc7681727183875ac946d0275f97608ca150b188638d9962e90030",
+      "tail": [
+        "      |   ^~~~~~~~~~",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_intent.c: In function ‘bkfocus_intent_status’:",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_intent.c:101:3: error: unknown type name ‘irqstate_t’",
+        "  101 |   irqstate_t flags;",
+        "      |   ^~~~~~~~~~",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_intent.c: In function ‘bkfocus_intent_step’:",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_intent.c:112:3: error: unknown type name ‘irqstate_t’",
+        "  112 |   irqstate_t flags = spin_lock_irqsave(&g_lock);",
+        "      |   ^~~~~~~~~~",
+        "cc1: all warnings being treated as errors",
+        "make: *** [Makefile:1951: build/test_shaniu_nfc_worker_scene] Error 1",
+        "make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'"
+      ]
+    },
+    "revoke-fixed.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "load-revoke-fixed.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "contracts-final.log": {
+      "sha256": "6b47256ca74895abfc253da8044b3583e37f606d22a865441f1f379267dcb7a7",
+      "tail": [
+        "",
+        "OK",
+        "unittest.case.FunctionTestCase (run)",
+        "CFG-01.restored ... ok",
+        "unittest.case.FunctionTestCase (run)",
+        "MSC-01.restored ... ok",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 2 tests in 0.066s",
+        "",
+        "OK",
+        "{\"PASS\": 261, \"FAIL_ASSERTION\": 0, \"SETUP_ERROR\": 0, \"NOT_RUN\": 0} production_unchanged= True"
+      ]
+    },
+    "late-load-admission-restore.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "verify-manifest.log": {
+      "sha256": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac",
+      "tail": [
+        "bk7258 verify build-manifest: PASS boot=mcuboot board=aidk_ai_toy layout=bk7258-510173147382a879 source=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    },
+    "release-is-success-build.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tail": []
+    },
+    "error-fixed.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "late-load-admission-build.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tail": []
+    },
+    "build-first-enroll.log": {
+      "sha256": "d054ee5713ebf6e11117f8da8b8da5b303c0099965e72dc23276f8cc2ddf4bdc",
+      "tail": [
+        "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'",
+        "cc -std=gnu11 -Wall -Wextra -Werror -Wno-unused-function -pthread \\",
+        "  -I build/sensor-rpc-include -I mocks -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/nuttx/include \\",
+        "  -I /home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/include -I /home/lijian/project/open-vela/apps/netutils/cjson/cJSON \\",
+        "  test_shaniu_nfc_worker_scene.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_bindings.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_store.c \\",
+        "  /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_scene.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.c build/shaniu-focus-intent.o \\",
+        "  /home/lijian/project/open-vela/apps/netutils/cjson/cJSON/cJSON.c -Wl,--wrap=fsync -Wl,--wrap=read build/voice-ota-store-mbedtls/library/libmbedcrypto.a -lm -o build/test_shaniu_nfc_worker_scene",
+        "make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'"
+      ]
+    },
+    "error.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "build-target.log": {
+      "sha256": "9becb6c2ae1296856e7b0a334c3f2ad6918ebf7ad21cb2accbc2aa9171e556f3",
+      "tail": [
+        "[13/16] Linking CXX executable nuttx",
+        "[14/16] Generating nuttx.bin",
+        "[15/16] Generating System.map",
+        "",
+        "#### build completed successfully (1 seconds) ####",
+        "bk7258 layer gate: PASS sources=528 kconfig=253 legacy-exceptions=2",
+        "bk7258 build: PASS layout=bk7258-510173147382a879",
+        "bl1 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.map",
+        "bl2 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.map copy_size=13632",
+        "cp elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.map identity=bk7258-role-9a0b5b6e466d063f seed=41811cb113e14cd5ce35630f0a6d42f0d32f88a10c512bb971734bce9a28c016 config=dd503376e1b5436c9221274dc5a9ff86bf2e49660dfad4d306292e1113d82bed",
+        "ap elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.map identity=bk7258-role-5a3061a4da19ae9f seed=9507a2073a35e2970300a150395dc4d8c48458a68cb24412497ab54c714a7fec config=4e73b6c67a5176a8136b7c46a43c46329f7ef19e5ec74e626937d64bdeddfcee",
+        "build manifest=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    },
+    "build-release-fixed.log": {
+      "sha256": "d054ee5713ebf6e11117f8da8b8da5b303c0099965e72dc23276f8cc2ddf4bdc",
+      "tail": [
+        "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'",
+        "cc -std=gnu11 -Wall -Wextra -Werror -Wno-unused-function -pthread \\",
+        "  -I build/sensor-rpc-include -I mocks -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/nuttx/include \\",
+        "  -I /home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/include -I /home/lijian/project/open-vela/apps/netutils/cjson/cJSON \\",
+        "  test_shaniu_nfc_worker_scene.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_bindings.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_store.c \\",
+        "  /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_scene.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.c build/shaniu-focus-intent.o \\",
+        "  /home/lijian/project/open-vela/apps/netutils/cjson/cJSON/cJSON.c -Wl,--wrap=fsync -Wl,--wrap=read build/voice-ota-store-mbedtls/library/libmbedcrypto.a -lm -o build/test_shaniu_nfc_worker_scene",
+        "make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'"
+      ]
+    },
+    "release-is-success.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "target-symbols.log": {
+      "sha256": "22260684aa086ac40dfa43ececb0f80baaddd1f8fd3d37f7d85327bab9fa36a8",
+      "tail": [
+        "0216b150 00000078 T bk7258_nfc_scene_admit",
+        "0217dc4c 000000c0 T bknfc_scene_observe",
+        "28051a60 000004b0 d g_bknfc_server"
+      ]
+    },
+    "late-load-admission-final-build.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tail": []
+    },
+    "unknown.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "pending-cancel.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "pending-cancel-fixed.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "enroll-fixed.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "late-load-admission-final-restore.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "stop.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "late-load-admission-final.log": {
+      "sha256": "6f0c78c300ad48a0eb69dad7175841fc9d9f9b086e2ec6bfeb8008b14bab66dc",
+      "tail": [
+        "late-load-admission: test_shaniu_nfc_worker_scene.c:39: main: Assertion `nfc_observations==(!strcmp(argv[1],\"load-revoke\")?0:1)' failed."
+      ]
+    },
+    "build-wired.log": {
+      "sha256": "b497ed0e36e484a0082346159a30df0c4e67cc7921a1b5eeb527ee439d7c7318",
+      "tail": [
+        "printf '#define _CLIOC(nr) (0x2400 | (nr))\\n' > build/sensor-rpc-include/nuttx/fs/ioctl.h",
+        "touch build/sensor-rpc-include/.ready",
+        "cc -std=c11 -Wall -Wextra -Werror -Wno-unused-function \\",
+        "\t-fsanitize=undefined -fno-sanitize-recover=all \\",
+        "\t-I build/sensor-rpc-include -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_bk7258_nfc_rpc.c -o build/test_bk7258_nfc_rpc",
+        "cc -std=gnu11 -Wall -Wextra -Werror -Wno-unused-function -pthread \\",
+        "  -I build/sensor-rpc-include -I mocks -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/nuttx/include \\",
+        "  -I /home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/include -I /home/lijian/project/open-vela/apps/netutils/cjson/cJSON \\",
+        "  test_shaniu_nfc_worker_scene.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_bindings.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_store.c \\",
+        "  /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_scene.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.c build/shaniu-focus-intent.o \\",
+        "  /home/lijian/project/open-vela/apps/netutils/cjson/cJSON/cJSON.c -Wl,--wrap=fsync build/voice-ota-store-mbedtls/library/libmbedcrypto.a -lm -o build/test_shaniu_nfc_worker_scene",
+        "make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'"
+      ]
+    },
+    "enroll.log": {
+      "sha256": "f9a0493ee05879651d8111c9ac13eb07b032378439f638922c1b82b9e09bf4ed",
+      "tail": [
+        "test_shaniu_nfc_worker_scene: test_shaniu_nfc_worker_scene.c:62: main: Assertion `intent.id==first+1 && intent.error==-EBUSY' failed."
+      ]
+    },
+    "owner-calls.log": {
+      "sha256": "486877d9d6b6e725f66729d952c0dd19a7c57d4c48b1faa24d528789457ca01a",
+      "tail": [
+        "         U bk7258_nfc_scene_admit",
+        "         U bkfocus_intent_step"
+      ]
+    }
+  },
+  "layers": {
+    "L2": "10 real worker/store/scene/mailbox/timer cases including first enrollment and reentry start. Physical RF replaced at VFS boundary.",
+    "production": "Product owner calls admission; actual existing worker calls OBSERVE then scene after release; linked in target ELF. Full product event loop not host-executed.",
+    "target": "Build/manifest PASS; g_bknfc_server1200 bytes (+48 versus1152)",
+    "L3": "NOT_RUN"
+  },
+  "budget": {
+    "resident_state_bytes": 1200,
+    "added_state_bytes": 48,
+    "new_threads": 0,
+    "new_timers": 0,
+    "new_heap": 0,
+    "new_dma": 0,
+    "cadence": "existing500ms completion-relative idle wait",
+    "storage": "one initial load attempt, explicit jobs recover; no per-sample writes",
+    "unmeasured": [
+      "CPU average/p95",
+      "total anticollision and SPI blocking time",
+      "ISR/critical section duration",
+      "stack peak",
+      "RF coexistence",
+      "physical false absence"
+    ]
+  },
+  "remaining": [
+    "App explicit firmware capability/status presentation",
+    "real card/dwell/error negatives",
+    "voice/OTA/K2 combinations",
+    "physical scene-to-visible-focus flow",
+    "measured hardware resource budgets"
+  ],
+  "physical_actions": []
+}

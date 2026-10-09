@@ -1137,6 +1137,28 @@ def persistent_payload_from_base(
     return base_data[selected.offset : selected.end]
 
 
+def factory_initial_persistent_payload(layout: layout_domain.Layout) -> bytes:
+    """Declare erased user storage for a first-boot factory transaction.
+
+    This is a signed software input, not a complete Flash image and not a
+    substitute for target-bound calibration or other protected bytes.
+    """
+
+    persistent = [
+        row
+        for row in layout.partitions
+        if row.name == "persistent_data"
+        and row.policy == "preserve"
+        and row.kind == "data"
+        and row.writable
+        and row.offset % layout.erase_size == 0
+        and row.size % layout.erase_size == 0
+    ]
+    if len(persistent) != 1:
+        raise PackageError("layout lacks one erase-aligned factory user volume")
+    return bytes([image_domain.ERASE_BYTE]) * persistent[0].size
+
+
 def materialize_full_image(
     package: Path,
     base: Path,

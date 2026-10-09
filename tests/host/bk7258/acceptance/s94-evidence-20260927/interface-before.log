@@ -1,0 +1,121 @@
+usage: test_workbench_trial.py [-h] [--task-id TASK_ID]
+                               [--event-sequence EVENT_SEQUENCE]
+                               [--state {start,progress,success,failure,canceled}]
+                               [--ttl-ms TTL_MS] [--progress PROGRESS]
+                               [--file FILE] [--receipt RECEIPT] [--port PORT]
+                               [--profile PROFILE] [--certificate CERTIFICATE]
+                               [--certificate-sha256 CERTIFICATE_SHA256]
+                               [--pc-key-file PC_KEY_FILE] [--timeout TIMEOUT]
+                               [--request REQUEST] [--pending PENDING]
+                               [--response RESPONSE]
+                               [--confirm-device-sha256 CONFIRM_DEVICE_SHA256]
+                               [--allow {resources,scenes,tasks,diagnostics} [{resources,scenes,tasks,diagnostics} ...]]
+                               {status,info,save-profile,pair-start,pair-finish,task-event,task-status,resource-status,resource-upload,resource-resume,resource-cancel}
+test_workbench_trial.py: error: argument operation: invalid choice: 'trial-start' (choose from 'status', 'info', 'save-profile', 'pair-start', 'pair-finish', 'task-event', 'task-status', 'resource-status', 'resource-upload', 'resource-resume', 'resource-cancel')
+EEEEEEE
+======================================================================
+ERROR: test_cli_preflight (__main__.TrialTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/usr/lib/python3.10/argparse.py", line 1878, in parse_known_args
+    namespace, args = self._parse_known_args(args, namespace)
+  File "/usr/lib/python3.10/argparse.py", line 2073, in _parse_known_args
+    positionals_end_index = consume_positionals(start_index)
+  File "/usr/lib/python3.10/argparse.py", line 2050, in consume_positionals
+    take_action(action, args)
+  File "/usr/lib/python3.10/argparse.py", line 1939, in take_action
+    argument_values = self._get_values(action, argument_strings)
+  File "/usr/lib/python3.10/argparse.py", line 2475, in _get_values
+    self._check_value(action, value)
+  File "/usr/lib/python3.10/argparse.py", line 2531, in _check_value
+    raise ArgumentError(action, msg % args)
+argparse.ArgumentError: argument operation: invalid choice: 'trial-start' (choose from 'status', 'info', 'save-profile', 'pair-start', 'pair-finish', 'task-event', 'task-status', 'resource-status', 'resource-upload', 'resource-resume', 'resource-cancel')
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_trial.py", line 97, in test_cli_preflight
+    args=parser.parse_args(['trial-start','--expected-trial-id','0','--operation-id','0102030405060708','--expression','happy','--ttl-ms','0'])
+  File "/usr/lib/python3.10/argparse.py", line 1845, in parse_args
+    args, argv = self.parse_known_args(args, namespace)
+  File "/usr/lib/python3.10/argparse.py", line 1881, in parse_known_args
+    self.error(str(err))
+  File "/usr/lib/python3.10/argparse.py", line 2606, in error
+    self.exit(2, _('%(prog)s: error: %(message)s\n') % args)
+  File "/usr/lib/python3.10/argparse.py", line 2593, in exit
+    _sys.exit(status)
+SystemExit: 2
+
+======================================================================
+ERROR: test_coherent_read (__main__.TrialTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_trial.py", line 81, in test_coherent_read
+    c,calls=self.client(); self.assertEqual(c.trial_status()['state'],'active')
+AttributeError: 'ControlClient' object has no attribute 'trial_status'
+
+======================================================================
+ERROR: test_golden (__main__.TrialTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_trial.py", line 46, in test_golden
+    t = self.codec()
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_trial.py", line 21, in codec
+    return importlib.import_module('_lib.workbench_trial')
+  File "/usr/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1004, in _find_and_load_unlocked
+ModuleNotFoundError: No module named '_lib.workbench_trial'
+
+======================================================================
+ERROR: test_invalid (__main__.TrialTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_trial.py", line 52, in test_invalid
+    t = self.codec()
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_trial.py", line 21, in codec
+    return importlib.import_module('_lib.workbench_trial')
+  File "/usr/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1004, in _find_and_load_unlocked
+ModuleNotFoundError: No module named '_lib.workbench_trial'
+
+======================================================================
+ERROR: test_no_replay (__main__.TrialTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_trial.py", line 89, in test_no_replay
+    with self.assertRaises(w.ControlError): c.trial_request('start',0,'0102030405060708','happy',1000)
+AttributeError: 'ControlClient' object has no attribute 'trial_request'
+
+======================================================================
+ERROR: test_snapshot (__main__.TrialTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_trial.py", line 62, in test_snapshot
+    t = self.codec()
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_trial.py", line 21, in codec
+    return importlib.import_module('_lib.workbench_trial')
+  File "/usr/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1004, in _find_and_load_unlocked
+ModuleNotFoundError: No module named '_lib.workbench_trial'
+
+======================================================================
+ERROR: test_staging (__main__.TrialTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_trial.py", line 76, in test_staging
+    r=c.trial_request('start', 0, '0102030405060708', 'happy', 1000)
+AttributeError: 'ControlClient' object has no attribute 'trial_request'
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.003s
+
+FAILED (errors=7)

@@ -1,0 +1,24 @@
+bk7258 package eye-pack: PASS output=/tmp/pack-trial-build-aq8_7ve2/green.bkep id=shaniu-upload-v1 revision=1 entries=11 size=10494 sha256=c0136ca3b702c15f41d15aed1e0a5e8714b851332024347c2bf13b1b7fea8e47
+PACK_TRIAL_INPUT_SHA256=c0136ca3b702c15f41d15aed1e0a5e8714b851332024347c2bf13b1b7fea8e47
+In file included from /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.c:4:
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.c: In function ‘recovery_case’:
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.c:219:10: error: implicit declaration of function ‘bk7258_display_selection_recover’; did you mean ‘bk7258_display_selection_refresh’? [-Werror=implicit-function-declaration]
+  219 |   assert(bk7258_display_selection_recover(0)==-EINVAL);
+      |          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.c:231:61: error: ‘struct bkdisplay_selection_status_s’ has no member named ‘recovery_pending’
+  231 |   assert(bk7258_display_selection_status(&after)==0 && after.recovery_pending);
+      |                                                             ^
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.c:231:61: error: ‘struct bkdisplay_selection_status_s’ has no member named ‘recovery_pending’
+  231 |   assert(bk7258_display_selection_status(&after)==0 && after.recovery_pending);
+      |                                                             ^
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.c:237:10: error: implicit declaration of function ‘bkdisplay_selection_recover_step’; did you mean ‘bkdisplay_selection_request’? [-Werror=implicit-function-declaration]
+  237 |   assert(bkdisplay_selection_recover_step(service));
+      |          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.c:238:62: error: ‘struct bkdisplay_selection_status_s’ has no member named ‘recovery_pending’
+  238 |   assert(bk7258_display_selection_status(&after)==0 && !after.recovery_pending);
+      |                                                              ^
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.c:238:62: error: ‘struct bkdisplay_selection_status_s’ has no member named ‘recovery_pending’
+  238 |   assert(bk7258_display_selection_status(&after)==0 && !after.recovery_pending);
+      |                                                              ^
+cc1: all warnings being treated as errors
+SETUP_ERROR: Command '['cc', '-std=gnu11', '-Wall', '-Wextra', '-Werror', '-pthread', '-I', '/tmp/pack-trial-build-aq8_7ve2', '-I', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/mocks', '-I', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_pack.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_media_volume.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_control_session.c', '-Wl,--wrap=write,--wrap=fsync', '-o', '/tmp/pack-trial-build-aq8_7ve2/test']' returned non-zero exit status 1.

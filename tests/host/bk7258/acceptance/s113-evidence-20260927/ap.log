@@ -1,0 +1,36 @@
+[0/2] Re-checking globbed directories...
+[1/26] Generating bin output directories
+[2/26] cd /home/lijian/project/open-vela/nuttx && /home/lijian/project/open-vela/prebuilts/tools/cmake/bin/cmake -DKCONFIG_CONFIG=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/configs/mcuboot/ap/defconfig -DNUTTX_DIR=/home/lijian/project/open-vela/nuttx -DCMAKE_BINARY_DIR=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake -P /home/lijian/project/open-vela/nuttx/cmake/nuttx_generate_dts.cmake
+[3/26] cd /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/apps && cmake --build /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/bin_host --target incdir
+[200%] Built target incdir
+[4/26] cd /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/apps && cmake --build /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/bin_host --target mkdeps
+[100%] Built target mkdeps
+[5/26] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_product_lifecycle.c.o
+[6/26] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_display_trial_control.c.o
+[7/26] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_display_store.c.o
+[8/26] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_display_service.c.o
+[9/26] Performing build step for 'ffmpeg_out_tree'
+[10/26] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_display_job.c.o
+[11/26] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_display_job_service.c.o
+[12/26] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_agent_product.c.o
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_agent_product.c: In function 'install_product_skills':
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_agent_product.c:3151:5: warning: missing braces around initializer [-Wmissing-braces]
+ 3151 |     {
+      |     ^
+ 3152 |       "device-assistant.md", g_product_skill_device_assistant
+      |       {
+ 3153 |     };
+      |     }
+[13/26] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_display_rpc_core.c.o
+[14/26] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_display_rpc.c.o
+[15/26] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_display_pack.c.o
+[16/26] Performing install step for 'ffmpeg_out_tree'
+[17/26] Completed 'ffmpeg_out_tree'
+[18/26] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_display_selection_control.c.o
+[19/26] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_display_job_control.c.o
+[20/26] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_provision_bootstrap.c.o
+[21/26] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_vision_service.c.o
+[22/26] Linking CXX static library apps/libapps.a
+[23/26] Linking CXX executable nuttx
+[24/26] Generating nuttx.bin
+[25/26] Generating System.map

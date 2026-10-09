@@ -1,0 +1,51 @@
+{
+  "certificate_dates": [
+    "notBefore=Sep 27 08:04:26 2026 GMT",
+    "notAfter=Sep 28 08:04:26 2026 GMT"
+  ],
+  "failure_capture_ns": 1790496265839951538,
+  "not_before_minus_failure_seconds": 0.1600484848022461,
+  "verification": [
+    {
+      "time": 1790496265,
+      "phase": "before",
+      "exit": 2,
+      "output": "CN = localhost\nerror 9 at 0 depth lookup: certificate is not yet valid\nerror out/tls-failures/1790496265839951538/cert.pem: verification failed\n"
+    },
+    {
+      "time": 1790496267,
+      "phase": "valid",
+      "exit": 0,
+      "output": "out/tls-failures/1790496265839951538/cert.pem: OK\n"
+    },
+    {
+      "time": 1790582667,
+      "phase": "expired",
+      "exit": 2,
+      "output": "CN = localhost\nerror 10 at 0 depth lookup: certificate has expired\nerror out/tls-failures/1790496265839951538/cert.pem: verification failed\n"
+    }
+  ],
+  "current_clock_samples": [
+    {
+      "python_before_ns": 1790496425849506902,
+      "c_time_seconds": 1790496425,
+      "python_after_ns": 1790496425849512848
+    },
+    {
+      "python_before_ns": 1790496425849513650,
+      "c_time_seconds": 1790496425,
+      "python_after_ns": 1790496425849514062
+    },
+    {
+      "python_before_ns": 1790496425849514545,
+      "c_time_seconds": 1790496425,
+      "python_after_ns": 1790496425849514772
+    },
+    {
+      "python_before_ns": 1790496425849514977,
+      "c_time_seconds": 1790496425,
+      "python_after_ns": 1790496425849515173
+    }
+  ],
+  "conclusion": "Actual client reported not-yet-valid certificate. Capture timestamp precedes notBefore; deterministic verification confirms validity boundary. Clock source/root cause not yet established; no authentication assertion was reached."
+}

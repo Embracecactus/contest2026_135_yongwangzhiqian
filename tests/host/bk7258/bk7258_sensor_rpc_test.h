@@ -22,6 +22,7 @@
 #include <syslog.h>
 #include <time.h>
 #include <unistd.h>
+#include <nuttx/contactless/ioctl.h>
 
 #define CONFIG_BK7258_APP_MOTION 1
 #define CONFIG_BK7258_MOTION_SERVICE 1
@@ -30,6 +31,11 @@
 #define CONFIG_BK7258_MOTION_RPC_STACKSIZE 4096
 #define CONFIG_BK7258_APP_NFC 1
 #define CONFIG_BK7258_NFC_SERVICE 1
+#ifdef TEST_NFC_RF
+#define CONFIG_CL_MFRC522_RF 1
+#include <nuttx/contactless/mfrc522_rf.h>
+static int rf_on, rf_off_error;
+#endif
 #define CONFIG_BK7258_NFC_DEVPATH "/dev/nfc0"
 #define CONFIG_BK7258_NFC_RPC_PRIORITY 80
 #define CONFIG_BK7258_NFC_RPC_STACKSIZE 4096
@@ -64,12 +70,18 @@ static jmp_buf worker_idle;
 static bool in_worker;
 static int callback_depth;
 static void (*unlock_hook)(void);
+static void (*lock_hook)(void);
 static void (*sleep_hook)(void);
 static void (*wait_hook)(void);
 static void (*read_hook)(void);
 static int (*worker_entry)(int, char **);
 static int opens, reads, closes, fd_live, open_error, read_error, close_error;
 static int ioctl_error;
+static int nfc_selects;
+#ifdef TEST_NFC_SCENE
+static int worker_timeouts, nfc_observations, nfc_present = 1;
+#endif
+static uint8_t nfc_uid_size = 4, nfc_sak;
 static int requests_sent, responses_sent, no_buffers;
 static bool drop_reply;
 static unsigned int passes;
@@ -80,7 +92,7 @@ static void run_hook(void (**slot)(void))
   *slot = NULL;
   if (fn != NULL) fn();
 }
-static int nxmutex_lock(mutex_t *m) { assert(*m == 0); *m = 1; return 0; }
+static int nxmutex_lock(mutex_t *m) { run_hook(&lock_hook); assert(*m == 0); *m = 1; return 0; }
 static int nxmutex_unlock(mutex_t *m)
 {
   assert(*m == 1); *m = 0;
@@ -106,6 +118,16 @@ static int nxsem_wait_uninterruptible(sem_t *s)
 }
 static int nxsem_tickwait_uninterruptible(sem_t *s, clock_t timeout)
 {
+#ifdef TEST_NFC_RF
+  if (in_worker)
+    {
+#ifdef TEST_NFC_SCENE
+      if (*s == 0 && worker_timeouts > 0)
+        { worker_timeouts--; ticks += timeout; return -ETIMEDOUT; }
+#endif
+      return nxsem_wait_uninterruptible(s);
+    }
+#endif
   run_hook(&wait_hook);
   if (*s != 0) { (*s)--; return 0; }
   ticks += timeout;
@@ -178,6 +200,44 @@ static int mock_close(int fd)
 static int mock_ioctl(int fd, unsigned long cmd, ...)
 {
   assert(in_worker && !callback_depth && fd_live && fd == 42);
+#ifdef TEST_NFC_RF
+  if (cmd == MFRC522IOC_SET_RF)
+    {
+      va_list args; va_start(args,cmd); unsigned long on=va_arg(args,unsigned long);
+      va_end(args); assert(on<=1);
+      if (!on && rf_off_error) { errno=rf_off_error; return -1; }
+      rf_on=on; return 0;
+    }
+#endif
+#ifdef TEST_NFC_SCENE
+  if (cmd == MFRC522IOC_OBSERVE)
+    {
+      va_list args;va_start(args,cmd);
+      struct mfrc522_observation_s *sample = (void *)va_arg(args,unsigned long);
+      va_end(args);nfc_observations++;run_hook(&read_hook);
+      memset(sample,0,sizeof(*sample));
+      if (read_error) {errno=read_error;return -1;}
+      sample->present=nfc_present;
+      if (nfc_present)
+        {sample->uid.size=nfc_uid_size;sample->uid.sak=nfc_sak;memset(sample->uid.uid_data,0xa5,4);}
+      return 0;
+    }
+#endif
+  if (cmd == MFRC522IOC_GET_PICC_UID)
+    {
+      va_list args;
+      struct picc_uid_s *uid;
+      nfc_selects++;
+      run_hook(&read_hook);
+      if (read_error) { errno = read_error; return -1; }
+      va_start(args, cmd);
+      uid = (struct picc_uid_s *)va_arg(args, unsigned long);
+      va_end(args);
+      memset(uid, 0xa5, sizeof(*uid));
+      uid->size = nfc_uid_size;
+      uid->sak = nfc_sak;
+      return 0;
+    }
   assert(cmd == SNIOC_SET_INTERVAL);
   if (ioctl_error) { errno = ioctl_error; return -1; }
   return 0;

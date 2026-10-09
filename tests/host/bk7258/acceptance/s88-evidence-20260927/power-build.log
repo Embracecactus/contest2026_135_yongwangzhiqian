@@ -1,0 +1,13 @@
+make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'
+cc -std=gnu11 -Wall -Wextra -Werror -O2 -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_shaniu_power_contract.c -o build/test_shaniu_power_contract
+cc -std=gnu11 -Wall -Wextra -Werror -O2 -DCONFIG_BK7258_USBMODE -DCONFIG_BK7258_AP_CORE \
+	-DCONFIG_BK7258_OTA_SOURCE_FILE -DCONFIG_BK7258_OTA_MANAGER \
+	-DCONFIG_BK7258_USBMODE_BLOCKDEV=\"/dev/mmcsd0\" \
+	-I mocks -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/include -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 \
+	-include /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/include/bk7258_usbmode.h \
+	-include mocks/bk7258_usbmode_lease.h \
+	test_bk7258_media_volume.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_media_volume.c \
+	/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_ota_source_file.c -o build/test_bk7258_media_volume
+./build/test_bk7258_media_volume
+BKVISION_VOLUME_HOST_TEST_PASS
+make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'

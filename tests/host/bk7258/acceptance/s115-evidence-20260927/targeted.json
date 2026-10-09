@@ -1,0 +1,26 @@
+[
+  {
+    "id": "LIFE-01.power-request-held-lock",
+    "exit_code": 0,
+    "status": "PASS",
+    "seconds": 0.7996308740111999
+  },
+  {
+    "id": "LIFE-01.power-request-coalesce",
+    "exit_code": 0,
+    "status": "PASS",
+    "seconds": 0.7042614499805495
+  },
+  {
+    "id": "LIFE-01.power-request-clear",
+    "exit_code": 0,
+    "status": "PASS",
+    "seconds": 0.6616219849674962
+  },
+  {
+    "id": "LIFE-01.power-request-catalog-running",
+    "exit_code": 0,
+    "status": "PASS",
+    "seconds": 0.6691597789758816
+  }
+]

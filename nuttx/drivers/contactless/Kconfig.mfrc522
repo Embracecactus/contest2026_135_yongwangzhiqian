@@ -17,3 +17,17 @@ config CL_ISODEP
 	help
 		Transport-independent ISO14443-4 Type A reader session support.
 		The caller supplies selected-card CRC_A exchange and RF ownership.
+
+config CL_MFRC522_RF
+	bool "MFRC522 with explicit RF ownership"
+	select SPI
+	select DRIVERS_CONTACTLESS
+	help
+		Standard NuttX MFRC522 protocol driver with explicit antenna
+		control and idle-off registration. No raw-frame or ISO-DEP claim.
+		Select only one MFRC522 implementation.
+
+config CL_MFRC522_RF_SPI_FREQ
+	int "MFRC522 controlled reader SPI frequency"
+	depends on CL_MFRC522_RF
+	default 1000000

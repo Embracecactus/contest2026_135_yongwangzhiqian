@@ -34,11 +34,12 @@ class DeviceControlSessionTest {
             val sent = mutableListOf<Sent>()
             var closed = false
             var automaticStatus = false
+            var acceptRequests = true
             override fun request(command: DeviceControlProtocol.Command, value: Int, accepted: (Boolean) -> Unit) {
                 check(!closed)
                 sent += Sent(command, value, accepted)
-                accepted(true)
-                if (automaticStatus && command == DeviceControlProtocol.Command.STATUS) reply(command, status)
+                accepted(acceptRequests)
+                if (acceptRequests && automaticStatus && command == DeviceControlProtocol.Command.STATUS) reply(command, status)
             }
             override fun requestOta(command: DeviceControlProtocol.Command, payload: ByteArray, accepted: (Boolean) -> Unit) {
                 request(command, 0, accepted)
@@ -105,6 +106,21 @@ class DeviceControlSessionTest {
         assertEquals(60, f.session.current().snapshot?.volume)
         assertFalse(f.session.current().writePending)
     }
+    @Test fun transportRejectedStatusMarksSnapshotStaleAndRetriesWithoutDisconnecting() {
+        val f = Fixture(); f.connect(); f.peer.acceptRequests = false
+        f.clock.advance(2_000)
+        assertTrue(f.session.current().authenticated)
+        assertEquals(DeviceControlSession.Connection.CONNECTED, f.session.current().connection)
+        assertEquals(53, f.session.current().snapshot?.volume)
+        assertFalse(f.session.current().snapshotFresh)
+        assertFalse(f.session.current().readPending)
+        assertFalse(DeviceControlPresentation.volume(f.session.current()).enabled)
+        f.peer.acceptRequests = true; f.peer.automaticStatus = true
+        f.clock.advance(2_000)
+        assertTrue(f.session.current().snapshotFresh)
+        assertEquals(2, f.peer.sent.count { it.command == DeviceControlProtocol.Command.STATUS })
+        assertEquals(1, f.peers.size)
+    }
     @Test fun ordinaryErrorIsNotDisconnectionAndDoesNotReplaceValue() {
         val f = Fixture(); f.connect()
         f.session.request(DeviceControlProtocol.Command.VOLUME, 60)
@@ -115,7 +131,7 @@ class DeviceControlSessionTest {
         assertTrue(f.session.current().operationMessage!!.contains("正在收音"))
     }
     @Test fun infoAndOtaDoNotReplaceStatusAndFragmentsStayContiguous() {
-        val f = Fixture(); f.connect(status.copy(infoSupported = true))
+        val f = Fixture(); f.connect(status.copy(infoSupported = true, otaSupported = true))
         assertEquals(DeviceControlProtocol.Command.INFO, f.peer.sent.single().command)
         val info = DeviceControlProtocol.FirmwareInfo(1, 2, 3, 4, 4)
         f.peer.reply(DeviceControlProtocol.Command.INFO, status.copy(volume = null, firmwareInfo = info))
@@ -135,6 +151,164 @@ class DeviceControlSessionTest {
         subscription.cancel()
         f.clock.advance(2000); f.peer.reply(DeviceControlProtocol.Command.STATUS, status.copy(infoSupported = true))
         assertEquals(1, f.peer.sent.count { it.command == DeviceControlProtocol.Command.INFO })
+    }
+    @Test fun transientInfoFailureRetriesAfterDelayWithoutBlockingQueuedWrite() {
+        val f = Fixture(); f.connect(status.copy(infoSupported = true))
+        assertTrue(f.session.request(DeviceControlProtocol.Command.VOLUME, 60))
+        f.peer.reply(DeviceControlProtocol.Command.INFO, failure.copy(error = -11))
+        assertEquals(DeviceControlProtocol.Command.VOLUME, f.peer.sent.last().command)
+        f.peer.reply(DeviceControlProtocol.Command.VOLUME, status.copy(volume = 60))
+        f.peer.reply(DeviceControlProtocol.Command.STATUS, status.copy(volume = 60))
+        f.clock.advance(1_999)
+        assertEquals(1, f.peer.sent.count { it.command == DeviceControlProtocol.Command.INFO })
+        f.clock.advance(1)
+        assertEquals(DeviceControlProtocol.Command.INFO, f.peer.sent.last().command)
+        val info = DeviceControlProtocol.FirmwareInfo(1, 2, 3, 5, 5)
+        f.peer.reply(DeviceControlProtocol.Command.INFO, status.copy(firmwareInfo = info))
+        assertEquals(info, f.session.current().firmwareInfo)
+        assertEquals(60, f.session.current().snapshot?.volume)
+        assertTrue(f.session.current().authenticated)
+    }
+
+    @Test fun infoRetryBudgetIsBoundedButConfirmedTransitionRefreshesItOnce() {
+        val f = Fixture(); f.poll = DeviceControlProtocol.Command.OTA_STATUS
+        f.connect(status.copy(infoSupported = true, otaSupported = true))
+        repeat(3) { attempt ->
+            assertEquals(DeviceControlProtocol.Command.INFO, f.peer.sent.last().command)
+            f.peer.reply(DeviceControlProtocol.Command.INFO, failure.copy(error = -11))
+            if (attempt < 2) f.clock.advance(2_000)
+        }
+        val trial = status.copy(otaStatus = DeviceControlProtocol.OtaStatus(2, 5, 0, 0, 0))
+        repeat(4) {
+            f.clock.advance(2_000)
+            assertEquals(DeviceControlProtocol.Command.OTA_STATUS, f.peer.sent.last().command)
+            f.peer.reply(DeviceControlProtocol.Command.OTA_STATUS, trial)
+        }
+        assertEquals(3, f.peer.sent.count { it.command == DeviceControlProtocol.Command.INFO })
+        val confirmed = trial.copy(otaStatus = DeviceControlProtocol.OtaStatus(3, 6, 0, 0, 0))
+        f.clock.advance(2_000)
+        f.peer.reply(DeviceControlProtocol.Command.OTA_STATUS, confirmed)
+        assertEquals(DeviceControlProtocol.Command.INFO, f.peer.sent.last().command)
+        f.peer.reply(DeviceControlProtocol.Command.INFO, failure.copy(error = -11))
+        f.clock.advance(2_000)
+        val info = DeviceControlProtocol.FirmwareInfo(1, 2, 3, 6, 6)
+        f.peer.reply(DeviceControlProtocol.Command.INFO, status.copy(firmwareInfo = info))
+        repeat(3) {
+            f.clock.advance(2_000)
+            f.peer.reply(DeviceControlProtocol.Command.OTA_STATUS, confirmed)
+        }
+        assertEquals(5, f.peer.sent.count { it.command == DeviceControlProtocol.Command.INFO })
+        assertEquals(info, f.session.current().firmwareInfo)
+    }
+
+    @Test fun permanentInfoErrorDoesNotRetryAndTransportBusyUsesRetryBudget() {
+        val unsupported = Fixture(); unsupported.connect(status.copy(infoSupported = true))
+        unsupported.peer.reply(DeviceControlProtocol.Command.INFO, failure.copy(error = -95))
+        unsupported.peer.automaticStatus = true
+        unsupported.clock.advance(10_000)
+        assertEquals(1, unsupported.peer.sent.count { it.command == DeviceControlProtocol.Command.INFO })
+
+        val busy = Fixture()
+        busy.session.setForeground(true); busy.session.connect(busy.factory)
+        busy.peer.acceptRequests = false
+        busy.peer.reply(DeviceControlProtocol.Command.STATUS, status.copy(infoSupported = true))
+        busy.clock.advance(4_000)
+        assertEquals(3, busy.peer.sent.count { it.command == DeviceControlProtocol.Command.INFO })
+        busy.peer.acceptRequests = true; busy.peer.automaticStatus = true
+        busy.clock.advance(10_000)
+        assertEquals(3, busy.peer.sent.count { it.command == DeviceControlProtocol.Command.INFO })
+        assertTrue(busy.session.current().snapshotFresh)
+    }
+
+    @Test fun confirmedStatusInvalidatesEarlierInfoAndDoesNotRearmAnExhaustedBudget() {
+        val f = Fixture(); f.poll = DeviceControlProtocol.Command.OTA_STATUS
+        f.connect(status.copy(infoSupported = true, otaSupported = true))
+        val info = DeviceControlProtocol.FirmwareInfo(1, 2, 3, 4, 4)
+        f.peer.reply(DeviceControlProtocol.Command.INFO, status.copy(firmwareInfo = info))
+        val confirmed = status.copy(otaStatus = DeviceControlProtocol.OtaStatus(3, 6, 0, 0, 0))
+        f.clock.advance(2_000)
+        f.peer.reply(DeviceControlProtocol.Command.OTA_STATUS, confirmed)
+        assertNull(f.session.current().firmwareInfo)
+        repeat(3) { attempt ->
+            assertEquals(DeviceControlProtocol.Command.INFO, f.peer.sent.last().command)
+            f.peer.reply(DeviceControlProtocol.Command.INFO, failure.copy(error = -11))
+            if (attempt < 2) f.clock.advance(2_000)
+        }
+        repeat(5) {
+            f.clock.advance(2_000)
+            assertEquals(DeviceControlProtocol.Command.OTA_STATUS, f.peer.sent.last().command)
+            f.peer.reply(DeviceControlProtocol.Command.OTA_STATUS, confirmed)
+        }
+        assertEquals(4, f.peer.sent.count { it.command == DeviceControlProtocol.Command.INFO })
+        assertNull(f.session.current().firmwareInfo)
+    }
+
+    @Test fun infoRetryDoesNotInterruptAConfigTransactionOrRunInBackground() {
+        val f = Fixture(); f.connect(status.copy(infoSupported = true))
+        f.peer.reply(DeviceControlProtocol.Command.INFO, failure.copy(error = -11))
+        assertTrue(f.session.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN, byteArrayOf(1)))
+        f.clock.advance(3_000)
+        f.peer.reply(DeviceControlProtocol.Command.CONFIG_BEGIN, status)
+        assertEquals(DeviceControlProtocol.Command.CONFIG_BEGIN, f.peer.sent.last().command)
+        assertEquals(1, f.peer.sent.count { it.command == DeviceControlProtocol.Command.INFO })
+        assertTrue(f.session.requestPayload(DeviceControlProtocol.Command.CONFIG_APPLY, byteArrayOf()))
+        f.peer.reply(DeviceControlProtocol.Command.CONFIG_APPLY, status)
+        f.session.finishConfigTransaction()
+        assertEquals(DeviceControlProtocol.Command.INFO, f.peer.sent.last().command)
+        f.peer.reply(DeviceControlProtocol.Command.INFO, failure.copy(error = -11))
+        f.session.setForeground(false)
+        f.clock.advance(3_000)
+        assertEquals(2, f.peer.sent.count { it.command == DeviceControlProtocol.Command.INFO })
+        f.session.setForeground(true)
+        f.clock.advance(2_000)
+        assertEquals(3, f.peer.sent.count { it.command == DeviceControlProtocol.Command.INFO })
+    }
+
+    @Test fun reconnectInvalidatesFirmwareInfoAndCancelsOldRetry() {
+        val f = Fixture(); f.connect(status.copy(infoSupported = true))
+        val old = f.peer
+        val oldInfo = DeviceControlProtocol.FirmwareInfo(1, 2, 3, 4, 4)
+        old.reply(DeviceControlProtocol.Command.INFO, status.copy(firmwareInfo = oldInfo))
+        assertEquals(oldInfo, f.session.current().firmwareInfo)
+        old.events.closed("reboot")
+        assertNull(f.session.current().firmwareInfo)
+        f.clock.advance(1_000)
+        f.peer.reply(DeviceControlProtocol.Command.STATUS, status.copy(infoSupported = true))
+        old.reply(DeviceControlProtocol.Command.INFO, status.copy(firmwareInfo = oldInfo))
+        assertNull(f.session.current().firmwareInfo)
+        f.peer.reply(DeviceControlProtocol.Command.INFO, failure.copy(error = -11))
+        f.session.disconnect()
+        val count = f.peer.sent.size
+        f.clock.advance(10_000)
+        assertEquals(count, f.peer.sent.size)
+    }
+
+    @Test fun staleStatusDropsQueuedOtaBeginButKeepsAdmittedRecoveryCommands() {
+        val queued = Fixture(); queued.connect(status.copy(otaSupported = true))
+        queued.clock.advance(2_000)
+        assertEquals(DeviceControlProtocol.Command.STATUS, queued.peer.sent.last().command)
+        assertFalse(queued.session.requestOta(
+            DeviceControlProtocol.Command.OTA_BEGIN, byteArrayOf(0, 0, 0, 44),
+        ))
+        assertEquals(1, queued.peer.sent.count { it.command == DeviceControlProtocol.Command.STATUS })
+        queued.peer.reply(DeviceControlProtocol.Command.STATUS, failure)
+        assertFalse(queued.session.current().snapshotFresh)
+        assertFalse(queued.peer.sent.any { it.command == DeviceControlProtocol.Command.OTA_BEGIN })
+        assertFalse(queued.session.current().writePending)
+
+        val admitted = Fixture(); admitted.connect(status.copy(otaSupported = true))
+        assertTrue(admitted.session.requestOta(
+            DeviceControlProtocol.Command.OTA_BEGIN, byteArrayOf(0, 0, 0, 44),
+        ))
+        admitted.peer.reply(DeviceControlProtocol.Command.OTA_BEGIN, status)
+        admitted.clock.advance(2_000)
+        admitted.peer.reply(DeviceControlProtocol.Command.STATUS, failure)
+        assertFalse(admitted.session.current().snapshotFresh)
+        assertTrue(admitted.session.requestOta(DeviceControlProtocol.Command.OTA_CANCEL))
+        assertEquals(DeviceControlProtocol.Command.OTA_CANCEL, admitted.peer.sent.last().command)
+        admitted.peer.reply(DeviceControlProtocol.Command.OTA_CANCEL, status)
+        assertTrue(admitted.session.requestOta(DeviceControlProtocol.Command.OTA_STATUS))
+        assertEquals(DeviceControlProtocol.Command.OTA_STATUS, admitted.peer.sent.last().command)
     }
     @Test fun reconnectDropsWritesAndOldCallbacksCannotPolluteNewState() {
         val f = Fixture(); f.connect(); f.clock.advance(2000)
@@ -184,6 +358,27 @@ class DeviceControlSessionTest {
         f.session.disconnect(); f.session.setForeground(false); f.clock.advance(30_000); f.session.setForeground(true)
         assertEquals(2, f.peers.size)
     }
+    @Test fun claimHandoffDropsOldIdentityRetryAndCachedStatus() {
+        val f = Fixture(); f.connect()
+        val old = f.peer
+        old.events.closed("disconnected")
+        f.session.releaseIdentity()
+        assertNull(f.session.current().snapshot)
+        assertNull(f.session.current().firmwareInfo)
+        assertEquals(0L, f.session.current().updatedAt)
+        f.session.setForeground(false); f.clock.advance(30_000)
+        f.session.setForeground(true); f.clock.advance(130_000)
+        old.reply(DeviceControlProtocol.Command.STATUS, status.copy(volume = 99))
+        old.events.closed("late")
+        assertEquals(1, f.peers.size)
+        assertFalse(f.session.current().authenticated)
+        assertNull(f.session.current().snapshot)
+        f.session.connect(f.factory)
+        f.peer.reply(DeviceControlProtocol.Command.STATUS, status.copy(volume = 40))
+        assertEquals(2, f.peers.size)
+        assertTrue(f.session.current().authenticated)
+        assertEquals(40, f.session.current().snapshot?.volume)
+    }
     @Test fun graceDisconnectCannotReopenAnExplicitlyClosedSession() {
         val f = Fixture(); f.connect()
         f.session.disconnect()
@@ -191,4 +386,114 @@ class DeviceControlSessionTest {
         assertEquals(1, f.peers.size)
         assertEquals(DeviceControlSession.Connection.SUSPENDED, f.session.current().connection)
     }
+    @Test fun configCancelWaitsForInFlightAckAndPreventsOtherWriters() {
+        val f = Fixture(); f.connect()
+        assertTrue(f.session.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN, byteArrayOf(1)))
+        assertFalse(f.session.request(DeviceControlProtocol.Command.VOLUME, 60))
+        assertFalse(f.session.requestOta(DeviceControlProtocol.Command.OTA_BEGIN, byteArrayOf(1)))
+        assertTrue(f.session.cancelConfigTransaction())
+        assertEquals(listOf(DeviceControlProtocol.Command.CONFIG_BEGIN), f.peer.sent.map { it.command })
+        f.peer.reply(DeviceControlProtocol.Command.CONFIG_BEGIN, status)
+        assertEquals(DeviceControlProtocol.Command.CONFIG_CANCEL, f.peer.sent.last().command)
+        assertFalse(f.session.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN, byteArrayOf(2)))
+        f.peer.reply(DeviceControlProtocol.Command.CONFIG_CANCEL, status)
+        assertTrue(f.session.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN, byteArrayOf(3)))
+        assertEquals(1, f.peer.sent.count { it.command == DeviceControlProtocol.Command.CONFIG_CANCEL })
+        f.session.disconnect()
+    }
+
+    @Test fun cancelingQueuedBeginNeverCancelsATransactionThatWasNotSent() {
+        val f = Fixture(); f.connect(); f.clock.advance(2_000)
+        assertEquals(listOf(DeviceControlProtocol.Command.STATUS), f.peer.sent.map { it.command })
+        assertTrue(f.session.current().readPending)
+
+        assertTrue(f.session.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN, byteArrayOf(1)))
+        assertTrue(f.session.current().writePending)
+        assertTrue(f.session.cancelConfigTransaction())
+
+        f.peer.reply(DeviceControlProtocol.Command.STATUS, status)
+        assertEquals(listOf(DeviceControlProtocol.Command.STATUS), f.peer.sent.map { it.command })
+        assertFalse(f.session.current().writePending)
+        assertTrue(f.session.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN, byteArrayOf(2)))
+        assertEquals(DeviceControlProtocol.Command.CONFIG_BEGIN, f.peer.sent.last().command)
+        f.session.disconnect()
+    }
+
+    @Test fun failedConfigAckDoesNotReleaseStagingUntilExplicitCancel() {
+        val f = Fixture(); f.connect()
+        assertTrue(f.session.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN, byteArrayOf(1)))
+        f.peer.reply(DeviceControlProtocol.Command.CONFIG_BEGIN, failure)
+        assertTrue(f.session.current().authenticated)
+        assertFalse(f.session.requestOta(DeviceControlProtocol.Command.OTA_BEGIN, byteArrayOf(2)))
+        assertFalse(f.session.request(DeviceControlProtocol.Command.PERSONA, 1))
+        assertTrue(f.session.cancelConfigTransaction())
+        f.peer.reply(DeviceControlProtocol.Command.CONFIG_CANCEL, status)
+        assertTrue(f.session.request(DeviceControlProtocol.Command.PERSONA, 1))
+        f.session.disconnect()
+    }
+
+    @Test fun identityReleaseRejectsLateConfigResultAndDoesNotReplayIt() {
+        val f = Fixture(); f.connect()
+        val old = f.peer
+        val results = mutableListOf<DeviceControlProtocol.Command>()
+        val observer = f.session.observeResults { command, _ -> results += command }
+        assertTrue(f.session.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN, byteArrayOf(1)))
+        f.session.releaseIdentity()
+        old.reply(DeviceControlProtocol.Command.CONFIG_BEGIN, status)
+        old.sent.last().accepted(false)
+        f.clock.advance(60_000)
+        assertTrue(results.isEmpty())
+        assertFalse(f.session.current().authenticated)
+        assertNull(f.session.current().snapshot)
+        assertEquals(1, f.peers.size)
+        f.session.connect(f.factory)
+        f.peer.reply(DeviceControlProtocol.Command.STATUS, status)
+        assertTrue(f.peer.sent.none { it.command == DeviceControlProtocol.Command.CONFIG_BEGIN })
+        observer.cancel(); f.session.disconnect()
+    }
+
+    private fun peerIdentity(): ProvisionPeerIdentity {
+        val cert = javaClass.getResourceAsStream("/pc-identity.pem")!!.use {
+            java.security.cert.CertificateFactory.getInstance("X.509").generateCertificate(it)
+        }
+        return ProvisionPeerIdentity.fromDer(cert.encoded)
+    }
+    @Test fun peerCertificateCannotAuthenticateSessionOrAppearBeforeStatus() {
+        val f = Fixture(); f.session.setForeground(true); f.session.connect(f.factory)
+        f.peer.events.peerIdentity(peerIdentity())
+        assertFalse(f.session.current().authenticated)
+        assertNull(f.session.current().peerIdentity)
+        f.peer.reply(DeviceControlProtocol.Command.STATUS, status)
+        assertEquals(peerIdentity().sha256, f.session.current().peerIdentity!!.sha256)
+    }
+    @Test fun disconnectAndOldIdentityCannotContaminateNewGeneration() {
+        val f = Fixture(); f.connect(); val old = f.peer
+        old.events.peerIdentity(peerIdentity()); assertNotNull(f.session.current().peerIdentity)
+        f.session.disconnect(); assertNull(f.session.current().peerIdentity)
+        f.connect(); old.events.peerIdentity(peerIdentity())
+        assertNull(f.session.current().peerIdentity)
+        f.peer.events.peerIdentity(peerIdentity()); assertNotNull(f.session.current().peerIdentity)
+        f.session.releaseIdentity(); assertNull(f.session.current().peerIdentity)
+    }
+    @Test fun delayedCurrentIdentityPublishesWithoutAdditionalCommands() {
+        val f = Fixture(); f.connect(); val before = f.peer.sent.size
+        val identity = peerIdentity(); f.peer.events.peerIdentity(identity)
+        assertEquals(identity.certificatePem, f.session.current().peerIdentity!!.certificatePem)
+        assertEquals(before, f.peer.sent.size)
+        f.peer.events.peerIdentity(identity)
+        assertEquals(before, f.peer.sent.size)
+    }
+    @Test fun peerIdentityRejectsMalformedAndOversizedCertificates() {
+        for (bytes in listOf(byteArrayOf(), byteArrayOf(1, 2, 3), ByteArray(8193))) {
+            assertThrows(IllegalArgumentException::class.java) { ProvisionPeerIdentity.fromDer(bytes) }
+        }
+        val identity = peerIdentity()
+        val cert = java.security.cert.CertificateFactory.getInstance("X.509")
+            .generateCertificate(identity.certificatePem.byteInputStream())
+        val expected = java.security.MessageDigest.getInstance("SHA-256").digest(cert.encoded)
+            .joinToString("") { "%02x".format(it.toInt() and 255) }
+        assertEquals(expected, identity.sha256)
+        assertThrows(IllegalArgumentException::class.java) { ProvisionPeerIdentity.fromDer(cert.encoded + byteArrayOf(0)) }
+    }
+
 }

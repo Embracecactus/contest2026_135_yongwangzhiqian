@@ -1,0 +1,9 @@
+["/usr/bin/python3", "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_provision_tls.py", "--resource-case", "cancel"]
+RESOURCE_EVIDENCE {"case": "cancel", "connections": 1, "certificate_sha256": "f5c814bffcf6602afa589d17caf8cbfb3a463cd722fdd0e96c900525a167bf6f", "input_sha256": "1bfa445365f6081d889fd604b0dadd3d1821d87fd7ee7548259acf47fb666395", "native": "native-pack workers=1 installed-files-compared=0 default-unchanged=1"}
+RESOURCE_RANDOM_SHA256=db794e1be8221d5ad3000779f93c17552b58f76db4c59f23efec497b138bcca6
+NATIVE_RESOURCE_CASE=cancel PASS
+.
+----------------------------------------------------------------------
+Ran 1 test in 5.921s
+
+OK

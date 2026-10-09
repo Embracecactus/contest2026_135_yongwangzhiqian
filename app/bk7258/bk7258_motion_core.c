@@ -146,3 +146,156 @@ int bkmotion_rpc_handle_request(const struct bkmotion_rpc_request_s *request,
   response->operation_status = 0;
   return 0;
 }
+
+/* Arithmetic uses double before subtraction/multiplication so even a valid
+ * full-range int32 wire sample cannot overflow integer intermediates. */
+static double bkmotion_dot(const int32_t a[3], const int32_t b[3])
+{
+  return (double)a[0] * b[0] + (double)a[1] * b[1] + (double)a[2] * b[2];
+}
+
+static double bkmotion_distance(const int32_t a[3], const int32_t b[3])
+{
+  double x = (double)a[0] - b[0];
+  double y = (double)a[1] - b[1];
+  double z = (double)a[2] - b[2];
+  return x * x + y * y + z * z;
+}
+
+static bool bkmotion_gravity(const struct bkmotion_actions_config_s *c,
+                             const int32_t vector[3])
+{
+  double norm = bkmotion_dot(vector, vector);
+  return norm >= (double)c->gravity_min_mms2 * c->gravity_min_mms2 &&
+         norm <= (double)c->gravity_max_mms2 * c->gravity_max_mms2;
+}
+
+static bool bkmotion_aligned(const int32_t a[3], const int32_t b[3],
+                             uint16_t cosine)
+{
+  double dot = bkmotion_dot(a, b);
+  return dot >= 0 && dot * dot * 1000000.0 >=
+    (double)cosine * cosine * bkmotion_dot(a, a) * bkmotion_dot(b, b);
+}
+
+/* Invalid observations rebase motion, not the already emitted event budget. */
+static void bkmotion_actions_rebase(struct bkmotion_actions_s *s)
+{
+  uint64_t event_us = s->event_us;
+  bool emitted = s->emitted;
+  memset(s, 0, sizeof(*s));
+  s->event_us = event_us;
+  s->emitted = emitted;
+}
+
+int bkmotion_actions_step(struct bkmotion_actions_s *s,
+                          const struct bkmotion_actions_config_s *c,
+                          const struct bkmotion_rpc_response_s *sample,
+                          bool admitted, enum bkmotion_action_e *event)
+{
+  int32_t vector[3];
+  enum bkmotion_action_e candidate = BKMOTION_ACTION_NONE;
+  uint64_t now;
+
+  if (event == NULL || s == NULL) return -EINVAL;
+  *event = BKMOTION_ACTION_NONE;
+  if (c == NULL || c->quiet_mms2 == 0 || c->move_mms2 <= c->quiet_mms2 ||
+      c->gravity_min_mms2 == 0 || c->gravity_max_mms2 <= c->gravity_min_mms2 ||
+      c->tilt_enter_cos == 0 || c->tilt_leave_cos <= c->tilt_enter_cos ||
+      c->tilt_leave_cos > 1000 || !c->settle_us || !c->max_gap_us ||
+      !c->cooldown_us)
+    {
+      bkmotion_actions_rebase(s);
+      return -EINVAL;
+    }
+
+  if (!admitted)
+    {
+      bkmotion_actions_rebase(s);
+      return 0;
+    }
+
+  if (!bkmotion_rpc_response_valid(sample) || sample->rpc_status < 0 ||
+      sample->operation_status < 0)
+    {
+      bkmotion_actions_rebase(s);
+      return -ENODATA;
+    }
+
+  now = sample->timestamp_us;
+  if (s->initialized && now <= s->last_us)
+    {
+      if (now < s->last_us) bkmotion_actions_rebase(s);
+      return -ESTALE;
+    }
+
+  vector[0] = sample->x_mms2;
+  vector[1] = sample->y_mms2;
+  vector[2] = sample->z_mms2;
+  if (s->initialized && now - s->last_us > c->max_gap_us)
+    bkmotion_actions_rebase(s);
+  if (!s->initialized)
+    {
+      memcpy(s->previous, vector, sizeof(vector));
+      memcpy(s->anchor, vector, sizeof(vector));
+      memcpy(s->reference, vector, sizeof(vector));
+      s->reference_valid = bkmotion_gravity(c, vector);
+      s->last_us = now;
+      s->stable_us = now;
+      s->initialized = true;
+      return 0;
+    }
+
+  if (bkmotion_distance(vector, s->anchor) >
+      (double)c->quiet_mms2 * c->quiet_mms2)
+    {
+      memcpy(s->anchor, vector, sizeof(vector));
+      s->stable_us = now;
+    }
+
+  if (bkmotion_distance(vector, s->previous) >=
+      (double)c->move_mms2 * c->move_mms2)
+    {
+      if (!s->moving) candidate = BKMOTION_ACTION_MOVED;
+      s->moving = true;
+    }
+  else if (now - s->stable_us >= c->settle_us)
+    {
+      if (s->moving)
+        {
+          s->moving = false;
+          candidate = BKMOTION_ACTION_SETTLED;
+        }
+      else if (bkmotion_gravity(c, vector))
+        {
+          if (!s->reference_valid)
+            {
+              memcpy(s->reference, vector, sizeof(vector));
+              s->reference_valid = true;
+            }
+          else if (s->tilted)
+            {
+              if (bkmotion_aligned(vector, s->reference, c->tilt_leave_cos))
+                s->tilted = false;
+            }
+          else if (!bkmotion_aligned(vector, s->reference, c->tilt_enter_cos))
+            {
+              s->tilted = true;
+              candidate = BKMOTION_ACTION_TILTED;
+            }
+        }
+    }
+
+  memcpy(s->previous, vector, sizeof(vector));
+  s->last_us = now;
+  if (candidate != BKMOTION_ACTION_NONE &&
+      (!s->emitted || (now >= s->event_us &&
+                      now - s->event_us >= c->cooldown_us)))
+    {
+      s->emitted = true;
+      s->event_us = now;
+      *event = candidate;
+    }
+
+  return 0;
+}

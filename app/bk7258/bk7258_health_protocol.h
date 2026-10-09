@@ -34,7 +34,13 @@
 enum bkhealth_rpc_command_e
 {
   BKHEALTH_RPC_STATUS = 1,
+  /* POWER_STATUS is read-only: response reserved[0] = phase (0..3)
+   * plus unresolved CP bit 8, reserved[1] = signed power error.
+   * All health fields remain empty. STATUS wire semantics are unchanged.
+   */
+  BKHEALTH_RPC_POWER_STATUS = 2,
   BKHEALTH_RPC_RESPONSE = 0x8000,
+  BKHEALTH_RPC_POWER_RESPONSE = 0x8001,
 };
 
 /* These values intentionally mirror the stable NuttX battery_status_e ABI.

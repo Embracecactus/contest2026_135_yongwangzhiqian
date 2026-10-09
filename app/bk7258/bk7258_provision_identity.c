@@ -29,7 +29,7 @@ int bkprov_identity_load(struct bkprov_identity_s *identity,
   if (identity == NULL || p == NULL || size < 48 || size > 8192)
     return -EINVAL;
   if (memcmp(identity, &empty, sizeof(empty)) != 0) return -EBUSY;
-  if (memcmp(p, "BPI1", 4) || p[4] || p[5] != 1 || p[6] || p[7] ||
+  if ((memcmp(p, "BPI1", 4) && memcmp(p, "BPI2", 4)) || p[4] || p[5] != 1 || p[6] || p[7] ||
       p[12] || p[13] || p[14] || p[15]) return -EBADMSG;
   size_t certificate_size = ((size_t)p[8] << 8) | p[9];
   size_t key_size = ((size_t)p[10] << 8) | p[11];
@@ -84,6 +84,7 @@ int bkprov_identity_load(struct bkprov_identity_s *identity,
           memcpy(identity->record, p, size);
           memcpy(identity->secret, p + 16, 32);
           identity->size = size;
+          identity->generated = p[3] == '2';
           identity->certificate_size = certificate_size;
           identity->key_size = key_size;
         }

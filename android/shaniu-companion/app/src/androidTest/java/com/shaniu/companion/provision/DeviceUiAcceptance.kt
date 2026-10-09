@@ -25,6 +25,7 @@ import java.nio.ByteBuffer
 import java.security.KeyStore
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
@@ -32,6 +33,1483 @@ import java.util.concurrent.atomic.AtomicReference
  * mutation. Reflection keeps fixture injection out of the production APK API.
  */
 internal object DeviceUiAcceptance {
+    /** RES-01: real Activity/session lifecycle with an in-memory transport. */
+    fun runEyeBackgroundCancel(instrumentation: Instrumentation) {
+        check(android.os.Build.FINGERPRINT.contains("generic") || android.os.Build.MODEL.contains("sdk"))
+        val activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
+        fun field(name: String) = MainActivity::class.java.getDeclaredField(name).apply { isAccessible = true }
+        val session = MainActivity::class.java.getDeclaredMethod("getDirectSession").apply { isAccessible = true }
+            .invoke(activity) as DeviceControlSession
+        val commands = mutableListOf<DeviceControlProtocol.Command>()
+        var closes = 0
+        try {
+            onUi(instrumentation) {
+                session.connect(object : DeviceControlSession.Factory {
+                    override fun open(value: DeviceControlSession.Events): DeviceControlSession.Transport {
+                        return object : DeviceControlSession.Transport {
+                            override fun request(command: DeviceControlProtocol.Command, value: Int,
+                                                 accepted: (Boolean) -> Unit) {
+                                commands += command; accepted(true)
+                            }
+                            override fun requestOta(command: DeviceControlProtocol.Command, payload: ByteArray,
+                                                    accepted: (Boolean) -> Unit) {
+                                commands += command; accepted(true)
+                            }
+                            override fun requestPayload(command: DeviceControlProtocol.Command, payload: ByteArray,
+                                                        accepted: (Boolean) -> Unit) {
+                                commands += command; accepted(true)
+                            }
+                            override fun close() { closes++ }
+                        }
+                    }
+                })
+                /* Authentication is an explicit external fixture. Avoid
+                 * invoking MainActivity's normal post-STATUS discovery here:
+                 * this case owns only lifecycle versus an admitted install. */
+                DeviceControlSession::class.java.getDeclaredField("state").apply { isAccessible = true }.set(
+                    session,
+                    session.current().copy(
+                        connection = DeviceControlSession.Connection.CONNECTED,
+                        authenticated = true,
+                        snapshotFresh = true,
+                        snapshot = DeviceControlProtocol.Snapshot(
+                            0, true, false, null, null, null, null,
+                            publicConfigSupported = true,
+                        ),
+                    ),
+                )
+                val flow = field("configFlow")
+                val eyes = checkNotNull(flow.type.enumConstants).first {
+                    (it as Enum<*>).name == "EYES"
+                }
+                flow.set(activity, eyes)
+                field("eyeReadingOnly").setBoolean(activity, false)
+                check(session.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN,
+                    ByteBuffer.allocate(8).putInt(5).putInt(44).array()))
+                check(commands.last() == DeviceControlProtocol.Command.CONFIG_BEGIN)
+                instrumentation.callActivityOnStop(activity)
+            }
+            instrumentation.waitForIdleSync()
+            onUi(instrumentation) {
+                check(closes == 1) { "background eye install retained the GATT grace connection" }
+                check(session.current().connection == DeviceControlSession.Connection.SUSPENDED &&
+                    !session.current().authenticated) {
+                    "background eye install did not invalidate its authenticated generation"
+                }
+                check(commands.none { it == DeviceControlProtocol.Command.CONFIG_CANCEL }) {
+                    "serialized CANCEL was sent behind an in-flight install"
+                }
+                check((field("eyeMessage").get(activity) as? String)?.contains("结果未知") == true) {
+                    "background eye install was presented as a confirmed cancellation"
+                }
+            }
+        } finally {
+            onUi(instrumentation) {
+                session.disconnect()
+                activity.finish()
+            }
+        }
+    }
+
+    /** UI-01/NET-03: native confirmation and unknown states; emulator-only snapshots. */
+    fun runPcAuthorization(instrumentation: Instrumentation) {
+        check(android.os.Build.FINGERPRINT.contains("generic") || android.os.Build.MODEL.contains("sdk"))
+        val activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
+        fun field(name: String) = MainActivity::class.java.getDeclaredField(name).apply { isAccessible = true }
+        val session = MainActivity::class.java.getDeclaredMethod("getDirectSession").apply { isAccessible = true }
+            .invoke(activity) as DeviceControlSession
+        var second: android.app.AlertDialog? = null
+        try {
+            onUi(instrumentation) {
+                DeviceControlSession::class.java.getDeclaredField("state").apply { isAccessible = true }.set(session,
+                    DeviceControlSession.State(connection = DeviceControlSession.Connection.CONNECTED, authenticated = true,
+                        snapshotFresh = true, snapshot = DeviceControlProtocol.Snapshot(0, true, false, 50, 0, 0, 0,
+                            publicConfigSupported = true)))
+                MainActivity::class.java.getDeclaredMethod("showPcAuthorization").apply { isAccessible = true }.invoke(activity)
+            }
+            instrumentation.waitForIdleSync()
+            onUi(instrumentation) {
+                val dialog = checkNotNull(field("companionSheet").get(activity) as? android.app.Dialog)
+                val root = checkNotNull(dialog.window).decorView
+                val revoke = checkNotNull(findView(root) { it is TextView && it.text.toString() == "撤销电脑授权" })
+                check(!revoke.isEnabled) { "Unknown snapshot enabled revoke" }
+                val pairImport = checkNotNull(findView(root) { it is TextView && it.text.toString() == "导入电脑配对请求" })
+                val pairExport = checkNotNull(findView(root) { it is TextView && it.text.toString() == "导出加密配对响应" })
+                check(!pairImport.isEnabled && !pairExport.isEnabled) { "Unknown identity enabled pairing" }
+                val controller = checkNotNull(field("pcEditor").get(activity))
+                val type = controller.javaClass
+                // UI-only state fixture; production Session/codec behavior is tested on JVM.
+                val snapshotType = Class.forName("com.shaniu.companion.provision.PcAuthorizationController\$Snapshot")
+                val constructor = snapshotType.declaredConstructors.first { it.parameterTypes.size == 6 }.apply { isAccessible = true }
+                val snapshot = constructor.newInstance(true, 3L, 5L, 3, "09".repeat(16), "00".repeat(16))
+                type.getDeclaredField("snapshot").apply { isAccessible = true }.set(controller, snapshot)
+                type.getDeclaredMethod("publish").apply { isAccessible = true }.invoke(controller)
+                check(revoke.isEnabled)
+                check(!pairImport.isEnabled && !pairExport.isEnabled) { "Snapshot without trusted certificate enabled pairing" }
+                revoke.performClick()
+                val confirm = checkNotNull(field("pcConfirmation").get(activity) as? android.app.AlertDialog)
+                check(confirm.isShowing)
+                check(type.getDeclaredMethod("current").invoke(controller).toString().contains("transaction=null"))
+                confirm.getButton(android.app.AlertDialog.BUTTON_NEGATIVE).performClick()
+                check(type.getDeclaredMethod("current").invoke(controller).toString().contains("transaction=null"))
+                revoke.performClick()
+                second = checkNotNull(field("pcConfirmation").get(activity) as? android.app.AlertDialog)
+                dialog.dismiss()
+            }
+            instrumentation.waitForIdleSync()
+            onUi(instrumentation) {
+                check(second?.isShowing == false) { "Confirmation survived closed sheet" }
+                check(field("pcEditor").get(activity) == null)
+            }
+        } finally { onUi(instrumentation) { session.disconnect(); activity.finish() } }
+    }
+
+    /** Actual file parse/confirmation/cancel; only the authenticated snapshot is synthetic. */
+    fun runPcPairingImportCancellation(instrumentation: Instrumentation) {
+        check(android.os.Build.MODEL.contains("sdk"))
+        val activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
+        fun field(name: String) = MainActivity::class.java.getDeclaredField(name).apply { isAccessible = true }
+        val session = MainActivity::class.java.getDeclaredMethod("getDirectSession").apply { isAccessible = true }
+            .invoke(activity) as DeviceControlSession
+        val device = "pc-ui-" + UUID.randomUUID()
+        val requestFile = java.io.File(activity.cacheDir, "$device.spq")
+        val identity = instrumentation.context.assets.open("pc-identity.pem").use {
+            ProvisionPeerIdentity.fromDer(java.security.cert.CertificateFactory.getInstance("X.509").generateCertificate(it).encoded)
+        }
+        val der = java.security.KeyPairGenerator.getInstance("RSA").apply { initialize(3072) }.generateKeyPair().public.encoded
+        val now = System.currentTimeMillis()
+        val raw = java.nio.ByteBuffer.allocate(60 + der.size).putInt(0x53505131).putInt(3).putLong(now).putLong(now + 600000)
+            .put(ByteArray(16) { 9 }).put(ByteArray(16) { 7 }).putInt(der.size).put(der).array()
+        requestFile.writeBytes(raw)
+        val fingerprint = java.security.MessageDigest.getInstance("SHA-256").digest(raw).joinToString("") { "%02x".format(it.toInt() and 255) }
+        try {
+            onUi(instrumentation) {
+                field("provisionedDeviceId").set(activity, device)
+                DeviceControlSession::class.java.getDeclaredField("state").apply { isAccessible = true }.set(session,
+                    DeviceControlSession.State(connection = DeviceControlSession.Connection.CONNECTED, authenticated = true,
+                        peerIdentity = identity, snapshotFresh = true, snapshot = DeviceControlProtocol.Snapshot(0, true, false, 50, 0, 0, 0, publicConfigSupported = true)))
+                MainActivity::class.java.getDeclaredMethod("showPcAuthorization").apply { isAccessible = true }.invoke(activity)
+                val controller = checkNotNull(field("pcEditor").get(activity))
+                val type = controller.javaClass
+                type.getDeclaredField("snapshot").apply { isAccessible = true }.set(controller,
+                    PcAuthorizationController.Snapshot(true, 3u, 5u, 3, "09".repeat(16), "00".repeat(16)))
+                type.getDeclaredMethod("publish").apply { isAccessible = true }.invoke(controller)
+                @Suppress("UNCHECKED_CAST")
+                val selected = field("pcRequestSelected").get(activity) as (android.net.Uri) -> Unit
+                selected(android.net.Uri.fromFile(requestFile))
+            }
+            var shown = false
+            val deadline = android.os.SystemClock.uptimeMillis() + 5000
+            while (!shown && android.os.SystemClock.uptimeMillis() < deadline) {
+                onUi(instrumentation) { shown = (field("pcConfirmation").get(activity) as? android.app.AlertDialog)?.isShowing == true }
+                if (!shown) Thread.sleep(20)
+            }
+            check(shown) { "Pairing request did not reach native confirmation" }
+            onUi(instrumentation) {
+                val confirmation = field("pcConfirmation").get(activity) as android.app.AlertDialog
+                val message = confirmation.findViewById<TextView>(android.R.id.message).text.toString()
+                check(message.contains(fingerprint) && message.contains("资源管理") && message.contains("场景"))
+                confirmation.getButton(android.app.AlertDialog.BUTTON_NEGATIVE).performClick()
+                val controller = field("pcEditor").get(activity) as PcAuthorizationController
+                check(controller.current().transaction == null)
+                val file = MainActivity::class.java.getDeclaredMethod("pcDeliveryFile", String::class.java)
+                    .apply { isAccessible = true }.invoke(activity, device) as android.util.AtomicFile
+                check(!file.baseFile.exists()) { "Canceled confirmation saved or submitted a grant" }
+            }
+        } finally { requestFile.delete(); onUi(instrumentation) { session.disconnect(); activity.finish() } }
+    }
+
+    /** UI-01: real editor controls; synthetic public snapshots, no BLE evidence. */
+    fun runSettingsUnknown(instrumentation: Instrumentation) {
+        check(android.os.Build.FINGERPRINT.contains("generic") || android.os.Build.MODEL.contains("sdk"))
+        val activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
+        val deviceId = "ui-settings-" + UUID.randomUUID()
+        val preferences = activity.getSharedPreferences("shaniu-settings-receipts", Context.MODE_PRIVATE)
+        val otaPreferencesName = "shaniu-stale-ota-${UUID.randomUUID()}"
+        val otaPreferences = activity.getSharedPreferences(otaPreferencesName, Context.MODE_PRIVATE)
+        val activityField = { name: String ->
+            MainActivity::class.java.getDeclaredField(name).apply { isAccessible = true }
+        }
+        lateinit var originalActivityPreferences: SharedPreferences
+        lateinit var session: DeviceControlSession
+        lateinit var sessionState: java.lang.reflect.Field
+        try {
+            onUi(instrumentation) {
+                originalActivityPreferences = activityField("preferences").get(activity) as SharedPreferences
+                session = MainActivity::class.java.getDeclaredMethod("getDirectSession")
+                    .apply { isAccessible = true }.invoke(activity) as DeviceControlSession
+                sessionState = DeviceControlSession::class.java.getDeclaredField("state").apply { isAccessible = true }
+                sessionState.set(session, DeviceControlSession.State(connection = DeviceControlSession.Connection.CONNECTED,
+                    authenticated = true, snapshotFresh = true))
+                val editor = DeviceSettingsEditor(activity, session, deviceId, 32, true) { }
+                fun field(name: String) = DeviceSettingsEditor::class.java.getDeclaredField(name).apply { isAccessible = true }
+                val editable = DeviceSettingsEditor::class.java.getDeclaredMethod("editable", Boolean::class.javaPrimitiveType)
+                    .apply { isAccessible = true }
+                val sample = DeviceSettings.Public(0, 7, "0".repeat(32), 0,
+                    true, true, true, true, 443, 1, "fixture", "api.example.invalid", "/v1", "asr", "chat", "tts")
+                try {
+                    for (status in listOf(0, 1, 4, 2, 3)) {
+                        field("current").set(editor, sample.copy(state = status))
+                        editable.invoke(editor, true)
+                        for (name in listOf("saveAction", "saveCloud", "saveWifi")) {
+                            check((field(name).get(editor) as View).isEnabled == (status !in listOf(1, 4))) {
+                                "UI-01.settings-unknown: $name state=$status enabled incorrectly"
+                            }
+                        }
+                        check((field("reload").get(editor) as View).isEnabled) { "Recovery read disabled" }
+                    }
+                    preferences.edit().putString("$deviceId.operation", "ab".repeat(16)).commit()
+                    editable.invoke(editor, true)
+                    check(!(field("saveAction").get(editor) as View).isEnabled) { "Pending receipt allowed save" }
+                    preferences.edit().remove("$deviceId.operation").commit()
+                    editable.invoke(editor, false)
+                    check(!(field("saveAction").get(editor) as View).isEnabled)
+                } finally { editor.close() }
+
+                lateinit var resetEvents: DeviceControlSession.Events
+                val resetCommands = mutableListOf<DeviceControlProtocol.Command>()
+                val resetSession = DeviceControlSession(
+                    nowMs = { 1L },
+                    post = { it() },
+                    schedule = { _, _ -> object : DeviceControlSession.Cancel { override fun cancel() = Unit } },
+                )
+                resetSession.setForeground(true)
+                resetSession.connect(object : DeviceControlSession.Factory {
+                    override fun open(events: DeviceControlSession.Events): DeviceControlSession.Transport {
+                        resetEvents = events
+                        return object : DeviceControlSession.Transport {
+                            override fun request(command: DeviceControlProtocol.Command, value: Int,
+                                                 accepted: (Boolean) -> Unit) {
+                                resetCommands += command; accepted(true)
+                            }
+                            override fun requestOta(command: DeviceControlProtocol.Command, payload: ByteArray,
+                                                    accepted: (Boolean) -> Unit) {
+                                resetCommands += command; accepted(true)
+                            }
+                            override fun requestPayload(command: DeviceControlProtocol.Command, payload: ByteArray,
+                                                        accepted: (Boolean) -> Unit) {
+                                resetCommands += command; accepted(true)
+                            }
+                            override fun close() = Unit
+                        }
+                    }
+                })
+                resetEvents.result(DeviceControlProtocol.Command.STATUS,
+                    DeviceControlProtocol.Snapshot(0, true, false, 50, 0, 0, 0))
+                check(resetSession.request(DeviceControlProtocol.Command.STATUS))
+                resetEvents.result(DeviceControlProtocol.Command.STATUS,
+                    DeviceControlProtocol.Snapshot(-11, false, false, null, null, null, null))
+                check(!resetSession.current().snapshotFresh)
+                val reset = FactoryResetController(activity, resetSession, "stale-reset-${UUID.randomUUID()}") { }
+                try {
+                    val before = resetCommands.size
+                    check(!reset.begin()) { "UI-01 stale snapshot admitted factory-reset CONFIG_READ" }
+                    check(resetCommands.size == before) { "UI-01 stale snapshot sent a factory-reset command" }
+                } finally {
+                    reset.close()
+                    resetSession.disconnect()
+                }
+
+                /* A retained capability is display-only after STATUS becomes
+                 * stale. It cannot admit a new OTA transaction through either
+                 * the visible button or the action method behind that button. */
+                val image = BkpackInspector.Image(1, "0".repeat(64))
+                val metadata = BkpackInspector.Metadata(
+                    "aidk_ai_toy", "1.2.3+4", 4, "0".repeat(64), "1".repeat(64), image, image,
+                )
+                val packageFile = File(activity.cacheDir, "stale-ota-${UUID.randomUUID()}.bkpack")
+                    .apply { writeText("synthetic package; must not be opened") }
+                try {
+                    activityField("preferences").set(activity, otaPreferences)
+                    activityField("inspectedFirmware").set(activity, metadata)
+                    activityField("selectedFirmwareFile").set(activity, packageFile)
+                    activityField("currentTab").set(activity, 4)
+                    sessionState.set(session, DeviceControlSession.State(
+                        connection = DeviceControlSession.Connection.CONNECTED,
+                        authenticated = true,
+                        snapshot = DeviceControlProtocol.Snapshot(
+                            0, true, false, 50, 0, 0, 0, otaSupported = true,
+                        ),
+                        snapshotFresh = false,
+                        firmwareInfo = DeviceControlProtocol.FirmwareInfo(1, 2, 3, 1, 1),
+                    ))
+                    MainActivity::class.java.getDeclaredMethod("render").apply { isAccessible = true }
+                        .invoke(activity)
+                    val start = checkNotNull(findView(activity.window.decorView) {
+                        it is TextView && it.text.toString() == "开始固件更新"
+                    })
+                    check(!start.isEnabled) {
+                        "UI-01 stale STATUS retained a dangerous OTA start action"
+                    }
+                    MainActivity::class.java.getDeclaredMethod("startLocalOta").apply { isAccessible = true }
+                        .invoke(activity)
+                    check((activityField("otaMessage").get(activity) as String).contains("状态已过期")) {
+                        "UI-01 stale STATUS did not fail closed at the OTA action boundary"
+                    }
+                    // The lease exists before its asynchronous server is ready.
+                    // Stale status must not create even a preparing source.
+                    check(activityField("otaSource").get(activity) == null &&
+                        activityField("otaUpload").get(activity) == null &&
+                        !otaPreferences.getBoolean("ota_expected_pending", false)) {
+                        "UI-01 stale STATUS created OTA side effects"
+                    }
+                } finally {
+                    activityField("preferences").set(activity, originalActivityPreferences)
+                    packageFile.delete()
+                }
+            }
+
+            /* Leaving the Activity while its source is opening must cancel
+             * only that preparation and release the UI-owned gate. The
+             * executor marker makes this deterministic without sleeping. */
+            val image = BkpackInspector.Image(1, "0".repeat(64))
+            val metadata = BkpackInspector.Metadata(
+                "aidk_ai_toy", "1.2.3+4", 4, "0".repeat(64), "1".repeat(64), image, image,
+            )
+            val packageFile = File(activity.cacheDir, "stopped-ota-${UUID.randomUUID()}.bkpack")
+                .apply { writeText("synthetic package; source open must abort") }
+            var gateReleased = false
+            var keepAwakeAfterAbort = true
+            try {
+                onUi(instrumentation) {
+                    activityField("preferences").set(activity, otaPreferences)
+                    activityField("inspectedFirmware").set(activity, metadata)
+                    activityField("selectedFirmwareFile").set(activity, packageFile)
+                    sessionState.set(session, DeviceControlSession.State(
+                        connection = DeviceControlSession.Connection.CONNECTED,
+                        authenticated = true,
+                        snapshot = DeviceControlProtocol.Snapshot(
+                            0, true, false, 50, 0, 0, 0, otaSupported = true,
+                        ),
+                        snapshotFresh = true,
+                        firmwareInfo = DeviceControlProtocol.FirmwareInfo(1, 2, 3, 1, 1),
+                    ))
+                    MainActivity::class.java.getDeclaredMethod("startLocalOta")
+                        .apply { isAccessible = true }.invoke(activity)
+                    check(activity.window.attributes.flags and
+                        android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON != 0) {
+                        "UI-01 OTA source preparation did not acquire keep-awake"
+                    }
+                    instrumentation.callActivityOnStop(activity)
+                }
+                val sourceFinished = CountDownLatch(1)
+                val executor = activityField("ioExecutor").get(activity) as ExecutorService
+                executor.execute { sourceFinished.countDown() }
+                check(sourceFinished.await(10, TimeUnit.SECONDS)) {
+                    "UI-01 OTA source preparation did not finish"
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    val gate = activityField("otaStartGate").get(activity)
+                    val acquire = gate.javaClass.getDeclaredMethod("acquire").apply { isAccessible = true }
+                    val release = gate.javaClass.getDeclaredMethod("release").apply { isAccessible = true }
+                    gateReleased = acquire.invoke(gate) as Boolean
+                    if (gateReleased) release.invoke(gate)
+                    keepAwakeAfterAbort = activity.window.attributes.flags and
+                        android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON != 0
+                    instrumentation.callActivityOnStart(activity)
+                }
+                check(gateReleased) {
+                    "UI-01 stopped OTA source preparation retained the start gate"
+                }
+                check(!keepAwakeAfterAbort) {
+                    "UI-01 stopped OTA source preparation retained keep-awake"
+                }
+            } finally {
+                onUi(instrumentation) {
+                    if (!activityField("foreground").getBoolean(activity)) {
+                        instrumentation.callActivityOnStart(activity)
+                    }
+                    val gate = activityField("otaStartGate").get(activity)
+                    gate.javaClass.getDeclaredMethod("release").apply { isAccessible = true }.invoke(gate)
+                    activity.window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    activityField("preferences").set(activity, originalActivityPreferences)
+                }
+                packageFile.delete()
+            }
+
+            /* An old source callback must not release a replacement start
+             * acquired after close/reconnect. Two executor barriers hold B's
+             * worker while A's epoch-mismatched callback reaches the UI. */
+            val racePackage = File(activity.cacheDir, "epoch-ota-${UUID.randomUUID()}.bkpack")
+                .apply { writeText("synthetic package; stale callback must not release replacement") }
+            val executor = activityField("ioExecutor").get(activity) as ExecutorService
+            val firstBlockEntered = CountDownLatch(1)
+            val releaseFirstBlock = CountDownLatch(1)
+            val secondBlockEntered = CountDownLatch(1)
+            val releaseSecondBlock = CountDownLatch(1)
+            var thirdStartAdmitted = false
+            var replacementKeepAwake = false
+            try {
+                executor.execute {
+                    firstBlockEntered.countDown()
+                    releaseFirstBlock.await(10, TimeUnit.SECONDS)
+                }
+                check(firstBlockEntered.await(10, TimeUnit.SECONDS)) {
+                    "UI-01 OTA epoch fixture did not acquire the worker"
+                }
+                onUi(instrumentation) {
+                    activityField("preferences").set(activity, otaPreferences)
+                    activityField("inspectedFirmware").set(activity, metadata)
+                    activityField("selectedFirmwareFile").set(activity, racePackage)
+                    sessionState.set(session, DeviceControlSession.State(
+                        connection = DeviceControlSession.Connection.CONNECTED,
+                        authenticated = true,
+                        snapshot = DeviceControlProtocol.Snapshot(
+                            0, true, false, 50, 0, 0, 0, otaSupported = true,
+                        ),
+                        snapshotFresh = true,
+                        firmwareInfo = DeviceControlProtocol.FirmwareInfo(1, 2, 3, 1, 1),
+                    ))
+                    MainActivity::class.java.getDeclaredMethod("startLocalOta")
+                        .apply { isAccessible = true }.invoke(activity)
+                    MainActivity::class.java.getDeclaredMethod(
+                        "closeDirect", Boolean::class.javaPrimitiveType,
+                    ).apply { isAccessible = true }.invoke(activity, false)
+                    sessionState.set(session, DeviceControlSession.State(
+                        connection = DeviceControlSession.Connection.CONNECTED,
+                        authenticated = true,
+                        snapshot = DeviceControlProtocol.Snapshot(
+                            0, true, false, 50, 0, 0, 0, otaSupported = true,
+                        ),
+                        snapshotFresh = true,
+                        firmwareInfo = DeviceControlProtocol.FirmwareInfo(1, 2, 3, 1, 1),
+                    ))
+                }
+                executor.execute {
+                    secondBlockEntered.countDown()
+                    releaseSecondBlock.await(10, TimeUnit.SECONDS)
+                }
+                onUi(instrumentation) {
+                    MainActivity::class.java.getDeclaredMethod("startLocalOta")
+                        .apply { isAccessible = true }.invoke(activity)
+                }
+                releaseFirstBlock.countDown()
+                check(secondBlockEntered.await(10, TimeUnit.SECONDS)) {
+                    "UI-01 stale source did not reach its callback boundary"
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    val gate = activityField("otaStartGate").get(activity)
+                    val acquire = gate.javaClass.getDeclaredMethod("acquire").apply { isAccessible = true }
+                    val release = gate.javaClass.getDeclaredMethod("release").apply { isAccessible = true }
+                    thirdStartAdmitted = acquire.invoke(gate) as Boolean
+                    if (thirdStartAdmitted) release.invoke(gate)
+                    replacementKeepAwake = activity.window.attributes.flags and
+                        android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON != 0
+                }
+            } finally {
+                releaseFirstBlock.countDown()
+                releaseSecondBlock.countDown()
+                val workersFinished = CountDownLatch(1)
+                executor.execute { workersFinished.countDown() }
+                workersFinished.await(10, TimeUnit.SECONDS)
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    val gate = activityField("otaStartGate").get(activity)
+                    gate.javaClass.getDeclaredMethod("release").apply { isAccessible = true }.invoke(gate)
+                    activity.window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    activityField("preferences").set(activity, originalActivityPreferences)
+                }
+                racePackage.delete()
+            }
+            check(!thirdStartAdmitted) {
+                "UI-01 stale OTA source callback released a replacement start"
+            }
+            check(replacementKeepAwake) {
+                "UI-01 stale OTA source callback cleared replacement keep-awake"
+            }
+        } finally {
+            preferences.edit().remove("$deviceId.operation").remove("$deviceId.revision").commit()
+            otaPreferences.edit().clear().commit()
+            activity.deleteSharedPreferences(otaPreferencesName)
+            onUi(instrumentation) { activity.finish() }
+        }
+    }
+
+    /** RES-02 expression trial UI navigation. Synthetic admission only; no transport. */
+    /** Synthetic UI admission only; never a BLE or save acceptance result. */
+    fun runEyeDraft(instrumentation: Instrumentation) {
+        check(android.os.Build.FINGERPRINT.contains("generic") || android.os.Build.MODEL.contains("sdk"))
+        val bytes = instrumentation.context.assets.open("shaniu-default-v1.bkep.hex").bufferedReader().use { it.readText().trim() }
+            .chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+        val expected = checkNotNull(com.shaniu.companion.EyePack.parse(bytes))
+        var activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
+        val source = File(activity.cacheDir, "eye-draft-source-${UUID.randomUUID()}.bkep").apply { writeBytes(bytes) }
+        fun field(name: String) = MainActivity::class.java.getDeclaredField(name).apply { isAccessible = true }
+        fun selected() = field("selectedEyePack").get(activity) as? com.shaniu.companion.EyePack
+        fun showResources() {
+            field("updateResources").setBoolean(activity, true)
+            MainActivity::class.java.getDeclaredMethod("selectTab", Int::class.javaPrimitiveType)
+                .apply { isAccessible = true }.invoke(activity, 7)
+            MainActivity::class.java.getDeclaredMethod("render").apply { isAccessible = true }.invoke(activity)
+        }
+        fun checkSelection() {
+            val pack = checkNotNull(selected()) { "UI-02.eye-draft: recreation lost local selection" }
+            check(pack.bytes.contentEquals(bytes) && pack.packId == expected.packId)
+            val file = checkNotNull(field("selectedEyeFile").get(activity) as? File)
+            check(file.isFile && file.readBytes().contentEquals(bytes))
+            val digest = field("selectedEyeAssetSha256").get(activity) as? ByteArray
+            check(digest != null && digest.contentEquals(java.security.MessageDigest.getInstance("SHA-256").digest(bytes)))
+            check(field("eyeServer").get(activity) == null && field("eyeRecord").get(activity) == null)
+            check(field("configFlow").get(activity).toString() == "NONE")
+            showResources()
+            check(findView(activity.window.decorView) { it is TextView && it.text.toString().contains("${expected.packId} · 版本 ${expected.revision}") } != null) {
+                "UI-02.eye-draft: selected package is not visible in resource page"
+            }
+        }
+        try {
+            onUi(instrumentation) {
+                MainActivity::class.java.getDeclaredMethod("selectEyePack", android.net.Uri::class.java)
+                    .apply { isAccessible = true }.invoke(activity, android.net.Uri.fromFile(source))
+            }
+            awaitUi(instrumentation, activity) { !field("eyeImportPending").getBoolean(activity) }
+            onUi(instrumentation) { checkSelection() }
+            // Invalid imports must not replace the last validated selection.
+            for (invalid in listOf(byteArrayOf(0), ByteArray(131073))) {
+                source.writeBytes(invalid)
+                onUi(instrumentation) {
+                    MainActivity::class.java.getDeclaredMethod("selectEyePack", android.net.Uri::class.java)
+                        .apply { isAccessible = true }.invoke(activity, android.net.Uri.fromFile(source))
+                }
+                awaitUi(instrumentation, activity) { !field("eyeImportPending").getBoolean(activity) }
+                onUi(instrumentation) { checkSelection() }
+            }
+            // A header-only alteration can preserve the payload CRC. The saved
+            // whole-file digest must still reject it through the restore entry.
+            val changed = bytes.copyOf().apply { this[24] = (this[24].toInt() xor 1).toByte() }
+            check(com.shaniu.companion.EyePack.parse(changed) != null)
+            val saved = android.os.Bundle().apply {
+                putByteArray("eye_pack_draft", changed)
+                putByteArray("eye_pack_draft_sha256", java.security.MessageDigest.getInstance("SHA-256").digest(bytes))
+            }
+            onUi(instrumentation) {
+                MainActivity::class.java.getDeclaredMethod("restoreEyeDraft", android.os.Bundle::class.java)
+                    .apply { isAccessible = true }.invoke(activity, saved)
+            }
+            awaitUi(instrumentation, activity) { !field("eyeImportPending").getBoolean(activity) }
+            onUi(instrumentation) {
+                checkSelection()
+                check((field("eyeMessage").get(activity) as? String)?.contains("保存的本地素材无效") == true)
+            }
+            repeat(3) {
+                val monitor = ActivityMonitor(MainActivity::class.java.name, null, false)
+                instrumentation.addMonitor(monitor)
+                try {
+                    onUi(instrumentation) { activity.recreate() }
+                    activity = checkNotNull(monitor.waitForActivityWithTimeout(5000) as? MainActivity)
+                    awaitUi(instrumentation, activity) { !field("eyeImportPending").getBoolean(activity) }
+                    onUi(instrumentation) { checkSelection() }
+                } finally { instrumentation.removeMonitor(monitor) }
+            }
+        } finally {
+            source.delete()
+            onUi(instrumentation) { activity.finish() }
+            instrumentation.waitForIdleSync()
+        }
+    }
+
+    fun runDefaultSelection(instrumentation: Instrumentation) {
+        check(android.os.Build.FINGERPRINT.contains("generic") || android.os.Build.MODEL.contains("sdk"))
+        val activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
+        fun field(name: String) = MainActivity::class.java.getDeclaredField(name).apply { isAccessible = true }
+        val session = MainActivity::class.java.getDeclaredMethod("getDirectSession").apply { isAccessible = true }
+            .invoke(activity) as DeviceControlSession
+        try {
+            repeat(20) {
+                onUi(instrumentation) {
+                    DeviceControlSession::class.java.getDeclaredField("state").apply { isAccessible = true }.set(session,
+                        DeviceControlSession.State(connection = DeviceControlSession.Connection.CONNECTED, authenticated = true,
+                            snapshotFresh = true, snapshot = DeviceControlProtocol.Snapshot(0,true,false,50,0,0,0,publicConfigSupported=true)))
+                    MainActivity::class.java.getDeclaredMethod("showDefaultSelection").apply { isAccessible = true }.invoke(activity)
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    val dialog=checkNotNull(field("companionSheet").get(activity) as? android.app.Dialog)
+                    val root=checkNotNull(dialog.window).decorView
+                    listOf("将所选素材设为默认","刷新设备默认","取消未提交的操作").forEach { label ->
+                        val control=checkNotNull(findView(root) {
+                            (it is android.widget.Button && it.text.toString()==label) ||
+                                it.contentDescription?.toString()?.startsWith("$label，")==true
+                        })
+                        check(!control.isEnabled) { "Unknown default state enabled $label" }
+                    }
+                    check(findView(root) { it is TextView && it.text.toString()=="去选择素材" } != null)
+                    dialog.dismiss()
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    check(field("defaultEditor").get(activity)==null) { "Closing default sheet retained controller" }
+                }
+            }
+        } finally { onUi(instrumentation) { session.disconnect(); activity.finish() } }
+    }
+
+    fun runExpressionTrial(instrumentation: Instrumentation) {
+        check(android.os.Build.FINGERPRINT.contains("generic") || android.os.Build.MODEL.contains("sdk")) {
+            "Expression trial fixture is emulator-only"
+        }
+        var activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
+        fun field(name: String) = MainActivity::class.java.getDeclaredField(name).apply { isAccessible = true }
+        val session = MainActivity::class.java.getDeclaredMethod("getDirectSession").apply { isAccessible = true }
+            .invoke(activity) as DeviceControlSession
+        val state = DeviceControlSession::class.java.getDeclaredField("state").apply { isAccessible = true }
+        val show = MainActivity::class.java.getDeclaredMethod("showExpressionTrial").apply { isAccessible = true }
+        var importedFile: File? = null
+        try {
+            repeat(20) { round ->
+                onUi(instrumentation) {
+                    state.set(session, DeviceControlSession.State(
+                        connection = DeviceControlSession.Connection.CONNECTED, authenticated = true,
+                        snapshotFresh = true, snapshot = DeviceControlProtocol.Snapshot(
+                            0, true, false, 50, 0, 0, 0, publicConfigSupported = true)))
+                    show.invoke(activity)
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    val dialog = checkNotNull(field("companionSheet").get(activity) as? android.app.Dialog)
+                    val root = checkNotNull(dialog.window).decorView
+                    val input = checkNotNull(findView(root) { it.contentDescription == "试用秒数" } as? EditText)
+                    check(input.text.toString() == if (round == 0) "" else "47") {
+                        "RES-02.trial-draft: navigation lost seconds at round $round"
+                    }
+                    val source = checkNotNull(findView(root) { it.contentDescription == "试用素材" } as? android.widget.Spinner)
+                    check(source.selectedItemPosition == if (round == 0) 0 else 1) {
+                        "RES-02.trial-draft: navigation lost pack choice"
+                    }
+                    source.setSelection(1)
+                    input.setText("47")
+                    // Synthetic authentication without a transport cannot confirm trial state.
+                    listOf("开始试用", "取消试用").forEach { label ->
+                        check(findView(root) { it is TextView && it.text.toString() == label }?.isEnabled == false)
+                    }
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    val dialog = checkNotNull(field("companionSheet").get(activity) as? android.app.Dialog)
+                    val root = checkNotNull(dialog.window).decorView
+                    val controller = checkNotNull(field("trialEditor").get(activity))
+                    controller.javaClass.getDeclaredField("snapshot").apply { isAccessible = true }
+                        .set(controller, ExpressionTrialController.Snapshot(0, 0, 0, 0, 0))
+                    controller.javaClass.getDeclaredMethod("publish").apply { isAccessible = true }.invoke(controller)
+                    // Even an idle synthetic device cannot trial a missing local choice.
+                    check(findView(root) { it is TextView && it.text.toString() == "开始试用" }?.isEnabled == false)
+                    dialog.dismiss()
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    check(field("trialEditor").get(activity) == null)
+                }
+            }
+            val monitor = ActivityMonitor(MainActivity::class.java.name, null, false)
+            instrumentation.addMonitor(monitor)
+            try {
+                onUi(instrumentation) { activity.recreate() }
+                activity = checkNotNull(monitor.waitForActivityWithTimeout(5000) as? MainActivity) {
+                    "RES-02.trial-draft: recreated Activity not observed"
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    check(field("companionSheet").get(activity) == null) { "Recreation reopened a device operation" }
+                    val restoredSession = MainActivity::class.java.getDeclaredMethod("getDirectSession")
+                        .apply { isAccessible = true }.invoke(activity) as DeviceControlSession
+                    state.set(restoredSession, DeviceControlSession.State(
+                        connection = DeviceControlSession.Connection.CONNECTED, authenticated = true,
+                        snapshotFresh = true, snapshot = DeviceControlProtocol.Snapshot(
+                            0, true, false, 50, 0, 0, 0, publicConfigSupported = true)))
+                    show.invoke(activity)
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    val dialog = checkNotNull(field("companionSheet").get(activity) as? android.app.Dialog)
+                    val input = checkNotNull(findView(checkNotNull(dialog.window).decorView) {
+                        it.contentDescription == "试用秒数"
+                    } as? EditText)
+                    check(input.text.toString() == "47") { "RES-02.trial-draft: recreation lost seconds" }
+                    val source = checkNotNull(findView(checkNotNull(dialog.window).decorView) {
+                        it.contentDescription == "试用素材"
+                    } as? android.widget.Spinner)
+                    check(source.selectedItemPosition == 1) { "RES-02.trial-draft: recreation lost pack choice" }
+                    dialog.dismiss()
+                }
+            } finally {
+                instrumentation.removeMonitor(monitor)
+            }
+            val bytes = instrumentation.context.assets.open("shaniu-default-v1.bkep.hex").bufferedReader().use { it.readText().trim() }
+                .chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+            importedFile = File(activity.cacheDir, "trial-source-${UUID.randomUUID()}.bkep").apply { writeBytes(bytes) }
+            onUi(instrumentation) {
+                MainActivity::class.java.getDeclaredMethod("selectEyePack", android.net.Uri::class.java)
+                    .apply { isAccessible = true }.invoke(activity, android.net.Uri.fromFile(importedFile))
+            }
+            awaitUi(instrumentation, activity) { !field("eyeImportPending").getBoolean(activity) }
+            onUi(instrumentation) { show.invoke(activity) }
+            instrumentation.waitForIdleSync()
+            onUi(instrumentation) {
+                val dialog = checkNotNull(field("companionSheet").get(activity) as? android.app.Dialog)
+                val root = checkNotNull(dialog.window).decorView
+                val source = checkNotNull(findView(root) { it.contentDescription == "试用素材" } as? android.widget.Spinner)
+                check(source.selectedItemPosition == 1 && source.selectedItem.toString().contains("shaniu-default-v1"))
+                check(findView(root) { it is TextView && it.text.toString() == "开始试用" }?.isEnabled == false)
+                val controller = checkNotNull(field("trialEditor").get(activity))
+                controller.javaClass.getDeclaredField("snapshot").apply { isAccessible = true }
+                    .set(controller, ExpressionTrialController.Snapshot(0,0,0,0,0))
+                controller.javaClass.getDeclaredMethod("publish").apply { isAccessible = true }.invoke(controller)
+                check(findView(root) { it is TextView && it.text.toString() == "开始试用" }?.isEnabled == true) {
+                    "Valid selected name and idle synthetic state did not enable trial"
+                }
+                dialog.dismiss()
+            }
+        } finally {
+            importedFile?.delete()
+            onUi(instrumentation) { activity.finish() }
+            instrumentation.waitForIdleSync()
+        }
+    }
+
+    /** UI-02 focus draft navigation. Synthetic admission only; no transport. */
+    fun runFocusDraft(instrumentation: Instrumentation) {
+        check(android.os.Build.FINGERPRINT.contains("generic") || android.os.Build.MODEL.contains("sdk")) {
+            "Focus draft fixture is emulator-only"
+        }
+        var activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
+        fun field(name: String) = MainActivity::class.java.getDeclaredField(name).apply { isAccessible = true }
+        val session = MainActivity::class.java.getDeclaredMethod("getDirectSession").apply { isAccessible = true }
+            .invoke(activity) as DeviceControlSession
+        val state = DeviceControlSession::class.java.getDeclaredField("state").apply { isAccessible = true }
+        val show = MainActivity::class.java.getDeclaredMethod("showFocusTimer").apply { isAccessible = true }
+        try {
+            repeat(20) { round ->
+                onUi(instrumentation) {
+                    state.set(session, DeviceControlSession.State(
+                        connection = DeviceControlSession.Connection.CONNECTED, authenticated = true,
+                        snapshotFresh = true, snapshot = DeviceControlProtocol.Snapshot(
+                            0, true, false, 50, 0, 0, 0, publicConfigSupported = true)))
+                    show.invoke(activity)
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    val dialog = checkNotNull(field("companionSheet").get(activity) as? android.app.Dialog)
+                    val root = checkNotNull(dialog.window).decorView
+                    val input = checkNotNull(findView(root) { it.contentDescription == "专注分钟数" } as? EditText)
+                    check(input.text.toString() == if (round == 0) "25" else "47") {
+                        "UI-02.focus-draft: navigation lost minutes at round $round"
+                    }
+                    input.setText("47")
+                    // Synthetic authentication without a transport cannot confirm timer state.
+                    listOf("开始专注", "暂停", "取消计时").forEach { label ->
+                        check(findView(root) { it is TextView && it.text.toString() == label }?.isEnabled == false)
+                    }
+                    dialog.dismiss()
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    check(field("focusEditor").get(activity) == null)
+                }
+            }
+            val monitor = ActivityMonitor(MainActivity::class.java.name, null, false)
+            instrumentation.addMonitor(monitor)
+            try {
+                onUi(instrumentation) { activity.recreate() }
+                activity = checkNotNull(monitor.waitForActivityWithTimeout(5000) as? MainActivity) {
+                    "UI-02.focus-draft: recreated Activity not observed"
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    check(field("companionSheet").get(activity) == null) { "Recreation reopened a device operation" }
+                    val restoredSession = MainActivity::class.java.getDeclaredMethod("getDirectSession")
+                        .apply { isAccessible = true }.invoke(activity) as DeviceControlSession
+                    state.set(restoredSession, DeviceControlSession.State(
+                        connection = DeviceControlSession.Connection.CONNECTED, authenticated = true,
+                        snapshotFresh = true, snapshot = DeviceControlProtocol.Snapshot(
+                            0, true, false, 50, 0, 0, 0, publicConfigSupported = true)))
+                    show.invoke(activity)
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    val dialog = checkNotNull(field("companionSheet").get(activity) as? android.app.Dialog)
+                    val input = checkNotNull(findView(checkNotNull(dialog.window).decorView) {
+                        it.contentDescription == "专注分钟数"
+                    } as? EditText)
+                    check(input.text.toString() == "47") { "UI-02.focus-draft: recreation lost minutes" }
+                    dialog.dismiss()
+                }
+            } finally {
+                instrumentation.removeMonitor(monitor)
+            }
+        } finally {
+            onUi(instrumentation) { activity.finish() }
+            instrumentation.waitForIdleSync()
+        }
+    }
+
+    /** UI-02 focus draft navigation. Synthetic admission only; no transport. */
+    fun runNfcDraft(instrumentation: Instrumentation) {
+        check(android.os.Build.FINGERPRINT.contains("generic") || android.os.Build.MODEL.contains("sdk")) {
+            "NFC draft fixture is emulator-only"
+        }
+        val geometry = StringBuilder()
+        var activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
+        fun field(name: String) = MainActivity::class.java.getDeclaredField(name).apply { isAccessible = true }
+        val session = MainActivity::class.java.getDeclaredMethod("getDirectSession").apply { isAccessible = true }
+            .invoke(activity) as DeviceControlSession
+        val state = DeviceControlSession::class.java.getDeclaredField("state").apply { isAccessible = true }
+        val show = MainActivity::class.java.getDeclaredMethod("showNfcBindings").apply { isAccessible = true }
+        try {
+            repeat(20) { round ->
+                onUi(instrumentation) {
+                    state.set(session, DeviceControlSession.State(
+                        connection = DeviceControlSession.Connection.CONNECTED, authenticated = true,
+                        snapshotFresh = true, snapshot = DeviceControlProtocol.Snapshot(
+                            0, true, false, 50, 0, 0, 0, publicConfigSupported = true)))
+                    show.invoke(activity)
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    val dialog = checkNotNull(field("companionSheet").get(activity) as? android.app.Dialog)
+                    val root = checkNotNull(dialog.window).decorView
+                    val input = checkNotNull(findView(root) { it.contentDescription == "卡片专注分钟数" } as? EditText)
+                    check(input.text.toString() == if (round == 0) "25" else "47") {
+                        "NFC-02.card-draft: navigation lost minutes at round $round"
+                    }
+                    input.setText("47")
+                    val slots = checkNotNull(findView(root) { it.contentDescription == "卡片保存位置" } as? android.widget.Spinner)
+                    check(slots.selectedItemPosition == if (round == 0) 0 else 3) { "NFC-02.card-draft: slot lost" }
+                    slots.setSelection(3)
+
+                    // Synthetic authentication without a transport cannot confirm timer state.
+                    listOf("登记当前卡片", "删除此卡绑定", "取消设备作业").forEach { label ->
+                        check(findView(root) { it is TextView && it.text.toString() == label }?.isEnabled == false)
+                    }
+                    dialog.dismiss()
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    check(field("nfcEditor").get(activity) == null)
+                }
+            }
+            val monitor = ActivityMonitor(MainActivity::class.java.name, null, false)
+            instrumentation.addMonitor(monitor)
+            try {
+                onUi(instrumentation) { activity.recreate() }
+                activity = checkNotNull(monitor.waitForActivityWithTimeout(5000) as? MainActivity) {
+                    "NFC-02.card-draft: recreated Activity not observed"
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    check(field("companionSheet").get(activity) == null) { "Recreation reopened a device operation" }
+                    val restoredSession = MainActivity::class.java.getDeclaredMethod("getDirectSession")
+                        .apply { isAccessible = true }.invoke(activity) as DeviceControlSession
+                    state.set(restoredSession, DeviceControlSession.State(
+                        connection = DeviceControlSession.Connection.CONNECTED, authenticated = true,
+                        snapshotFresh = true, snapshot = DeviceControlProtocol.Snapshot(
+                            0, true, false, 50, 0, 0, 0, publicConfigSupported = true)))
+                    show.invoke(activity)
+                }
+                instrumentation.waitForIdleSync()
+                awaitUi(instrumentation, activity) {
+                    (field("companionSheet").get(activity) as? android.app.Dialog)?.window?.decorView?.hasWindowFocus() == true
+                }
+                onUi(instrumentation) {
+                    val dialog = checkNotNull(field("companionSheet").get(activity) as? android.app.Dialog)
+                    val input = checkNotNull(findView(checkNotNull(dialog.window).decorView) {
+                        it.contentDescription == "卡片专注分钟数"
+                    } as? EditText)
+                    check(input.text.toString() == "47") { "NFC-02.card-draft: recreation lost minutes" }
+                    val slots = checkNotNull(findView(checkNotNull(dialog.window).decorView) { it.contentDescription == "卡片保存位置" } as? android.widget.Spinner)
+                    check(slots.selectedItemPosition == 3) { "NFC-02.card-draft: recreation lost slot" }
+                    val root = checkNotNull(dialog.window).decorView
+                    root.viewTreeObserver.addOnPreDrawListener(object : android.view.ViewTreeObserver.OnPreDrawListener {
+                        var frames = 0
+                        override fun onPreDraw(): Boolean {
+                            if (frames++ < 100) {
+                                val frame = Rect(); root.getWindowVisibleDisplayFrame(frame)
+                                val xy = IntArray(2); input.getLocationOnScreen(xy)
+                                geometry.append("${android.os.SystemClock.uptimeMillis()} top=${xy[1]} h=${input.height} frame=$frame root=${root.height} ancestors=${generateSequence(input.parent) { it.parent }.filterIsInstance<View>().joinToString { "${it.javaClass.simpleName}:${it.height}:${it.scrollY}" }}\n")
+                            }
+                            return true
+                        }
+                    })
+                    input.requestFocus()
+                    (activity.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+                        .showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
+                }
+                instrumentation.waitForIdleSync()
+                awaitUi(instrumentation, activity) {
+                    (field("companionSheet").get(activity) as? android.app.Dialog)?.window?.decorView
+                        ?.rootWindowInsets?.isVisible(WindowInsets.Type.ime()) == true
+                }
+                awaitUi(instrumentation, activity) {
+                    val root = (field("companionSheet").get(activity) as android.app.Dialog).window!!.decorView
+                    val frame = Rect(); root.getWindowVisibleDisplayFrame(frame)
+                    root.height <= frame.height()
+                }
+                onUi(instrumentation) {
+                    val dialog = checkNotNull(field("companionSheet").get(activity) as? android.app.Dialog)
+                    val root = checkNotNull(dialog.window).decorView
+                    val input = checkNotNull(findView(root) { it.contentDescription == "卡片专注分钟数" } as? EditText)
+                    geometry.append("REQUEST ${android.os.SystemClock.uptimeMillis()}\n")
+                    input.requestRectangleOnScreen(Rect(0, 0, input.width, input.height), true)
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    val dialog = checkNotNull(field("companionSheet").get(activity) as? android.app.Dialog)
+                    val root = checkNotNull(dialog.window).decorView
+                    val input = checkNotNull(findView(root) { it.contentDescription == "卡片专注分钟数" } as? EditText)
+                    val frame = Rect(); root.getWindowVisibleDisplayFrame(frame)
+                    val location = IntArray(2); input.getLocationOnScreen(location)
+                    check(input.width > 0 && input.height >= (48 * activity.resources.displayMetrics.density).toInt()) {
+                        "NFC input size=${input.width}x${input.height} density=${activity.resources.displayMetrics.density} min=${input.minHeight}/${input.minimumHeight} laid=${input.isLaidOut} requested=${input.isLayoutRequested} root=${root.width}x${root.height}"
+                    }
+                    check(location[1] >= frame.top && location[1] + input.height <= frame.bottom) {
+                        "NFC-02.card-draft: keyboard obscures input: top=${location[1]} height=${input.height} frame=$frame root=${root.width}x${root.height} rootTop=${IntArray(2).also { root.getLocationOnScreen(it) }[1]} ancestors=${generateSequence(input.parent) { it.parent }.filterIsInstance<View>().joinToString { v -> "${v.javaClass.simpleName}:${v.height}:${v.scrollY}" }}"
+                    }
+                    (activity.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+                        .hideSoftInputFromWindow(input.windowToken, 0)
+                }
+                instrumentation.waitForIdleSync()
+                Thread.sleep(300)
+                onUi(instrumentation) {
+                    val dialog = checkNotNull(field("companionSheet").get(activity) as? android.app.Dialog)
+                    val root = checkNotNull(dialog.window).decorView
+                    val back = checkNotNull(findView(root) { it is TextView && it.text.toString() == "返回" })
+                    back.requestRectangleOnScreen(Rect(0, 0, back.width, back.height), true)
+                }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    val dialog = checkNotNull(field("companionSheet").get(activity) as? android.app.Dialog)
+                    val root = checkNotNull(dialog.window).decorView
+                    val back = checkNotNull(findView(root) { it is TextView && it.text.toString() == "返回" })
+                    val visible = Rect(); check(back.getGlobalVisibleRect(visible) && visible.height() == back.height) {
+                        "NFC-02.card-draft: bottom action clipped"
+                    }
+                    val image = Bitmap.createBitmap(root.width, root.height, Bitmap.Config.ARGB_8888)
+                    root.draw(Canvas(image))
+                    val paint = android.graphics.Paint().apply { color = android.graphics.Color.RED; textSize = 24f }
+                    Canvas(image).drawText("模拟状态 · 无真实设备连接", 16f, 28f, paint)
+                    File(activity.filesDir, "nfc-sheet-fixture.png").outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                    image.recycle(); dialog.dismiss()
+                }
+            } finally {
+                instrumentation.removeMonitor(monitor)
+            }
+        } finally {
+            File(activity.filesDir, "nfc-geometry.txt").writeText(geometry.toString())
+            onUi(instrumentation) { activity.finish() }
+            instrumentation.waitForIdleSync()
+        }
+    }
+
+    /** Render real Views with isolated public fixtures; no production preview path. */
+    fun runGallery(instrumentation: Instrumentation) {
+        val activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
+        fun field(name: String) = MainActivity::class.java.getDeclaredField(name).apply { isAccessible = true }
+        val session = MainActivity::class.java.getDeclaredMethod("getDirectSession").apply { isAccessible = true }
+            .invoke(activity) as DeviceControlSession
+        val stateField = DeviceControlSession::class.java.getDeclaredField("state").apply { isAccessible = true }
+        val render = MainActivity::class.java.getDeclaredMethod("render").apply { isAccessible = true }
+        val base = DeviceControlProtocol.Snapshot(0, true, false, 50, 0, 0, 0,
+            memorySupported = true, memoryEnabled = false, wifiReady = false, otaSupported = true)
+        fun scene(tab: Int, state: DeviceControlSession.State = session.current()) {
+            onUi(instrumentation) {
+                stateField.set(session, state)
+                field("currentTab").set(activity, tab)
+                render.invoke(activity)
+            }
+        }
+        fun capture(name: String, root: () -> View = { activity.window.decorView }) {
+            instrumentation.waitForIdleSync()
+            Thread.sleep(250)
+            onUi(instrumentation) {
+                val view = root()
+                val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+                val canvas = Canvas(bitmap)
+                view.draw(canvas)
+                val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                    color = android.graphics.Color.rgb(120, 30, 30)
+                    textSize = 14 * activity.resources.displayMetrics.density
+                }
+                canvas.drawText("模拟状态 · 无真实设备连接", 16f, bitmap.height - 24f, paint)
+                File(activity.cacheDir, "gallery-$name.png").outputStream().use {
+                    check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
+                }
+                bitmap.recycle()
+            }
+        }
+        fun assertFooterFullyVisible(editor: DeviceSettingsEditor, dialog: android.app.Dialog) {
+            val decor = checkNotNull(dialog.window).decorView
+            val windowFrame = Rect().also { decor.getWindowVisibleDisplayFrame(it) }
+            val inset = decor.rootWindowInsets
+            val insetText = if (inset == null) "none" else {
+                val bars = inset.getInsets(WindowInsets.Type.systemBars())
+                val ime = inset.getInsets(WindowInsets.Type.ime())
+                "bars=${bars.left},${bars.top},${bars.right},${bars.bottom};ime=${ime.left},${ime.top},${ime.right},${ime.bottom}"
+            }
+            val footer = DeviceSettingsEditor::class.java.getDeclaredField("footer").apply { isAccessible = true }
+                .get(editor) as ViewGroup
+            listOf("saveAction", "closeAction").map { name ->
+                DeviceSettingsEditor::class.java.getDeclaredField(name).apply { isAccessible = true }
+                    .get(editor) as com.google.android.material.button.MaterialButton
+            }.forEach { button ->
+                val visible = Rect()
+                val position = IntArray(2).also { button.getLocationOnScreen(it) }
+                val bar = button.parent as? View
+                val children = (bar as? ViewGroup)?.let { group ->
+                    (0 until group.childCount).joinToString(";") { index ->
+                        val child = group.getChildAt(index)
+                        "${child.javaClass.simpleName}[${child.left},${child.top},${child.right},${child.bottom};h=${child.height};min=${child.minimumHeight}]"
+                    }
+                } ?: "none"
+                check(button.parent === footer && button.isClickable && button.isEnabled &&
+                    button.height >= 48 * activity.resources.displayMetrics.density &&
+                    button.getGlobalVisibleRect(visible) && visible.height() == button.height &&
+                    visible.width() == button.width) {
+                    "dialog footer action clipped: ${button.text}; button=${position[0]},${position[1]}," +
+                        "${button.width}x${button.height};visible=$visible;bar=${bar?.javaClass?.simpleName}" +
+                        "[h=${bar?.height};min=${bar?.minimumHeight};top=${bar?.top};bottom=${bar?.bottom};children=$children];" +
+                        "decor=${decor.width}x${decor.height};window=$windowFrame;insets=$insetText"
+                }
+            }
+        }
+        try {
+            onUi(instrumentation) { field("provisionedDeviceId").set(activity, "ui-synthetic-device") }
+            scene(0, DeviceControlSession.State(connection = DeviceControlSession.Connection.CONNECTED,
+                authenticated = true, snapshot = base, snapshotFresh = true))
+            capture("connected-offline")
+            scene(0, session.current().copy(snapshot = base.copy(wifiReady = true)))
+            capture("connected-online")
+            onUi(instrumentation) {
+                field("directDiscoveryVisible").set(activity, true)
+                field("directScanFinished").set(activity, true)
+            }
+            scene(0, session.current().copy(connection = DeviceControlSession.Connection.CONNECTING,
+                authenticated = false, snapshotFresh = false))
+            capture("connecting")
+            scene(0, session.current().copy(connection = DeviceControlSession.Connection.DISCONNECTED,
+                error = "设备身份验证失败，请核对认领设备"))
+            capture("authentication-failed")
+            onUi(instrumentation) {
+                field("directScanFinished").set(activity, true)
+                field("directDiscoveryVisible").set(activity, true)
+                field("directMessage").set(activity, "未发现设备，请确认傻妞已开机并在附近。")
+            }
+            scene(0)
+            capture("discovery-empty")
+            fun setDiscoveryCandidates(vararg fixture: Pair<String, String>) {
+                onUi(instrumentation) {
+                    val adapter = checkNotNull(android.bluetooth.BluetoothAdapter.getDefaultAdapter()) {
+                        "synthetic discovery gallery requires the emulator Bluetooth facade"
+                    }
+                    val candidates = field("directCandidates").get(activity) as MutableList<Any>
+                    val candidateType = Class.forName("com.shaniu.companion.MainActivity\$DirectCandidate")
+                    val constructor = candidateType.getDeclaredConstructor(
+                        android.bluetooth.BluetoothDevice::class.java,
+                        String::class.java,
+                        Long::class.javaPrimitiveType,
+                    ).apply { isAccessible = true }
+                    val epoch = field("directEpoch").getLong(activity)
+                    candidates.clear()
+                    fixture.forEach { (name, address) ->
+                        // getRemoteDevice only creates an opaque local handle; this
+                        // gallery never scans, connects, or sends a credential.
+                        candidates += constructor.newInstance(adapter.getRemoteDevice(address), name, epoch)
+                    }
+                    field("directDiscoveryVisible").set(activity, true)
+                    field("directScanFinished").set(activity, true)
+                    field("directMessage").set(activity, "已完成查找，请选择要验证的设备。")
+                }
+            }
+            setDiscoveryCandidates("傻妞客厅" to "02:00:00:00:00:11")
+            scene(0, session.current().copy(connection = DeviceControlSession.Connection.DISCONNECTED, error = null))
+            capture("discovery-one-candidate")
+            // Every connection entry must expose the same candidate without
+            // starting another scan or manufacturing an authenticated state.
+            val discoveryEpoch = field("directEpoch").getLong(activity)
+            val discoveryGeneration = session.current().generation
+            for (tab in listOf(5, 2, 4, 0)) {
+                scene(tab)
+                onUi(instrumentation) {
+                    check(findView(activity.window.decorView) {
+                        it is TextView && it.text.toString().startsWith("傻妞客厅 · 00:11\n")
+                    } != null) { "candidate missing from tab $tab" }
+                    check(findView(activity.window.decorView) {
+                        it.contentDescription?.toString() == "傻妞客厅，未验证设备，身份以安全认领验证为准" &&
+                            it.isEnabled && it.isClickable
+                    } != null) { "candidate not selectable from tab $tab" }
+                    check(field("directEpoch").getLong(activity) == discoveryEpoch)
+                    check(session.current().generation == discoveryGeneration && !session.current().authenticated)
+                    check(field("directScanner").get(activity) == null)
+                }
+            }
+            scene(5)
+            capture("settings-discovery-one-candidate")
+            setDiscoveryCandidates(
+                "傻妞客厅" to "02:00:00:00:00:11",
+                "傻妞书房" to "02:00:00:00:00:12",
+                "傻妞卧室" to "02:00:00:00:00:13",
+            )
+            scene(0)
+            capture("discovery-multiple-candidates")
+            onUi(instrumentation) { field("provisionedDeviceId").set(activity, "") }
+            scene(0)
+            capture("discovery-unbound-candidates")
+            check(!session.current().authenticated)
+            onUi(instrumentation) {
+                MainActivity::class.java.getDeclaredMethod("dismissDirectDiscovery").apply { isAccessible = true }.invoke(activity)
+                field("provisionedDeviceId").set(activity, "ui-synthetic-device")
+            }
+            scene(2, session.current().copy(connection = DeviceControlSession.Connection.CONNECTED,
+                authenticated = true, snapshotFresh = true))
+            capture("customization")
+            val previewGeneration = session.current().generation
+            onUi(instrumentation) {
+                val happy = checkNotNull(findView(activity.window.decorView) {
+                    it.contentDescription?.toString()?.startsWith("开心，仅预览") == true
+                })
+                check(happy.performClick() && happy.isSelected)
+                check(session.current().generation == previewGeneration)
+            }
+            capture("customization-happy")
+            fun showSheet(method: String): android.app.Dialog {
+                onUi(instrumentation) {
+                    MainActivity::class.java.getDeclaredMethod(method).apply { isAccessible = true }.invoke(activity)
+                }
+                return field("companionSheet").get(activity) as android.app.Dialog
+            }
+            fun dismissSheet(dialog: android.app.Dialog) {
+                onUi(instrumentation) { dialog.dismiss() }
+                instrumentation.waitForIdleSync()
+                onUi(instrumentation) {
+                    check(field("companionSheet").get(activity) == null)
+                    check(field("refreshCompanionSheet").get(activity) == null)
+                }
+            }
+            val wakeSheet = showSheet("showWakeSheet")
+            capture("wake-sheet") { wakeSheet.window!!.decorView }
+            dismissSheet(wakeSheet)
+            scene(5)
+            val privacySheet = showSheet("showPrivacySheet")
+            capture("privacy") { privacySheet.window!!.decorView }
+            onUi(instrumentation) {
+                stateField.set(session, session.current().copy(snapshotFresh = false))
+                render.invoke(activity)
+                val memory = checkNotNull(findView(privacySheet.window!!.decorView) {
+                    it.contentDescription?.toString()?.startsWith("对话记忆，") == true
+                })
+                check(!memory.isEnabled) { "privacy sheet retained a stale mutation control" }
+                stateField.set(session, session.current().copy(snapshotFresh = true))
+                render.invoke(activity)
+            }
+            dismissSheet(privacySheet)
+            scene(5, session.current().copy(snapshotFresh = false))
+            onUi(instrumentation) {
+                val reset = checkNotNull(findView(activity.window.decorView) {
+                    it.contentDescription?.toString()?.startsWith("转交或恢复出厂，") == true
+                })
+                check(!reset.isEnabled) { "stale snapshot enabled the factory-reset entry" }
+            }
+            scene(5, session.current().copy(snapshotFresh = true))
+            val resetSheet = showSheet("confirmFactoryReset")
+            capture("reset-consent") { resetSheet.window!!.decorView }
+            onUi(instrumentation) {
+                val submit = checkNotNull(findView(resetSheet.window!!.decorView) { it is TextView && it.text.toString() == "恢复出厂" })
+                val consent = checkNotNull(findView(resetSheet.window!!.decorView) { it is android.widget.CheckBox }) as android.widget.CheckBox
+                check(!submit.isEnabled)
+                consent.isChecked = true
+                check(submit.isEnabled)
+                consent.isChecked = false
+                check(!submit.isEnabled)
+                check(field("factoryReset").get(activity) == null) { "opening consent started a reset transaction" }
+            }
+            onUi(instrumentation) {
+                (checkNotNull(findView(resetSheet.window!!.decorView) { it is ScrollView }) as ScrollView).fullScroll(View.FOCUS_DOWN)
+            }
+            capture("reset-consent-footer") { resetSheet.window!!.decorView }
+            onUi(instrumentation) {
+                val submit = checkNotNull(findView(resetSheet.window!!.decorView) { it is TextView && it.text.toString() == "恢复出厂" })
+                val visible = Rect()
+                check(submit.getGlobalVisibleRect(visible) && visible.height() == submit.height) { "reset consent action is not reachable by scrolling" }
+                check(!submit.isEnabled && field("factoryReset").get(activity) == null)
+            }
+            dismissSheet(resetSheet)
+            val staleResetSheet = showSheet("confirmFactoryReset")
+            onUi(instrumentation) {
+                val submit = checkNotNull(findView(staleResetSheet.window!!.decorView) {
+                    it is TextView && it.text.toString() == "恢复出厂"
+                })
+                val consent = checkNotNull(findView(staleResetSheet.window!!.decorView) {
+                    it is android.widget.CheckBox
+                }) as android.widget.CheckBox
+                consent.isChecked = true
+                stateField.set(session, session.current().copy(snapshotFresh = false))
+                check(submit.performClick())
+                check(field("factoryReset").get(activity) == null) { "stale confirmation created a reset controller" }
+                check(field("directMessage").get(activity) == "设备状态已过期，请刷新后再试") {
+                    "stale confirmation did not fail closed before the reset transaction"
+                }
+                stateField.set(session, session.current().copy(snapshotFresh = true))
+                render.invoke(activity)
+            }
+            scene(4)
+            capture("update-idle")
+            onUi(instrumentation) {
+                val resources = checkNotNull(findView(activity.window.decorView) {
+                    it is TextView && it.text.toString() == "资源更新" && it.isClickable
+                })
+                check(resources.performClick())
+            }
+            capture("update-resources")
+            onUi(instrumentation) {
+                val eyes = checkNotNull(findView(activity.window.decorView) {
+                    it.contentDescription?.toString()?.startsWith("眼睛资源，") == true
+                })
+                check(eyes.performClick())
+                MainActivity::class.java.getDeclaredMethod("navigateBack").apply { isAccessible = true }.invoke(activity)
+                check(findView(activity.window.decorView) {
+                    it is TextView && it.text.toString() == "资源更新" && it.isSelected
+                } != null) { "resource detail returned to the wrong navigation tab" }
+                val firmware = checkNotNull(findView(activity.window.decorView) {
+                    it is TextView && it.text.toString() == "固件更新" && it.isClickable
+                })
+                check(firmware.performClick())
+            }
+            onUi(instrumentation) {
+                field("otaStatusGeneration").set(activity, session.current().generation)
+                field("otaStatus").set(activity, DeviceControlProtocol.OtaStatus(2, 1, 35, 100, -115))
+            }
+            scene(4)
+            capture("ota-progress")
+            onUi(instrumentation) { field("otaStatus").set(activity, DeviceControlProtocol.OtaStatus(3, 8, 35, 100, -5)) }
+            scene(4)
+            capture("ota-failure")
+            val generation = session.current().generation
+            val observers = DeviceControlSession::class.java.getDeclaredField("observers").apply { isAccessible = true }
+            val count = (observers.get(session) as Set<*>).size
+            repeat(20) {
+                for (title in listOf("设备", "定制", "更新", "设置")) {
+                    onUi(instrumentation) {
+                        val button = checkNotNull(findView(activity.window.decorView) {
+                            it is TextView && it.text.toString() == title && it.isClickable
+                        })
+                        check(button.performClick())
+                    }
+                    instrumentation.waitForIdleSync()
+                }
+            }
+            check(session.current().generation == generation)
+            check((observers.get(session) as Set<*>).size == count)
+            capture("settings")
+            scene(6)
+            capture("services")
+            scene(5)
+            onUi(instrumentation) {
+                activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            }
+            Thread.sleep(1000)
+            instrumentation.waitForIdleSync()
+            check(!activity.isDestroyed) { "rotation destroyed foreground task owner" }
+            check(session.current().generation == generation)
+            check((observers.get(session) as Set<*>).size == count)
+            check(activity.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE)
+            capture("landscape-settings")
+            onUi(instrumentation) {
+                activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            }
+            Thread.sleep(1000)
+            instrumentation.waitForIdleSync()
+            // Exercise the production embedded path: tab switching and status
+            // refresh must retain drafts, and leaving must release its owner.
+            scene(6, session.current().copy(authenticated = true, snapshotFresh = true))
+            lateinit var embedded: DeviceSettingsEditor
+            val sampleCloud = DeviceSettings.Public(0, 7, "0".repeat(32), 0,
+                true, true, true, true, 443, 0, "演示网络", "api.example.invalid", "/v1",
+                "mimo-v2.5-asr", "mimo-v2.6-flash", "mimo-v2.5-tts")
+            onUi(instrumentation) {
+                MainActivity::class.java.getDeclaredMethod("openDeviceSettings", Boolean::class.javaPrimitiveType, String::class.java)
+                    .apply { isAccessible = true }.invoke(activity, true, null)
+                embedded = field("settingsEditor").get(activity) as DeviceSettingsEditor
+                DeviceSettingsEditor::class.java.getDeclaredField("current").apply { isAccessible = true }.set(embedded, sampleCloud)
+                DeviceSettingsEditor::class.java.getDeclaredMethod("populate", DeviceSettings.Public::class.java)
+                    .apply { isAccessible = true }.invoke(embedded, sampleCloud)
+                DeviceSettingsEditor::class.java.getDeclaredMethod("editable", Boolean::class.javaPrimitiveType)
+                    .apply { isAccessible = true }.invoke(embedded, true)
+            }
+            capture("cloud-inline-chat")
+            onUi(instrumentation) {
+                val chat = DeviceSettingsEditor::class.java.getDeclaredField("chat").apply { isAccessible = true }.get(embedded) as EditText
+                chat.setText("draft-chat-model")
+                check(findView(activity.window.decorView) { it is TextView && it.text.toString() == "听懂你" }!!.performClick())
+                render.invoke(activity)
+                check(chat.text.toString() == "draft-chat-model") { "status refresh lost model draft" }
+                check(findView(activity.window.decorView) { it is TextView && it.text.toString() == "听懂你" }!!.isSelected)
+            }
+            capture("cloud-inline-asr")
+            onUi(instrumentation) {
+                check(findView(activity.window.decorView) { it is TextView && it.text.toString() == "说给你听" }!!.performClick())
+            }
+            capture("cloud-inline-tts")
+            onUi(instrumentation) {
+                check(findView(activity.window.decorView) { it is TextView && it.text.toString() == "对话" }!!.performClick())
+                val chat = DeviceSettingsEditor::class.java.getDeclaredField("chat").apply { isAccessible = true }.get(embedded) as EditText
+                check(chat.text.toString() == "draft-chat-model") { "tab switch lost model draft" }
+                activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            }
+            Thread.sleep(1000)
+            instrumentation.waitForIdleSync()
+            onUi(instrumentation) {
+                val decor = activity.window.decorView
+                val chat = checkNotNull(findView(decor) {
+                    it is EditText && it.contentDescription?.toString() == "对话 · 回答模型 ID"
+                }) as EditText
+                check(chat.text.toString() == "draft-chat-model") { "configuration change lost model draft" }
+                val save = checkNotNull(findView(decor) {
+                    it.contentDescription?.toString() == "保存云服务与模型配置"
+                })
+                check(save.isShown && save.isEnabled) { "configuration change hid the editor save action" }
+                activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            }
+            Thread.sleep(1000)
+            instrumentation.waitForIdleSync()
+            onUi(instrumentation) {
+                val decor = activity.window.decorView
+                check(activity.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT)
+                val chat = checkNotNull(findView(decor) {
+                    it is EditText && it.contentDescription?.toString() == "对话 · 回答模型 ID"
+                }) as EditText
+                check(chat.text.toString() == "draft-chat-model") { "second configuration change lost model draft" }
+                check(chat.requestFocus()) { "reattached model field could not receive focus" }
+                chat.setSelection(chat.length())
+            }
+            instrumentation.waitForIdleSync()
+            onUi(instrumentation) {
+                val chat = checkNotNull(findView(activity.window.decorView) {
+                    it is EditText && it.contentDescription?.toString() == "对话 · 回答模型 ID"
+                }) as EditText
+                activity.getSystemService(InputMethodManager::class.java).showSoftInput(chat, InputMethodManager.SHOW_IMPLICIT)
+            }
+            Thread.sleep(600)
+            instrumentation.waitForIdleSync()
+            capture("cloud-inline-keyboard")
+            onUi(instrumentation) {
+                val decor = activity.window.decorView
+                check(decor.rootWindowInsets.isVisible(WindowInsets.Type.ime())) { "embedded IME missing" }
+                val save = DeviceSettingsEditor::class.java.getDeclaredField("saveAction").apply { isAccessible = true }.get(embedded) as View
+                val visible = Rect()
+                check(save.getGlobalVisibleRect(visible) && visible.height() == save.height) { "embedded save clipped by keyboard" }
+                val chat = DeviceSettingsEditor::class.java.getDeclaredField("chat").apply { isAccessible = true }.get(embedded) as EditText
+                check(chat.getGlobalVisibleRect(visible) && visible.height() == chat.height) { "embedded focused input clipped" }
+            }
+            onUi(instrumentation) {
+                activity.getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(activity.window.decorView.windowToken, 0)
+                MainActivity::class.java.getDeclaredMethod("selectTab", Int::class.javaPrimitiveType)
+                    .apply { isAccessible = true }.invoke(activity, 5)
+                render.invoke(activity)
+                check(field("settingsEditor").get(activity) == null) { "navigation retained cloud transaction owner" }
+                check((observers.get(session) as Set<*>).size == count) { "embedded editor observer leaked" }
+                check(!activity.window.attributes.flags.and(android.view.WindowManager.LayoutParams.FLAG_SECURE).equals(
+                    android.view.WindowManager.LayoutParams.FLAG_SECURE))
+            }
+            for (cloud in listOf(false, true)) {
+                lateinit var editor: DeviceSettingsEditor
+                lateinit var dialog: android.app.Dialog
+                onUi(instrumentation) {
+                    editor = DeviceSettingsEditor(activity, session, "ui-synthetic-device", 32, cloud) { }
+                    val sample = DeviceSettings.Public(0, 7, "0".repeat(32), 0,
+                        true, true, true, true, 443, 0, "演示网络", "api.example.invalid", "/v1",
+                        "mimo-v2.5-asr", "mimo-v2.5", "mimo-v2.5-tts")
+                    // populate() fills fields only; the production footer also
+                    // requires an authoritative current record before enabling save.
+                    DeviceSettingsEditor::class.java.getDeclaredField("current").apply { isAccessible = true }
+                        .set(editor, sample)
+                    DeviceSettingsEditor::class.java.getDeclaredMethod("populate", DeviceSettings.Public::class.java)
+                        .apply { isAccessible = true }.invoke(editor, sample)
+                    DeviceSettingsEditor::class.java.getDeclaredMethod("editable", Boolean::class.javaPrimitiveType)
+                        .apply { isAccessible = true }.invoke(editor, true)
+                    DeviceSettingsEditor::class.java.getDeclaredField("message").apply { isAccessible = true }
+                        .let { (it.get(editor) as TextView).text = "模拟状态 · 配置 revision 7；没有提交到真实设备" }
+                    dialog = DeviceSettingsEditor::class.java.getDeclaredField("dialog").apply { isAccessible = true }
+                        .get(editor) as android.app.Dialog
+                }
+                try {
+                    capture(if (cloud) "cloud-models" else "wifi-settings") { dialog.window!!.decorView }
+                    onUi(instrumentation) { assertFooterFullyVisible(editor, dialog) }
+                    val input = DeviceSettingsEditor::class.java.getDeclaredField(if (cloud) "url" else "network")
+                        .apply { isAccessible = true }.get(editor) as EditText
+                    onUi(instrumentation) {
+                            if (cloud) {
+                                val reveal = checkNotNull(findView(dialog.window!!.decorView) {
+                                    it is TextView && it.text.toString() == "高级设置 · 服务连接与凭据"
+                                })
+                                check(reveal.performClick())
+                            }
+                            input.requestFocus(); input.setSelection(input.length())
+                            activity.getSystemService(InputMethodManager::class.java).showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
+                    }
+                    Thread.sleep(500)
+                    instrumentation.uiAutomation.executeShellCommand("input text _draft").use { descriptor ->
+                        android.os.ParcelFileDescriptor.AutoCloseInputStream(descriptor).use { it.readBytes() }
+                    }
+                    instrumentation.waitForIdleSync()
+                    onUi(instrumentation) {
+                        if (!cloud) {
+                            check(input.text.toString().endsWith("_draft")) { "keyboard input not delivered" }
+                            render.invoke(activity)
+                            check(input.text.toString().endsWith("_draft")) { "status render overwrote draft" }
+                        }
+                        check(dialog.window!!.decorView.rootWindowInsets.isVisible(WindowInsets.Type.ime())) { "IME not visible" }
+                        val formScroll = DeviceSettingsEditor::class.java.getDeclaredField("formScroll").apply { isAccessible = true }
+                            .get(editor) as ScrollView
+                        // Keep exercising the long-form scroll path, then return
+                        // to the focused field: a footer-only dialog is not usable.
+                        formScroll.scrollTo(0, formScroll.getChildAt(0).height)
+                        val fieldRect = Rect()
+                        input.getDrawingRect(fieldRect)
+                        formScroll.offsetDescendantRectToMyCoords(input, fieldRect)
+                        formScroll.scrollTo(0, (fieldRect.centerY() - formScroll.height / 2).coerceAtLeast(0))
+                    }
+                    // Wait for IME/focus layout and any posted scroll before
+                    // checking the same settled frame that will be captured.
+                    Thread.sleep(350)
+                    instrumentation.waitForIdleSync()
+                    onUi(instrumentation) {
+                        val formScroll = DeviceSettingsEditor::class.java.getDeclaredField("formScroll").apply { isAccessible = true }
+                            .get(editor) as ScrollView
+                        val fieldVisible = Rect()
+                        check(formScroll.height >= 48 * activity.resources.displayMetrics.density &&
+                            input.getGlobalVisibleRect(fieldVisible) && fieldVisible.height() == input.height) {
+                            "keyboard editor form unavailable: scroll=${formScroll.width}x${formScroll.height};field=$fieldVisible"
+                        }
+                    }
+                    instrumentation.waitForIdleSync()
+                    capture(if (cloud) "cloud-keyboard" else "wifi-keyboard") { dialog.window!!.decorView }
+                    onUi(instrumentation) {
+                        // v34 起保存动作属于固定页脚，不再检查已隐藏的旧表单按钮。
+                        assertFooterFullyVisible(editor, dialog)
+                        activity.getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(input.windowToken, 0)
+                    }
+                }
+                finally { onUi(instrumentation) { editor.close() } }
+            }
+            val provision = instrumentation.startActivitySync(Intent(instrumentation.targetContext, ProvisionActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as ProvisionActivity
+            try { capture("onboarding") { provision.window.decorView } }
+            finally { onUi(instrumentation) { provision.finish() } }
+        } finally {
+            onUi(instrumentation) { activity.finish() }
+            instrumentation.waitForIdleSync()
+        }
+    }
+
     /** Local ProvisionActivity validation only: no bootstrap, binding, DNS, BLE or key material. */
     fun runProvisionInputValidationProbe(instrumentation: Instrumentation) {
         val activity = instrumentation.startActivitySync(
@@ -524,6 +2002,21 @@ internal object DeviceUiAcceptance {
                 }
             } finally { finishProvision(instrumentation, activity); binding.close() }
         }
+        scenario("recovery_cancel_before_and_after_connection_creation") {
+            val type = Class.forName("com.shaniu.companion.provision.ProvisionActivity\$RecoveryAttempt")
+            val constructor = type.getDeclaredConstructor().apply { isAccessible = true }
+            val attach = type.getDeclaredMethod("attach", AutoCloseable::class.java).apply { isAccessible = true }
+            repeat(2) { early ->
+                val attempt = constructor.newInstance() as AutoCloseable
+                var closed = 0
+                val connection = AutoCloseable { closed++ }
+                if (early == 0) attempt.close()
+                attach.invoke(attempt, connection)
+                check(closed == if (early == 0) 1 else 0)
+                attempt.close(); attempt.close()
+                check(closed == 1) { "late or cancelled recovery link was leaked or closed twice" }
+            }
+        }
         if (only != null) check(selected == 1) { "Unknown emulator flow scenario: $only" }
         check(failures.isEmpty()) { results.joinToString("\n") }
         return results.joinToString("; ")
@@ -558,19 +2051,25 @@ internal object DeviceUiAcceptance {
             }
             check(binding.store.pending("emulator-claim") != null)
             onUi(instrumentation) {
-                installProvisionFixture(instrumentation, activity, resolver = { verifiedEndpoint() }, store = binding.store)
+                installProvisionFixture(instrumentation, activity, resolver = { verifiedEndpoint() }, transport, binding.store)
                 (rawField(activity, "nextButton").get(activity) as android.widget.Button).performClick()
             }
             onUi(instrumentation) {
-                /* This is the production pending path: it starts the real
-                 * control-reconciliation page, rather than injecting a final
-                 * protocol state into the recreated store. */
+                /* This fixture uses provision-bootstrap-v1, not an SN1 QR.
+                 * Its production recovery route is SPV1 AUTH_OWNER/VERIFY;
+                 * only screenBootstrap uses SDC1 control reconciliation. */
                 check(rawField(activity, "page").get(activity) == 2)
-                check(rawField(activity, "recoveryControl").get(activity) != null)
+                check(rawField(activity, "connection").get(activity) != null)
+                check(rawField(activity, "recoveryControl").get(activity) == null)
                 check((rawField(activity, "resultButton").get(activity) as TextView).text.toString() == "取消连接")
                 check(binding.store.pending("emulator-claim") != null)
             }
-            return "PROCESS_FIXTURE_RESUMED pending page opened from isolated receipt"
+            awaitStarted(instrumentation, transport)
+            transport.tls()
+            check(transport.lastType() == 7) { "legacy recovery did not authenticate owner" }
+            transport.respond(3)
+            check(transport.lastType() == 5) { "recovery must query VERIFY, never resubmit configuration" }
+            return "PROCESS_FIXTURE_RESUMED legacy receipt opened; AUTH_OWNER then VERIFY, no repeated configuration"
         } finally {
             transport.clear(); finishProvision(instrumentation, activity)
             if (!keepFixture) {
@@ -732,7 +2231,7 @@ internal object DeviceUiAcceptance {
         failure.get()?.let { throw it }
     }
 
-    private fun awaitUi(instrumentation: Instrumentation, activity: ProvisionActivity,
+    private fun awaitUi(instrumentation: Instrumentation, activity: android.app.Activity,
                         condition: () -> Boolean) {
         val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3)
         while (System.nanoTime() < deadline) {
@@ -811,7 +2310,22 @@ internal object DeviceUiAcceptance {
     fun run(instrumentation: Instrumentation) {
         val activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
+        val session = MainActivity::class.java.getDeclaredMethod("getDirectSession").apply {
+            isAccessible = true
+        }.invoke(activity) as DeviceControlSession
+        val sessionState = DeviceControlSession::class.java.getDeclaredField("state").apply { isAccessible = true }
         fun set(name: String, value: Any?) {
+            // The production Activity now reads from the single session owner.
+            // These snapshots remain instrumentation-only and open no transport.
+            if (name == "directSnapshot") {
+                sessionState.set(session, session.current().copy(connection = DeviceControlSession.Connection.CONNECTED,
+                    authenticated = true, snapshotFresh = true, snapshot = value as DeviceControlProtocol.Snapshot))
+                return
+            }
+            if (name == "directFirmwareInfo") {
+                sessionState.set(session, session.current().copy(firmwareInfo = value as DeviceControlProtocol.FirmwareInfo))
+                return
+            }
             MainActivity::class.java.getDeclaredField(name).apply { isAccessible = true }.set(activity, value)
         }
         fun get(name: String): Any? = MainActivity::class.java.getDeclaredField(name).apply {
@@ -849,15 +2363,15 @@ internal object DeviceUiAcceptance {
                 set("currentTab", 3)
                 set("directSnapshot", base)
                 render.invoke(activity)
-                check(row("跨重启记忆").isEnabled && row("删除已保存的记忆").isEnabled)
+                check(row("对话记忆").isEnabled && row("删除已保存的记忆").isEnabled)
                 check(text("已关闭 · 不读取或新增保存"))
                 set("directSnapshot", base.copy(busy = true, memoryEnabled = null, memoryPending = true))
                 render.invoke(activity)
-                check(!row("跨重启记忆").isEnabled && !row("删除已保存的记忆").isEnabled)
+                check(!row("对话记忆").isEnabled && !row("删除已保存的记忆").isEnabled)
                 check(!row("清空近期对话").isEnabled)
                 set("directSnapshot", base.copy(memoryEnabled = null, memoryFailed = true))
                 render.invoke(activity)
-                check(!row("跨重启记忆").isEnabled && !row("删除已保存的记忆").isEnabled)
+                check(!row("对话记忆").isEnabled && !row("删除已保存的记忆").isEnabled)
 
                 /* Enter through the actual overview-page row, not the
                  * settings-page duplicate. No connection or OTA command is
@@ -867,13 +2381,13 @@ internal object DeviceUiAcceptance {
                 render.invoke(activity)
                 row("固件更新").performClick()
                 check(text("固件更新"))
-                check(text("连接设备后读取"))
-                check(!button("从手机开始升级").isEnabled)
+                check(text("待真实设备回读"))
+                check(!button("开始固件更新").isEnabled)
 
                 /* An OTA-capability-free STATUS is old firmware. */
                 set("directSnapshot", base.copy(otaSupported = false))
                 render.invoke(activity)
-                check(!button("从手机开始升级").isEnabled)
+                check(!button("开始固件更新").isEnabled)
 
                 /* Use only a unique, test-owned expected record. Calling the
                  * real confirmation method must reject a mismatched INFO. */
@@ -885,6 +2399,8 @@ internal object DeviceUiAcceptance {
                     .putString("ota_expected_device", "ui-synthetic-device")
                     .commit())
                 set("otaStatus", DeviceControlProtocol.OtaStatus(3, 6, 100, 100, 0))
+                set("otaStatusGeneration", session.current().generation)
+                set("otaVerificationPending", true)
                 set("directFirmwareInfo", DeviceControlProtocol.FirmwareInfo(99, 0, 0, 1, 999))
                 set("otaMessage", "")
                 confirmExpectedOta.invoke(activity)
@@ -976,7 +2492,9 @@ internal object DeviceUiAcceptance {
             select.invoke(activity, 5)
             select.invoke(activity, 4)
             finish.invoke(activity, 20L, metadata to late, false)
-            check(!late.exists())
+            check(late.exists())
+            check(field("selectedFirmwareFile").get(activity) == late)
+            check(field("inspectedFirmware").get(activity) == metadata)
             check(field("firmwareInspectionPending").get(activity) == false)
 
             field("firmwareInspectionEpoch").set(activity, 21L)

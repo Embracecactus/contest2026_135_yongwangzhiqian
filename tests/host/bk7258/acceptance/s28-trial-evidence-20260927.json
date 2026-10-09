@@ -1,0 +1,78 @@
+{
+  "slice": "S28",
+  "date": "2026-09-27",
+  "parent": "57de06a6e6119d17a054546a1c5270da7de5d820",
+  "case": "RES-02.expression-trial",
+  "pre_implementation": "BLOCKED_INTERFACE: trial API/types did not exist; compile diagnostics preserved, not a business assertion failure",
+  "contract": {
+    "clock": "Monotonic acceptance time; queue time included. Zero/unavailable clock rejects admission; reversal while active restores once and reports failure.",
+    "duration": "Caller-supplied positive uint32 milliseconds; representational bound only, no App default chosen.",
+    "ownership": "Single trial and existing single render slot. New logical render identity or pending new request supersedes restoration. Claim/power gating supersedes without ordinary-frame restore.",
+    "cancel": "Pending cancellation immediately terminal with no I/O. Active cancellation returns accepted/CANCEL_PENDING; worker restores before CANCELED. Rendering/restoring returns EBUSY. Stale ID rejected.",
+    "persistence": "No persistence API called by trial logic; saved previous logical expression is volatile. Full pixel/SD path not run in host fixture.",
+    "timing_limit": "Deadline is serviced by existing 100 ms worker poll after external I/O returns; not a hard real-time/pixel deadline or an I/O preemption guarantee."
+  },
+  "implementation": "Service API plus existing display worker execution, expiry and restore. Public admission/status/cancel have no product protocol/App caller yet; linker GC omits unused public entries. This is not a user-accessible trial feature or completed N2.",
+  "counts": {
+    "strict_collected": 126,
+    "strict_pass": 126,
+    "original_ids_retained": 63
+  },
+  "mutation": {
+    "isolated_mutations": [
+      {
+        "name": "ignore-expiry",
+        "compiled": true,
+        "detected": true,
+        "exit": -6
+      },
+      {
+        "name": "ignore-new-owner",
+        "compiled": true,
+        "detected": true,
+        "exit": -6
+      }
+    ],
+    "unchanged_production_rerun": "PASS"
+  },
+  "resource_budget": {
+    "named_static_bytes": 62,
+    "static_layout_span_bytes": 64,
+    "new_threads": 0,
+    "new_heap_allocations": 0,
+    "new_dma_buffers": 0,
+    "radio_traffic": "none until protocol adapter exists",
+    "sd_writes": "no new persistence calls; existing renderer dependency remains",
+    "cpu_mean_p95": "NOT_MEASURED",
+    "stack_high_water": "NOT_MEASURED",
+    "longest_block": "external rendering/mount I/O remains; no stronger bound claimed",
+    "critical_section": "fixed state/copies; renderer called after releasing intent spinlock",
+    "exit": "exact cancellation, expiry, new ownership or power/claim supersession; restore failure terminal FAILED"
+  },
+  "scope": "Production intent/trial state and render identity compiled; external monotonic clock and pixel sink substituted. Existing async tests retain their behavior with added trial fixture fields. Host PASS does not prove BLE, frame DMA, power or persisted default retention on board.",
+  "hashes": {
+    "app/bk7258/bk7258_display_intent.inc": "f94858a6ae66aee4429eee0d9ffdada816fe057fdc3bcaf9ae0486ebc69520a5",
+    "app/bk7258/bk7258_display_service.c": "c5fdb7064867f5190fe8262813e82cfd56d50eb05e345892bc3aeccc7155644e",
+    "app/bk7258/bk7258_display_service.h": "e25b712b59d1c8d85d474bb4b49070008838baab0c92fa0cb65b61159faa81ed",
+    "tests/host/bk7258/test_shaniu_expression_trial.c": "416c21f7b33bd4988e9b77f887a26a297664caa32fb7dc480abee435b90daf10",
+    "out/shaniu-s28/interface-missing.log": "f155e3d460f67c08d80c43982a867207d493cf5d5914428903d8b2acccc19bd3",
+    "out/shaniu-s28/green.log": "676c76fc263470717b6934392ba01653d1c6e4b71da705ac54b0b933e13d29da",
+    "out/shaniu-s28/compatibility.log": "a445e13369628859e8f7c8dc336f04f2461f6292a6028070f15cc42c72b8a222",
+    "out/shaniu-s28/contracts.log": "e48fa017989c28147992b1ff4fe1e78bc18509edd3822e6d1d9721d7c5860c6b",
+    "out/shaniu-s28/build.log": "b9580e062def031c784a21985191051e7496d39df041b34f789f8dfdca9c0be4",
+    "out/shaniu-s28/layers.log": "cab5506d4a62929feaece7a1324c950ff7577663e0c3752c16f06517206d2c9e",
+    "out/shaniu-s28/manifest.log": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac",
+    "out/shaniu-s28/symbols.log": "eeb0d9be6c78e8db0f8a450aa7daef02e0a292fe6a26da0fb5325ade2aa6ebee",
+    "out/shaniu-s28/ignore-expiry.log": "fa19dc546ef38176d9412a9e3fe88114e7e36f07e9e1568e4f612defd78616ef",
+    "out/shaniu-s28/ignore-new-owner.log": "47e8c063264056653d07b154daf0f642e85a3ddf3dcc3f4f211e3c457a5d67d5",
+    "out/shaniu-s28/restored.log": "c751dedc6194ded0881e9a173f7027cf5f7d9d787efeda6536c5da207f6a89f4",
+    "out/shaniu-s28/runner-gate.log": "e6200ac859357c16c8cb8510b71eb578ea5a2b0b26026ee7cafd60dc78513c0c"
+  },
+  "outputs": {
+    "green": "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\ncc -std=gnu11 -Wall -Wextra -Werror -O2 -pthread -I mocks -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_shaniu_expression_trial.c -o build/test_shaniu_expression_trial\n./build/test_shaniu_expression_trial\nCONTRACT_PASS expression trial\nmake: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\n",
+    "symbols": "02163d50 00000140 t bkdisplay_trial_step.constprop.0\n28069a70 00000018 b g_bkdisplay_trial\n28069a88 00000008 b g_bkdisplay_trial_identity\n28069a90 00000016 b g_bkdisplay_trial_restore\n28069aa8 00000008 b g_bkdisplay_trial_started\n",
+    "ignore-expiry": "test: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_expression_trial.c:55: main: Assertion `bkdisplay_trial_step(&service, true)' failed.\n",
+    "ignore-new-owner": "test: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_expression_trial.c:35: expect: Assertion `state.id == id && state.state == expected' failed.\n",
+    "restored": "CONTRACT_PASS expression trial\n"
+  }
+}

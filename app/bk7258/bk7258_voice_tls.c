@@ -11,6 +11,7 @@
 #include <poll.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <syslog.h>
 #include <unistd.h>
 #ifdef __NuttX__
 #  include <sys/ioctl.h>
@@ -489,6 +490,13 @@ static ssize_t bkvoice_tls_io(struct bkvoice_tls_s *tls, void *buffer,
 
       if (ret != want)
         {
+          /* Preserve the library failure category without logging peer,
+           * credentials or payload. The public error contract stays EIO.
+           */
+
+          syslog(LOG_WARNING, "BKVOICE TLS io=%s library_result=%d\n",
+                 write ? "write" : "read", ret);
+
           /* Post-handshake transitions requiring cross-direction I/O are
            * outside this TLS 1.2, no-renegotiation provider.  Invalidate both
            * directions under the lock before another caller can use ssl.

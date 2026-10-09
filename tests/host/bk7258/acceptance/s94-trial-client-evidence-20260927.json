@@ -1,0 +1,85 @@
+{
+  "parent": "121baefe6001cc95b6781781e4936efa612dc2a0",
+  "counts": {
+    "selected": 541,
+    "original_including_restores": 63,
+    "added": 478,
+    "new_ids": 10,
+    "runner_gates": 18,
+    "original_mutations": 2,
+    "extra_mutations": 1,
+    "extra_restore_runs": 1
+  },
+  "implementation": "Existing PC workbench adds trial-start/status/cancel via ETC1/ETS1 kind11; client only, no firmware production or protocol/schema change. Positive explicit TTL/expected ID/operation, authenticated transport, finite request deadline, no auto replay or persistence.",
+  "test_first": "New independent golden/negative/client cases were written before implementation. Initial missing interfaces are BLOCKED_INTERFACE/SETUP, not business assertion Red. New valid behavior is green; isolated torn-snapshot mutant demonstrates sensitivity.",
+  "integration": {
+    "production": "Python ControlClient._exchange sends actual SDC1 frames through existing C parser/authenticator, trial wire controller and real display intent transitions.",
+    "external": "Pipe carries plaintext in this test; virtual clock and render sink replace only external dependencies. C peer manual steps invoke real worker functions.",
+    "observed": [
+      "ACK accepted before pending render; independent sink sees happy then restore to neutral.",
+      "Exact duplicate request retains deadline and cannot revive expired trial.",
+      "Old cancel is rejected without changing the newer trial/sink."
+    ],
+    "not_claimed": "No complete TLS/PC guard/UI/physical USB/screen integration in these new cases; prior TLS/guard suites remain separate."
+  },
+  "mutation": {
+    "name": "accept-torn-trial-snapshot",
+    "detected": true,
+    "mutant_exit": 1,
+    "restored_exit": 0,
+    "source_sha256": "c3f258422d4bfe5dcb4595475fce34d45653bab75076efba2186b29b02ae70c2",
+    "mutant_sha256": "b80266d42f583975cf3a80fd92692a9bdd018850478ae2760cda090dd7ff5a76",
+    "isolation": "separate process; production source file unchanged"
+  },
+  "collection": "Final full run after wiring native build readiness, explicit setup exit2 and all new input hashes. Original63 retained; first full green is retained but final report authoritative.",
+  "setup_evidence": "Missing selected unittest returns 2. Initial help command wrongly used usb workbench; parser exit2 retained, corrected public workbench --help passed.",
+  "parent_gaps": {
+    "RES-02": {
+      "interface": "Expression trial in current pack available from CLI; uploaded-pack trial and versioned default remain incomplete.",
+      "L1_L2": "10 new units plus old regressions; actual wire/state logic covered with external render sink.",
+      "L3": "NOT_RUN, no device actions."
+    },
+    "USB-02": {
+      "interface": "Same authenticated serial client, scenes permission required; no transport reset or ownership claim added.",
+      "L1_L2": "Control framing tested separately from existing TLS permission suites; physical response/resource budget pending.",
+      "L3": "NOT_RUN"
+    }
+  },
+  "resources": "32-byte request, 32-byte snapshot assembled via three bounded reads including header recheck. No added firmware thread/heap/SD writes. CPU/p95/physical transport latency and target stack high-water not measured.",
+  "remaining": [
+    "Original M0-M5 goal ACTIVE. Pack-specific trial/default, light UI, real USB/display and final delivery remain open.",
+    "App update approval and COM9 board identity questions still unanswered; no action inferred from elapsed time.",
+    "Historical S66/S75/S76 TLS first failures remain open."
+  ],
+  "evidence_sha256": {
+    "tests/host/bk7258/acceptance/s94-evidence-20260927/RES-02.pc-trial-cli_preflight.log": "45a9095d62c167cce25e3250ac3f7a36c919ecd0860303ca00372fd968834b89",
+    "tests/host/bk7258/acceptance/s94-evidence-20260927/RES-02.pc-trial-coherent_read.log": "f96f46473a693d87f7ad74df1c869e1873f6977b0bc0fdf7c620e9dbf1e0a9ed",
+    "tests/host/bk7258/acceptance/s94-evidence-20260927/RES-02.pc-trial-golden.log": "2246e4f0a557a7aaac3d207a1f157aa1ff2b36dda23777c08de6c5205e0792eb",
+    "tests/host/bk7258/acceptance/s94-evidence-20260927/RES-02.pc-trial-invalid.log": "117c935ae994f8c1bbc7a7fe3a6a730e710a70b8142b4c5df51d320f5c25e050",
+    "tests/host/bk7258/acceptance/s94-evidence-20260927/RES-02.pc-trial-lifecycle.log": "570eb9c452caefe8b0e1fd2c52becb25a65979ca59bb2996d4821aca0753834e",
+    "tests/host/bk7258/acceptance/s94-evidence-20260927/RES-02.pc-trial-no_replay.log": "e8a9edbccac04957fc1040106ec112a8a0997583198df20fa977de2ca0319a6c",
+    "tests/host/bk7258/acceptance/s94-evidence-20260927/RES-02.pc-trial-retry_expiry.log": "024a6d3071066e216faeb3c2567428f22fe50bf03d4ef3b308f5b8ce8fc897d0",
+    "tests/host/bk7258/acceptance/s94-evidence-20260927/RES-02.pc-trial-snapshot.log": "fc6ac9ad734ad797ea6e568b329234ab368e3ea7742ba3c13371e80be1dcf78a",
+    "tests/host/bk7258/acceptance/s94-evidence-20260927/RES-02.pc-trial-staging.log": "50f50f1e3ed09e5d2fe57d8171d646daffb08770ac6ffd5c965d6cd502ca299f",
+    "tests/host/bk7258/acceptance/s94-evidence-20260927/RES-02.pc-trial-stale_cancel.log": "e9f7ff01d4571332bcf5b6c0e81df924149ede86ee13eae339cea54f008f498d",
+    "tests/host/bk7258/acceptance/s94-evidence-20260927/client-first.log": "74c03fc16fde9a2dfeff03db0ec8f472a5a8dfed04e9e982a912b4b7f64faee3",
+    "tests/host/bk7258/acceptance/s94-evidence-20260927/combined-collected-final.log": "ceea5e339bfb84b2653af263ee2fe0a0e2de2bfaed2f3efd00a6d42b42fde502",
+    "tests/host/bk7258/acceptance/s94-evidence-20260927/combined-final.log": "ceea5e339bfb84b2653af263ee2fe0a0e2de2bfaed2f3efd00a6d42b42fde502",
+    "tests/host/bk7258/acceptance/s94-evidence-20260927/combined-first.log": "9d5cbf50af2b5d43b53292e22efa8ffa4ca03168aabba92fa0d3e90b2ff6a317",
+    "tests/host/bk7258/acceptance/s94-evidence-20260927/full-final.log": "3a8656d423f40f25e7d0507fe4bbfe6c40ce362425c51d370dcf34cd4681648b",
+    "tests/host/bk7258/acceptance/s94-evidence-20260927/full.log": "c5824480c204655e13c5ae9fee32ef7476bb5758ad7a34226e257c3e61f7aff1",
+    "tests/host/bk7258/acceptance/s94-evidence-20260927/gates-final.log": "a8febcd5f525dc3aa7473b9a1db91333be4df56fd82c9af848980231687f50bf",
+    "tests/host/bk7258/acceptance/s94-evidence-20260927/gates.log": "9dd2445c6c5e547b81936ba81d02b0c1737e604bd6ef00c1fd2a4f3e99c71157",
+    "tests/host/bk7258/acceptance/s94-evidence-20260927/help-final.log": "0eac4b66314d73adf987060848089a8d296ab7340b5f048a9ae4243559ec430b",
+    "tests/host/bk7258/acceptance/s94-evidence-20260927/help.log": "9534c285698790c5e732bb2fd1de68b93743a354c8ec02b61ab92246aaeacf14",
+    "tests/host/bk7258/acceptance/s94-evidence-20260927/interface-before.log": "4f54f370a5076777a059bd2016b694998b4a4e9ceb5f1d04854c9ec4dc39d19a",
+    "tests/host/bk7258/acceptance/s94-evidence-20260927/layers.log": "710268dfb47cd80406e5e3114f8d4e9fa899ff333a4aa4b65452813f14a7ea7d",
+    "tests/host/bk7258/acceptance/s94-evidence-20260927/peer-build.log": "47c231333e8dd92cd676a2e29a0867cd6d1504e93869177d67b9a02c6a14f526",
+    "tests/host/bk7258/acceptance/s94-evidence-20260927/setup-classification.log": "d06b20bff3b64ba48e225ee6c5da32a536b680efd15219dd4e1f9b38c5a2f291",
+    "tests/host/bk7258/acceptance/s94-evidence-20260927/style-check.log": "45a468fa6205768496f23f1716ebb7575e9b723449d2099b88bf2afef60b721f",
+    "tests/host/bk7258/acceptance/s94-evidence-20260927/style-final.log": "4bd57b14da99d3cf0b90374fd13b6fcf2d99f4e2afe0cf185abaa279a3688b94",
+    "tests/host/bk7258/acceptance/s94-evidence-20260927/style.log": "ed12e08d3bf993daf2bf9e2e699da48f5db381a3e0c30cb8d814956bee8a1595",
+    "tests/host/bk7258/acceptance/s94-evidence-20260927/torn-snapshot-mutant.log": "e63a078ce67d9316f609586cefdb83a3e50678004e0d2dda6755fa48a760a15c",
+    "tests/host/bk7258/acceptance/s94-evidence-20260927/torn-snapshot-restored.log": "fb184ea57734512b1f088f9181209901b9cd46df3eb7eaa2500ea9e48dde20b5"
+  }
+}

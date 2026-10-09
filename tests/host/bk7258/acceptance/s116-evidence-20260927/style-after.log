@@ -1,0 +1,10 @@
+['black', '--check', 'tools/bk7258/_lib/workbench_selection.py', 'tests/host/bk7258/test_workbench_selection.py', 'tests/host/bk7258/test_pack_product_route.py', 'tests/host/bk7258/test_pack_trial.py']
+All done! ✨ 🍰 ✨
+4 files would be left unchanged.
+exit=0
+['../nuttx/tools/nxstyle', 'app/bk7258/bk7258_display_selection_control.c']
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_selection_control.c:2:1: error: Path relative to repository other than "nuttx" must begin with the root directory
+exit=1
+['git', 'diff', '--check']
+exit=0
+Pinned NuttX76354c637858ecb0aa4601629327acb6f44a26bb; black24.10.0. nxstyle remaining existing repository path-header convention is not a new functional change. Full runner formatting not applied to unrelated existing code. No ktlint/shellcheck/cmake-format claim.

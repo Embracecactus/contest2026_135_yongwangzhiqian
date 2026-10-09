@@ -1,0 +1,27 @@
+make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'
+cc -std=gnu11 -Wall -Wextra -Werror -O2 test_display_selection.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_pack.c \
+	/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 \
+	-Wl,--wrap=write,--wrap=fsync -o build/test_display_selection
+test_display_selection.c: In function ‘main’:
+test_display_selection.c:57:40: error: storage size of ‘v’ isn’t known
+   57 |   struct bkdisplay_selection_version_s v, sentinel;
+      |                                        ^
+test_display_selection.c:57:43: error: storage size of ‘sentinel’ isn’t known
+   57 |   struct bkdisplay_selection_version_s v, sentinel;
+      |                                           ^~~~~~~~
+In file included from test_display_selection.c:6:
+test_display_selection.c:59:10: error: implicit declaration of function ‘bkdisplay_store_selection_version’; did you mean ‘bkdisplay_store_reset_selection’? [-Werror=implicit-function-declaration]
+   59 |   assert(bkdisplay_store_selection_version(root, &v) == 0);
+      |          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+test_display_selection.c:67:14: error: implicit declaration of function ‘bkdisplay_store_activate_checked’; did you mean ‘bkdisplay_store_activate’? [-Werror=implicit-function-declaration]
+   67 |       assert(bkdisplay_store_activate_checked(root, name, 0, &v) == 0 && v.revision == 1);
+      |              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+test_display_selection.c:57:43: error: unused variable ‘sentinel’ [-Werror=unused-variable]
+   57 |   struct bkdisplay_selection_version_s v, sentinel;
+      |                                           ^~~~~~~~
+test_display_selection.c:57:40: error: unused variable ‘v’ [-Werror=unused-variable]
+   57 |   struct bkdisplay_selection_version_s v, sentinel;
+      |                                        ^
+cc1: all warnings being treated as errors
+make: *** [Makefile:349: build/test_display_selection] Error 1
+make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'

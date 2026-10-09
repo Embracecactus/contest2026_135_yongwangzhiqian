@@ -1,0 +1,13 @@
+F
+======================================================================
+FAIL: test_native_peer_setup_error_remains_setup_error (__main__.NestedTlsGateTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_runner_gate.py", line 183, in test_native_peer_setup_error_remains_setup_error
+    self.assertEqual(len(result.errors), 1)
+AssertionError: 0 != 1
+
+----------------------------------------------------------------------
+Ran 1 test in 0.008s
+
+FAILED (failures=1)

@@ -25,6 +25,7 @@ static struct
   struct bkprov_pair_s *pair;
   struct bkcontrol_pair_s *control;
   uint8_t control_key[32];
+  uint8_t control_scope[16];
   bkcontrol_execute_t execute;
   bkcontrol_ota_t ota;
   bkcontrol_config_t config;
@@ -43,6 +44,10 @@ static struct
   bool down;
   bool confirm_armed;
   bool recovery;
+  int (*window_handler)(bool open, unsigned char secret[32], void *context);
+  void *window_context;
+  bool quiescing;
+  bool draining;
 } g_owner;
 
 static uint64_t owner_now(void *unused)
@@ -63,6 +68,14 @@ bool bkprov_owner_pairing(void)
          (g_owner.control == NULL && !g_owner.control_closing && !bkprov_gatt_idle());
 }
 
+bool bkprov_owner_control_matches(const uint8_t key[32])
+{
+  uint8_t difference = 0;
+  if (key == NULL || g_owner.execute == NULL) return false;
+  for (size_t i = 0; i < 32; i++) difference |= key[i] ^ g_owner.control_key[i];
+  return difference == 0;
+}
+
 int bkprov_owner_control(const uint8_t key[32], bkcontrol_execute_t execute,
                          void *context)
 {
@@ -71,6 +84,7 @@ int bkprov_owner_control(const uint8_t key[32], bkcontrol_execute_t execute,
   if (key == NULL && execute == NULL)
     {
       mbedtls_platform_zeroize(g_owner.control_key, 32);
+      mbedtls_platform_zeroize(g_owner.control_scope, 16);
       g_owner.execute = NULL;
       g_owner.ota = NULL;
       g_owner.config = NULL;
@@ -80,11 +94,77 @@ int bkprov_owner_control(const uint8_t key[32], bkcontrol_execute_t execute,
   if (key == NULL || execute == NULL || g_owner.certificate == NULL) return -EINVAL;
   for (size_t i = 0; i < 32; i++) bits |= key[i];
   if (bits == 0) return -EINVAL;
+  mbedtls_platform_zeroize(g_owner.control_scope, 16);
   memcpy(g_owner.control_key, key, 32);
   g_owner.execute = execute;
   g_owner.ota = NULL;
   g_owner.config = NULL;
   g_owner.control_context = context;
+  return 0;
+}
+
+int bkprov_owner_control_scope(uint8_t out[16], bool create)
+{
+  uint8_t candidate[16] = {0};
+  uint8_t bits = 0;
+  int ret;
+  size_t i;
+
+  if (out == NULL)
+    {
+      return -EINVAL;
+    }
+
+  memset(out, 0, 16);
+  if (g_owner.execute == NULL)
+    {
+      return -EACCES;
+    }
+
+  for (i = 0; i < 16; i++)
+    {
+      bits |= g_owner.control_scope[i];
+    }
+
+  if (bits != 0)
+    {
+      memcpy(out, g_owner.control_scope, 16);
+      return 0;
+    }
+
+  if (!create)
+    {
+      return -ENODATA;
+    }
+
+  if (g_owner.control == NULL || g_owner.control_closing ||
+      !g_owner.control->session.open ||
+      !g_owner.control->session.authenticated || !bkprov_gatt_open())
+    {
+      return -EACCES;
+    }
+
+  if (g_owner.control->tls.generation != bkprov_gatt_generation())
+    {
+      return -ESTALE;
+    }
+
+  ret = mbedtls_ctr_drbg_random(&g_owner.control->tls.random,
+                                candidate, sizeof(candidate));
+  for (i = 0; i < sizeof(candidate); i++)
+    {
+      bits |= candidate[i];
+    }
+
+  if (ret != 0 || bits == 0)
+    {
+      mbedtls_platform_zeroize(candidate, sizeof(candidate));
+      return -EIO;
+    }
+
+  memcpy(g_owner.control_scope, candidate, sizeof(candidate));
+  memcpy(out, candidate, sizeof(candidate));
+  mbedtls_platform_zeroize(candidate, sizeof(candidate));
   return 0;
 }
 
@@ -134,11 +214,21 @@ int bkprov_owner_bind(mbedtls_x509_crt *certificate, mbedtls_pk_context *key,
   g_owner.armed = false;
   g_owner.down = false;
   mbedtls_platform_zeroize(g_owner.control_key, 32);
+  mbedtls_platform_zeroize(g_owner.control_scope, 16);
   g_owner.execute = NULL;
   g_owner.ota = NULL;
   g_owner.config = NULL;
   g_owner.control_context = NULL;
   g_owner.recovery_requested = false;
+  return 0;
+}
+
+int bkprov_owner_window_handler(
+  int (*handler)(bool, unsigned char[32], void *), void *context)
+{
+  if (bkprov_owner_busy()) return -EBUSY;
+  g_owner.window_handler = handler;
+  g_owner.window_context = context;
   return 0;
 }
 
@@ -148,11 +238,14 @@ int bkprov_owner_unbind(void)
   mbedtls_platform_zeroize(g_owner.secret, sizeof(g_owner.secret));
   g_owner.certificate = NULL;
   g_owner.key = NULL;
+  g_owner.window_handler = NULL;
+  g_owner.window_context = NULL;
   g_owner.ops = NULL;
   g_owner.context = NULL;
   g_owner.armed = false;
   g_owner.down = false;
   mbedtls_platform_zeroize(g_owner.control_key, 32);
+  mbedtls_platform_zeroize(g_owner.control_scope, 16);
   g_owner.execute = NULL;
   g_owner.ota = NULL;
   g_owner.config = NULL;
@@ -175,6 +268,8 @@ static void close_window(int error)
     }
   if (g_owner.pair != NULL)
     {
+      if (g_owner.window_handler)
+        (void)g_owner.window_handler(false, g_owner.secret, g_owner.window_context);
       int ret = bkprov_gatt_window(false);
       bkprov_pair_close(g_owner.pair);
       free(g_owner.pair);
@@ -188,6 +283,56 @@ static void close_window(int error)
   g_owner.confirm_armed = false;
 }
 
+/* The physical eight-second recovery channel is read-only.  A matching SRR1
+ * is a public completion receipt; SRV1 remains pending rather than becoming
+ * an ordinary committed configuration receipt. */
+static int owner_receipt(const uint8_t transaction[16])
+{
+  int reset = bkprov_storage_reset_receipt(transaction);
+  if (reset == BKPROV_STORAGE_RESET_RECEIPT_COMPLETED) return 1;
+  if (reset == BKPROV_STORAGE_RESET_RECEIPT_PENDING) return -EAGAIN;
+  if (reset != BKPROV_STORAGE_RESET_RECEIPT_ABSENT) return reset;
+  return bkprov_storage_receipt(transaction);
+}
+
+int bkprov_owner_quiesce(bool enabled)
+{
+  g_owner.quiescing = enabled;
+  if (!enabled)
+    {
+      /* The session admission gate is one-way: resuming needs fresh AUTH. */
+      if (g_owner.draining && g_owner.control != NULL) close_window(0);
+      g_owner.draining = false;
+      return 0;
+    }
+  g_owner.recovery_requested = false;
+  if (g_owner.pair != NULL || g_owner.control != NULL)
+    close_window(-ECANCELED);
+  bkprov_scan_drain();
+  (void)bkprov_gatt_poll();
+  return bkprov_owner_busy() ? -EAGAIN : 0;
+}
+
+int bkprov_owner_prepare_stop(uint64_t now_ms)
+{
+  if (g_owner.quiescing) return bkprov_owner_quiesce(true);
+  g_owner.draining = true;
+  g_owner.recovery_requested = false;
+  g_owner.down = false;
+  if (g_owner.pair != NULL ||
+      (g_owner.control != NULL && !g_owner.control->session.authenticated))
+    close_window(-ECANCELED);
+  if (g_owner.control != NULL)
+    {
+      int ret = bkcontrol_session_quiesce(&g_owner.control->session);
+      if (ret < 0) { close_window(ret); return ret; }
+    }
+  (void)bkprov_owner_step(now_ms, 0, false, false, true);
+  /* A live read-only peer does not own a write or postpone final shutdown. */
+  return bkprov_scan_busy() ||
+         (g_owner.control == NULL && !bkprov_gatt_idle()) ? -EAGAIN : 0;
+}
+
 static int open_window(bool recovery)
 {
   uint8_t transaction[16];
@@ -195,6 +340,7 @@ static int open_window(bool recovery)
   size_t size;
   int ret;
   if (!recovery && g_owner.ops == NULL) return -ENOSYS;
+  if (recovery && g_owner.window_handler) return -EACCES;
   struct bkprov_pair_s *pair = calloc(1, sizeof(*pair));
   if (pair == NULL) return -ENOMEM;
   /* Snapshot is bounded RAM access; no RPMsgFS wait on the voice owner.
@@ -208,9 +354,16 @@ static int open_window(bool recovery)
       free(pair);
       return ret == 0 ? -EACCES : ret;
     }
+  if (g_owner.window_handler)
+    {
+      ret = g_owner.window_handler(true, g_owner.secret, g_owner.window_context);
+      if (ret < 0) { free(pair); return ret; }
+    }
   ret = bkprov_gatt_window(true);
   if (ret < 0)
     {
+      if (g_owner.window_handler)
+        (void)g_owner.window_handler(false, g_owner.secret, g_owner.window_context);
       free(pair);
       return ret;
     }
@@ -226,6 +379,11 @@ bool bkprov_owner_step(uint64_t now, uint32_t epoch, bool link,
                         bool pressed, bool voice_idle)
 {
   bool was_active = g_owner.pair != NULL;
+  if (g_owner.quiescing)
+    {
+      (void)bkprov_owner_quiesce(true);
+      return bkprov_owner_busy();
+    }
   /* A closed BLE session cannot abandon the shared Wi-Fi worker ticket. */
   bkprov_scan_drain();
   bool rollback = g_owner.sampled && now < g_owner.now;
@@ -248,9 +406,9 @@ bool bkprov_owner_step(uint64_t now, uint32_t epoch, bool link,
       /* An eight-second physical hold can still request receipt recovery.
        * Ordinary presses remain PTT input and do not disconnect the phone.
        */
-      if (pressed && !g_owner.down)
+      if (!g_owner.draining && pressed && !g_owner.down)
         { g_owner.down = true; g_owner.hold = now; }
-      if (!pressed && g_owner.down)
+      if (!g_owner.draining && !pressed && g_owner.down)
         {
           bool recovery = now - g_owner.hold >= RECOVERY_HOLD_MS;
           g_owner.down = false;
@@ -275,7 +433,7 @@ bool bkprov_owner_step(uint64_t now, uint32_t epoch, bool link,
           ret = bkcontrol_pair_start(g_owner.control, generation,
                   g_owner.certificate, g_owner.key, g_owner.control_key,
                   owner_now, NULL, g_owner.execute, g_owner.control_context);
-          if (ret == 0)
+          if (ret == 0 && g_owner.window_handler == NULL)
             {
               memcpy(g_owner.control->scan_secret, g_owner.secret, 32);
               g_owner.control->rebind_ops = g_owner.ops;
@@ -305,6 +463,7 @@ bool bkprov_owner_step(uint64_t now, uint32_t epoch, bool link,
     }
   if (!was_active)
     {
+      if (g_owner.draining) return false;
       if (!bkprov_gatt_idle())
         {
           g_owner.armed = false;
@@ -384,14 +543,14 @@ bool bkprov_owner_step(uint64_t now, uint32_t epoch, bool link,
       if (g_owner.recovery)
         ret = bkprov_pair_start_recovery(pair, generation, g_owner.certificate,
                   g_owner.key, g_owner.secret, true, owner_now, NULL,
-                  bkprov_storage_receipt);
+                  owner_receipt);
       else
         ret = bkprov_pair_start(pair, generation, g_owner.certificate,
                   g_owner.key, g_owner.secret, true, false, owner_now, NULL,
                   g_owner.ops, g_owner.context);
       if (ret == 0 && !g_owner.recovery)
         {
-          pair->receipt = bkprov_storage_receipt;
+          pair->receipt = owner_receipt;
         }
       if (ret < 0)
         {

@@ -1,0 +1,14 @@
+{
+  "emulator_installed_sha256": "f1401a3ebc38414872c795341f2f3948219372b8b743345a7f780afb6a8b81e3",
+  "candidate_sha256": "f1401a3ebc38414872c795341f2f3948219372b8b743345a7f780afb6a8b81e3",
+  "phone_serial": "59d707dc",
+  "phone_installed_version": 42,
+  "candidate_version": 46,
+  "signers_match": true,
+  "signer_sha256": "b2ea591116f967af230d0f06f678cc5fdd99d5884cc429b8d22c6489ba96050b",
+  "phone_action": "read-only APK/version/signature; no install",
+  "serial_enumeration": [
+    "COM16"
+  ],
+  "serial_identity": "unconfirmed; port unopened"
+}

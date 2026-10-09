@@ -19,6 +19,29 @@ config BK7258_APP_AGENT
 		directory; chip and board code remain
 		independent of the Agent product.
 
+config BK7258_PROVISION_NATIVE
+	bool "Device-generated identity and physical-screen QR onboarding"
+	default n
+	depends on BK7258_APP_AGENT && BK7258_VOICE_TLS && BK7258_PROVISION_GATT
+	depends on BK7258_RPMSGFS && BK7258_DISPLAY_SERVICE && BK7258_TRNG
+	select MBEDTLS_X509_CRT_WRITE_C
+	select MBEDTLS_X509_CREATE_C
+	select MBEDTLS_PK_WRITE_C
+	help
+		Only an explicit factory permit allows initial key generation.
+		The physical display provides a full certificate pin and one-window
+		secret. Existing supplied BPI1 deployments remain compatible.
+
+config BK7258_PROVISION_CERT_NOT_BEFORE
+	string "Native identity validity start (UTC, YYYYMMDDhhmmss)"
+	default "20260101000000"
+	depends on BK7258_PROVISION_NATIVE
+
+config BK7258_PROVISION_CERT_NOT_AFTER
+	string "Native identity validity end (UTC, YYYYMMDDhhmmss)"
+	default "20360101000000"
+	depends on BK7258_PROVISION_NATIVE
+
 config BK7258_PRODUCT_KEYS
 	bool "Product keys through /dev/buttons"
 	default n
@@ -34,6 +57,80 @@ config BK7258_PRODUCT_KEYS
 		bounded AP resource cleanup. When USB mode is built, shutdown also holds
 		the shared block-device lease so an active MSC export rejects the request.
 		Without the PM option the request reports ENOTSUP.
+
+config BK7258_POWER_PREPARE_VALIDATION
+	bool "Development-only automatic power preparation validation"
+	default n
+	depends on BK7258_APP_AGENT && BK7258_PRODUCT_KEYS && BK7258_PM_SOFT_OFF
+	help
+		One-shot development firmware: after local listening starts, feed an
+		explicit diagnostic intent to the real product exit coordinator.
+		Stop before the CP power request; retain stopped resources until a
+		normal operator-controlled reboot. Never enters deep sleep or clears
+		configuration. No remote command or physical-key acceptance is added.
+		Keep disabled in normal product and release configurations.
+
+config BK7258_ENGINEERING_TEST
+	bool "Development-only authenticated BKTEST interface"
+	default n
+	depends on BK7258_APP_AGENT && BK7258_PRODUCT_KEYS && BK7258_PM_SOFT_OFF
+	depends on BK7258_PROVISION_GATT && BK7258_VOICE_TLS && BK7258_USBCDC
+	depends on !BK7258_POWER_PREPARE_VALIDATION
+	help
+		Bind SDC1 configuration kind 19 only for an independently authorized
+		PC principal with the diagnostics capability. Versioned virtual key
+		events enter the production AP key policy and lifecycle coordinator.
+		The final CP request is replaced at its existing dependency boundary by
+		a bounded fault peer, so this build cannot enter deep sleep. This option
+		adds no shell, owner bypass, reset/erase primitive or production command.
+		Keep disabled in normal product and release configurations.
+
+config BK7258_FACTORY_DIAGNOSTICS
+	bool "Factory-only volatile BKTEST enrollment"
+	default n
+	depends on (BK7258_AP_CORE && BK7258_ENGINEERING_TEST && BK7258_PROVISION_NATIVE) || (!BK7258_AP_CORE && BK7258_APP_PROV)
+	help
+		Extend the existing physical bkprov-v1 operator channel in a matched
+		factory engineering CP/AP build.  It installs one diagnostics-only PC
+		principal in AP RAM after native identity generation, returns only the
+		public leaf-certificate SHA-256, and expires or revokes within one boot.
+		No PCG1, owner, Wi-Fi/cloud, identity, trust or external-SD byte is
+		written.  Keep disabled in every normal product/release profile.
+
+config BK7258_AUDIO_PLAYBACK_VALIDATION
+	bool "Development-only one-shot Agent Media playback validation"
+	default n
+	depends on BK7258_APP_AGENT && MEDIA
+	depends on !BK7258_POWER_PREPARE_VALIDATION
+	help
+		Before publishing Agent core readiness, run three bounded low-amplitude
+		PCM sessions through the real Agent playback adapter: EOF, cancellation,
+		and a following session. Do not capture audio or change saved volume.
+		On failure retain core-not-ready; CP download remains available. This is
+		digital Media evidence, not acoustic or physical-button acceptance.
+		Keep disabled in normal product and release configurations.
+
+config BK7258_AUDIO_CAPTURE_VALIDATION
+	bool "Include short local capture exit in development audio validation"
+	default n
+	depends on BK7258_AUDIO_PLAYBACK_VALIDATION && BK7258_VOICE_TLS
+	help
+		Before the local listener starts, capture one frame in each of two
+		bounded local sessions, then abort, close and retry retained cleanup.
+		Only byte counts and return codes are logged. No PCM is saved or sent
+		to ASR. This checks the actual Media capture backend, not acoustic wake
+		acceptance or the concurrent voice-owner failure sequence.
+
+config BK7258_AUDIO_PIPELINE_VALIDATION
+	bool "Development-only bounded in-memory service pipeline validation"
+	default n
+	depends on BK7258_AUDIO_CAPTURE_VALIDATION
+	help
+		In the exclusive unconfigured startup window, exercise the real ASR
+		request/parser, Agent worker, final stream, TTS decoder and Media with
+		fixed in-memory HTTP replies. No socket, cloud key or saved setting is
+		used. Check normal, canceled and following turns before local readiness.
+		Keep disabled in all normal product and release configurations.
 
 config BK7258_APP_DISPLAY
 	bool "BK7258 Shaniu display command (bkdisplay)"
@@ -423,14 +520,15 @@ config BK7258_NFC_SERVICE
 	bool "BK7258 AP Shaniu NFC presence service"
 	default n
 	depends on BK7258_AP_CORE && BK7258_RPTUN
-	depends on CL_MFRC522 || CL_MFRC522_FRAME
+	depends on CL_MFRC522 || CL_MFRC522_FRAME || CL_MFRC522_RF
 	select BK7258_AP_APPLICATION_LIFECYCLE
 	help
 		Start the AP-resident endpoint used by bknfc.  Each request opens,
 		uses /dev/nfc0 in a dedicated worker, and closes the device after
 		each request. The standard SPI driver supports presence checks;
 		the frame driver also supports bounded ISO-DEP handover and idle
-		RF release. Presence responses contain no UID.
+		RF release. The controlled RF driver supports presence with
+		explicit field ownership. Presence responses contain no UID.
 
 if BK7258_NFC_SERVICE
 
@@ -947,6 +1045,16 @@ config BK7258_APP_PROV_STACKSIZE
 	default 3072
 
 endif
+
+config BK7258_APP_FACTORY
+	bool "BK7258 controlled first-boot mount command"
+	default n
+	depends on BK7258_FACTORY_INIT && SYSTEM_NSH && FS_LITTLEFS
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	help
+		Consume the factory deployment journal before publishing /data.
+		This is not an anonymous format or reset command.
 
 config BK7258_APP_DATA
 	bool "BK7258 on-chip persistent data command (bkdata)"

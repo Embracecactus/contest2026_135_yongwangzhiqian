@@ -1,0 +1,235 @@
+{
+  "format": "shaniu.audio-cancel-hil-evidence/1",
+  "date": "2026-09-29",
+  "scope": "AUD-03 cancellation interrupts a blocked production Volc WebSocket receive, suppresses stale terminal callbacks, and permits the next request",
+  "source": {
+    "test_first_commit": "26d19b85",
+    "main_product_commit": "71ec83cf6c5cd1fb07ad4011614c25ff4d3b85fc",
+    "agent_before": "b53363b16a11a25c6a30a6fab7e5102ed837cdbd",
+    "agent_after": "95f54906f5aba4a5167049ba9b72bf05a4dc0baf",
+    "test_sha256": "41e7e309fda317e0db613ae86efcf498d9db27374fe3c72bc2275181698f00ab",
+    "required_units_sha256": "9b6de8061075c3ff6e2134ef72ed9bee57d9e65923ce2317dc962d6238c2076e",
+    "agent_source_before": {
+      "src/voice/volc_tts.c": "9418604c05cf5f48dd7e8ab289223f0561f74ad9b9d43601fd242185e4922fab",
+      "src/voice/volc_tts.h": "174f944992917fac3605776132f51874d3ec84a995df6a3fcbceee7199507e50",
+      "src/voice/volc_tts_ws.c": "f089ee9552b98660860892d51a432a31542678f9cee84e219488d9082614a314"
+    },
+    "agent_source_after": {
+      "src/voice/volc_tts.c": "102297f20de96d772dedceeef7cc1bfa459bf87180a626e5c0c50f0329b34c97",
+      "src/voice/volc_tts.h": "a632ea85c8455a9dd5dcb8bee6b95ff416fad7d5b8190bffb6d3f85effc5a460",
+      "src/voice/volc_tts_ws.c": "4057eb7fcb6f18ad7366b875728b6303c221506ca6d6a4ba4744e9a3104ac0e1"
+    }
+  },
+  "contract": {
+    "id": "AUD-03.agent-cancel-blocked-next",
+    "parent": "AUD-03",
+    "layer": "L2",
+    "production_path": "voice_tts registry -> Volc backend -> WebSocket/TLS receiver",
+    "external_substitute": "A socketpair-backed TLS peer controls only the external blocking read; the registry, backend request ownership, cancellation, and receive state machine are production code.",
+    "expectation": "Cancellation returns success, wakes the blocked read without concurrent close/free, yields ECANCELED, emits no stale terminal callback, releases ownership, and a subsequent request completes once.",
+    "old_result": {
+      "status": "FAIL_ASSERTION",
+      "exit_code": 134,
+      "cancel_result": -95,
+      "forced_cleanup": 1,
+      "first_result": -104,
+      "first_chunks": 1,
+      "first_terminal": 0,
+      "next_result": 0,
+      "next_chunks": 1,
+      "next_terminal": 1,
+      "evidence": "out/audio-cancel-blocked/old-agent/cancel-blocked-next.log",
+      "sha256": "a332072cc46bcb1142f07c8fa01cbdc289328c94e43385a353c089cee1c237c3"
+    },
+    "old_complete_gate": {
+      "selected": 782,
+      "collected": 782,
+      "counts": {
+        "PASS": 781,
+        "FAIL_ASSERTION": 1,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      },
+      "only_failure": "AUD-03.agent-cancel-blocked-next",
+      "mutations_detected": 2,
+      "evidence": "out/shaniu-contract-20260929-050641/results.json",
+      "sha256": "e8f6272bdbb051305aa38c823f4ff0393839c2af050af2b0a6854d50b40333eb"
+    },
+    "new_result": {
+      "status": "PASS",
+      "exit_code": 0,
+      "cancel_result": 0,
+      "forced_cleanup": 0,
+      "first_result": -125,
+      "first_chunks": 1,
+      "first_terminal": 0,
+      "next_result": 0,
+      "next_chunks": 1,
+      "next_terminal": 1,
+      "evidence": "out/audio-cancel-blocked/new-agent/cancel-blocked-next.log",
+      "sha256": "4e37eb16dd45b59ef8f4a02a2a16835487e11a104b8fd7a5d08a44135dcbc3b7"
+    },
+    "new_complete_gate": {
+      "selected": 782,
+      "collected": 782,
+      "counts": {
+        "PASS": 782,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      },
+      "collection_errors": [],
+      "mutations_detected": 2,
+      "production_unchanged_during_run": true,
+      "case_evidence_sha256": "ce502b4bc73c95c7f927cc7f0594158aac91dd0baf856f6d0edc100e9856d31a",
+      "evidence": "out/audio-cancel-blocked/contracts-new/results.json",
+      "sha256": "5a5aff5b1013a64aaa1a410e558803d9088f062036e044efec2d34fdaaf73298"
+    },
+    "runner_selftest": {
+      "tests": 27,
+      "status": "PASS",
+      "evidence": "out/audio-cancel-blocked/runner-gate-new.log",
+      "sha256": "5aa376301badfcf71e6036b272ababd4547a718f8db0103ca3fc885bb4614191"
+    }
+  },
+  "implementation": {
+    "behavior": [
+      "The Volc backend now publishes prepare and cancel operations through the shared TTS registry.",
+      "A single generation-scoped request state owns cancellation and the active socket.",
+      "Cancel marks the generation and calls shutdown on the active socket; the request thread remains the sole owner of TLS close/free and final state release.",
+      "Cancellation is checked before later request stages, PCM callbacks, terminal callbacks, and return mapping.",
+      "The next request starts only after the canceled owner releases the shared registry."
+    ],
+    "preserved": [
+      "existing positive/negative WebSocket framing validation",
+      "first-PCM and valid-PCM progress deadlines",
+      "truncated peer close remains a failure",
+      "one active TTS operation through the shared registry"
+    ],
+    "affected_regressions": [
+      "four prior Volc framing/progress controls",
+      "TTS queue cancellation",
+      "five Agent playback cancellation/EOF variants"
+    ]
+  },
+  "artifact": {
+    "board": "aidk_ai_toy",
+    "version": "0.7.40+685",
+    "security_counter": 685,
+    "build_manifest": "out/audio-cancel-blocked/build-685/build-manifest.json",
+    "build_manifest_sha256": "d02431c21eec4a098a13a18aec1441cc4c049613f252743a4ab5ece06174434f",
+    "source_commit": "71ec83cf6c5cd1fb07ad4011614c25ff4d3b85fc",
+    "agent_commit": "95f54906f5aba4a5167049ba9b72bf05a4dc0baf",
+    "source_dirty": false,
+    "layout_identity": "bk7258-510173147382a879",
+    "layout_sha256": "510173147382a879c3c3a1012a142bb5d87d64ffa8cb5881c27f1e289d8c1657",
+    "mcuboot_public_fingerprint": "7163228f3221da6e81fcf5e9c6f13ae6c4afbd1e3b91b7669783a37d2f12fbc0",
+    "package": "out/audio-cancel-blocked/release-685-ota/package/shaniu-bk7258-aidk_ai_toy-app__openvela_ap-v0.7.40+685-bshaniu-tts-cancel-685-ota.bkpack",
+    "package_sha256": "04410209567b57139f7ecb9d2bf320c918657d456f346f62af120371a9f69ad8",
+    "package_verify": "PASS",
+    "public_trust_verify": "PASS",
+    "package_erase_operations": [],
+    "cp_image_sha256": "dfe2f601d98a6d588043d14cd1a2912e25893154fe476d7e8f4bf3b29df5478c",
+    "ap_image_sha256": "a336191bb01b2618f7d897df4ec68161d54f11dcdf2308661c4979bb63fa9957",
+    "ap_elf_sha256": "22e65d5596e4ad268ddbd36432c62bc1c67652be11d6233346c7d099c3661083",
+    "ap_map_sha256": "d0d92c37ef43115cb3574f0d910b9ac2a70c1f63b97e43fe1658379326a477b7",
+    "cp_elf_sha256": "caa159be87168f48a4844b0007d97c52f8d2833c14851ad111b6610420ab08b1",
+    "cp_map_sha256": "d8fb4ceab1dfda974f67d16e43008fdebb924fe09078fa8ddd1c3209a6756af9",
+    "ap_linkage": {
+      "evidence": "out/audio-cancel-blocked/ap-elf-cancel-symbols.txt",
+      "sha256": "2c1ad7d5c016b1917c3615a777e049212f09da290b930d202ba269775dbf3ddd",
+      "symbols_present": [
+        "voice_tts_cancel",
+        "request_finish",
+        "volc_tts_ws_prepare_request",
+        "volc_tts_ws_cancel",
+        "volc_tts_ws_synthesize_stream"
+      ]
+    }
+  },
+  "hil": {
+    "pre_state_observer": {
+      "status": "OBSERVER_INCOMPLETE",
+      "reason": "The bounded 12-second window captured active KWS output but not the periodic version/health lines requested by the observer; it captured no HardFault, ASSERT, or panic.",
+      "not_a_device_disconnect": true,
+      "evidence": "out/audio-cancel-blocked/pre-hil-status-684/session.json",
+      "sha256": "bab83de19442e13c5bca014cc037bd597a26e2bd8d2be55f6229ef1904fed1e8"
+    },
+    "preflight": {
+      "status": "preflight-passed",
+      "port": "COM9",
+      "transport": "multi",
+      "evidence": "out/audio-cancel-blocked/preflight-685.json",
+      "sha256": "bd46e47cf728a26bd7ad41000bc0178d5185689c11884da87841dd33cbbcfeb1"
+    },
+    "download": {
+      "status": "passed",
+      "port": "COM9",
+      "port_role": "CH340 UART0 console and BK Loader control",
+      "transport": "multi",
+      "automatic_retry": false,
+      "reset_strategy": "loader-software-reboot",
+      "write_bounds": [
+        {
+          "offset_hex": "0x11000",
+          "length_hex": "0x132000",
+          "role": "cp"
+        },
+        {
+          "offset_hex": "0x143000",
+          "length_hex": "0x20f000",
+          "role": "ap"
+        }
+      ],
+      "success_markers_complete": true,
+      "failure_markers": [],
+      "evidence": "out/audio-cancel-blocked/hil-685/result.json",
+      "sha256": "6799b5180aa5af95eb5f11d30e1df6d48fa6181e60230c9130f7b2f7734749b6"
+    },
+    "boot": {
+      "status": "passed",
+      "evidence": "out/audio-cancel-blocked/board/reboot-685/session.json",
+      "sha256": "82e6e0b4d0459a420a0ce0491b7f43089a4b25dc64495fb24ec342c2af99af32",
+      "expected_identity_matched": true,
+      "hardfault_assert_panic": false
+    },
+    "runtime": {
+      "status": "passed",
+      "version": "0.7.40+685",
+      "slot": "A",
+      "pair": "confirmed",
+      "faults": 0,
+      "recoveries": 0,
+      "health_status_present": true,
+      "evidence": "out/audio-cancel-blocked/board/final-status-685/session.json",
+      "sha256": "6546cc903bdedff901b5a388ae78762d7be464bdbc073d8611ae8c00d04cfdc2"
+    },
+    "preserved_identity": {
+      "wake_label": "nihao_openvela",
+      "frontend": 1,
+      "model_sha256": "922eba9175fcda60f7c8a4505ca4eb5a97c86ceb30fbe48c685fd612098ac910",
+      "threshold_percent": 85,
+      "configuration_revision": 6,
+      "eye_pack": "shaniu-cyan-v3",
+      "eye_pack_revision": 3,
+      "plaintext_secrets_read": false
+    }
+  },
+  "ci": {
+    "status": "PENDING_FINAL_MAIN_HEAD",
+    "reason": "This evidence file is committed before the single final branch push; the exact run ID and attempt are recorded after that push."
+  },
+  "observer_corrections": [
+    "A copied build manifest was first verified outside its original relative artifact layout and correctly failed; verification of the original absolute build manifest passed.",
+    "The pre-download status observer timed out on requested periodic lines but captured active device output, so it is not reported as a device disconnect.",
+    "BK Loader exit code 1 is advisory for this tool; all required success markers were present and no failure marker was present."
+  ],
+  "not_proven": [
+    "The exact blocked-peer cancellation sequence is L2 host evidence. Normal firmware has no safe controllable TTS peer-block injection, so HIL proves artifact linkage, deployment, boot, identity, and health rather than the injected failure itself.",
+    "The production voice path uses streaming TTS. The legacy batch HTTP synthesis function does not share this WebSocket cancellation state and was not claimed by this slice.",
+    "Cancellation during DNS, TCP connect, or TLS handshake is not guaranteed immediate because the socket is published after the connection completes.",
+    "No acoustic capture or onsite listener; digital and Media evidence cannot claim absence of audible truncation, xrun, hiss, or subjective speed problems.",
+    "No phone BLE or App OTA; HIL download is not App OTA.",
+    "No physical K2, deep sleep, power, NFC, motion, or display-camera observation."
+  ]
+}

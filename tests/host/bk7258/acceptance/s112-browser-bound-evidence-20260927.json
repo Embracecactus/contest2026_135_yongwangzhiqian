@@ -1,0 +1,64 @@
+{
+  "parent": "044899ed079258cbbc9a8a0679c83a38316346bd",
+  "counts": {
+    "selected_HTTP_suite": 9,
+    "PASS": 9,
+    "new_cases": 2,
+    "runner_gates": 19,
+    "global_registered": 654,
+    "global_executed_this_slice": false,
+    "last_full": "S111:652 PASS at044899ed parent state"
+  },
+  "problem": "Browser UI/documented budget is128KiB; backend bounded encoded data to175000 characters but decoded length to shared32MiB CLI limit, admitting up to131250 bytes.",
+  "fix": "Independent browser128KiB bound plus derived base64 ceiling. Check both before opening spool file or scheduling worker. No change to larger CLI/file-format capability.",
+  "baseline": "Real HTTP131073-byte request returned202, violating400/no spool/no worker. Preserved FAIL_ASSERTION before production change.",
+  "oracle": [
+    "128-byte minimum remains; exactly131072-byte envelope accepted for later pack validation",
+    "131073 decoded bytes share base64 length with131072, must still reject",
+    "131250 bytes rejected, no spool file and no worker call",
+    "Positive boundary is admission-only with external worker replaced; existing separate real TLS/native valid pack install also rerun"
+  ],
+  "selected_execution_ids": [
+    "USB-02.browser-cancel_is_intent_not_remote_completion",
+    "USB-02.browser-http_authority_rejects_before_operation",
+    "USB-02.browser-http_upload_reaches_tls_and_native_installer",
+    "USB-02.browser-invalid_upload_does_not_open_device",
+    "USB-02.browser-large_counters_preserve_exact_value",
+    "USB-02.browser-page_headers_and_no_credential_paths",
+    "USB-02.browser-polling_is_local_and_duplicate_is_not_replayed",
+    "USB-02.browser-upload_128k_plus_one_rejected_before_spool_or_worker",
+    "USB-02.browser-upload_exact_128k_boundary"
+  ],
+  "inputs_verified": true,
+  "selection_reason": "Only local browser admission guard changed. Run all9 existing/new HTTP service tests including real TLS/native install plus19 runner gates. No shared protocol, firmware, Android, profile, display or storage behavior modified; no unrelated firmware/APK build or global replay.",
+  "parent_gaps": {
+    "USB-02": {
+      "interface": "128KiB browser budget now enforced; CLI32MiB file limit unchanged",
+      "L1_L2": "9 affected cases freshly collected, no reduction of global registry; last global run remains separately S111",
+      "L3": "NOT_RUN actual USB/phone/board"
+    },
+    "RES-02": {
+      "interface": "Installed catalog/actual version inspection still absent. Store refuses same-name replacement; existing source_sha256 is source metadata, not a full file digest",
+      "L1_L2": "No new catalog implementation or catalog acceptance claimed",
+      "L3": "NOT_RUN installed package identity on actual device"
+    }
+  },
+  "resource_budget": {
+    "browser": "Decoded pack<=131072 bytes, base64<=174764 chars; existing190000-byte HTTP envelope and64 job cap retained",
+    "delta": "Two numeric constants and length check; no new workers/device buffers; physical latency and PC memory p95 not measured"
+  },
+  "limits": [
+    "Do not report654/654: this slice selects9 affected units only; all654 IDs retained for later full runner",
+    "No new mutation required to manufacture Red: baseline actual business assertion already failed",
+    "No private profile, serial port, APK install, board write or user data changed"
+  ],
+  "raw_evidence_sha256": {
+    "s112-evidence-20260927/after.log": "dfff15c412b7cbf7dc3dc2791a1c654e2f7c70414e58abbf5ccfd7a79021b51b",
+    "s112-evidence-20260927/before.log": "4b1548faa5fd4a8e43e2b051efe5f0e36e17d135a8da658f547ba92c3a063c49",
+    "s112-evidence-20260927/runner-gates.log": "8b4887c1686bedd4357874babd99fae3febdff20fbab8c04930acdf943deb0b1",
+    "s112-evidence-20260927/selected-driver.log": "5516dc99a5809b53a966dba370bd4ea00cf03eabd8e8eb204055a4d3c263ae3e",
+    "s112-evidence-20260927/selected-runner.py": "fdb830f34266238952dc1a9e606cb1d0489217ddf7c8ff69512488e530612d31",
+    "s112-evidence-20260927/selected.log": "f9d3807f9b1a4c9b293c0b7dbbbf18232cb150991bccfc72131fec8dc141214b",
+    "s112-evidence-20260927/style.log": "8ecda7c1ae6adacf0091fd41111894fe203834dfba6ac36f5fec1a84061f4ba6"
+  }
+}

@@ -8,13 +8,15 @@
   -->
   <include name="openvela.xml"/>
 
-  <!-- The existing Agent extensions from the 635 feature branch are delivered
-       as public fork commits; no build-time patch is reinstated. -->
+  <!-- Agent extensions are pinned fork commits; publish a new dependency
+       commit before publishing this manifest. No build-time patch is used. -->
   <remote name="shaniu-agent" fetch="https://github.com/Embracecactus/"/>
+  <remote name="mcuboot-official" fetch="https://github.com/mcu-tools/"/>
+  <remote name="speexdsp-official" fetch="https://github.com/xiph/"/>
   <extend-project name="packages_ai_agent" path="packages/ai_agent"
                   remote="shaniu-agent"
-                  revision="add0db19d00301769907a5ece03fb9bd88d2edb4"
-                  upstream="refs/heads/feat/shaniu-voice-integration-635"/>
+                  revision="20890a97b9515cce3de34006ad7a9b1746a109ed"
+                  upstream="refs/heads/dev"/>
 
   <project path="vendor/beken/bk_avdk_smp"
            name="Embracecactus/bk_avdk_smp"
@@ -25,7 +27,22 @@
            clone-depth="1"
            groups="bk7258-sdk"/>
 
-  <project path="contest2026_135_yongwangzhiqian" name="contest2026_135_yongwangzhiqian">
+  <!-- BL2 and the release signer consume this exact official MCUboot tree. -->
+  <project path="apps/boot/mcuboot/mcuboot" name="mcuboot"
+           remote="mcuboot-official"
+           revision="fefc398cc13ebbc527e297fe9df78cd98a359d75"
+           clone-depth="1"/>
+
+  <!-- AP resampling must not fetch a mutable tag archive during CMake. -->
+  <project path="apps/audioutils/speexdsp/speexdsp" name="speexdsp"
+           remote="speexdsp-official"
+           revision="1b28a0f61bc31162979e1f26f3981fc3637095c8"
+           upstream="refs/tags/SpeexDSP-1.2.1"
+           clone-depth="1"/>
+
+  <!-- Post-contest development belongs to the owner fork, not the frozen contest repo. -->
+  <project path="contest2026_135_yongwangzhiqian" name="contest2026_135_yongwangzhiqian"
+           remote="shaniu-agent" revision="dev-ai-contest-2026">
     <linkfile src="app/hello_app" dest="packages/demos/contest2026_135_hello_app"/>
     <linkfile src="app/bk7258" dest="apps/system/bk7258"/>
     <linkfile src="quickapp/hello_quickapp" dest="packages/apps/contest2026_135_hello_quickapp"/>

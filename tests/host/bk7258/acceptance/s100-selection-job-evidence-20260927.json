@@ -1,0 +1,117 @@
+{
+  "parent": "791ae56711ccecb74340e6602ee4feef55ab0111",
+  "counts": {
+    "selected": 582,
+    "PASS": 582,
+    "original_including_restores": 63,
+    "added": 519,
+    "new_ids": 11,
+    "runner_gates": 19,
+    "original_mutations": 2,
+    "extra_mutations": 0
+  },
+  "implementation": "One selection/refresh job on existing display metadata lock and worker. Request/status have no I/O; pending cancel immediate, preparing cancellation waits for cleanup, committing/rendering noncancelable. Persistent revision checked in actual store. Save and render confirmations separate; successful save supersedes older trial. Release failure pins UNKNOWN and prevents volume reopening.",
+  "first_attempt": {
+    "status": "BLOCKED_INTERFACE",
+    "log": "first-interface.log",
+    "explanation": "New native interface/include absent before implementation; compiler failure not business Red."
+  },
+  "new_red_green": {
+    "log_before": "release-guard-red.log",
+    "log_after": "release-guard-green.log",
+    "failure": "New job refused further requests after unmount failure, but ordinary volume_open still returned0 on the mounted volume.",
+    "fix": "Existing volume_open checks the same latched selection release-error before reuse; real test now requires EBUSY until explicit cleanup.",
+    "not_claimed": "Not a detected injected mutant, HardFault root cause or physical shutdown fix."
+  },
+  "integration": {
+    "production": "Real selection request/step, existing intent/trial/render identity, verbatim renderer/cache/volume functions, checked store/parser and unique volume arbiter.",
+    "external": "Virtual clock, mount/umount, fsync failure, framebuffer sinks; callbacks at mount/write verify cancel timing without substituting the state machine.",
+    "oracle": "Pending/prepare cancel leaves default and files unchanged; commit-cancel EBUSY; final actual pixels0x07e0; old trial cannot overwrite new default. Saved-but-render-failed retains version2; directory failure yields UNKNOWN and explicit refresh reads visiblev2 without claiming durability; release failure keeps busy and denies reopen.",
+    "limits": "Host invokes the production worker step directly, not the full RTOS thread scheduler. API/wire/TLS/PC auth binding still pending; no physical screen or FAT power-loss proof."
+  },
+  "validation": {
+    "input_hashes_match": true,
+    "production_unchanged_during_full": true,
+    "AP": "PASS final incremental build; worker step and checked store writer linked. New public request/status APIs still have no remote caller and are not linked.",
+    "layers": "PASS sources548 kconfig253 legacy exceptions2",
+    "style": {
+      "bk7258_display_service.c": {
+        "added_diagnostic_types": []
+      },
+      "bk7258_display_service.h": {
+        "added_diagnostic_types": []
+      },
+      "includes": "nxstyle skips .inc extensions. C projections of both new includes were checked; only deliberate projection/header path mismatch remains. Do not treat the direct .inc exit0 as a style pass.",
+      "limit": "Existing C/header diagnostics remain; no whole-file style PASS."
+    },
+    "nxstyle_nuttx_commit": "76354c637858ecb0aa4601629327acb6f44a26bb"
+  },
+  "resources": {
+    "new_static_bytes_from_target_nm": 80,
+    "local_declarations": "80-byte copied request plus48-byte version and scalar locals; not measured stack high-water. Existing renderer/storage call stack remains.",
+    "threads": "No new thread/queue/heap. Existing display loop polls the single job and briefly reads the same metadata spinlock.",
+    "blocking": "Volume/commit/render occurs only on display owner outside metadata lock; request/status/cancel paths do not perform I/O. Kernel I/O completion bounds and hardware responsiveness remain unmeasured.",
+    "not_measured": "CPU avg/p95, actual stack/peak memory, DMA/ISR interference, voice/USB contention and SD durability."
+  },
+  "parent_gaps": {
+    "RES-02": {
+      "interface": "Native async job+worker implemented; authenticated remote protocol, explicit release-recovery operation and client/UI not yet connected.",
+      "L1_L2": "11 job/real-store-render cases pass, real release-reopen Red fixed. Original2 mutations preserved.",
+      "L3": "NOT_RUN; no phone or board operation."
+    }
+  },
+  "remaining": [
+    "Before exposing remote selection, add explicit release recovery; test fixture direct volume_close cleanup is not a product recovery interface.",
+    "Bind current authorization/boot scope, async protocol/receipt query and PC/App UI.",
+    "S99 v2 marker requires explicit downgrade/migration handling before device deployment.",
+    "COM9 identity/APK approval, historic TLS, target budgets, hardware combinations and final release remain open; goal ACTIVE."
+  ],
+  "evidence_sha256": {
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/CFG-01.wifi-clears-cloud.log": "c21c59a1f91ec8bd374872ffec503a033d116d9213790109963f82dd2262e370",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/MSC-01.early-release.log": "d7fe5c59bf31e0757686be19fcf864f8d52a36382c401991724672ae9b878815",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/RES-02.selection-job-cancel.log": "2e91e5e8bb76e1e2144e10f352be973c81e6e5bd99e86fe130f5e6fa1543a03d",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/RES-02.selection-job-commit-cancel.log": "bfeed6173b7b74feb06cb77233c0c3e7f1b42efde4d42b2b56e2c37d03ef374c",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/RES-02.selection-job-commit-unknown.log": "b71e0b0ff9e0660fbb3138f4e9fc879d9bd63bca2ce35fda7c2ad6f854b08135",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/RES-02.selection-job-gate.log": "9608e4ea749948e2559d127e88c9b6baec8e407dd11c66cde2b91981fcd82128",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/RES-02.selection-job-preparing-cancel.log": "e4be658a103530a0ef21424c4c0d52725b680820630aea8fd0fe32a36761a06f",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/RES-02.selection-job-refresh.log": "8ba4fc40d625536c970a1792ec915d491d7804864a23159dcf54251d332cefae",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/RES-02.selection-job-release-failure.log": "facbaab4f0f06c9fe284bd92e5c26c976f21017ff19b6fe951a24b47866df2ad",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/RES-02.selection-job-render-failure.log": "d61fb5bca727b8ce7a6015d250e0bc4b64da4cfe5511e686ef07a5ae389d291f",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/RES-02.selection-job-stale-job.log": "89e1dcc49ab60e0d25482eb983a731e72f25590fa192c067769620c158cb4225",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/RES-02.selection-job-stale.log": "a0e70713475d2485894d4a25dafcd8023f87f8e36df971c4556d764b1735530c",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/RES-02.selection-job-supersede.log": "11466eced1b553c0e87afa579c499cda42ed5ea79c59a0b29839d9cce5fedc6c",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/ap.log": "bc80d4faa42776dd8969c81867e2ee170ba172a146864318b921565e1008b78b",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/bk7258_display_selection.inc.projection-final.log": "2259fd9b54145c1cbacde7104d508ac3521e03d1f768584f9579707cf6abaf53",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/bk7258_display_selection.inc.projection.log": "00c867f799d00bcbf1d0da7c1f21284fa98d42923dff1ff01f08d6a055ad296e",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/bk7258_display_selection.inc.style.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/bk7258_display_selection_request.inc.projection-final.log": "96b2d9df249b3bd65e17c42c6525084d8eb34316667ab0cb9c37dc6e625a160b",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/bk7258_display_selection_request.inc.projection.log": "f7a159a11cacde1d6334d7e2cdd1a398d20457f55c19c1a0032aef4901b6d4e5",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/bk7258_display_selection_request.inc.style.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/bk7258_display_service.c.after.style.log": "9a1de489e2dfe146ed5e9a4c4fcfc36bd7aada5a4836510127a13faa989cdd6b",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/bk7258_display_service.c.before.style.log": "97ba4aa8eee27c9836fbc0a95c24d43e2be17be4444d907790cec32bb41559d8",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/bk7258_display_service.h.after.style.log": "6638b8820207121726ef38ee59315f5600ccf70327b7dd4765598f2248ca5fd1",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/bk7258_display_service.h.before.style.log": "df905af003c14e4b09f6703ccc127975ed92ec86712ac276e019000125261efd",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/cancel-first.log": "1de44a870d22ce0d7d09799885628f5ed5a050c45a0e6fa80d36c7161b700297",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/cancel.log": "2ab7ebfdd4011cf641e924a4ef8ee9814eb29f4720b4d988b5c3c63b6e152ebb",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/commit-cancel.log": "e14c96fe66bc1c4fc45d1aab3b058c79badb7d75989b5dee65cfd96e5551b223",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/commit-final.log": "1fd04a2d6189816eea4d15b2c2f731bedce341b355c03a7b192010c731020d4c",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/commit-unknown.log": "7aa1e7049619fb5e6feecb8ac3e2fa37436645fa5649dda97ca076c6653a767d",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/first-interface.log": "cfd02bd1d064b251ea654d719a09deac13c545e0d7e26a8fc32d6807d87886ac",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/full.log": "9af8fe1d0fa8b16dfaa2be29f99a389554bc28a5568c8a48e17446dac01ccd0b",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/gate.log": "3220a8f592ae977914782370ee8c027a0cafed0fd7ac86363c830162d3f116e2",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/gates.log": "79f3b3df5c78c600b6acf3186df32e3aeab0e44e821711dbbf5d01fd34d53011",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/layers.log": "710268dfb47cd80406e5e3114f8d4e9fa899ff333a4aa4b65452813f14a7ea7d",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/legacy-trial.log": "374dbd80ba255376653592af4de9bd406d3d42df1c25876db48b8ab172cc561f",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/preparing-cancel.log": "dacbc2403d3339d56477d16959e2b93df4cb209e57f2bb71a495b773ecf3a9e6",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/refresh.log": "547ec6a16f2f46d582feee119ea00d42604ed09b24a8090ca0595e4be3a09015",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/release-failure.log": "6ee8e5f8e8213cc729565ffb8f600908141d5a9772faf46a05a45bb393053cce",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/release-guard-green.log": "e1dcd885fa274fef4f9105eb4571fe50d8741ab4cf6062a2671985949a2b055e",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/release-guard-red.log": "c64536c0ce7e5039d172ff0d8fc95744b5688c356ff4607cf21f11e648215665",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/render-failure.log": "c19027418865cf05067d74f2b49da2ebbd31e99f903a2d3b8f40546c8ced2094",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/stale-job.log": "3816bb62ea5d2011843a612b64af250337f1acf448685a08062954c63778bd59",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/stale.log": "85b8886463446f0bff48667ba95b603912b4e577898e5fa103a2ff8288c8cc61",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/style.json": "2e551b4b4d09c05cc889e625ac4f434a4e0c61be0d0b90eef40ad71454198d76",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/supersede.log": "f0880a78b47743c5d8ce0d5f409ae76c22bbacf05aca8fb0f14f629b1428890d",
+    "tests/host/bk7258/acceptance/s100-evidence-20260927/symbols.log": "eec1f71cfea8eef309ea7cb481ba3a2ea68f9686e20d6bada7cd480bda598983"
+  }
+}

@@ -1,0 +1,16 @@
+{"fixture": "synthetic-workbench-tls", "certificate_sha256": "74da0ea8ecc4122656d125868a19461e1c7ca0fbc9afb72ce8d6dd5a80105d9a", "alternate_certificate_sha256": "bc79217c24e7c0a24aa90b77609dbd1c9045262b51815b66795e93519c8454f5", "openssl": "OpenSSL 3.0.2 15 Mar 2022"}
+E
+======================================================================
+ERROR: test_cli_tls_cooperative_cancel (__main__.ResourceFlow)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_resource_flow.py", line 214, in test_cli_tls_cooperative_cancel
+    self._cli_tls_transfer(True)
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_resource_flow.py", line 275, in _cli_tls_transfer
+    result = w.run(a, observe=lambda value: seen.append(value),
+TypeError: run() got an unexpected keyword argument 'observe'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.036s
+
+FAILED (errors=1)

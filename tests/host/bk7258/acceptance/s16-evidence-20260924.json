@@ -1,0 +1,33 @@
+{
+  "scope": "Native focus timer sheet + actual shared DeviceControlSession/controller",
+  "apk": {
+    "versionCode": 44,
+    "versionName": "0.7.14-shaniu-canva-ui",
+    "sha256": "5788a67faa2b4afa0445ad77c4fc3bc811ac7aa6957877b4cea3a73f6da5264c",
+    "build": "Debug only; same version label is not historical artifact identity",
+    "installed": false
+  },
+  "initial_setup_errors": [
+    "Controller interface initially missing",
+    "New fixture omitted setForeground(true); corrected to exercise actual foreground session",
+    "Gradle --tests incorrectly followed assembleDebug; corrected task ordering",
+    "MainActivity color constant TEXT absent; used existing design.ink"
+  ],
+  "fixture_failure_xml_sha256": "eef3d164605048292a2727a04951875ff1a18cbbff4a358caf7680b90c4e6a80",
+  "validation": {
+    "selected_cases": 117,
+    "original_ids": 63,
+    "added_ids": 54,
+    "new_controller_cases": 5,
+    "runner_gate": 12,
+    "assemble": "PASS"
+  },
+  "boundaries": [
+    "Transport events are external peers; no BLE proof",
+    "No simulator rendering or physical UI acceptance this slice",
+    "No phone install or board actions",
+    "No new connection or local countdown",
+    "Device display/completion/NFC integration incomplete",
+    "Cross-reboot strategy awaits user choice"
+  ]
+}

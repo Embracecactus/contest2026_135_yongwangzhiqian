@@ -1,0 +1,9 @@
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s99/before-bk7258_display_store.h:2:1: error: Relative file path does not match actual file
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s99/before-bk7258_display_store.h:12:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s99/before-bk7258_display_store.h:14:1: warning: #include outside of 'Included Files' section
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s99/before-bk7258_display_store.h:58:1: error: Missing blank line before comment found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s99/before-bk7258_display_store.h:76:65: error: Block comment terminator must be on a separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s99/before-bk7258_display_store.h:76:1: error: Missing blank line after comment
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s99/before-bk7258_display_store.h:78:79: error: Long line found
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s99/before-bk7258_display_store.h:85:68: error: Block comment terminator must be on a separate line
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s99/before-bk7258_display_store.h:85:1: error: Missing blank line after comment

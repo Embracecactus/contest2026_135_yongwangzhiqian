@@ -1,0 +1,14 @@
+{
+  "source_sha256": "ea7a1fec3a627022f3bf8ae1aed8529f3d1dcad208c51ae52313c69cab77674d",
+  "mutant_sha256": "65eb8b2a9a6b266fb3f9a24abf7c8077f4a8b469507779a100096b351b029ebf",
+  "mutation": {
+    "exit_code": 1,
+    "tests": 1,
+    "failures": 1
+  },
+  "restore": {
+    "exit_code": 0,
+    "tests": 1,
+    "failures": 0
+  }
+}

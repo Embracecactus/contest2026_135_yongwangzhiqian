@@ -1,0 +1,6 @@
+["/usr/bin/python3", "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_web.py", "WebTest.test_invalid_upload_does_not_open_device"]
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.529s
+
+OK

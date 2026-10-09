@@ -1,0 +1,22 @@
+F
+======================================================================
+FAIL: test_readback (__main__.TasksTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/shaniu-s81-mutation-44dire4k/tests/host/bk7258/test_workbench_tasks.py", line 110, in test_readback
+    self.assertEqual(
+AssertionError: Lists differ: [0, 16, 32] != [0, 16, 32, 0, 16]
+
+Second list contains 2 additional elements.
+First extra element 3:
+0
+
+- [0, 16, 32]
++ [0, 16, 32, 0, 16]
+?           +++++++
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+FAILED (failures=1)

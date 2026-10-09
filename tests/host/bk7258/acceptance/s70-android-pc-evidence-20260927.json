@@ -1,0 +1,401 @@
+{
+  "slice": "S70",
+  "date": "2026-09-27",
+  "parent": "d372cb0e6821048a9df6559837228225ca79fd60",
+  "counts": {
+    "PASS": 387,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 324,
+      "counts": {
+        "PASS": 324,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "new_execution_units": [
+    {
+      "id": "provision.SceneControlProtocolTest.newKindsPreserveAuthenticationAndSequenceValidation",
+      "parent": "NET-03",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.SceneControlProtocolTest.xml",
+      "evidence_sha256": "3cf9d1cdd0c692e067bf2197cf9d46652520129770a9d390426f1adc7ba6b58e"
+    },
+    {
+      "id": "provision.SceneControlProtocolTest.pcReceiptAndSnapshotCannotBeInterchanged",
+      "parent": "NET-03",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.SceneControlProtocolTest.xml",
+      "evidence_sha256": "3cf9d1cdd0c692e067bf2197cf9d46652520129770a9d390426f1adc7ba6b58e"
+    },
+    {
+      "id": "provision.SceneControlProtocolTest.newReadKindsRejectMalformedResponseSize",
+      "parent": "NET-03",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.SceneControlProtocolTest.xml",
+      "evidence_sha256": "3cf9d1cdd0c692e067bf2197cf9d46652520129770a9d390426f1adc7ba6b58e"
+    },
+    {
+      "id": "provision.SceneControlProtocolTest.newKindsRejectWrongLengthsOffsetsAndUnknownKindsBeforeSending",
+      "parent": "NET-03",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.002,
+      "evidence": "TEST-com.shaniu.companion.provision.SceneControlProtocolTest.xml",
+      "evidence_sha256": "3cf9d1cdd0c692e067bf2197cf9d46652520129770a9d390426f1adc7ba6b58e"
+    },
+    {
+      "id": "provision.SceneControlProtocolTest.sceneKindsCanReadAndWriteThroughProductionCodec",
+      "parent": "NET-03",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.SceneControlProtocolTest.xml",
+      "evidence_sha256": "3cf9d1cdd0c692e067bf2197cf9d46652520129770a9d390426f1adc7ba6b58e"
+    },
+    {
+      "id": "provision.SceneControlProtocolTest.sceneCapabilityRemainsReadOnly",
+      "parent": "NET-03",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.SceneControlProtocolTest.xml",
+      "evidence_sha256": "3cf9d1cdd0c692e067bf2197cf9d46652520129770a9d390426f1adc7ba6b58e"
+    },
+    {
+      "id": "provision.SceneControlProtocolTest.pcSnapshotReceiptAndWriteUseTheirOwnBoundedShapes",
+      "parent": "NET-03",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.SceneControlProtocolTest.xml",
+      "evidence_sha256": "3cf9d1cdd0c692e067bf2197cf9d46652520129770a9d390426f1adc7ba6b58e"
+    },
+    {
+      "id": "provision.PcAuthorizationControllerTest.knownEagainFailureDoesNotBecomePendingOrReplay",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.009,
+      "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml",
+      "evidence_sha256": "df855b28c17671882a38c83efdee1236c8fddfd5f6a40e3b5495c7512608ad75"
+    },
+    {
+      "id": "provision.PcAuthorizationControllerTest.closeBeforeApplyCancelsStagingButAfterApplyDoesNotClaimRemoteCancel",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.004,
+      "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml",
+      "evidence_sha256": "df855b28c17671882a38c83efdee1236c8fddfd5f6a40e3b5495c7512608ad75"
+    },
+    {
+      "id": "provision.PcAuthorizationControllerTest.disconnectLateAckAndRecreationNeverReplayWrite",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.003,
+      "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml",
+      "evidence_sha256": "df855b28c17671882a38c83efdee1236c8fddfd5f6a40e3b5495c7512608ad75"
+    },
+    {
+      "id": "provision.PcAuthorizationControllerTest.staleConfirmationAndOtherEditorsTransactionAreNotOverwritten",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.002,
+      "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml",
+      "evidence_sha256": "df855b28c17671882a38c83efdee1236c8fddfd5f6a40e3b5495c7512608ad75"
+    },
+    {
+      "id": "provision.PcAuthorizationControllerTest.revokeNeedsDurableReceiptAndMatchingReadback",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.002,
+      "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml",
+      "evidence_sha256": "df855b28c17671882a38c83efdee1236c8fddfd5f6a40e3b5495c7512608ad75"
+    },
+    {
+      "id": "provision.PcAuthorizationControllerTest.uncertainReceiptAndMismatchedReadbackCannotConfirm",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml",
+      "evidence_sha256": "df855b28c17671882a38c83efdee1236c8fddfd5f6a40e3b5495c7512608ad75"
+    },
+    {
+      "id": "provision.PcAuthorizationControllerTest.mismatchedReceiptCannotConfirmAnotherTransaction",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.002,
+      "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml",
+      "evidence_sha256": "df855b28c17671882a38c83efdee1236c8fddfd5f6a40e3b5495c7512608ad75"
+    },
+    {
+      "id": "provision.PcAuthorizationControllerTest.changingEitherRevisionRejectsMixedSnapshot",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml",
+      "evidence_sha256": "df855b28c17671882a38c83efdee1236c8fddfd5f6a40e3b5495c7512608ad75"
+    },
+    {
+      "id": "provision.PcAuthorizationControllerTest.unsupportedAndInvalidSnapshotsCannotEnableRevoke",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml",
+      "evidence_sha256": "df855b28c17671882a38c83efdee1236c8fddfd5f6a40e3b5495c7512608ad75"
+    }
+  ],
+  "tests": {
+    "runner_gate": 13,
+    "existing_protocol_jvm": {
+      "collected": 14,
+      "passed": 14,
+      "evidence": "out/shaniu-s70/final-jvm/TEST-com.shaniu.companion.provision.DeviceControlProtocolTest.xml"
+    },
+    "mutations": [
+      {
+        "id": "known-failure-as-pending",
+        "status": "DETECTED",
+        "exit_code": 1,
+        "collected": 9,
+        "failures": [
+          {
+            "id": "knownEagainFailureDoesNotBecomePendingOrReplay",
+            "type": "java.lang.AssertionError"
+          }
+        ],
+        "seconds": 1.918347094033379,
+        "source_sha256": "6179fb5b199befbd38946dc91681c72ab951dd713ea5f5f1a308dedc65e1c389"
+      },
+      {
+        "id": "ignore-transaction-echo",
+        "status": "DETECTED",
+        "exit_code": 1,
+        "collected": 9,
+        "failures": [
+          {
+            "id": "mismatchedReceiptCannotConfirmAnotherTransaction",
+            "type": "java.lang.AssertionError"
+          }
+        ],
+        "seconds": 1.5166553260060027,
+        "source_sha256": "921ca8201668aa8e190464ef7c9ca0d7083454b0c20adbabe4e25dff0eb2fc31"
+      },
+      {
+        "id": "restored",
+        "status": "PASS",
+        "exit_code": 0,
+        "collected": 9,
+        "failures": [],
+        "seconds": 1.5678804499912076,
+        "source_sha256": "2ecff5f55c06ffa60273b0f4cae0077ad334b3b6fec44cc2b0984b46aba4f88c"
+      }
+    ],
+    "original_mutations": [
+      {
+        "id": "MSC-01.early-release",
+        "status": "DETECTED",
+        "exit_code": -6,
+        "seconds": 0.007836333010345697,
+        "source": "app/bk7258/bk7258_media_volume.c",
+        "original_sha256": "58ebb18ae63adccf21262253da18f153bbb7c680cc0b64719ca20e8a6d9681c8",
+        "mutant_sha256": "bf298373a95ac54d5587f93ece34a30a7f661a65a969c69db9e27c6570770c57",
+        "expected_assertion": "!mounted",
+        "evidence": "MSC-01.early-release.log"
+      },
+      {
+        "id": "CFG-01.wifi-clears-cloud",
+        "status": "DETECTED",
+        "exit_code": -6,
+        "seconds": 0.0640415700036101,
+        "source": "app/bk7258/bk7258_provision_config.c",
+        "original_sha256": "98f5100ca49ca44e45fe3e5da4bb2da0add7466f0e357a205ca8b1e307a5818e",
+        "mutant_sha256": "4c0c615b8ffc99247b0fd91bd934d3df0409a1180769cb939b2820f9e6f69427",
+        "expected_assertion": "bkcloud_config_decode",
+        "evidence": "CFG-01.wifi-clears-cloud.log"
+      }
+    ],
+    "ui": {
+      "id": "UI-01.pc-authorization",
+      "status": "PASS",
+      "layer": "emulator synthetic UI",
+      "resolution": "1080x2400",
+      "density": 420,
+      "font_scale": 1.0,
+      "evidence": "out/shaniu-s70/pc-ui-post-review.log",
+      "scope": "Unknown disables revoke; negative confirmation submits nothing; dismissal clears confirmation after Android callback. No BLE or remote authorization."
+    },
+    "build": {
+      "apk": "PASS",
+      "instrumentation": "PASS",
+      "firmware": "UNCHANGED_NOT_REBUILT",
+      "evidence": "out/shaniu-s70/app-post-review.log"
+    }
+  },
+  "corrections": [
+    "Initial shell used wrong cwd before file creation; SETUP_ERROR, no test executed.",
+    "Initial contract-valid rejection surfaced IllegalArgumentException in 6 tests; wrapper now records the public-contract violation as assertion failure. 6 FAIL_ASSERTION/1 PASS retained before codec fix.",
+    "Missing new PcAuthorizationController: BLOCKED_INTERFACE, not business Red.",
+    "Rejected BEGIN, pre-APPLY close and pre-APPLY disconnect each exposed stale transaction/outcome assertions; original logs/XML retained.",
+    "UI check immediately after Dialog.dismiss ran before asynchronous OnDismiss. Corrected observer to waitForIdleSync without changing product/contract; initial failure retained.",
+    "New execution IDs omitted from added_ids were detected by group gate. Manifest corrected, full 387 recollected. Initial report retained with incomplete grouping.",
+    "Gradle --tests placed after assembleDebugAndroidTest produced setup failure; corrected option placement.",
+    "Wrong receipt must reject rather than start a view read; strengthened idle assertion before mutation, without changing requirement. Echo-removal mutant detected.",
+    "Pre-review Activity save could expose a staging-only transaction ID. Added observer assertions first produced 6 FAIL_ASSERTION in existing parameterized flows. Public ID is now exposed/published only at APPLY entry; strict set, mutants/restoration, APK and emulator checks repeated. Previous successful reports retained under pre-review paths."
+  ],
+  "inputs": {
+    "android/shaniu-companion/app/src/androidTest/java/com/shaniu/companion/provision/ControlKeyInstrumentation.kt": "db0525fc0e7756edaa85ff8337a4918ff4c705653822ac05651dbcb912b9e3d7",
+    "android/shaniu-companion/app/src/androidTest/java/com/shaniu/companion/provision/DeviceUiAcceptance.kt": "ad1c17d2adc21def50815048e4f9e1b47df7bba48f91efd1bb30b9fd849bd307",
+    "android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt": "873b148d47dd0a4dc04b3bf43ac03b1aac6b2cb283de5778162a9ff9b748da29",
+    "android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/DeviceControlProtocol.kt": "5ee7276fa7da257a1bbeeb62cc6b3faf4ba88004b0548892f9f5bd447e32d359",
+    "goal-objective.md": "7b65e6337edc14c7b37b7f55a81cd9ae85153d2071ebe1939384c768833d8651",
+    "tests/host/bk7258/README.md": "277e782ec87ea54092ab9b82810a31e04098b46f2a59a172e1170eece4031e22",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "75dd12ae45b20f1dcdfab86ad64a002d2148a83b1561a6c15ca6794609acefc2",
+    "tests/host/bk7258/test_shaniu_contracts.py": "de1499b93169dc112000576aba80f5dd7bd440ae1bc4177fa63d065795c528f4",
+    "android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/PcAuthorizationController.kt": "2ecff5f55c06ffa60273b0f4cae0077ad334b3b6fec44cc2b0984b46aba4f88c",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/PcAuthorizationControllerTest.kt": "74122f11acd29235e48be1dc6a5a83a0ffc105314ce4536c4df8eabc77b96591",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/SceneControlProtocolTest.kt": "2659d3c04d373a8e204075bb1e7ad3eddef6689350d52ab58193c7619cd92481"
+  },
+  "evidence_hashes": {
+    "out/shaniu-s70/restored-final.log": "7aa9cc0a7531b8f47964b7faf84de598b4a1452a22ea93dad6e85a2f047cbd85",
+    "out/shaniu-s70/emulator-final-install.log": "c4aa470acafcf8576c15b0f0b5ae7e852d1ec5413372d0e6a9272e788e1306d3",
+    "out/shaniu-s70/pc-ui-first.log": "e948e79720fb6ce31db02bc7511f0e88d75c3de43bb300672f7fef7f95e0227b",
+    "out/shaniu-s70/known-failure-as-pending.xml": "e4b7e7183e7f8c975fdd465fdfc54c146eb3dae513003203cd104302c1efe4da",
+    "out/shaniu-s70/emulator-validated-install.log": "c4aa470acafcf8576c15b0f0b5ae7e852d1ec5413372d0e6a9272e788e1306d3",
+    "out/shaniu-s70/runner-gate.log": "a35b63120f0b69261a4e914d4fc4aeee1c6ce9c090a28eb571f238264dbb763f",
+    "out/shaniu-s70/protocol-initial.xml": "5e4b7999ca2acf3ab92f82ff495a82c6c3c6b1ab60bb91eb468e2e3744d1d76a",
+    "out/shaniu-s70/restored.log": "7aa9cc0a7531b8f47964b7faf84de598b4a1452a22ea93dad6e85a2f047cbd85",
+    "out/shaniu-s70/pc-ui-final.log": "8ff8b5acf895dc0f00f1c016e9ca37607b860bc4b3af26bf63e7e49a8d4c136c",
+    "out/shaniu-s70/protocol-red.xml": "1782affab7f067545888db4b91ed4e866deda8d279a2294820f82dc8b3521689",
+    "out/shaniu-s70/emulator-test-install.log": "c4aa470acafcf8576c15b0f0b5ae7e852d1ec5413372d0e6a9272e788e1306d3",
+    "out/shaniu-s70/mutations.json": "da19832d9da13203d5132006b1c59b24cf508d86a101b4468d171fcf3ae14d42",
+    "out/shaniu-s70/ignore-transaction-echo.xml": "78ef911df34e8a6d5270db22e2bee0545c9b41ee0259b845c42c803f93f9d321",
+    "out/shaniu-s70/app-final-validated.log": "219a38c814e8b2b81cbf9eb2c6f7ee68caa0b5ba07529874c41d27153f3160b5",
+    "out/shaniu-s70/pc-precommit-close-red.xml": "e89268309c0dde42feafdd0ffa4783897a321f34c1a5d735aa561a1d41406443",
+    "out/shaniu-s70/strict-final.log": "6d7e4b77c61e8fff0cc0ee082945efc7370fdf9b9500c13bd01d586dc8590ccc",
+    "out/shaniu-s70/app-final.log": "65963baaec0fd6d780790d1256a39cb067c9006848b5cbd785c72f4976475817",
+    "out/shaniu-s70/app-validated.log": "b84bd7a7bd9f122ff49453c5f1b4a85200415cd61060412d2f27a925187b45da",
+    "out/shaniu-s70/pc-saved-state-red.xml": "0ee8b8842adae421dd283cf6d11305357fd8b16d215ec50963102fddedfa0a44",
+    "out/shaniu-s70/protocol-red-assertions.log": "57b2db45c0fd46b047c0d19b00111558a827595561608500ff8b71f48c7412ff",
+    "out/shaniu-s70/pc-first.log": "cd569fa2a9f14a7c9a67c0b52665a42a80d20b783690680500736412990bca1f",
+    "out/shaniu-s70/restored-final.xml": "ce90526ac99873d66f13e0f97a45774fbbea56d58acf398644360a20dabad6c4",
+    "out/shaniu-s70/ignore-transaction-echo-final.xml": "308b749df85117e8925725c9d706ad5268a7b1576b70847206cab502cb57a69c",
+    "out/shaniu-s70/strict.log": "9b6e6ebe4474da650d8c30389a31f618da2634995835bb95fcee9c54bb763add",
+    "out/shaniu-s70/ignore-transaction-echo.log": "8f5c121e2fb7cd589904b3bc24e2db3ecc96adb080ddf760297c7c10b4ab4a4f",
+    "out/shaniu-s70/pc-rejected-begin-red.log": "e0c0fc42c8211696b4d8b49b5e382fc433ec8608931b84dff2abbecd67d5e4b2",
+    "out/shaniu-s70/strict-post-review.log": "d4260354f7f6404a0aa6c793b76f4a96cb16fcc2c770b031c746a782c0605598",
+    "out/shaniu-s70/restored.xml": "4b747de33bd6701427e999e7c04d3791ecaea21f7d8bd6247d607551308ff34c",
+    "out/shaniu-s70/emulator-post-review-test-install.log": "c4aa470acafcf8576c15b0f0b5ae7e852d1ec5413372d0e6a9272e788e1306d3",
+    "out/shaniu-s70/mutations-final.json": "d373f2d889db243b36305f3f5ebaafa8716b3cab8b7c5f15f89d29aaa78c9257",
+    "out/shaniu-s70/pc-precommit-close-red.log": "04bd763a9ea9edbb891a234b82c7b3550cffa8c1422c5249da16d6cb4446c963",
+    "out/shaniu-s70/runner-gate-final.log": "0ddad63669987e0e417fdc8d96d362ee8d8191de389002f123926075f811f446",
+    "out/shaniu-s70/emulator-install.log": "c4aa470acafcf8576c15b0f0b5ae7e852d1ec5413372d0e6a9272e788e1306d3",
+    "out/shaniu-s70/protocol-red.log": "dd652ee0d609b27a5172fed8547e685210638fbf8024760382e709caf351589f",
+    "out/shaniu-s70/pre-review-results.json": "be5d08cb8333656a7a0cb35b00901bbd53c89aa39da8b3b2fe386cd041533855",
+    "out/shaniu-s70/protocol-existing-final.xml": "937004b2a534e3054e42e7c0b00e1dbe6ff09c928b17c7676cce79e81bd76247",
+    "out/shaniu-s70/pc-precommit-disconnect-red.xml": "16e1fbe54faf2f91e0e9d5d5fbd2a2820706f047a746078c15022f2ad67b99b2",
+    "out/shaniu-s70/known-failure-as-pending-final.log": "b3a2fa5c5a26f25ba5f3ae88a2b520494d2e138022afcf9c1726c0ec38698863",
+    "out/shaniu-s70/pc-final.xml": "7c2b7fdfe573b1aab7a34a4f21b50f74350158bbef76e34147a1a9de0a77a8b2",
+    "out/shaniu-s70/pre-review-evidence.json": "f29e3f6c786141eba4ea5e934e486bdbb991641cceed9446226d1c38760c48a0",
+    "out/shaniu-s70/known-failure-as-pending-final.xml": "b937cbd5fc9d0c402b3df69a51c331e638c123d07e2a4a271db2e3f7d3861411",
+    "out/shaniu-s70/known-failure-as-pending.log": "bcdd3fa0a8c22e1de073818e7f50ccecd8c4d7bc7b15555703181e8ce445dbc3",
+    "out/shaniu-s70/scene-final.xml": "c7eebe180b92b42cb5fb8d6df765ebd4b9cf1724676e5ba8aea8190d05477b44",
+    "out/shaniu-s70/pc-rejected-begin-red.xml": "9f39c776c7aa7b19bdaf60e58f22bded66adeda55aba460f085c3d1169895258",
+    "out/shaniu-s70/pc-saved-state-red.log": "f0d288d02e8bf6844e754d81c27e40efd08996551a224271ca49b49162092c18",
+    "out/shaniu-s70/app-final-corrected.log": "95deaf06a5694fd7d924d66f47eea69a03e2769353fc4e159a53f7867dda8df4",
+    "out/shaniu-s70/emulator-validated-test-install.log": "c4aa470acafcf8576c15b0f0b5ae7e852d1ec5413372d0e6a9272e788e1306d3",
+    "out/shaniu-s70/apk-build.log": "9d4bf5b7276262e4283b8f8332bfa6bb47b0b8a2ef3c6ccbe637f73f8e3a6ee1",
+    "out/shaniu-s70/emulator-final-test-install.log": "c4aa470acafcf8576c15b0f0b5ae7e852d1ec5413372d0e6a9272e788e1306d3",
+    "out/shaniu-s70/pc-interface-missing.log": "5ce6c90495c66bf8247f850392ca0b664f3bba39f35c6644fdf4f76c4e72ddd5",
+    "out/shaniu-s70/emulator-post-review-install.log": "c4aa470acafcf8576c15b0f0b5ae7e852d1ec5413372d0e6a9272e788e1306d3",
+    "out/shaniu-s70/ignore-transaction-echo-final.log": "703081c3c920a79d48f9b22b7ace3bcec3670a77adfd07ea45fcb69e9e70213f",
+    "out/shaniu-s70/app-post-review.log": "25564da501a25c02b0db606fe39522fd88de61e77156a9a4c4a06ab9f9a93487",
+    "out/shaniu-s70/pc-precommit-disconnect-red.log": "65cdc1a4f278264206c57e904d44da17bc220ab14d6f4f2682e2a2867bdbfd9a",
+    "out/shaniu-s70/pc-ui-post-review.log": "8ff8b5acf895dc0f00f1c016e9ca37607b860bc4b3af26bf63e7e49a8d4c136c",
+    "out/shaniu-s70/protocol-green.log": "cd569fa2a9f14a7c9a67c0b52665a42a80d20b783690680500736412990bca1f",
+    "out/shaniu-s70/final-jvm/TEST-com.shaniu.companion.provision.DeviceControlProtocolTest.xml": "a9c1d536d9a82c317d85b2bc7bf51286d7e1be44cce83dc073462e45f63babf6",
+    "out/shaniu-s70/final-jvm/TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml": "e83202a80171a9d6004ca27234bf8a4088771a21bdfae66d41c4e3cd055805c1",
+    "out/shaniu-s70/final-jvm/TEST-com.shaniu.companion.provision.SceneControlProtocolTest.xml": "319dd90c6193eee1f2bc69ae428fa41d9377d6d046034ccd9a892f4bfc0a7ebb"
+  },
+  "artifacts": [
+    {
+      "path": "android/shaniu-companion/app/build/outputs/apk/debug/app-debug.apk",
+      "sha256": "7e0320f5c060c633ca231ef8294bf665a4261c37480bda0808f89151f9ca2afb",
+      "identity": "debug development APK, versionCode44 / 0.7.14-shaniu-canva-ui, emulator only"
+    },
+    {
+      "path": "android/shaniu-companion/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk",
+      "sha256": "224623df98917d0c8eb2292ee8a63e2bfe4efd28b7efc8f3e81eb0277070d0d3",
+      "identity": "debug development APK, versionCode44 / 0.7.14-shaniu-canva-ui, emulator only"
+    }
+  ],
+  "budget": {
+    "new_firmware_threads": 0,
+    "new_firmware_memory": 0,
+    "app_owned_buffers": "64-byte snapshot, up to 88-byte request, bounded fragment copies plus Kotlin/Android objects",
+    "new_polling": 0,
+    "physical_cpu_p95_stack": "NOT_MEASURED"
+  },
+  "physical": {
+    "preflight": "ADB enumerated Mi10 59d707dc and emulator-5554",
+    "phone_actions": [],
+    "board_actions": [],
+    "emulator_actions": [
+      "data-preserving APK/test-APK install",
+      "pc_authorization_probe"
+    ]
+  },
+  "layers": {
+    "interface": "PC snapshot/revoke/receipt native route implemented; new grants/enrollment and USB product owner remain unbound",
+    "L1": "SDC1 shapes/auth/sequence tested",
+    "L2": "real Android controller/session/codec with external peer; actual C phone authorization covered separately; no full Android-to-board TLS run",
+    "L3": "NOT_RUN"
+  },
+  "limitations": [
+    "production_unchanged in runner means unchanged during execution, not no production changes in this slice.",
+    "No PC keys generated/imported/persisted/exposed by new page.",
+    "Transaction ID retained in device-scoped Activity saved state, not crash-durable journal. State loss may lose historical query ID; current authorization remains readable.",
+    "New-PC authorization UI and complete PC workbench remain unimplemented.",
+    "S66 sporadic TLS failure remains unresolved; release/USB product activation still gated.",
+    "56 composite requirements not claimed complete.",
+    "Self-review only, no independent second-party approval."
+  ]
+}

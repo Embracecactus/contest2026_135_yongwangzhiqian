@@ -17,6 +17,15 @@ import java.util.UUID
 class ControlKeyInstrumentation : Instrumentation() {
     private var cloudProbe = false
     private var uiProbe = false
+    private var settingsUnknownProbe = false
+    private var eyeDraftProbe = false
+    private var eyeBackgroundProbe = false
+    private var defaultSelectionProbe = false
+    private var expressionTrialProbe = false
+    private var focusDraftProbe = false
+    private var pcAuthorizationProbe = false
+    private var nfcDraftProbe = false
+    private var uiGallery = false
     private var provisionInputProbe = false
     private var emulatorFlowProbe = false
     private var emulatorFlowCase: String? = null
@@ -26,6 +35,15 @@ class ControlKeyInstrumentation : Instrumentation() {
         super.onCreate(arguments)
         cloudProbe = arguments?.getString("cloud_probe") == "1"
         uiProbe = arguments?.getString("ui_probe") == "1"
+        settingsUnknownProbe = arguments?.getString("settings_unknown_probe") == "1"
+        eyeDraftProbe = arguments?.getString("eye_draft_probe") == "1"
+        eyeBackgroundProbe = arguments?.getString("eye_background_probe") == "1"
+        defaultSelectionProbe = arguments?.getString("default_selection_probe") == "1"
+        expressionTrialProbe = arguments?.getString("expression_trial_probe") == "1"
+        focusDraftProbe = arguments?.getString("focus_draft_probe") == "1"
+        pcAuthorizationProbe = arguments?.getString("pc_authorization_probe") == "1"
+        nfcDraftProbe = arguments?.getString("nfc_draft_probe") == "1"
+        uiGallery = arguments?.getString("ui_gallery") == "1"
         provisionInputProbe = arguments?.getString("provision_input_probe") == "1"
         emulatorFlowProbe = arguments?.getString("emulator_flow_probe") == "1"
         emulatorFlowCase = arguments?.getString("emulator_flow_case")
@@ -34,6 +52,120 @@ class ControlKeyInstrumentation : Instrumentation() {
         start()
     }
     override fun onStart() {
+        if (settingsUnknownProbe) {
+            val report = try {
+                DeviceUiAcceptance.runSettingsUnknown(this)
+                "PASS: UI-01.settings-unknown editor controls, stale factory-reset, stale OTA admission and source ownership/lifecycle; synthetic snapshots, no BLE"
+            } catch (error: Throwable) {
+                "FAIL: " + generateSequence(error) { it.cause }.take(5).joinToString(" <- ") { "${it.javaClass.simpleName}: ${it.message}" }
+            }
+            finish(if (report.startsWith("PASS:")) Activity.RESULT_OK else Activity.RESULT_CANCELED,
+                Bundle().apply { putString("stream", report) })
+            return
+        }
+        if (eyeDraftProbe) {
+            val report = try {
+                DeviceUiAcceptance.runEyeDraft(this)
+                "PASS: UI-02.eye-draft real local import and three Activity recreations; no BLE/device write acceptance"
+            } catch (error: Throwable) {
+                "FAIL: " + generateSequence(error) { it.cause }.take(5).joinToString(" <- ") {
+                    "${it.javaClass.simpleName}: ${it.message} at ${it.stackTrace.firstOrNull()}"
+                }
+            }
+            finish(if (report.startsWith("PASS:")) Activity.RESULT_OK else Activity.RESULT_CANCELED,
+                Bundle().apply { putString("stream", report) })
+            return
+        }
+        if (eyeBackgroundProbe) {
+            val report = try {
+                DeviceUiAcceptance.runEyeBackgroundCancel(this)
+                "PASS: RES-01.eye-background-cancel closes the authenticated control generation and reports an unknown install result; emulator transport only"
+            } catch (error: Throwable) {
+                "FAIL: " + generateSequence(error) { it.cause }.take(5).joinToString(" <- ") {
+                    "${it.javaClass.simpleName}: ${it.message} at ${it.stackTrace.firstOrNull()}"
+                }
+            }
+            finish(if (report.startsWith("PASS:")) Activity.RESULT_OK else Activity.RESULT_CANCELED,
+                Bundle().apply { putString("stream", report) })
+            return
+        }
+        if (defaultSelectionProbe) {
+            val report = try {
+                DeviceUiAcceptance.runDefaultSelection(this)
+                "PASS: RES-02.default-ui 20 native navigation/unknown gates/close rounds; synthetic admission, no BLE or save proof"
+            } catch (error: Throwable) {
+                "FAIL: " + generateSequence(error) { it.cause }.take(5).joinToString(" <- ") { "${it.javaClass.simpleName}: ${it.message}" }
+            }
+            finish(if (report.startsWith("PASS:")) Activity.RESULT_OK else Activity.RESULT_CANCELED,
+                Bundle().apply { putString("stream", report) })
+            return
+        }
+        if (expressionTrialProbe) {
+            val report = try {
+                DeviceUiAcceptance.runExpressionTrial(this)
+                "PASS: RES-02.trial-draft 20 real View navigation rounds and Activity recreation; synthetic admission, no BLE"
+            } catch (error: Throwable) {
+                "FAIL: " + generateSequence(error) { it.cause }.take(5).joinToString(" <- ") {
+                    "${it.javaClass.simpleName}: ${it.message} at ${it.stackTrace.firstOrNull()}"
+                }
+            }
+            finish(if (report.startsWith("PASS:")) Activity.RESULT_OK else Activity.RESULT_CANCELED,
+                Bundle().apply { putString("stream", report) })
+            return
+        }
+        if (focusDraftProbe) {
+            val report = try {
+                DeviceUiAcceptance.runFocusDraft(this)
+                "PASS: UI-02.focus-draft 20 real View navigation rounds and Activity recreation; synthetic admission, no BLE"
+            } catch (error: Throwable) {
+                "FAIL: " + generateSequence(error) { it.cause }.take(5).joinToString(" <- ") {
+                    "${it.javaClass.simpleName}: ${it.message} at ${it.stackTrace.firstOrNull()}"
+                }
+            }
+            finish(if (report.startsWith("PASS:")) Activity.RESULT_OK else Activity.RESULT_CANCELED,
+                Bundle().apply { putString("stream", report) })
+            return
+        }
+        if (pcAuthorizationProbe) {
+            val report = try {
+                DeviceUiAcceptance.runPcAuthorization(this)
+                DeviceUiAcceptance.runPcPairingImportCancellation(this)
+                "PASS: UI-01.pc-authorization native unknown/confirmation/close and actual pairing file/cancel; synthetic snapshots, no BLE"
+            } catch (error: Throwable) {
+                "FAIL: " + generateSequence(error) { it.cause }.take(5).joinToString(" <- ") {
+                    "${it.javaClass.simpleName}: ${it.message} at ${it.stackTrace.firstOrNull()}"
+                }
+            }
+            finish(if (report.startsWith("PASS:")) Activity.RESULT_OK else Activity.RESULT_CANCELED,
+                Bundle().apply { putString("stream", report) })
+            return
+        }
+        if (nfcDraftProbe) {
+            val report = try {
+                DeviceUiAcceptance.runNfcDraft(this)
+                "PASS: NFC-02.card-draft 20 real View navigation rounds and Activity recreation; synthetic admission, no BLE"
+            } catch (error: Throwable) {
+                "FAIL: " + generateSequence(error) { it.cause }.take(5).joinToString(" <- ") {
+                    "${it.javaClass.simpleName}: ${it.message} at ${it.stackTrace.firstOrNull()}"
+                }
+            }
+            finish(if (report.startsWith("PASS:")) Activity.RESULT_OK else Activity.RESULT_CANCELED,
+                Bundle().apply { putString("stream", report) })
+            return
+        }
+        if (uiGallery) {
+            val report = try {
+                DeviceUiAcceptance.runGallery(this)
+                "PASS: instrumented UI gallery and 20 navigation rounds; explicitly simulated device states, no BLE or board mutation"
+            } catch (error: Throwable) {
+                "FAIL: " + generateSequence(error) { it.cause }.take(5).joinToString(" <- ") {
+                    "${it.javaClass.simpleName}: ${it.message} at ${it.stackTrace.firstOrNull()}"
+                }
+            }
+            finish(if (report.startsWith("PASS:")) Activity.RESULT_OK else Activity.RESULT_CANCELED,
+                Bundle().apply { putString("stream", report) })
+            return
+        }
         if (provisionInputProbe) {
             val report = try {
                 DeviceUiAcceptance.runProvisionInputValidationProbe(this)
@@ -65,7 +197,7 @@ class ControlKeyInstrumentation : Instrumentation() {
                 "PASS: $evidence; test-only preferences and Android Keystore alias only"
             } catch (error: Throwable) {
                 "FAIL: " + generateSequence(error) { it.cause }.take(5)
-                    .joinToString(" <- ") { "${it.javaClass.simpleName}: ${it.message}" }
+                    .joinToString(" <- ") { "${it.javaClass.simpleName}: ${it.message} at ${it.stackTrace.firstOrNull()}" }
             }
             finish(if (report.startsWith("PASS:")) Activity.RESULT_OK else Activity.RESULT_CANCELED,
                 Bundle().apply { putString("stream", report) })
@@ -106,6 +238,7 @@ class ControlKeyInstrumentation : Instrumentation() {
             check(restarted.pending(device) == null)
             check(restarted.clearBound(device))
             check(!preferences.contains("@control"))
+            verifyResetReceiptLifecycle()
             control.fill(0)
             ControlTlsAcceptance.run("$name.tls")
             if (uiProbe) DeviceUiAcceptance.run(this)
@@ -114,7 +247,7 @@ class ControlKeyInstrumentation : Instrumentation() {
                 check(endpoint.address.size == 4 && endpoint.caDer.size in 1..4096)
             }
             result = Activity.RESULT_OK
-            report = "PASS: Android Keystore non-exportable key, encrypted pending recovery, authenticated certificate pin, plaintext wipe, Android provider TLS fragmentation and pin rejection"
+            report = "PASS: Android Keystore non-exportable key, encrypted pending recovery, authenticated certificate pin, plaintext wipe, Android provider TLS fragmentation and pin rejection; authenticated peer certificate export and close clearing; PC pairing OAEP SHA256 and nonempty label roundtrip"
             if (uiProbe) report += "; synthetic bound UI, memory control gates and Wi-Fi state"
             if (cloudProbe) report += "; cloud endpoint TLS 1.2 and system trust anchor"
         } catch (error: Exception) {
@@ -127,6 +260,45 @@ class ControlKeyInstrumentation : Instrumentation() {
             } catch (_: Exception) { result = Activity.RESULT_CANCELED; report = "FAIL: test cleanup" }
         }
         finish(result, Bundle().apply { putString("stream", report) })
+    }
+
+    private fun verifyResetReceiptLifecycle() {
+        // Unique public locator only: this fixture never connects or erases a device.
+        val device = "reset-instrumentation-${UUID.randomUUID()}"
+        val transaction = ByteArray(16) { (it + 21).toByte() }
+        val key = "reset-" + java.security.MessageDigest.getInstance("SHA-256")
+            .digest(device.toByteArray()).joinToString("") { "%02x".format(it.toInt() and 255) }
+        val preferences = targetContext.getSharedPreferences("shaniu-reset-receipts", Context.MODE_PRIVATE)
+        val session = DeviceControlSession({ 1L }, { it() }, { _, _ ->
+            object : DeviceControlSession.Cancel { override fun cancel() = Unit }
+        })
+        val controllers = mutableListOf<FactoryResetController>()
+        fun controller() = FactoryResetController(targetContext, session, device).also { controllers += it }
+        try {
+            check(preferences.edit().putString(key, "7:" + transaction.joinToString("") {
+                "%02x".format(it.toInt() and 255)
+            }).commit())
+            val first = controller()
+            check(first.current().transaction!!.contentEquals(transaction))
+            first.close()
+            val resumed = controller()
+            check(!resumed.begin()) // A pending request must never be resubmitted implicitly.
+            check(!resumed.physicalReceiptCompleted(ByteArray(16) { 1 }))
+            check(resumed.physicalReceiptCompleted(transaction))
+            check(resumed.current().phase == FactoryResetController.Phase.COMPLETED)
+            // A failed local binding clear must leave this locator untouched.
+            check(FactoryResetController.pendingPhysical(targetContext, device)!!.contentEquals(transaction))
+            resumed.close()
+            val afterFailedClear = controller()
+            check(afterFailedClear.current().transaction!!.contentEquals(transaction))
+            check(afterFailedClear.physicalReceiptCompleted(transaction))
+            check(afterFailedClear.confirmLocalRevocation())
+            check(FactoryResetController.pendingPhysical(targetContext, device) == null)
+        } finally {
+            controllers.forEach { it.close() }
+            check(preferences.edit().remove(key).commit())
+            transaction.fill(0)
+        }
     }
 
     private fun runOtaSourceProbe(filename: String) {

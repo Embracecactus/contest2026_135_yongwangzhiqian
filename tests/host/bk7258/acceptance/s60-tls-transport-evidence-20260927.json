@@ -1,0 +1,332 @@
+{
+  "slice": "S60",
+  "date": "2026-09-27",
+  "parent": "f4c831ce5a0ce08cfe9ed75cc33bed487235a99a",
+  "counts": {
+    "PASS": 326,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 263,
+      "counts": {
+        "PASS": 263,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "new_cases": [
+    {
+      "id": "USB-01.tls-transport",
+      "parent": "USB-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 6.980846090009436,
+      "evidence": "USB-01.tls-transport.log",
+      "evidence_sha256": "f00fd4e71b9afd38cfedeb131d3270d949b2909b42c6a465bdd4af65fe420294"
+    }
+  ],
+  "source_hashes": {
+    "app/bk7258/bk7258_provision_tls.c": "f05b14f6ca51937fd272c1df75a605f603fd827cc288d6a5e73a8890d9d4f3d1",
+    "app/bk7258/bk7258_provision_tls.h": "faa69cf2109cb8e68a8eddd9a2f345950273ac981145befe0e03412eb9f915db",
+    "tests/host/bk7258/test_provision_tls.c": "ab9abbd76c4c4afc03463036731dbb945aff3ba3ad56e8bae448c24fdc5d3c27",
+    "tests/host/bk7258/test_provision_tls.py": "06bbe044b9a89174b1f1ea088e0c05394df19050d7a9a09099f9daace7bd466e",
+    "tests/host/bk7258/test_provision_tls_transport.c": "eff87a889652655d95e15f81eca6632a784710829f69ef71fc7e5b1c9b78ba60",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "b423a008f8300f5e78638580d582f1873d3386cda0837d841a7c13f97d167192"
+  },
+  "fixture": "1024 bytes byte[i]=i mod256; separate bounded 4096-byte queues, legal short writes20; ephemeral P256 localhost public certificates (test-only identity, no production/device identity touched)",
+  "tls_samples": [
+    {
+      "sample": 0,
+      "public_certificate_sha256": "4a4f137ff4207c67da5b819ec053fc1c918f330299ded19b0aa991abc3adc3e0",
+      "gatt": "PASS",
+      "independent_stream": "PASS"
+    },
+    {
+      "sample": 1,
+      "public_certificate_sha256": "458f1d01f335cc324bc53d7d99e772d3a72f62b15f2539c1efd8c53e0277122c",
+      "gatt": "PASS",
+      "independent_stream": "PASS"
+    },
+    {
+      "sample": 2,
+      "public_certificate_sha256": "7b43eab912f822ea0f487b6586b0005051a52121e651461da1b9f0eeea5a2d1f",
+      "gatt": "PASS",
+      "independent_stream": "PASS"
+    },
+    {
+      "sample": 3,
+      "public_certificate_sha256": "e48b5d55c6d8110f35fd5845c510784938cfa00149239250d64f1a6426ca7e2f",
+      "gatt": "PASS",
+      "independent_stream": "PASS"
+    },
+    {
+      "sample": 4,
+      "public_certificate_sha256": "8f4820efe6bf93cb060d2043abaeae11b85b7ff3b0082b8c2af92e04cc2d9bac",
+      "gatt": "PASS",
+      "independent_stream": "PASS"
+    },
+    {
+      "sample": 5,
+      "public_certificate_sha256": "32c6702d8005caf099d1e6b7215fb145d1851a684269c77a4c0b4d4a18b91f08",
+      "gatt": "PASS",
+      "independent_stream": "PASS"
+    },
+    {
+      "sample": 6,
+      "public_certificate_sha256": "ec5da89841927e71622d219341734af69a5ea59861f5b7606b446fe05f1ddc1e",
+      "gatt": "PASS",
+      "independent_stream": "PASS"
+    },
+    {
+      "sample": 7,
+      "public_certificate_sha256": "da707b69f6d2d8270d177b82a2e1c31dc02818b29808117542ae018915a7937d",
+      "gatt": "PASS",
+      "independent_stream": "PASS"
+    },
+    {
+      "sample": 8,
+      "public_certificate_sha256": "3ce0b37bfbe0dd97e2be36c30bd11cf66e6be65411c6dc782ef014fdba76835e",
+      "gatt": "PASS",
+      "independent_stream": "PASS"
+    },
+    {
+      "sample": 9,
+      "public_certificate_sha256": "6d87691c36b2ab0e64390fd2cdbeed99389703d3a963d2f59686e0385b911bfb",
+      "gatt": "PASS",
+      "independent_stream": "PASS"
+    },
+    {
+      "sample": 10,
+      "public_certificate_sha256": "319b46225756a193038918bd1b797173a924bda08000200c68b89c8959ca347b",
+      "gatt": "PASS",
+      "independent_stream": "PASS"
+    },
+    {
+      "sample": 11,
+      "public_certificate_sha256": "9f19e2582a6658ed1c681a8571dee7cf82f514a4df674737d83a5d598b040bd3",
+      "gatt": "PASS",
+      "independent_stream": "PASS"
+    },
+    {
+      "sample": 12,
+      "public_certificate_sha256": "5fa20e87da446a2f2bb9a0a329f837c3b70b689494589857cd1d06fb9c9c152c",
+      "gatt": "PASS",
+      "independent_stream": "PASS"
+    },
+    {
+      "sample": 13,
+      "public_certificate_sha256": "6576b13fa2f2576309ebc48ea75a341af65eb976c3ab89e8ac2a06eb43ccd570",
+      "gatt": "PASS",
+      "independent_stream": "PASS"
+    },
+    {
+      "sample": 14,
+      "public_certificate_sha256": "50124cbf9e119d86948d9feee049ebfaae8911520d9b1cfe868c12f632b36ce4",
+      "gatt": "PASS",
+      "independent_stream": "PASS"
+    },
+    {
+      "sample": 15,
+      "public_certificate_sha256": "c0a4ac57d0483da7a081a1ba4f2f537b9250395cf598bd92a03c0101ca88cc2d",
+      "gatt": "PASS",
+      "independent_stream": "PASS"
+    },
+    {
+      "sample": 16,
+      "public_certificate_sha256": "bb5988899be27e7afdc80cf7374fce6dc0a89295ffc1ca021cc7c964d909636a",
+      "gatt": "PASS",
+      "independent_stream": "PASS"
+    },
+    {
+      "sample": 17,
+      "public_certificate_sha256": "d2f77180db8f0d4ed0a1c676bb851f41683fba89de24f4f24c5b8fb84befd640",
+      "gatt": "PASS",
+      "independent_stream": "PASS"
+    },
+    {
+      "sample": 18,
+      "public_certificate_sha256": "a0f937ed9d334a77533ebca56fd6ce64edfe17c78e40b7d29fdcc3b94aac600e",
+      "gatt": "PASS",
+      "independent_stream": "PASS"
+    },
+    {
+      "sample": 19,
+      "public_certificate_sha256": "5a8947033536075031fbeb6c10985ea00c4d5bdf45c28be31b647b8a636f8b47",
+      "gatt": "PASS",
+      "independent_stream": "PASS"
+    }
+  ],
+  "initial": {
+    "status": "BLOCKED_INTERFACE",
+    "reason": "new start_transport API absent; not a valid business assertion Red"
+  },
+  "new_mutations": [
+    {
+      "mutation": "oversize-count",
+      "mode": "mutated",
+      "exit_code": 1,
+      "detected": true,
+      "log": "oversize-count-mutated.log",
+      "sha256": "14d9399de1eabf59867b64e660efe3dfa2adf9fdc5d54e97f4fd11c39e35e098"
+    },
+    {
+      "mutation": "oversize-count",
+      "mode": "restored",
+      "exit_code": 0,
+      "detected": false,
+      "log": "oversize-count-restored.log",
+      "sha256": "53fde1537eb8f98bb323c7cbc6fd915fc223cef2c89a8689f0d494b2a811176f"
+    },
+    {
+      "mutation": "stale-bio",
+      "mode": "mutated",
+      "exit_code": 1,
+      "detected": true,
+      "log": "stale-bio-mutated.log",
+      "sha256": "a0ff2d73f1a9cf45bc25959bca5b08b1f6bad70e557faebe9cb4b638c5c5e005"
+    },
+    {
+      "mutation": "stale-bio",
+      "mode": "restored",
+      "exit_code": 0,
+      "detected": false,
+      "log": "stale-bio-restored.log",
+      "sha256": "8082f59a0b2c69af0469065c86ba929759e3df030931f6aaf45d494b2dad0772"
+    },
+    {
+      "mutation": "wrong-generation-owner",
+      "mode": "mutated",
+      "exit_code": 1,
+      "detected": true,
+      "log": "wrong-generation-owner-mutated.log",
+      "sha256": "74135013c9cb139e0d55a643233f44dcb75c4becc7aaf01dbfa5df7f6d5f1798"
+    },
+    {
+      "mutation": "wrong-generation-owner",
+      "mode": "restored",
+      "exit_code": 0,
+      "detected": false,
+      "log": "wrong-generation-owner-restored.log",
+      "sha256": "4f3ab4b3641a0f641166a939acf70845c9185606172c94656342f386f41600e6"
+    }
+  ],
+  "baseline_mutations": [
+    {
+      "id": "MSC-01.early-release",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.007832978968508542,
+      "source": "app/bk7258/bk7258_media_volume.c",
+      "original_sha256": "58ebb18ae63adccf21262253da18f153bbb7c680cc0b64719ca20e8a6d9681c8",
+      "mutant_sha256": "bf298373a95ac54d5587f93ece34a30a7f661a65a969c69db9e27c6570770c57",
+      "expected_assertion": "!mounted",
+      "evidence": "MSC-01.early-release.log"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.06398948095738888,
+      "source": "app/bk7258/bk7258_provision_config.c",
+      "original_sha256": "98f5100ca49ca44e45fe3e5da4bb2da0add7466f0e357a205ca8b1e307a5818e",
+      "mutant_sha256": "4c0c615b8ffc99247b0fd91bd934d3df0409a1180769cb939b2820f9e6f69427",
+      "expected_assertion": "bkcloud_config_decode",
+      "evidence": "CFG-01.wifi-clears-cloud.log"
+    }
+  ],
+  "runner": {
+    "checks": 13,
+    "status": "PASS",
+    "correction": "initial new selected ID omitted added_ids; unchanged partition test failed, grouping fixed and all selected IDs rerun; historical logs retained",
+    "original_failure_log": "runner-gate.log"
+  },
+  "target": {
+    "build": "PASS",
+    "manifest": "PASS",
+    "ap_elf_sha256": "2703d51aba4f7d54dd79af34e4f2e0aec614efeda4a045f4f9f139ca63a04833",
+    "build_manifest_sha256": "f6885b35ee9d995718691a9884bc11fff29d59b5ce95ad65461db82a89fea251"
+  },
+  "budget": {
+    "arm_tls_object_bytes": 2632,
+    "old_arm_tls_object_bytes": 2608,
+    "added_per_tls_bytes": 24,
+    "transport_descriptor_bytes": 24,
+    "new_threads": 0,
+    "new_dma": 0,
+    "new_persistent_writes": 0,
+    "new_heap_allocations": "none added; existing mbedTLS allocation remains",
+    "unmeasured": [
+      "CPU/p95",
+      "stack high water",
+      "physical throughput/control latency"
+    ]
+  },
+  "layers": {
+    "interface": "explicit TLS transport implemented; USB fd/device bridge and independent PC grant/revocation missing",
+    "L1": "real BIO boundary functions, external byte backend and virtual clock",
+    "L2": "real mbedTLS client/server plus existing claim/control suites; independent stream is in-memory, not a USB driver",
+    "L3": "NOT_RUN"
+  },
+  "style": {
+    "black": "24.10.0 PASS",
+    "diff_check": "PASS",
+    "nxstyle_current": 1,
+    "nxstyle_parent": 1,
+    "note": "existing full-file C style failures retained; not a style PASS"
+  },
+  "physical_actions": [],
+  "remaining": [
+    "native CDC product endpoint/byte adapter",
+    "independent PC authorization and revocation, no copied phone key",
+    "shared authenticated SDC1 service routing and admission",
+    "USB resource workbench and task sender",
+    "real device and performance acceptance"
+  ],
+  "log_hashes": {
+    "arm-size-old.log": "688c9efb8c6a506e35f9b86dfa51ac161177c9db7c3c86e42197db580eea1e0b",
+    "arm-size.log": "bcb9ba48b5b4cfcefac654f1f44177591b993acb65c52f1311b6c5c42ef6e538",
+    "build.log": "4cbde3b8d741adce29b3099941835b32b50d0402a884c9552c5649e030ddb18d",
+    "contracts-complete.log": "c23116581374ec8651a306fc5c0a09485b379270fc02b2fa042299fd8c1bd1f7",
+    "contracts-final.log": "0f9ad154daffd4c026d827418ae4b6ccc75bb4ba1e96944af1f7e4c20ad1bafe",
+    "contracts.log": "49934e6f7ba0cf0fcee65d24480a8596f5b8b4eaf00a5cca8aae87f13e557f7a",
+    "interface-baseline.log": "822ecb21aeb0a7c10e9f4637d50a9c607ad0e3bd7fa41cd7c67fed9dd0d014c3",
+    "manifest.log": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac",
+    "mutations.log": "abe126f57c315b5e52a73dcfba9ae2ac11df0e5e668a71810577c18d22a97011",
+    "oversize-count-mutated.log": "14d9399de1eabf59867b64e660efe3dfa2adf9fdc5d54e97f4fd11c39e35e098",
+    "oversize-count-restored.log": "53fde1537eb8f98bb323c7cbc6fd915fc223cef2c89a8689f0d494b2a811176f",
+    "runner-gate-restored.log": "d66977177a4741ff16797d55544b2be383401230643d086f449a8efd04b14542",
+    "runner-gate.log": "8bb1625e16973c72b2bb7a88e05dbb98326ec483bf002cfe56b739bab78ddc1b",
+    "stale-bio-mutated.log": "a0ff2d73f1a9cf45bc25959bca5b08b1f6bad70e557faebe9cb4b638c5c5e005",
+    "stale-bio-restored.log": "8082f59a0b2c69af0469065c86ba929759e3df030931f6aaf45d494b2dad0772",
+    "style-baseline.log": "4bced8f8c3e9c06114f595d461e66fa1f811a1358935eb315c63b385f8a7e48b",
+    "style-tls.log": "91306df69828ecf4df9f092c93cc7985d02e2b5fda3a7b707da36b63cf168392",
+    "tls-inputs.log": "4055a0f82ce9a9fb3581a0e4c89f574af4364c53aca4af1f3a8cc4ac7608142f",
+    "tls.log": "8d9c6f7d201d1b3a0bc52380e8f738942393a8c1c0b5e1760809cb4a8eef6001",
+    "wrong-generation-owner-mutated.log": "74135013c9cb139e0d55a643233f44dcb75c4becc7aaf01dbfa5df7f6d5f1798",
+    "wrong-generation-owner-restored.log": "4f3ab4b3641a0f641166a939acf70845c9185606172c94656342f386f41600e6"
+  }
+}

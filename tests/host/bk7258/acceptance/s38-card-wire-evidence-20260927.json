@@ -1,0 +1,293 @@
+{
+  "slice": "S38",
+  "date": "2026-09-27",
+  "parent": "6c882ae34b41cc5b47790a7c653d130d40628bc0",
+  "contract": "NFC_CARD_WIRE_V2.md, explicit board-internal CARD operation, same envelopes; V1 and external UID privacy unchanged",
+  "test_first": {
+    "initial": "BLOCKED_INTERFACE (missing V2 operation), not a business Red",
+    "corrected_test": {
+      "id": "NFC-01.card-replay",
+      "old": "direct duplicate deliver return == 0",
+      "new": "return == sizeof(reply), 40 bytes",
+      "basis": "bknfc_send forwards rpmsg_trysend return; peer returns byte count; existing replay test accepts nonnegative. Payload identity, hardware count, error checks unchanged.",
+      "evidence": "rpc-green.log retains original assertion failure"
+    }
+  },
+  "counts": {
+    "PASS": 174,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 111,
+      "counts": {
+        "PASS": 111,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "existing_mutations": [
+    {
+      "id": "MSC-01.early-release",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.007744915026705712,
+      "source": "app/bk7258/bk7258_media_volume.c",
+      "original_sha256": "58ebb18ae63adccf21262253da18f153bbb7c680cc0b64719ca20e8a6d9681c8",
+      "mutant_sha256": "bf298373a95ac54d5587f93ece34a30a7f661a65a969c69db9e27c6570770c57",
+      "expected_assertion": "!mounted",
+      "evidence": "MSC-01.early-release.log"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.06403779797255993,
+      "source": "app/bk7258/bk7258_provision_config.c",
+      "original_sha256": "98f5100ca49ca44e45fe3e5da4bb2da0add7466f0e357a205ca8b1e307a5818e",
+      "mutant_sha256": "4c0c615b8ffc99247b0fd91bd934d3df0409a1180769cb939b2820f9e6f69427",
+      "expected_assertion": "bkcloud_config_decode",
+      "evidence": "CFG-01.wifi-clears-cloud.log"
+    }
+  ],
+  "additional_mutations": [
+    {
+      "name": "version",
+      "case": "card-version",
+      "mutation": true,
+      "compile_exit": 0,
+      "exit": -6,
+      "source_sha256": "83f1a28e6b45f5cd39aab51d9145078d00a50e9e31c5978c014d9412a306bd90",
+      "log": "mutation-version-mutated.log",
+      "result": "DETECTED"
+    },
+    {
+      "name": "version",
+      "case": "card-version",
+      "mutation": false,
+      "compile_exit": 0,
+      "exit": 0,
+      "source_sha256": "db527ffa2a165233b9ee27a55087d2d9793b5100a84565436f7c94bcbaf9edd2",
+      "log": "mutation-version-restored.log",
+      "result": "PASS"
+    },
+    {
+      "name": "close-publish",
+      "case": "card-close",
+      "mutation": true,
+      "compile_exit": 0,
+      "exit": -6,
+      "source_sha256": "4cbdbf7be7fb5f0d2fe81a6ba16616dc07b1bd975bc92f6e023ef3e75faae5d7",
+      "log": "mutation-close-publish-mutated.log",
+      "result": "DETECTED"
+    },
+    {
+      "name": "close-publish",
+      "case": "card-close",
+      "mutation": false,
+      "compile_exit": 0,
+      "exit": 0,
+      "source_sha256": "edebd2b6a5fed793acf4ce6f68ea4b0a954f3419b58e84ad8ce32882366df590",
+      "log": "mutation-close-publish-restored.log",
+      "result": "PASS"
+    }
+  ],
+  "integration": {
+    "NFC_RPC_cases": 34,
+    "motion_RPC_cases": 20,
+    "NFC_core": "PASS",
+    "boundary": "real client, core, server queue and worker; external NuttX/RPMsg/ioctl peers controlled; no substituted production state machine"
+  },
+  "build": {
+    "result": "PASS",
+    "manifest_result": "PASS",
+    "manifest_sha256": "b56bd85abafd0e47520360bee41b93297b07170c2761f15f526e313915ab85e3",
+    "elfs": {
+      "ap": {
+        "kind": "elf",
+        "path": "roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx",
+        "sha256": "b1f61a31dcc843348ea2e50521d38585762bcaf1e4f01911f134cb48b5cfe790",
+        "size": 6698236
+      },
+      "bl1": {
+        "kind": "elf",
+        "path": "releases/mcuboot/bl1/bl.elf",
+        "sha256": "39fb2051ed3a83ad08f41dcdc50d3ec9d6332a4232e9c6b8f9acf719fc2cdc87",
+        "size": 236724
+      },
+      "bl2": {
+        "kind": "elf",
+        "path": "releases/mcuboot/bl2/bl2.elf",
+        "sha256": "6246b367960053e00dda587170f189837e991e36fc1426838b8d8a01a1695847",
+        "size": 272476
+      },
+      "cp": {
+        "kind": "elf",
+        "path": "roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx",
+        "sha256": "217c5e79ca1f7ce855845d062ccade5bf482f9cfb68c0af94a089b472364e056",
+        "size": 11959696
+      }
+    },
+    "inputs": {
+      "ap": {
+        "kind": "raw-build",
+        "path": "roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.bin",
+        "sha256": "2d79ca738009a2d6244af23cb92f167ad0f4616e3a7fcda246845fc8316910df",
+        "size": 1691408
+      },
+      "bl2": {
+        "kind": "raw-build",
+        "path": "releases/mcuboot/bl2/bl2.bin",
+        "sha256": "ffb36cdb89174bec06d12c817d2e97165f7d53e22d59b4e45ef63b66ed29e901",
+        "size": 13620
+      },
+      "boot": {
+        "kind": "raw-build",
+        "path": "releases/mcuboot/bl1/bl.bin",
+        "sha256": "d6d6789436a3c760f4a985d094129e2cfd789bdd9d2f2f3e2d577c20d7810443",
+        "size": 65376
+      },
+      "cp": {
+        "kind": "raw-build",
+        "path": "roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.bin",
+        "sha256": "e0a7c26c8dc04dd8506848ba7dc3c5ae929e2e98e665657b1b5246912a040066",
+        "size": 1115368
+      }
+    },
+    "symbols": {
+      "ap": [
+        "0216a1b4 0000021c T bk7258_nfc_service_start",
+        "0216a3d0 00000040 T bknfc_card_valid",
+        "28051a60 000000f0 d g_bknfc_server"
+      ],
+      "cp": [
+        "020ebb80 00000040 T bknfc_card_valid",
+        "020eb6dc 000004a4 T bknfc_rpc_exchange",
+        "280138e8 000000d8 t g_bknfc_client"
+      ]
+    },
+    "rf_linkage": {
+      "status": "PASS",
+      "layer": "target-build",
+      "config": "../out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/.config",
+      "elf": "../out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx"
+    }
+  },
+  "resources": {
+    "new_threads": 0,
+    "new_heap_allocations": 0,
+    "new_persistent_writes": 0,
+    "new_polling_intervals": 0,
+    "new_DMA": 0,
+    "new_retries": 0,
+    "request_bytes": 24,
+    "response_bytes": 40,
+    "temporary_card_bytes": 12,
+    "AP_server_whole_bytes": 240,
+    "CP_client_whole_bytes": 216,
+    "timing_high_water": "NOT_RUN; source scratch sizes do not equal peak stack"
+  },
+  "gaps": {
+    "interface": "CARD protocol implemented; owner-authorized binding/persistence/dwell/scene caller NOT_IMPLEMENTED",
+    "L1_L2": "host protocol integration PASS; physical transport/driver/card matching chain NOT_RUN",
+    "L3": "BLOCKED_DEVICE; no flash, APK install or physical action",
+    "privacy": "raw sample stays on trusted board CPUs; no BLE/USB/App/CLI/log UID exposure or owner permission",
+    "absence": "CARD EAGAIN and ETIMEDOUT preserved as errors, not proof of physical removal"
+  },
+  "hashes": {
+    "app/bk7258/bk7258_nfc_protocol.h": "44af6fd1007db89718cbe520492f9a3e69daf25d5f3fbe625ae711015b069d2f",
+    "app/bk7258/bk7258_nfc_core.h": "27c4663f339844db25bee3e6e637c457b98948191286d4e93a6511baa3616ce5",
+    "app/bk7258/bk7258_nfc_core.c": "edebd2b6a5fed793acf4ce6f68ea4b0a954f3419b58e84ad8ce32882366df590",
+    "app/bk7258/bk7258_nfc_service.c": "610622767b843c62f3da3eaeb3f77fb042858d26e495601215444217ba2091c1",
+    "app/bk7258/bk7258_nfc_client.c": "db527ffa2a165233b9ee27a55087d2d9793b5100a84565436f7c94bcbaf9edd2",
+    "tests/host/bk7258/test_bk7258_nfc_rpc.c": "d0a8433870ee16bdaa402d23526509483ad58a50bb4a18f30b90d2e067718601",
+    "tests/host/bk7258/bk7258_sensor_rpc_test.h": "d73a90458432aed0f9c12ff5f9fca7f551ead6798b180cfe39c735e554e5c29d",
+    "tests/host/bk7258/test_shaniu_contracts.py": "8ba274d1f715561481147c39b0c2876015b30a4c756486c93fde9a709f6774c7",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "260aaf31c5c1619c4c989771a85fe6154e7685ddd4c7d4d2d6e24adf44f6ac29",
+    "tests/host/bk7258/acceptance/NFC_CARD_WIRE_V2.md": "7719f10b71510eb362b8df950a117f14a217ef9aaf0ad8cd27bec0e81c80ffc5"
+  },
+  "logs": {
+    "mutation-version-mutated.log": {
+      "sha256": "eb1187a7abeed76ef0d85fe3b27b994a06bf7a3c7449d1854702339f7721bfe8",
+      "bytes": 191
+    },
+    "runner-gate.log": {
+      "sha256": "1e56d4a82a95e20708b5562efba64112ed1eff20782a4aad077508a369ab2380",
+      "bytes": 111
+    },
+    "test-build-before.log": {
+      "sha256": "df99482fed261f3e1932054bd68594213230bac907dd26649496a0fad02046de",
+      "bytes": 479
+    },
+    "contracts.log": {
+      "sha256": "5811749dd6dd653441694d2763657cae4aed6b2a02e4170558ba8f27787751fa",
+      "bytes": 8548
+    },
+    "rpc-corrected.log": {
+      "sha256": "aa5e6cc95b3100486efbb008d9941ce4fae1e779f34104b4a38fa59d3226a8aa",
+      "bytes": 1192
+    },
+    "mutation-close-publish-mutated.log": {
+      "sha256": "9984788acc510879099aa63b09856151e65721788b1b75e23e4dbf1edb534baf",
+      "bytes": 142
+    },
+    "interface-missing.log": {
+      "sha256": "35d4e7fcc167624fa23e843c01f24e8ea31aec7473bd444eebac960b67ded62b",
+      "bytes": 205
+    },
+    "build.log": {
+      "sha256": "b1479f1fd16b85ef3ac6df22161d339c31e08e3a7ab97095d06f28d03249621d",
+      "bytes": 8392
+    },
+    "mutation-close-publish-restored.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    },
+    "rpc-green.log": {
+      "sha256": "7c45953bf42dd812fdb9387d2605ddef00048c09dd5bb346706f1d598fc17a0f",
+      "bytes": 672
+    },
+    "manifest.log": {
+      "sha256": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac",
+      "bytes": 236
+    },
+    "mutation-version-restored.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "bytes": 14
+    }
+  },
+  "raw_evidence": {
+    "mutation-version-mutated.log": "test: /tmp/shaniu-s38-mut-eleod5ss/test_bk7258_nfc_rpc.c:382: wrong_version_reply: Assertion `bknfc_client_cb(&g_bknfc_client.endpoint, &r, sizeof(r), 0, &g_bknfc_client) == -ENOMSG' failed.\n",
+    "runner-gate.log": "............\n----------------------------------------------------------------------\nRan 12 tests in 0.034s\n\nOK\n",
+    "test-build-before.log": "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\ncc -std=c11 -Wall -Wextra -Werror -Wno-unused-function \\\n\t-fsanitize=undefined -fno-sanitize-recover=all \\\n\t-I build/sensor-rpc-include -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_bk7258_nfc_rpc.c -o build/test_bk7258_nfc_rpc\nmake: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\n",
+    "rpc-corrected.log": "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\ncc -std=c11 -Wall -Wextra -Werror -Wno-unused-function \\\n\t-fsanitize=undefined -fno-sanitize-recover=all \\\n\t-I build/sensor-rpc-include -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_bk7258_nfc_rpc.c -o build/test_bk7258_nfc_rpc\n./build/test_bk7258_nfc_rpc\nBKNFC_RPC_HOST_PASS cases=34\ncc -std=gnu11 -Wall -Wextra -Werror -O2 test_bk7258_nfc_core.c \\\n\t/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_core.c \\\n\t-I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -o build/test_bk7258_nfc_core\n./build/test_bk7258_nfc_core\nBKNFC_CORE_HOST_TEST_PASS\ncc -std=c11 -Wall -Wextra -Werror -Wno-unused-function \\\n\t-fsanitize=undefined -fno-sanitize-recover=all \\\n\t-I build/sensor-rpc-include -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_bk7258_motion_rpc.c -o build/test_bk7258_motion_rpc\n./build/test_bk7258_motion_rpc\nBKMOTION_RPC_HOST_PASS cases=20\nmake: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\n",
+    "mutation-close-publish-mutated.log": "test: /tmp/shaniu-s38-mut-n_izesvu/test_bk7258_nfc_rpc.c:425: test_card_contract: Assertion `bknfc_rpc_exchange(&r, &reply, 20) == 0' failed.\n",
+    "interface-missing.log": "test_bk7258_nfc_rpc: test_bk7258_nfc_rpc.c:401: test_card_contract: Assertion `reply.version == 2 && reply.operation_status == 0 && reply.present == 1 && payload[0] == sizes[i] && payload[1] == 0' failed.\n",
+    "mutation-close-publish-restored.log": "CONTRACT_PASS\n",
+    "rpc-green.log": "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\ncc -std=c11 -Wall -Wextra -Werror -Wno-unused-function \\\n\t-fsanitize=undefined -fno-sanitize-recover=all \\\n\t-I build/sensor-rpc-include -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_bk7258_nfc_rpc.c -o build/test_bk7258_nfc_rpc\n./build/test_bk7258_nfc_rpc\ntest_bk7258_nfc_rpc: test_bk7258_nfc_rpc.c:440: test_card_contract: Assertion `deliver(&r) == 0' failed.\nmake: *** [Makefile:412: run-nfc-rpc] Aborted (core dumped)\nmake: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\n",
+    "manifest.log": "bk7258 verify build-manifest: PASS boot=mcuboot board=aidk_ai_toy layout=bk7258-510173147382a879 source=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json\n",
+    "mutation-version-restored.log": "CONTRACT_PASS\n"
+  }
+}

@@ -1,0 +1,15 @@
+E
+======================================================================
+ERROR: test_catalog_is_not_default_completion (__main__.SelectionTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_selection.py", line 148, in test_catalog_is_not_default_completion
+    value = self.codec().decode(data)
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tools/bk7258/_lib/workbench_selection.py", line 107, in decode
+    raise ValueError("Invalid selection snapshot fields")
+ValueError: Invalid selection snapshot fields
+
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+FAILED (errors=1)

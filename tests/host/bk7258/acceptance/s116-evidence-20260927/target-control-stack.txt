@@ -1,0 +1,10 @@
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_display_selection_control.c:21:17:get32	0	static
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_display_selection_control.c:32:13:put32	0	static
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_display_selection_control.c:41:13:put64	8	static
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_display_selection_control.c:47:13:nonzero	0	static
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_display_selection_control.c:58:13:filename_valid	16	static
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_display_selection_control.c:259:12:control	640	static
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_display_selection_control.c:225:5:bkselection_control_bind	16	static
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_display_selection_control.c:244:6:bkselection_control_invalidate	8	static
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_display_selection_control.c:374:5:bkselection_control	24	static
+/home/lijian/project/open-vela/apps/system/bk7258/bk7258_display_selection_control.c:382:5:bkcatalog_control	24	static

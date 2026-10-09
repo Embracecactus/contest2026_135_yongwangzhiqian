@@ -1,0 +1,6 @@
+{"fixture": "synthetic-workbench-tls", "certificate_sha256": "42dab856e9167700fbd6237765c3b09e7186767f10b5823d05c93ff163ba823e", "alternate_certificate_sha256": "5fff21efea10d0e75b2ef2f33c8a254918633f594145fc282bbd80a8d2611947", "openssl": "OpenSSL 3.0.2 15 Mar 2022"}
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.191s
+
+OK

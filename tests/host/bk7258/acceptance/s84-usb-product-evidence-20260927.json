@@ -1,0 +1,69 @@
+{
+  "parent": "8018fdea0317a8280bd4aee5468bddff6da93f34",
+  "implementation": "Existing product thread now starts/stops native USB PC owner; actual linked symbols recorded; no hardware deployment",
+  "counts": {
+    "selected": 466,
+    "original": 63,
+    "added": 403,
+    "new_ids": 4,
+    "runner_gates": 13
+  },
+  "baseline": "USB participant errors were not part of power/reset boundaries; initial actual assertions retained before implementation.",
+  "setup_issues": [
+    "First power build rejected missing boolean parentheses; subsequent commands accidentally ran the stale binary, so those post-edit failures are not new behavior evidence. Corrected build+tests run under fail-fast shell.",
+    "PTY adapter formerly asserted a test master always exists; updated genuine external missing-device branch to ENODEV for unplugged-open scenario."
+  ],
+  "format_after_full": {
+    "file": "app/bk7258/bk7258_pc_usb.c",
+    "before": "0426aadce7c5686cd7581bae6edc548067c499d0af9cc381df9590687dba23de",
+    "after": "ac6b9f340ebfa9012913943166a9793bf6a6e7ab8cb973277488649fa73278ae",
+    "nonwhitespace_identical": true
+  },
+  "final_checks": "Whitespace-only correction followed by full TLS/PTY target and AP incremental PASS; all other full-run input hashes match.",
+  "resources": {
+    "arm_static_owner": 120,
+    "active_pair": 69016,
+    "tls_dynamic_peak": "NOT_MEASURED",
+    "open_retry_ms": 1000,
+    "new_threads": 0
+  },
+  "mutations": "Original two detected/restored in full report; new stop-gate assertions have actual pre-implementation Red.",
+  "hardware": "NOT_RUN; no serial/phone/flash/K2/reset operation",
+  "remaining": [
+    "Real USB identity/auth/CDC disconnect and DMA exit",
+    "Heap peak/voice interaction latency",
+    "Lower serial open rollback-close failure coverage",
+    "USB file installation and resource workbench",
+    "S66/S75/S76 historical TLS faults and nested compile-failure classification"
+  ],
+  "evidence": {
+    "LIFE-02.power-usb-close.log": "ccea36b472eef3eeb4c73dafd1fa2fdccf322e2d14618e8267a046de2d70c67e",
+    "LIFE-02.power-usb-failed.log": "15fe3075acf08b49545aaf70806e8e74761ba20462f44893147a8629a87de0b2",
+    "RST-02.usb_before_identity.log": "5b5530864afcf363611f52c5bf8bb0218b451a56803e3dc3dcf6901299cbaec2",
+    "RST-02.usb_failed.log": "ed01a83b876b08a93bdc1f3ec2ecd36db4c1170f657ea60e48365eec2045ca4c",
+    "ap-build.log": "6ef4608dc3d60ef4d3fdf854b003fb3728659d545c076d4abf9d3ad65c13bac9",
+    "ap-compile.log": "bf788a8d659a2f21faba550a4898e6256cf411a25d28762c6a9383fbe9ffc046",
+    "ap-final.log": "6ef4608dc3d60ef4d3fdf854b003fb3728659d545c076d4abf9d3ad65c13bac9",
+    "ap-linked-owner.log": "b2d8efd41b8a8395c7b50331e71be0159e800259706b5283ca0fea2746ecf9ac",
+    "arm-size.log": "b4ff93f8ab418979d6241e53a9a41c01de8f5a324f7facdfa576a9582b4c3beb",
+    "format-only.json": "a445476ff3b15ac8d97f6329be18f9cd42c2ef7063e04ff5c439de489d323e92",
+    "full.log": "82b7101eb247d3519990980d526532705ceafdb561e70240c98dfcb9edadb1a6",
+    "owner-final.log": "cf60757d891132490795896411e1cf9acef71e5aca54abe6ec641e01fd0f944c",
+    "owner.log": "b4bf499806bbea2d1f5957eade62339b770e648cb16f427223d8ae89c9f89abb",
+    "power-before.log": "b50c86261b5d5c6c4f64a854dc2e95497aea7f7304edb174a7af9641cdfc8ae7",
+    "power-build-before.log": "50ecc248f89c389c959ad2811e90f36e142a097b8e8f3be35227b945dff3161d",
+    "power-build-final.log": "50ecc248f89c389c959ad2811e90f36e142a097b8e8f3be35227b945dff3161d",
+    "power-build.log": "17b0973aa08fbdb6a347f2f22661c109669401823a4503fe02ffcd770f225462",
+    "power-close-final.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "power-close.log": "ff85e5ac113e1b8ae801b78bf34f81e0beda56467d1d1bbe1e295203b4531a99",
+    "power-failed-final.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "power-failed.log": "b50c86261b5d5c6c4f64a854dc2e95497aea7f7304edb174a7af9641cdfc8ae7",
+    "reset-before.log": "aff7ef3113459df5d84441909d2643ad3915eef691510bf3db9ebd55e1e6dec8",
+    "reset.log": "693d371e08bab4a31f97837a8cd36c7dd39e263583b373344ac826bab6e0db43",
+    "runner-gates.log": "ba4aad699e532fed69331fc1da28feab1a47050f7394977a07c95996ea8a0c8b",
+    "style-bk7258_pc_usb.c.log": "0ae708b8f70c7236828487e18285aaabdeb474fb9611abf486962ff7b7070dfa",
+    "style-bk7258_pc_usb.h.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "style-final-c.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tls-formatted.log": "f5f6e95095bffa58143570b2fba92c2ccc4fad1cf7713ea45c3280daca19eb29"
+  }
+}

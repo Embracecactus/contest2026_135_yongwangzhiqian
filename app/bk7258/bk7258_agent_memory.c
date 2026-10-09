@@ -3,10 +3,12 @@
 #include <nuttx/mutex.h>
 #include <errno.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <syslog.h>
+#include <unistd.h>
 #include <mbedtls/ctr_drbg.h>
 #include <mbedtls/entropy.h>
 #include <mbedtls/platform_util.h>
@@ -125,6 +127,33 @@ static int legacy_read(void *context)
   struct snapshot_s *snapshot = context;
   return bkmemory_restore(LEGACY_ROOT, &g_policy, snapshot->plain,
                           sizeof(snapshot->plain), &snapshot->size);
+}
+
+/* This is intentionally narrower than a removable-media tree cleanup. The
+ * legacy codec has exactly these two files; an unavailable mount is an error,
+ * never evidence that an old user replica is absent. */
+static int legacy_reset(void *unused)
+{
+  static const char *const names[] = {"history.enc", "history.tmp"};
+  char path[192];
+  struct stat info;
+  (void)unused;
+  if (lstat(LEGACY_ROOT, &info) < 0)
+    return errno == ENOENT ? 0 : -errno;
+  if (!S_ISDIR(info.st_mode)) return -ENOTDIR;
+  for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); i++)
+    {
+      if (snprintf(path, sizeof(path), "%s/%s", LEGACY_ROOT, names[i]) >=
+          (int)sizeof(path)) return -ENAMETOOLONG;
+      if (lstat(path, &info) < 0)
+        {
+          if (errno == ENOENT) continue;
+          return -errno;
+        }
+      if (!S_ISREG(info.st_mode)) return -EPERM;
+      if (unlink(path) < 0) return -errno;
+    }
+  return 0;
 }
 
 static int snapshot_read(struct snapshot_s *snapshot)
@@ -276,6 +305,26 @@ int bkagent_memory_bind(const uint8_t owner[32])
              "BKVOICE memory policy result=%d enabled=%d\n", ret,
              g_known && g_policy.enabled);
     }
+  nxmutex_unlock(&g_memory_lock);
+  return ret;
+}
+
+int bkagent_memory_reset(void)
+{
+  int ret = nxmutex_lock(&g_memory_lock);
+  if (ret) return ret;
+  /* Do this before any fallible I/O: a failed SD cleanup must never permit a
+   * late reply/control path to recreate the private snapshot. */
+  mbedtls_platform_zeroize(g_owner, sizeof(g_owner));
+  mbedtls_platform_zeroize(&g_policy, sizeof(g_policy));
+  g_bound = false;
+  g_known = false;
+  g_restored = false;
+  g_error = -EOWNERDEAD;
+  ret = session_clear("voice");
+  if (ret < 0 && errno == ENOENT) ret = 0;
+  if (!ret) ret = bk7258_preferences_with_storage(legacy_reset, NULL);
+  if (ret) g_error = ret;
   nxmutex_unlock(&g_memory_lock);
   return ret;
 }

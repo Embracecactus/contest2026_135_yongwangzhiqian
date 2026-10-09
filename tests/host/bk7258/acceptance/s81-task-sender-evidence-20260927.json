@@ -1,0 +1,70 @@
+{
+  "slice": "S81",
+  "parent": "b6883594a2dc54b209db1dd3673d04926ada386d",
+  "production": "PC Python task-event/task-status; no board production changes",
+  "before": {
+    "status": "BLOCKED_INTERFACE",
+    "cases": 6,
+    "evidence": "s81-evidence-20260927/interface-before.log",
+    "meaning": "Public sender/parser absent, not executable business Red"
+  },
+  "setup_error": {
+    "evidence": "s81-evidence-20260927/runner-wrong-pattern-zero.log",
+    "reason": "Incorrect unittest discovery filename collected zero; corrected explicit runner-gate script collected 13 PASS"
+  },
+  "counts": {
+    "selected": 461,
+    "original": 63,
+    "added": 398,
+    "new_this_slice": 6,
+    "runner_gates": 13,
+    "extra_mutations": 2,
+    "extra_restores": 12
+  },
+  "mutations": [
+    {
+      "id": "torn-snapshot-accepted",
+      "status": "DETECTED",
+      "test": "TasksTest.test_readback",
+      "exit_code": 1,
+      "restore_exit_code": 0,
+      "restore_count": 6
+    },
+    {
+      "id": "task-before-auth",
+      "status": "DETECTED",
+      "test": "TasksTest.test_failure",
+      "exit_code": 1,
+      "restore_exit_code": 0,
+      "restore_count": 6
+    }
+  ],
+  "hardware": "NOT_RUN: no serial open, phone install, flash, K2, reset or power cut",
+  "remaining": [
+    "native USB product owner",
+    "device task feedback consumer and arbitration",
+    "real PC process wrapper/optional UI",
+    "physical integration",
+    "historical S66/S75/S76 intermittent TLS faults remain OPEN"
+  ],
+  "evidence": {
+    "PC-01.sender-cli.log": "b8a1e367973edfe711a4083c46c3ccb2859c98758c0d41cab8ee9bd46466ca7b",
+    "PC-01.sender-failure.log": "19f2dbbebb8d53abaed1352869785d63d73703c8956c875142c54e30d8b111ff",
+    "PC-01.sender-golden.log": "ae8e37e80ddf6a5e18d5f87e8619046419221ea3adddc0b44ad44d9f01c05e98",
+    "PC-01.sender-invalid.log": "a4b58c1bb2de5984c3effb3b1e9f6aafbfe226222efc4d7dd53ab87709779d2e",
+    "PC-01.sender-readback.log": "8f79189bd4bb38a24809c4ad1d9dc3a10d096546a333cdb23196c8b1768e787c",
+    "PC-01.sender-staging.log": "493002df418f1906ae4b4f9676b8ebca1c45aa9d1152321fb2bab7d9bb3a49fe",
+    "cli-help.txt": "3920771262237a37c59c1e0dc073eba709818eaab4b8ab024b328b88bb0e75f2",
+    "client.log": "92effa768cf2e6c9e6d19626fa2cf7bb818b762d6bff07180629803b71a705a3",
+    "full.log": "cb180d93d58d7c0e3928509aca460cb437305be7b58c0626da50651b0a1159e2",
+    "interface-before.log": "5318fb573fcd824052e372dd14ad28e029f4b8a2ddc2aa8a1377e7543806ccf8",
+    "mutation-task-before-auth.log": "09a11392de0d883cd5b2d86de6b61bd10af68d0ba387340c13cd6590534236b0",
+    "mutation-torn-snapshot-accepted.log": "34719d72644e61df7ec6a7dbf79fa659d78792411c8e905d7c7a7b0dc98c622a",
+    "mutations.json": "2c9c2c4e9fb9cb3689ed21564dcf3a51c026fc342c419f35da5e390c662ca0f5",
+    "restored-task-before-auth.log": "62cfbeb2911bb226088bfb0918eb4b05008ea70b20bce854ee2ca8a564bd37a5",
+    "restored-torn-snapshot-accepted.log": "62cfbeb2911bb226088bfb0918eb4b05008ea70b20bce854ee2ca8a564bd37a5",
+    "runner-gates.log": "73343775a7dd0d9d74536331d0e5bfbb1ef2ba28af51e61d16db81c5574587a7",
+    "runner-wrong-pattern-zero.log": "0022ee81eaae586301bd919619db568337b011018f4f635ccdae17bcdd457edb",
+    "tls.log": "e2f6be1f1a4511b8fb0eec9417b60aea95692708d66a8bd741596440888d25b6"
+  }
+}

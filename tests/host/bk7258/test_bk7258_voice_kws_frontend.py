@@ -18,7 +18,8 @@ WORKSPACE = ROOT.parent
 TFLM = WORKSPACE / "apps/mlearning/tflite-micro/tflite-micro"
 LIB = TFLM / "tensorflow/lite/experimental/microfrontend/lib"
 KISSFFT = WORKSPACE / "apps/math/kissfft/kissfft"
-SAMPLES, WINDOW, HOP, BINS, ROWS = 32000, 480, 320, 40, 99
+SAMPLES, WINDOW, HOP, BINS = 48000, 480, 320, 40
+ROWS = 1 + (SAMPLES - WINDOW) // HOP
 
 UPSTREAM_SOURCES = (
     "frontend.c",
@@ -82,6 +83,12 @@ def _library(directory: Path) -> ctypes.CDLL:
         ctypes.c_size_t,
     ]
     library.bkvoice_kws_features.restype = ctypes.c_int
+    library.bkvoice_kws_features_version.argtypes = [
+        *library.bkvoice_kws_features.argtypes,
+        ctypes.c_int,
+        ctypes.c_size_t,
+    ]
+    library.bkvoice_kws_features_version.restype = ctypes.c_int
     return library
 
 
@@ -119,3 +126,42 @@ def test_frontend_rejects_wrong_window_or_output_count() -> None:
         assert (
             library.bkvoice_kws_features(pointer, SAMPLES, output, result.size - 1) < 0
         )
+        assert library.bkvoice_kws_features_version(
+            pointer, SAMPLES, output, result.size, 99, 0
+        ) < 0
+        assert library.bkvoice_kws_features_version(
+            pointer, SAMPLES, output, result.size, 2, 1
+        ) < 0
+
+
+def test_stateful_frontend_preserves_history_and_warmup() -> None:
+    warmup = 20
+    time = np.arange(SAMPLES + warmup * HOP, dtype=np.float64) / 16000
+    pcm = np.rint(3000 * np.sin(2 * np.pi * 440 * time)).astype(np.int16)
+    pointer = pcm.ctypes.data_as(ctypes.POINTER(ctypes.c_int16))
+    with tempfile.TemporaryDirectory(prefix="bkvoice-kws-frontend-") as name:
+        library = _library(Path(name))
+
+        def features(version: int, preceding: int = 0) -> np.ndarray:
+            output = np.empty((ROWS, BINS), dtype=np.float32)
+            assert library.bkvoice_kws_features_version(
+                pointer,
+                SAMPLES + preceding * HOP,
+                output.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
+                output.size,
+                version,
+                preceding,
+            ) == 0
+            assert np.all(np.isfinite(output))
+            return output
+
+        legacy = features(1)
+        stateful = features(2)
+        warmed = features(2, warmup)
+        # Warm-up must advance the very same history, not prepend features
+        # computed using a newly reset noise estimate.
+        np.testing.assert_array_equal(stateful[warmup:], warmed[:-warmup])
+        np.testing.assert_array_equal(stateful, features(2))
+        assert not np.array_equal(legacy, stateful)
+        # A stationary waveform still adapts: this detects per-frame reset.
+        assert not np.array_equal(stateful[0], stateful[100])

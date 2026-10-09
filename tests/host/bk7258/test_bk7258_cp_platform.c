@@ -29,6 +29,8 @@ enum event_e
   EVENT_OTA_LAYOUT,
   EVENT_RESET_MARKER_POLICY,
   EVENT_RADIO_STORAGE,
+  EVENT_WIFI_CONTROLLER,
+  EVENT_WIFI_CONTROL,
   EVENT_BT_CONTROLLER,
   EVENT_SDK,
   EVENT_AP_CONTROL,
@@ -230,6 +232,18 @@ int bk7258_bt_controller_ipc_initialize(void)
   return 0;
 }
 
+int bk7258_wifi_controller_initialize(void)
+{
+  event(EVENT_WIFI_CONTROLLER);
+  return 0;
+}
+
+int bk7258_wifi_control_initialize(void)
+{
+  event(EVENT_WIFI_CONTROL);
+  return 0;
+}
+
 static void expect_events(const int *expected, int count)
 {
   assert(g_event_count == count);
@@ -393,8 +407,22 @@ int main(void)
   assert(status.first_error_stage == BK7258_CP_STAGE_RADIO_STORAGE);
   assert((status.skipped_mask &
           (UINT32_C(1) << BK7258_CP_STAGE_BT_CONTROLLER)) != 0);
+#elif TEST_CP_SCENARIO == 12
+  static const int expected[] =
+  {
+    EVENT_STORAGE_CONFIG, EVENT_OTA_LAYOUT, EVENT_RESET_MARKER_POLICY,
+    EVENT_SDK, EVENT_RADIO_STORAGE, EVENT_WIFI_CONTROLLER,
+    EVENT_PSRAM, EVENT_PSRAM_HEAP, EVENT_BT_CONTROLLER, EVENT_AP_CONTROL,
+    EVENT_AP_START, EVENT_OTA, EVENT_WIFI_CONTROL, EVENT_WDT, EVENT_IRDA
+  };
+  assert(bk7258_cp_bringup_initialize() == 0);
+  expect_events(expected, (int)nitems(expected));
+  assert(bk7258_cp_bringup_initialize() == 0);
+  expect_events(expected, (int)nitems(expected));
+  assert(bk7258_cp_platform_get_status(&status) == 0);
+  assert(status.failed_mask == 0);
 #else
-#  error "TEST_CP_SCENARIO must be in the range 1..11"
+#  error "TEST_CP_SCENARIO must be in the range 1..12"
 #endif
 
   puts("bk7258 CP platform tests: PASS");

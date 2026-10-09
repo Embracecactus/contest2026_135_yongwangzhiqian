@@ -22,15 +22,18 @@ struct fixture_s
   const char *replace_value;
   const char *expression_during_wait;
   unsigned int replace_count;
+  uint64_t identity;
+  uint64_t replace_identity;
 };
 
-static int set_expression(void *arg, const char *expression)
+static int set_expression(void *arg, const char *expression, uint64_t *identity)
 {
   struct fixture_s *fixture = arg;
   unsigned int index = fixture->expression_count++;
 
   assert(index < 4);
   fixture->expressions[index] = expression;
+  *identity = ++fixture->identity;
   if (fixture->results[index] >= 0)
     {
       fixture->current_expression = expression;
@@ -39,20 +42,23 @@ static int set_expression(void *arg, const char *expression)
   return fixture->results[index];
 }
 
-static int replace_expression(void *arg, const char *expected,
+static int replace_expression(void *arg, uint64_t *identity,
                               const char *replacement)
 {
   struct fixture_s *fixture = arg;
 
   fixture->replace_count++;
-  fixture->replace_expected = expected;
+  fixture->replace_identity = *identity;
+  fixture->replace_expected = fixture->current_expression;
   fixture->replace_value = replacement;
-  if (fixture->current_expression == NULL ||
-      strcmp(fixture->current_expression, expected) != 0)
+  if (*identity != fixture->identity)
     {
-      return -EAGAIN;
+      return -ESTALE;
     }
 
+  if (strcmp(replacement, "neutral") != 0)
+    return set_expression(arg, replacement, identity);
+  *identity = ++fixture->identity;
   fixture->current_expression = replacement;
   return 0;
 }
@@ -66,6 +72,7 @@ static void wait_ms(void *arg, unsigned int milliseconds)
   if (fixture->expression_during_wait != NULL)
     {
       fixture->current_expression = fixture->expression_during_wait;
+      fixture->identity++;
     }
 }
 
@@ -94,7 +101,7 @@ static void test_success_feedback(void)
   assert(fixture.expression_count == 2);
   assert(strcmp(fixture.expressions[0], "thinking") == 0);
   assert(strcmp(fixture.expressions[1], "happy") == 0);
-  assert(fixture.replace_count == 1);
+  assert(fixture.replace_count == 2);
   assert(strcmp(fixture.replace_expected, "happy") == 0);
   assert(strcmp(fixture.replace_value, "neutral") == 0);
   assert(strcmp(fixture.current_expression, "neutral") == 0);
@@ -114,7 +121,7 @@ static void test_failure_feedback(void)
   assert(fixture.expression_count == 2);
   assert(strcmp(fixture.expressions[0], "thinking") == 0);
   assert(strcmp(fixture.expressions[1], "error") == 0);
-  assert(fixture.replace_count == 1);
+  assert(fixture.replace_count == 2);
   assert(strcmp(fixture.replace_expected, "error") == 0);
   assert(strcmp(fixture.current_expression, "neutral") == 0);
   assert(fixture.waits == 1);
@@ -131,7 +138,7 @@ static void test_unavailable_display_does_not_wait(void)
   bkvision_feedback_snapshot_finish(&feedback, true);
   assert(fixture.expression_count == 2);
   assert(fixture.waits == 0);
-  assert(fixture.replace_count == 0);
+  assert(fixture.replace_count == 1);
 }
 
 static void test_result_can_recover_after_thinking_failure(void)
@@ -145,7 +152,7 @@ static void test_result_can_recover_after_thinking_failure(void)
   bkvision_feedback_snapshot_finish(&feedback, true);
   assert(fixture.expression_count == 2);
   assert(fixture.waits == 1);
-  assert(fixture.replace_count == 1);
+  assert(fixture.replace_count == 2);
   assert(strcmp(fixture.replace_expected, "happy") == 0);
   assert(strcmp(fixture.current_expression, "neutral") == 0);
 }
@@ -160,8 +167,8 @@ static void test_newer_expression_is_not_overwritten(void)
   bkvision_feedback_snapshot_begin(&feedback);
   bkvision_feedback_snapshot_finish(&feedback, true);
   assert(fixture.waits == 1);
-  assert(fixture.replace_count == 1);
-  assert(strcmp(fixture.replace_expected, "happy") == 0);
+  assert(fixture.replace_count == 2);
+  assert(fixture.replace_identity != fixture.identity);
   assert(strcmp(fixture.current_expression, "speaking") == 0);
 }
 

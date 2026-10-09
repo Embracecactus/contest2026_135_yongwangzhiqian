@@ -1,0 +1,22 @@
+{
+  "bk7258_agent_product.c": {
+    "added_diagnostic_types": [],
+    "legacy_diagnostics_remain": true
+  },
+  "bk7258_control_session.c": {
+    "added_diagnostic_types": [],
+    "legacy_diagnostics_remain": true
+  },
+  "bk7258_control_session.h": {
+    "added_diagnostic_types": [],
+    "legacy_diagnostics_remain": true
+  },
+  "bk7258_pc_control.c": {
+    "added_diagnostic_types": [],
+    "legacy_diagnostics_remain": false
+  },
+  "bk7258_pc_control.h": {
+    "added_diagnostic_types": [],
+    "legacy_diagnostics_remain": false
+  }
+}

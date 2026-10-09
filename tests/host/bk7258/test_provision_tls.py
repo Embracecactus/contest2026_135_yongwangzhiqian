@@ -3,16 +3,27 @@
 """Actual product TLS over fragmented fake GATT, using workspace mbedTLS.
 
 Named host gate: python3 tests/host/bk7258/test_provision_tls.py.
-Builds crypto out of tree; ephemeral test-only identity is removed afterward.
+Builds crypto out of tree; successful runs remove the test-only identity.
+Failures retain synthetic inputs under ignored out/ with restricted permissions.
 MBEDTLS_SOURCE may select another checkout for upstream compatibility testing.
 """
+import hashlib
+import json
 import os
 from pathlib import Path
 import subprocess
+import shutil
+import sys
+import time
 import tempfile
 import unittest
 
+from tls_test_identity import issue as issue_test_identity
+
 ROOT = Path(__file__).resolve().parents[3]
+RESOURCE_CASE = None
+ENGINEERING_CONTROL = False
+PRODUCTION_CONTROL = False
 
 
 class ProvisionTlsTest(unittest.TestCase):
@@ -22,21 +33,117 @@ class ProvisionTlsTest(unittest.TestCase):
                 "MBEDTLS_SOURCE", ROOT.parent / "apps/crypto/mbedtls/mbedtls"
             )
         )
-        self.assertTrue((source / "CMakeLists.txt").is_file())
+        if not (source / "CMakeLists.txt").is_file():
+            raise RuntimeError("mbedTLS source is unavailable")
         with tempfile.TemporaryDirectory(prefix="bkprov-tls-test-") as directory:
             temp = Path(directory)
             (temp / "include/nuttx").mkdir(parents=True)
             (temp / "include/nuttx/config.h").write_text("")
             with (temp / "build.log").open("w+") as log:
 
+                tape_sequence = 0
+
                 def run(args, env=None):
+                    nonlocal tape_sequence
+                    tape = None
+                    # Observe real randomness only in the synthetic C fixture.
+                    # Resource peer children inherit the tape path; other peers do not.
+                    if str(args[0]) == str(temp / "test") or (
+                        len(args) > 1
+                        and Path(args[1]).name == "test_workbench_native_tls.py"
+                    ):
+                        tape = temp / f"tls-random-{tape_sequence}.bin"
+                        tape_sequence += 1
+                        env = dict(os.environ if env is None else env)
+                        env.pop("SHANIU_TLS_TAPE_REPLAY", None)
+                        env["SHANIU_TLS_TAPE_RECORD"] = str(tape)
                     result = subprocess.run(
                         [str(a) for a in args], stdout=log, stderr=log, env=env
                     )
                     if result.returncode:
+                        # Retain synthetic inputs for the first exact failure;
+                        # never retry or erase its nonzero result.
+                        failure_root = Path(
+                            os.environ.get(
+                                "SHANIU_TLS_FAILURE_DIR", ROOT / "out/tls-failures"
+                            )
+                        ) / str(time.time_ns())
+                        failure_root.mkdir(parents=True, mode=0o700)
+                        for name in ("cert.pem", "key.pem"):
+                            if (temp / name).is_file():
+                                shutil.copyfile(temp / name, failure_root / name)
+                                (failure_root / name).chmod(0o600)
+                        # Only explicit test modes and public/source hashes.
+                        # Never serialize the process environment or private key.
+                        context = os.environ if env is None else env
+                        metadata = {
+                            "exit_code": result.returncode,
+                            "command": [
+                                str(a).replace(str(temp), "<fixture>") for a in args
+                            ],
+                            "modes": {
+                                key: context.get(key)
+                                for key in ("SHANIU_TLS_STREAM", "SHANIU_TLS_SERIAL")
+                            },
+                            "source_sha256": {
+                                name: hashlib.sha256(
+                                    (ROOT / name).read_bytes()
+                                ).hexdigest()
+                                for name in (
+                                    "tests/host/bk7258/test_provision_tls.c",
+                                    "tests/host/bk7258/test_provision_tls.py",
+                                    "tests/host/bk7258/tls_entropy_tape.c",
+                                    "app/bk7258/bk7258_provision_tls.c",
+                                )
+                            },
+                        }
+                        if (temp / "cert.pem").is_file():
+                            metadata["public_certificate_pem_sha256"] = hashlib.sha256(
+                                (temp / "cert.pem").read_bytes()
+                            ).hexdigest()
+                        if tape is not None and tape.is_file():
+                            retained = failure_root / "tls-random.bin"
+                            shutil.copyfile(tape, retained)
+                            retained.chmod(0o600)
+                            metadata["synthetic_random_tape"] = {
+                                "file": retained.name,
+                                "sha256": hashlib.sha256(
+                                    retained.read_bytes()
+                                ).hexdigest(),
+                                "bytes": retained.stat().st_size,
+                                "replay_environment": "SHANIU_TLS_TAPE_REPLAY",
+                                "scope": "C fixture RNG and time; not external Python peer",
+                            }
+                        (failure_root / "failure.json").write_text(
+                            json.dumps(metadata, indent=2) + "\n"
+                        )
+                        log.flush()
+                        shutil.copyfile(temp / "build.log", failure_root / "build.log")
                         log.seek(0)
-                        self.fail(log.read()[-6000:])
+                        detail = (
+                            log.read()[-6000:] + f"\nSynthetic inputs: {failure_root}"
+                        )
+                        # Build/fixture tools cannot establish a product failure.
+                        native_setup = (
+                            len(args) > 1
+                            and str(args[1]).endswith("test_workbench_native_tls.py")
+                            and result.returncode == 2
+                        )
+                        if str(args[0]) in ("cc", "cmake", "openssl") or native_setup:
+                            raise RuntimeError(detail)
+                        self.fail(detail)
 
+                run(
+                    [
+                        sys.executable,
+                        ROOT / "tests/host/bk7258/test_tls_entropy_tape.py",
+                    ]
+                )
+                product_defines = (
+                    ["-DCONFIG_BK7258_ENGINEERING_TEST=1"]
+                    if ENGINEERING_CONTROL
+                    else []
+                )
                 run(
                     [
                         "cc",
@@ -52,6 +159,7 @@ class ProvisionTlsTest(unittest.TestCase):
                         ROOT / "app/bk7258",
                         ROOT / "tests/host/bk7258/test_provision_owner.c",
                         ROOT / "app/bk7258/bk7258_provision_owner.c",
+                        ROOT / "app/bk7258/bk7258_control_session.c",
                         ROOT / "app/bk7258/bk7258_provision_scan.c",
                         "-o",
                         temp / "owner",
@@ -166,6 +274,25 @@ class ProvisionTlsTest(unittest.TestCase):
                         "-I",
                         ROOT / "app/bk7258",
                         ROOT / "tests/host/bk7258/test_provision_tls.c",
+                        "-D_POSIX_C_SOURCE=200809L",
+                        "-pthread",
+                        "-I",
+                        ROOT / "tests/host/bk7258/mocks",
+                        ROOT / "tests/host/bk7258/test_pack_native_fixture.c",
+                        ROOT / "app/bk7258/bk7258_display_job_control.c",
+                        ROOT / "app/bk7258/bk7258_display_job.c",
+                        ROOT / "app/bk7258/bk7258_display_store.c",
+                        ROOT / "app/bk7258/bk7258_display_pack.c",
+                        ROOT / "app/bk7258/bk7258_media_volume.c",
+                        ROOT / "tests/host/bk7258/tls_entropy_tape.c",
+                        "-Wl,--wrap=mbedtls_ctr_drbg_random,--wrap=time",
+                        ROOT / "tests/host/bk7258/test_control_serial_peer.c",
+                        ROOT / "app/bk7258/bk7258_control_serial.c",
+                        ROOT / "app/bk7258/bk7258_pc_grants.c",
+                        ROOT / "app/bk7258/bk7258_pc_control.c",
+                        ROOT / "app/bk7258/bk7258_pc_usb.c",
+                        ROOT / "app/bk7258/bk7258_pc_tasks.c",
+                        "-Wl,--wrap=open,--wrap=fsync",
                         ROOT / "app/bk7258/bk7258_provision_tls.c",
                         ROOT / "app/bk7258/bk7258_provision_claim.c",
                         ROOT / "app/bk7258/bk7258_provision_store.c",
@@ -179,7 +306,66 @@ class ProvisionTlsTest(unittest.TestCase):
                         "-o",
                         temp / "test",
                     ]
+                    + product_defines
                 )
+                if ENGINEERING_CONTROL or PRODUCTION_CONTROL:
+                    issue_test_identity(run, temp)
+                    gate_store = temp / "engineering-gate"
+                    gate_store.mkdir(mode=0o700)
+                    run(
+                        [temp / "test", temp / "cert.pem", temp / "key.pem", gate_store],
+                        env={**os.environ, "SHANIU_TLS_STREAM": "1"},
+                    )
+                    identity = "ENGINEERING" if ENGINEERING_CONTROL else "PRODUCTION"
+                    print(f"BKTEST_PC_{identity}_GATE=PASS", flush=True)
+                    return
+                if RESOURCE_CASE is not None:
+                    issue_test_identity(run, temp)
+                    run(
+                        [
+                            sys.executable,
+                            ROOT / "tests/host/bk7258/test_workbench_native_tls.py",
+                            temp / "test",
+                            temp / "cert.pem",
+                            temp / "key.pem",
+                            "--case",
+                            RESOURCE_CASE,
+                        ]
+                    )
+                    log.flush()
+                    log.seek(0)
+                    for line in log:
+                        if line.startswith("RESOURCE_EVIDENCE "):
+                            print(line.rstrip(), flush=True)
+                    log.seek(0, 2)
+                    for recorded in temp.glob("tls-random-*.bin"):
+                        print(
+                            "RESOURCE_RANDOM_SHA256="
+                            + hashlib.sha256(recorded.read_bytes()).hexdigest(),
+                            flush=True,
+                        )
+                    print("NATIVE_RESOURCE_CASE=" + RESOURCE_CASE + " PASS", flush=True)
+                    return
+                run(
+                    [
+                        "cc",
+                        "-std=c11",
+                        "-Wall",
+                        "-Wextra",
+                        "-Werror",
+                        "-I",
+                        source / "include",
+                        "-I",
+                        ROOT / "app/bk7258",
+                        ROOT / "tests/host/bk7258/test_provision_tls_transport.c",
+                        build / "library/libmbedtls.a",
+                        build / "library/libmbedx509.a",
+                        build / "library/libmbedcrypto.a",
+                        "-o",
+                        temp / "transport",
+                    ]
+                )
+                run([temp / "transport"])
                 if os.environ.get("SHANIU_ANDROID_INTEROP") == "1":
                     run(
                         [
@@ -265,6 +451,7 @@ class ProvisionTlsTest(unittest.TestCase):
                         ROOT / "tests/host/bk7258/test_provision_storage.c",
                         ROOT / "app/bk7258/bk7258_provision_store.c",
                         ROOT / "app/bk7258/bk7258_provision_storage.c",
+                        ROOT / "app/bk7258/bk7258_pc_grants.c",
                         "-Wl,--wrap=fsync,--wrap=rename",
                         build / "library/libmbedcrypto.a",
                         "-o",
@@ -301,34 +488,59 @@ class ProvisionTlsTest(unittest.TestCase):
                 run([temp / "claim", private])
                 # Vary both certificate and ephemeral handshake lengths.
                 for index in range(20):
-                    run(
-                        [
-                            "openssl",
-                            "req",
-                            "-x509",
-                            "-newkey",
-                            "ec",
-                            "-pkeyopt",
-                            "ec_paramgen_curve:P-256",
-                            "-nodes",
-                            "-keyout",
-                            temp / "key.pem",
-                            "-out",
-                            temp / "cert.pem",
-                            "-subj",
-                            "/CN=localhost",
-                            "-days",
-                            "1",
-                            "-addext",
-                            "subjectAltName=DNS:localhost",
-                        ]
-                    )
+                    issue_test_identity(run, temp)
                     pair_store = temp / f"pair-{index}"
                     pair_store.mkdir(mode=0o700)
                     run(
                         [temp / "test", temp / "cert.pem", temp / "key.pem", pair_store]
                     )
+                    stream_store = temp / f"stream-{index}"
+                    stream_store.mkdir(mode=0o700)
+                    run(
+                        [
+                            temp / "test",
+                            temp / "cert.pem",
+                            temp / "key.pem",
+                            stream_store,
+                        ],
+                        env={**os.environ, "SHANIU_TLS_STREAM": "1"},
+                    )
+                    serial_store = temp / f"serial-{index}"
+                    serial_store.mkdir(mode=0o700)
+                    run(
+                        [
+                            temp / "test",
+                            temp / "cert.pem",
+                            temp / "key.pem",
+                            serial_store,
+                        ],
+                        env={
+                            **os.environ,
+                            "SHANIU_TLS_STREAM": "1",
+                            "SHANIU_TLS_SERIAL": "1",
+                        },
+                    )
+                    print(
+                        f"TLS sample={index} GATT=PASS independent-stream=PASS "
+                        f"SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256="
+                        f"{hashlib.sha256((temp / 'cert.pem').read_bytes()).hexdigest()}",
+                        flush=True,
+                    )
                     if index == 0:
+                        run(
+                            [
+                                sys.executable,
+                                ROOT / "tests/host/bk7258/test_workbench_client.py",
+                                "--pc-peer",
+                                temp / "test",
+                                temp / "cert.pem",
+                                temp / "key.pem",
+                            ]
+                        )
+                        print(
+                            "PC client interop: independent-principal=PASS owner-rejected=PASS STATUS/INFO=PASS",
+                            flush=True,
+                        )
                         run(
                             [
                                 "openssl",
@@ -356,6 +568,27 @@ class ProvisionTlsTest(unittest.TestCase):
                             ]
                         )
                         run([temp / "settings", temp / "cert.der", temp / "key.der"])
+                        # Native device generation writes an EC SEC1 key,
+                        # unlike the historical PC-supplied PKCS#8 fixture.
+                        run(
+                            [
+                                "openssl",
+                                "ec",
+                                "-in",
+                                temp / "key.pem",
+                                "-outform",
+                                "DER",
+                                "-out",
+                                temp / "native-key.der",
+                            ]
+                        )
+                        run(
+                            [
+                                temp / "settings",
+                                temp / "cert.der",
+                                temp / "native-key.der",
+                            ]
+                        )
                         run(
                             [
                                 "openssl",
@@ -390,4 +623,18 @@ class ProvisionTlsTest(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    if len(sys.argv) >= 2 and sys.argv[1] == "--engineering-control":
+        ENGINEERING_CONTROL = True
+        del sys.argv[1]
+    if len(sys.argv) >= 2 and sys.argv[1] == "--production-control":
+        PRODUCTION_CONTROL = True
+        del sys.argv[1]
+    if len(sys.argv) >= 3 and sys.argv[1] == "--resource-case":
+        RESOURCE_CASE = sys.argv[2]
+        if RESOURCE_CASE not in ("upload", "reconnect", "cancel", "wrong_principal"):
+            raise SystemExit(2)
+        del sys.argv[1:3]
+    program = unittest.main(exit=False)
+    # Preserve setup errors through the outer contract collector, even when a
+    # compiler diagnostic contains the word Assertion.
+    sys.exit(2 if program.result.errors else int(not program.result.wasSuccessful()))

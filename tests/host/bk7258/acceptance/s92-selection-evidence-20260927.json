@@ -1,0 +1,72 @@
+{
+  "parent": "a5eaf7a36f470374d0bbd6f2925d34d198cc1dca",
+  "counts": {
+    "selected": 531,
+    "original_including_restores": 63,
+    "added": 468,
+    "new_ids": 2,
+    "runner_gates": 18,
+    "original_mutations": 2,
+    "extra_mutations": 0
+  },
+  "red": [
+    {
+      "id": "RES-02.activate-collision",
+      "exit": -6,
+      "assertion": "Preexisting temporary selection must cause EEXIST with file and prior default preserved."
+    },
+    {
+      "id": "RES-02.activate-directory-failure",
+      "exit": -6,
+      "assertion": "Directory fsync EIO must propagate, not return success/populate output."
+    }
+  ],
+  "fix": "Do not unlink a preexisting selection temporary. Use exclusive creation. Propagate strict parent-directory open/fsync/close error; remove now-unused best-effort helper.",
+  "exception": "Post-rename sync failure may expose new marker but cannot confirm durability. No rollback claim or automatic retry. Successful host fsync does not prove physical power-loss survival.",
+  "validation": {
+    "AP": "Incremental build/link PASS; no signing/deployment.",
+    "layers": "PASS sources=548 kconfig=253 legacy-exceptions=2",
+    "style": "Existing nxstyle diagnostics unchanged after line/path normalization; both baseline/final exit 1. No whole-file style pass claimed.",
+    "nuttx": "76354c637858ecb0aa4601629327acb6f44a26bb",
+    "production_unchanged_in_run": true
+  },
+  "failed_attempt": "build-green.log is SETUP_ERROR: removed helper became unused under Werror. activate-collision-green.log ran the previous binary after that build failure and is invalid for the changed source. Preserved but excluded from Red/Green evidence. build-final used checked return then all final case runs passed.",
+  "parent_gaps": {
+    "RES-02": {
+      "interface": "Existing synchronous storage selection only. Async expected-revision activation and PC pack trial/default remain incomplete.",
+      "L1_L2": "Two production file-store assertions plus complete prior regressions pass. External fsync failure injected at syscall only.",
+      "L3": "NOT_RUN: no SD/device persistence experiment."
+    },
+    "STORE-02": {
+      "interface": "No schema or runtime budget change.",
+      "L1_L2": "Explicit selection collision and post-rename sync failure covered; arbitrary power-loss boundaries not proved.",
+      "L3": "NOT_RUN"
+    }
+  },
+  "resources": "No extra thread, buffer or heap allocation. Directory synchronization already requested before; errors now observable. CPU/p95/target peak memory/stack/physical flush semantics not measured.",
+  "remaining": [
+    "Goal ACTIVE; N2/N3 pack trial/default and light UI still needed.",
+    "Historical S66/S75/S76 TLS failures remain open.",
+    "Physical USB/SD/audio/power combinations and final signed delivery remain unaccepted."
+  ],
+  "evidence_sha256": {
+    "tests/host/bk7258/acceptance/s92-evidence-20260927/RES-02.activate-collision.log": "174c694bbce15b3de64d6e8e3fe4e211cdc65377de8863775cff05dc71b0461d",
+    "tests/host/bk7258/acceptance/s92-evidence-20260927/RES-02.activate-directory-failure.log": "bcb104a3503fbbf971b5807a2f1e8b3c64a0725ebd07c1e052b714c84da6236f",
+    "tests/host/bk7258/acceptance/s92-evidence-20260927/activate-collision-final.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "tests/host/bk7258/acceptance/s92-evidence-20260927/activate-collision-green.log": "85cb070081e4792f4a85a6ad4357272f47bcd77ee015f04f3913f5b7d796228a",
+    "tests/host/bk7258/acceptance/s92-evidence-20260927/activate-collision-red.log": "85cb070081e4792f4a85a6ad4357272f47bcd77ee015f04f3913f5b7d796228a",
+    "tests/host/bk7258/acceptance/s92-evidence-20260927/activate-directory-failure-final.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "tests/host/bk7258/acceptance/s92-evidence-20260927/activate-directory-failure-red.log": "0a979fd632882e7d529f141b6729b760babfba55255120d7e0eb19981164f4d2",
+    "tests/host/bk7258/acceptance/s92-evidence-20260927/ap-gated.log": "572c45075b32c902e7d17b3277d41c11df48cad3d8a2e4ba26772378b583ccab",
+    "tests/host/bk7258/acceptance/s92-evidence-20260927/build-final.log": "c20042ef1620e08be860c6acc87c4f83027a1d732fcad40ffec962246aa52d8e",
+    "tests/host/bk7258/acceptance/s92-evidence-20260927/build-green.log": "7d85e3049d09fc0e9d6ca7e5e98438c3998125a7e3a4680a96a5adab00a08b25",
+    "tests/host/bk7258/acceptance/s92-evidence-20260927/build-red.log": "c20042ef1620e08be860c6acc87c4f83027a1d732fcad40ffec962246aa52d8e",
+    "tests/host/bk7258/acceptance/s92-evidence-20260927/full.log": "b83f08f718ab4b5987f8cf7c7b7d7f2817ab18095688223eb4b69d37e679d07a",
+    "tests/host/bk7258/acceptance/s92-evidence-20260927/gates.log": "3b95636ae54cbb25ba820d5abf9fcfcbbc89a7098dffc898e4dbedcda6aa4a01",
+    "tests/host/bk7258/acceptance/s92-evidence-20260927/layers.log": "710268dfb47cd80406e5e3114f8d4e9fa899ff333a4aa4b65452813f14a7ea7d",
+    "tests/host/bk7258/acceptance/s92-evidence-20260927/normal-final.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "tests/host/bk7258/acceptance/s92-evidence-20260927/preserve-final.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "tests/host/bk7258/acceptance/s92-evidence-20260927/style-baseline.log": "f04bb0ef602a4c148c4500851d434adb50b7cd9a6aa1972126c4888258f31823",
+    "tests/host/bk7258/acceptance/s92-evidence-20260927/style-final.log": "8575d179c83670ebc197a85792d435dd3d0167f809f382a71978ec7d4b56e8b0"
+  }
+}

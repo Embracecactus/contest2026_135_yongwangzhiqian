@@ -1,0 +1,236 @@
+{
+  "format": "shaniu.tool-vision-cancel-hil-evidence/1",
+  "date": "2026-09-29",
+  "scope": "AGENT-03 cancellation propagates through the registered analyze_image production tool, interrupts its checked HTTP path, and never records a stale success",
+  "source": {
+    "test_first_commit": "93a9a7f67a730bef7f25c90e8c01bdead001a73e",
+    "main_product_commit": "fd1b3c102d0b26c176b2b9afb0441e23003d3be2",
+    "agent_before": "95f54906f5aba4a5167049ba9b72bf05a4dc0baf",
+    "agent_after": "52b12476145ed1870d596da367fb507de86e5edf",
+    "test_sha256": "ae51aa80e0e4e425fa0ac60dd3f5a21940d9cc454b8175b591db8409448cf75d",
+    "required_units_sha256": "24819535fad17520b50ce78dac2663dd7d66c377cf949931dabe71316ea47d6a",
+    "agent_source_after": {
+      "src/llm/llm_proxy.h": "ed98ce2aa8e96378f1d816bf4fb9c6542c3a42d51342b9422c361baa63e22521",
+      "src/llm/llm_vision.c": "cd79c92a2257dd15443d49a51d3ba6dcd95601ac725ee96fcfcdca687d03aa80",
+      "src/tools/tool_registry.c": "0bf5b115356de095c278f7668a92f0a67995e78ea83f9bf4acf977df6094d7ee",
+      "src/tools/tool_registry.h": "0a69e94eddb2afafff629c9cc34c7a5fd0934111c9f53a695018351afa2e7317",
+      "src/tools/tool_vision.c": "5f38059aca40401657f16774081d489fb046ed8b3ce4f888c7e0e38d1c3531a6",
+      "src/tools/tool_vision.h": "4b09f57a836f574edce200861eee5e23f0a6bd47870f09ba6876b004e3932420"
+    }
+  },
+  "contract": {
+    "id": "AGENT-03.tool-vision-cancel",
+    "parent": "AGENT-03",
+    "layer": "L2",
+    "production_path": "tool_registry_execute_checked -> registered analyze_image -> tool_vision -> checked vision HTTP",
+    "external_substitute": "The fixture controls only the external vision peer, request status, guard ledger, and a small captured file; the registry and vision tool are extracted from and compiled against production source.",
+    "expectation": "A request canceled while analyze_image is in flight returns ECANCELED, emits no output, records no guard success, and does not use the legacy unchecked transport.",
+    "old_result": {
+      "status": "FAIL_ASSERTION",
+      "exit_code": 1,
+      "return": 0,
+      "checked_calls": 0,
+      "legacy_calls": 1,
+      "guard_records": 1,
+      "output_size": 49,
+      "evidence": "out/agent-tool-vision-cancel/old-agent/tool-vision-cancel.log",
+      "sha256": "99a0854418004d80401f2092e5eb8524fbb25613bc32f55d579b9f51c1ffb2ee"
+    },
+    "new_result": {
+      "status": "PASS",
+      "exit_code": 0,
+      "return": -125,
+      "checked_calls": 1,
+      "legacy_calls": 0,
+      "guard_records": 0,
+      "output_size": 0,
+      "evidence": "out/agent-tool-vision-cancel/new-agent/tool-vision-cancel.log",
+      "sha256": "dbd16e91ee6e57058dee81f232c59141ac40d80fd3dd938fa3ae2ea61b136c8b"
+    },
+    "complete_gate": {
+      "selected": 783,
+      "collected": 783,
+      "counts": {
+        "PASS": 783,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      },
+      "collection_errors": [],
+      "original_63": 63,
+      "mutations_detected": 2,
+      "production_unchanged_during_run": true,
+      "checkout_head_during_run": "93a9a7f67a730bef7f25c90e8c01bdead001a73e",
+      "agent_head": "52b12476145ed1870d596da367fb507de86e5edf",
+      "note": "The manifest pin was committed immediately after this unchanged production run; the Agent source already matched the pinned commit.",
+      "case_evidence_sha256": "bffa96f415194e281473bc11c45aa3228b3cf5997edb38a2c2734382c61ca094",
+      "evidence": "out/agent-tool-vision-cancel/contracts-new/results.json",
+      "sha256": "db3595b12b8862b18a8130ad31fa612d24ab5a7e2fe70bcc67d72c47a6ab64b7"
+    },
+    "runner_selftest": {
+      "tests": 27,
+      "status": "PASS",
+      "evidence": "out/agent-tool-vision-cancel/runner-gate-old.log",
+      "sha256": "767e84d26e63b6acb6454db3f1cc6995cbe50b45627fc90503e956e703c9fef2"
+    }
+  },
+  "implementation": {
+    "behavior": [
+      "Builtin tools may expose an optional checked executor while preserving the legacy executor contract.",
+      "analyze_image checks the request before and after capture, file read, checked HTTP, and output publication.",
+      "The registry rechecks cancellation after builtin execution and records guard success only for a still-live request.",
+      "The raw vision client uses the existing checked HTTP transport and clears stale output on cancellation."
+    ],
+    "preserved": [
+      "mixed real-tool plus finalize ordering",
+      "missing and duplicate tool-ID rejection before side effects",
+      "direct image-message cancellation",
+      "legacy callers without a request checker"
+    ]
+  },
+  "artifact": {
+    "board": "aidk_ai_toy",
+    "version": "0.7.41+686",
+    "security_counter": 686,
+    "source_commit": "fd1b3c102d0b26c176b2b9afb0441e23003d3be2",
+    "agent_commit": "52b12476145ed1870d596da367fb507de86e5edf",
+    "source_dirty": false,
+    "build_manifest": "out/agent-tool-vision-cancel/build-686/build-manifest.json",
+    "build_manifest_sha256": "ad36d6a7e7363c22c98fcd6f246dddbb03f7dc19319c97a86e1c1e54afc78c8d",
+    "build_log_sha256": "8618596fa8d4d327a1dd6c9c08c048442afcb8119bade237868f86dcd0428c9a",
+    "layout_identity": "bk7258-510173147382a879",
+    "layout_sha256": "510173147382a879c3c3a1012a142bb5d87d64ffa8cb5881c27f1e289d8c1657",
+    "mcuboot_public_fingerprint": "7163228f3221da6e81fcf5e9c6f13ae6c4afbd1e3b91b7669783a37d2f12fbc0",
+    "package": "out/agent-tool-vision-cancel/release-686-ota/package/shaniu-bk7258-aidk_ai_toy-app__openvela_ap-v0.7.41+686-bshaniu-tool-vision-cancel-686-ota.bkpack",
+    "package_sha256": "816e72bba80d77be7469370c58569fff9d28398896aa63b477586f250ac714c6",
+    "package_verify": "PASS",
+    "public_trust_verify": "PASS",
+    "package_erase_operations": [],
+    "cp_image_sha256": "6b0cf1aee45ba679813d9aa26dddc26524836a90b590b8c3e720607fedc119b1",
+    "ap_image_sha256": "b1de15c4c95f707af11e87dc98274b1fb88ef7ac58c7e3ca2d6ebe6287dc838a",
+    "ap_elf_sha256": "a4146bf1f5164ea6ca7d375858d1225d1118873395206386e035ca1b74faf491",
+    "ap_map_sha256": "7bc055055ac0b01e9a16dd7f5f321bb07e1a5fe283cf31a8f5e237adfcd19ada",
+    "cp_elf_sha256": "caa159be87168f48a4844b0007d97c52f8d2833c14851ad111b6610420ab08b1",
+    "cp_map_sha256": "d8fb4ceab1dfda974f67d16e43008fdebb924fe09078fa8ddd1c3209a6756af9",
+    "ap_linkage": {
+      "evidence": "out/agent-tool-vision-cancel/ap-elf-vision-cancel-symbols.txt",
+      "sha256": "46e64a2316e8e99625ba5d52a36ebb882af176e376720eca67ba739a32eee8aa",
+      "symbols_present": [
+        "llm_http_call_checked",
+        "tool_registry_execute_checked"
+      ]
+    }
+  },
+  "hil": {
+    "pre_state": {
+      "status": "PASS",
+      "running": "active A, inactive B, pair confirmed, version 0.7.40+685, counter 685, faults 0, recoveries 0",
+      "inactive_ranges": [
+        "cp 0x352000+0x132000",
+        "ap 0x484000+0x20f000"
+      ],
+      "evidence": "out/agent-tool-vision-cancel/board/pre-hil-686/session.json",
+      "sha256": "09d51c32508f56e161bb9747f934b7fdbf70e56ee0022c65d3153d5d89e81d67"
+    },
+    "preflight": {
+      "status": "preflight-passed",
+      "port": "COM9",
+      "transport": "multi",
+      "evidence": "out/agent-tool-vision-cancel/preflight-686.json",
+      "sha256": "f81b694217ec7ecbb180ea9a205947d4674f0240a1e23c6db090aa6fbf18b3ea"
+    },
+    "download": {
+      "status": "passed",
+      "port": "COM9",
+      "port_role": "CH340 UART0 console and BK Loader control",
+      "transport": "multi",
+      "automatic_retry": false,
+      "reset_strategy": "loader-software-reboot",
+      "write_bounds": [
+        {
+          "offset_hex": "0x352000",
+          "length_hex": "0x132000",
+          "role": "cp"
+        },
+        {
+          "offset_hex": "0x484000",
+          "length_hex": "0x20f000",
+          "role": "ap"
+        }
+      ],
+      "success_markers_complete": true,
+      "failure_markers": [],
+      "evidence": "out/agent-tool-vision-cancel/hil-686/result.json",
+      "sha256": "c047b152805575a983cc9538ba6d69fac986cb403390e611a42378e2cfda3ab5"
+    },
+    "first_post_download_observer": {
+      "status": "EXPECTED_STATE_NOT_YET_REACHED",
+      "observed": "The query saw B active and pair pending; the same capture later recorded BOTA TRIAL CONFIRMED slot=1 counter=686.",
+      "not_a_boot_failure": true,
+      "evidence": "out/agent-tool-vision-cancel/board/post-hil-status-686/session.json",
+      "sha256": "4fdec810507db6ee4b174a6bce1ea8f64c7b8c72b1b98c1452bdd490437c0103"
+    },
+    "confirmed_runtime": {
+      "status": "PASS",
+      "version": "0.7.41+686",
+      "slot": "B",
+      "pair": "confirmed",
+      "faults": 0,
+      "recoveries": 0,
+      "evidence": "out/agent-tool-vision-cancel/board/final-status-686/session.json",
+      "sha256": "e4d48b15e46b50b456c0aab03d55c890b4ea6dbe91239ab68f9a462b638cf6bd"
+    },
+    "controlled_reboot": {
+      "status": "PASS",
+      "kind": "software reboot, not physical cold boot",
+      "expected_identity_matched": true,
+      "hardfault_assert_panic": false,
+      "evidence": "out/agent-tool-vision-cancel/board/reboot-686/session.json",
+      "sha256": "a30cb90d5d186c6984f7c6b93cc0e8ad4e1de5db15d0540495b3c3e61be76186"
+    },
+    "post_reboot_runtime": {
+      "status": "PASS",
+      "version": "0.7.41+686",
+      "slot": "B",
+      "pair": "confirmed",
+      "faults": 0,
+      "recoveries": 0,
+      "evidence": "out/agent-tool-vision-cancel/board/post-reboot-status-686/session.json",
+      "sha256": "7b602929a7e68feb530090312b083c8f56f6954b6c65c11313e597a4a4a56c5d"
+    },
+    "preserved_identity": {
+      "wake_label": "nihao_openvela",
+      "frontend": 1,
+      "model_sha256": "922eba9175fcda60f7c8a4505ca4eb5a97c86ceb30fbe48c685fd612098ac910",
+      "threshold_percent": 85,
+      "configuration_revision": 6,
+      "eye_pack": "shaniu-cyan-v3",
+      "eye_pack_revision": 3,
+      "plaintext_secrets_read": false
+    }
+  },
+  "ci": {
+    "previous_exact_head": {
+      "head": "5c7d1423f0490d01010c596c1d65c2a023683843",
+      "run_id": 36487256148,
+      "attempt": 1,
+      "workflow": "Shaniu cold delivery",
+      "status": "success",
+      "url": "https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/actions/runs/36487256148"
+    },
+    "status": "PENDING_FINAL_MAIN_HEAD",
+    "reason": "The final exact-head run is created by the single branch push after this evidence file is committed."
+  },
+  "observer_corrections": [
+    "An initial no-write preflight used the former A-slot ranges and was discarded after the current device reported A active and B inactive; the recorded preflight and actual download use only the device-reported B ranges.",
+    "The first post-download status check correctly failed its confirmed-state regex because the trial was still pending; its own later log recorded confirmation, and a new state query then passed.",
+    "BK Loader exit code 1 is advisory for this tool; all required success markers were present and no failure marker was present."
+  ],
+  "not_proven": [
+    "The exact canceled vision HTTP sequence is L2 host evidence. Normal firmware has no safe controllable external-vision cancellation injection, so HIL proves artifact linkage, deployment, boot, identity, and health rather than that injected failure itself.",
+    "The historical provider -71 payload was not available for exact replay.",
+    "No camera or screen observer was active; image capture and rendered visual correctness are not claimed.",
+    "No phone BLE or App OTA; HIL download is not App OTA.",
+    "No physical K2, deep sleep, acoustic, power, NFC, or motion observation."
+  ]
+}

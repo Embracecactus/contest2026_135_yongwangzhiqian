@@ -16,6 +16,7 @@ internal class DeviceControlConnection(
     onClosed: (String) -> Unit,
     pendingStore: ProvisionBindingStore? = null,
     pendingTransaction: String? = null,
+    private val onPeerIdentity: (ProvisionPeerIdentity) -> Unit = {},
 ) : AutoCloseable {
     private val credentials: Pair<ProvisionTls, DeviceControlProtocol> =
         (pendingStore ?: ProvisionBindingStore(context.applicationContext)).let { store ->
@@ -42,6 +43,7 @@ internal class DeviceControlConnection(
     private fun received(command: DeviceControlProtocol.Command, snapshot: DeviceControlProtocol.Snapshot) {
         if (command == DeviceControlProtocol.Command.AUTH) {
             transport.promoteToControl()
+            transport.peerIdentity?.let(onPeerIdentity)
             protocol.request(DeviceControlProtocol.Command.STATUS)
         }
         else {

@@ -1,0 +1,285 @@
+{
+  "schema_version": 1,
+  "slice": "S73",
+  "parent_commit": "ea93d693d55e5cecde91d612feb3a9e1243bc813",
+  "agent_commit": "62a304ea69c4076f0f3ef7955a9af69a5ed35277",
+  "counts": {
+    "PASS": 417,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 354,
+      "counts": {
+        "PASS": 354,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "new_units": [
+    {
+      "id": "USB-01.pc-profile-profile_binds_pin_certificate_key_and_clears_borrowed_plaintext",
+      "parent": "USB-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.11440265801502392,
+      "evidence": "USB-01.pc-profile-profile_binds_pin_certificate_key_and_clears_borrowed_plaintext.log",
+      "evidence_sha256": "1165e435136f8cd00881a2ffc6903f9ca3844877885a33ed8c030f0bce2f0cf5"
+    },
+    {
+      "id": "USB-01.pc-profile-tampered_truncated_and_unknown_profiles_fail_closed",
+      "parent": "USB-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.11444175895303488,
+      "evidence": "USB-01.pc-profile-tampered_truncated_and_unknown_profiles_fail_closed.log",
+      "evidence_sha256": "c92bf5f270d335313d6d63520cedc309d7974981bc9b4563d829f73928044d5f"
+    },
+    {
+      "id": "USB-01.pc-profile-existing_profile_and_symlink_are_never_overwritten",
+      "parent": "USB-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.11441560200182721,
+      "evidence": "USB-01.pc-profile-existing_profile_and_symlink_are_never_overwritten.log",
+      "evidence_sha256": "0e28b46bf31ff598e98c98612fbf1264ad221e6a90b53eec60b0b263bdae7123"
+    },
+    {
+      "id": "USB-01.pc-profile-invalid_material_and_os_failure_never_create_profile",
+      "parent": "USB-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.114429691049736,
+      "evidence": "USB-01.pc-profile-invalid_material_and_os_failure_never_create_profile.log",
+      "evidence_sha256": "d389259d3f33e7226ececc97d5e85ec8046e5cad1aaac7e4b668a2ed2bdcb814"
+    },
+    {
+      "id": "USB-01.pc-profile-cli_profile_reaches_real_tls_client_without_plaintext_file",
+      "parent": "USB-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.1146463860059157,
+      "evidence": "USB-01.pc-profile-cli_profile_reaches_real_tls_client_without_plaintext_file.log",
+      "evidence_sha256": "f80bc86d535cbb7b0e69dd1e6475d0446914a0bfd57f5b2500249dfb4291cc87"
+    },
+    {
+      "id": "USB-01.pc-profile-cli_invalid_profile_never_opens_port_or_falls_back",
+      "parent": "USB-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.1150530080194585,
+      "evidence": "USB-01.pc-profile-cli_invalid_profile_never_opens_port_or_falls_back.log",
+      "evidence_sha256": "aff8f2f7513c4d3678505c9f39255e1489654894e2a6c075932e3c31a3a896b1"
+    },
+    {
+      "id": "USB-01.pc-profile-cli_save_profile_is_offline_and_preserves_import_source",
+      "parent": "USB-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.11516587797086686,
+      "evidence": "USB-01.pc-profile-cli_save_profile_is_offline_and_preserves_import_source.log",
+      "evidence_sha256": "cfb9a5680640ac6261a5d1814720a6374c261342fafd255a124c47b4a1b5c420"
+    },
+    {
+      "id": "USB-01.pc-profile-io_failures_do_not_publish_success_or_overwrite",
+      "parent": "USB-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.11489883397007361,
+      "evidence": "USB-01.pc-profile-io_failures_do_not_publish_success_or_overwrite.log",
+      "evidence_sha256": "a546bbbfdffdf19c45f47cb432b2df38b8308ec41dafea6b31bd35b5316dff24"
+    },
+    {
+      "id": "USB-01.pc-profile-cli_mixed_profile_credentials_never_downgrade",
+      "parent": "USB-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.11434738902607933,
+      "evidence": "USB-01.pc-profile-cli_mixed_profile_credentials_never_downgrade.log",
+      "evidence_sha256": "157009cfd30350f88647812df4c80d42ead02ad712bef64a5007fdfcc85d1d9c"
+    },
+    {
+      "id": "USB-01.pc-profile-os_bridge_uses_stdin_current_user_and_generic_failure",
+      "parent": "USB-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.1145197399891913,
+      "evidence": "USB-01.pc-profile-os_bridge_uses_stdin_current_user_and_generic_failure.log",
+      "evidence_sha256": "ff92d1b48d28e486241d7d15c1f5dc0c7a6d401710ecfa38c73a5b81e645a331"
+    },
+    {
+      "id": "USB-01.pc-profile-authenticated_profile_with_wrong_trust_binding_is_rejected",
+      "parent": "USB-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.1146359050180763,
+      "evidence": "USB-01.pc-profile-authenticated_profile_with_wrong_trust_binding_is_rejected.log",
+      "evidence_sha256": "3513e7d62f1ed552d144dcc4f41af0b63e4077d936f55ecafd605511c281bf6f"
+    }
+  ],
+  "runner_gate": {
+    "PASS": 13
+  },
+  "os_integration": {
+    "selected": 3,
+    "PASS": 3,
+    "platform": "WSL Python invoking Windows PowerShell CurrentUser DPAPI",
+    "windows_versions": [
+      "5.1.26100.9168",
+      "10.0.26200.0"
+    ],
+    "cases": [
+      "real_current_user_roundtrip",
+      "real_entropy_binding_and_tamper_rejected",
+      "real_profile_cli_to_tls_peer"
+    ],
+    "serial": "external TLS peer, no physical port",
+    "filesystem": "WSL temporary directory, not native Windows Python file-system acceptance"
+  },
+  "mutations": [
+    {
+      "id": "overwrite-profile",
+      "status": "DETECTED",
+      "exit_code": 1,
+      "collected": 11,
+      "source_sha256": "77c6c0fbbafefdec27c5fd2cebb748e7442a2c668d0910f299bc4f18a51119eb",
+      "failed": [
+        "test_existing_profile_and_symlink_are_never_overwritten (__main__.ProfileTest)",
+        "test_io_failures_do_not_publish_success_or_overwrite (__main__.ProfileTest)"
+      ]
+    },
+    {
+      "id": "ignore-profile-trust",
+      "status": "DETECTED",
+      "exit_code": 1,
+      "collected": 11,
+      "source_sha256": "604054cfc0bae1b8d5c95d2aaffba403d2b976eb9bfc984524c9efe947d68bdf",
+      "failed": [
+        "test_authenticated_profile_with_wrong_trust_binding_is_rejected (__main__.ProfileTest)"
+      ]
+    },
+    {
+      "id": "restored",
+      "status": "PASS",
+      "exit_code": 0,
+      "collected": 11,
+      "source_sha256": "19a8889eaf1b162ce3b4b3f175981406648f9190c746f00028a5ee2c07703e6a",
+      "failed": []
+    }
+  ],
+  "original_mutations": [
+    {
+      "id": "MSC-01.early-release",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.007909383974038064,
+      "source": "app/bk7258/bk7258_media_volume.c",
+      "original_sha256": "58ebb18ae63adccf21262253da18f153bbb7c680cc0b64719ca20e8a6d9681c8",
+      "mutant_sha256": "bf298373a95ac54d5587f93ece34a30a7f661a65a969c69db9e27c6570770c57",
+      "expected_assertion": "!mounted",
+      "evidence": "MSC-01.early-release.log"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.0646051779622212,
+      "source": "app/bk7258/bk7258_provision_config.c",
+      "original_sha256": "98f5100ca49ca44e45fe3e5da4bb2da0add7466f0e357a205ca8b1e307a5818e",
+      "mutant_sha256": "4c0c615b8ffc99247b0fd91bd934d3df0409a1180769cb939b2820f9e6f69427",
+      "expected_assertion": "bkcloud_config_decode",
+      "evidence": "CFG-01.wifi-clears-cloud.log"
+    }
+  ],
+  "inputs": {
+    "tools/bk7258/_lib/workbench.py": "8dc172568d3587c883da7aa56a4b4df025c5020fcc87f3f8d6006f669a2bdb1d",
+    "tools/bk7258/_lib/workbench_profile.py": "19a8889eaf1b162ce3b4b3f175981406648f9190c746f00028a5ee2c07703e6a",
+    "tests/host/bk7258/test_workbench_profile.py": "d2a2c36c73fe5bcf0c7d1074c158e9d87c7af12d17d0c1d729e6ce49dd8acfa6",
+    "tests/host/bk7258/test_shaniu_contracts.py": "95080fbf70bea3275fd9c8b7ce1b7d798c0b0030e8891a0278e119f44f4abba5",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "5060fb0b9d0448efe261f486ee15604316ce2a61b4b47969a6863d735f313f64"
+  },
+  "environment": {
+    "platform": "Linux-5.15.167.4-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+    "python": "3.10.12",
+    "cc": "cc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0",
+    "cmake": "cmake version 4.0.2",
+    "java": "openjdk version \"21.0.6\" 2025-01-21 LTS"
+  },
+  "test_crypto_version": "44.0.0",
+  "logs": {
+    "out/shaniu-s73/interface-before.log": "ef72edd3c9288c7791e5668b1f5d92091685e5f67f9596a60437819515d2488b",
+    "out/shaniu-s73/profile-before-cli.log": "4d9e92d1fcf59727c6035345f69d0952664beee24e13c6e20060d16ec76f8e56",
+    "out/shaniu-s73/profile.log": "2adf26a947644233f0ab50647d323445dd8d365393d925dd1b4f4c3057a8a972",
+    "out/shaniu-s73/profile-final.log": "9f8c3e0c24676b0ee0118db4334a367aa546abf76e316d28fa9d626beea086fd",
+    "out/shaniu-s73/client.log": "f9cde4a3e536d3b2778287f8e9c9734c8f041ca67503ec9b2ea05a058940e800",
+    "out/shaniu-s73/dpapi-live.log": "0801b2c2b2c090ca77b1b09669bab20b5ee3e819cab43e85c6cfd51bd0637166",
+    "out/shaniu-s73/dpapi-corrected.log": "bb65a59375f4502b4dfc1a5b3f74ca9877fee9aeb058bb7cb4068aa970865f43",
+    "out/shaniu-s73/strict.log": "08bdbf0827e273ac0564534392ebb115e9fe3db6ae49ab7d7aad8bb051a3c8b2",
+    "out/shaniu-s73/runner-gate.log": "188db5604b09cc2c1f27dc424a4651c14a482160498e25dcf8e45802353ba749",
+    "out/shaniu-s73/overwrite-profile.log": "102d2d9a8f755ea0fa8aed8b22c09a47683b74353207f999c8434b2986910440",
+    "out/shaniu-s73/ignore-profile-trust.log": "ca4b5b05d9b69b30b6437f8f9f8e93a9eda230ff618a300574a81a2abc152dd8",
+    "out/shaniu-s73/restored.log": "ed7cb142ae6b5584d3d4102cb01a62cd01bc0e7a1caa6f3ac51ee0b1b38f14e0",
+    "out/shaniu-s73/windows-environment.log": "5f77639b0e75652be96104490ec43e313355ff81161936e9da861f9c89600fb1",
+    "out/shaniu-s73/style-check.log": "45a468fa6205768496f23f1716ebb7575e9b723449d2099b88bf2afef60b721f"
+  },
+  "failures_preserved": [
+    {
+      "log": "interface-before.log",
+      "type": "BLOCKED_INTERFACE",
+      "reason": "New profile module not yet implemented"
+    },
+    {
+      "log": "profile-before-cli.log",
+      "type": "SETUP_ERROR",
+      "reason": "CLI profile interface not wired; imported existing TestCase also caused 13 duplicate legacy executions, subsequently replaced by module reference and explicit suite selection"
+    },
+    {
+      "log": "dpapi-live.log",
+      "type": "SETUP_ERROR",
+      "count": 3,
+      "cause": "Production bridge called nonexistent Console.ReadToEnd. Fixed to Console.In.ReadToEnd after synthetic-input isolation; real OS tests then passed."
+    }
+  ],
+  "limits": [
+    "Actual Windows OS protection tested with synthetic data only; no real keys imported, no device/phone actions",
+    "CurrentUser semantics come from Microsoft DPAPI contract; no second-user isolation experiment or same-account malware resistance claim",
+    "Profiles are not first-pairing exchange or grant evidence; save-profile explicitly reports device_authorization_verified=false",
+    "No non-Windows native vault or plaintext fallback. Explicit legacy developer credentials remain supported",
+    "No arbitrary power-loss durability or secure erasure of Python/.NET internal copies claimed",
+    "S66 intermittent TLS failure remains open; passing host tests do not close physical USB/release gates",
+    "417 collected units are not 56 completed acceptance specifications"
+  ]
+}

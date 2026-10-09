@@ -1,0 +1,517 @@
+{
+  "slice": "S54",
+  "date": "2026-09-27",
+  "parent": "c489f34d78f069fdac8a6dfc441bfc14fd88d69f",
+  "counts": {
+    "PASS": 296,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 233,
+      "counts": {
+        "PASS": 233,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "new_cases": [
+    {
+      "id": "RST-02.motion-busy",
+      "parent": "RST-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.2141755879856646,
+      "evidence": "RST-02.motion-busy.log",
+      "evidence_sha256": "0b4900bfa8bc20c1da03622d540588b428c8014b07f2042a0049821476bd897d"
+    },
+    {
+      "id": "RST-02.motion-failed",
+      "parent": "RST-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.21420936001231894,
+      "evidence": "RST-02.motion-failed.log",
+      "evidence_sha256": "e58d6b6454d77adfbdacb66e5f9cf8e9e4d42f0252ec1bd9c2e3a13464c6b04b"
+    },
+    {
+      "id": "RST-02.motion-other_failure",
+      "parent": "RST-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.21417214995017275,
+      "evidence": "RST-02.motion-other_failure.log",
+      "evidence_sha256": "1eb4e0cd241d24f642db8ff7e0e1edc1cb058d2182afb708d1bbc7fc5bd40ff1"
+    },
+    {
+      "id": "RST-02.motion-resume_failure",
+      "parent": "RST-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.21422574698226526,
+      "evidence": "RST-02.motion-resume_failure.log",
+      "evidence_sha256": "22a5a87d3210a4f8140e074f3d084c0e5efab16a5967793c4598c52c316df34a"
+    },
+    {
+      "id": "RST-02.motion-resume_rollback",
+      "parent": "RST-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.21420849196147174,
+      "evidence": "RST-02.motion-resume_rollback.log",
+      "evidence_sha256": "663ffb3277759123a92fee9fa1e2494b4da725dec70011b572cb8c1f9d71907e"
+    },
+    {
+      "id": "RST-02.motion-owner_resume_failure",
+      "parent": "RST-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.21427106898045167,
+      "evidence": "RST-02.motion-owner_resume_failure.log",
+      "evidence_sha256": "ce15c5f2e707a3050ce7b91b504b9afe1bce42dc194ce32c8170a2db26086440"
+    },
+    {
+      "id": "RST-02.motion-power_intent",
+      "parent": "RST-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.21417814400047064,
+      "evidence": "RST-02.motion-power_intent.log",
+      "evidence_sha256": "89956bcc49014099eea1594f1b2743d2bd018948f6b30e2550f6dfe4518c0a9d"
+    }
+  ],
+  "initial_cases": [
+    {
+      "case": "busy",
+      "exit_code": 1,
+      "status": "FAIL_ASSERTION"
+    },
+    {
+      "case": "failed",
+      "exit_code": 1,
+      "status": "FAIL_ASSERTION"
+    },
+    {
+      "case": "other_failure",
+      "exit_code": 1,
+      "status": "FAIL_ASSERTION"
+    },
+    {
+      "case": "resume_failure",
+      "exit_code": 1,
+      "status": "FAIL_ASSERTION"
+    },
+    {
+      "case": "resume_rollback",
+      "exit_code": 1,
+      "status": "FAIL_ASSERTION"
+    },
+    {
+      "case": "power_intent",
+      "exit_code": 1,
+      "status": "FAIL_ASSERTION"
+    }
+  ],
+  "refinement_reds": [
+    "restore-before.log: owner restore error and stronger power-intent reopen prohibition",
+    "partial-owner-before.log: partially opened owner must be explicitly reclosed"
+  ],
+  "runner_gate": {
+    "tests": 13,
+    "status": "PASS"
+  },
+  "mutations": [
+    {
+      "id": "ignore-motion-stop",
+      "status": "DETECTED",
+      "restore": "PASS",
+      "original_sha256": "76a5336320fbafc3da3f78dfa23cb6ea72ba8509ca1ccdc0e7391df17a2bf3ff",
+      "mutant_sha256": "58de4a8effc2ef34d7b5696d719bf291f7495aa7c9628037e3e64644cfaab8f8"
+    },
+    {
+      "id": "omit-motion-rollback",
+      "status": "DETECTED",
+      "restore": "PASS",
+      "original_sha256": "76a5336320fbafc3da3f78dfa23cb6ea72ba8509ca1ccdc0e7391df17a2bf3ff",
+      "mutant_sha256": "276c32dc9a455b2c79179b6390ed5d7e31eaf2d3d62422e2db98d63987eea27d"
+    }
+  ],
+  "existing_mutations": [
+    {
+      "id": "MSC-01.early-release",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.007737797044683248,
+      "source": "app/bk7258/bk7258_media_volume.c",
+      "original_sha256": "58ebb18ae63adccf21262253da18f153bbb7c680cc0b64719ca20e8a6d9681c8",
+      "mutant_sha256": "bf298373a95ac54d5587f93ece34a30a7f661a65a969c69db9e27c6570770c57",
+      "expected_assertion": "!mounted",
+      "evidence": "MSC-01.early-release.log"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.06396526301978156,
+      "source": "app/bk7258/bk7258_provision_config.c",
+      "original_sha256": "98f5100ca49ca44e45fe3e5da4bb2da0add7466f0e357a205ca8b1e307a5818e",
+      "mutant_sha256": "4c0c615b8ffc99247b0fd91bd934d3df0409a1180769cb939b2820f9e6f69427",
+      "expected_assertion": "bkcloud_config_decode",
+      "evidence": "CFG-01.wifi-clears-cloud.log"
+    }
+  ],
+  "inputs": {
+    "app/bk7258/bk7258_agent_product.c": "76a5336320fbafc3da3f78dfa23cb6ea72ba8509ca1ccdc0e7391df17a2bf3ff",
+    "goal-objective.md": "244cca3bd32939b79ab76ebeca2e28cd3d39c0fc239e1d46024fedbf1a894197",
+    "tests/host/bk7258/README.md": "8277bc14c353f42327eab9ef510e420009ed18e0fa99b19899cdaf188ac5ef0e",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "ee0f7a57623f2c87cdbfe887cdc8c9b91e237f3c98e47a6916e986e4f23d3c04",
+    "tests/host/bk7258/test_shaniu_contracts.py": "e746b9ea9e23ae6982e330ff21415c4abf6166a8d9f993876ea5c602ce2dcf16",
+    "tests/host/bk7258/test_shaniu_reset_nfc.py": "68bd3ad5e511877e9b8400e6c5ac97dd80868fa1ba1710363835707509b46685"
+  },
+  "logs": {
+    "after.log": {
+      "sha256": "f88c1aacb625b4ddfabdaff320e09d23ceea506cb1b45fab94f49bcfc940d915",
+      "tail": [
+        "................",
+        "----------------------------------------------------------------------",
+        "Ran 16 tests in 2.833s",
+        "",
+        "OK"
+      ]
+    },
+    "build-target-final.log": {
+      "sha256": "55f1fce78d5ee295338f25bd0251792a0c09f8aefc097f0a202f3d2362f6b745",
+      "tail": [
+        "[10/13] Linking CXX executable nuttx",
+        "[11/13] Generating nuttx.bin",
+        "[12/13] Generating System.map",
+        "",
+        "#### build completed successfully (1 seconds) ####",
+        "bk7258 layer gate: PASS sources=528 kconfig=253 legacy-exceptions=2",
+        "bk7258 build: PASS layout=bk7258-510173147382a879",
+        "bl1 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.map",
+        "bl2 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.map copy_size=13632",
+        "cp elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.map identity=bk7258-role-9a0b5b6e466d063f seed=41811cb113e14cd5ce35630f0a6d42f0d32f88a10c512bb971734bce9a28c016 config=dd503376e1b5436c9221274dc5a9ff86bf2e49660dfad4d306292e1113d82bed",
+        "ap elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.map identity=bk7258-role-5a3061a4da19ae9f seed=9507a2073a35e2970300a150395dc4d8c48458a68cb24412497ab54c714a7fec config=4e73b6c67a5176a8136b7c46a43c46329f7ef19e5ec74e626937d64bdeddfcee",
+        "build manifest=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    },
+    "build-target.log": {
+      "sha256": "88bd71e0c412b78f768ea9fa68e35bc41b3ee1edb36e870d5250163a6e25d303",
+      "tail": [
+        "[10/13] Linking CXX executable nuttx",
+        "[11/13] Generating nuttx.bin",
+        "[12/13] Generating System.map",
+        "",
+        "#### build completed successfully (1 seconds) ####",
+        "bk7258 layer gate: PASS sources=528 kconfig=253 legacy-exceptions=2",
+        "bk7258 build: PASS layout=bk7258-510173147382a879",
+        "bl1 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.map",
+        "bl2 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.map copy_size=13632",
+        "cp elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.map identity=bk7258-role-9a0b5b6e466d063f seed=41811cb113e14cd5ce35630f0a6d42f0d32f88a10c512bb971734bce9a28c016 config=dd503376e1b5436c9221274dc5a9ff86bf2e49660dfad4d306292e1113d82bed",
+        "ap elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.map identity=bk7258-role-5a3061a4da19ae9f seed=9507a2073a35e2970300a150395dc4d8c48458a68cb24412497ab54c714a7fec config=4e73b6c67a5176a8136b7c46a43c46329f7ef19e5ec74e626937d64bdeddfcee",
+        "build manifest=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    },
+    "busy-before.log": {
+      "sha256": "44acb919818084a58a21c8db56b322d8d4b148a8050b9b773bd1e2f6a243593a",
+      "tail": [
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_reset_nfc.py\", line 126, in test_motion_busy",
+        "    self.run_case(\"\"\"motion_error=-EBUSY;",
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_reset_nfc.py\", line 84, in run_case",
+        "    subprocess.run([str(path / \"case\")], check=True)",
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/tmpqibxfjxw/case']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.258s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "contracts-final.log": {
+      "sha256": "55b231a8d34e7fbd854f405b3cb4aabe679e5002866920d3c718201e39ae6820",
+      "tail": [
+        "",
+        "OK",
+        "unittest.case.FunctionTestCase (run)",
+        "CFG-01.restored ... ok",
+        "unittest.case.FunctionTestCase (run)",
+        "MSC-01.restored ... ok",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 2 tests in 0.066s",
+        "",
+        "OK",
+        "{\"PASS\": 296, \"FAIL_ASSERTION\": 0, \"SETUP_ERROR\": 0, \"NOT_RUN\": 0} production_unchanged= True"
+      ]
+    },
+    "contracts.log": {
+      "sha256": "3a2c65c1e563798c986531c074be621ef69c92149ad4b18a8875d0edf17339f1",
+      "tail": [
+        "",
+        "OK",
+        "unittest.case.FunctionTestCase (run)",
+        "CFG-01.restored ... ok",
+        "unittest.case.FunctionTestCase (run)",
+        "MSC-01.restored ... ok",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 2 tests in 0.066s",
+        "",
+        "OK",
+        "{\"PASS\": 296, \"FAIL_ASSERTION\": 0, \"SETUP_ERROR\": 0, \"NOT_RUN\": 0} production_unchanged= True"
+      ]
+    },
+    "failed-before.log": {
+      "sha256": "474148586a6fc7b6f9e2c795a870c067ab9c4e2e59ad53a5622509cb3b4451ec",
+      "tail": [
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_reset_nfc.py\", line 133, in test_motion_failed",
+        "    self.run_case(\"\"\"motion_error=-EIO;",
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_reset_nfc.py\", line 84, in run_case",
+        "    subprocess.run([str(path / \"case\")], check=True)",
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/tmpbr8_7dal/case']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.181s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "ignore-motion-stop-restore.log": {
+      "sha256": "a42877bd2e84c2e3d978e609e93b4293d642c94bcf1fc0d3766605363a41a608",
+      "tail": [
+        ".",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.193s",
+        "",
+        "OK"
+      ]
+    },
+    "ignore-motion-stop.log": {
+      "sha256": "9ec3b62e32e30d82664d90704d6f9cc7d5e53cfb45af6ad22168df8ff53e739c",
+      "tail": [
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_reset_nfc.py\", line 128, in test_motion_busy",
+        "    self.run_case(\"\"\"motion_error=-EBUSY;",
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_reset_nfc.py\", line 86, in run_case",
+        "    subprocess.run([str(path / \"case\")], check=True)",
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/tmp9wknhb0h/case']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.184s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "omit-motion-rollback-restore.log": {
+      "sha256": "f3c58c0453491ac16773c26225744f020c209e9e2d9738be9c6e9b93ced7cd84",
+      "tail": [
+        ".",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.182s",
+        "",
+        "OK"
+      ]
+    },
+    "omit-motion-rollback.log": {
+      "sha256": "8c1a3dac2434cffda855f491d5365ee90b8f500976cb858976b9f3366e3e1d4d",
+      "tail": [
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_reset_nfc.py\", line 152, in test_motion_resume_rollback",
+        "    self.run_case(\"\"\"assert(product_reset_step()==-EAGAIN);",
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_reset_nfc.py\", line 86, in run_case",
+        "    subprocess.run([str(path / \"case\")], check=True)",
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/tmp_x6i_4mz/case']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.192s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "other_failure-before.log": {
+      "sha256": "e34c461ac567d8a37606af7e94b633de10d7e88fd8e49607e6beb57e2d2f43ea",
+      "tail": [
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_reset_nfc.py\", line 138, in test_motion_other_failure",
+        "    self.run_case(\"\"\"owner_error=-EIO;",
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_reset_nfc.py\", line 84, in run_case",
+        "    subprocess.run([str(path / \"case\")], check=True)",
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/tmps9w7drlg/case']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.178s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "partial-owner-before.log": {
+      "sha256": "2ee930531337b032b6b57cd1d78f797fa177005b1fec17cd93739e682ad255e9",
+      "tail": [
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_reset_nfc.py\", line 159, in test_motion_owner_resume_failure",
+        "    self.run_case(\"\"\"assert(product_reset_step()==-EAGAIN);",
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_reset_nfc.py\", line 86, in run_case",
+        "    subprocess.run([str(path / \"case\")], check=True)",
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/tmp_5_w_iia/case']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.210s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "power_intent-before.log": {
+      "sha256": "a76b4e7db5086cca09f3483565d46c3392e91852a8a1bb07331541eaa274e818",
+      "tail": [
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_reset_nfc.py\", line 157, in test_motion_power_intent",
+        "    self.run_case(\"\"\"pending=0;assert(product_reset_step()==0 && !motion_stops);",
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_reset_nfc.py\", line 84, in run_case",
+        "    subprocess.run([str(path / \"case\")], check=True)",
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/tmpca4q00rs/case']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.183s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "restore-before.log": {
+      "sha256": "15317001321860cdd9e75836b0d9476dde9934ecb291d9a79ad4caf400aa909f",
+      "tail": [
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_reset_nfc.py\", line 165, in test_motion_power_intent",
+        "    self.run_case(\"\"\"pending=0;assert(product_reset_step()==0 && !motion_stops);",
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_reset_nfc.py\", line 84, in run_case",
+        "    subprocess.run([str(path / \"case\")], check=True)",
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/tmp_dkt2sod/case']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 2 tests in 0.368s",
+        "",
+        "FAILED (errors=2)"
+      ]
+    },
+    "resume_failure-before.log": {
+      "sha256": "f8e33e696fc59efa706789c650dc35505207abb70ceeb6854efa25f34d9047a6",
+      "tail": [
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_reset_nfc.py\", line 143, in test_motion_resume_failure",
+        "    self.run_case(\"\"\"assert(product_reset_step()==-EAGAIN);",
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_reset_nfc.py\", line 84, in run_case",
+        "    subprocess.run([str(path / \"case\")], check=True)",
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/tmprrz5z5xq/case']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.178s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "resume_rollback-before.log": {
+      "sha256": "b9a5053139f2497871e898eeb7790b7d630a7b2463aece40b9c0457af3bcb74e",
+      "tail": [
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_reset_nfc.py\", line 150, in test_motion_resume_rollback",
+        "    self.run_case(\"\"\"assert(product_reset_step()==-EAGAIN);",
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_reset_nfc.py\", line 84, in run_case",
+        "    subprocess.run([str(path / \"case\")], check=True)",
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/tmpfmpadpnj/case']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.179s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "runner-gate.log": {
+      "sha256": "5bf704d6a53aa11c1f6f50fb3fc51ff163320afad0127d3e61ca37f2c382b6f0",
+      "tail": [
+        ".............",
+        "----------------------------------------------------------------------",
+        "Ran 13 tests in 0.030s",
+        "",
+        "OK"
+      ]
+    },
+    "verify-manifest.log": {
+      "sha256": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac",
+      "tail": [
+        "bk7258 verify build-manifest: PASS boot=mcuboot board=aidk_ai_toy layout=bk7258-510173147382a879 source=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    }
+  },
+  "layers": {
+    "L1": "Actual reset coordinator function extracted verbatim, external participants only",
+    "L2": "S53 real motion service tests retained separately; combined reset+service+real storage not executed here",
+    "target": "AP linked product and final manifest verification PASS",
+    "L3": "NOT_RUN"
+  },
+  "limitations": [
+    "Actual owner resume currently always returns0; injected failure tests resilience contract, not current field behavior",
+    "No cross-core/IRQ or physical cleanup proof",
+    "Inherited unittest methods are not duplicate selected units; runner selects seven exact new IDs"
+  ],
+  "budget": {
+    "added_persistent_state": 0,
+    "new_threads": 0,
+    "new_queues": 0,
+    "new_heap": 0,
+    "new_dma": 0,
+    "unmeasured": [
+      "hardware exit latency",
+      "stack high water",
+      "physical sensor standby"
+    ]
+  },
+  "remaining": [
+    "combined reset/service/storage fault paths",
+    "physical reset/reclaim and retained identity checks",
+    "uORB hardware deactivation acknowledgment",
+    "N1 autonomous sensing and gesture-expression path",
+    "N3 USB workbench/events"
+  ],
+  "physical_actions": []
+}

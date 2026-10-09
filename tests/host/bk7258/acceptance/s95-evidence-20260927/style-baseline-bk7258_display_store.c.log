@@ -1,0 +1,36 @@
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:2:1: error: Relative file path does not match actual file
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:11:1: warning: #include outside of 'Included Files' section
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:13:1: warning: #include outside of 'Included Files' section
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:14:1: warning: #include outside of 'Included Files' section
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:15:1: warning: #include outside of 'Included Files' section
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:16:1: warning: #include outside of 'Included Files' section
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:17:1: warning: #include outside of 'Included Files' section
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:18:1: warning: #include outside of 'Included Files' section
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:19:1: warning: #include outside of 'Included Files' section
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:20:1: warning: #include outside of 'Included Files' section
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:21:1: warning: #include outside of 'Included Files' section
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:22:1: warning: #include outside of 'Included Files' section
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:25:3: warning: #include outside of 'Included Files' section
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:26:3: warning: #define outside of 'Pre-processor Definitions' section
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:28:3: warning: #define outside of 'Pre-processor Definitions' section
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:31:1: warning: #define outside of 'Pre-processor Definitions' section
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:32:1: warning: #define outside of 'Pre-processor Definitions' section
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:33:1: warning: #define outside of 'Pre-processor Definitions' section
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:34:1: warning: #define outside of 'Pre-processor Definitions' section
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:35:1: warning: #define outside of 'Pre-processor Definitions' section
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:36:1: warning: #define outside of 'Pre-processor Definitions' section
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:37:1: warning: #define outside of 'Pre-processor Definitions' section
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:38:1: warning: #define outside of 'Pre-processor Definitions' section
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:39:1: warning: #define outside of 'Pre-processor Definitions' section
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:40:1: warning: #define outside of 'Pre-processor Definitions' section
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:42:1: warning: #define outside of 'Pre-processor Definitions' section
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:43:1: warning: #define outside of 'Pre-processor Definitions' section
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:128:79: error: Long line found
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:224:83: error: Long line found
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:241:78: error: Long line found
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:245:63: error: Block comment terminator must be on a separate line
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:245:1: error: Missing blank line after comment
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:250:84: error: Long line found
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:506:79: error: Long line found
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:552:79: error: Long line found
+/tmp/tmpn4d_5ryl/apps/system/bk7258/bk7258_display_store.c:1092:1: error: "Private/Public Functions" not found! File will not be checked

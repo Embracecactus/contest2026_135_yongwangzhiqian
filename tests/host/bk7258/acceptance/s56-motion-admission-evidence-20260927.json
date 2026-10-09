@@ -1,0 +1,568 @@
+{
+  "slice": "S56",
+  "date": "2026-09-27",
+  "parent": "84b4f9f9bc9cd0cde8cf97cd9ba1d042388c2e01",
+  "counts": {
+    "PASS": 308,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 245,
+      "counts": {
+        "PASS": 245,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "new_cases": [
+    {
+      "id": "MOT-01.quiesce-queued-cycle",
+      "parent": "MOT-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.001297132985200733,
+      "evidence": "MOT-01.quiesce-queued-cycle.log",
+      "evidence_sha256": "94b3c2ed09102cace353417ca6f951c51b2b74049ece13d23c83ccbfd57bcd64"
+    },
+    {
+      "id": "MOT-01.quiesce-waiter-cycle",
+      "parent": "MOT-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0012929249787703156,
+      "evidence": "MOT-01.quiesce-waiter-cycle.log",
+      "evidence_sha256": "a1fffcd9eeeaca454c38164f6bd4756c63dd81b3a7908e2a0b25ea2207f17911"
+    },
+    {
+      "id": "MOT-01.quiesce-publication-cycle",
+      "parent": "MOT-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013089560088701546,
+      "evidence": "MOT-01.quiesce-publication-cycle.log",
+      "evidence_sha256": "3458233e22395f31ade962d21978562d31a8cbb54414183476328cafe4748cb0"
+    }
+  ],
+  "baseline": {
+    "first_two": [
+      {
+        "case": "queued-cycle",
+        "exit": -6,
+        "status": "FAIL_ASSERTION"
+      },
+      {
+        "case": "waiter-cycle",
+        "exit": -6,
+        "status": "FAIL_ASSERTION"
+      }
+    ],
+    "publication_cycle": "FAIL_ASSERTION before result-slot generation check; see publication-cycle-before.log",
+    "preliminary307": "Not final; publication-boundary case added afterwards. Fixture edited during preliminary run; final selected set recompiled and rerun after edits."
+  },
+  "runner_gate": {
+    "tests": 13,
+    "status": "PASS"
+  },
+  "mutations": [
+    {
+      "id": "skip-stop-revocation",
+      "status": "DETECTED",
+      "restore": "PASS",
+      "source": "bk7258_motion_service.c",
+      "original_sha256": "3ca4345c72793a7a7d0962d639c0ebfb81616fa5f66f685d2802fede6662b1b7",
+      "mutant_sha256": "d0e2114f85c626d484218a05c1969c6e604f26539ac57d2c361ff45a2e14c127"
+    },
+    {
+      "id": "skip-waiter-recheck",
+      "status": "DETECTED",
+      "restore": "PASS",
+      "source": "bk7258_motion_service.c",
+      "original_sha256": "3ca4345c72793a7a7d0962d639c0ebfb81616fa5f66f685d2802fede6662b1b7",
+      "mutant_sha256": "73784bd753fb824dbcfdb7a7d8cc41a6ac94217bc5d5454fa59a90a74175acdf"
+    },
+    {
+      "id": "skip-result-recheck",
+      "status": "DETECTED",
+      "restore": "PASS",
+      "source": "bk7258_motion_service.c",
+      "original_sha256": "3ca4345c72793a7a7d0962d639c0ebfb81616fa5f66f685d2802fede6662b1b7",
+      "mutant_sha256": "4f08cef88b0434176f0bf917356cbf990869dd6dff748db13bcbc1961ff76d52"
+    }
+  ],
+  "existing_mutations": [
+    {
+      "id": "MSC-01.early-release",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.007736920029856265,
+      "source": "app/bk7258/bk7258_media_volume.c",
+      "original_sha256": "58ebb18ae63adccf21262253da18f153bbb7c680cc0b64719ca20e8a6d9681c8",
+      "mutant_sha256": "bf298373a95ac54d5587f93ece34a30a7f661a65a969c69db9e27c6570770c57",
+      "expected_assertion": "!mounted",
+      "evidence": "MSC-01.early-release.log"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.06409233796875924,
+      "source": "app/bk7258/bk7258_provision_config.c",
+      "original_sha256": "98f5100ca49ca44e45fe3e5da4bb2da0add7466f0e357a205ca8b1e307a5818e",
+      "mutant_sha256": "4c0c615b8ffc99247b0fd91bd934d3df0409a1180769cb939b2820f9e6f69427",
+      "expected_assertion": "bkcloud_config_decode",
+      "evidence": "CFG-01.wifi-clears-cloud.log"
+    }
+  ],
+  "inputs": {
+    "app/bk7258/bk7258_motion_service.c": "3ca4345c72793a7a7d0962d639c0ebfb81616fa5f66f685d2802fede6662b1b7",
+    "app/bk7258/bk7258_motion_service.h": "ac12910da1c61f7129bd6236cc26c679daea3e45c7e56cc852cafbeccc24eed3",
+    "goal-objective.md": "db02ae2869a421443f14f6aa37bf846c1e92154d38fe637550295d5aca1f5139",
+    "tests/host/bk7258/README.md": "efb2281fd87dd6d18f8b13b4c5289912ce540e2b0af7870d3de123a526a0e831",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "b2696ef2fe28d157a254a297270a54f7319a4bd15752ce9c4a076a545a976b69",
+    "tests/host/bk7258/bk7258_sensor_rpc_test.h": "e1dd97fdad559bcd6b52f99dba354754fc3885e6d1208dd52cf300bef0f86d3b",
+    "tests/host/bk7258/test_shaniu_contracts.py": "53635519331602d6ded04e21d3aaea852dba41d02701f15a3c1506a99a942112",
+    "tests/host/bk7258/test_shaniu_motion_quiesce.c": "48f39efe0da8f3e36574b82642b89f1def8923d447bd5201ac3601ea72d9bf73"
+  },
+  "logs": {
+    "active-after.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "bk7258_motion_service.c-baseline-style.log": {
+      "sha256": "14f5caa5b8406d11b76386e99fe06ed5ddb5bc076d4e5c332f25903652127913",
+      "tail": [
+        "/tmp/tmpqgdifbgo/bk7258_motion_service.c:220:1: error: Missing blank line before comment found",
+        "/tmp/tmpqgdifbgo/bk7258_motion_service.c:220:1: error: Missing blank line after comment",
+        "/tmp/tmpqgdifbgo/bk7258_motion_service.c:239:48: error: Left bracket not on separate line",
+        "/tmp/tmpqgdifbgo/bk7258_motion_service.c:251:1: error: Missing blank line after comment",
+        "/tmp/tmpqgdifbgo/bk7258_motion_service.c:293:7: error: Missing whitespace after semicolon",
+        "/tmp/tmpqgdifbgo/bk7258_motion_service.c:293:8: error: Missing whitespace after semicolon",
+        "/tmp/tmpqgdifbgo/bk7258_motion_service.c:584:85: error: Long line found",
+        "/tmp/tmpqgdifbgo/bk7258_motion_service.c:622:1: error: \"Private/Public Functions\" not found! File will not be checked"
+      ]
+    },
+    "bk7258_motion_service.c-style.log": {
+      "sha256": "edce5a1ba16055c6010f31b71900495487fa4fa20133fc55ff2970e8b42c0c6a",
+      "tail": [
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_motion_service.c:35:1: warning: #define outside of 'Pre-processor Definitions' section",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_motion_service.c:236:1: error: Missing blank line before comment found",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_motion_service.c:236:1: error: Missing blank line after comment",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_motion_service.c:255:48: error: Left bracket not on separate line",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_motion_service.c:313:7: error: Missing whitespace after semicolon",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_motion_service.c:313:8: error: Missing whitespace after semicolon",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_motion_service.c:616:85: error: Long line found",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_motion_service.c:654:1: error: \"Private/Public Functions\" not found! File will not be checked"
+      ]
+    },
+    "bk7258_motion_service.h-baseline-style.log": {
+      "sha256": "427fd039fc2c066ed391f6b965184e0c7a1d0d30c5b51cbf8a3326a8d23afa8d",
+      "tail": [
+        "/tmp/tmp4pd8jiku/bk7258_motion_service.h:2:1: error: Relative file path does not match actual file",
+        "/tmp/tmp4pd8jiku/bk7258_motion_service.h:10:1: warning: #include outside of 'Included Files' section",
+        "/tmp/tmp4pd8jiku/bk7258_motion_service.h:11:1: warning: #include outside of 'Included Files' section",
+        "/tmp/tmp4pd8jiku/bk7258_motion_service.h:14:79: error: Long line found",
+        "/tmp/tmp4pd8jiku/bk7258_motion_service.h:15:1: error: Missing blank line after comment"
+      ]
+    },
+    "bk7258_motion_service.h-style.log": {
+      "sha256": "7e9bc4dc5a178462629b95efb127df320fb0e2be222b973fb3c518c388f4fce4",
+      "tail": [
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_motion_service.h:10:1: warning: #include outside of 'Included Files' section",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_motion_service.h:11:1: warning: #include outside of 'Included Files' section"
+      ]
+    },
+    "build-after.log": {
+      "sha256": "f332dcbc3fee8b1dbc687ebbd54340c92a69a93e40b945076c40b5f981725be6",
+      "tail": [
+        "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'",
+        "cc -std=c11 -Wall -Wextra -Werror -Wno-unused-function -fsanitize=undefined -fno-sanitize-recover=all -I build/sensor-rpc-include -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_shaniu_motion_quiesce.c -o build/test_shaniu_motion_quiesce",
+        "make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'"
+      ]
+    },
+    "build-before.log": {
+      "sha256": "f332dcbc3fee8b1dbc687ebbd54340c92a69a93e40b945076c40b5f981725be6",
+      "tail": [
+        "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'",
+        "cc -std=c11 -Wall -Wextra -Werror -Wno-unused-function -fsanitize=undefined -fno-sanitize-recover=all -I build/sensor-rpc-include -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_shaniu_motion_quiesce.c -o build/test_shaniu_motion_quiesce",
+        "make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'"
+      ]
+    },
+    "build-target-before-format.log": {
+      "sha256": "aaefaf7daaa7d18ddb0a4d50ef8b099068cdc31f98e89c78cd209fc7005edaf6",
+      "tail": [
+        "#### build completed successfully (1 seconds) ####",
+        "bk7258 layer gate: PASS sources=528 kconfig=253 legacy-exceptions=2",
+        "bk7258 build: PASS layout=bk7258-510173147382a879",
+        "bl1 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.map",
+        "bl2 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.map copy_size=13632",
+        "cp elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.map identity=bk7258-role-9a0b5b6e466d063f seed=41811cb113e14cd5ce35630f0a6d42f0d32f88a10c512bb971734bce9a28c016 config=dd503376e1b5436c9221274dc5a9ff86bf2e49660dfad4d306292e1113d82bed",
+        "ap elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.map identity=bk7258-role-5a3061a4da19ae9f seed=9507a2073a35e2970300a150395dc4d8c48458a68cb24412497ab54c714a7fec config=4e73b6c67a5176a8136b7c46a43c46329f7ef19e5ec74e626937d64bdeddfcee",
+        "build manifest=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    },
+    "build-target-initial.log": {
+      "sha256": "6427c6a455f3398bbe50eaf07477c111d9b90dbfe3c245e7f8eecd0038ae71c3",
+      "tail": [
+        "#### build completed successfully (1 seconds) ####",
+        "bk7258 layer gate: PASS sources=528 kconfig=253 legacy-exceptions=2",
+        "bk7258 build: PASS layout=bk7258-510173147382a879",
+        "bl1 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.map",
+        "bl2 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.map copy_size=13632",
+        "cp elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.map identity=bk7258-role-9a0b5b6e466d063f seed=41811cb113e14cd5ce35630f0a6d42f0d32f88a10c512bb971734bce9a28c016 config=dd503376e1b5436c9221274dc5a9ff86bf2e49660dfad4d306292e1113d82bed",
+        "ap elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.map identity=bk7258-role-5a3061a4da19ae9f seed=9507a2073a35e2970300a150395dc4d8c48458a68cb24412497ab54c714a7fec config=4e73b6c67a5176a8136b7c46a43c46329f7ef19e5ec74e626937d64bdeddfcee",
+        "build manifest=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    },
+    "build-target.log": {
+      "sha256": "6427c6a455f3398bbe50eaf07477c111d9b90dbfe3c245e7f8eecd0038ae71c3",
+      "tail": [
+        "#### build completed successfully (1 seconds) ####",
+        "bk7258 layer gate: PASS sources=528 kconfig=253 legacy-exceptions=2",
+        "bk7258 build: PASS layout=bk7258-510173147382a879",
+        "bl1 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.map",
+        "bl2 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.map copy_size=13632",
+        "cp elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.map identity=bk7258-role-9a0b5b6e466d063f seed=41811cb113e14cd5ce35630f0a6d42f0d32f88a10c512bb971734bce9a28c016 config=dd503376e1b5436c9221274dc5a9ff86bf2e49660dfad4d306292e1113d82bed",
+        "ap elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.map identity=bk7258-role-5a3061a4da19ae9f seed=9507a2073a35e2970300a150395dc4d8c48458a68cb24412497ab54c714a7fec config=4e73b6c67a5176a8136b7c46a43c46329f7ef19e5ec74e626937d64bdeddfcee",
+        "build manifest=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    },
+    "close-error-after.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "contracts-before-format.log": {
+      "sha256": "44d822775225f8d8a9738f61d4fb2422179bb6f4e4fafb3ea77ae02a4b57c089",
+      "tail": [
+        "unittest.case.FunctionTestCase (run)",
+        "MSC-01.restored ... ok",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 2 tests in 0.066s",
+        "",
+        "OK",
+        "{\"PASS\": 308, \"FAIL_ASSERTION\": 0, \"SETUP_ERROR\": 0, \"NOT_RUN\": 0} production_unchanged= True"
+      ]
+    },
+    "contracts-initial-307.log": {
+      "sha256": "317d1c6603cb18d4aab48d665771664bb1e9ae9e31a32680e3c61011d5bbe561",
+      "tail": [
+        "unittest.case.FunctionTestCase (run)",
+        "MSC-01.restored ... ok",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 2 tests in 0.066s",
+        "",
+        "OK",
+        "{\"PASS\": 307, \"FAIL_ASSERTION\": 0, \"SETUP_ERROR\": 0, \"NOT_RUN\": 0} production_unchanged= True"
+      ]
+    },
+    "contracts.log": {
+      "sha256": "16ab5aba1e5f2cbdd423b043d524b09ccd2226e07928431696942f723a3c033e",
+      "tail": [
+        "unittest.case.FunctionTestCase (run)",
+        "MSC-01.restored ... ok",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 2 tests in 0.066s",
+        "",
+        "OK",
+        "{\"PASS\": 308, \"FAIL_ASSERTION\": 0, \"SETUP_ERROR\": 0, \"NOT_RUN\": 0} production_unchanged= True"
+      ]
+    },
+    "idle-after.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "late-after.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "mutations.log": {
+      "sha256": "25ad035915d85230f4f02c83b5855e0922b62fc995048466964715f2e245bcf8",
+      "tail": [
+        "[{'id': 'skip-stop-revocation', 'status': 'DETECTED', 'restore': 'PASS', 'source': 'bk7258_motion_service.c', 'original_sha256': '3ca4345c72793a7a7d0962d639c0ebfb81616fa5f66f685d2802fede6662b1b7', 'mutant_sha256': 'd0e2114f85c626d484218a05c1969c6e604f26539ac57d2c361ff45a2e14c127'}, {'id': 'skip-waiter-recheck', 'status': 'DETECTED', 'restore': 'PASS', 'source': 'bk7258_motion_service.c', 'original_sha256': '3ca4345c72793a7a7d0962d639c0ebfb81616fa5f66f685d2802fede6662b1b7', 'mutant_sha256': '73784bd753fb824dbcfdb7a7d8cc41a6ac94217bc5d5454fa59a90a74175acdf'}, {'id': 'skip-result-recheck', 'status': 'DETECTED', 'restore': 'PASS', 'source': 'bk7258_motion_service.c', 'original_sha256': '3ca4345c72793a7a7d0962d639c0ebfb81616fa5f66f685d2802fede6662b1b7', 'mutant_sha256': '4f08cef88b0434176f0bf917356cbf990869dd6dff748db13bcbc1961ff76d52'}]"
+      ]
+    },
+    "object-symbols.log": {
+      "sha256": "2f2209f1c0d84b950ba60050511ea46971f4fbf4f99a8ee590171ea6af7b661e",
+      "tail": [
+        "00000000 0000008c T bk7258_motion_service_quiesce",
+        "00000000 000001c4 t bkmotion_collect",
+        "00000000 00000128 d g_bkmotion_server"
+      ]
+    },
+    "open-cleanup-after.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "prestart-after.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "publication-build-after.log": {
+      "sha256": "f332dcbc3fee8b1dbc687ebbd54340c92a69a93e40b945076c40b5f981725be6",
+      "tail": [
+        "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'",
+        "cc -std=c11 -Wall -Wextra -Werror -Wno-unused-function -fsanitize=undefined -fno-sanitize-recover=all -I build/sensor-rpc-include -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_shaniu_motion_quiesce.c -o build/test_shaniu_motion_quiesce",
+        "make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'"
+      ]
+    },
+    "publication-build-before.log": {
+      "sha256": "f332dcbc3fee8b1dbc687ebbd54340c92a69a93e40b945076c40b5f981725be6",
+      "tail": [
+        "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'",
+        "cc -std=c11 -Wall -Wextra -Werror -Wno-unused-function -fsanitize=undefined -fno-sanitize-recover=all -I build/sensor-rpc-include -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_shaniu_motion_quiesce.c -o build/test_shaniu_motion_quiesce",
+        "make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'"
+      ]
+    },
+    "publication-cycle-after.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "publication-cycle-before.log": {
+      "sha256": "d374b2f3b97dc3fdea68bdf7af13ea36ab0789a15adc278cbac092896d243daa",
+      "tail": [
+        "test_shaniu_motion_quiesce: test_shaniu_motion_quiesce.c:29: main: Assertion `opens==1 && closes==1 && last_wire.rpc_status==-ECANCELED' failed."
+      ]
+    },
+    "queued-after.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "queued-cycle-after.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "queued-cycle-before.log": {
+      "sha256": "2adbbea76d563bcd3c7105e098a80382fcfb63229de7f77c85a575bdb1b08569",
+      "tail": [
+        "test_shaniu_motion_quiesce: test_shaniu_motion_quiesce.c:31: main: Assertion `last_wire.rpc_status==-ECANCELED && !last_wire.flags && !opens' failed."
+      ]
+    },
+    "runner-gate.log": {
+      "sha256": "ee1db5279c9a044fc58a4198a02cacb2fa57db913251f82c638f925fa9b4cb77",
+      "tail": [
+        ".............",
+        "----------------------------------------------------------------------",
+        "Ran 13 tests in 0.033s",
+        "",
+        "OK"
+      ]
+    },
+    "skip-result-recheck-build.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tail": []
+    },
+    "skip-result-recheck-restore.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "skip-result-recheck.log": {
+      "sha256": "c93ae35e5707394beaa0f467defe901176a0fdac3aa2200bcaf3291f081ea2e8",
+      "tail": [
+        "test: /tmp/motion-mutant-wjaqpu5j/test_shaniu_motion_quiesce.c:29: main: Assertion `opens==1 && closes==1 && last_wire.rpc_status==-ECANCELED' failed."
+      ]
+    },
+    "skip-stop-revocation-build.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tail": []
+    },
+    "skip-stop-revocation-restore.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "skip-stop-revocation.log": {
+      "sha256": "3b61ad54f9ca92732e6856098aa39c3227ee34fd4b58ae29e04f084f5de16532",
+      "tail": [
+        "test: /tmp/motion-mutant-1974fns6/test_shaniu_motion_quiesce.c:39: main: Assertion `last_wire.rpc_status==-ECANCELED && !last_wire.flags && !opens' failed."
+      ]
+    },
+    "skip-waiter-recheck-build.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tail": []
+    },
+    "skip-waiter-recheck-restore.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "skip-waiter-recheck.log": {
+      "sha256": "f3b6250125a5579bb463927d99dfe5b84a0b9967f47f816f51234fb385250982",
+      "tail": [
+        "test: /tmp/motion-mutant-jsfomlt2/test_shaniu_motion_quiesce.c:44: main: Assertion `bk7258_motion_service_sample(&sample)==-ECANCELED' failed."
+      ]
+    },
+    "style-c.log": {
+      "sha256": "f5896a61bbc37a7eba4658f4e702277e2d86826c89842628e474d533170ecb12",
+      "tail": [
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_motion_service.c:235:1: error: Missing blank line after comment",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_motion_service.c:254:48: error: Left bracket not on separate line",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_motion_service.c:266:1: error: Missing blank line after comment",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_motion_service.c:311:7: error: Missing whitespace after semicolon",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_motion_service.c:311:8: error: Missing whitespace after semicolon",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_motion_service.c:355:1: error: Missing blank line after comment",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_motion_service.c:613:85: error: Long line found",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_motion_service.c:651:1: error: \"Private/Public Functions\" not found! File will not be checked"
+      ]
+    },
+    "style-h.log": {
+      "sha256": "e655794addeff83bdb92669a102c49b404657f16f393e037b0d411cc28e6968c",
+      "tail": [
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_motion_service.h:10:1: warning: #include outside of 'Included Files' section",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_motion_service.h:11:1: warning: #include outside of 'Included Files' section",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_motion_service.h:14:78: error: Long line found",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_motion_service.h:16:79: error: Long line found",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_motion_service.h:17:1: error: Missing blank line after comment"
+      ]
+    },
+    "style-python.log": {
+      "sha256": "a0b67f3e8e95fb4f1fc053fff11b7409930f3bcdd456ae773f6c518d11824441",
+      "tail": [
+        "would reformat tests/host/bk7258/test_shaniu_contracts.py",
+        "",
+        "Oh no! 💥 💔 💥",
+        "1 file would be reformatted."
+      ]
+    },
+    "test_shaniu_contracts.py-baseline-style.log": {
+      "sha256": "4fa826ec7a5e3c2532e9f0dd53eed33ed059d3c9e0ecde80cd9d7ca00f57293a",
+      "tail": [
+        "would reformat /tmp/tmpkaxrb_xw/test_shaniu_contracts.py",
+        "",
+        "Oh no! 💥 💔 💥",
+        "1 file would be reformatted."
+      ]
+    },
+    "test_shaniu_contracts.py-style.log": {
+      "sha256": "a0b67f3e8e95fb4f1fc053fff11b7409930f3bcdd456ae773f6c518d11824441",
+      "tail": [
+        "would reformat tests/host/bk7258/test_shaniu_contracts.py",
+        "",
+        "Oh no! 💥 💔 💥",
+        "1 file would be reformatted."
+      ]
+    },
+    "verify-manifest.log": {
+      "sha256": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac",
+      "tail": [
+        "bk7258 verify build-manifest: PASS boot=mcuboot board=aidk_ai_toy layout=bk7258-510173147382a879 source=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    },
+    "waiter-cycle-after.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "waiter-cycle-before.log": {
+      "sha256": "1142c211b07823cbfb3bb0e6fa276bfd0fedbfb193141dc46a699374aa04475e",
+      "tail": [
+        "test_shaniu_motion_quiesce: test_shaniu_motion_quiesce.c:36: main: Assertion `bk7258_motion_service_sample(&sample)==-ECANCELED' failed."
+      ]
+    }
+  },
+  "style": [
+    {
+      "file": "app/bk7258/bk7258_motion_service.c",
+      "current_exit": 1,
+      "baseline_exit": 1,
+      "note": "Full-file pre-existing formatting violations; not a style PASS."
+    },
+    {
+      "file": "app/bk7258/bk7258_motion_service.h",
+      "current_exit": 1,
+      "baseline_exit": 1,
+      "note": "Full-file pre-existing formatting violations; not a style PASS."
+    },
+    {
+      "file": "tests/host/bk7258/test_shaniu_contracts.py",
+      "current_exit": 1,
+      "baseline_exit": 1,
+      "note": "Full-file pre-existing formatting violations; not a style PASS."
+    }
+  ],
+  "layers": {
+    "interface": "Existing motion sample/quiesce API; wire unchanged",
+    "L1_L2": "Actual service/collector/core/RPC with external OS/descriptor peers. Three deterministic revoked-work schedules PASS",
+    "target": "Build/manifest PASS, no deployment",
+    "N1_binding": "BLOCKED_INTERFACE: automatic candidate sampling and display trial not connected",
+    "parameters": "NOT_FROZEN: physical sensitivity and sampling cadence",
+    "L3": "NOT_RUN"
+  },
+  "budget": {
+    "ARM_server_bytes": 296,
+    "added_bytes": 8,
+    "new_threads": 0,
+    "new_queues": 0,
+    "new_dma": 0,
+    "new_polling": 0,
+    "new_storage_writes": 0,
+    "unmeasured": [
+      "CPU/p95",
+      "stack high water",
+      "real scheduling delay"
+    ]
+  },
+  "physical_preflight": {
+    "adb": "Only emulator-5554 reported",
+    "windows_serial": "GetPortNames and present Ports/AndroidUsbDeviceClass yielded no entries",
+    "serial_opened": false,
+    "physical_actions": []
+  },
+  "remaining": [
+    "N1 sampling/display production binding",
+    "physical action parameter measurements",
+    "uORB lower-half stop confirmation",
+    "full transport drain beyond already committed/submitted response",
+    "N3 USB workbench and events"
+  ]
+}

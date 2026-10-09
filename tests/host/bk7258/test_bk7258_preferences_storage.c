@@ -37,7 +37,7 @@ int mount(const char *device, const char *path, const char *type,
           unsigned long flags, const void *data)
 {
   assert(lease && !mounted && !strcmp(device, "/dev/mmcsd0"));
-  assert(!strcmp(path, "/mnt/sdnand") && !strcmp(type, "vfat"));
+  assert(!strcmp(path, "/mnt/sdnand") && !strcmp(type, "fatfs"));
   assert(flags == 0 && data == NULL);
   if (mount_error) { errno = mount_error; return -1; }
   mounted = 1;

@@ -20,6 +20,7 @@ class ProvisionClaimProtocol(
     private val beforeApply: (ByteArray) -> Unit = {},
     recoveryTransaction: ByteArray? = null,
     private val beforeApplyConfiguration: ((ByteArray, ByteArray) -> Unit)? = null,
+    private val ownerRebind: Boolean = false,
 ) : AutoCloseable {
     enum class State { NEW, AUTHENTICATING, LOCAL_CONFIRMATION, UPLOADING,
         VERIFYING, COMMITTED, NOT_COMMITTED, FAILED, UNCONFIRMED, CLOSED }
@@ -52,7 +53,7 @@ class ProvisionClaimProtocol(
         check(state == State.NEW)
         try {
             update(State.AUTHENTICATING)
-            request(7, secret)
+            request(if (ownerRebind) 7 else 1, secret)
         } finally { secret.fill(0) }
     }
 

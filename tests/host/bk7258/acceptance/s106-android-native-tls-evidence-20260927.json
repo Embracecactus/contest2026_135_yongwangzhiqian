@@ -1,0 +1,98 @@
+{
+  "parent": "46e18f13e82e0a76cd8e61e1e02be0a67334be4b",
+  "counts": {
+    "selected": 625,
+    "PASS": 625,
+    "original_including_two_restores": 63,
+    "added": 562,
+    "new_L2": 3,
+    "runner_gates": 19,
+    "original_mutations_detected": 2,
+    "extra_mutations_detected": 1,
+    "extra_restores_pass": 1
+  },
+  "production_unchanged": true,
+  "input_hashes_match": true,
+  "unit_details": [
+    {
+      "id": "RES-02.android-default-tls-save",
+      "parent": "RES-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 18.54633980098879,
+      "evidence": "RES-02.android-default-tls-save.log",
+      "evidence_sha256": "4ad8c6970d94ab511ca6bfceb516f4861e4f327a5c64e597e72b1f9897c94c13"
+    },
+    {
+      "id": "RES-02.android-default-tls-cancel",
+      "parent": "RES-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 18.014782656973694,
+      "evidence": "RES-02.android-default-tls-cancel.log",
+      "evidence_sha256": "cb4c37782120a0874b4adfab7cfec676618027b1b784e8780ec5997442df09d6"
+    },
+    {
+      "id": "RES-02.android-default-tls-recovery",
+      "parent": "RES-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 19.04211243602913,
+      "evidence": "RES-02.android-default-tls-recovery.log",
+      "evidence_sha256": "cdda51de3d29d55b2e50ec10956a5e01d1d025843e74f970550a393c6564bd34"
+    }
+  ],
+  "path": "Android DefaultSelectionController / DeviceControlSession / DeviceControlProtocol / ProvisionGattSession / ProvisionTls -> native provision_tls / control_pair / control_session / selection_control -> selection worker / store / pack / renderer",
+  "external_boundaries": [
+    "ATT ciphertext fragments <=20 bytes",
+    "manual display worker scheduling",
+    "host mount/unmount and framebuffer sink",
+    "synthetic credential and fixed operation scope; phone owner/product adapter not part of this combined fixture"
+  ],
+  "oracle": [
+    "persisted default revision/name read independently from native store",
+    "two framebuffer sinks inspect every RGB565 pixel",
+    "write/frame/mount counters",
+    "public App snapshot/messages and confirmed cancellation"
+  ],
+  "mutation": {
+    "location": "only temporary extracted production renderer",
+    "change": "skip FB1 write while returning success",
+    "outcome": "compiled and executed, JUnit AssertionError expected 3 frames but got 2",
+    "restore": "same selected save method PASS",
+    "source_file_untouched": true
+  },
+  "parent_gaps": {
+    "RES-02": {
+      "interface": "Existing Android/native default contract available; installed resource catalog absent",
+      "L1_L2": "Three new authenticated TLS vertical cases pass. Actual phone owner/revocation/product routing remains separately tested, not combined here; Activity recreation remains pending.",
+      "L3": "NOT_RUN: BLE, actual storage/DMA and physical screens"
+    }
+  },
+  "artifacts": "Test-only change. No AP build, signing, APK release/install or physical operation; existing APK45 remains previous artifact.",
+  "limits": [
+    "625 execution units do not mean 56 requirements complete",
+    "No device identity or production trust change; only ephemeral synthetic TLS fixture identity",
+    "Key material stays out of tracked evidence; failing synthetic inputs retained under ignored out/tls-failures",
+    "All detailed current raw logs remain out/shaniu-s106/full; selected raw evidence archived here"
+  ],
+  "raw_evidence_sha256": {
+    "s106-evidence-20260927/CFG-01.wifi-clears-cloud.log": "2300ac8379645ebaeb0fc3408a6221dfc720af1dc202994dc491c9778ca41cc8",
+    "s106-evidence-20260927/MSC-01.early-release.log": "6f81a4c94485d90e3fff5bd40f6e0e3eacf98350f6fdae8b4612f4a8d8546b09",
+    "s106-evidence-20260927/RES-02.android-default-tls-cancel.log": "cb4c37782120a0874b4adfab7cfec676618027b1b784e8780ec5997442df09d6",
+    "s106-evidence-20260927/RES-02.android-default-tls-recovery.log": "cdda51de3d29d55b2e50ec10956a5e01d1d025843e74f970550a393c6564bd34",
+    "s106-evidence-20260927/RES-02.android-default-tls-save.log": "4ad8c6970d94ab511ca6bfceb516f4861e4f327a5c64e597e72b1f9897c94c13",
+    "s106-evidence-20260927/cancel-initial.log": "221cb4f24cf84b9d72843dc23a15bf484ad5e24dea061ba32a5e0370cb8fb903",
+    "s106-evidence-20260927/full.log": "10d27f17087912e4ec4b71f6fca3422d6eb1da7daa3f4093a79c8ad8611449a3",
+    "s106-evidence-20260927/jvm.log": "3a9ba080f0ec0f941386ac483ecda5ceef025fffc8107fdb51feba8d6932f6ad",
+    "s106-evidence-20260927/mutation-fb1.log": "a28b603387873abeb318b9d36ad482c833c8bf2c2fc3355967399b5be8ab9e7e",
+    "s106-evidence-20260927/recovery-initial.log": "728413ee9bb63bd7998035398201c8f6e97b8b8f328d08c572a0779e0c594656",
+    "s106-evidence-20260927/restore-fb1.log": "72240c991c0f4e50eca89fb100a7521375d7d8ee2643aff7d8660e6f45932674",
+    "s106-evidence-20260927/runner-gates.log": "8b4887c1686bedd4357874babd99fae3febdff20fbab8c04930acdf943deb0b1",
+    "s106-evidence-20260927/save-initial.log": "1d6a730b510612f9c4d74c7dd903417bd7842b489ce1a4659ae7f16bbfae2d44"
+  },
+  "style": "Source diff check and black24.10.0 pass. Seven raw JUnit log captures retain their original trailing blank line; documented raw-evidence-only whitespace exception, no normalization of evidence."
+}

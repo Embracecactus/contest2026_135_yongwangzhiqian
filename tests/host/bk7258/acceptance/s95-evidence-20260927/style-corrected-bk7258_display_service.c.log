@@ -1,0 +1,87 @@
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:2:1: error: Relative file path does not match actual file
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:13:1: warning: #include outside of 'Included Files' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:17:1: warning: #include outside of 'Included Files' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:18:1: warning: #include outside of 'Included Files' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:19:1: warning: #include outside of 'Included Files' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:20:1: warning: #include outside of 'Included Files' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:21:1: warning: #include outside of 'Included Files' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:23:1: warning: #include outside of 'Included Files' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:24:1: warning: #include outside of 'Included Files' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:25:1: warning: #include outside of 'Included Files' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:26:1: warning: #include outside of 'Included Files' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:27:1: warning: #include outside of 'Included Files' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:28:1: warning: #include outside of 'Included Files' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:29:1: warning: #include outside of 'Included Files' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:30:1: warning: #include outside of 'Included Files' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:31:1: warning: #include outside of 'Included Files' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:32:1: warning: #include outside of 'Included Files' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:33:1: warning: #include outside of 'Included Files' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:34:1: warning: #include outside of 'Included Files' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:35:1: warning: #include outside of 'Included Files' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:36:1: warning: #include outside of 'Included Files' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:38:1: warning: #include outside of 'Included Files' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:39:1: warning: #include outside of 'Included Files' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:42:1: warning: #include outside of 'Included Files' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:43:1: warning: #include outside of 'Included Files' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:44:1: warning: #include outside of 'Included Files' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:46:1: error: Too many blank lines
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:47:1: warning: #define outside of 'Pre-processor Definitions' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:48:1: warning: #define outside of 'Pre-processor Definitions' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:49:1: warning: #define outside of 'Pre-processor Definitions' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:50:1: warning: #define outside of 'Pre-processor Definitions' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:51:1: warning: #define outside of 'Pre-processor Definitions' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:52:1: warning: #define outside of 'Pre-processor Definitions' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:53:1: warning: #define outside of 'Pre-processor Definitions' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:54:1: warning: #define outside of 'Pre-processor Definitions' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:55:1: warning: #define outside of 'Pre-processor Definitions' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:58:68: error: Block comment terminator must be on a separate line
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:59:1: warning: #define outside of 'Pre-processor Definitions' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:85:88: error: Long line found
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:174:1: warning: #include outside of 'Included Files' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:176:1: warning: #include outside of 'Included Files' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:177:1: warning: #include outside of 'Included Files' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:369:78: error: Long line found
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:401:64: error: Block comment terminator must be on a separate line
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:401:1: error: Missing blank line after comment
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:417:81: error: Long line found
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:419:37: error: Multiple data definitions
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:419:34: error: Left bracket not on separate line
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:421:79: error: Long line found
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:505:78: error: Long line found
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:589:64: error: Block comment terminator must be on a separate line
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:589:1: error: Missing blank line after comment
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:601:17: error: Mixed case identifier found
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:602:19: error: Mixed case identifier found
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:603:11: error: Mixed case identifier found
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:604:14: error: Mixed case identifier found
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:604:79: error: Long line found
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:605:14: error: Mixed case identifier found
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:609:24: error: Mixed case identifier found
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:618:44: error: Mixed case identifier found
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:629:1: error: Missing blank line after comment
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:636:78: error: Long line found
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:670:94: error: Long line found
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:687:94: error: Long line found
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:699:1: warning: #include outside of 'Included Files' section
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:706:7: error: Missing whitespace after semicolon
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:706:8: error: Missing whitespace after semicolon
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:709:19: error: Left bracket not on separate line
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:713:78: error: Long line found
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:723:88: error: Long line found
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:747:78: error: Long line found
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:762:79: error: Long line found
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:764:80: error: Long line found
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:769:78: error: Long line found
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:789:79: error: Block comment terminator must be on a separate line
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:789:79: error: Long line found
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:789:1: error: Missing blank line after comment
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:847:82: error: Long line found
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:936:15: error: Left bracket not on separate line
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:937:1: error: Blank line follows left brace
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:1089:1: error: Missing blank line after comment
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:1106:92: error: Long line found
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:1107:88: error: Block comment terminator must be on a separate line
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:1107:88: error: Long line found
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:1107:1: error: Missing blank line after comment
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:1118:1: error: Too many blank lines
+/tmp/tmp3y8h8lo0/apps/system/bk7258/bk7258_display_service.c:1119:1: error: "Private/Public Functions" not found! File will not be checked

@@ -1,0 +1,193 @@
+{
+  "parent": "2b984e67c1d9343e59796ce1b9006d1dca0c2671",
+  "counts": {
+    "full": 673,
+    "PASS": 673,
+    "original_including_two_restores": 63,
+    "new_this_slice": 8,
+    "prior_registry_preserved": 665,
+    "runner_gates": 19,
+    "original_mutations_detected": 2,
+    "additional_mutation_detected": 1,
+    "additional_restore_PASS": 1
+  },
+  "new_ids": [
+    "RES-02.catalog-job-conflict",
+    "RES-02.catalog-job-corrupt",
+    "RES-02.catalog-job-gate",
+    "RES-02.catalog-job-mount-cancel",
+    "RES-02.catalog-job-normal",
+    "RES-02.catalog-job-queued-cancel",
+    "RES-02.catalog-job-release",
+    "RES-02.catalog-job-scan-cancel"
+  ],
+  "implementation": "Catalog explicitly queues on existing default-selection/display owner. Shared job ID, admission, cancellation and close-only recovery; no added worker. Queries read metadata, page available only for exact DONE catalog ID. Scan and volume release complete before publication; release failure UNKNOWN blocks new storage intents. No rendering or persistent default mutation.",
+  "test_first": "New public API absent initially: BLOCKED_INTERFACE, not a business Red. Real worker/store/mount/renderer fixture then ran8 catalog cases. Bound production state machine, only external mount/FB/filesystem fault boundary substituted.",
+  "observations": [
+    "100 status/page reads while PENDING cause no storage or rendering I/O",
+    "Shared default/expression admission rejects concurrent job; old job ID cannot read a newer page",
+    "Queued/mount/scan cancellation and closed gate never publish page or reopen terminal",
+    "Catalog works without framebuffer readiness, does not render or mutate default",
+    "Unmount failure pins lease and returns UNKNOWN; explicit recovery only closes and preserves UNKNOWN, no page success",
+    "Bad installed pack fails with no partial page",
+    "Compiled isolated release-error mutation produces assertion failure; restored production passes"
+  ],
+  "corrections": [
+    {
+      "ids": "RES-02.catalog-* (11 S113 store cases)",
+      "original": "Successful C process printed PASS, runner requires CONTRACT_PASS; full gate correctly produced11 SETUP_ERROR",
+      "correction": "Changed success marker only. Assertions, selected IDs and failure exits retained; no acceptance weakened."
+    },
+    {
+      "ids": [
+        "USB-02.browser-invalid_upload_does_not_open_device"
+      ],
+      "original": "Client sending200k bytes raced intentional early HTTP413/close; BrokenPipe replaced HTTP response observation",
+      "correction": "Send oversized Content-Length headers without body, require exact413 and zero spool/worker; malformed smaller bodies and separate exact128KiB/plus-one body tests retained. No production HTTP behavior changed."
+    }
+  ],
+  "first_full": {
+    "PASS": 661,
+    "SETUP_ERROR": 12,
+    "FAIL_ASSERTION": 0,
+    "retained": "first-full-results.json and full.log; failed unit logs retained separately"
+  },
+  "stack": {
+    "target": "BK7258 AP, existing compiler and compile_commands flags",
+    "configured_worker_stack": 6144,
+    "before_frames": {
+      "worker": 80,
+      "selection_step": 696,
+      "catalog_store": 1752,
+      "open_installed": 544,
+      "store_validate": 160,
+      "pack_open": 2312,
+      "decode": 1088,
+      "read_exact": 24
+    },
+    "after_frames": {
+      "worker": 80,
+      "selection_step": 192,
+      "catalog_store": 864,
+      "open_checked": 64,
+      "pack_open": 2312,
+      "decode": 1088,
+      "read_exact": 24
+    },
+    "additional_global_page_bytes": 504,
+    "additional_cursor_bytes": 40,
+    "limitations": [
+      "Static compiler stack subtotal only, not measured high-water",
+      "OS/libc/filesystem/interrupt frames and worst blocking time not included",
+      "No stack configuration increase",
+      "Catalog protocol admission remains absent; actual resource timing must be measured before enabling new concurrency"
+    ],
+    "before_subtotal": 6656,
+    "after_subtotal": 4624
+  },
+  "stack_change": "Measured6656-byte static call subtotal exceeded6144 configured stack. Reuse one guarded global page, remove duplicate path/selection copying, share canonical open verification. New subtotal4624, no raised budget or reduced file validation. Store tests rerun in final full suite.",
+  "resource_exit_limit": "File close errors remain visible; actual mount/lease release confirms exit. This fixture does not establish SD/DMA completion or safe physical shutdown.",
+  "parent_gaps": {
+    "RES-02": {
+      "interface": "Store and asynchronous service implemented; catalog authenticated transport, Android and browser binding remain BLOCKED_INTERFACE",
+      "L1_L2": "19 store/job units now exercised in673 full run; page is independent observation, not atomic multi-page catalog",
+      "L3": "NOT_RUN actual SD timing, stack high-water, visible frames"
+    },
+    "LIFE-02": {
+      "interface": "Catalog explicit cancellation uses metadata lock; existing public power/onboarding calls still take render mutex. Internal gate test is not K2 latency proof; must resolve before enabling catalog through transport",
+      "L1_L2": "Cancel and release-failure recovery verified at display service seam",
+      "L3": "NOT_RUN real K2/DMA/exit deadline"
+    },
+    "RES-03": {
+      "interface": "No catalog wire format/USB product entry in this slice",
+      "L1_L2": "Existing TLS/client/display regression retained, not catalog protocol acceptance",
+      "L3": "NOT_RUN physical USB"
+    }
+  },
+  "artifacts": {
+    "nuttx": "6345f5a1c74cec784832adbe043ad3f1a6bcb047bdf321fda5ff1dedf21f5fae",
+    "nuttx.bin": "dc79208adec33ea7253ec05a95509478d4cce08b7ca0948e5e84f0d066637c48"
+  },
+  "build": "AP incremental compile/link PASS; no signed/deployed artifact claim",
+  "inputs": {
+    "app/bk7258/bk7258_display_store.c": "8a57aa1f2c6a405a782a995738587af91992590990adb9bd14bc2451182f16b3",
+    "app/bk7258/bk7258_display_selection.inc": "11e91260bf89b036697dc2006b255d0fd6ed8e0e227bae6ad4d1569b4de262aa",
+    "app/bk7258/bk7258_display_selection_request.inc": "79003b0f4e6ec52fc97dca74147dd54af4ba8c918a3844276554422430df127a",
+    "app/bk7258/bk7258_display_service.h": "e1d64d293a81c98e57e5efe41d9cb1a4a3d6860bfd216ac300f07b0f62dc729c",
+    "tests/host/bk7258/catalog_job_cases.inc": "a27c18ca7ffee0d0382f4ade6b3b37bb4cb63b1918ce4738e3dbd4fdfe63c514",
+    "tests/host/bk7258/test_display_catalog.c": "018951c40a5fbe1df83d7df9ce299d1399a77d7ceefc981134eaee010255f1a9",
+    "tests/host/bk7258/test_pack_trial.c": "65d064aaff09da592167fa979d7e5587b002cac3aaad0e3e2c705869e93aeab3",
+    "tests/host/bk7258/test_pack_trial.py": "be112210dccbbea59ee03a131cbe2ff78765234c319c323601399f3f6eeeb101",
+    "tests/host/bk7258/test_workbench_web.py": "449177f8b1935f96e46d720fcf7fa614dd1ed5b1560f8593199de9c3798e7a98",
+    "tests/host/bk7258/test_shaniu_contracts.py": "bfd9273269cda246cd0501b8375d3ea6a215442f22338baaf05e1d5ba6c91eb9",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "409c2152a83e80777260692b16fdbdab831ad0c7a4a3150008febcba9389b9a0"
+  },
+  "limits": [
+    "No port opened, APK installed, board flashed, reset or data erased",
+    "Original model, response, native UI and dependencies unchanged",
+    "First mutation runner attempt lacked Python fixture import path; corrected isolated runner before valid compile/assertion evidence. Not counted as detected mutation",
+    "673 execution units do not imply56 product requirements complete; original2 restored runs remain inside original63 denominator"
+  ],
+  "raw_evidence_sha256": {
+    "s114-evidence-20260927/CFG-01.wifi-clears-cloud.log": "a0124046972658c6b3b1aa46bc61f46ea7ba8edcf1f2a8c3888df7b8bb753d1c",
+    "s114-evidence-20260927/MSC-01.early-release.log": "2657bd6e1974a812b3f51d9ab6ac94ee961449b16eb10e589dbc7955f0ac82cc",
+    "s114-evidence-20260927/RES-02.catalog-cancel-before.log": "74afc4c28fc43ca09ab44b2bf7c48a30abd9abd8afec5496a543c1b1a9b3310d",
+    "s114-evidence-20260927/RES-02.catalog-cancel-during.log": "3cf2bc342760b606c0ebbd72bd26f6c88891fbdbc433560a73a53f58be9b2b51",
+    "s114-evidence-20260927/RES-02.catalog-corrupt.log": "c34f91ce105d3b604786464c0292b029d73042ecb2e22d3160beda259a3ea496",
+    "s114-evidence-20260927/RES-02.catalog-directory-close.log": "4c9375ca25d93b9902a534f0f67931fc08333aee08372f04d2c10f5eb90e989c",
+    "s114-evidence-20260927/RES-02.catalog-file-close.log": "21b5175f1686b15a58d12c5216394e37c788904c30338c3b1915deea3ae70135",
+    "s114-evidence-20260927/RES-02.catalog-invalid-cursor.log": "cc1eee9735557cb7a47e2a7ab1af47d5a934e2a43368c7ad53459ccd6783f3a2",
+    "s114-evidence-20260927/RES-02.catalog-job-conflict.log": "8d177417897150fc43bcbe0952dbe90c83506d5d465cdb6c12305fb28e1e0c0e",
+    "s114-evidence-20260927/RES-02.catalog-job-corrupt.log": "9cf951ec6bb18c205e15c8d5894dfa5509726314b5539e15148e99e3e9b51abb",
+    "s114-evidence-20260927/RES-02.catalog-job-gate.log": "fda53d91aea8aedc03e965112592820e8bb71985f5f5b51513fb886ada3c819c",
+    "s114-evidence-20260927/RES-02.catalog-job-mount-cancel.log": "e47a88423e951c83d8b31ab93f890aa6550ea68abdc4d321473f3af41bc2dba0",
+    "s114-evidence-20260927/RES-02.catalog-job-normal.log": "8300a406e128a152adabab0cfe1c20a35d8a6f6463b1ddc0453d560f7cbf1a10",
+    "s114-evidence-20260927/RES-02.catalog-job-queued-cancel.log": "5e53f1c28ffea4b1ddffd7d1509a8ac23ffdc90951e24ce168c1ba21cca813ea",
+    "s114-evidence-20260927/RES-02.catalog-job-release.log": "cae48016cec8de50f8f1ecea6a52a6e75017561bcbf472a773da9b4a8b7238c4",
+    "s114-evidence-20260927/RES-02.catalog-job-scan-cancel.log": "d5edb1a1ae6c45676cbf1bbc492ab74fde95674da51fb80a68d659e9501215c4",
+    "s114-evidence-20260927/RES-02.catalog-missing.log": "670884f5834fd35e9c250ebbc02eee650296c8d435690371a8b764b676060fe5",
+    "s114-evidence-20260927/RES-02.catalog-pages.log": "87f5c5c3498e1c203f48ebb6feaadbee5a3ae497f730d2547fcba8348a86bf47",
+    "s114-evidence-20260927/RES-02.catalog-read-error.log": "745fb482709c8a5953f6f3d2d332df4d989d9b644239dd8132eca96c79a5933e",
+    "s114-evidence-20260927/RES-02.catalog-scan-limit.log": "a3bd2ad7fb7bacfc2fb5aadd49ac2547b4431df8e24e5034308d8c67bd3c502a",
+    "s114-evidence-20260927/RES-02.catalog-symlink.log": "f7c849056dcecb9ac59c24ea9923e670e6f9d54528c2dca00b9a78d806603da5",
+    "s114-evidence-20260927/USB-02.browser-invalid_upload_does_not_open_device.log": "0cf99f6b43ebdb7efc3129ee6fc63475d5959f056d5723fc21dff5f05b6beeb9",
+    "s114-evidence-20260927/after-bk7258_display_pack.c.su": "df16a28933881d1052d19b544f5ed2b532003412511716054d2e409731af37f7",
+    "s114-evidence-20260927/after-bk7258_display_service.c.su": "1e2829099cdea2d8b87efd0570143fc0c4d266abce000a9bf79a5f16f7ad906b",
+    "s114-evidence-20260927/after-bk7258_display_store.c.su": "3cecc135128baa610ba9c5242e3ef7d7bf1afc56fdcb0f82c08e7480542fd5e5",
+    "s114-evidence-20260927/after.log": "1b542e0c5086b275e8ba842c8bf3a929f12f94f291913448ac926222267f3353",
+    "s114-evidence-20260927/ap-before-stack.log": "a8832d32799ec57a077ef7765198f1f9f840d41a303ec7803b7a8da6c92c7057",
+    "s114-evidence-20260927/ap.log": "16190f68e70e254302c65f6037a1a1f48589be9670bd5dc0b069e26126cec725",
+    "s114-evidence-20260927/before-bk7258_display_pack.c.su": "df16a28933881d1052d19b544f5ed2b532003412511716054d2e409731af37f7",
+    "s114-evidence-20260927/before-bk7258_display_service.c.su": "0d59a9e593f61cb0b7913adcd6a192dc9f305f04a323655b408bdfdd34d497ea",
+    "s114-evidence-20260927/before-bk7258_display_store.c.su": "d8a4d3d1aec865bb9580b9bb5c36f558ef256c1af6e8ec604860b02594385c83",
+    "s114-evidence-20260927/before.log": "838a92c742b88512cff053ca1191e1c790c99f1d2f7de7fc198d704b92ff0e4e",
+    "s114-evidence-20260927/build-runner.py": "e1bcc0eff065976cd0c68d667ad722fd8da0adc8cc04b08916ae19d49a4d85af",
+    "s114-evidence-20260927/catalog-build-final.log": "088217bb175f97c9465a321cc5a9b199f60927a2ec6775ebe93963601835e46f",
+    "s114-evidence-20260927/catalog-normal-final.log": "bd67eb9c1664b0846f4bb7dc91b369bdc8edfa2ab4f9fb8dcc3bc554cf0ac3b5",
+    "s114-evidence-20260927/final-inputs.json": "061cf0d19f8f4d2410ee22b6ad882f9b3643afdf875c149636aed92f13cea683",
+    "s114-evidence-20260927/final.log": "a14e8992e4e73be0aab217246d042e967b71a978e0d7d174dd23e8eb74c34ef6",
+    "s114-evidence-20260927/first-RES-02.catalog-cancel-before.log": "c63bc614eb144ba7128c0bf3aa58542523fc23946bcd825197eb84b7f9f9dfac",
+    "s114-evidence-20260927/first-RES-02.catalog-cancel-during.log": "643d1d78b0cf13b3865087a8defd96d87d34c9684d949b1c385f11fc3fa50b54",
+    "s114-evidence-20260927/first-RES-02.catalog-corrupt.log": "9f5f5a278f2609e21e5db351ba17e21698aad003788c993c941daf8e6a61d995",
+    "s114-evidence-20260927/first-RES-02.catalog-directory-close.log": "2d3e1e79ca5d910dee66f496959d5cd0e70267120ff0514ea66c7e6e3804ff2d",
+    "s114-evidence-20260927/first-RES-02.catalog-file-close.log": "f79bd969c101fca8872eb6d89af81abd198413195399f33de0ad6efebd5e18f7",
+    "s114-evidence-20260927/first-RES-02.catalog-invalid-cursor.log": "50dbf6aa6a356b4f6cc67f9d2a6d076843a89bffcce8f9bc7f143fd9ee61386a",
+    "s114-evidence-20260927/first-RES-02.catalog-missing.log": "e0d8e5cb9dea0e0b216f639c3f8748f05925f0359e12df76a5bc32c71267efb4",
+    "s114-evidence-20260927/first-RES-02.catalog-pages.log": "470f8195cc156e08e466b1ded0fca8d62df93f2e6da3e1a9aa686113e08eb7e4",
+    "s114-evidence-20260927/first-RES-02.catalog-read-error.log": "f98b6f5e46a46f513960a1721f6f62437313708ddc3e9e8b4a8aa0aafbff6523",
+    "s114-evidence-20260927/first-RES-02.catalog-scan-limit.log": "7a8145d40a8ab58947c19762d9c1f02066d84ff6922f3c26a6e711f281df22df",
+    "s114-evidence-20260927/first-RES-02.catalog-symlink.log": "a2b58c66e5dffe3f54cb1a916388a3a603fef5858fc9f5b7b5ad32e879b70600",
+    "s114-evidence-20260927/first-USB-02.browser-invalid_upload_does_not_open_device.log": "e852a995e1984a8dd82d6d8d2b38f9c244e75d875b457747615d3f2bcc94c421",
+    "s114-evidence-20260927/first-full-results.json": "8560aae34916d803337b9291d8b591de0ae806be0b2d9ec4f936e9dda4629ea5",
+    "s114-evidence-20260927/full.log": "445bf92c3b3b819e1d810b08b4ee5baa7866a150bf1cd08b50721774a4ed45bc",
+    "s114-evidence-20260927/http-observer-final.log": "f47062fbeabe241d110de7e06c849849535b0b7047391c3def376a1a01af23e8",
+    "s114-evidence-20260927/layers-final.log": "027609397eae350c61a6eb847a6c4ab94f0c926dfa48f65914118948fd3b6c40",
+    "s114-evidence-20260927/mutation-detected.log": "dd4df45d4f5fb0d4e6ba8390bdb63c7eb8e4693b81ac96bfa2a473b6da9358b6",
+    "s114-evidence-20260927/mutation-restored.log": "19ed0098fc6e291d98cde33bb1f620a11c94ae02ec6c5e92011fdc63f3dc449a",
+    "s114-evidence-20260927/mutation-runner.py": "142d612b1989a152d488b126c2e0e2af829b2dd00dc103a72261e014198d7e80",
+    "s114-evidence-20260927/mutation.json": "eb4a540f04b3ad1b1bd5c58a77d55245ecf6668fba019e0d271e619af8ba2ef5",
+    "s114-evidence-20260927/runner-gates-final.log": "375cb23a0d74ec32c7c6114e827c6a335a98d23ad9cc94f6129a9dae2edefb27",
+    "s114-evidence-20260927/stack-budget.json": "9400a7e4ec27d69e900988ecbb5518b33e0dc9a98805a8f0677df68073b0ca78",
+    "s114-evidence-20260927/stack-runner.py": "60a3bf6bdf58bcb409396ee122123d4333501421398d9f3d0475d5ec7e6789ee"
+  }
+}

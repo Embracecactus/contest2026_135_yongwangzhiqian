@@ -1,0 +1,1 @@
+job: tests/host/bk7258/test_display_job.c:148: main: Assertion `status.state == (!strcmp(argv[2], "success") ? BKDISPLAY_JOB_DONE : !strcmp(argv[2], "cleanup-failure") ? BKDISPLAY_JOB_UNKNOWN : BKDISPLAY_JOB_CANCELED)' failed.

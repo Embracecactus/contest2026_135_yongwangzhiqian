@@ -1,0 +1,10 @@
+/tmp/nxstyle-inc-jeetzbal/projection.c:2:1: error: Relative file path does not match actual file
+/tmp/nxstyle-inc-jeetzbal/projection.c:5:1: error: Missing blank line after comment
+/tmp/nxstyle-inc-jeetzbal/projection.c:6:78: error: Long line found
+/tmp/nxstyle-inc-jeetzbal/projection.c:6:1: error: Missing blank line after comment
+/tmp/nxstyle-inc-jeetzbal/projection.c:28:3: error: Right brace must be followed by a blank line
+/tmp/nxstyle-inc-jeetzbal/projection.c:33:3: error: Right brace must be followed by a blank line
+/tmp/nxstyle-inc-jeetzbal/projection.c:40:81: error: Long line found
+/tmp/nxstyle-inc-jeetzbal/projection.c:54:3: error: Right brace must be followed by a blank line
+/tmp/nxstyle-inc-jeetzbal/projection.c:66:3: error: Right brace must be followed by a blank line
+/tmp/nxstyle-inc-jeetzbal/projection.c:68:78: error: Long line found

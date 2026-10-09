@@ -1,0 +1,36 @@
+{
+  "scope": "Focus visual intent, actual pixel generator and display submission helper",
+  "builds": {
+    "bk7258_agent_product.c": {
+      "exit": 0,
+      "log": "\u001b[01m\u001b[K/home/lijian/project/open-vela/apps/system/bk7258/bk7258_agent_product.c:\u001b[m\u001b[K In function '\u001b[01m\u001b[Kinstall_product_skills\u001b[m\u001b[K':\n\u001b[01m\u001b[K/home/lijian/project/open-vela/apps/system/bk7258/bk7258_agent_product.c:2646:5:\u001b[m\u001b[K \u001b[01;35m\u001b[Kwarning: \u001b[m\u001b[Kmissing braces around initializer [\u001b[01;35m\u001b[K-Wmissing-braces\u001b[m\u001b[K]\n 2646 |     \u001b[01;35m\u001b[K{\u001b[m\u001b[K\n      |     \u001b[01;35m\u001b[K^\u001b[m\u001b[K\n 2647 |       \"device-assistant.md\", g_product_skill_device_assistant\n      |       \u001b[32m\u001b[K{\u001b[m\u001b[K\n 2648 |     };\n      |     \u001b[32m\u001b[K}\u001b[m\u001b[K\n"
+    },
+    "bk7258_display_service.c": {
+      "exit": 0,
+      "log": ""
+    },
+    "bk7258_focus.c": {
+      "exit": 0,
+      "log": ""
+    }
+  },
+  "hashes": {
+    "app/bk7258/bk7258_focus_pixels.h": "3b5b7d4090cab51e02f565785d8891238de9fff9b53eece7c93ed9c346753423",
+    "app/bk7258/bk7258_display_focus.inc": "27fb5c6c88ef4b6bc3f6b7b4945dde14dfa47b080a7aadb55fe0fe04388b3cd2",
+    "out/shaniu-s17/focus.png": "63ea8adfb1b3880de61f8cba4d4fc44b202b51d25a05d40e56dbff74bb267e74"
+  },
+  "render_preview": "out/shaniu-s17/focus.png; generated from production pixel helper; not board screenshot",
+  "resource_budget": {
+    "temporary_canvas_bytes": 51200,
+    "new_threads": 0,
+    "new_product_loop_IO": false,
+    "target_CPU_p95_peak_memory": "NOT_MEASURED"
+  },
+  "limits": [
+    "No target framebuffer/DMA or physical screen acceptance",
+    "No speech audio prompt added; completion indication is visual only",
+    "Priority wired in real worker but complete worker scheduling not host-executed",
+    "NFC and cross-reboot policy remain incomplete"
+  ],
+  "test_development": "Initial new check-mark pixel assertion used wrong coordinate; corrected to actual documented geometry, not a product regression"
+}

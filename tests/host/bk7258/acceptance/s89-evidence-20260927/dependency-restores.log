@@ -1,0 +1,23 @@
+malformed: PASS
+CONTRACT_PASS
+
+retry: PASS
+CONTRACT_PASS
+
+snapshot: PASS
+CONTRACT_PASS
+
+authority: PASS
+CONTRACT_PASS
+
+success: PASS
+CONTRACT_PASS
+
+session: PASS
+CONTRACT_PASS
+
+product-session: PASS
+CONTRACT_PASS
+
+product-revoke: PASS
+CONTRACT_PASS revoked active production job

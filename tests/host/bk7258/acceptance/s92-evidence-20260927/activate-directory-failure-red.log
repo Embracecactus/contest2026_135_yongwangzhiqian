@@ -1,0 +1,1 @@
+test_display_upload: test_display_upload.c:244: main: Assertion `bkdisplay_store_activate(root, selected.filename, &result) == -EIO' failed.

@@ -1,0 +1,1 @@
+test_shaniu_focus_render: test_shaniu_focus_render.c:41: main: Assertion `bkfocus_pixel(4,0,16,-8)==0x07e0' failed.

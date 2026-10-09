@@ -1,0 +1,51 @@
+{
+  "source_head": "295b40f1ba5ccd7137f4445dbf3753727ae577d6",
+  "date": "2026-09-27",
+  "scope": "Read-only physical Android identity and host APK preparation; not physical functional acceptance.",
+  "phone": {
+    "serial": "59d707dc",
+    "model": "Mi 10",
+    "adb": "device"
+  },
+  "package": "com.shaniu.companion",
+  "apks": {
+    "installed": {
+      "sha256": "028eb7920348aa713e22db56effcf5f171e416b917a35ca0f3390233adb58820",
+      "bytes": 18425547,
+      "signer_sha256": "b2ea591116f967af230d0f06f678cc5fdd99d5884cc429b8d22c6489ba96050b",
+      "signature_verifies": true,
+      "version_code": 42,
+      "version_name": "0.7.12-shaniu-ui-v2"
+    },
+    "candidate": {
+      "sha256": "dd6164300578001357f1b47c845e6073fb047119da14afb8acda80b0d4cf7f56",
+      "bytes": 18685455,
+      "signer_sha256": "b2ea591116f967af230d0f06f678cc5fdd99d5884cc429b8d22c6489ba96050b",
+      "signature_verifies": true,
+      "version_code": 44,
+      "version_name": "0.7.14-shaniu-canva-ui",
+      "path": "android/shaniu-companion/app/build/outputs/apk/debug/app-debug.apk"
+    }
+  },
+  "build": {
+    "command": "./gradlew :app:assembleDebug --offline",
+    "status": "PASS",
+    "incremental": "35 tasks up-to-date; no clean/signing-identity change",
+    "log_sha256": "de07f3d1231ad28c6f16e5cc0795c65269fb0ef95619884f7d35a1786878d9b5"
+  },
+  "serial": {
+    "present": "USB-SERIAL CH340 (COM9)",
+    "historical_COM13_present": false,
+    "target_identity": "UNKNOWN; awaiting user identification; port not opened"
+  },
+  "authorization": {
+    "app_update": "Awaiting requested onsite approval; no install performed",
+    "board": "No flash/reset/key/format or serial operation performed"
+  },
+  "next": [
+    "After App approval, install -r only, verify exact installed bytes/version and preserve data. No uninstall/clear-data fallback.",
+    "Board identity must be confirmed before claiming COM9 belongs to the target; firmware/runtime/model identity still UNKNOWN.",
+    "Independent host implementation remains authorized while physical questions are pending."
+  ],
+  "goal": "ACTIVE, full original scope unchanged"
+}

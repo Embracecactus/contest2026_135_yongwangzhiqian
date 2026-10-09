@@ -123,6 +123,11 @@ class ProvisionTlsTest {
             client.start()
             drain()
             assertTrue(client.established && server.established)
+            val identity = requireNotNull(client.peerIdentity)
+            assertEquals(pin.joinToString("") { "%02x".format(it.toInt() and 255) }, identity.sha256)
+            val exported = java.security.cert.CertificateFactory.getInstance("X.509")
+                .generateCertificate(identity.certificatePem.byteInputStream())
+            assertArrayEquals(certificate.encoded, exported.encoded)
             client.promoteToControl()
             client.negotiatedMtu(client.generation, 70)
             server.negotiatedMtu(server.generation, 70)
@@ -148,13 +153,16 @@ class ProvisionTlsTest {
             assertEquals("idle_timeout", client.failure)
             client.disconnected(client.generation - 1)
             assertFalse(client.established)
+            assertNull(client.peerIdentity)
             client.disconnected(client.generation)
             assertTrue(client.closed)
             assertFalse(client.established)
+            assertNull(client.peerIdentity)
             client.enqueueIncoming(client.generation, byteArrayOf(1))
             assertNull(client.nextWrite())
         } finally {
             client.close()
+            assertNull(client.peerIdentity)
             server.close()
         }
     }
@@ -226,8 +234,14 @@ class ProvisionTlsTest {
             server.start()
             client.start()
             assertFalse(client.established)
+            assertNull(client.peerIdentity)
             drain()
             assertTrue(client.established && server.established)
+            val identity = requireNotNull(client.peerIdentity)
+            assertEquals(pin.joinToString("") { "%02x".format(it.toInt() and 255) }, identity.sha256)
+            val exported = java.security.cert.CertificateFactory.getInstance("X.509")
+                .generateCertificate(identity.certificatePem.byteInputStream())
+            assertArrayEquals(certificate.encoded, exported.encoded)
             val sent = ByteArray(4096) { (it % 251).toByte() }
             client.send(sent)
             drain()
@@ -243,6 +257,7 @@ class ProvisionTlsTest {
             assertEquals(sent.size, serverPlain.size())
         } finally {
             client.close()
+            assertNull(client.peerIdentity)
             server.close()
         }
     }

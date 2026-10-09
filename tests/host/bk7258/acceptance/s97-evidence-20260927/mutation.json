@@ -1,0 +1,9 @@
+{
+  "mutation": "authenticated ETC2 wrongly calls expression-only trial",
+  "status": "DETECTED",
+  "exit": 1,
+  "restored_exit": 0,
+  "source_sha256": "39ef898a3efde90bed2511cfde7a573315295a77243f9332773dc267b2c865d7",
+  "mutant_sha256": "845664ef8c3a6d5281492640ac11b546555c7fad02cd740d7e3caba24680d5c1",
+  "oracle": "Every selected pack pixel independently fixed RGB565 0x07e0."
+}

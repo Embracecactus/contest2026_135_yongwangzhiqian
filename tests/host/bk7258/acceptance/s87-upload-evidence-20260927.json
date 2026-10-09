@@ -1,0 +1,135 @@
+{
+  "parent": "2730abf1f1cefbb7399301ffaa69c42eb7d7fe1d",
+  "scope": "Shared streaming store primitives, bound to existing importer; USB writes/async worker not yet enabled",
+  "counts": {
+    "selected": 482,
+    "original": 63,
+    "added": 419,
+    "new_ids": 10,
+    "runner_gates": 17,
+    "extra_mutations": 2,
+    "extra_restores_in_final_upload": 2
+  },
+  "red": "Old importer truncates an existing staging file; collision assertion failed before implementation",
+  "setup_errors": [
+    "Existing fixture output rejected on rebuild",
+    "Absolute BUILD incompatible with existing run target ./ prefix",
+    "Second fixture relative source resolved from repository root; corrected to absolute source"
+  ],
+  "production_during_test_unchanged": true,
+  "format_after_full": [
+    {
+      "file": "app/bk7258/bk7258_display_store.c",
+      "before": "e5bad90c45112518b31d1bd77d070d1a803aa113cafd59db48255c5b10b2d301",
+      "after": "b2c851365c96ccc0041953e820a8950e46a28e2c308e431f667b42245b301ca1",
+      "code_excluding_comments_whitespace_identical": true
+    },
+    {
+      "file": "app/bk7258/bk7258_display_store.h",
+      "before": "97d8155a39a6088bfb9f36140b1bd526fdbb689867472126e7133be21bc15c55",
+      "after": "a014a58b7f6ee1358d74bba72a4a4fbc97deb86836100cea7d5c65f1936daf8e",
+      "code_excluding_comments_whitespace_identical": true
+    }
+  ],
+  "final_verification": "Comment/blank-line-only correction followed by all ten upload cases, original display-pack suite and AP incremental rebuild",
+  "resource_budget": {
+    "upload_object_arm_bytes": 532,
+    "finish_own_stack_arm_bytes": 504,
+    "legacy_import_own_stack_arm_bytes": 952,
+    "neutral_pixels_bytes": 51200,
+    "chunk_max_bytes": 4096,
+    "new_threads": 0,
+    "new_dma_buffers": 0,
+    "cpu_average_p95": "NOT_MEASURED",
+    "longest_blocking": "NOT_MEASURED",
+    "stack_high_water": "NOT_MEASURED",
+    "heap_peak": "NOT_MEASURED",
+    "radio_usage": "No new transport enabled",
+    "sd_write_frequency": "One bounded block per append, with short-write completion; file and directory sync at finish",
+    "exit": "Single worker serializes I/O and cancel; close failure is not confirmed release"
+  },
+  "style": {
+    "baseline-bk7258_display_store.c": {
+      "exit": 1,
+      "diagnostics": 37
+    },
+    "final-bk7258_display_store.c": {
+      "exit": 1,
+      "diagnostics": 36
+    },
+    "baseline-bk7258_display_store.h": {
+      "exit": 1,
+      "diagnostics": 8
+    },
+    "final-bk7258_display_store.h": {
+      "exit": 1,
+      "diagnostics": 8
+    }
+  },
+  "style_limit": "Existing whole-file NuttX section/header/style diagnostics remain; no full style pass claimed",
+  "hardware": "NOT_RUN",
+  "remaining": [
+    "USB authenticated file/job schema and bounded async worker",
+    "Display/volume/power/reset ownership integration",
+    "Workbench import/trial/default UI",
+    "Native USB/SD and peak latency/heap measurement",
+    "Historical S66/S75/S76 TLS faults",
+    "Full combined and final delivery acceptance"
+  ],
+  "mutations": [
+    {
+      "mutation": "implicit-default",
+      "case": "preserve",
+      "exit_code": -6,
+      "status": "DETECTED"
+    },
+    {
+      "mutation": "truncate-other-job",
+      "case": "collision",
+      "exit_code": -6,
+      "status": "DETECTED"
+    }
+  ],
+  "evidence": {
+    "ap-build.log": "6ef4608dc3d60ef4d3fdf854b003fb3728659d545c076d4abf9d3ad65c13bac9",
+    "build-io.log": "02a22ce924902580ed2c98338b72214e14896566a2aa5e4b7c6b95461d9e3e03",
+    "build-recovered.log": "10cc47898b652124ae448a08aab1436e9f2e9ba5c7e4b0f0e1e4a69ba63fd67d",
+    "build-final.log": "25982366b73d867895eac5cdd9471c75cd65aa7883c656f03ed825b6527da145",
+    "truncate-other-job.log": "115fe5bf4b937b154d9698f13a90c87d830628138beb7b6b75b7774f560aa250",
+    "fragmented.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "formatted-build.log": "02a22ce924902580ed2c98338b72214e14896566a2aa5e4b7c6b95461d9e3e03",
+    "style-baseline-bk7258_display_store.h.log": "4b8a1120085553fd4ecb2b7adadd105d3fbdf0b140ad3858865b5c64e84cb7e2",
+    "directory-failure.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "arm-size.log": "6c31bd002a2b9b988b10bf604eb0beab4f49c10a3ec2ec9618f0f530adc51318",
+    "ap-compile.log": "ce11c3e6ded615923a648ee036e271c3c1adc4dcd4150bddbbf44156cec4cdf5",
+    "ap-formatted.log": "6ef4608dc3d60ef4d3fdf854b003fb3728659d545c076d4abf9d3ad65c13bac9",
+    "mutations.json": "0774b665dc52a28cf9d04a58a6d084bf4c1fa4b8f490227bf0bcd74d2a293f9a",
+    "normal.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "final-upload.log": "3b7c865ffed42f6a328d454a1abd642ca43a9bad64002f568218523d69533a1d",
+    "arm-stack.log": "f2bfeb1aa42326d78ae1965917507d851ad5c2b71bdbb77f80241bea36265377",
+    "style-header.log": "842433a03af86ffb5fed3eb391ef6818676aabf7a9354919916295580466902c",
+    "collision.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "style.json": "2f0c9269144b6ed3a2c2a7bb9da4f6199dcad73b8766edce75a4f05a154160f8",
+    "close-failure.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "final-build.log": "1442ff4a7503dfd1e7790a810802d456fcf04ac5173d28a0ced204905a247224",
+    "corrupt.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "before.log": "7c35dc74ada11c96b92238fd53b10ff5d96cdad0f22863cf0d6798fc965b2cf5",
+    "full.log": "ba88c4eb1034f26a2f92d220d78314eb6ed817e66f1a971ba9baa4c5cdb27169",
+    "style-final-bk7258_display_store.h.log": "3c880add6259b69f2b8ecffd6e0865bcbc41ce48404b91f7cb9378d58d28cfff",
+    "sync-failure.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "style-store.log": "a335439bfb56c7a1786c50ac6851244309afeb98365273fc0efb54092fe90ae8",
+    "preserve.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "formatted-upload.log": "3b7c865ffed42f6a328d454a1abd642ca43a9bad64002f568218523d69533a1d",
+    "format-only.json": "e0ba374d30bba40115e15b7cd5e5d47c81d22a02e05700a6837104282f120ac6",
+    "style-final-bk7258_display_store.c.log": "bb9977f462b5bb6c12ca96a321dedb5507e9283db5947562221fb2133d8a75b0",
+    "implicit-default.log": "5fc04edf8324714ce6e5c05195a70e02e7417b82e6e3683b8a50e660127d9a41",
+    "gates.log": "f9812afcc6a871a4dcb3c6c0759229f78caadb7d5e56d0fac10f2e58d99b2220",
+    "style-baseline-bk7258_display_store.c.log": "7db28c4b71b763b76bd5f0c2c787feed6e63276bcabda3d19508e1ae68a64ee9",
+    "cancel.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "legacy.log": "6edb212ef10e44ae8868881e8387728cc6b70c32e39e9e231adf8107f1316704",
+    "write-failure.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "ap-final.log": "6ef4608dc3d60ef4d3fdf854b003fb3728659d545c076d4abf9d3ad65c13bac9",
+    "style-final-store.log": "7ae1e14bcf2a1fc7f7cd434d79930fbfa30a4ace465187c102269ba9e0b3b862",
+    "legacy-fresh.log": "52075d934afa6c6774a06c766d5ff715daaa2eb77eb62b063adab3668d0b1a23"
+  }
+}

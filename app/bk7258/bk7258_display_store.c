@@ -13,6 +13,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -33,11 +34,15 @@
 #define BKDISPLAY_STORE_STAGING    BKDISPLAY_STORE_BASE "/staging"
 #define BKDISPLAY_STORE_ACTIVE     BKDISPLAY_STORE_BASE "/active.json"
 #define BKDISPLAY_STORE_ACTIVE_TMP BKDISPLAY_STORE_BASE "/.active.json.tmp"
-#define BKDISPLAY_STORE_LEGACY_BASE   "SHANIU/DISPLAY"
+#define BKDISPLAY_STORE_LEGACY_ROOT   "SHANIU"
+#define BKDISPLAY_STORE_LEGACY_BASE   BKDISPLAY_STORE_LEGACY_ROOT "/DISPLAY"
 #define BKDISPLAY_STORE_LEGACY_PACKS  BKDISPLAY_STORE_LEGACY_BASE "/PACKS"
 #define BKDISPLAY_STORE_LEGACY_ACTIVE BKDISPLAY_STORE_LEGACY_BASE "/active.json"
 #define BKDISPLAY_ACTIVE_PREFIX    \
   "{\"format\":\"shaniu-display-active/1\",\"pack\":\""
+#define BKDISPLAY_ACTIVE_PREFIX_V2 \
+  "{\"format\":\"shaniu-display-active/2\",\"pack\":\""
+#define BKDISPLAY_ACTIVE_REVISION "\",\"revision\":\""
 #define BKDISPLAY_ACTIVE_SUFFIX    "\"}\n"
 #define BKDISPLAY_ACTIVE_MAX       128u
 
@@ -123,29 +128,49 @@ static bool bkdisplay_store_filename(const char *filename)
          strcmp(filename + length - (sizeof(suffix) - 1u), suffix) == 0;
 }
 
-static int bkdisplay_store_validate(const char *path, const char *filename,
-                                    struct bkdisplay_store_selection_s *result,
-                                    bool fallback)
+/* Shared canonical identity check without another path/selection copy. */
+static int bkdisplay_store_open_checked(const char *path, const char *filename,
+                                        struct bkdisplay_pack_s **pack,
+                                        struct bkdisplay_pack_info_s *info)
 {
-  struct bkdisplay_pack_info_s info;
-  struct bkdisplay_pack_s *pack = NULL;
   char expected[BKDISPLAY_STORE_FILENAME_SIZE];
   int written;
   int ret;
 
-  ret = bkdisplay_pack_open(path, &pack, &info);
+  ret = bkdisplay_pack_open(path, pack, info);
   if (ret < 0)
     {
       return ret;
     }
 
-  written = snprintf(expected, sizeof(expected), "%s.bkep", info.pack_id);
+  written = snprintf(expected, sizeof(expected), "%s.bkep", info->pack_id);
   if (written < 0 || (size_t)written >= sizeof(expected) ||
       strcmp(expected, filename) != 0)
     {
-      ret = -EPROTO;
+      ret = bkdisplay_pack_close(*pack);
+      *pack = NULL;
+      return ret < 0 ? ret : -EPROTO;
     }
 
+  return 0;
+}
+
+static int bkdisplay_store_validate(const char *path, const char *filename,
+                                    struct bkdisplay_store_selection_s *result,
+                                    bool fallback,
+                                    struct bkdisplay_pack_s **result_pack)
+{
+  struct bkdisplay_pack_info_s info;
+  struct bkdisplay_pack_s *pack = NULL;
+  int close_ret;
+  int ret;
+
+  if (result_pack != NULL)
+    {
+      *result_pack = NULL;
+    }
+
+  ret = bkdisplay_store_open_checked(path, filename, &pack, &info);
   if (ret == 0 && result != NULL)
     {
       memset(result, 0, sizeof(*result));
@@ -155,7 +180,23 @@ static int bkdisplay_store_validate(const char *path, const char *filename,
       result->info = info;
     }
 
-  bkdisplay_pack_close(pack);
+  if (ret == 0 && result_pack != NULL)
+    {
+      *result_pack = pack;
+      pack = NULL;
+    }
+
+  close_ret = bkdisplay_pack_close(pack);
+  if (close_ret < 0)
+    {
+      ret = close_ret;
+    }
+
+  if (ret < 0 && result != NULL)
+    {
+      memset(result, 0, sizeof(*result));
+    }
+
   return ret;
 }
 
@@ -189,42 +230,58 @@ static int bkdisplay_store_write_all(int fd, const void *buffer, size_t size)
   return 0;
 }
 
-/* Commit a directory-entry change (rename or unlink) to the medium.  The
- * pack data is fsynced before the rename, but the renamed entry itself only
- * becomes durable once the containing directory is synced: an abrupt reset
- * between the two used to leave a pack that validated at install time and
- * then failed with EIO on the next boot.  Unsupported directory sync is
- * reported, not fatal.
+/* Require successful directory synchronization and propagate syscall errors.
+ * Native NuttX FAT already writes directory changes during rename/unlink;
+ * its directory fsync path can return success without a device flush.
+ * Even a successful call is not evidence of power-loss durability and must
+ * not be used to explain an earlier EIO without storage-level evidence.
  */
 
-static void bkdisplay_store_sync_directory(const char *path)
+static int bkdisplay_store_sync_directory_strict(const char *path)
 {
-  int fd;
+  int fd = open(path, O_RDONLY);
+  if (fd < 0) return bkdisplay_store_errno();
+  int ret = fsync(fd) < 0 ? bkdisplay_store_errno() : 0;
+  if (close(fd) < 0 && ret == 0) ret = bkdisplay_store_errno();
+  return ret;
+}
+
+static int bkdisplay_store_sync_if_directory(const char *path)
+{
+  struct stat info;
+  if (lstat(path, &info) < 0) return errno == ENOENT ? 0 : bkdisplay_store_errno();
+  if (!S_ISDIR(info.st_mode)) return -ENOTDIR;
+  return bkdisplay_store_sync_directory_strict(path);
+}
+
+int bkdisplay_store_reset_selection(const char *root)
+{
+  static const char *const names[] =
+    {BKDISPLAY_STORE_ACTIVE, BKDISPLAY_STORE_ACTIVE_TMP,
+     BKDISPLAY_STORE_LEGACY_ACTIVE};
+  char path[BKDISPLAY_PACK_PATH_SIZE];
   int ret;
-
-  fd = open(path, O_RDONLY);
-  if (fd < 0)
+  if (root == NULL) return -EINVAL;
+  for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); i++)
     {
-      BKDISPLAY_STORE_DIAG(
-        "BKDISPLAY STORE stage=dir-open path=%s ret=%d\n", path, -errno);
-      return;
+      ret = bkdisplay_store_path(path, sizeof(path), root, names[i]);
+      if (ret < 0) return ret;
+      if (unlink(path) < 0 && errno != ENOENT) return bkdisplay_store_errno();
     }
-
-  ret = fsync(fd) < 0 ? -errno : 0;
-  if (close(fd) < 0 && ret == 0)
-    {
-      ret = -errno;
-    }
-
-  if (ret < 0)
-    {
-      BKDISPLAY_STORE_DIAG(
-        "BKDISPLAY STORE stage=dir-sync path=%s ret=%d\n", path, ret);
-    }
+  /* A first-use volume has neither tree. That is already a positive absence;
+   * do not create directories merely to reset them. Each existing layout's
+   * own parent is fsynced after its active entry is removed. */
+  ret = bkdisplay_store_path(path, sizeof(path), root, BKDISPLAY_STORE_BASE);
+  if (ret < 0) return ret;
+  ret = bkdisplay_store_sync_if_directory(path);
+  if (ret < 0) return ret;
+  ret = bkdisplay_store_path(path, sizeof(path), root, BKDISPLAY_STORE_LEGACY_BASE);
+  if (ret < 0) return ret;
+  return bkdisplay_store_sync_if_directory(path);
 }
 
 static int bkdisplay_store_read_active(const char *path, char *filename,
-                                       size_t capacity)
+                                       size_t capacity, uint64_t *revision)
 {
   char data[BKDISPLAY_ACTIVE_MAX];
   size_t prefix = strlen(BKDISPLAY_ACTIVE_PREFIX);
@@ -233,6 +290,8 @@ static int bkdisplay_store_read_active(const char *path, char *filename,
   int read_errno = 0;
   size_t length;
   size_t name_length;
+  uint64_t parsed_revision = 0;
+  bool versioned;
   int fd;
 
   fd = open(path, O_RDONLY);
@@ -260,13 +319,68 @@ static int bkdisplay_store_read_active(const char *path, char *filename,
 
   length = (size_t)nread;
   if (length >= sizeof(data) || length <= prefix + suffix ||
-      memcmp(data, BKDISPLAY_ACTIVE_PREFIX, prefix) != 0 ||
       memcmp(data + length - suffix, BKDISPLAY_ACTIVE_SUFFIX, suffix) != 0)
     {
       return -EPROTO;
     }
 
+  versioned = memcmp(data, BKDISPLAY_ACTIVE_PREFIX_V2, prefix) == 0;
+  if (!versioned && memcmp(data, BKDISPLAY_ACTIVE_PREFIX, prefix) != 0)
+    {
+      return -EPROTO;
+    }
+
   name_length = length - prefix - suffix;
+  if (versioned)
+    {
+      size_t separator = strlen(BKDISPLAY_ACTIVE_REVISION);
+      size_t position;
+
+      if (name_length <= separator + 16)
+        {
+          return -EPROTO;
+        }
+
+      name_length -= separator + 16;
+      position = prefix + name_length;
+      if (memcmp(data + position, BKDISPLAY_ACTIVE_REVISION, separator))
+        {
+          return -EPROTO;
+        }
+
+      position += separator;
+      for (unsigned int i = 0; i < 16; i++)
+        {
+          unsigned char c = data[position + i];
+          unsigned int digit;
+
+          if (c >= '0' && c <= '9')
+            {
+              digit = c - '0';
+            }
+          else if (c >= 'a' && c <= 'f')
+            {
+              digit = c - 'a' + 10;
+            }
+          else
+            {
+              return -EPROTO;
+            }
+
+          parsed_revision = (parsed_revision << 4) | digit;
+        }
+
+      if (parsed_revision == 0)
+        {
+          return -EPROTO;
+        }
+    }
+
+  if (memchr(data + prefix, '\0', name_length) != NULL)
+    {
+      return -EPROTO;
+    }
+
   if (name_length + 1u > capacity)
     {
       return -ENAMETOOLONG;
@@ -274,7 +388,71 @@ static int bkdisplay_store_read_active(const char *path, char *filename,
 
   memcpy(filename, data + prefix, name_length);
   filename[name_length] = '\0';
-  return bkdisplay_store_filename(filename) ? 0 : -EPROTO;
+  if (!bkdisplay_store_filename(filename))
+    {
+      return -EPROTO;
+    }
+
+  if (revision != NULL)
+    {
+      *revision = parsed_revision;
+    }
+
+  return 0;
+}
+
+int bkdisplay_store_selection_version(
+  const char *root, struct bkdisplay_selection_version_s *version)
+{
+  struct bkdisplay_selection_version_s current =
+  {
+    {0}, 0
+  };
+  char path[BKDISPLAY_PACK_PATH_SIZE];
+  int ret;
+
+  if (version == NULL)
+    {
+      return -EINVAL;
+    }
+
+  ret = bkdisplay_store_path(path, sizeof(path), root, BKDISPLAY_STORE_ACTIVE);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  ret = bkdisplay_store_read_active(path, current.filename,
+                                    sizeof(current.filename),
+                                    &current.revision);
+  if (ret == -ENOENT)
+    {
+      ret = bkdisplay_store_path(path, sizeof(path), root,
+                                 BKDISPLAY_STORE_LEGACY_ACTIVE);
+      if (ret < 0)
+        {
+          return ret;
+        }
+
+      ret = bkdisplay_store_read_active(path, current.filename,
+                                        sizeof(current.filename),
+                                        &current.revision);
+    }
+
+  if (ret == -ENOENT)
+    {
+      snprintf(current.filename, sizeof(current.filename), "%s",
+               BKDISPLAY_STORE_DEFAULT_PACK);
+      current.revision = 0;
+      ret = 0;
+    }
+
+  if (ret == 0)
+    {
+      *version = current;
+    }
+
+  return ret;
 }
 
 int bkdisplay_store_ensure(const char *root)
@@ -322,7 +500,7 @@ static int bkdisplay_store_candidate(
       return -ENAMETOOLONG;
     }
 
-  return bkdisplay_store_validate(path, filename, selection, true);
+  return bkdisplay_store_validate(path, filename, selection, true, NULL);
 }
 
 static int bkdisplay_store_scan(
@@ -359,7 +537,8 @@ static int bkdisplay_store_scan(
 
 static int bkdisplay_store_resolve_layout(
   const char *root, const char *active_relative, const char *packs_relative,
-  struct bkdisplay_store_selection_s *selection, bool *fallback_result)
+  struct bkdisplay_store_selection_s *selection, bool *fallback_result,
+  struct bkdisplay_pack_s **result_pack)
 {
   char active[BKDISPLAY_PACK_PATH_SIZE];
   char pack[BKDISPLAY_PACK_PATH_SIZE];
@@ -373,6 +552,10 @@ static int bkdisplay_store_resolve_layout(
     }
 
   *fallback_result = false;
+  if (result_pack != NULL)
+    {
+      *result_pack = NULL;
+    }
 
   ret = bkdisplay_store_path(active, sizeof(active), root,
                              active_relative);
@@ -381,7 +564,7 @@ static int bkdisplay_store_resolve_layout(
       return ret;
     }
 
-  ret = bkdisplay_store_read_active(active, filename, sizeof(filename));
+  ret = bkdisplay_store_read_active(active, filename, sizeof(filename), NULL);
   if (ret < 0 && ret != -ENOENT)
     {
       BKDISPLAY_STORE_DIAG(
@@ -413,7 +596,8 @@ static int bkdisplay_store_resolve_layout(
       return -ENAMETOOLONG;
     }
 
-  ret = bkdisplay_store_validate(active, filename, selection, fallback);
+  ret = bkdisplay_store_validate(active, filename, selection, fallback,
+                                 result_pack);
   if (ret == 0 || ret == -ENOENT)
     {
       return ret;
@@ -437,6 +621,11 @@ static int bkdisplay_store_resolve_layout(
         bkdisplay_store_candidate(pack, BKDISPLAY_STORE_DEFAULT_PACK,
                                   selection) == 0)
       {
+        if (result_pack != NULL)
+          {
+            ret = bkdisplay_pack_open(selection->path, result_pack, NULL);
+            if (ret < 0) return ret;
+          }
         *fallback_result = true;
         BKDISPLAY_STORE_DIAG(
           "BKDISPLAY STORE stage=fallback path=%s reason=default\n",
@@ -446,6 +635,11 @@ static int bkdisplay_store_resolve_layout(
 
     if (bkdisplay_store_scan(pack, filename, selection) == 0)
       {
+        if (result_pack != NULL)
+          {
+            ret = bkdisplay_pack_open(selection->path, result_pack, NULL);
+            if (ret < 0) return ret;
+          }
         *fallback_result = true;
         BKDISPLAY_STORE_DIAG(
           "BKDISPLAY STORE stage=fallback path=%s reason=scan\n",
@@ -457,16 +651,69 @@ static int bkdisplay_store_resolve_layout(
   }
 }
 
-int bkdisplay_store_resolve(const char *root,
-                            struct bkdisplay_store_selection_s *selection)
+int bkdisplay_store_open_installed(
+  const char *root, const char *filename,
+  struct bkdisplay_store_selection_s *selection,
+  struct bkdisplay_pack_s **pack)
 {
+  char directory[BKDISPLAY_PACK_PATH_SIZE];
+  char path[BKDISPLAY_PACK_PATH_SIZE];
+  int ret;
+
+  if (pack == NULL)
+    {
+      return -EINVAL;
+    }
+
+  *pack = NULL;
+  if (root == NULL || selection == NULL ||
+      !bkdisplay_store_filename(filename))
+    {
+      return -EINVAL;
+    }
+
+  ret = bkdisplay_store_path(directory, sizeof(directory), root,
+                             BKDISPLAY_STORE_PACKS);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (snprintf(path, sizeof(path), "%s/%s", directory, filename) >=
+      (int)sizeof(path))
+    {
+      return -ENAMETOOLONG;
+    }
+
+  return bkdisplay_store_validate(path, filename, selection, false, pack);
+}
+
+int bkdisplay_store_resolve_open(const char *root,
+                                 struct bkdisplay_store_selection_s *selection,
+                                 struct bkdisplay_pack_s **pack)
+{
+  static const char *const legacy_dirs[] =
+    {
+      BKDISPLAY_STORE_LEGACY_ROOT,
+      BKDISPLAY_STORE_LEGACY_BASE
+    };
+  char legacy[BKDISPLAY_PACK_PATH_SIZE];
+  struct stat statbuf;
   bool canonical_fallback;
   bool legacy_fallback;
+  size_t i;
   int ret;
+
+  if (pack == NULL)
+    {
+      return -EINVAL;
+    }
+
+  *pack = NULL;
 
   ret = bkdisplay_store_resolve_layout(root, BKDISPLAY_STORE_ACTIVE,
                                        BKDISPLAY_STORE_PACKS, selection,
-                                       &canonical_fallback);
+                                       &canonical_fallback, pack);
   if (ret != -ENOENT || !canonical_fallback)
     {
       return ret;
@@ -481,9 +728,33 @@ int bkdisplay_store_resolve(const char *root,
    * malformed or explicitly selected canonical content.
    */
 
+  /* Check each optional ancestor before opening the legacy marker. FAT can
+   * report ENOTDIR for an absent intermediate directory. A missing legacy
+   * tree means no installed resource; a file in its place remains an error.
+   */
+
+  for (i = 0; i < sizeof(legacy_dirs) / sizeof(legacy_dirs[0]); i++)
+    {
+      ret = bkdisplay_store_path(legacy, sizeof(legacy), root, legacy_dirs[i]);
+      if (ret < 0)
+        {
+          return ret;
+        }
+
+      if (stat(legacy, &statbuf) < 0)
+        {
+          return bkdisplay_store_errno();
+        }
+
+      if (!S_ISDIR(statbuf.st_mode))
+        {
+          return -ENOTDIR;
+        }
+    }
+
   ret = bkdisplay_store_resolve_layout(root, BKDISPLAY_STORE_LEGACY_ACTIVE,
                                        BKDISPLAY_STORE_LEGACY_PACKS,
-                                       selection, &legacy_fallback);
+                                       selection, &legacy_fallback, pack);
   if (ret == 0)
     {
       BKDISPLAY_STORE_DIAG(
@@ -494,10 +765,23 @@ int bkdisplay_store_resolve(const char *root,
   return ret;
 }
 
-int bkdisplay_store_activate(const char *root, const char *filename,
-                             struct bkdisplay_store_selection_s *selection)
+int bkdisplay_store_resolve(const char *root,
+                            struct bkdisplay_store_selection_s *selection)
+{
+  struct bkdisplay_pack_s *pack = NULL;
+  int ret = bkdisplay_store_resolve_open(root, selection, &pack);
+
+  bkdisplay_pack_close(pack);
+  return ret;
+}
+
+static int bkdisplay_store_activate_versioned(
+  const char *root, const char *filename, bool check_revision,
+  uint64_t expected_revision, struct bkdisplay_store_selection_s *selection,
+  struct bkdisplay_selection_version_s *version)
 {
   struct bkdisplay_store_selection_s selected;
+  struct bkdisplay_selection_version_s current;
   char directory[BKDISPLAY_PACK_PATH_SIZE];
   char path[BKDISPLAY_PACK_PATH_SIZE];
   char marker[BKDISPLAY_ACTIVE_MAX];
@@ -511,6 +795,24 @@ int bkdisplay_store_activate(const char *root, const char *filename,
     {
       return -EINVAL;
     }
+
+  ret = bkdisplay_store_selection_version(root, &current);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (check_revision && current.revision != expected_revision)
+    {
+      return -ESTALE;
+    }
+
+  if (current.revision == UINT64_MAX)
+    {
+      return -EOVERFLOW;
+    }
+
+  current.revision++;
 
   ret = bkdisplay_store_ensure(root);
   if (ret < 0)
@@ -531,14 +833,15 @@ int bkdisplay_store_activate(const char *root, const char *filename,
       return -ENAMETOOLONG;
     }
 
-  ret = bkdisplay_store_validate(path, filename, &selected, false);
+  ret = bkdisplay_store_validate(path, filename, &selected, false, NULL);
   if (ret < 0)
     {
       return ret;
     }
 
-  marker_length = snprintf(marker, sizeof(marker), "%s%s%s",
-                           BKDISPLAY_ACTIVE_PREFIX, filename,
+  marker_length = snprintf(marker, sizeof(marker), "%s%s%s%016" PRIx64 "%s",
+                           BKDISPLAY_ACTIVE_PREFIX_V2, filename,
+                           BKDISPLAY_ACTIVE_REVISION, current.revision,
                            BKDISPLAY_ACTIVE_SUFFIX);
   if (marker_length < 0 || (size_t)marker_length >= sizeof(marker))
     {
@@ -559,8 +862,11 @@ int bkdisplay_store_activate(const char *root, const char *filename,
       return ret;
     }
 
-  (void)unlink(temporary);
-  fd = open(temporary, O_WRONLY | O_CREAT | O_EXCL | O_TRUNC, 0644);
+  /* A remnant is not owned by this request. Preserve it for explicit
+   * recovery instead of silently discarding an interrupted selection.
+   */
+
+  fd = open(temporary, O_WRONLY | O_CREAT | O_EXCL, 0644);
   if (fd < 0)
     {
       return bkdisplay_store_errno();
@@ -586,10 +892,15 @@ int bkdisplay_store_activate(const char *root, const char *filename,
     {
       char base[BKDISPLAY_PACK_PATH_SIZE];
 
-      if (bkdisplay_store_path(base, sizeof(base), root,
-                               BKDISPLAY_STORE_BASE) == 0)
+      ret = bkdisplay_store_path(base, sizeof(base), root,
+                                 BKDISPLAY_STORE_BASE);
+      if (ret == 0)
         {
-          bkdisplay_store_sync_directory(base);
+          /* Rename may already be visible when sync fails. Report unknown
+           * durability; never manufacture a rollback or a success receipt.
+           */
+
+          ret = bkdisplay_store_sync_directory_strict(base);
         }
     }
 
@@ -604,11 +915,33 @@ int bkdisplay_store_activate(const char *root, const char *filename,
       *selection = selected;
     }
 
+  if (version != NULL)
+    {
+      snprintf(current.filename, sizeof(current.filename), "%s", filename);
+      *version = current;
+    }
+
   return 0;
 }
 
-int bkdisplay_store_install(const char *root, const char *filename,
-                            struct bkdisplay_store_selection_s *selection)
+int bkdisplay_store_activate(const char *root, const char *filename,
+                             struct bkdisplay_store_selection_s *selection)
+{
+  return bkdisplay_store_activate_versioned(root, filename, false, 0,
+                                            selection, NULL);
+}
+
+int bkdisplay_store_activate_checked(
+  const char *root, const char *filename, uint64_t expected_revision,
+  struct bkdisplay_selection_version_s *version)
+{
+  return bkdisplay_store_activate_versioned(root, filename, true,
+                                            expected_revision, NULL, version);
+}
+
+static int bkdisplay_store_publish(
+  const char *root, const char *filename,
+  struct bkdisplay_store_selection_s *selection)
 {
   char staging_dir[BKDISPLAY_PACK_PATH_SIZE];
   char packs_dir[BKDISPLAY_PACK_PATH_SIZE];
@@ -650,7 +983,7 @@ int bkdisplay_store_install(const char *root, const char *filename,
       return -ENAMETOOLONG;
     }
 
-  ret = bkdisplay_store_validate(staging, filename, NULL, false);
+  ret = bkdisplay_store_validate(staging, filename, NULL, false, NULL);
   if (ret < 0)
     {
       return ret;
@@ -671,35 +1004,426 @@ int bkdisplay_store_install(const char *root, const char *filename,
       return bkdisplay_store_errno();
     }
 
-  bkdisplay_store_sync_directory(packs_dir);
-  bkdisplay_store_sync_directory(staging_dir);
+  ret = bkdisplay_store_sync_directory_strict(packs_dir);
+  if (ret == 0)
+    {
+      ret = bkdisplay_store_sync_directory_strict(staging_dir);
+    }
 
-  return bkdisplay_store_activate(root, filename, selection);
+  /* A sync error after rename leaves a possibly installed file, but never
+   * changes active.json. Report the error; do not claim durable completion.
+   */
+
+  return ret < 0 ? ret :
+    bkdisplay_store_validate(installed, filename, selection, false, NULL);
 }
 
-int bkdisplay_store_import(const char *root, const void *data, size_t size,
-                           struct bkdisplay_store_selection_s *selection)
+int bkdisplay_store_install(const char *root, const char *filename,
+                            struct bkdisplay_store_selection_s *selection)
 {
-  char temporary[BKDISPLAY_PACK_PATH_SIZE];
+  int ret = bkdisplay_store_publish(root, filename, NULL);
+
+  return ret < 0 ? ret : bkdisplay_store_activate(root, filename, selection);
+}
+
+/* Upload state is private to this synchronous storage owner. A protocol job
+ * supplies its own ID/generation and cancels between operations.
+ */
+
+enum bkdisplay_upload_state_e
+{
+  BKUPLOAD_EMPTY = 0,
+  BKUPLOAD_RECEIVING,
+  BKUPLOAD_INSTALLED,
+  BKUPLOAD_CANCELED,
+  BKUPLOAD_FAILED,
+  BKUPLOAD_CLOSE_UNKNOWN
+};
+
+static int bkdisplay_upload_close(struct bkdisplay_upload_s *upload)
+{
+  int fd = upload->fd;
+
+  upload->fd = -1;
+  if (close(fd) < 0)
+    {
+      upload->error = bkdisplay_store_errno();
+      upload->state = BKUPLOAD_CLOSE_UNKNOWN;
+      return upload->error;
+    }
+
+  return 0;
+}
+
+static int bkdisplay_upload_fail(struct bkdisplay_upload_s *upload,
+                                 int error)
+{
+  if (upload->fd >= 0 && bkdisplay_upload_close(upload) < 0)
+    {
+      return upload->error;
+    }
+
+  if (unlink(upload->temporary) < 0 && errno != ENOENT)
+    {
+      error = bkdisplay_store_errno();
+    }
+
+  upload->state = BKUPLOAD_FAILED;
+  upload->error = error;
+  return error;
+}
+
+int bkdisplay_upload_quiesced(const struct bkdisplay_upload_s *upload)
+{
+  if (upload == NULL) return -EINVAL;
+  if (upload->state == BKUPLOAD_RECEIVING) return -EBUSY;
+  if (upload->state == BKUPLOAD_CLOSE_UNKNOWN) return upload->error;
+  return 0;
+}
+
+int bkdisplay_upload_begin(struct bkdisplay_upload_s *upload,
+                           const char *root, size_t size)
+{
+  int ret;
+
+  if (upload == NULL || root == NULL || size < 128 ||
+      size > BKDISPLAY_MAX_PACK_BYTES)
+    {
+      return -EINVAL;
+    }
+
+  if (upload->state != BKUPLOAD_EMPTY)
+    {
+      return upload->state == BKUPLOAD_CLOSE_UNKNOWN ? upload->error :
+             -EALREADY;
+    }
+
+  ret = bkdisplay_store_path(upload->temporary, sizeof(upload->temporary),
+                             root, BKDISPLAY_STORE_STAGING "/.upload.bkep");
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (snprintf(upload->root, sizeof(upload->root), "%s", root) >=
+      (int)sizeof(upload->root))
+    {
+      return -ENAMETOOLONG;
+    }
+
+  ret = bkdisplay_store_ensure(root);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  /* Do not truncate or clean another job's staging file, including an
+   * unreviewed remnant from a previous boot.
+   */
+
+  upload->fd = open(upload->temporary, O_WRONLY | O_CREAT | O_EXCL, 0600);
+  if (upload->fd < 0)
+    {
+      return bkdisplay_store_errno();
+    }
+
+  upload->state = BKUPLOAD_RECEIVING;
+  upload->expected = size;
+  upload->received = 0;
+  return 0;
+}
+
+int bkdisplay_upload_append(struct bkdisplay_upload_s *upload, size_t offset,
+                            const void *data, size_t size)
+{
+  int ret;
+
+  if (upload == NULL)
+    {
+      return -EINVAL;
+    }
+
+  if (upload->state != BKUPLOAD_RECEIVING)
+    {
+      return -EALREADY;
+    }
+
+  if (data == NULL || size == 0 || size > BKDISPLAY_UPLOAD_CHUNK_MAX ||
+      offset != upload->received || size > upload->expected - offset)
+    {
+      return -EINVAL;
+    }
+
+  ret = bkdisplay_store_write_all(upload->fd, data, size);
+  if (ret < 0)
+    {
+      return bkdisplay_upload_fail(upload, ret);
+    }
+
+  upload->received += size;
+  return 0;
+}
+
+int bkdisplay_upload_cancel(struct bkdisplay_upload_s *upload)
+{
+  int ret;
+
+  if (upload == NULL)
+    {
+      return -EINVAL;
+    }
+
+  if (upload->state == BKUPLOAD_CANCELED)
+    {
+      return 0;
+    }
+
+  if (upload->state != BKUPLOAD_RECEIVING)
+    {
+      return upload->state == BKUPLOAD_CLOSE_UNKNOWN ? upload->error :
+             -EALREADY;
+    }
+
+  ret = bkdisplay_upload_fail(upload, 0);
+  if (ret == 0)
+    {
+      upload->state = BKUPLOAD_CANCELED;
+    }
+
+  return ret;
+}
+
+int bkdisplay_upload_finish(struct bkdisplay_upload_s *upload,
+                            struct bkdisplay_store_selection_s *selection)
+{
   char staged[BKDISPLAY_PACK_PATH_SIZE];
   char filename[BKDISPLAY_STORE_FILENAME_SIZE];
   struct bkdisplay_pack_info_s info;
   struct bkdisplay_pack_s *pack = NULL;
   struct stat statbuf;
-  uint16_t *pixels = NULL;
-  int fd;
+  uint16_t *pixels;
   int ret;
 
-  if (data == NULL || size < 128 || size > BKDISPLAY_MAX_PACK_BYTES)
+  if (upload == NULL)
     {
       return -EINVAL;
     }
 
-  ret = bkdisplay_store_ensure(root);
+  if (upload->state != BKUPLOAD_RECEIVING)
+    {
+      return upload->state == BKUPLOAD_CLOSE_UNKNOWN ? upload->error :
+             -EALREADY;
+    }
+
+  if (upload->received != upload->expected)
+    {
+      return -EAGAIN;
+    }
+
+  if (fsync(upload->fd) < 0)
+    {
+      return bkdisplay_upload_fail(upload, bkdisplay_store_errno());
+    }
+
+  ret = bkdisplay_upload_close(upload);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  ret = bkdisplay_pack_open(upload->temporary, &pack, &info);
   if (ret == 0)
     {
-      ret = bkdisplay_store_path(temporary, sizeof(temporary), root,
-                                 BKDISPLAY_STORE_STAGING "/.upload.bkep");
+      pixels = malloc(BKDISPLAY_CANVAS_PIXELS * sizeof(*pixels));
+      ret = pixels == NULL ? -ENOMEM :
+        bkdisplay_pack_render(pack, "neutral", BKDISPLAY_SIDE_UNMAPPED,
+                              pixels, BKDISPLAY_CANVAS_PIXELS);
+      free(pixels);
+    }
+
+  bkdisplay_pack_close(pack);
+  if (ret < 0)
+    {
+      return bkdisplay_upload_fail(upload, ret);
+    }
+
+  snprintf(filename, sizeof(filename), "%s.bkep", info.pack_id);
+  if (snprintf(staged, sizeof(staged), "%s/" BKDISPLAY_STORE_STAGING
+               "/%s", upload->root, filename) >= (int)sizeof(staged))
+    {
+      return bkdisplay_upload_fail(upload, -ENAMETOOLONG);
+    }
+
+  if (stat(staged, &statbuf) == 0)
+    {
+      return bkdisplay_upload_fail(upload, -EEXIST);
+    }
+
+  if (errno != ENOENT || rename(upload->temporary, staged) < 0)
+    {
+      return bkdisplay_upload_fail(upload, bkdisplay_store_errno());
+    }
+
+  ret = bkdisplay_store_publish(upload->root, filename, selection);
+
+  /* Only this upload's renamed file is eligible for cleanup. */
+
+  if (unlink(staged) < 0 && errno != ENOENT && ret == 0)
+    {
+      ret = bkdisplay_store_errno();
+    }
+
+  upload->state = ret == 0 ? BKUPLOAD_INSTALLED : BKUPLOAD_FAILED;
+  upload->error = ret;
+  return ret;
+}
+
+int bkdisplay_store_import(const char *root, const void *data, size_t size,
+                           struct bkdisplay_store_selection_s *selection)
+{
+  struct bkdisplay_store_selection_s installed;
+  struct bkdisplay_upload_s upload;
+  const uint8_t *bytes = data;
+  size_t offset = 0;
+  int ret;
+
+  if (data == NULL)
+    {
+      return -EINVAL;
+    }
+
+  memset(&upload, 0, sizeof(upload));
+  ret = bkdisplay_upload_begin(&upload, root, size);
+  while (ret == 0 && offset < size)
+    {
+      size_t count = size - offset;
+
+      if (count > BKDISPLAY_UPLOAD_CHUNK_MAX)
+        {
+          count = BKDISPLAY_UPLOAD_CHUNK_MAX;
+        }
+
+      ret = bkdisplay_upload_append(&upload, offset, bytes + offset, count);
+      offset += count;
+    }
+
+  if (ret == 0)
+    {
+      ret = bkdisplay_upload_finish(&upload, &installed);
+    }
+
+  /* Preserve the legacy explicit import-and-activate command. New job users
+   * finish installation separately and activate only on a distinct request.
+   */
+
+  return ret < 0 ? ret :
+    bkdisplay_store_activate(root, installed.filename, selection);
+}
+
+
+int bkdisplay_store_catalog_page(
+  const char *root, const char *after,
+  bool (*canceled)(void *context), void *context,
+  struct bkdisplay_catalog_page_s *page)
+{
+  char names[BKDISPLAY_CATALOG_PAGE_MAX + 1][BKDISPLAY_STORE_FILENAME_SIZE] = {{0}};
+  char directory[BKDISPLAY_PACK_PATH_SIZE];
+  char path[BKDISPLAY_PACK_PATH_SIZE];
+  struct bkdisplay_pack_s *pack;
+  struct stat st;
+  struct dirent *entry;
+  DIR *dir;
+  unsigned int scanned = 0;
+  int ret;
+
+  if (page == NULL)
+    {
+      return -EINVAL;
+    }
+
+  memset(page, 0, sizeof(*page));
+  if (after != NULL && after[0] != '\0' &&
+      !bkdisplay_store_filename(after))
+    {
+      return -EINVAL;
+    }
+
+  ret = bkdisplay_store_path(directory, sizeof(directory), root,
+                             BKDISPLAY_STORE_PACKS);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (canceled != NULL && canceled(context))
+    {
+      return -ECANCELED;
+    }
+
+  if (lstat(directory, &st) < 0)
+    {
+      return bkdisplay_store_errno();
+    }
+
+  if (!S_ISDIR(st.st_mode))
+    {
+      return S_ISLNK(st.st_mode) ? -ELOOP : -ENOTDIR;
+    }
+
+  dir = opendir(directory);
+  if (dir == NULL)
+    {
+      return bkdisplay_store_errno();
+    }
+
+  for (;;)
+    {
+      if (canceled != NULL && canceled(context))
+        {
+          ret = -ECANCELED;
+          break;
+        }
+
+      errno = 0;
+      entry = readdir(dir);
+      if (entry == NULL)
+        {
+          ret = errno ? bkdisplay_store_errno() : 0;
+          break;
+        }
+
+      if (++scanned > BKDISPLAY_CATALOG_SCAN_MAX)
+        {
+          ret = -E2BIG;
+          break;
+        }
+
+      if (!bkdisplay_store_filename(entry->d_name) ||
+          (after != NULL && strcmp(entry->d_name, after) <= 0))
+        {
+          continue;
+        }
+
+      for (unsigned int i = 0; i <= BKDISPLAY_CATALOG_PAGE_MAX; i++)
+        {
+          if (!names[i][0] || strcmp(entry->d_name, names[i]) < 0)
+            {
+              for (unsigned int j = BKDISPLAY_CATALOG_PAGE_MAX; j > i; j--)
+                {
+                  memcpy(names[j], names[j - 1], sizeof(names[j]));
+                }
+
+              /* Canonical validation above guarantees the bounded length. */
+
+              memcpy(names[i], entry->d_name, strlen(entry->d_name) + 1);
+              break;
+            }
+        }
+    }
+
+  if (closedir(dir) < 0)
+    {
+      ret = bkdisplay_store_errno();
     }
 
   if (ret < 0)
@@ -707,68 +1431,60 @@ int bkdisplay_store_import(const char *root, const void *data, size_t size,
       return ret;
     }
 
-  /* Overwrites only this service's inactive staging file; neither the active
-   * marker nor the installed assets change before validation.
-   */
-
-  fd = open(temporary, O_WRONLY | O_CREAT | O_TRUNC, 0600);
-  if (fd < 0)
+  page->more = names[BKDISPLAY_CATALOG_PAGE_MAX][0] != '\0';
+  for (unsigned int i = 0; i < BKDISPLAY_CATALOG_PAGE_MAX && names[i][0]; i++)
     {
-      return bkdisplay_store_errno();
-    }
+      if (canceled != NULL && canceled(context))
+        {
+          ret = -ECANCELED;
+          goto failed;
+        }
 
-  ret = bkdisplay_store_write_all(fd, data, size);
-  if (ret == 0 && fsync(fd) < 0)
-    {
-      ret = bkdisplay_store_errno();
-    }
-
-  if (close(fd) < 0 && ret == 0)
-    {
-      ret = bkdisplay_store_errno();
-    }
-
-  if (ret == 0)
-    {
-      ret = bkdisplay_pack_open(temporary, &pack, &info);
-    }
-
-  if (ret == 0)
-    {
-      pixels = malloc(BKDISPLAY_CANVAS_PIXELS * sizeof(*pixels));
-      ret = pixels == NULL ? -ENOMEM :
-        bkdisplay_pack_render(pack, "neutral", BKDISPLAY_SIDE_UNMAPPED,
-                              pixels, BKDISPLAY_CANVAS_PIXELS);
-    }
-
-  free(pixels);
-  bkdisplay_pack_close(pack);
-  if (ret == 0)
-    {
-      snprintf(filename, sizeof(filename), "%s.bkep", info.pack_id);
-      if (snprintf(staged, sizeof(staged), "%s/" BKDISPLAY_STORE_STAGING
-                   "/%s", root, filename) >= (int)sizeof(staged))
+      if (snprintf(path, sizeof(path), "%s/%s", directory, names[i]) >=
+          (int)sizeof(path))
         {
           ret = -ENAMETOOLONG;
+          goto failed;
         }
-      else if (stat(staged, &statbuf) == 0)
-        {
-          ret = -EEXIST;
-        }
-      else if (errno != ENOENT || rename(temporary, staged) < 0)
+
+      if (lstat(path, &st) < 0)
         {
           ret = bkdisplay_store_errno();
+          goto failed;
         }
-      else
+
+      if (!S_ISREG(st.st_mode))
         {
-          ret = bkdisplay_store_install(root, filename, selection);
-          /* Unlinks only the staged file produced by this rename; the
-           * installed pack is kept.
-           */
-          (void)unlink(staged);
+          ret = S_ISLNK(st.st_mode) ? -ELOOP : -EINVAL;
+          goto failed;
         }
+
+      ret = bkdisplay_store_open_checked(path, names[i], &pack,
+                                         &page->entries[i].info);
+      if (ret < 0)
+        {
+          goto failed;
+        }
+
+      ret = bkdisplay_pack_close(pack);
+      if (ret < 0)
+        {
+          goto failed;
+        }
+
+      memcpy(page->entries[i].filename, names[i], sizeof(names[i]));
+      page->count++;
     }
 
-  (void)unlink(temporary);
+  if (canceled != NULL && canceled(context))
+    {
+      ret = -ECANCELED;
+      goto failed;
+    }
+
+  return 0;
+
+failed:
+  memset(page, 0, sizeof(*page));
   return ret;
 }

@@ -1,0 +1,1 @@
+test_shaniu_power_contract: test_shaniu_power_contract.c:259: main: Assertion `pack_stops == 1 && !pack_closed && cp_calls == 0' failed.

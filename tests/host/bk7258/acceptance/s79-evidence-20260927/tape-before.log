@@ -1,0 +1,17 @@
+cc1: fatal error: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/tls_entropy_tape.c: No such file or directory
+compilation terminated.
+E
+======================================================================
+ERROR: setUpClass (__main__.EntropyTapeTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_tls_entropy_tape.py", line 53, in setUpClass
+    subprocess.run(
+  File "/usr/lib/python3.10/subprocess.py", line 526, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '/tmp/tmpej83ws01/driver.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/tls_entropy_tape.c', '-o', '/tmp/tmpej83ws01/driver']' returned non-zero exit status 1.
+
+----------------------------------------------------------------------
+Ran 0 tests in 0.089s
+
+FAILED (errors=1)

@@ -1,0 +1,138 @@
+{
+  "slice": "S80",
+  "parent": "179fa7c0f812b56eaea8eb05f64e34a9aa1ae38b",
+  "new_ids": [
+    "PC-01.task-terminal",
+    "PC-01.task-duplicate",
+    "PC-01.task-ordering",
+    "PC-01.task-expiry",
+    "PC-01.task-binding",
+    "PC-01.task-readonly",
+    "PC-01.task-invalid",
+    "PC-01.task-quiesce",
+    "PC-01.task-rate",
+    "PC-01.task-product"
+  ],
+  "counts": {
+    "PASS": 455,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "original_63": {
+    "collected": 63,
+    "counts": {
+      "PASS": 63,
+      "FAIL_ASSERTION": 0,
+      "SETUP_ERROR": 0,
+      "NOT_RUN": 0
+    }
+  },
+  "initial_full": {
+    "PASS": 443,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 12,
+    "NOT_RUN": 0
+  },
+  "test_corrections": [
+    {
+      "id": "USB-01.tls-transport",
+      "reason": "12 new task frames consumed sequences 1..12; later STATUS must use 13, not the old literal 1",
+      "evidence": "trace-replay.log shows expected 13 / received 1; old failure retained",
+      "contract_changed": false
+    },
+    {
+      "ids": "RST-02.nfc-* and RST-02.motion-*",
+      "reason": "extracted reset coordinator gained real task reset dependency; fixture now links real ledger and checks binding cleared; no old assertion removed",
+      "initial_status": "12 SETUP_ERROR"
+    },
+    {
+      "id": "PC-01.task-product",
+      "reason": "source extractor accepts static void as well as static int, preserving exact production function text",
+      "initial_status": "SETUP_ERROR"
+    }
+  ],
+  "business_red": {
+    "id": "USB-01.tls-transport quiesced task READ",
+    "before": "-EBUSY (-16), expected read-only result",
+    "after": "READ allowed; BEGIN remains EBUSY",
+    "old_historical_tls_fault": "not this failure; remains OPEN"
+  },
+  "mutations": [
+    {
+      "id": "terminal-regresses",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "source_sha256": "e42a19df631cb37a7974e4d4fcb5431202a3d29dc6053c95408b815f9dce4a1b"
+    },
+    {
+      "id": "duplicate-renews",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "source_sha256": "a320c13c5e3eee63ae39c3da4983c08eb771a5a5d6497ad049b781a2a05d8477"
+    },
+    {
+      "id": "restored",
+      "status": "PASS",
+      "exit_code": 0,
+      "source_sha256": "57e55b7f3fb287c55b671ae752a9ecb8067008a9df9df61d60ff7efe63f5f8fa"
+    },
+    {
+      "id": "task-permission-bypass",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "assertion": "PC_RESPONSE_ERROR actual=0 expected=-13",
+      "restored": "production TLS target and final full run PASS"
+    }
+  ],
+  "build": {
+    "AP": "PASS with existing verified ap-aidk SDK and existing generated partitions/public trust source; ordinary build only",
+    "initial": "SETUP_ERROR: changed CMake source list required regeneration but SDK environment absent",
+    "log_sha256": "7af7eef303dc259e5b7a850c0dd4a06560ede7e9a00303d37367aa5a03d438bc",
+    "release_manifest": "not refreshed; not release evidence"
+  },
+  "resources": {
+    "ARM_resident_state_bytes": 80,
+    "new_threads": 0,
+    "new_DMA_buffers": 0,
+    "SD_writes": 0,
+    "input_bytes": 40,
+    "snapshot_bytes": 48,
+    "CPU_average_p95": "NOT_MEASURED_ON_DEVICE",
+    "longest_blocking": "NOT_MEASURED_ON_DEVICE; no new I/O, existing storage snapshot lock",
+    "ISR_critical_sections": "none introduced; serialized product owner only",
+    "stack_highwater_peak_memory": "NOT_MEASURED; caller snapshot80 and control view48 exclude stack frames",
+    "wireless": "no unsolicited traffic; one accepted progress per second; terminal bypass",
+    "exit": "quiesce expires old task; changed owner/grant or completed reset clears ledger"
+  },
+  "remaining": [
+    "No display/audio feedback consumer; terminal pending flag is not a rendered receipt",
+    "No task sender CLI or real OS-task integration yet",
+    "USB product owner/runtime remains unbound",
+    "S66/S75/S76 historical TLS failure unresolved",
+    "No board/phone operation; target timing and mixed regression pending"
+  ],
+  "logs": {
+    "interface-before.log": "d232ac44d1eb2df12f1419dc49c1dac54b742cde5dc9e5df5736462997db56a7",
+    "tls-first.log": "e7f1359f0082ba8cd70012d03d4baf2dbac14201f5191e055d60550695cbe21d",
+    "exact-first-replay.log": "98b0535b0c379e6ce9e022b89a54a4ccb744da6b7f95004e437f87c6eb55422f",
+    "trace-replay.log": "b8b0ab4d1ffaf757a19acb564e178d19bf43db83002eabcc219dc57e8b3a257f",
+    "quiesce-before.log": "227f397d1f89709082d8358363a1de1369c99af1711993d8503d99463e6f5466",
+    "quiesce-replay.log": "b277bd1ad1603be11a586b26cdb3380fc17793e1a131e0d720fbef50e267990b",
+    "tls-final.log": "db55bf4d116666c79d3bac132f0612a66840fb25b97ba47f4538b7273fa7a273",
+    "product-task-first.log": "e9c15dfb9caa63f5530200bb0a06ce4564adaecd067b6c7c7c0a1fa36f7ecb6d",
+    "product-task.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "old-route.log": "37b3a1b98f7db1cc4efc4cc790b7edfa30fb44879e817a8f9f49993d4dbf1f44",
+    "old-route-final.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "reset-fixture-corrected.log": "fd5593e39797ea8ac2153fd83055efa7ffd7709cf12b137156c8d7e2de60b386",
+    "runner-gate.log": "97b5d2dc43ba8df0b95d8c5c7b851637a8225ef2cc083857c3cca4254ef7f0df",
+    "mutation-terminal-regresses.log": "164f8ea6df2993832b16f7b5bba51fb142ed2470b84f477772c6f28bb731f5f0",
+    "mutation-duplicate-renews.log": "a62dfa9ea7f304c2861b4c465e1af05c8bab1244f5ff36246ff829b59de8fbe8",
+    "mutation-restored.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "mutation-task-permission.log": "40a69c1e1a7233e8777d9aa1bf69271be71f6db72161af273ceb246f7fdee658",
+    "arm-sizes.log": "7cc000248947eb21f1fdba7c80e47fc0213c356ffa6600f1e4e9ad79d043a658",
+    "style-final-bk7258_pc_tasks.c.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "style-final-bk7258_pc_tasks.h.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "style-python.log": "45a468fa6205768496f23f1716ebb7575e9b723449d2099b88bf2afef60b721f"
+  }
+}

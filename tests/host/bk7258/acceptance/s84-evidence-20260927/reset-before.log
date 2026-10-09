@@ -1,0 +1,18 @@
+case: /tmp/tmp8h41mx34/case.c:169: main: Assertion `product_reset_step()==-EIO' failed.
+E
+======================================================================
+ERROR: test_usb_failed (__main__.ResetNfcTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_reset_nfc.py", line 99, in test_usb_failed
+    self.run_case("""usb_error=-EIO;
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_reset_nfc.py", line 96, in run_case
+    subprocess.run([str(path / "case")], check=True)
+  File "/usr/lib/python3.10/subprocess.py", line 526, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['/tmp/tmp8h41mx34/case']' died with <Signals.SIGABRT: 6>.
+
+----------------------------------------------------------------------
+Ran 1 test in 0.235s
+
+FAILED (errors=1)

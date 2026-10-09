@@ -29,6 +29,21 @@ class ProvisionTlsChannel internal constructor(
     var established = false
         private set
 
+    private var exportedIdentity: ProvisionPeerIdentity? = null
+    /** Worker-only, optional metadata; never exposes a pre-handshake/closed peer.
+     * An unsupported export must not invalidate otherwise working phone control.
+     */
+    val peerIdentity: ProvisionPeerIdentity?
+        get() {
+            if (!established || closed || !engine.useClientMode) return null
+            if (exportedIdentity == null) {
+                exportedIdentity = try {
+                    ProvisionPeerIdentity.fromDer(engine.session.peerCertificates.first().encoded)
+                } catch (_: Exception) { null }
+            }
+            return exportedIdentity
+        }
+
     fun start() = operate {
         check(!started) { "TLS channel already started" }
         started = true
@@ -133,6 +148,7 @@ class ProvisionTlsChannel internal constructor(
     override fun close() {
         closed = true
         established = false
+        exportedIdentity = null
         incoming.array().fill(0)
         outgoing.array().fill(0)
         decoded.array().fill(0)

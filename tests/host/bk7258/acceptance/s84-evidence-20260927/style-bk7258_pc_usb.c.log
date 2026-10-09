@@ -1,0 +1,5 @@
+/tmp/s84-style-w89lj6dp/apps/app/bk7258/bk7258_pc_usb.c:227:2: error: Bad left brace alignment
+/tmp/s84-style-w89lj6dp/apps/app/bk7258/bk7258_pc_usb.c:229:4: error: Bad alignment
+/tmp/s84-style-w89lj6dp/apps/app/bk7258/bk7258_pc_usb.c:230:6: error: Bad left brace alignment
+/tmp/s84-style-w89lj6dp/apps/app/bk7258/bk7258_pc_usb.c:232:6: error: Bad right brace alignment
+/tmp/s84-style-w89lj6dp/apps/app/bk7258/bk7258_pc_usb.c:233:2: error: Bad right brace alignment

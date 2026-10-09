@@ -1,0 +1,10 @@
+make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'
+cc -std=c11 -Wall -Wextra -Werror -I mocks -I /home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/include -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_provision_owner.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_owner.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_control_session.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_scan.c -o build/test_shaniu_owner
+In file included from test_provision_owner.c:5:
+test_provision_owner.c: In function ‘scope_fails’:
+test_provision_owner.c:247:10: error: implicit declaration of function ‘bkprov_owner_control_scope’; did you mean ‘bkprov_owner_control_ota’? [-Werror=implicit-function-declaration]
+  247 |   assert(bkprov_owner_control_scope(out, create) == expected);
+      |          ^~~~~~~~~~~~~~~~~~~~~~~~~~
+cc1: all warnings being treated as errors
+make: *** [Makefile:1900: build/test_shaniu_owner] Error 1
+make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'

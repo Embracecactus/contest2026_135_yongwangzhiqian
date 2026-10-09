@@ -1,0 +1,32 @@
+[
+  {
+    "name": "changed-chunk",
+    "build_exit": 0,
+    "case": "RES-03.job-wire-retry",
+    "exit": -6,
+    "detected": true
+  },
+  {
+    "name": "terminal-reopen",
+    "build_exit": 0,
+    "case": "RES-03.job-wire-retry",
+    "exit": -6,
+    "detected": true
+  },
+  {
+    "name": "authority-revocation",
+    "case": "RES-03.product-job-route",
+    "exit": 1,
+    "detected": true
+  },
+  {
+    "name": "restored-retry",
+    "exit": 0,
+    "status": "PASS_RESTORED"
+  },
+  {
+    "name": "restored-route",
+    "exit": 0,
+    "status": "PASS_RESTORED"
+  }
+]

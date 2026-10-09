@@ -52,7 +52,9 @@ struct bkdisplay_pack_info_s
 
 int bkdisplay_pack_open(const char *path, struct bkdisplay_pack_s **pack,
                         struct bkdisplay_pack_info_s *info);
-void bkdisplay_pack_close(struct bkdisplay_pack_s *pack);
+/* Consumes the object even on close error. Never retry using the old pointer
+ * or descriptor; a failed close is not evidence of safe volume release. */
+int bkdisplay_pack_close(struct bkdisplay_pack_s *pack);
 
 /* Decode one logical expression directly to native RGB565 pixels.  An
  * unmapped request accepts only a shared frame and deliberately ignores the

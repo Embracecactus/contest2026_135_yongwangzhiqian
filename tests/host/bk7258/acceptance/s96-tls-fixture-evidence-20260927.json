@@ -1,0 +1,63 @@
+{
+  "parent": "37e5ed3e50ea8bb22a422a39af45e2d93232d2e8",
+  "scope": "Test-only positive TLS certificate fixture validity and preflight; no product source/config/dependency/resource changes.",
+  "counts": {
+    "selected": 552,
+    "PASS": 552,
+    "original_including_restores": 63,
+    "added": 489,
+    "new_ids": 4,
+    "runner_gates": 19,
+    "original_mutations": 2,
+    "extra_mutations": 0
+  },
+  "test_correction": {
+    "basis": "S95 retained first failure: not-yet-valid before PC authentication; capture about 0.16s before issuing-second notBefore. Clock source remains unknown.",
+    "old": "Positive ephemeral certificates began at issuing process current second.",
+    "new": "Explicit positive fixture validity 2024-01-01 through 2030-01-01; ordinary current-time OpenSSL verification before peer. Out-of-window is SETUP_ERROR; no clock changes, bypass or retry.",
+    "affected": [
+      "USB-01.tls-transport",
+      "RES-03.native-tls-*",
+      "WorkbenchClientTest"
+    ],
+    "retained": "S95 original report, public certificate and boundary negative results unchanged. Negative not-yet-valid/expired checks and same-CA wrong-leaf pin rejection still pass."
+  },
+  "red_green": "New runner gate failed against old fixture (zero verify calls); after fix all19 gates pass. Four independent explicit-time OpenSSL oracle cases pass. No production behavior Red claimed.",
+  "production_unchanged": true,
+  "inputs_match_report": true,
+  "AP": "NOT_RUN test-only change; S95 AP evidence retained, not relabeled as rebuilt.",
+  "parent_gaps": {
+    "USB-01": {
+      "interface": "Existing product interface unchanged.",
+      "L1_L2": "Host TLS and preflight/negative fixture tests pass; not complete hardware protocol acceptance.",
+      "L3": "NOT_RUN; no device operations."
+    },
+    "RES-02": {
+      "interface": "S95 pack trial primitive remains without authenticated wire caller.",
+      "L1_L2": "Existing renderer regressions pass; pack-specific client integration pending.",
+      "L3": "NOT_RUN"
+    }
+  },
+  "remaining": [
+    "Connect authenticated pack trial/default and light UI.",
+    "Historical S66/S75/S76 TLS failures not retrospectively explained.",
+    "Target resource budgets, hardware and final release still open; goal ACTIVE."
+  ],
+  "evidence_sha256": {
+    "tests/host/bk7258/acceptance/s96-evidence-20260927/CFG-01.wifi-clears-cloud.log": "836fc2fbe07b3340d121f4cefd57edf406a802dabc8fb2735c2970c7b1b6282a",
+    "tests/host/bk7258/acceptance/s96-evidence-20260927/MSC-01.early-release.log": "b804fe9d6807f3b8c5aba1069835375b677a46bc6264e7e5e59d0b76d1ca9aaf",
+    "tests/host/bk7258/acceptance/s96-evidence-20260927/USB-01.fixture-validity-dates.log": "22c35303740b6601f5d4e34308d2d4ad78034e703c1ff5d4816ef95436da0e55",
+    "tests/host/bk7258/acceptance/s96-evidence-20260927/USB-01.fixture-validity-expired.log": "51074f368f2e66f244dacf01849148958532b98df224d6b0ebf350505ceb5c44",
+    "tests/host/bk7258/acceptance/s96-evidence-20260927/USB-01.fixture-validity-not_yet_valid.log": "c1b82a64045ea8740c624266c08edcc6bc977855443b64ee83b5afa051276676",
+    "tests/host/bk7258/acceptance/s96-evidence-20260927/USB-01.fixture-validity-valid.log": "24bc92dbba404b80e43d7327f9a889b525e5baea84049848d0fdd40de98da08c",
+    "tests/host/bk7258/acceptance/s96-evidence-20260927/USB-01.tls-transport.log": "9c1c430231112d96be65a0d814fd61b1ca354695e1220ae397f5c48b7b7df099",
+    "tests/host/bk7258/acceptance/s96-evidence-20260927/client-first.log": "7f784265606c1b4c9a4b5835c21bfcbee81e787eeb7ce253b0808b5b7e4762be",
+    "tests/host/bk7258/acceptance/s96-evidence-20260927/full.log": "4a2a61a2a54e6812cb6384d994e46f9af15fafda749077f659a47c1baf32b14e",
+    "tests/host/bk7258/acceptance/s96-evidence-20260927/gate-red.log": "2ac4c3b2373e481370f9aec39940b1890f5da8d83f8105d559e59ab1c78d8bf0",
+    "tests/host/bk7258/acceptance/s96-evidence-20260927/gates-final.log": "79f3b3df5c78c600b6acf3186df32e3aeab0e44e821711dbbf5d01fd34d53011",
+    "tests/host/bk7258/acceptance/s96-evidence-20260927/gates-first.log": "137e6113f212b8401b027a0e07cb666d45515a88a85cddccafb9b0f3fe02339b",
+    "tests/host/bk7258/acceptance/s96-evidence-20260927/identity-first.log": "256e590ba9183f73cc663d8cfa132c3c8611787f5bb806ea54e951f3d8a7d3ca",
+    "tests/host/bk7258/acceptance/s96-evidence-20260927/style.log": "84dcf2eb313b88aa7827f117228931e8ff624c16e7948584ef631a41d3ea7d9f",
+    "tests/host/bk7258/acceptance/s96-evidence-20260927/tls-first.log": "775519e995498c046682bd16952655ead22c771cd4c76cd14786f1f610a0c1a6"
+  }
+}

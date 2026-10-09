@@ -44,6 +44,7 @@ struct bknfc_client_s
   uint32_t sequence;
   uint32_t waiting_session;
   uint32_t waiting_sequence;
+  uint16_t waiting_version;
   struct bknfc_rpc_response_s reply;
 };
 
@@ -185,7 +186,8 @@ static int bknfc_wait_reply(
       flags = spin_lock_irqsave(&client->reply_lock);
       valid = client->reply_valid &&
               client->reply.session == request->session &&
-              client->reply.sequence == request->sequence;
+              client->reply.sequence == request->sequence &&
+              client->reply.version == request->version;
       if (valid)
         {
           memcpy(response, &client->reply, sizeof(*response));
@@ -238,7 +240,6 @@ static int bknfc_client_cb(struct rpmsg_endpoint *endpoint, void *data,
 
   if (response == NULL || len != sizeof(*response) ||
       response->magic != BKNFC_RPC_MAGIC ||
-      response->version != BKNFC_RPC_VERSION ||
       !bknfc_rpc_response_valid(response))
     {
       return -ENOMSG;
@@ -247,7 +248,8 @@ static int bknfc_client_cb(struct rpmsg_endpoint *endpoint, void *data,
   flags = spin_lock_irqsave(&client->reply_lock);
   matched = client->waiting_session != 0 &&
             response->session == client->waiting_session &&
-            response->sequence == client->waiting_sequence;
+            response->sequence == client->waiting_sequence &&
+            response->version == client->waiting_version;
   if (matched)
     {
       memcpy(&client->reply, response, sizeof(client->reply));
@@ -445,7 +447,8 @@ int bknfc_rpc_exchange(struct bknfc_rpc_request_s *request,
     }
 
   request->magic = BKNFC_RPC_MAGIC;
-  request->version = BKNFC_RPC_VERSION;
+  request->version = request->command == BKNFC_RPC_CARD ?
+                     BKNFC_CARD_VERSION : BKNFC_RPC_VERSION;
   request->session = client->session;
   request->sequence = client->sequence;
   request->reserved[0] = 0;
@@ -455,6 +458,7 @@ int bknfc_rpc_exchange(struct bknfc_rpc_request_s *request,
   flags = spin_lock_irqsave(&client->reply_lock);
   client->waiting_session = request->session;
   client->waiting_sequence = request->sequence;
+  client->waiting_version = request->version;
   client->reply_valid = false;
   spin_unlock_irqrestore(&client->reply_lock, flags);
 
@@ -477,6 +481,7 @@ int bknfc_rpc_exchange(struct bknfc_rpc_request_s *request,
   flags = spin_lock_irqsave(&client->reply_lock);
   client->waiting_session = 0;
   client->waiting_sequence = 0;
+  client->waiting_version = 0;
   client->reply_valid = false;
   spin_unlock_irqrestore(&client->reply_lock, flags);
 

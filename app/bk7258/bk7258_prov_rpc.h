@@ -27,6 +27,8 @@
 #define BKPROV_RPC_RECORD_MIN        48u
 #define BKPROV_RPC_RECORD_MAX        8192u
 #define BKPROV_RPC_CHUNK_BYTES       256u
+#define BKPROV_RPC_DIAGNOSTICS_RECORD_SIZE 52u
+#define BKPROV_RPC_DIAGNOSTICS_CERT_SIZE   32u
 
 enum bkprov_rpc_command_e
 {
@@ -34,6 +36,10 @@ enum bkprov_rpc_command_e
   BKPROV_RPC_DATA,
   BKPROV_RPC_COMMIT,
   BKPROV_RPC_STATUS,
+  BKPROV_RPC_DIAGNOSTICS_ENABLE,
+  BKPROV_RPC_DIAGNOSTICS_REVOKE,
+  BKPROV_RPC_DIAGNOSTICS_STATUS,
+  BKPROV_RPC_DIAGNOSTICS_CERTIFICATE,
   BKPROV_RPC_RESPONSE = 0x8000
 };
 
@@ -106,6 +112,23 @@ static inline bool bkprov_rpc_frame_valid(
       case BKPROV_RPC_STATUS:
         return frame->offset == 0 && frame->length == 0 && frame->total == 0;
 
+#ifdef CONFIG_BK7258_FACTORY_DIAGNOSTICS
+      case BKPROV_RPC_DIAGNOSTICS_ENABLE:
+        return frame->offset == 0 &&
+               frame->length == BKPROV_RPC_DIAGNOSTICS_RECORD_SIZE &&
+               frame->total == BKPROV_RPC_DIAGNOSTICS_RECORD_SIZE;
+
+      case BKPROV_RPC_DIAGNOSTICS_REVOKE:
+      case BKPROV_RPC_DIAGNOSTICS_STATUS:
+        return frame->offset == 0 && frame->length == 0 && frame->total == 0;
+
+      case BKPROV_RPC_DIAGNOSTICS_CERTIFICATE:
+        return frame->length == 0 &&
+               frame->total == BKPROV_RPC_DIAGNOSTICS_CERT_SIZE &&
+               (frame->offset & 3u) == 0 &&
+               frame->offset < BKPROV_RPC_DIAGNOSTICS_CERT_SIZE;
+#endif
+
       default:
         return false;
     }
@@ -120,7 +143,12 @@ static inline bool bkprov_rpc_answer_valid(
          answer->version == BKPROV_RPC_VERSION &&
          answer->session != 0 && answer->sequence != 0 &&
          (answer->command & BKPROV_RPC_RESPONSE) != 0 &&
-         command >= BKPROV_RPC_BEGIN && command <= BKPROV_RPC_STATUS &&
+         command >= BKPROV_RPC_BEGIN &&
+#ifdef CONFIG_BK7258_FACTORY_DIAGNOSTICS
+         command <= BKPROV_RPC_DIAGNOSTICS_CERTIFICATE &&
+#else
+         command <= BKPROV_RPC_STATUS &&
+#endif
          answer->status <= 0 && answer->reserved == 0;
 }
 
@@ -158,5 +186,13 @@ int bkprov_rpc_supply(const uint8_t *record, size_t size);
  */
 
 int bkprov_rpc_status(size_t *size);
+
+#ifdef CONFIG_BK7258_FACTORY_DIAGNOSTICS
+int bkprov_rpc_diagnostics_enable(const uint8_t record[52], uint32_t *flags,
+                                  uint32_t *remaining_ms);
+int bkprov_rpc_diagnostics_revoke(void);
+int bkprov_rpc_diagnostics_status(uint32_t *flags, uint32_t *remaining_ms);
+int bkprov_rpc_diagnostics_certificate(uint32_t offset, uint32_t *word);
+#endif
 
 #endif /* __APP_BK7258_BK7258_PROV_RPC_H */

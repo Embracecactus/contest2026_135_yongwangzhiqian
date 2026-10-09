@@ -1,0 +1,1 @@
+{"PASS":true,"browser":"151.0.7922.34","operations":["catalog-status","catalog-page","catalog-status"],"checks":["real DOM explicit catalog flow","accepted no list","keyboard selection without network write","default save stays disabled","360px dark no overflow"],"limits":"Synthetic HTTP responses for UI only. Separate real HTTP/TLS/native tests; no serial or board operation."}

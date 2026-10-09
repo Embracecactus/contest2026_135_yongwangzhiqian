@@ -1,0 +1,449 @@
+{
+  "slice": "S59",
+  "date": "2026-09-27",
+  "parent": "9f4406aa755e80f8fb63928ba42f9c2c0dc6064d",
+  "counts": {
+    "PASS": 325,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 262,
+      "counts": {
+        "PASS": 262,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "new_cases": [
+    {
+      "id": "USB-02.life-wake_disconnect",
+      "parent": "USB-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.2643725679954514,
+      "evidence": "USB-02.life-wake_disconnect.log",
+      "evidence_sha256": "1504e2d93b35a611cf2a1f4a3c41ab409a895bdcbf26ee66e52b7cbd917ffc9e"
+    },
+    {
+      "id": "USB-02.life-fast_reconnect",
+      "parent": "USB-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.264317505992949,
+      "evidence": "USB-02.life-fast_reconnect.log",
+      "evidence_sha256": "378c093465c858911680dcf72aecd941db0e282b011405afe64c43113beef9db"
+    },
+    {
+      "id": "USB-02.life-drop_old_queue",
+      "parent": "USB-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.2643278610194102,
+      "evidence": "USB-02.life-drop_old_queue.log",
+      "evidence_sha256": "861d7ac6ebbc21448e35fcec726f76f6459ea3f57583150dc773aec4b5ee2259"
+    },
+    {
+      "id": "USB-02.life-new_open",
+      "parent": "USB-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.26429055898915976,
+      "evidence": "USB-02.life-new_open.log",
+      "evidence_sha256": "28d57521d22a69804b8334b0b215b051bcb9166a77f741fe1ae9ee5c6e5f0ba2"
+    },
+    {
+      "id": "USB-02.life-offline_open",
+      "parent": "USB-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.26436146500054747,
+      "evidence": "USB-02.life-offline_open.log",
+      "evidence_sha256": "172862f7e6eec66f042e2947a8048e2d825e784713f8507cf4898d13f1c0e919"
+    }
+  ],
+  "baseline": "5 compiled cases FAIL_ASSERTION; strengthened TX-ready gate separately failed after initial fixes",
+  "runner_gate": {
+    "tests": 13,
+    "status": "PASS"
+  },
+  "mutations": [
+    {
+      "id": "revive-old-handle",
+      "case": "fast_reconnect",
+      "status": "DETECTED",
+      "restore": "PASS",
+      "source_sha256": "b43ec76c092cec35ae3bbb52692ac3ab3f9703dbafc8a9112153f99d43eefe1f",
+      "mutant_sha256": "bd0e433968c6ab0d7e32dbdea3d45e3e33350b66ddc21aa73988e63c1a6919ec"
+    },
+    {
+      "id": "miss-disconnect-wakeup",
+      "case": "wake_disconnect",
+      "status": "DETECTED",
+      "restore": "PASS",
+      "source_sha256": "b43ec76c092cec35ae3bbb52692ac3ab3f9703dbafc8a9112153f99d43eefe1f",
+      "mutant_sha256": "064692648565b5767f23e61e6d4645fbb8d394d53d8531f9fd1de403c55be51e"
+    },
+    {
+      "id": "retain-upper-receive",
+      "case": "new_open",
+      "status": "DETECTED",
+      "restore": "PASS",
+      "source_sha256": "b43ec76c092cec35ae3bbb52692ac3ab3f9703dbafc8a9112153f99d43eefe1f",
+      "mutant_sha256": "9f0aeedc8f42da78cdaadc284a447df6c9280fbe34cb3c7976a3efd5a4f7a59a"
+    }
+  ],
+  "existing_mutations": [
+    {
+      "id": "MSC-01.early-release",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.007819015998393297,
+      "source": "app/bk7258/bk7258_media_volume.c",
+      "original_sha256": "58ebb18ae63adccf21262253da18f153bbb7c680cc0b64719ca20e8a6d9681c8",
+      "mutant_sha256": "bf298373a95ac54d5587f93ece34a30a7f661a65a969c69db9e27c6570770c57",
+      "expected_assertion": "!mounted",
+      "evidence": "MSC-01.early-release.log"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.06398236902896315,
+      "source": "app/bk7258/bk7258_provision_config.c",
+      "original_sha256": "98f5100ca49ca44e45fe3e5da4bb2da0add7466f0e357a205ca8b1e307a5818e",
+      "mutant_sha256": "4c0c615b8ffc99247b0fd91bd934d3df0409a1180769cb939b2820f9e6f69427",
+      "expected_assertion": "bkcloud_config_decode",
+      "evidence": "CFG-01.wifi-clears-cloud.log"
+    }
+  ],
+  "inputs": {
+    "chips/bk7258/Kconfig": "3eda6f75772fde2144c33f904a9fe6ce22e771958699d1bebd275563ffbac38b",
+    "chips/bk7258/ap/bk7258_usbcdc.c": "b43ec76c092cec35ae3bbb52692ac3ab3f9703dbafc8a9112153f99d43eefe1f",
+    "goal-objective.md": "f3f858fc1f1b9bfef2f9f0a4f5778cb0134c6cdce3ef10c591e6c6289d898347",
+    "tests/host/bk7258/README.md": "f8bd7a3eca609a65301a3961da0053146ceca4b8d896cf4dc8f4ee39e0212013",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "8241e1dd979ff7aeac938bdbbda5bb047e5dd39696596874ef382da6b76efd34",
+    "tests/host/bk7258/test_shaniu_contracts.py": "41cab0f64512f0ad0ad466a792d76710005ee013331f7410325a99160e59dcde",
+    "tests/host/bk7258/test_shaniu_usbcdc_lifecycle.py": "0b8bb23b9079579a3eaa678781a9fe814b9deeac33d0129636637f50ac333922"
+  },
+  "external_inputs": {
+    "nuttx/drivers/serial/serial.c": "33b863691a58fc21eb71356be3d7c15044992b1ecce58e02699ea9aa7c124cc1",
+    "nuttx/drivers/serial/Kconfig": "c6e0d72833459c049d46199aacba680f0a41d9fa6dfc6433b3e8150f38bf71a0",
+    "nuttx/include/nuttx/serial/serial.h": "8a82d35d89fd9bef83e30c6e9b7f777b435372cd1fa1ecf9c89e9b1d028a3429"
+  },
+  "nuttx_commit": "76354c637858ecb0aa4601629327acb6f44a26bb",
+  "logs": {
+    "after-final.log": {
+      "sha256": "f13ff7312e6cbaa8fae25ea235b5b32a0f4f5a709eeb2d7bb981362238485ef2",
+      "tail": [
+        ".....",
+        "----------------------------------------------------------------------",
+        "Ran 5 tests in 1.120s",
+        "",
+        "OK"
+      ]
+    },
+    "after.log": {
+      "sha256": "7ef0f917c7ed7efac32320dd5d238296ab866b280f24e2ac67e44187c84ae6ca",
+      "tail": [
+        ".....",
+        "----------------------------------------------------------------------",
+        "Ran 5 tests in 1.105s",
+        "",
+        "OK"
+      ]
+    },
+    "before.log": {
+      "sha256": "c89c145d394ab8eb9eeb33bfce18c2350f04ab28e32cb1fdc190c79dd9713e8c",
+      "tail": [
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/cdc-life-equ0k95u/case']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 5 tests in 1.177s",
+        "",
+        "FAILED (errors=5)"
+      ]
+    },
+    "build-target-stale-config.log": {
+      "sha256": "971ced305cc6602f5bac4f1ca2b8f59c145b8f6f8e9d2676f86695afb806adc2",
+      "tail": [
+        "#### build completed successfully (2 seconds) ####",
+        "bk7258 layer gate: PASS sources=528 kconfig=253 legacy-exceptions=2",
+        "bk7258 build: PASS layout=bk7258-510173147382a879",
+        "bl1 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.map",
+        "bl2 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.map copy_size=13632",
+        "cp elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.map identity=bk7258-role-9a0b5b6e466d063f seed=41811cb113e14cd5ce35630f0a6d42f0d32f88a10c512bb971734bce9a28c016 config=dd503376e1b5436c9221274dc5a9ff86bf2e49660dfad4d306292e1113d82bed",
+        "ap elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.map identity=bk7258-role-5a3061a4da19ae9f seed=9507a2073a35e2970300a150395dc4d8c48458a68cb24412497ab54c714a7fec config=4e73b6c67a5176a8136b7c46a43c46329f7ef19e5ec74e626937d64bdeddfcee",
+        "build manifest=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    },
+    "build-target.log": {
+      "sha256": "11fa8c7f0196f652648a4b1fbe6a110dded4ef1af50756cb142e866f08c585bc",
+      "tail": [
+        "#### build completed successfully (13 seconds) ####",
+        "bk7258 layer gate: PASS sources=528 kconfig=253 legacy-exceptions=2",
+        "bk7258 build: PASS layout=bk7258-510173147382a879",
+        "bl1 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.map",
+        "bl2 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.map copy_size=13632",
+        "cp elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.map identity=bk7258-role-9a0b5b6e466d063f seed=41811cb113e14cd5ce35630f0a6d42f0d32f88a10c512bb971734bce9a28c016 config=dd503376e1b5436c9221274dc5a9ff86bf2e49660dfad4d306292e1113d82bed",
+        "ap elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.map identity=bk7258-role-5a3061a4da19ae9f seed=9507a2073a35e2970300a150395dc4d8c48458a68cb24412497ab54c714a7fec config=8517b8cf51d893ccbe0a6efc1441a342affcee920ba515c00187e24c5d091ec1",
+        "build manifest=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    },
+    "contracts.log": {
+      "sha256": "8694039239e3ca42a520da7b9b6f3a900ae4b09f5eefdfe183ae3be39305e38d",
+      "tail": [
+        "unittest.case.FunctionTestCase (run)",
+        "MSC-01.restored ... ok",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 2 tests in 0.066s",
+        "",
+        "OK",
+        "{\"PASS\": 325, \"FAIL_ASSERTION\": 0, \"SETUP_ERROR\": 0, \"NOT_RUN\": 0} production_unchanged= True"
+      ]
+    },
+    "miss-disconnect-wakeup-restore.log": {
+      "sha256": "012565f143157fbdf204da8481bb60f815f3013838bcb9c6c0415d01709759cb",
+      "tail": [
+        ".",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.228s",
+        "",
+        "OK"
+      ]
+    },
+    "miss-disconnect-wakeup.log": {
+      "sha256": "6c3ef1c36fe367b725b37f2c40ce0c0e24626eb803e7616de30bd52c54e33f40",
+      "tail": [
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/cdc-life-etmiu9db/case']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.237s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "mutations.log": {
+      "sha256": "cc5954d639acf43433ce1b0a24da11be619848ff8bced752893e0eae17e58092",
+      "tail": [
+        "[{'id': 'revive-old-handle', 'case': 'fast_reconnect', 'status': 'DETECTED', 'restore': 'PASS', 'source_sha256': 'b43ec76c092cec35ae3bbb52692ac3ab3f9703dbafc8a9112153f99d43eefe1f', 'mutant_sha256': 'bd0e433968c6ab0d7e32dbdea3d45e3e33350b66ddc21aa73988e63c1a6919ec'}, {'id': 'miss-disconnect-wakeup', 'case': 'wake_disconnect', 'status': 'DETECTED', 'restore': 'PASS', 'source_sha256': 'b43ec76c092cec35ae3bbb52692ac3ab3f9703dbafc8a9112153f99d43eefe1f', 'mutant_sha256': '064692648565b5767f23e61e6d4645fbb8d394d53d8531f9fd1de403c55be51e'}, {'id': 'retain-upper-receive', 'case': 'new_open', 'status': 'DETECTED', 'restore': 'PASS', 'source_sha256': 'b43ec76c092cec35ae3bbb52692ac3ab3f9703dbafc8a9112153f99d43eefe1f', 'mutant_sha256': '9f0aeedc8f42da78cdaadc284a447df6c9280fbe34cb3c7976a3efd5a4f7a59a'}]"
+      ]
+    },
+    "quarantine-tx-before.log": {
+      "sha256": "a71f381af76ee0f69166e9c6fd92ab73f5561ac1eafae91a7f6427ae0471d6b2",
+      "tail": [
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/cdc-life-uejru7pv/case']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.261s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "resetconfig.log": {
+      "sha256": "2f4a06a62bd34c7ac02676ce7387564285adb1dc6a9376149e12e1671cf4a767",
+      "tail": [
+        "[0/2] Re-checking globbed directories...",
+        "[1/2] cd /home/lijian/project/open-vela/nuttx && /home/lijian/project/open-vela/prebuilts/tools/cmake/bin/cmake -E copy /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/configs/mcuboot/ap/defconfig /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/.config && /home/lijian/project/open-vela/prebuilts/tools/cmake/bin/cmake -E env KCONFIG_CONFIG=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/.config EXTERNALDIR=dummy APPSDIR=/home/lijian/project/open-vela/apps DRIVERS_PLATFORM_DIR=dummy APPSBINDIR=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/apps BINDIR=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake olddefconfig && /home/lijian/project/open-vela/prebuilts/tools/cmake/bin/cmake -E copy /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/.config /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/.config.orig && /home/lijian/project/open-vela/prebuilts/tools/cmake/bin/cmake -E touch /home/lijian/project/open-vela/nuttx/CMakeLists.txt",
+        "Loaded configuration '/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/.config'",
+        "Configuration saved to '/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/.config'"
+      ]
+    },
+    "retain-upper-receive-restore.log": {
+      "sha256": "6a47c9ba690656d24fc5bcc198794e838a7e57b10c2c18c5afc96a1f8a035f08",
+      "tail": [
+        ".",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.242s",
+        "",
+        "OK"
+      ]
+    },
+    "retain-upper-receive.log": {
+      "sha256": "362fcaca40e07e147d7d19343d4ca21f850bbf21be1d8ace74b4fb8c74aa6527",
+      "tail": [
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/cdc-life-pn_cs3ck/case']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.247s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "revive-old-handle-restore.log": {
+      "sha256": "c59373e08dc2accd74cead3b429f88bdd05823b5b769bdd3eff6bb8733da0d7e",
+      "tail": [
+        ".",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.219s",
+        "",
+        "OK"
+      ]
+    },
+    "revive-old-handle.log": {
+      "sha256": "77c5318834ac5fcac26cfcea597b25b40668393f426e6ec883919d373ba4a74b",
+      "tail": [
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/cdc-life-e2llsn40/case']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.224s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "runner-gate.log": {
+      "sha256": "6550c381799ba6b8a85a932e9824ca1a90c1ebfca5fbdb3f0cbed439c60c0c2a",
+      "tail": [
+        ".............",
+        "----------------------------------------------------------------------",
+        "Ran 13 tests in 0.034s",
+        "",
+        "OK"
+      ]
+    },
+    "rx.log": {
+      "sha256": "6c73e80a9c64b53222f4af5376393e2e8d718f393e947a745bc9f906bad90a8e",
+      "tail": [
+        ".......",
+        "----------------------------------------------------------------------",
+        "Ran 7 tests in 1.567s",
+        "",
+        "OK"
+      ]
+    },
+    "style-baseline.log": {
+      "sha256": "acdc688adb4c06f86dca884204cb6be34061658f74d68659948d6746aa63328e",
+      "tail": [
+        "/tmp/tmpl9214cd2/bk7258_usbcdc.c:177:0: error: Mixed case identifier found",
+        "/tmp/tmpl9214cd2/bk7258_usbcdc.c:324:5: error: Mixed case identifier found",
+        "/tmp/tmpl9214cd2/bk7258_usbcdc.c:325:5: error: Mixed case identifier found",
+        "/tmp/tmpl9214cd2/bk7258_usbcdc.c:326:5: error: Mixed case identifier found",
+        "/tmp/tmpl9214cd2/bk7258_usbcdc.c:327:5: error: Mixed case identifier found",
+        "/tmp/tmpl9214cd2/bk7258_usbcdc.c:570:1: error: Missing blank line before comment found",
+        "/tmp/tmpl9214cd2/bk7258_usbcdc.c:570:78: error: Long line found",
+        "/tmp/tmpl9214cd2/bk7258_usbcdc.c:828:1: error: \"Private/Public Functions\" not found! File will not be checked"
+      ]
+    },
+    "style-c.log": {
+      "sha256": "e33fb7675290d0f1868a5b010dee63a29b2a60b88eb7c886136a01ac8d845433",
+      "tail": [
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_usbcdc.c:178:0: error: Mixed case identifier found",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_usbcdc.c:325:5: error: Mixed case identifier found",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_usbcdc.c:326:5: error: Mixed case identifier found",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_usbcdc.c:327:5: error: Mixed case identifier found",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_usbcdc.c:328:5: error: Mixed case identifier found",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_usbcdc.c:617:1: error: Missing blank line before comment found",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_usbcdc.c:617:78: error: Long line found",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_usbcdc.c:880:1: error: \"Private/Public Functions\" not found! File will not be checked"
+      ]
+    },
+    "style-python.log": {
+      "sha256": "1a56c7cd8457fd05d978cfbd139d7bfd86e86acaa9b57668e718ef8bccc0cf48",
+      "tail": [
+        "All done! ✨ 🍰 ✨",
+        "1 file would be left unchanged."
+      ]
+    },
+    "target-integration.log": {
+      "sha256": "bee9700a1837d317a270b7da6b830e46551e9a4b1a281fae52a0a7ca248c5004",
+      "tail": [
+        "00000000 0000005e r g_bk7258_usbcdc_descriptors",
+        "00000000 00000008 b g_bk7258_usbcdc_ep_in",
+        "00000000 00000008 b g_bk7258_usbcdc_ep_intr",
+        "00000000 00000008 b g_bk7258_usbcdc_ep_out",
+        "00000000 00000020 b g_bk7258_usbcdc_intf",
+        "00000000 0000003c r g_bk7258_usbcdc_uart_ops",
+        "         U uart_connected",
+        "0213527e T uart_connected"
+      ]
+    },
+    "tx.log": {
+      "sha256": "0767240d63ad94af9f09a462932eb26bc145d82049ac82da66f5affb4e1f593e",
+      "tail": [
+        ".....",
+        "----------------------------------------------------------------------",
+        "Ran 5 tests in 1.123s",
+        "",
+        "OK"
+      ]
+    },
+    "verify-manifest.log": {
+      "sha256": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac",
+      "tail": [
+        "bk7258 verify build-manifest: PASS boot=mcuboot board=aidk_ai_toy layout=bk7258-510173147382a879 source=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    }
+  },
+  "style": {
+    "nxstyle_current_exit": 1,
+    "nxstyle_baseline_exit": 1,
+    "black_new_test_exit": 0,
+    "note": "Full-file C style has existing violations; no style PASS claimed."
+  },
+  "layers": {
+    "L1_L2": "Actual CDC lifecycle plus actual uart_connected, external poll/wakeup/scheduler peers; no full serial syscalls or real blocking tasks",
+    "protocol": "BLOCKED_INTERFACE: PC auth/frames/common service wiring",
+    "target": "Final Kconfig, object reference, ELF definition and manifest PASS after regenerating stale incremental config",
+    "L3": "NOT_RUN"
+  },
+  "build_correction": "Initial build omitted SERIAL_REMOVABLE and is not integration proof; existing CMake resetconfig refreshed only AP build config, public build rerun; no handwritten config or source edits in official repos. Final config hash8517b8cf51d893ccbe0a6efc1441a342affcee920ba515c00187e24c5d091ec1.",
+  "budget": {
+    "ARM_CDC_state_bytes": 1764,
+    "added_bytes": 4,
+    "new_threads": 0,
+    "new_heap": 0,
+    "new_dma": 0,
+    "new_polling": 0,
+    "unmeasured": [
+      "IRQ/poll wake timing",
+      "stack",
+      "blocked-thread scheduling",
+      "other removable serial instances"
+    ]
+  },
+  "remaining": [
+    "real DCD cancellation and late IRQ ordering",
+    "actual blocked read/write/close tests",
+    "product credentials and session revocation beyond serial state",
+    "USB protocol, installer/workbench and task events"
+  ],
+  "physical_actions": []
+}

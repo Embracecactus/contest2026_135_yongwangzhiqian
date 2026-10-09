@@ -389,13 +389,28 @@ internal class OtaPackageServer private constructor(
 
         private fun activeWifiIpv4(context: Context): Inet4Address {
             val manager = context.getSystemService(ConnectivityManager::class.java)
-            val network = requireNotNull(manager.activeNetwork)
-            val capabilities = requireNotNull(manager.getNetworkCapabilities(network))
-            require(capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI))
-            val properties = requireNotNull(manager.getLinkProperties(network))
-            return requireNotNull(properties.linkAddresses
-                .mapNotNull { it.address as? Inet4Address }
-                .firstOrNull { !it.isLoopbackAddress && !it.isAnyLocalAddress })
+            val active = manager.activeNetwork
+            val candidates = manager.allNetworks.mapNotNull { network ->
+                val capabilities = manager.getNetworkCapabilities(network)
+                    ?: return@mapNotNull null
+                if (!capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN))
+                    return@mapNotNull null
+                val properties = manager.getLinkProperties(network)
+                    ?: return@mapNotNull null
+                val address = properties.linkAddresses
+                    .mapNotNull { it.address as? Inet4Address }
+                    .firstOrNull { !it.isLoopbackAddress && !it.isAnyLocalAddress }
+                    ?: return@mapNotNull null
+                network to address
+            }
+            /* Mobile data or a VPN can own the default Internet route while
+             * Wi-Fi still reaches the device. Bind the listener to Wi-Fi,
+             * never to the cellular/VPN address. Ambiguous Wi-Fi selections
+             * fail closed rather than advertising an arbitrary interface.
+             */
+            return requireNotNull(candidates.firstOrNull { it.first == active }
+                ?: candidates.singleOrNull()).second
         }
 
         private fun extractVerifiedEntries(

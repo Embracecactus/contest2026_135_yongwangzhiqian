@@ -1,0 +1,1 @@
+test: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pc_tasks.c:28: main: Assertion `send(&s,2,4,1000,250)==-EALREADY' failed.

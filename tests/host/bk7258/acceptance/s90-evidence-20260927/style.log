@@ -1,0 +1,7 @@
+reformatted tests/host/bk7258/test_workbench_resources.py
+reformatted tests/host/bk7258/test_workbench_resource_flow.py
+reformatted tools/bk7258/_lib/workbench_resources.py
+reformatted tools/bk7258/_lib/workbench.py
+
+All done! ✨ 🍰 ✨
+4 files reformatted.

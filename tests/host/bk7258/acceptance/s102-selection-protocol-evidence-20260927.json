@@ -1,0 +1,149 @@
+{
+  "parent": "4e6fc918b730362090e3e4da33ca8016d07ede2f",
+  "counts": {
+    "selected": 592,
+    "PASS": 592,
+    "original_including_restores": 63,
+    "added": 529,
+    "new_ids": 7,
+    "runner_gates": 19,
+    "original_mutations": 2,
+    "extra_mutations": 1,
+    "extra_restore_runs": 1
+  },
+  "implementation": "ESC1/ESS1 kind17 maps authenticated PC resource authority to native selection/refresh/cancel/recovery. Independent random epoch and binding/grant/client metadata; periodic authoritative snapshot invalidates old scope. Exact latest operation replay and immutable nonce-keyed read snapshot, no filesystem I/O in handler. Native worker owns actual commit/render.",
+  "first_attempt": {
+    "status": "BLOCKED_INTERFACE",
+    "log": "interface-before.log"
+  },
+  "test_corrections": [
+    {
+      "ids": [
+        "RES-02.selection-wire-success"
+      ],
+      "basis": "Established SDC1 response puts CONFIG_READ bytes at24..39, also decoded by Android DeviceControlProtocol.kt copyOfRange(24,40). Initial new fixture incorrectly expected offset32.",
+      "evidence_before": "wire-success.log",
+      "evidence_after": "wire-success-fixed.log",
+      "product_changed_to_fit_test": false
+    },
+    {
+      "ids": [
+        "RES-02.selection-wire-product"
+      ],
+      "status": "SETUP_ERROR",
+      "basis": "External entropy macro discarded epoch argument and caused unused-variable compilation error. Corrected peer consumes arguments; this is not business Red.",
+      "before": "wire-product.log",
+      "after": "wire-product-fixed.log"
+    }
+  ],
+  "new_red_green": {
+    "before": "installer-coupling-red.log",
+    "after": "installer-coupling-green.log",
+    "failure": "First default query attempted the installer binding path, which can request installer quiescence. The independent forbidden-domain observer asserted.",
+    "fix": "Separate default-selection authority metadata/epoch. First query must leave unbound installer untouched. Actual product maintenance loop invalidates selection on grant change; old epoch rejected without undoing committed default.",
+    "limits": "Installer functions are forbidden external-domain peers in this default-route fixture; separate real installer regressions retained."
+  },
+  "integration": {
+    "production": "Real SDC1 staging, selection wire controller, native selection/volume/store/render. Product variant extracts product_pc_config and product_pc_pack_step verbatim.",
+    "external": "Mount/umount/framebuffer, entropy and authoritative grant source are controlled peers; unexercised installer domain fails if called by default route. TLS fixture separately executes actual PC guard and requires RESOURCES; SCENES/DIAGNOSTICS denied. TLS handler deliberately returns ENOTSUP, never fake save success.",
+    "not_proven": "No single PC CLI-to-TLS-to-native-default-to-screen end-to-end test yet. Phone binding/UI and PC client commands remain unimplemented. Host direct worker step is not RTOS scheduling or physical acceptance.",
+    "snapshot_limit": "Version/filename describes the latest native job outcome. Explicit refresh reads durable state; query alone does not reread changes from other callers."
+  },
+  "validation": {
+    "input_hashes_match": true,
+    "production_unchanged_during_full": true,
+    "digest_limit": "Runner production_digest covers tracked paths; new module/header additionally captured in explicit input hashes. No source edits during final run.",
+    "AP": "PASS incremental; all selection/recovery/request and protocol public symbols linked",
+    "layers": "PASS sources550 kconfig253 legacy-exceptions2",
+    "style_new_module_header": "PASS pinned nxstyle",
+    "style_existing": {
+      "bk7258_agent_product.c": {
+        "added_diagnostic_types": [],
+        "legacy_diagnostics_remain": true
+      },
+      "bk7258_control_session.c": {
+        "added_diagnostic_types": [],
+        "legacy_diagnostics_remain": true
+      },
+      "bk7258_control_session.h": {
+        "added_diagnostic_types": [],
+        "legacy_diagnostics_remain": true
+      },
+      "bk7258_pc_control.c": {
+        "added_diagnostic_types": [],
+        "legacy_diagnostics_remain": false
+      },
+      "bk7258_pc_control.h": {
+        "added_diagnostic_types": [],
+        "legacy_diagnostics_remain": false
+      }
+    },
+    "black": "24.10.0; changed thin Python adapters formatted",
+    "nxstyle_nuttx_commit": "76354c637858ecb0aa4601629327acb6f44a26bb"
+  },
+  "mutation": {
+    "status": "DETECTED",
+    "exit_code": 1,
+    "source_sha256": "6063f05c730d60d908686f0805980f16328efc661b64d034ef9702f33db4691e",
+    "mutant_sha256": "858b2801fb8c15ccf79b2aabb1027d5047d501ad29e704fc599c8fff99f6364c",
+    "fixture_sha256": "07e1d988692d4895081aaededb9597a0f5dc33ec96c89cc50dd0ac921faa5093",
+    "driver_sha256": "a4366bcac8d5e4f6f2ff000e89bd6fa39ab3eedfff20c03cf4346cc6efdfd9c0",
+    "assertion": "wire_apply(record,96)==-ESTALE",
+    "restored_log": "mutation-restored-final.log"
+  },
+  "resources": {
+    "new_static_bytes": 304,
+    "breakdown": "272B protocol object plus32B binding/grant/client metadata confirmed by target nm",
+    "threads_heap": "No new thread, unbounded queue or heap allocation; existing SDC1 staging reused",
+    "not_measured": "Target CPU/p95, stack high-water, physical I/O/SD, DMA/IRQ and audio/USB contention"
+  },
+  "parent_gaps": {
+    "RES-02": {
+      "interface": "Native and authenticated PC protocol linked; PC client, phone binding and UI pending",
+      "L1_L2": "7 new cases, actual product route and real TLS permission boundary; separate scopes tested",
+      "L3": "NOT_RUN; no hardware or APK changes"
+    }
+  },
+  "remaining": [
+    "PC commands/receipt query and native App integration",
+    "Explicit active/2 downgrade/migration handling before deployment",
+    "COM9 target identity and APK install approval still pending",
+    "Physical budgets, historical TLS evidence, mixed scenarios and final delivery"
+  ],
+  "evidence_sha256": {
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/CFG-01.wifi-clears-cloud.log": "08031ad2ec6c3d834d66a32d9c8fd9dcf25d0d9d31704a7d45d4d308fc67abb9",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/MSC-01.early-release.log": "eaeeba728502dceda3c118285525d4312453b43df3a091836488b1f12ce8009a",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/RES-02.selection-wire-cancel.log": "fe9e9caa7a620b9e151f59a1e1ee6eb19352c04a8e5330d9da41913c7320f71e",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/RES-02.selection-wire-invalid.log": "688c60936f5c248f3eb4406ada3826b8be6ed0bfd2c3cad33bdcdd158a4ef7f8",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/RES-02.selection-wire-product.log": "40d06760b4a630065f0b0c1d00daa271ada2dd51ad14b9ad4dc409a6089e34e1",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/RES-02.selection-wire-recover.log": "9187646f7199db84d581b3cbf768ca2070a950a682faa4308b68807be66c5885",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/RES-02.selection-wire-refresh.log": "5d768c92cc339d881e35422eb85e4a9309fb248f87761fdd711484c359a1254d",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/RES-02.selection-wire-revoke.log": "515c7f6460d3a052354b18ff2f40ef440fe20ebb6c7d40168e5a937f8db36873",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/RES-02.selection-wire-success.log": "41d4a41c07b27881d22bdd2501174846c725ff475d972c068b49daf9c281d4b2",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/RES-03.product-job-route-revoke.log": "5f1566f4ed5b704fef8b6309cc5994b66ef2f76b04af86dde0ee8e35a9a66a08",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/RES-03.product-job-route-session.log": "75ab62093d9b682d4aab2e1cd224f205df13c10293c9529852294981b9af3871",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/USB-01.tls-transport.log": "fa9fbc6e090d4e32fd173b4844fe3b8ad0bbfdc4c5cd642de4b129cba862cbac",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/ap.log": "97df66c361b86c4647fa42c76802c981c63c814b88eb517368680c2e8f58c4e8",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/before-scope-summary.json": "e8c6477cc96c34584ad1789713a548508f487b5690a2e693239c3e9187aa7c73",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/before-scope.log": "df9a5c2c0c1f8d4cef298b4fc245f7a7fecc5bbb73467dc01f187056c3689701",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/bk7258_display_selection_control.c.style.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/bk7258_display_selection_control.h.style.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/black-final.log": "3e4bf86f7f8a48dc4cff2af7181cebc1db68e69885f713a09fb2bd0d67039660",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/epoch-mutant-final.log": "2517134ef28875821d15acada083697e1af20ff2bf13584391ba2817487037f4",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/full.log": "4869d2581a3a05fad4bec7264724a7fdf52e28f34aa026a317bdb4671be53833",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/gates-final.log": "fb9a8512ad7a03cb1bc9a54fdcd7c45ff3b6ff284cbea22f6b0467e4b5058c5d",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/installer-coupling-green.log": "a567fac0dee2fd372394364e99b2f55979536d2d4ed96fc88744277647d283e7",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/installer-coupling-red.log": "026a3698029a5e778e3b8c4b9abcff5133eb0038c837fd763baff14937715cbc",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/interface-before.log": "16d8d2af63f3c2b4c24955614cb0fddb366845ed45977b88825573f084ba063b",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/layers-final.log": "027609397eae350c61a6eb847a6c4ab94f0c926dfa48f65914118948fd3b6c40",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/mutation-final.json": "64b3b20f8ecd8afc043057946d910e27920a9fb8e53a8ad6bcfe007a540ece63",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/mutation-restored-final.log": "46c800b211ed58620c91fa709fc7bb9a9636ce7c82bd26c31da9f41ba83d232e",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/product-revoke-final.log": "38b46a2ccaca35d6f9182c93b8f63a560e5b37014e4e131f6260d892fb5f7fa9",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/style-final.json": "db89d97b127c88f487d75eba9fc869c6fc8ef6006c1dca8c7115cd0ce867084a",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/target-symbols-final.log": "00d25e769a92166f80526534447e9f08594eecbd479927ee3f13353146f96692",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/wire-product-fixed.log": "1d7b152ff2a8444c112c4b9b26414d8487b808d2253ef7de2aff79938c4c8571",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/wire-product.log": "0771fe9c9438ff7ebee7c77c651b6701615081179fd88c96526de40292906278",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/wire-success-fixed.log": "8869e5a7a3404ce95a47711e6db9b0ad4704a9f2bd56e884b5bd8531e5fed961",
+    "tests/host/bk7258/acceptance/s102-evidence-20260927/wire-success.log": "d155f604dae040d4fc1cd19eb59edd4b291a80079a07c7a0f42f748470de7af7"
+  }
+}

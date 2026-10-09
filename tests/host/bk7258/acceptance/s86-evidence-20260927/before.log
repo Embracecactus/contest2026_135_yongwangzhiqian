@@ -1,0 +1,21 @@
+.........FE....
+======================================================================
+ERROR: test_nested_setup_exit_overrides_assertion_text (__main__.NestedTlsGateTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_runner_gate.py", line 170, in test_nested_setup_exit_overrides_assertion_text
+    runner.case("nested", "NET-03", "L2", [], marker=False,
+TypeError: case() got an unexpected keyword argument 'setup_exit_code'
+
+======================================================================
+FAIL: test_compiler_failure_is_error_not_assertion (__main__.NestedTlsGateTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_runner_gate.py", line 160, in test_compiler_failure_is_error_not_assertion
+    self.assertEqual(len(result.errors), 1)
+AssertionError: 0 != 1
+
+----------------------------------------------------------------------
+Ran 15 tests in 0.060s
+
+FAILED (failures=1, errors=1)

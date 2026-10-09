@@ -1,0 +1,25 @@
+RENDERER_SHA256=940a0e15cb465cef77f0b5c9fd8694f76bd1e9c1dd23e084eed49c13bf125ca4
+bk7258 package eye-pack: PASS output=/tmp/pack-trial-build-51cs3if0/green.bkep id=shaniu-upload-v1 revision=1 entries=11 size=10494 sha256=c0136ca3b702c15f41d15aed1e0a5e8714b851332024347c2bf13b1b7fea8e47
+PACK_TRIAL_INPUT_SHA256=c0136ca3b702c15f41d15aed1e0a5e8714b851332024347c2bf13b1b7fea8e47
+In file included from /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.c:4:
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/catalog_job_cases.inc: In function ‘catalog_job_case’:
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/catalog_job_cases.inc:10:10: error: implicit declaration of function ‘bk7258_display_catalog_request’; did you mean ‘bk7258_display_selection_request’? [-Werror=implicit-function-declaration]
+   10 |   assert(bk7258_display_catalog_request("../bad.bkep", 0, &id) == -EINVAL);
+      |          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/catalog_job_cases.inc:12:10: error: implicit declaration of function ‘bk7258_display_catalog_page’; did you mean ‘bk7258_display_activate’? [-Werror=implicit-function-declaration]
+   12 |   assert(bk7258_display_catalog_page(0, &page) == -EINVAL);
+      |          ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/catalog_job_cases.inc:23:20: error: ‘struct bkdisplay_selection_status_s’ has no member named ‘catalog’
+   23 |       assert(status.catalog && status.id == selection_id);
+      |                    ^
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/catalog_job_cases.inc:23:20: error: ‘struct bkdisplay_selection_status_s’ has no member named ‘catalog’
+   23 |       assert(status.catalog && status.id == selection_id);
+      |                    ^
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/catalog_job_cases.inc:58:16: error: ‘struct bkdisplay_selection_status_s’ has no member named ‘catalog’
+   58 |   assert(status.catalog && !status.save_confirmed && !status.render_confirmed &&
+      |                ^
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/catalog_job_cases.inc:58:16: error: ‘struct bkdisplay_selection_status_s’ has no member named ‘catalog’
+   58 |   assert(status.catalog && !status.save_confirmed && !status.render_confirmed &&
+      |                ^
+cc1: all warnings being treated as errors
+SETUP_ERROR: Command '['cc', '-std=gnu11', '-Wall', '-Wextra', '-Werror', '-pthread', '-I', '/tmp/pack-trial-build-51cs3if0', '-I', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/mocks', '-I', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_pack.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_media_volume.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_selection_control.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_control_session.c', '-Wl,--wrap=write,--wrap=fsync,--wrap=readdir', '-o', '/tmp/pack-trial-build-51cs3if0/test']' returned non-zero exit status 1.

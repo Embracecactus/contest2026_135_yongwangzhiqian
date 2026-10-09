@@ -137,7 +137,12 @@ SECTIONS
     .text : ALIGN(4)
     {
         _stext = ABSOLUTE(.);
+#ifdef CONFIG_BK7258_PM_SOFT_OFF
+        *(EXCLUDE_FILE (*sys_pm_hal.c.obj) .text)
+        *(EXCLUDE_FILE (*sys_pm_hal.c.obj) .text.*)
+#else
         *(.text .text.*)
+#endif
         *(.fixup)
         *(.gnu.warning)
         *(.rodata .rodata.*)
@@ -266,6 +271,35 @@ SECTIONS
     .data : ALIGN(4)
     {
         _sdata = ABSOLUTE(.);
+        /* Stackless CP fault entry records registers before touching XIP. */
+
+        KEEP(*(.bk7258_fault_entry))
+#ifdef CONFIG_BK7258_PM_SOFT_OFF
+        /* Only the pinned SDK's post-clock-off closure belongs in SRAM.
+         * The archive combines deep sleep and low voltage in one indivisible
+         * .itcm_sec_code input section. Keep that section and the register
+         * helpers reached after clock switching, not all PM setup routines.
+         * Their literal pools are part of these function input sections.
+         */
+
+        _spm_ram = ABSOLUTE(.);
+        *sys_pm_hal.c.obj(.itcm_sec_code
+          .text.sys_set_ana_reg_bit
+          .text.sys_ll_set_ana_reg5_en_cb
+          .text.sys_ll_set_ana_reg8_valoldosel
+          .text.sys_ll_set_ana_reg9_spi_latch1v
+          .text.sys_ll_set_ana_reg10_vbspbuflp1v
+          .text.sys_ll_set_ana_reg11_aldosel
+          .text.sys_ll_set_ana_reg12_dldosel
+          .text.sys_hal_enable_spi_latch
+          .text.sys_hal_disable_spi_latch
+          .text.sys_hal_power_on_and_select_rosc
+          .text.sys_hal_disable_hf_clock
+          .text.sys_hal_gpio_state_switch)
+        *arm.c.obj(.itcm_sec_code)
+        *bk7258_pm_soft_off.c.o(.itcm_sec_code)
+        _epm_ram = ABSOLUTE(.);
+#endif
         *(.data .data.*)
         *(.gnu.linkonce.d.*)
 #ifdef CONFIG_BK7258_RPTUN_LAYOUT
@@ -280,6 +314,31 @@ SECTIONS
         . = ALIGN(4);
         _edata = ABSOLUTE(.);
     } > RAM AT > FLASH
+
+#ifdef CONFIG_BK7258_PM_SOFT_OFF
+    /* Consume only the remaining setup sections after the SRAM selection.
+     * EXCLUDE_FILE above prevents the earlier wildcard stealing the closure.
+     * These routines run while XIP is still available; no PM rodata table is
+     * referenced by the deep-sleep post-clock-off register-only path.
+     */
+
+    .pm_setup : ALIGN(4)
+    {
+        *sys_pm_hal.c.obj(.text .text.*)
+    } > FLASH
+
+    ASSERT(sys_hal_enter_deep_sleep >= _sdata &&
+           sys_hal_enter_deep_sleep < _edata,
+           "ERROR: deep-sleep HAL must execute from copied SRAM")
+    ASSERT(arch_deep_sleep >= _sdata && arch_deep_sleep < _edata,
+           "ERROR: deep-sleep WFI must execute from copied SRAM")
+    ASSERT(__wrap_arch_deep_sleep >= _sdata &&
+           __wrap_arch_deep_sleep < _edata,
+           "ERROR: soft-off WFI wrapper must execute from copied SRAM")
+    ASSERT(bk7258_pm_soft_off_wfi_reset >= _sdata &&
+           bk7258_pm_soft_off_wfi_reset < _edata,
+           "ERROR: soft-off post-WFI reset must execute from copied SRAM")
+#endif
 
     /* Zero-initialized data. */
     .bss (NOLOAD) : ALIGN(4)

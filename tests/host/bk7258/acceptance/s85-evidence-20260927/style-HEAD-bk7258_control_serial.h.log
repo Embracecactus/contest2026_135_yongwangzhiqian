@@ -1,0 +1,7 @@
+/tmp/s85-style-0e_cjkru/HEAD/apps/app/bk7258/bk7258_control_serial.h: error: No block comments found
+/tmp/s85-style-0e_cjkru/HEAD/apps/app/bk7258/bk7258_control_serial.h:2:0: error: Path relative to repository other than "nuttx" must begin with the root directory
+/tmp/s85-style-0e_cjkru/HEAD/apps/app/bk7258/bk7258_control_serial.h:5:1: warning: #include outside of 'Included Files' section
+/tmp/s85-style-0e_cjkru/HEAD/apps/app/bk7258/bk7258_control_serial.h:10:1: error: Missing blank line after comment
+/tmp/s85-style-0e_cjkru/HEAD/apps/app/bk7258/bk7258_control_serial.h:21:81: error: Long line found
+/tmp/s85-style-0e_cjkru/HEAD/apps/app/bk7258/bk7258_control_serial.h:23:1: error: Missing blank line after comment
+/tmp/s85-style-0e_cjkru/HEAD/apps/app/bk7258/bk7258_control_serial.h:29:1: error: Missing blank line after comment

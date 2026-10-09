@@ -1,0 +1,151 @@
+{
+  "observed_utc": "2026-09-27T15:19:03.689700+00:00",
+  "checkout_parent": "0c117a0840038b84b854fbec7a76993484aa0edb",
+  "reason": "User asked whether work had drifted. N2/N3 catalog work is in scope, but repeated detail work and broad host reruns displaced M0/M1/M2 device closure.",
+  "phone": {
+    "serial": "59d707dc",
+    "adb": "device",
+    "installed_package": "com.shaniu.companion",
+    "installed_version_lines": [
+      "versionCode=42 minSdk=29 targetSdk=35",
+      "versionName=0.7.12-shaniu-ui-v2"
+    ]
+  },
+  "enumerated_ports": {
+    "DeviceID": "COM16",
+    "PNPDeviceID": "USB\\VID_1209&PID_0001&MI_00\\C&10B3FE70&0&0000"
+  },
+  "board_running_firmware": "UNKNOWN: enumeration is not firmware identity",
+  "actions": "ADB enumeration and package metadata; Windows serial enumeration only. No port opened, APK installed, flash/reset/erase or button action.",
+  "priorities": [
+    {
+      "case": "FAULT-01",
+      "requirement": "658 fault cause and matching deployed ELF",
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "power"
+      },
+      "host_units_collected": 0,
+      "physical_evidence_in_current_report": "NOT_RUN",
+      "limits": "Counts are local test coverage only; zero collected here does not claim no historical code work, and BLOCKED_DEVICE does not establish software completion."
+    },
+    {
+      "case": "PWR-01",
+      "requirement": "physical power stop and recovery",
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "power"
+      },
+      "host_units_collected": 0,
+      "physical_evidence_in_current_report": "NOT_RUN",
+      "limits": "Counts are local test coverage only; zero collected here does not claim no historical code work, and BLOCKED_DEVICE does not establish software completion."
+    },
+    {
+      "case": "LIFE-01",
+      "requirement": "real resource/DMA/callback exit",
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "power"
+      },
+      "host_units_collected": 7,
+      "physical_evidence_in_current_report": "NOT_RUN",
+      "limits": "Counts are local test coverage only; zero collected here does not claim no historical code work, and BLOCKED_DEVICE does not establish software completion."
+    },
+    {
+      "case": "AUD-03",
+      "requirement": "physical EOF/cancel/next session",
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "audio"
+      },
+      "host_units_collected": 3,
+      "physical_evidence_in_current_report": "NOT_RUN",
+      "limits": "Counts are local test coverage only; zero collected here does not claim no historical code work, and BLOCKED_DEVICE does not establish software completion."
+    },
+    {
+      "case": "AUD-04",
+      "requirement": "actual PCM/DAC/PA sound",
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "audio"
+      },
+      "host_units_collected": 0,
+      "physical_evidence_in_current_report": "NOT_RUN",
+      "limits": "Counts are local test coverage only; zero collected here does not claim no historical code work, and BLOCKED_DEVICE does not establish software completion."
+    },
+    {
+      "case": "CFG-01",
+      "requirement": "real Wi-Fi change preserves credentials",
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "config"
+      },
+      "host_units_collected": 2,
+      "physical_evidence_in_current_report": "NOT_RUN",
+      "limits": "Counts are local test coverage only; zero collected here does not claim no historical code work, and BLOCKED_DEVICE does not establish software completion."
+    },
+    {
+      "case": "MSC-01",
+      "requirement": "real volume/USB handle and I/O ownership",
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "volume"
+      },
+      "host_units_collected": 13,
+      "physical_evidence_in_current_report": "NOT_RUN",
+      "limits": "Counts are local test coverage only; zero collected here does not claim no historical code work, and BLOCKED_DEVICE does not establish software completion."
+    },
+    {
+      "case": "KWS-01",
+      "requirement": "deployed original wake/reply hashes",
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "kws"
+      },
+      "host_units_collected": 0,
+      "physical_evidence_in_current_report": "NOT_RUN",
+      "limits": "Counts are local test coverage only; zero collected here does not claim no historical code work, and BLOCKED_DEVICE does not establish software completion."
+    },
+    {
+      "case": "BOOT-01",
+      "requirement": "actual local readiness",
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "delivery"
+      },
+      "host_units_collected": 0,
+      "physical_evidence_in_current_report": "NOT_RUN",
+      "limits": "Counts are local test coverage only; zero collected here does not claim no historical code work, and BLOCKED_DEVICE does not establish software completion."
+    },
+    {
+      "case": "DEL-02",
+      "requirement": "factory first-use path",
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "delivery"
+      },
+      "host_units_collected": 0,
+      "physical_evidence_in_current_report": "NOT_RUN",
+      "limits": "Counts are local test coverage only; zero collected here does not claim no historical code work, and BLOCKED_DEVICE does not establish software completion."
+    },
+    {
+      "case": "CROSS-01",
+      "requirement": "representative board combinations",
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "cross"
+      },
+      "host_units_collected": 0,
+      "physical_evidence_in_current_report": "NOT_RUN",
+      "limits": "Counts are local test coverage only; zero collected here does not claim no historical code work, and BLOCKED_DEVICE does not establish software completion."
+    }
+  ],
+  "correction": [
+    "Close and publish already completed S117 with frozen evidence; no further directory feature expansion in this turn",
+    "Re-establish deployed firmware/ELF/model/response and matching candidate identity before board operations",
+    "Prioritize known power/exit, audio EOF/cancel and network/config persistence on actual production paths; do not use unrelated test totals as closure",
+    "Use impacted regression for ordinary changes; full selected set at meaningful milestones",
+    "Physical flashing/K2/reset/power-loss still requires reviewed exact artifact/target, impact/recovery and real user action; do not treat connected as authorization to erase",
+    "Keep full N1/N2/N3 and original plan active; not reducing final scope or declaring overall completion"
+  ]
+}

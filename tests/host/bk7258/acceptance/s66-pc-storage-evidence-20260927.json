@@ -1,0 +1,252 @@
+{
+  "slice": "S66",
+  "date": "2026-09-27",
+  "parent": "8ea6ad322c5f2175bd97cb60de4fa9947c222e7c",
+  "status": "IMPLEMENTED_HOST_CASES_PASS_TLS_REGRESSION_UNRESOLVED",
+  "initial_counts": {
+    "PASS": 352,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "latest_full_counts": {
+    "PASS": 351,
+    "FAIL_ASSERTION": 1,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 289,
+      "counts": {
+        "PASS": 288,
+        "FAIL_ASSERTION": 1,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "collection_gate_errors": [
+    "not PASS: USB-01.tls-transport: FAIL_ASSERTION"
+  ],
+  "new_execution_units": [
+    {
+      "id": "NET-03.pc-storage-blocked-copy",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.1142344269901514,
+      "evidence": "NET-03.pc-storage-blocked-copy.log",
+      "evidence_sha256": "f19b5c04b80a944641ca21fad9866a143284bac725f44980b2d9093c1ec21352"
+    },
+    {
+      "id": "NET-03.pc-storage-revision",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.11432094499468803,
+      "evidence": "NET-03.pc-storage-revision.log",
+      "evidence_sha256": "6eefc346b48b2f79b165e5e64e07298c7cd2c9cdc7044f9b1ac3cb887c57cbf2"
+    },
+    {
+      "id": "NET-03.pc-storage-reopen",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.11407554597826675,
+      "evidence": "NET-03.pc-storage-reopen.log",
+      "evidence_sha256": "af68445eefb62cbbf1963928eceb94a69a9c68966722cfff07c20aedda307143"
+    },
+    {
+      "id": "NET-03.pc-storage-write-failure",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.11412750498857349,
+      "evidence": "NET-03.pc-storage-write-failure.log",
+      "evidence_sha256": "b8d7114239bc5eef62ba43626505920b1210b265c1d8db9a981bb4496d14fd61"
+    },
+    {
+      "id": "NET-03.pc-storage-unknown",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.11451922298874706,
+      "evidence": "NET-03.pc-storage-unknown.log",
+      "evidence_sha256": "a91d0ca471587aabd25f0854dedac8e1a1ecc8f47295489b90bd776861377fbe"
+    },
+    {
+      "id": "NET-03.pc-storage-reset",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.16455697501078248,
+      "evidence": "NET-03.pc-storage-reset.log",
+      "evidence_sha256": "cffea5742172f5111d0f88118536024ac9f14af30d04dd8a000a715bdf071978"
+    }
+  ],
+  "unresolved_failures": [
+    {
+      "id": "USB-01.tls-transport",
+      "parent": "USB-01",
+      "layer": "L2",
+      "status": "FAIL_ASSERTION",
+      "exit_code": 1,
+      "seconds": 6.253617493028287,
+      "evidence": "USB-01.tls-transport.log",
+      "evidence_sha256": "0e3b71ef84438242c7ebd08ec3546595817e7cd766d4bb12a89e4f0c3b83cd9c"
+    }
+  ],
+  "source_hashes": {
+    "app/bk7258/bk7258_provision_storage.c": "c1b1b98d6b582fdbeb3837ab04847e6fb06b3b4adb61a61bdb7713e743408e58",
+    "app/bk7258/bk7258_provision_storage.h": "786eebb999a0388e6b3a2c0047dbcef24ba5faa7bbb081fc50fb9fe31a97d7db",
+    "goal-objective.md": "102688f68ab7364a31c3ce5b609810dad94f72360fc68546181aedda0a80b73a",
+    "tests/host/bk7258/Makefile": "33544ac133d48ee296b68b2686ddbf6a72aa398e108c927bc409ce97b2ef7c86",
+    "tests/host/bk7258/README.md": "4cd3a5d1128ed6bdd696c1bcd3aea6b1bb05c0242a5bf7e03d9093f90ca28519",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "51e72ffcdf3ccd86f69e5d3cf4c96b29c5b1e228888d212a1cd0ac45805db432",
+    "tests/host/bk7258/test_provision_tls.c": "59ac0dc3e0fae513e8b59600eac07c372bec8c86d6d2a5f16224fc6a846d3359",
+    "tests/host/bk7258/test_provision_tls.py": "34381943ebc620eaef79ea5c091256583e5518e47607d334ca14eca7ebf72615",
+    "tests/host/bk7258/test_shaniu_contracts.py": "b9bd5826ec1fcefaef3a83d1fcbf872eb5ff1aee56e0de889b3e865ba8b79b0e",
+    "tests/host/bk7258/test_pc_storage.c": "888e4ea1349f8a046644e9a053fa416fb0675b7518fa1f4a1d75bd7770a6d47c",
+    "tests/host/bk7258/test_pc_storage.py": "08b00c903c95938789a1f5b96c1feb0147f378346921427e755fe19744a92da4"
+  },
+  "evidence_root": "out/shaniu-s66",
+  "evidence_sha256": {
+    "contracts/results.json": "d01e849e06de16e44aa0e218a273f0d2a65c7797e9b2239a8c536acd13aaef7a",
+    "contracts-final/results.json": "b69fcaf73516767f3142e4f810b0bece5447e1fdb00c078b004c46e60026cd70",
+    "contracts-final/USB-01.tls-transport.log": "0e3b71ef84438242c7ebd08ec3546595817e7cd766d4bb12a89e4f0c3b83cd9c",
+    "tls-diagnostic.log": "8f90d16ebbb7a79f1c55bf445811a7c50c74487ef6383cf0bb24d3cbeb1d6dac",
+    "tls-diagnostic-200.log": "d7f480da765063627881daeb19d1c83f65bd213efcc64ec46a8e4259ad28cebe",
+    "tls-diagnostic-200.py": "31efb03dc66f1f1dd2df95257d46e432f83c347b0c6bbc9f748f47547a7c1530",
+    "tls-sanitizer.log": "b0c4ec5a70bfb7a6fb24e8e5759dfc372ab6faf1a6de3aed577065dbcf2862d3",
+    "tls-sanitizer.py": "2619ad2a887e2427750564bda0bfef5c3e734a157725c02a39a3096a802c5e96",
+    "mutations-final/mutations.json": "f86198bbdb24bd0349d9bd80a25e3911d7965046064c1d16951434d559c335bd",
+    "runner-gate-final.log": "6550c381799ba6b8a85a932e9824ca1a90c1ebfca5fbdb3f0cbed439c60c0c2a",
+    "manifest-final.log": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac",
+    "build-final.log": "ea20e42b5a1c8b80f6332f1720ee800e7dbaf70c23154f857ddc2be2e4e1f790",
+    "arm-size-before.log": "7b07e432e270ef7c425ee78ecaaeb95b103f4f2df11a4c823a5538e8dfade9de",
+    "arm-size-after.log": "b0d3e7feadd28ecab950165ce7eabe74f7d0240817a4e209e6f0ae82ccfbcd9c",
+    "retention-check/result.json": "329c319120cb5eee48b60602a431686600aa9e51064ed08686c6c869649862cb"
+  },
+  "new_mutations_and_restores": [
+    {
+      "mutation": "ignore-config-revision",
+      "case": "revision",
+      "mode": "mutated",
+      "exit_code": -6,
+      "detected": true,
+      "log": "ignore-config-revision-mutated.log",
+      "sha256": "623b28303c8c372a243ddb13f648b615d0eff7e2bce69a946635cc3cdf6bea82"
+    },
+    {
+      "mutation": "ignore-config-revision",
+      "case": "revision",
+      "mode": "restored",
+      "exit_code": 0,
+      "detected": false,
+      "log": "ignore-config-revision-restored.log",
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4"
+    },
+    {
+      "mutation": "clear-unknown-by-refresh",
+      "case": "unknown",
+      "mode": "mutated",
+      "exit_code": -6,
+      "detected": true,
+      "log": "clear-unknown-by-refresh-mutated.log",
+      "sha256": "874ecdbbebb49b107c9b4ac7e0a75f26614cb27eec3bf4b2f5dc2584ccef0ccd"
+    },
+    {
+      "mutation": "clear-unknown-by-refresh",
+      "case": "unknown",
+      "mode": "restored",
+      "exit_code": 0,
+      "detected": false,
+      "log": "clear-unknown-by-refresh-restored.log",
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4"
+    },
+    {
+      "mutation": "publish-during-write",
+      "case": "blocked-copy",
+      "mode": "mutated",
+      "exit_code": -6,
+      "detected": true,
+      "log": "publish-during-write-mutated.log",
+      "sha256": "623b28303c8c372a243ddb13f648b615d0eff7e2bce69a946635cc3cdf6bea82"
+    },
+    {
+      "mutation": "publish-during-write",
+      "case": "blocked-copy",
+      "mode": "restored",
+      "exit_code": 0,
+      "detected": false,
+      "log": "publish-during-write-restored.log",
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4"
+    }
+  ],
+  "diagnostics": [
+    {
+      "samples": 20,
+      "sanitizer": false,
+      "exit_code": 0
+    },
+    {
+      "samples": 200,
+      "sanitizer": false,
+      "exit_code": 0
+    },
+    {
+      "samples": 20,
+      "sanitizer": "address,undefined; dependencies and product instrumented",
+      "exit_code": 0
+    }
+  ],
+  "diagnostic_limit": "No reproduction; original TLS error code and synthetic inputs were not retained. Later passes do not close the failure. New diagnostics retain future synthetic inputs but do not record all handshake entropy.",
+  "retention_negative_control": {
+    "status": "PASS",
+    "kind": "diagnostic retention negative control, not TLS product acceptance",
+    "expected_harness_exit": 1,
+    "actual_exit": 1,
+    "directory_mode": "0700",
+    "test_input_modes": "0600"
+  },
+  "build": {
+    "ap": "PASS",
+    "manifest": "PASS",
+    "new_thread": false,
+    "storage_object_bytes_before": 50520,
+    "storage_object_bytes_after": 51344,
+    "internal_secret_view_bytes": 80,
+    "cpu_p95_stack_high_water": "NOT_MEASURED"
+  },
+  "layers": {
+    "interface": "Internal asynchronous storage API implemented; no phone grant schema/UI or product caller",
+    "L1_L2": "6 added worker/store/grant cases PASS; latest full selection has one unexplained TLS failure",
+    "L3": "NOT_RUN; no installation, flash, reset or device action"
+  },
+  "next": "Close TLS failure with an informative reproducer; then bind validated current owner and immutable grant views to serialized product/USB owners. No full product acceptance claim."
+}

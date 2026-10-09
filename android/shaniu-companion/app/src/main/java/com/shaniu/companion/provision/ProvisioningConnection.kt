@@ -18,6 +18,7 @@ class ProvisioningConnection internal constructor(
     recover: Boolean = false,
     bindingStore: ProvisionBindingStore? = null,
     transportFactory: ((Transport.Events) -> Transport)? = null,
+    recoveryTransactionOverride: ByteArray? = null,
 ) : AutoCloseable {
     /** Narrow transport boundary for instrumented protocol/UI acceptance.
      * Production always wraps AndroidProvisionGatt; tests provide an instance
@@ -56,20 +57,21 @@ class ProvisioningConnection internal constructor(
     private val binding = ProvisionBindingTransaction(
         bindingStore ?: ProvisionBindingStore(context.applicationContext),
         bootstrap.deviceId,
-        recover,
+        recover && recoveryTransactionOverride == null,
     )
-    private val recoveryTransaction = binding.recoveryTransaction()
+    private val recoveryTransaction = recoveryTransactionOverride?.copyOf()
+        ?: binding.recoveryTransaction()
     private val certificatePin = bootstrap.certificatePin()
     private val tls = bootstrap.newTls()
     private val protocol: ProvisionClaimProtocol =
         ProvisionClaimProtocol(bootstrap, bundle, ::send, { state ->
-            stateChanged(binding.project(state))
+            stateChanged(if (recoveryTransactionOverride == null) binding.project(state) else state)
         }, binding::beforeApply, recoveryTransaction,
             beforeApplyConfiguration = { transaction, configuration ->
                 ProvisionSettings.useControlKey(configuration) { key ->
                     binding.beforeApply(transaction, key, if (key == null) null else certificatePin)
                 }
-            })
+            }, ownerRebind = !bootstrap.screenBootstrap)
     private val transport: Transport = (transportFactory ?: { events ->
         AndroidTransport(context, device, tls, events)
     })(object : Transport.Events {

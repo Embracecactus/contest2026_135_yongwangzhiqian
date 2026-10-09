@@ -1,0 +1,13 @@
+app/bk7258/bk7258_display_job_service.c:49:7: error: Right brace must be followed by a blank line
+app/bk7258/bk7258_display_job_service.c:56:3: error: Right brace must be followed by a blank line
+app/bk7258/bk7258_display_job_service.c:61:3: error: Right brace must be followed by a blank line
+app/bk7258/bk7258_display_job_service.c:74:3: error: Right brace must be followed by a blank line
+app/bk7258/bk7258_display_job_service.c:77:78: error: Long line found
+app/bk7258/bk7258_display_job_service.c:126:7: error: Missing whitespace after semicolon
+app/bk7258/bk7258_display_job_service.c:126:8: error: Missing whitespace after semicolon
+app/bk7258/bk7258_display_job_service.c:164:4: error: Bad alignment
+app/bk7258/bk7258_display_job_service.c:166:4: error: Bad alignment
+app/bk7258/bk7258_display_job_service.c:197:3: error: Right brace must be followed by a blank line
+app/bk7258/bk7258_display_job_service.c:207:3: error: Right brace must be followed by a blank line
+app/bk7258/bk7258_display_job_service.c:217:3: error: Right brace must be followed by a blank line
+app/bk7258/bk7258_display_job_service.c:233:3: error: Right brace must be followed by a blank line

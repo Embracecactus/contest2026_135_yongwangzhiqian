@@ -1,0 +1,273 @@
+{
+  "slice": "S48",
+  "date": "2026-09-27",
+  "parent": "58c88ba28d1c52434dfd661b2e8ad78ee3f8d860",
+  "counts": {
+    "PASS": 241,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 163,
+      "counts": {
+        "PASS": 163,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "mutations": [
+    {
+      "id": "wrong-units",
+      "status": "DETECTED",
+      "exit_code": 1,
+      "mutant_sha256": "8e454b278fe943e3c518f0db2e4887e39eec5338840d01306c15dee42ababac3",
+      "restore": "PASS",
+      "failed_cases": 6
+    },
+    {
+      "id": "and-comparison",
+      "status": "DETECTED",
+      "exit_code": 1,
+      "mutant_sha256": "69a03cf878a530c86d2b24a448fb747a91cc14a3e210db2845688812bb530f71",
+      "restore": "PASS",
+      "failed_cases": 4
+    }
+  ],
+  "initial_mutation_classification": [
+    {
+      "id": "wrong-units",
+      "status": "SURVIVED",
+      "exit_code": 1,
+      "mutant_sha256": "8e454b278fe943e3c518f0db2e4887e39eec5338840d01306c15dee42ababac3",
+      "restore": "PASS"
+    },
+    {
+      "id": "and-comparison",
+      "status": "DETECTED",
+      "exit_code": 1,
+      "mutant_sha256": "69a03cf878a530c86d2b24a448fb747a91cc14a3e210db2845688812bb530f71",
+      "restore": "PASS"
+    }
+  ],
+  "classification_correction": "Wrong units caused6 assertion failures, not4; independent output proves detection. No rerun or altered oracle used to recategorize.",
+  "existing_mutations": [
+    {
+      "id": "MSC-01.early-release",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.007817509002052248,
+      "source": "app/bk7258/bk7258_media_volume.c",
+      "original_sha256": "58ebb18ae63adccf21262253da18f153bbb7c680cc0b64719ca20e8a6d9681c8",
+      "mutant_sha256": "bf298373a95ac54d5587f93ece34a30a7f661a65a969c69db9e27c6570770c57",
+      "expected_assertion": "!mounted",
+      "evidence": "MSC-01.early-release.log"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.06398407800588757,
+      "source": "app/bk7258/bk7258_provision_config.c",
+      "original_sha256": "98f5100ca49ca44e45fe3e5da4bb2da0add7466f0e357a205ca8b1e307a5818e",
+      "mutant_sha256": "4c0c615b8ffc99247b0fd91bd934d3df0409a1180769cb939b2820f9e6f69427",
+      "expected_assertion": "bkcloud_config_decode",
+      "evidence": "CFG-01.wifi-clears-cloud.log"
+    }
+  ],
+  "sha256": {
+    "nuttx/drivers/contactless/mfrc522_rf.c": "3fbdc5c07dd4180628db1fe9db00eb92c01e7bd3c16aaab4408788ec14a4d641",
+    "nuttx/drivers/contactless/mfrc522.h": "76fc9f7d730ee91dc228ff8a4ceb74b63df67e896f38d0a0424c238e418e0f1d",
+    "tests/host/bk7258/test_mfrc522_deadline.py": "1e846bf8e3f07e60b614877c09d72cdddb575fa3c5545b1600dd56000c382008",
+    "tests/host/bk7258/test_shaniu_contracts.py": "65e6f1620866d80d06ad266d0a7e2b0e89fef81ff19ec89c22542167c155eed5",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "98a632e73f7f45d987a8409e23fc72aaebf7612958fcfb52facfbb2a3860c32a"
+  },
+  "logs": {
+    "contracts.log": {
+      "sha256": "8f6763115e3353d026e1721d981fc42146ca1cdcc62c0370dbf1835974562e9e",
+      "tail": [
+        "STORE-02.restart-after-publish ... ok",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 181 tests in 8.373s",
+        "",
+        "OK",
+        "unittest.case.FunctionTestCase (run)",
+        "CFG-01.restored ... ok",
+        "unittest.case.FunctionTestCase (run)",
+        "MSC-01.restored ... ok",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 2 tests in 0.066s",
+        "",
+        "OK",
+        "{\"PASS\": 241, \"FAIL_ASSERTION\": 0, \"SETUP_ERROR\": 0, \"NOT_RUN\": 0} production_unchanged= True"
+      ]
+    },
+    "baseline.log": {
+      "sha256": "702554411ab38a35eaf4db9d212183c0659ee772a9910403ca0bac39da2f50c2",
+      "tail": [
+        "E",
+        "======================================================================",
+        "ERROR: setUpClass (__main__.DeadlineTest)",
+        "----------------------------------------------------------------------",
+        "Traceback (most recent call last):",
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_mfrc522_deadline.py\", line 25, in setUpClass",
+        "    expanded = needed | set(re.findall(r\"\\bMFRC522_\\w+\", \"\\n\".join(definitions[n] for n in needed)))",
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_mfrc522_deadline.py\", line 25, in <genexpr>",
+        "    expanded = needed | set(re.findall(r\"\\bMFRC522_\\w+\", \"\\n\".join(definitions[n] for n in needed)))",
+        "KeyError: 'MFRC522_CALC_CRC_CMD'",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 0 tests in 0.002s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "mutation-restore.log": {
+      "sha256": "5f5df4191ab40d345f7afb89e9d67d8f397a5e10d81b7087a37d7b50b8dd7595",
+      "tail": [
+        "........",
+        "----------------------------------------------------------------------",
+        "Ran 8 tests in 0.182s",
+        "",
+        "OK"
+      ]
+    },
+    "baseline-wired.log": {
+      "sha256": "9392d3eb6532b88948ec47c906807cb36ecf4815eafa905c3f35ed9181efb3c6",
+      "tail": [
+        "",
+        "======================================================================",
+        "FAIL: test_crc_wrap (__main__.DeadlineTest)",
+        "----------------------------------------------------------------------",
+        "Traceback (most recent call last):",
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_mfrc522_deadline.py\", line 91, in test_crc_wrap",
+        "    def test_crc_wrap(self): self.run_case(\"crc-wrap\")",
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_mfrc522_deadline.py\", line 89, in run_case",
+        "    self.assertEqual(run.returncode, 0, run.stderr)",
+        "AssertionError: -6 != 0 : driver: /tmp/shaniu-nfc-deadline-o6ib4xoe/driver.c:15: clock_systime_timespec: Assertion `clocks < 3' failed.",
+        "",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 8 tests in 0.285s",
+        "",
+        "FAILED (failures=4)"
+      ]
+    },
+    "verify-manifest.log": {
+      "sha256": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac",
+      "tail": [
+        "bk7258 verify build-manifest: PASS boot=mcuboot board=aidk_ai_toy layout=bk7258-510173147382a879 source=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    },
+    "and-comparison.log": {
+      "sha256": "63197d361cee33c536dd13a0b72ad6b087fe23fc223310cd62504c0726c0ec02",
+      "tail": [
+        "",
+        "======================================================================",
+        "FAIL: test_crc_wrap (__main__.DeadlineTest)",
+        "----------------------------------------------------------------------",
+        "Traceback (most recent call last):",
+        "  File \"/tmp/shaniu-deadline-mutation-jv7xy9og/tests/host/bk7258/test_mfrc522_deadline.py\", line 91, in test_crc_wrap",
+        "    def test_crc_wrap(self): self.run_case(\"crc-wrap\")",
+        "  File \"/tmp/shaniu-deadline-mutation-jv7xy9og/tests/host/bk7258/test_mfrc522_deadline.py\", line 89, in run_case",
+        "    self.assertEqual(run.returncode, 0, run.stderr)",
+        "AssertionError: -6 != 0 : driver: /tmp/shaniu-nfc-deadline-64w7hsxy/driver.c:15: clock_systime_timespec: Assertion `clocks < 3' failed.",
+        "",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 8 tests in 0.201s",
+        "",
+        "FAILED (failures=4)"
+      ]
+    },
+    "build-target.log": {
+      "sha256": "f401e6220ab7b11db0722c7b6956538ad0721c088275514000d606886322797a",
+      "tail": [
+        "[6/13] Linking C static library arch/libarch.a",
+        "[7/13] Performing build step for 'ffmpeg_out_tree'",
+        "[8/13] Performing install step for 'ffmpeg_out_tree'",
+        "[9/13] Completed 'ffmpeg_out_tree'",
+        "[10/13] Linking CXX executable nuttx",
+        "[11/13] Generating nuttx.bin",
+        "[12/13] Generating System.map",
+        "",
+        "#### build completed successfully (1 seconds) ####",
+        "bk7258 layer gate: PASS sources=528 kconfig=253 legacy-exceptions=2",
+        "bk7258 build: PASS layout=bk7258-510173147382a879",
+        "bl1 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.map",
+        "bl2 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.map copy_size=13632",
+        "cp elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.map identity=bk7258-role-9a0b5b6e466d063f seed=41811cb113e14cd5ce35630f0a6d42f0d32f88a10c512bb971734bce9a28c016 config=dd503376e1b5436c9221274dc5a9ff86bf2e49660dfad4d306292e1113d82bed",
+        "ap elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.map identity=bk7258-role-5a3061a4da19ae9f seed=9507a2073a35e2970300a150395dc4d8c48458a68cb24412497ab54c714a7fec config=4e73b6c67a5176a8136b7c46a43c46329f7ef19e5ec74e626937d64bdeddfcee",
+        "build manifest=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    },
+    "wrong-units.log": {
+      "sha256": "ff7c4f6d60acbbbddb9b979c9b25b1b2e7238ba3891a57ca6ae734b588bb3e4e",
+      "tail": [
+        "",
+        "======================================================================",
+        "FAIL: test_crc_wrap (__main__.DeadlineTest)",
+        "----------------------------------------------------------------------",
+        "Traceback (most recent call last):",
+        "  File \"/tmp/shaniu-deadline-mutation-jv7xy9og/tests/host/bk7258/test_mfrc522_deadline.py\", line 91, in test_crc_wrap",
+        "    def test_crc_wrap(self): self.run_case(\"crc-wrap\")",
+        "  File \"/tmp/shaniu-deadline-mutation-jv7xy9og/tests/host/bk7258/test_mfrc522_deadline.py\", line 89, in run_case",
+        "    self.assertEqual(run.returncode, 0, run.stderr)",
+        "AssertionError: -6 != 0 : driver: /tmp/shaniu-nfc-deadline-7ut7ny5i/driver.c:334: main: Assertion `clocks==(mode==1?2:mode==2||mode==3?1:3)' failed.",
+        "",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 8 tests in 0.209s",
+        "",
+        "FAILED (failures=6)"
+      ]
+    },
+    "fixed.log": {
+      "sha256": "87f7147fd5cb582ac56150ae191a8503a48bf6f56c729357de454e3ecf0bd31c",
+      "tail": [
+        "........",
+        "----------------------------------------------------------------------",
+        "Ran 8 tests in 0.191s",
+        "",
+        "OK"
+      ]
+    }
+  },
+  "layers": {
+    "L1": "8 actual driver function tests, original4 assertion failures resolved",
+    "L2": "Other strict regressions retained; no new RF-to-worker/scene integration claim",
+    "target": "Active CL_MFRC522_RF AP build and manifest verified",
+    "L3": "NOT_RUN"
+  },
+  "watchdog_contract": "200ms software deadline frozen before implementation from existing documented intent, separate from unchanged hardware timer and undefined automatic scan/absence parameters",
+  "remaining": [
+    "SPI blocking and real scheduling latency",
+    "error vs no-response semantics",
+    "S47 worker caller and RF schedule",
+    "real NFC-to-focus and audio coexistence"
+  ],
+  "physical_actions": []
+}

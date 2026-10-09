@@ -1,0 +1,22 @@
+{
+  "exit_code": 1,
+  "command": [
+    "/usr/bin/python3",
+    "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_client.py",
+    "--pc-peer",
+    "<fixture>/test",
+    "<fixture>/cert.pem",
+    "<fixture>/key.pem"
+  ],
+  "modes": {
+    "SHANIU_TLS_STREAM": null,
+    "SHANIU_TLS_SERIAL": null
+  },
+  "source_sha256": {
+    "tests/host/bk7258/test_provision_tls.c": "0353f70c2d3bd238c2603dcbb8c181180aa50de7c372993ea9eeab8908be82f8",
+    "tests/host/bk7258/test_provision_tls.py": "35d242bd5fbd2c9023c6e6b6aaf50355e03a97cf29ffdd48c5235fed3deceef7",
+    "tests/host/bk7258/tls_entropy_tape.c": "8d3d0700c979384453575d4a3f6e60eebac0fe4d10068e24f3b617fecae06b45",
+    "app/bk7258/bk7258_provision_tls.c": "f05b14f6ca51937fd272c1df75a605f603fd827cc288d6a5e73a8890d9d4f3d1"
+  },
+  "public_certificate_pem_sha256": "c4327aac80d190266533e8101383f1c100486e6a0aaf8a9203ff355f7956aa95"
+}

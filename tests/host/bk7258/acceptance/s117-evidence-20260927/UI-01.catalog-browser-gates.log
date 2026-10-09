@@ -1,0 +1,2 @@
+["node", "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_catalog_ui.cjs"]
+CONTRACT_PASS actual browser catalog gates, selection no write, stale/unknown clears list, shared default invalidation

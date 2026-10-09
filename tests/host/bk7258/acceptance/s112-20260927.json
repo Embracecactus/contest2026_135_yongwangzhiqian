@@ -1,0 +1,105 @@
+{
+  "report_scope": "S112 complete affected HTTP workbench suite, not global collection",
+  "checkout_head": "044899ed079258cbbc9a8a0679c83a38316346bd",
+  "last_full_suite": "s111-20260927.json",
+  "registered_global_ids": 654,
+  "selected_execution_ids": [
+    "USB-02.browser-cancel_is_intent_not_remote_completion",
+    "USB-02.browser-http_authority_rejects_before_operation",
+    "USB-02.browser-http_upload_reaches_tls_and_native_installer",
+    "USB-02.browser-invalid_upload_does_not_open_device",
+    "USB-02.browser-large_counters_preserve_exact_value",
+    "USB-02.browser-page_headers_and_no_credential_paths",
+    "USB-02.browser-polling_is_local_and_duplicate_is_not_replayed",
+    "USB-02.browser-upload_128k_plus_one_rejected_before_spool_or_worker",
+    "USB-02.browser-upload_exact_128k_boundary"
+  ],
+  "collected": [
+    {
+      "id": "USB-02.browser-cancel_is_intent_not_remote_completion",
+      "parent": "USB-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.5283960410160944
+    },
+    {
+      "id": "USB-02.browser-http_authority_rejects_before_operation",
+      "parent": "USB-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.5245409710332751
+    },
+    {
+      "id": "USB-02.browser-http_upload_reaches_tls_and_native_installer",
+      "parent": "USB-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.7582989039947279
+    },
+    {
+      "id": "USB-02.browser-invalid_upload_does_not_open_device",
+      "parent": "USB-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.526298504031729
+    },
+    {
+      "id": "USB-02.browser-large_counters_preserve_exact_value",
+      "parent": "USB-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.5348178900312632
+    },
+    {
+      "id": "USB-02.browser-page_headers_and_no_credential_paths",
+      "parent": "USB-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.5344908130355179
+    },
+    {
+      "id": "USB-02.browser-polling_is_local_and_duplicate_is_not_replayed",
+      "parent": "USB-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.5578276939922944
+    },
+    {
+      "id": "USB-02.browser-upload_128k_plus_one_rejected_before_spool_or_worker",
+      "parent": "USB-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.5284624010091648
+    },
+    {
+      "id": "USB-02.browser-upload_exact_128k_boundary",
+      "parent": "USB-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.5385880389949307
+    }
+  ],
+  "counts": {
+    "PASS": 9,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "SKIP": 0,
+    "NOT_RUN": 0
+  },
+  "inputs": {
+    "tools/bk7258/_lib/workbench_web.py": "8761c514148e77e80dfa2675b436ff2be2740574b59ec2333c90d98a14606b1d",
+    "tools/bk7258/_lib/workbench.py": "c233a8172df2c892de741292db54b8a4b9a3dbddd209b5aae5c8106d1c37f754",
+    "tools/bk7258/_lib/workbench_resources.py": "c22b13aaadfdea7926226bd99ee450a0335fceb8b6f7a21f67d6b98b52c43389",
+    "tests/host/bk7258/test_workbench_web.py": "25fe95f102429bc0cc944bd9148554cd0f0d4b14c3a720960c02cd0f5b13bfca",
+    "tests/host/bk7258/test_workbench_client.py": "75bd72c0f7b08ee8b7b535926d8510e917c96374e987fb02b64048e2b07f5329",
+    "tests/host/bk7258/test_workbench_resource_flow.py": "e6cb1d5f32e09f9dad816230bd2ecf0b63da9d886acd5d2a61bf7a98bebd4b97",
+    "tests/host/bk7258/build/test_display_job_control": "e92c6796665b3c528f4753993dd83b98162c96bbeadf622442ec87095413897c",
+    "tests/host/bk7258/build/shaniu-default-v1.bkep": "1bfa445365f6081d889fd604b0dadd3d1821d87fd7ee7548259acf47fb666395"
+  },
+  "inputs_unchanged_during_run": true,
+  "environment": {
+    "platform": "Linux-5.15.167.4-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+    "python": "3.10.12"
+  },
+  "collection_errors": []
+}

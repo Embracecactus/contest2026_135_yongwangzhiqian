@@ -1,0 +1,10 @@
+make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'
+cc -std=gnu11 -Wall -Wextra -Werror -O2 test_display_upload.c \
+	/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_pack.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c \
+	-I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -Wl,--wrap=write,--wrap=fsync,--wrap=close -o build/test_display_upload
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c:212:13: error: ‘bkdisplay_store_sync_directory’ defined but not used [-Werror=unused-function]
+  212 | static void bkdisplay_store_sync_directory(const char *path)
+      |             ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+cc1: all warnings being treated as errors
+make: *** [Makefile:342: build/test_display_upload] Error 1
+make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'

@@ -1,0 +1,438 @@
+{
+  "slice": "S55",
+  "date": "2026-09-27",
+  "parent": "998a29ab13d266b0adf27ffb7c11fa42a7bdaa5b",
+  "counts": {
+    "PASS": 305,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 242,
+      "counts": {
+        "PASS": 242,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "new_cases": [
+    {
+      "id": "MOT-02.candidate-move-settle",
+      "parent": "MOT-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0015479010180570185,
+      "evidence": "MOT-02.candidate-move-settle.log",
+      "evidence_sha256": "58cfa41ba6dfbcc443b59e1dd72f8cca2b126c1f994a45de5ea30de6d9b6df0f"
+    },
+    {
+      "id": "MOT-02.candidate-tilt",
+      "parent": "MOT-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.001347129000350833,
+      "evidence": "MOT-02.candidate-tilt.log",
+      "evidence_sha256": "022f15894925a850840a20a44edf3b7c2085fa92490c37c0dccf4b5fa6f93f2a"
+    },
+    {
+      "id": "MOT-02.candidate-freshness",
+      "parent": "MOT-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013489830307662487,
+      "evidence": "MOT-02.candidate-freshness.log",
+      "evidence_sha256": "f787845bdcb26122760cb8faba77d3481d01fb7a87b30b3edf181403253b2f9f"
+    },
+    {
+      "id": "MOT-02.candidate-gate",
+      "parent": "MOT-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0012910630321130157,
+      "evidence": "MOT-02.candidate-gate.log",
+      "evidence_sha256": "54338b7fa7e43b2ecb0f2c728de2461ed594ca10352bf71a6cf6d57de0b74400"
+    },
+    {
+      "id": "MOT-02.candidate-error",
+      "parent": "MOT-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013369500520639122,
+      "evidence": "MOT-02.candidate-error.log",
+      "evidence_sha256": "2830f2285f2bb5c0c02849abaf73a4e2f5471f10582b45e2f88cb97b9a963935"
+    },
+    {
+      "id": "MOT-02.candidate-cooldown",
+      "parent": "MOT-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0012901409645564854,
+      "evidence": "MOT-02.candidate-cooldown.log",
+      "evidence_sha256": "141f1f20d9980d79ba9e93c6e72b79f99eed6c4de094f80d4e5ddb365c33e7fa"
+    },
+    {
+      "id": "MOT-02.candidate-creep",
+      "parent": "MOT-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013155299820937216,
+      "evidence": "MOT-02.candidate-creep.log",
+      "evidence_sha256": "08b358cf68d6fb3000460cc6f0c83c5fb58ae35cfed4cc692380586d9731984f"
+    },
+    {
+      "id": "MOT-02.candidate-extreme",
+      "parent": "MOT-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013736890396103263,
+      "evidence": "MOT-02.candidate-extreme.log",
+      "evidence_sha256": "9e4f51b2f46f1f7c073458c6dc09e59d32c35cc7ff0ae4ad2156aad030656b46"
+    },
+    {
+      "id": "MOT-02.candidate-gate-cooldown",
+      "parent": "MOT-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013267819886095822,
+      "evidence": "MOT-02.candidate-gate-cooldown.log",
+      "evidence_sha256": "bd371b5a3f3d8cbf43a2ad4276401fa05e847bfcc4cfa149156cb4ec1dec9431"
+    }
+  ],
+  "baseline": {
+    "interface": "BLOCKED_INTERFACE",
+    "initial_eight": [
+      {
+        "case": "move-settle",
+        "exit_code": 0
+      },
+      {
+        "case": "tilt",
+        "exit_code": 0
+      },
+      {
+        "case": "freshness",
+        "exit_code": 0
+      },
+      {
+        "case": "gate",
+        "exit_code": 0
+      },
+      {
+        "case": "error",
+        "exit_code": 0
+      },
+      {
+        "case": "cooldown",
+        "exit_code": 0
+      },
+      {
+        "case": "creep",
+        "exit_code": 0
+      },
+      {
+        "case": "extreme",
+        "exit_code": 0
+      }
+    ],
+    "later_red": "gate-cooldown assertion, see gate-before.log"
+  },
+  "runner_gate": {
+    "tests": 13,
+    "status": "PASS"
+  },
+  "mutations": [
+    {
+      "id": "forget-cooldown",
+      "status": "DETECTED",
+      "restore": "PASS",
+      "original_sha256": "c8bb7b481296f94b0e02176d8cfc3003a9a6b7b8323705d2963a9314aff8fc89",
+      "mutant_sha256": "ee725c91419ce443dcc73374d6382ba663bc36d7c3fe3d3201b9f3d74b3c5121"
+    },
+    {
+      "id": "skip-settle-time",
+      "status": "DETECTED",
+      "restore": "PASS",
+      "original_sha256": "c8bb7b481296f94b0e02176d8cfc3003a9a6b7b8323705d2963a9314aff8fc89",
+      "mutant_sha256": "e1e4df1bfdf57d5f7dc76f032e80177390f07e574c71fd1ce86b50801f56ad6a"
+    }
+  ],
+  "existing_mutations": [
+    {
+      "id": "MSC-01.early-release",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.007775682024657726,
+      "source": "app/bk7258/bk7258_media_volume.c",
+      "original_sha256": "58ebb18ae63adccf21262253da18f153bbb7c680cc0b64719ca20e8a6d9681c8",
+      "mutant_sha256": "bf298373a95ac54d5587f93ece34a30a7f661a65a969c69db9e27c6570770c57",
+      "expected_assertion": "!mounted",
+      "evidence": "MSC-01.early-release.log"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.06404109299182892,
+      "source": "app/bk7258/bk7258_provision_config.c",
+      "original_sha256": "98f5100ca49ca44e45fe3e5da4bb2da0add7466f0e357a205ca8b1e307a5818e",
+      "mutant_sha256": "4c0c615b8ffc99247b0fd91bd934d3df0409a1180769cb939b2820f9e6f69427",
+      "expected_assertion": "bkcloud_config_decode",
+      "evidence": "CFG-01.wifi-clears-cloud.log"
+    }
+  ],
+  "inputs": {
+    "app/bk7258/bk7258_motion_core.c": "c8bb7b481296f94b0e02176d8cfc3003a9a6b7b8323705d2963a9314aff8fc89",
+    "app/bk7258/bk7258_motion_core.h": "ebe996a8908a9087ba8d6e397ab0a5661d9b3095a5055bca82e3540ae0fe8065",
+    "goal-objective.md": "5e6e8ad87da16c2697a34ba7f335e48f2fc9e1907c817665cf141b3d8c5f3af1",
+    "tests/host/bk7258/Makefile": "0fe45b34ae9be4470ba9518a68c2a05ddd5378dc9140feab8f7793939ce110fa",
+    "tests/host/bk7258/README.md": "fbf2f0cac11168f4f32c814e1ad341a67a8a0beee98eabbd2cc450ae2ead1736",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "024d737c672f30c6b9b1db232be7c8f2d53742fd754b0f68164a8ac319854ddd",
+    "tests/host/bk7258/test_shaniu_contracts.py": "34b4cadf15cebeddc91fae372b8aaaf84050d66d3cfecf31986fe570d78360fe",
+    "tests/host/bk7258/test_shaniu_motion_actions.c": "5d17319f77adbd89cfdbc3f84cc68ffc60f4cc1ebef4a29fcc2057f46b718a00"
+  },
+  "logs": {
+    "build-target.log": {
+      "sha256": "745d3e384cc074fd856d0cfbcd263bd2f9af7bb3667fe4afe37424a30220c23c",
+      "tail": [
+        "[11/14] Linking CXX executable nuttx",
+        "[12/14] Generating nuttx.bin",
+        "[13/14] Generating System.map",
+        "",
+        "#### build completed successfully (1 seconds) ####",
+        "bk7258 layer gate: PASS sources=528 kconfig=253 legacy-exceptions=2",
+        "bk7258 build: PASS layout=bk7258-510173147382a879",
+        "bl1 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.map",
+        "bl2 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.map copy_size=13632",
+        "cp elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.map identity=bk7258-role-9a0b5b6e466d063f seed=41811cb113e14cd5ce35630f0a6d42f0d32f88a10c512bb971734bce9a28c016 config=dd503376e1b5436c9221274dc5a9ff86bf2e49660dfad4d306292e1113d82bed",
+        "ap elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.map identity=bk7258-role-5a3061a4da19ae9f seed=9507a2073a35e2970300a150395dc4d8c48458a68cb24412497ab54c714a7fec config=4e73b6c67a5176a8136b7c46a43c46329f7ef19e5ec74e626937d64bdeddfcee",
+        "build manifest=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    },
+    "build.log": {
+      "sha256": "d7e596d36f2834bf3724f13ea19ad49967ee8fbdd9356c48b8a4c6bdf137b9e5",
+      "tail": [
+        "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'",
+        "cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined -fno-sanitize-recover=all -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_shaniu_motion_actions.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_motion_core.c -o build/test_shaniu_motion_actions",
+        "make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'"
+      ]
+    },
+    "contracts.log": {
+      "sha256": "7cb302fa5ae34957c7a5f5e50c55aea80f7530b50472adead58bfdb788c7e4e7",
+      "tail": [
+        "",
+        "OK",
+        "unittest.case.FunctionTestCase (run)",
+        "CFG-01.restored ... ok",
+        "unittest.case.FunctionTestCase (run)",
+        "MSC-01.restored ... ok",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 2 tests in 0.066s",
+        "",
+        "OK",
+        "{\"PASS\": 305, \"FAIL_ASSERTION\": 0, \"SETUP_ERROR\": 0, \"NOT_RUN\": 0} production_unchanged= True"
+      ]
+    },
+    "cooldown.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "creep.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "error.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "extreme.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "forget-cooldown-build.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tail": []
+    },
+    "forget-cooldown-restore.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "forget-cooldown.log": {
+      "sha256": "a549ebb52d444970613d559bc4df9810256049851f939521cfe83a3fd1f766dc",
+      "tail": [
+        "test: /tmp/action-mutant-ospfq9b0/test.c:67: main: Assertion `feed(500000,8000,0,10000,true,&event)==0 && !event' failed."
+      ]
+    },
+    "freshness.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "gate-before.log": {
+      "sha256": "62e6230c31981d3ab6b8144440ce8391e00f72fbd641cd80ce12b34126c6dd1f",
+      "tail": [
+        "test_shaniu_motion_actions: test_shaniu_motion_actions.c:67: main: Assertion `feed(500000,8000,0,10000,true,&event)==0 && !event' failed."
+      ]
+    },
+    "gate-build-before.log": {
+      "sha256": "d7e596d36f2834bf3724f13ea19ad49967ee8fbdd9356c48b8a4c6bdf137b9e5",
+      "tail": [
+        "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'",
+        "cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined -fno-sanitize-recover=all -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_shaniu_motion_actions.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_motion_core.c -o build/test_shaniu_motion_actions",
+        "make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'"
+      ]
+    },
+    "gate.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "interface-before.log": {
+      "sha256": "d6fc4bcff028b83c70f6e4187f6a35cdac4f4b5b2b471aaba68f5d936398a9c3",
+      "tail": [
+        "   23 |  assert(argc==2);enum bkmotion_action_e event;",
+        "      |                                         ^~~~~",
+        "test_shaniu_motion_actions.c: At top level:",
+        "test_shaniu_motion_actions.c:8:34: error: storage size of ‘state’ isn’t known",
+        "    8 | static struct bkmotion_actions_s state;",
+        "      |                                  ^~~~~",
+        "test_shaniu_motion_actions.c:9:41: error: storage size of ‘config’ isn’t known",
+        "    9 | static struct bkmotion_actions_config_s config = {",
+        "      |                                         ^~~~~~",
+        "cc1: all warnings being treated as errors",
+        "make: *** [Makefile:1966: build/test_shaniu_motion_actions] Error 1",
+        "make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'"
+      ]
+    },
+    "move-settle.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "object-symbols.log": {
+      "sha256": "9fbad0fe9a923e780befc6535f775e71c6a8801b5832fbfab9cc8e8aa9a6755e",
+      "tail": [
+        "00000000 0000001e t bkmotion_actions_rebase",
+        "00000000 0000029a T bkmotion_actions_step"
+      ]
+    },
+    "runner-gate.log": {
+      "sha256": "0fe5cb662bfff14a9884376c5dc9b13021e73aa15d1c18bc3ecfc2226a9f364f",
+      "tail": [
+        ".............",
+        "----------------------------------------------------------------------",
+        "Ran 13 tests in 0.031s",
+        "",
+        "OK"
+      ]
+    },
+    "sizes.log": {
+      "sha256": "fb857c237595f3b5ab3fff9e309492f7902b1ebb14302ba9311310aa606134b4",
+      "tail": [
+        "00000048 00000030 B candidate_policy",
+        "00000000 00000048 B candidate_state"
+      ]
+    },
+    "skip-settle-time-build.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tail": []
+    },
+    "skip-settle-time-restore.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "skip-settle-time.log": {
+      "sha256": "84dba9c9005fa2de5f88ebe57fe98d7ab5df863d50a4febdb2c3046913009097",
+      "tail": [
+        "test: /tmp/action-mutant-8471l3oo/test.c:28: main: Assertion `feed(600000,4000,0,10000,true,&event)==0 && event==BKMOTION_ACTION_SETTLED' failed."
+      ]
+    },
+    "tilt.log": {
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+      "tail": [
+        "CONTRACT_PASS"
+      ]
+    },
+    "verify-manifest.log": {
+      "sha256": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac",
+      "tail": [
+        "bk7258 verify build-manifest: PASS boot=mcuboot board=aidk_ai_toy layout=bk7258-510173147382a879 source=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    }
+  },
+  "contract_correction": "Before implementation corrected settle fixture700000 to600000us: stable observation200000 + duration400000; arithmetic requirement, no post-result relaxation.",
+  "layers": {
+    "L1": "9 actual candidate core tests, synthetic vectors and logical sample times",
+    "L2": "BLOCKED_INTERFACE: actual sampling-worker and display-trial integration not connected",
+    "target": "AP core object compiled; candidate function has no production caller yet, not runtime acceptance",
+    "parameters": "NOT_FROZEN: fixture sensitivity/cadence not production defaults",
+    "L3": "NOT_RUN"
+  },
+  "budget": {
+    "ARM_state_bytes": 72,
+    "ARM_policy_bytes": 48,
+    "resident_instances": 0,
+    "new_threads": 0,
+    "new_heap": 0,
+    "new_dma": 0,
+    "new_polling": 0,
+    "unmeasured": [
+      "double arithmetic CPU/p95",
+      "stack high water",
+      "physical pickup/putdown/tilt quality"
+    ]
+  },
+  "next_binding": [
+    "existing bkmotion_worker and sample mutex",
+    "product admission with voice/OTA/reset/power",
+    "existing display trial finite TTL and exact owned cancellation",
+    "explicit new display choices supersede old restoration"
+  ],
+  "physical_actions": []
+}

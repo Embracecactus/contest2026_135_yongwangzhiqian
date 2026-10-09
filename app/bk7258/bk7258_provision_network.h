@@ -26,6 +26,10 @@ int bkprov_network_bind(struct bkprov_identity_s *identity,
 int bkprov_network_unbind(void);
 bool bkprov_network_busy(void);
 void bkprov_network_step(void);
+/* Result of the most recently completed apply, independent of persistence. */
+int bkprov_network_result(void);
+/* Request cancellation; pending commits must reach their durable boundary. */
+int bkprov_network_cancel(void);
 /* Restore an already selected bundle: refresh network time before TLS, and
  * release the network lease after HELLO without publishing another revision. */
 int bkprov_network_restore(const void *bundle, size_t size);

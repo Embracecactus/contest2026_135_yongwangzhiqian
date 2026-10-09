@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.py", line 177, in <module>
+    raise SystemExit(main())
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.py", line 65, in main
+    function(product, "product_phone_selection_step")
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_nfc_rf_lifecycle.py", line 18, in function
+    raise ValueError("production function missing: " + name)
+ValueError: production function missing: product_phone_selection_step

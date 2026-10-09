@@ -16,6 +16,7 @@ class ProvisionBootstrap private constructor(
     val deviceId: String,
     private val pin: ByteArray,
     private val secret: ByteArray,
+    val screenBootstrap: Boolean = false,
 ) : AutoCloseable {
     private var closed = false
 
@@ -56,6 +57,39 @@ class ProvisionBootstrap private constructor(
          * launcher after a committed provisioning transaction.
          */
         fun validDeviceId(value: String?): String? = value?.takeIf { devicePattern.matches(it) }
+
+        /** SN1 is a canonical Base32 envelope from the physical display.
+         * Its complete certificate pin authenticates TLS; the derived device
+         * locator only finds a saved binding and is not a trust decision.
+         */
+        fun parseQr(input: String): ProvisionBootstrap {
+            require(input.length == 107 && input.startsWith("SN1:")) { "Invalid device QR" }
+            val alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+            val raw = ByteArray(64)
+            var bits = 0
+            var accumulator = 0
+            var used = 0
+            try {
+                for (i in 4 until input.length) {
+                    val n = alphabet.indexOf(input[i])
+                    require(n >= 0)
+                    accumulator = (accumulator shl 5) or n
+                    bits += 5
+                    if (bits >= 8) {
+                        bits -= 8
+                        require(used < raw.size)
+                        raw[used++] = (accumulator ushr bits).toByte()
+                        accumulator = accumulator and ((1 shl bits) - 1)
+                    }
+                }
+                require(used == raw.size && accumulator == 0)
+                require(raw.copyOfRange(0, 32).any { it != 0.toByte() })
+                require((32 until 64).any { raw[it] != 0.toByte() })
+                val locator = (0 until 8).joinToString("") { "%02x".format(raw[it].toInt() and 255) }
+                return ProvisionBootstrap("shaniu-$locator", raw.copyOfRange(0, 32),
+                    raw.copyOfRange(32, 64), screenBootstrap = true)
+            } finally { raw.fill(0) }
+        }
 
         /** Strict flat JSON, bounded before parsing. Caller must clear scanner/UI
          * buffers after return; parse failures deliberately omit input and cause.

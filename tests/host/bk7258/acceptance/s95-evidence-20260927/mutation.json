@@ -1,0 +1,9 @@
+{
+  "mutation": "render-default-instead-of-requested-pack",
+  "detected": true,
+  "mutant_exit": 1,
+  "restored_exit": 0,
+  "source_sha256": "7b86e56a87fc1f6cb645f8b5382c2fa10fe6fa17a0c6d81b5f49565e18886262",
+  "mutant_sha256": "85f1266d97ca934bd4423ec92c2e48ee543c620f54ea58e2626678781ef7c86d",
+  "oracle": "Every trial pixel must be fixed RGB565 green 0x07e0 from independent all-green source contract."
+}

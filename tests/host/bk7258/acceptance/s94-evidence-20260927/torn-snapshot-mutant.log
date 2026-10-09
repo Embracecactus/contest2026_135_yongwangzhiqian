@@ -1,0 +1,13 @@
+F
+======================================================================
+FAIL: test_coherent_read (test_workbench_trial.TrialTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_trial.py", line 117, in test_coherent_read
+    with self.assertRaises(w.ControlError):
+AssertionError: ControlError not raised
+
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+FAILED (failures=1)

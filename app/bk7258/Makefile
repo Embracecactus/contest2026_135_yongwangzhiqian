@@ -15,9 +15,9 @@ include $(APPDIR)/Make.defs
 ifeq ($(CONFIG_BK7258_PROVISION_GATT),y)
 CSRCS += bk7258_provision_gatt.c bk7258_provision_tls.c bk7258_provision_claim.c
 CSRCS += bk7258_provision_store.c bk7258_provision_pair.c bk7258_provision_owner.c
-CSRCS += bk7258_provision_scan.c bk7258_provision_settings.c bk7258_provision_storage.c
+CSRCS += bk7258_provision_scan.c bk7258_provision_settings.c bk7258_provision_config.c bk7258_provision_storage.c
 CSRCS += bk7258_provision_identity.c bk7258_provision_network.c bk7258_provision_time.c
-CSRCS += bk7258_control_session.c bk7258_control_pair.c bk7258_control_ota_request.c
+CSRCS += bk7258_control_session.c bk7258_control_pair.c bk7258_control_serial.c bk7258_pc_grants.c bk7258_pc_control.c bk7258_pc_usb.c bk7258_pc_tasks.c bk7258_pc_authorization.c bk7258_pc_authorization_owner.c bk7258_control_ota_request.c
 endif
 
 ifneq ($(filter y,$(CONFIG_BK7258_VISION_SERVICE) $(CONFIG_BK7258_DISPLAY_SERVICE)),)
@@ -51,6 +51,9 @@ CSRCS     += bk7258_haptic_client.c
 endif
 
 ifeq ($(CONFIG_BK7258_NFC_SERVICE),y)
+ifeq ($(CONFIG_BK7258_PROVISION_GATT),y)
+CSRCS += bk7258_nfc_bindings.c bk7258_nfc_control.c
+endif
 CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)/../vendor/beken/nuttx/include
 	CSRCS += bk7258_nfc_service.c bk7258_nfc_core.c
 endif
@@ -93,9 +96,16 @@ endif
 endif
 
 ifeq ($(CONFIG_BK7258_DISPLAY_SERVICE),y)
-	CSRCS += bk7258_display_service.c bk7258_display_store.c \
+	CSRCS += bk7258_display_service.c bk7258_display_trial_control.c bk7258_display_store.c \
+	         bk7258_display_job.c bk7258_display_job_service.c \
 		bk7258_display_pack.c bk7258_display_rpc.c \
 		bk7258_display_rpc_core.c
+ifeq ($(CONFIG_BK7258_VOICE_TLS)$(CONFIG_BK7258_USBCDC),yy)
+CSRCS += bk7258_display_job_control.c
+endif
+ifeq ($(CONFIG_BK7258_VOICE_TLS),y)
+CSRCS += bk7258_display_selection_control.c
+endif
 endif
 
 ifeq ($(CONFIG_BK7258_PRODUCT_KEYS),y)
@@ -237,6 +247,30 @@ PROGNAME  += $(CONFIG_BK7258_APP_BKVALIDATE_PROGNAME)
 PRIORITY  += $(CONFIG_BK7258_APP_BKVALIDATE_PRIORITY)
 STACKSIZE += $(CONFIG_BK7258_APP_BKVALIDATE_STACKSIZE)
 MAINSRC   += bkvalidate_main.c
+endif
+
+ifeq ($(CONFIG_BK7258_APP_FACTORY),y)
+PROGNAME += bkfactory
+PRIORITY += 100
+STACKSIZE += 4096
+MAINSRC += bk7258_factory_main.c
+endif
+
+ifeq ($(CONFIG_BK7258_PROVISION_NATIVE),y)
+CSRCS += bk7258_provision_generate.c bk7258_provision_bootstrap.c
+BKPROV_QR_ROOT = $(APPDIR)/graphics/lvgl/lvgl
+CFLAGS += ${INCDIR_PREFIX}$(BKPROV_QR_ROOT)/src/libs/qrcode
+ifeq ($(CONFIG_GRAPHICS_LVGL),y)
+ifneq ($(CONFIG_LV_USE_QRCODE),y)
+$(error Native onboarding with LVGL requires LV_USE_QRCODE)
+endif
+else
+CSRCS += $(BKPROV_QR_ROOT)/src/libs/qrcode/qrcodegen.c
+CSRCS += $(BKPROV_QR_ROOT)/src/misc/lv_assert.c
+# These flags affect this non-LVGL product archive, not the official LVGL tree.
+CFLAGS += -DLV_CONF_SKIP -DLV_KCONFIG_IGNORE -DLV_USE_LOG=0
+CFLAGS += '-DLV_ASSERT_HANDLER_INCLUDE=<stdlib.h>' '-DLV_ASSERT_HANDLER=abort();'
+endif
 endif
 
 MODULE = y

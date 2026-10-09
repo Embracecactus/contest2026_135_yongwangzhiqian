@@ -1,0 +1,1 @@
+test_shaniu_power_contract: test_shaniu_power_contract.c:255: main: Assertion `usb_stops==1 && !usb_closed && cp_calls==0' failed.

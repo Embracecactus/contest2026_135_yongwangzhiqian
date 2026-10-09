@@ -1,0 +1,33 @@
+{
+  "target": "BK7258 AP, existing compiler and compile_commands flags",
+  "configured_worker_stack": 6144,
+  "before_frames": {
+    "worker": 80,
+    "selection_step": 696,
+    "catalog_store": 1752,
+    "open_installed": 544,
+    "store_validate": 160,
+    "pack_open": 2312,
+    "decode": 1088,
+    "read_exact": 24
+  },
+  "after_frames": {
+    "worker": 80,
+    "selection_step": 192,
+    "catalog_store": 864,
+    "open_checked": 64,
+    "pack_open": 2312,
+    "decode": 1088,
+    "read_exact": 24
+  },
+  "additional_global_page_bytes": 504,
+  "additional_cursor_bytes": 40,
+  "limitations": [
+    "Static compiler stack subtotal only, not measured high-water",
+    "OS/libc/filesystem/interrupt frames and worst blocking time not included",
+    "No stack configuration increase",
+    "Catalog protocol admission remains absent; actual resource timing must be measured before enabling new concurrency"
+  ],
+  "before_subtotal": 6656,
+  "after_subtotal": 4624
+}

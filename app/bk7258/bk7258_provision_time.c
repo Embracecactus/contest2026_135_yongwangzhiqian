@@ -18,6 +18,8 @@ static bool g_pending;
 static int g_result = -EAGAIN;
 static uint64_t g_utc;
 static uint64_t g_monotonic;
+static uint64_t g_owner_utc;
+static uint64_t g_owner_monotonic;
 static uint64_t monotonic_seconds(void)
 {
   struct timespec now;
@@ -79,13 +81,41 @@ int bkprov_time_start(void)
   pthread_mutex_unlock(&g_lock);
   return -ret;
 }
+int bkprov_time_owner_utc(uint64_t utc)
+{
+  if (utc < 1704067200 || utc > 4133980799ULL) return -ERANGE;
+  struct timespec wall = { .tv_sec = (time_t)utc, .tv_nsec = 0 };
+  pthread_mutex_lock(&g_lock);
+  /* TLS checks the system clock, not the owner-time cache. Apply time only
+   * after the authenticated transaction commits, including Wi-Fi-only
+   * first use where no voice configuration will initialize CLOCK_REALTIME.
+   */
+  if (clock_settime(CLOCK_REALTIME, &wall) < 0)
+    {
+      int ret = -errno;
+      pthread_mutex_unlock(&g_lock);
+      return ret;
+    }
+  g_owner_utc = utc;
+  g_owner_monotonic = monotonic_seconds();
+  pthread_mutex_unlock(&g_lock);
+  return 0;
+}
+
 int bkprov_time_get(uint64_t minimum_utc, uint64_t *utc)
 {
   if (utc == NULL) return -EINVAL;
   uint64_t now = monotonic_seconds();
   pthread_mutex_lock(&g_lock);
   int ret = -EAGAIN;
-  if (!g_started) ret = -ENODEV;
+  if (g_owner_utc && now >= g_owner_monotonic &&
+      now - g_owner_monotonic < 21600)
+    {
+      uint64_t value = g_owner_utc + now - g_owner_monotonic;
+      if (value < minimum_utc) ret = -ERANGE;
+      else { *utc = value; ret = 0; }
+    }
+  else if (!g_started) ret = -ENODEV;
   else if (g_pending) ret = -EAGAIN;
   else if (g_result == 0 && now >= g_monotonic && now - g_monotonic < 21600)
     {

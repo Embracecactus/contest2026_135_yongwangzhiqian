@@ -20,11 +20,13 @@ int bk7258_media_volume_acquire(enum bk7258_media_volume_owner_e owner)
       owner != BK7258_MEDIA_VOLUME_VISION &&
       owner != BK7258_MEDIA_VOLUME_PREFERENCES &&
       owner != BK7258_MEDIA_VOLUME_OTA &&
-      owner != BK7258_MEDIA_VOLUME_POWER)
+      owner != BK7258_MEDIA_VOLUME_POWER &&
+      owner != BK7258_MEDIA_VOLUME_INSTALL)
     {
       return -EINVAL;
     }
-  if (!__atomic_compare_exchange_n(&g_volume_owner, &expected, owner, 0,
+  /* 负值占住转换阶段，底层租约成功后才允许该所有者释放。 */
+  if (!__atomic_compare_exchange_n(&g_volume_owner, &expected, -(int)owner, 0,
                                     __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE))
     {
       return -EBUSY;
@@ -39,13 +41,18 @@ int bk7258_media_volume_acquire(enum bk7258_media_volume_owner_e owner)
       }
   }
 #endif
+  __atomic_store_n(&g_volume_owner, owner, __ATOMIC_RELEASE);
   return 0;
 }
 
 int bk7258_media_volume_release(enum bk7258_media_volume_owner_e owner)
 {
-  if (owner == 0 ||
-      __atomic_load_n(&g_volume_owner, __ATOMIC_ACQUIRE) != (int)owner)
+  int expected = owner;
+
+  /* 只允许已完成获取的所有者进入一次释放；失败时恢复原租约。 */
+  if (owner < BK7258_MEDIA_VOLUME_DISPLAY || owner > BK7258_MEDIA_VOLUME_INSTALL ||
+      !__atomic_compare_exchange_n(&g_volume_owner, &expected, -(int)owner, 0,
+                                   __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE))
     {
       return -EPERM;
     }
@@ -54,6 +61,7 @@ int bk7258_media_volume_release(enum bk7258_media_volume_owner_e owner)
     int ret = bk7258_usbmode_blockdev_release();
     if (ret < 0)
       {
+        __atomic_store_n(&g_volume_owner, owner, __ATOMIC_RELEASE);
         return ret;
       }
   }

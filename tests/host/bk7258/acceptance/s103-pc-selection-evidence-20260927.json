@@ -1,0 +1,102 @@
+{
+  "parent": "f67d6b038fe09a19ed63c35ea2c475c48b666d9b",
+  "counts": {
+    "selected": 604,
+    "PASS": 604,
+    "original_including_restores": 63,
+    "added": 541,
+    "new_ids": 12,
+    "new_logic_units": 8,
+    "new_native_units": 4,
+    "runner_gates": 19,
+    "original_mutations": 2,
+    "extra_mutations": 1,
+    "extra_restore_runs": 1
+  },
+  "implementation": "PC default-status/refresh/set/cancel/recover through existing workbench CLI and independent authenticated profile. Explicit epoch/nonce/expected job ID; set also requires installed name and durable revision. Bounded96-byte writes in32-byte chunks, nonce-frozen128-byte latest-job snapshots with sequence recheck and optional epoch/operation/job matching. No auto retry or fallback. ACK only accepted; UNKNOWN, saved, rendered, canceled and refresh completion remain distinct.",
+  "test_first": {
+    "initial_status": "BLOCKED_INTERFACE",
+    "evidence": "interface-before.log",
+    "business_red": false,
+    "order": "Independent vectors and client behavior tests first, then codec/client/CLI implementation; native integration added before final freeze."
+  },
+  "integration": {
+    "production": "Python ControlClient._exchange and new methods, native SDC1/selection control, original owner worker step, store/parser/volume/render functions. Exact stored versions, file writes and framebuffer pixel oracle retained.",
+    "external": "Pipes replace TLS/USB; synthetic AUTH and epoch, controlled umount failure, manual stepping of existing native worker. No substitute success state machine.",
+    "cases": [
+      "refresh then default-set plus exact retry and old receipt rejection",
+      "queued cancel and old set rejection without writes",
+      "accepted stale revision then actual worker FAIL without save",
+      "saved-but-release-failed then recovery remains UNKNOWN and explicit refresh reads version2"
+    ],
+    "limits": "These four new flows are not actual USB or production TLS end-to-end default rendering. Existing TLS/PC-guard suite passed separately. No phone UI/firmware/device changes."
+  },
+  "mutation": {
+    "status": "DETECTED",
+    "exit_code": 1,
+    "source_sha256": "301aca37dbd1f6b19545a7b643e393b07b66dfc0ec1800032de194a8f452f6c1",
+    "mutant_sha256": "3b110ac0aa9d242e0b1fbadbd9341880f2f811dd494d527e586007581ed676b5",
+    "fixture_sha256": "adb64166f7e255dd8e1d547512d4c96bb485a6b5791ce428eb414f81bf439b75",
+    "assertion": "pending must not report saved",
+    "restore": "mutation-restored.log"
+  },
+  "validation": {
+    "input_hashes_match": true,
+    "production_unchanged_during_run": true,
+    "firmware_and_android_unchanged_from_parent": true,
+    "AP_build": "NOT_RUN: no firmware/board/config/dependency production changes; S102 result retained as historical evidence",
+    "layers": "PASS sources550 kconfig253 legacy-exceptions2",
+    "python_style": "black24.10.0 check passed for new codec/client and changed thin adapters",
+    "cli_help": "workbench --help lists5 new commands and explicit selection arguments"
+  },
+  "resources": {
+    "device_delta": "No firmware change or new device storage/thread/buffer in this slice",
+    "host_bounds": "One outstanding operation;96-byte request,128-byte snapshot and bounded fixed chunk count under existing deadline. No automatic polling/replay or resident service.",
+    "not_measured": "Host CPU/peak memory, physical USB throughput and target concurrency/stack/DMA budgets"
+  },
+  "parent_gaps": {
+    "RES-02": {
+      "interface": "Native PC protocol and PC commands implemented; phone binding/native UI and browser workbench remain",
+      "L1_L2": "8 logic plus4 client-to-native integration units; original63 preserved; actual TLS boundary separate",
+      "L3": "NOT_RUN; no port opened or APK/firmware deployed"
+    }
+  },
+  "remaining": [
+    "Phone shared-service binding and native Canva UI",
+    "Browser/light workbench and complete default-selection TLS/USB vertical acceptance",
+    "Explicit active/2 downgrade/migration before deployment",
+    "COM9 target identity and APK install approval pending",
+    "Target budgets, historical TLS evidence, mixed scenarios and final release"
+  ],
+  "evidence_sha256": {
+    "tests/host/bk7258/acceptance/s103-evidence-20260927/CFG-01.wifi-clears-cloud.log": "9634e65d6db5146dcd5a586fd70692fec5712cf3eae93c5a7b6145bf5508b7bc",
+    "tests/host/bk7258/acceptance/s103-evidence-20260927/MSC-01.early-release.log": "f11bad9509ba3476716e2e3d41105b93e0d8f27a806d3a0e685f6e4d8eee0d49",
+    "tests/host/bk7258/acceptance/s103-evidence-20260927/RES-02.pc-default-cli_validation.log": "4acca928e255f302be45d9367f36bbbc1cf12c2106caa612aeb7986dda873835",
+    "tests/host/bk7258/acceptance/s103-evidence-20260927/RES-02.pc-default-decode.log": "625f3bc228ee5c98f0a47a232a497fbb6890fe5253092aa4580fb6a8c1ec3b1d",
+    "tests/host/bk7258/acceptance/s103-evidence-20260927/RES-02.pc-default-golden.log": "cdd9b33bbe9308722acbbc4a36b38d8323fb266bb71bd17d2ac841aa19e3a754",
+    "tests/host/bk7258/acceptance/s103-evidence-20260927/RES-02.pc-default-invalid.log": "aed5ab3dc7269628863e220109ced01d15cba0aecb99dc1b12ffd61d9e99690e",
+    "tests/host/bk7258/acceptance/s103-evidence-20260927/RES-02.pc-default-malformed.log": "9d04974e730ca29b04f4dfe11f423234fccff0973487041e4a2c95a10e626739",
+    "tests/host/bk7258/acceptance/s103-evidence-20260927/RES-02.pc-default-native-cancel.log": "ea1d822e11630f2399739cae9c8d3c16436df67b38f428ca3a754e1fd31172fb",
+    "tests/host/bk7258/acceptance/s103-evidence-20260927/RES-02.pc-default-native-lifecycle.log": "b3da8f9381e14b3d8e25d1e6e93085d8e5af675401e18646457bcddc4b249e05",
+    "tests/host/bk7258/acceptance/s103-evidence-20260927/RES-02.pc-default-native-recover.log": "4160f981f51117b95ec5af963649c973518c57a1f952a1ac42f0d699efaa1552",
+    "tests/host/bk7258/acceptance/s103-evidence-20260927/RES-02.pc-default-native-stale.log": "bc125bf73bb4b7bed6f8ff7f62442777be9338f48e3cf121a0342adabe08cee1",
+    "tests/host/bk7258/acceptance/s103-evidence-20260927/RES-02.pc-default-snapshot_identity.log": "8a72384eaf55d71de0bc110cf575c1aedca3639ef6b31ca7aff715b44d36d833",
+    "tests/host/bk7258/acceptance/s103-evidence-20260927/RES-02.pc-default-staging.log": "3196c0d83cdde79cf060d25acf32ef6c19fd154c0362a059da2ca0d1fe7b8e41",
+    "tests/host/bk7258/acceptance/s103-evidence-20260927/RES-02.pc-default-unconfirmed_no_replay.log": "4d30c714c9e2da496e4951a7ab04b76b10453d5dfc7b92d6570661a7f1eccd6c",
+    "tests/host/bk7258/acceptance/s103-evidence-20260927/USB-01.tls-transport.log": "6dc6032bc910b7a77346ea2355de225475d1e6a55f755e811abe4c97345157ff",
+    "tests/host/bk7258/acceptance/s103-evidence-20260927/false-saved-mutant.log": "d3bee1c946e08f5e4d1dddcdea21e28021863ba5acd88416ecfe1e20916caea8",
+    "tests/host/bk7258/acceptance/s103-evidence-20260927/full.log": "ec0e53f9c04ea71d073996bdbc461422dac30bd50653b818bae33792e4d54827",
+    "tests/host/bk7258/acceptance/s103-evidence-20260927/gates.log": "9f85c99ded38905e60c30eff9228482736aeb277b91c5fc827e4e476389066e9",
+    "tests/host/bk7258/acceptance/s103-evidence-20260927/help.log": "b4545dd6295dd64a0956739396609ebacce7c77ab82bca0e80d0421958faf248",
+    "tests/host/bk7258/acceptance/s103-evidence-20260927/interface-before.log": "7aecc20217b3ae083c9841f943c93556849e21aa901ea78de4b7747abba1166b",
+    "tests/host/bk7258/acceptance/s103-evidence-20260927/layers.log": "027609397eae350c61a6eb847a6c4ab94f0c926dfa48f65914118948fd3b6c40",
+    "tests/host/bk7258/acceptance/s103-evidence-20260927/mutation-restored.log": "fb184ea57734512b1f088f9181209901b9cd46df3eb7eaa2500ea9e48dde20b5",
+    "tests/host/bk7258/acceptance/s103-evidence-20260927/mutation.json": "398a8531892ef4ef32fed27c94808ed2bd195e0a044638d72de1cce0dc39e061",
+    "tests/host/bk7258/acceptance/s103-evidence-20260927/native-cancel.log": "fa2c14019cdd0ed483665fc1cf0b6fa1caff4d2c2ed52cbd33740e18f3914e92",
+    "tests/host/bk7258/acceptance/s103-evidence-20260927/native-lifecycle-first.log": "7510d64d114335f2fc2ccf197d61823d398c1743d1e1337201c7b4eda27d8f9b",
+    "tests/host/bk7258/acceptance/s103-evidence-20260927/native-recover.log": "f9ac2af98f866255e75730abdd37c767d5ea50090d10e3c5df07546e7b4dc03e",
+    "tests/host/bk7258/acceptance/s103-evidence-20260927/native-stale.log": "8c02badb15be3e1b9000cdb488212b2e6932fa1001cefa969d61935fca8a878f",
+    "tests/host/bk7258/acceptance/s103-evidence-20260927/style-final.log": "26a5fd9505f2b5608a20c4fed4b4c4795e0783d03b72ade02a6af34dae8ad086",
+    "tests/host/bk7258/acceptance/s103-evidence-20260927/units-final.log": "60bb849356ffbc091f601e17fc6ae0b2eb5e26d734d433da020c6e775efbf97f"
+  }
+}

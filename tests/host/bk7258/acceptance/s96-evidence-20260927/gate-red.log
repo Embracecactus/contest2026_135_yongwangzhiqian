@@ -1,0 +1,14 @@
+NATIVE_RESOURCE_CASE=upload PASS
+F
+======================================================================
+FAIL: test_invalid_positive_certificate_stops_before_peer (__main__.NestedTlsGateTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_runner_gate.py", line 184, in test_invalid_positive_certificate_stops_before_peer
+    self.assertEqual(len(verify_calls), 1)
+AssertionError: 0 != 1
+
+----------------------------------------------------------------------
+Ran 1 test in 0.005s
+
+FAILED (failures=1)

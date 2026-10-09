@@ -56,18 +56,18 @@ static bool g_record_leased;
 
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
 static int bkvision_feedback_set_expression(void *arg,
-                                            const char *expression)
+                                            const char *expression, uint64_t *identity)
 {
   (void)arg;
-  return bk7258_display_set_expression(expression);
+  return bk7258_display_set_expression_owned(expression, identity);
 }
 
 static int bkvision_feedback_replace_expression(void *arg,
-                                                const char *expected,
+                                                uint64_t *identity,
                                                 const char *replacement)
 {
   (void)arg;
-  return bk7258_display_replace_expression(expected, replacement);
+  return bk7258_display_replace_expression(identity, replacement);
 }
 
 static void bkvision_feedback_wait(void *arg, unsigned int milliseconds)

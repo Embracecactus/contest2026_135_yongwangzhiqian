@@ -1,0 +1,5 @@
+app/bk7258/bk7258_display_job.c:247:3: error: Right brace must be followed by a blank line
+app/bk7258/bk7258_display_job.c:252:3: error: Right brace must be followed by a blank line
+app/bk7258/bk7258_display_job.c:265:3: error: Right brace must be followed by a blank line
+app/bk7258/bk7258_display_job.c:310:3: error: Right brace must be followed by a blank line
+app/bk7258/bk7258_display_job.c:385:3: error: Right brace must be followed by a blank line
