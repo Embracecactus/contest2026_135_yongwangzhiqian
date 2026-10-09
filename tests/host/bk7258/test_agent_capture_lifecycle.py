@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """Check capture ownership using production lifecycle functions and safe peers.
 
-The capture peer is a static object and is never freed. The close boundary
-asserts ownership before any ASR work. This is a host lifecycle contract, not
-an audio backend, network, memory-error reproduction, or hardware test.
+Static peers cover error propagation; real pthread cases check heap release
+and run the actual capture producer against a local socket Media peer. These
+are host ownership contracts, not hardware or historical HardFault proof.
 """
 
 import os
@@ -16,6 +16,19 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 AGENT = Path(os.environ.get("AI_AGENT_ROOT", ROOT.parent / "packages/ai_agent"))
+
+
+def voice_source():
+    """Read a pinned historical caller without changing the active checkout."""
+    revision = os.environ.get("AI_AGENT_VOICE_CHANNEL_REV")
+    if revision:
+        return subprocess.run(
+            ["git", "-C", str(AGENT), "show", revision + ":src/voice/voice_channel.c"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+    return (AGENT / "src/voice/voice_channel.c").read_text()
 
 
 def function(source, name):
@@ -35,7 +48,7 @@ def function(source, name):
 
 class CaptureLifecycleTest(unittest.TestCase):
     def test_detached_close_asr_and_cleanup(self):
-        source = (AGENT / "src/voice/voice_channel.c").read_text()
+        source = voice_source()
         code = r"""
 #include <assert.h>
 #include <errno.h>
@@ -208,7 +221,7 @@ int main(void) {
             subprocess.run([str(binary)], check=True, timeout=10)
 
     def test_start_failure_detaches_before_close(self):
-        source = (AGENT / "src/voice/voice_channel.c").read_text()
+        source = voice_source()
         start = function(source, "voice_channel_start_internal")
         # Both create and start failures publish the same detached ownership.
         branches = start.split("audio_capture_t* cap = s_voice.cap;")[1:]
@@ -217,6 +230,319 @@ int main(void) {
             before_close = branch.split("audio_capture_close(cap)", 1)[0]
             before_unlock = before_close.split("pthread_mutex_unlock", 1)[0]
             self.assertIn("s_voice.cap = NULL;", before_unlock)
+
+    def test_real_voice_stop_cancel_serializes_capture_abort(self):
+        """Run the production voice callers against the real capture producer.
+
+        A first abort is observed while its socket-backed producer is blocked
+        in poll.  Cancel begins only after that call entered.  The fixture does
+        not require overlap: the desired caller fix serializes it under the
+        voice lock, while the old caller lets both reach pthread_join.
+        """
+        source = voice_source()
+        code = r"""
+#define _GNU_SOURCE
+#include <assert.h>
+#include <errno.h>
+#include <pthread.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <syslog.h>
+#include <time.h>
+#include <unistd.h>
+#define CONFIG_AI_AGENT_AUDIO_CAPTURE_GAIN 1
+#define CAP_START_TIMEOUT_MS 100u
+int media_recorder_get_socket(void *handle);
+int media_recorder_reset(void *handle);
+#include "voice/audio_capture.c"
+#define VOICE_IDLE 0
+#define VOICE_STARTING 1
+#define VOICE_RECORDING 2
+#define VOICE_STOPPING 3
+#define VOICE_PROCESSING 4
+#define VOICE_CHANNEL_EVENT_WAKE_ACK_CANCEL 1
+#define VOICE_CHANNEL_EVENT_CAPTURE_QUIESCENT 2
+#define VOICE_CHANNEL_EVENT_OUTPUT_FINISHED 3
+#define VOICE_CHANNEL_EVENT_TURN_COMPLETE 4
+#define AUTO_TURN_TIMEOUT_MS 180000
+#define TAG "test"
+typedef struct { int unused; } voice_asr_stream_t;
+static int sockets[2], recorder, abort_inflight, abort_max, abort_entered, producer_poll_entered;
+static pthread_mutex_t observer_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t observer_ready = PTHREAD_COND_INITIALIZER;
+static struct {
+ pthread_mutex_t lock;
+ int state, turn_active, preconnect_active, canceled, wake_ack_pending;
+ int wake_ack_result, auto_endpoint, tts_abort, tts_active;
+ int capture_error, capture_cleanup_pending, capture_cleanup_result;
+ int tts_cleanup_pending, tts_cleanup_result, cleanup_in_progress;
+ int reply_stream_active;
+ audio_capture_t *cap;
+ voice_asr_stream_t *asr_stream;
+ void *tts_pb;
+ unsigned char *pcm_buf;
+ size_t pcm_len;
+ pthread_t rec_thread;
+ uint64_t request_id, turn_started_ms;
+} s_voice = {.lock = PTHREAD_MUTEX_INITIALIZER};
+static struct timespec s_asr_done_ts;
+static uint64_t voice_now_ms(void) { return 100; }
+static void notify_channel_event(int event, int result) { (void)event; (void)result; }
+static void reply_wake(void) {}
+static int voice_asr_cancel(void) { return 0; }
+static int voice_tts_cancel(void) { return 0; }
+static int llm_cancel_request(void) { return 0; }
+static int audio_playback_stop(void *pb) { (void)pb; return 0; }
+static int audio_playback_cleanup(unsigned ms) { (void)ms; return 0; }
+static int voice_test_abort(audio_capture_t *cap) {
+ pthread_mutex_lock(&observer_lock);
+ abort_inflight++;
+ if (abort_inflight > abort_max) abort_max = abort_inflight;
+ abort_entered = 1;
+ pthread_cond_broadcast(&observer_ready);
+ pthread_mutex_unlock(&observer_lock);
+ int ret = audio_capture_abort(cap);
+ pthread_mutex_lock(&observer_lock);
+ abort_inflight--;
+ pthread_mutex_unlock(&observer_lock);
+ return ret;
+}
+static void voice_asr_stream_abort(voice_asr_stream_t *s) { (void)s; }
+static int voice_asr_stream_finish(voice_asr_stream_t *s, char *t, size_t n)
+{ (void)s; (void)t; (void)n; return -ECANCELED; }
+static int voice_asr_recognize_checked(const void *p, size_t l, char *t,
+ size_t n, int (*c)(void *), void *r)
+{ (void)p; (void)l; (void)t; (void)n; (void)c; (void)r; return -ECANCELED; }
+int media_recorder_set_event_callback(void *h, void *cookie, media_event_callback cb)
+{ (void)h; static void *saved_cookie; static media_event_callback saved_cb; saved_cookie=cookie; saved_cb=cb; saved_cb(saved_cookie, MEDIA_EVENT_STARTED, 0, NULL); return 0; }
+void *media_recorder_open(const char *p)
+{ (void)p; assert(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == 0); return &recorder; }
+int media_recorder_prepare(void *h, const char *u, const char *o)
+{ (void)h; (void)u; (void)o; return 0; }
+int media_recorder_start(void *h) { assert(h == &recorder); return 0; }
+int media_recorder_get_socket(void *h) {
+ assert(h == &recorder);
+ pthread_mutex_lock(&observer_lock);
+ producer_poll_entered = 1;
+ pthread_cond_broadcast(&observer_ready);
+ pthread_mutex_unlock(&observer_lock);
+ return sockets[0];
+}
+ssize_t media_recorder_read_data(void *h, void *p, size_t n)
+{ assert(h == &recorder); ssize_t r=recv(sockets[0],p,n,0); return r<0 ? -errno : r; }
+int media_recorder_stop(void *h) { assert(h == &recorder); return 0; }
+int media_recorder_reset(void *h) { assert(h == &recorder); return 0; }
+int media_recorder_close(void *h)
+{ assert(h == &recorder); assert(close(sockets[0]) == 0); assert(close(sockets[1]) == 0); return 0; }
+static void *recording_worker(void *u) { (void)u; return NULL; }
+"""
+        for name in (
+            "voice_request_status", "voice_request_check", "voice_request_complete",
+            "voice_channel_cancel", "voice_channel_recover", "voice_channel_stop_with_text",
+        ):
+            body = function(source, name)
+            code += "\n" + body.replace("audio_capture_abort(", "voice_test_abort(")
+        code += r"""
+static void *stop_worker(void *u) { (void)u; char text[8]; return (void *)(intptr_t)voice_channel_stop_with_text(text, sizeof(text)); }
+static void *cancel_worker(void *u) { (void)u; return (void *)(intptr_t)voice_channel_cancel(); }
+int main(void) {
+ pthread_t stop, cancel; void *stop_result, *cancel_result;
+ s_voice.state=VOICE_RECORDING; s_voice.turn_active=1; s_voice.request_id=9;
+ s_voice.cap=audio_capture_open_local(NULL,16000,1,16);
+ assert(s_voice.cap && audio_capture_start(s_voice.cap)==0);
+ pthread_mutex_lock(&observer_lock);
+ while (!producer_poll_entered) pthread_cond_wait(&observer_ready,&observer_lock);
+ pthread_mutex_unlock(&observer_lock);
+ assert(pthread_create(&s_voice.rec_thread,NULL,recording_worker,NULL)==0);
+ assert(pthread_create(&stop,NULL,stop_worker,NULL)==0);
+ pthread_mutex_lock(&observer_lock);
+ while (!abort_entered) pthread_cond_wait(&observer_ready,&observer_lock);
+ pthread_mutex_unlock(&observer_lock);
+ assert(pthread_create(&cancel,NULL,cancel_worker,NULL)==0);
+ assert(pthread_join(stop,&stop_result)==0);
+ assert(pthread_join(cancel,&cancel_result)==0);
+ assert((intptr_t)stop_result == -ECANCELED && (intptr_t)cancel_result == 0);
+ assert(abort_max == 1 && s_voice.cap == NULL);
+ puts("VOICE_CAPTURE_SERIAL_ABORT_PASS");
+ return 0;
+}
+"""
+        with tempfile.TemporaryDirectory(prefix="agent-voice-capture-race-") as path:
+            directory = Path(path)
+            source_path = directory / "test.c"
+            binary = directory / "test"
+            source_path.write_text(code)
+            subprocess.run(
+                ["cc", "-std=gnu11", "-Wall", "-Wextra", "-Werror", "-pthread",
+                 str(source_path), "-I", str(AGENT / "src"), "-I",
+                 str(ROOT / "tests/host/bk7258/mocks"), "-I", str(AGENT / "include"),
+                 "-o", str(binary)], check=True
+            )
+            subprocess.run([str(binary)], check=True, timeout=5)
+
+    def test_stop_cancel_overlap_joins_real_worker_before_heap_release(self):
+        """Drive the production stop/cancel window with real pthread joins.
+
+        The old fixture replaced pthread_join with a boolean and could not
+        observe a cancel arriving while stop owns the pre-close capture.  This
+        peer releases the stop abort after observing it, then permits cancel
+        to be serialized by the production owner lock. It still requires the
+        worker join and detached owner before heap capture release.
+        """
+        source = voice_source()
+        code = r"""
+#include <assert.h>
+#include <errno.h>
+#include <pthread.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <syslog.h>
+#include <time.h>
+#define VOICE_IDLE 0
+#define VOICE_STARTING 1
+#define VOICE_RECORDING 2
+#define VOICE_STOPPING 3
+#define VOICE_PROCESSING 4
+#define VOICE_CHANNEL_EVENT_WAKE_ACK_CANCEL 1
+#define VOICE_CHANNEL_EVENT_CAPTURE_QUIESCENT 2
+#define VOICE_CHANNEL_EVENT_OUTPUT_FINISHED 3
+#define VOICE_CHANNEL_EVENT_TURN_COMPLETE 4
+#define AUTO_TURN_TIMEOUT_MS 180000
+#define TAG "test"
+typedef struct { unsigned magic; } audio_capture_t;
+typedef struct { int unused; } voice_asr_stream_t;
+static pthread_mutex_t peer_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t peer_ready = PTHREAD_COND_INITIALIZER;
+static int stop_abort_entered, cancel_finished, worker_joined;
+static int aborts, closes, releases, completions;
+static struct {
+ pthread_mutex_t lock;
+ int state, turn_active, preconnect_active, canceled, wake_ack_pending;
+ int wake_ack_result, auto_endpoint, tts_abort, tts_active;
+ int capture_error, capture_cleanup_pending, capture_cleanup_result;
+ int tts_cleanup_pending, tts_cleanup_result, cleanup_in_progress;
+ int reply_stream_active;
+ audio_capture_t *cap;
+ voice_asr_stream_t *asr_stream;
+ void *tts_pb;
+ unsigned char *pcm_buf;
+ size_t pcm_len;
+ pthread_t rec_thread;
+ uint64_t request_id, turn_started_ms;
+} s_voice = {.lock = PTHREAD_MUTEX_INITIALIZER};
+static struct timespec s_asr_done_ts;
+int voice_channel_cancel(void);
+static uint64_t voice_now_ms(void) { return 100; }
+static void notify_channel_event(int event, int result) {
+ (void)result; if (event == VOICE_CHANNEL_EVENT_TURN_COMPLETE) completions++;
+}
+static void reply_wake(void) {}
+static int voice_asr_cancel(void) { return 0; }
+static int voice_tts_cancel(void) { return 0; }
+static int llm_cancel_request(void) { return 0; }
+static int audio_playback_stop(void *pb) { (void)pb; return 0; }
+static int audio_playback_cleanup(unsigned ms) { (void)ms; return 0; }
+static int audio_capture_abort(audio_capture_t *cap) {
+ assert(cap && cap->magic == 0xcafef00dU);
+ pthread_mutex_lock(&peer_lock);
+ aborts++;
+ if (aborts == 1) {
+  stop_abort_entered = 1;
+  pthread_cond_broadcast(&peer_ready);
+ }
+ pthread_mutex_unlock(&peer_lock);
+ return 0;
+}
+static int audio_capture_close(audio_capture_t *cap) {
+ assert(cap && cap->magic == 0xcafef00dU);
+ assert(aborts >= 1 && worker_joined && s_voice.cap == NULL);
+ cap->magic = 0;
+ releases++;
+ free(cap);
+ closes++;
+ return 0;
+}
+static int audio_capture_cleanup(unsigned ms) { (void)ms; return 0; }
+static void voice_asr_stream_abort(voice_asr_stream_t *s) { (void)s; }
+static int voice_asr_stream_finish(voice_asr_stream_t *s, char *t, size_t n)
+{ (void)s; (void)t; (void)n; return -ECANCELED; }
+static int voice_asr_recognize_checked(const void *p, size_t l, char *t,
+ size_t n, int (*c)(void *), void *r)
+{ (void)p; (void)l; (void)t; (void)n; (void)c; (void)r; return -ECANCELED; }
+"""
+        for name in (
+            "voice_request_status",
+            "voice_request_check",
+            "voice_request_complete",
+            "voice_channel_cancel",
+            "voice_channel_recover",
+            "voice_channel_stop_with_text",
+        ):
+            code += "\n" + function(source, name)
+        code += r"""
+static void *recording_worker(void *unused) {
+ (void)unused;
+ pthread_mutex_lock(&peer_lock);
+ while (!cancel_finished) pthread_cond_wait(&peer_ready, &peer_lock);
+ pthread_mutex_unlock(&peer_lock);
+ worker_joined = 1;
+ return NULL;
+}
+static void *stop_worker(void *unused) {
+ (void)unused;
+ char text[8];
+ return (void *)(intptr_t)voice_channel_stop_with_text(text, sizeof(text));
+}
+static void *cancel_worker(void *unused) {
+ (void)unused;
+ int ret = voice_channel_cancel();
+ pthread_mutex_lock(&peer_lock);
+ cancel_finished = 1;
+ pthread_cond_broadcast(&peer_ready);
+ pthread_mutex_unlock(&peer_lock);
+ return (void *)(intptr_t)ret;
+}
+int main(void) {
+ pthread_t stop, cancel;
+ void *stop_result, *cancel_result;
+ audio_capture_t *cap = calloc(1, sizeof(*cap));
+ assert(cap); cap->magic = 0xcafef00dU;
+ s_voice.state = VOICE_RECORDING;
+ s_voice.turn_active = 1;
+ s_voice.request_id = 7;
+ s_voice.cap = cap;
+ assert(pthread_create(&s_voice.rec_thread, NULL, recording_worker, NULL) == 0);
+ assert(pthread_create(&stop, NULL, stop_worker, NULL) == 0);
+ pthread_mutex_lock(&peer_lock);
+ while (!stop_abort_entered) pthread_cond_wait(&peer_ready, &peer_lock);
+ pthread_mutex_unlock(&peer_lock);
+ assert(pthread_create(&cancel, NULL, cancel_worker, NULL) == 0);
+ assert(pthread_join(cancel, &cancel_result) == 0);
+ assert(pthread_join(stop, &stop_result) == 0);
+ assert((intptr_t)cancel_result == 0 && (intptr_t)stop_result == -ECANCELED);
+ assert(aborts >= 1 && closes == 1 && releases == 1 && worker_joined);
+ assert(s_voice.cap == NULL && s_voice.capture_cleanup_pending == 0);
+ voice_request_complete(7, -ECANCELED);
+ assert(s_voice.state == VOICE_IDLE && completions == 1);
+ puts("AGENT_CAPTURE_REAL_PTHREAD_PASS");
+ return 0;
+}
+"""
+        with tempfile.TemporaryDirectory(prefix="agent-capture-real-pthread-") as path:
+            directory = Path(path)
+            source_path = directory / "test.c"
+            binary = directory / "test"
+            source_path.write_text(code)
+            subprocess.run(
+                ["cc", "-std=c11", "-Wall", "-Wextra", "-Werror", "-pthread",
+                 str(source_path), "-o", str(binary)], check=True
+            )
+            subprocess.run([str(binary)], check=True, timeout=10)
 
 
 if __name__ == "__main__":

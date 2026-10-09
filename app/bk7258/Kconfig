@@ -110,6 +110,17 @@ config BK7258_AUDIO_PLAYBACK_VALIDATION
 		digital Media evidence, not acoustic or physical-button acceptance.
 		Keep disabled in normal product and release configurations.
 
+config BK7258_AUDIO_CAPTURE_VALIDATION
+	bool "Include short local capture exit in development audio validation"
+	default n
+	depends on BK7258_AUDIO_PLAYBACK_VALIDATION && BK7258_VOICE_TLS
+	help
+		Before the local listener starts, capture one frame in each of two
+		bounded local sessions, then abort, close and retry retained cleanup.
+		Only byte counts and return codes are logged. No PCM is saved or sent
+		to ASR. This checks the actual Media capture backend, not acoustic wake
+		acceptance or the concurrent voice-owner failure sequence.
+
 config BK7258_APP_DISPLAY
 	bool "BK7258 Shaniu display command (bkdisplay)"
 	default n

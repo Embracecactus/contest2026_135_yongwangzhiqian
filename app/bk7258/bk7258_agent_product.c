@@ -3582,6 +3582,14 @@ int ai_agent_main(int argc, FAR char *argv[])
     }
 
 #ifdef CONFIG_BK7258_AUDIO_PLAYBACK_VALIDATION
+#ifdef CONFIG_BK7258_AUDIO_CAPTURE_VALIDATION
+  if (!ret)
+    {
+      syslog(LOG_NOTICE, "BKCAPTURE source=development-startup no-cloud\n");
+      ret = product_capture_validation();
+      syslog(LOG_NOTICE, "BKCAPTURE validation result=%d\n", ret);
+    }
+#endif
   if (!ret)
     {
       syslog(LOG_NOTICE, "BKAUDIO source=development-startup no-capture\n");

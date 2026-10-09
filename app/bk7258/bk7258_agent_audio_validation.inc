@@ -1,8 +1,64 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-/* Development-only caller of the deployed Agent/Media adapter. No microphone,
- * cloud request, volume change, persistent write or replacement player. */
+/* Development-only caller of the deployed Agent/Media adapters. Capture is
+ * separately selected and never saved or sent to a cloud service. */
 #include "voice/audio_playback.h"
 #include "bk7258_engineering_test.h"
+
+#ifdef CONFIG_BK7258_AUDIO_CAPTURE_VALIDATION
+static int product_capture_validation(void)
+{
+  int16_t pcm[320];
+
+  for (unsigned int session = 0; session < 2; session++)
+    {
+      audio_capture_t *cap = audio_capture_open_local(NULL, 16000, 1, 16);
+      if (cap == NULL)
+        {
+          return errno ? -errno : -EIO;
+        }
+
+      int result = audio_capture_start(cap);
+      int bytes = 0;
+      uint64_t deadline = bkvoice_config_now_ms(NULL) + 2000;
+      while (result == 0 && bytes == 0)
+        {
+          uint64_t first_sample;
+          int n = audio_capture_read_local(cap, pcm, sizeof(pcm),
+                                           &first_sample);
+          memset(pcm, 0, sizeof(pcm));
+          if (n > 0)
+            {
+              bytes = n;
+            }
+          else if (n != -EAGAIN)
+            {
+              result = n < 0 ? n : -EIO;
+            }
+          else if (bkvoice_config_now_ms(NULL) >= deadline)
+            {
+              result = -ETIMEDOUT;
+            }
+        }
+
+      /* The startup owner is exclusive until core readiness is published. */
+
+      int stopped = audio_capture_abort(cap);
+      int closed = audio_capture_close(cap);
+      int cleanup = audio_capture_cleanup(2000);
+      syslog(LOG_NOTICE,
+             "BKCAPTURE session=%u bytes=%d result=%d abort=%d "
+             "close=%d cleanup=%d no-cloud\n",
+             session, bytes, result, stopped, closed, cleanup);
+      if (result || stopped || closed || cleanup)
+        {
+          return result ? result : stopped ? stopped : closed ? closed :
+                 cleanup;
+        }
+    }
+
+  return 0;
+}
+#endif
 
 static int product_audio_validation_report(struct bkengaudio_report_s *report)
 {
