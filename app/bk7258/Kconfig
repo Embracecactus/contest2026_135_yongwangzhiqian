@@ -121,6 +121,17 @@ config BK7258_AUDIO_CAPTURE_VALIDATION
 		to ASR. This checks the actual Media capture backend, not acoustic wake
 		acceptance or the concurrent voice-owner failure sequence.
 
+config BK7258_AUDIO_PIPELINE_VALIDATION
+	bool "Development-only bounded in-memory service pipeline validation"
+	default n
+	depends on BK7258_AUDIO_CAPTURE_VALIDATION
+	help
+		In the exclusive unconfigured startup window, exercise the real ASR
+		request/parser, Agent worker, final stream, TTS decoder and Media with
+		fixed in-memory HTTP replies. No socket, cloud key or saved setting is
+		used. Check normal, canceled and following turns before local readiness.
+		Keep disabled in all normal product and release configurations.
+
 config BK7258_APP_DISPLAY
 	bool "BK7258 Shaniu display command (bkdisplay)"
 	default n

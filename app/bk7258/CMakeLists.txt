@@ -69,6 +69,9 @@ if(CONFIG_BK7258_APP_AGENT AND CONFIG_BK7258_VOICE_TLS)
                               bk7258_cloud_config.c bk7258_cloud_request.c
                               bk7258_cloud_http.c bk7258_cloud_tts.c
                               bk7258_cloud_audio.c bk7258_agent_cloud.c)
+  if(CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION)
+    target_sources(apps PRIVATE bk7258_cloud_fixture.c)
+  endif()
 endif()
 
 if(CONFIG_BK7258_APP_AGENT)

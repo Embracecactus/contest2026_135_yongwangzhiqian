@@ -13,6 +13,8 @@
 static char spoken[256];
 static size_t spoken_size;
 static int reject_delta;
+static int config_writes;
+extern void llm_snapshot_config(char *, size_t, char *, size_t, char *, size_t);
 /* No network is used: both built-in routes must remain unreachable. */
 bool http_proxy_is_enabled(void) { return false; }
 proxy_conn_t *proxy_conn_open(const char *host, int port, int timeout)
@@ -30,7 +32,7 @@ int vela_http_post_json(const char *host, const char *port, const char *path,
     const vela_header_t *headers, const char *body, char *out, size_t cap)
 { return vela_https_post_json(host, port, path, headers, body, out, cap); }
 int claw_config_set(const char *key, const char *value)
-{ (void)key; (void)value; return 0; }
+{ (void)key; (void)value; config_writes++; return 0; }
 
 static int vision_transport_calls;
 static int vision_check_calls;
@@ -93,6 +95,25 @@ static int plan_transport(const char *request, char *response, size_t capacity,
   assert(n > 0 && (size_t)n < capacity);
   *length = (size_t)n; *status = 200;
   return 0;
+}
+
+static void test_runtime_restore(void)
+{
+  char model[64], key[128], host[128];
+  int writes = config_writes;
+  assert(llm_set_transport("original-model", "original.invalid", NULL,
+      NULL, NULL) == 0);
+  assert(llm_set_transport("fixture", "fixture.invalid", plan_transport,
+      NULL, NULL) == 0);
+  assert(llm_set_transports("original-model", "original.invalid", NULL,
+      NULL, NULL, NULL) == 0);
+  llm_snapshot_config(model, sizeof(model), key, sizeof(key), host, sizeof(host));
+  assert(!strcmp(model, "original-model") && !strcmp(host, "original.invalid"));
+  assert(!key[0] && !llm_final_stream_supported() && config_writes == writes);
+  assert(llm_set_transports("bad", "bad", NULL, NULL, NULL, &writes) == -EINVAL);
+  llm_snapshot_config(model, sizeof(model), key, sizeof(key), host, sizeof(host));
+  assert(!strcmp(model, "original-model") && !strcmp(host, "original.invalid"));
+  assert(llm_clear_transport() == 0);
 }
 
 static void test_plan_phase(void)
@@ -194,6 +215,7 @@ static llm_final_stream_t *fresh(size_t limit)
 
 int main(void)
 {
+  test_runtime_restore();
   test_vision_cancel();
   test_plan_phase();
   /* MiMo's documented SSE shape includes null optional delta fields. */

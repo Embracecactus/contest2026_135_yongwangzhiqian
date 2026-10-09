@@ -1,5 +1,8 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #include "bk7258_agent_cloud.h"
+#ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
+#include "bk7258_cloud_fixture.h"
+#endif
 #include "bk7258_cloud_audio.h"
 #include "bk7258_voice_config.h"
 #include "bk7258_voice_tls.h"
@@ -54,6 +57,9 @@ struct cloud_backend_s
   bool session_offered;
   bool response_received;
   atomic_bool canceled;
+#ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
+  struct bkcloud_fixture_ctx_s fixture;
+#endif
 };
 
 static pthread_mutex_t g_config_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -63,6 +69,16 @@ static struct cloud_backend_s g_stream_asr;
 static struct cloud_backend_s g_tts;
 static struct cloud_backend_s g_llm;
 static atomic_int g_thinking = ATOMIC_VAR_INIT(-1);
+
+#ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
+/* Exclusive, pre-core-ready development window. Never used by a network peer
+ * or a configured product. These values are public runtime names, not keys. */
+static bool g_validation;
+static char g_saved_model[64], g_saved_host[128];
+static struct bkagent_cloud_validation_s g_validation_pcm;
+static unsigned int g_validation_sentence;
+extern void llm_snapshot_config(char *, size_t, char *, size_t, char *, size_t);
+#endif
 
 void bkagent_cloud_set_thinking(bool enabled)
 {
@@ -210,8 +226,15 @@ static void backend_release(struct cloud_backend_s *backend)
 {
   if (!backend->settings) return;
   /* The official registry prevents deinit while a request/cancel uses TLS. */
-  (void)bkvoice_tls_ops()->close(&backend->tls);
-  (void)bkvoice_tls_uninitialize(&backend->tls);
+#ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
+  if (g_validation)
+    (void)bkcloud_fixture_end(&backend->fixture);
+  else
+#endif
+    {
+      (void)bkvoice_tls_ops()->close(&backend->tls);
+      (void)bkvoice_tls_uninitialize(&backend->tls);
+    }
   settings_release(backend->settings);
   backend->settings = NULL;
   bkcloud_config_clear(&backend->service);
@@ -254,6 +277,16 @@ static int backend_prepare(struct cloud_backend_s *backend, uint8_t dialect)
       settings_release(settings);
       return ret;
     }
+#ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
+  if (g_validation)
+    {
+      backend->settings = settings;
+      return bkcloud_fixture_begin(&backend->fixture,
+        backend == &g_asr ? BKCLOUD_FIXTURE_ASR :
+        backend == &g_tts ? BKCLOUD_FIXTURE_TTS : BKCLOUD_FIXTURE_LLM,
+        BKCLOUD_FIXTURE_NORMAL);
+    }
+#endif
   struct bkvoice_tls_config_s tls =
     {
       .peer_address = settings->trust.peer_address,
@@ -281,12 +314,18 @@ static int request_prepare(struct cloud_backend_s *backend)
   if (!backend->settings) return -ENOKEY;
   backend->response_received = false;
   atomic_store(&backend->canceled, false);
+#ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
+  if (g_validation) return 0; /* Pure memory; no DNS, TLS or socket exists. */
+#endif
   return bkvoice_config_trusted_time(&backend->settings->trust);
 }
 
 static int request_cancel(struct cloud_backend_s *backend)
 {
   atomic_store(&backend->canceled, true);
+#ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
+  if (g_validation) return bkcloud_fixture_cancel(&backend->fixture);
+#endif
   return bkvoice_tls_ops()->interrupt(&backend->tls);
 }
 
@@ -297,6 +336,11 @@ static int cloud_open(void *context, const char *host, uint16_t port,
 {
   struct cloud_backend_s *backend = context;
   if (atomic_load(&backend->canceled)) return -ECANCELED;
+#ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
+  if (g_validation)
+    return bkcloud_fixture_tls_ops()->open_verified(&backend->fixture,
+                                                    host, port, deadline);
+#endif
   struct addrinfo hints = { .ai_family = AF_INET, .ai_socktype = SOCK_STREAM };
   struct addrinfo *addresses = NULL;
   int resolved = getaddrinfo(host, NULL, &hints, &addresses);
@@ -319,6 +363,10 @@ static ssize_t cloud_send(void *context, const uint8_t *data, size_t size,
 {
   struct cloud_backend_s *backend = context;
   if (atomic_load(&backend->canceled)) return -ECANCELED;
+#ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
+  if (g_validation) return bkcloud_fixture_tls_ops()->send(&backend->fixture,
+                                                          data, size, deadline);
+#endif
   return bkvoice_tls_ops()->send(&backend->tls, data, size, deadline);
 }
 
@@ -327,6 +375,10 @@ static ssize_t cloud_recv(void *context, uint8_t *data, size_t size,
 {
   struct cloud_backend_s *backend = context;
   if (atomic_load(&backend->canceled)) return -ECANCELED;
+#ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
+  if (g_validation) return bkcloud_fixture_tls_ops()->recv(&backend->fixture,
+                                                          data, size, deadline);
+#endif
   if (backend == &g_tts)
     {
       uint64_t idle = bkvoice_config_now_ms(NULL) +
@@ -345,6 +397,10 @@ static ssize_t cloud_recv(void *context, uint8_t *data, size_t size,
 
 static int cloud_close(void *context)
 {
+#ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
+  if (g_validation) return bkcloud_fixture_tls_ops()->close(
+    &((struct cloud_backend_s *)context)->fixture);
+#endif
   return bkvoice_tls_ops()->close(&((struct cloud_backend_s *)context)->tls);
 }
 
@@ -639,6 +695,11 @@ static int recognize(const unsigned char *pcm, size_t size,
 {
   struct bkcloud_client_s *client = calloc(1, sizeof(*client));
   if (!client) return -ENOMEM;
+#ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
+  /* Do not give ambient microphone bytes to even the in-memory peer. */
+  static const unsigned char fixed_pcm[640] = {0};
+  if (g_validation) { pcm = fixed_pcm; size = sizeof(fixed_pcm); }
+#endif
   int ret = bkcloud_recognize(client, &g_asr.service,
     &g_transport, &g_asr, bkvoice_config_now_ms(NULL) + 60000u,
     pcm, size, text, capacity);
@@ -683,6 +744,17 @@ static int pcm_write(struct pcm_output_s *output, const void *data, size_t size)
       if (size > output->capacity - output->used) return -ENOSPC;
       memcpy(output->buffer + output->used, data, size);
     }
+#ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
+  if (g_validation && g_validation_sentence < 2)
+    {
+      unsigned int slot = g_validation_sentence;
+      const unsigned char *p = data;
+      g_validation_pcm.bytes[slot] += size;
+      for (size_t i = 0; i < size; i++)
+        g_validation_pcm.hash[slot] =
+          (g_validation_pcm.hash[slot] ^ p[i]) * 16777619u;
+    }
+#endif
   output->used += size;
   return atomic_load(&g_tts.canceled) ? -ECANCELED : 0;
 }
@@ -806,6 +878,9 @@ static int synthesize(struct pcm_output_s *output, const char *text)
     g_tts.settings->service.dialect == 2 ? "mimo" : "openai-audio",
     output->callback ? "audio-stream/full-text" : "batch",
     TTS_SOURCE_RATE, TTS_OUTPUT_RATE, ret, output->used);
+#ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
+  if (g_validation) g_validation_sentence++;
+#endif
   return ret;
 }
 
@@ -943,3 +1018,74 @@ int bkagent_cloud_configure_models(const void *trust, size_t trust_size,
   if (!models) return -EINVAL;
   return configure(trust, trust_size, cloud, cloud_size, models);
 }
+
+#ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
+int bkagent_cloud_validation_end(void)
+{
+  if (!g_validation) return -EINVAL;
+  int ret = bkagent_cloud_clear();
+  if (ret) return ret; /* Retain the owner while any request remains alive. */
+  g_validation = false;
+  ret = llm_set_transport(g_saved_model, g_saved_host, NULL, NULL, NULL);
+  char model[64], host[128], key[128];
+  llm_snapshot_config(model, sizeof(model), key, sizeof(key), host, sizeof(host));
+  bool restored = !strcmp(model, g_saved_model) && !strcmp(host, g_saved_host) &&
+                  !key[0] && !llm_final_stream_supported();
+  mbedtls_platform_zeroize(key, sizeof(key));
+  return ret ? ret : restored ? 0 : -EPROTO;
+}
+
+int bkagent_cloud_validation_begin(void)
+{
+  /* Caller owns startup before publishing core readiness. Neither active
+   * provider nor persisted cloud, owner, model or voice selection is changed. */
+  const char *asr = voice_asr_get_backend(), *tts = voice_tts_get_backend();
+  if (g_validation || g_selected || g_asr.settings || g_tts.settings ||
+      g_llm.settings || g_stream_asr.settings || voice_asr_is_busy() ||
+      voice_tts_is_busy() || llm_request_busy() || llm_final_stream_supported() ||
+      !asr || strcmp(asr, "mimo") || !tts || strcmp(tts, "mimo")) return -EBUSY;
+  char key[128];
+  llm_snapshot_config(g_saved_model, sizeof(g_saved_model), key, sizeof(key),
+                      g_saved_host, sizeof(g_saved_host));
+  bool configured = key[0] != 0;
+  mbedtls_platform_zeroize(key, sizeof(key));
+  if (configured) return -EPERM;
+  struct cloud_settings_s *settings = calloc(1, sizeof(*settings));
+  if (!settings) return -ENOMEM;
+  settings->references = 1;
+  settings->service.dialect = 2;
+  settings->service.port = 443;
+  strcpy(settings->service.host, "fixture.invalid");
+  strcpy(settings->service.base_path, "/v1");
+  strcpy(settings->service.api_key, "in-memory-fixture-only");
+  strcpy(settings->service.asr_model, "fixture-asr");
+  strcpy(settings->service.chat_model, "fixture-chat");
+  strcpy(settings->service.tts_model, "fixture-tts");
+  strcpy(settings->service.tts_voice, "mimo_default");
+  g_validation = true;
+  g_selected = settings;
+  int ret = asr_mimo_prepare();
+  if (!ret) ret = tts_mimo_prepare();
+  if (!ret) ret = bkagent_cloud_activate_llm();
+  if (ret) (void)bkagent_cloud_validation_end();
+  return ret;
+}
+
+int bkagent_cloud_validation_reset(int cancel_tail)
+{
+  if (!g_validation || voice_asr_is_busy() || voice_tts_is_busy() ||
+      llm_request_busy()) return -EBUSY;
+  int ret = bkcloud_fixture_reset(cancel_tail ? BKCLOUD_FIXTURE_CANCEL_TAIL :
+                                               BKCLOUD_FIXTURE_NORMAL);
+  if (ret) return ret;
+  memset(&g_validation_pcm, 0, sizeof(g_validation_pcm));
+  g_validation_pcm.hash[0] = g_validation_pcm.hash[1] = 2166136261u;
+  g_validation_sentence = 0;
+  return 0;
+}
+
+void bkagent_cloud_validation_pcm(struct bkagent_cloud_validation_s *out)
+{
+  *out = g_validation_pcm; /* Called only after turn completion and idle. */
+}
+#endif

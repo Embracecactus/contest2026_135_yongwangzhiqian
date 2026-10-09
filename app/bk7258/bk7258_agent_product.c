@@ -184,6 +184,13 @@ static uint64_t g_application_revision;
 static sem_t g_product_wake;
 static atomic_uint g_product_events;
 static atomic_bool g_agent_core_ready;
+#ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
+#include "bk7258_cloud_fixture.h"
+static atomic_bool g_pipeline_window;
+static atomic_bool g_pipeline_media;
+static atomic_bool g_pipeline_complete;
+static atomic_int g_pipeline_result;
+#endif
 static atomic_bool g_voice_initialized;
 static atomic_bool g_agent_ready;
 static atomic_int g_voice_event_result;
@@ -214,6 +221,21 @@ void bk7258_agent_product_wake(void)
 static void bk7258_agent_voice_event(int event, int result)
 {
   unsigned int flags = 0;
+#ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
+  if (atomic_load(&g_pipeline_window))
+    {
+      if (event == VOICE_CHANNEL_EVENT_OUTPUT_STARTED)
+        {
+          bkcloud_fixture_media_started();
+          atomic_store(&g_pipeline_media, true);
+        }
+      if (event == VOICE_CHANNEL_EVENT_TURN_COMPLETE)
+        {
+          atomic_store(&g_pipeline_result, result);
+          atomic_store(&g_pipeline_complete, true);
+        }
+    }
+#endif
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
   if (event == VOICE_CHANNEL_EVENT_OUTPUT_STARTED ||
       event == VOICE_CHANNEL_EVENT_OUTPUT_FINISHED)
@@ -3608,6 +3630,13 @@ int ai_agent_main(int argc, FAR char *argv[])
       ret = agent_loop_start();
     }
 
+#ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
+  if (!ret)
+    {
+      ret = product_pipeline_validation();
+      syslog(LOG_NOTICE, "BKPIPE validation result=%d\n", ret);
+    }
+#endif
   if (ret)
     {
       syslog(LOG_ERR, "bk7258: official Agent core init failed: %d\n", ret);

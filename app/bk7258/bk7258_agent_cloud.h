@@ -37,4 +37,12 @@ int bkagent_cloud_configure(const void *trust, size_t trust_size,
 int bkagent_cloud_configure_models(const void *trust, size_t trust_size,
                                   const void *cloud, size_t cloud_size,
                                   const struct bkcloud_models_s *models);
+#ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
+#include <stdint.h>
+struct bkagent_cloud_validation_s { size_t bytes[2]; uint32_t hash[2]; };
+int bkagent_cloud_validation_begin(void);
+int bkagent_cloud_validation_reset(int cancel_tail);
+int bkagent_cloud_validation_end(void);
+void bkagent_cloud_validation_pcm(struct bkagent_cloud_validation_s *out);
+#endif
 #endif

@@ -314,3 +314,99 @@ static int product_audio_validation(void)
   return product_audio_validation_report(&report);
 }
 #endif
+
+#ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
+/* This calls the real manual voice owner and Agent service worker. Only the
+ * external services are fixed memory responses. Mic samples are erased by the
+ * capture owner; the ASR adapter substitutes deterministic PCM before encode. */
+static int product_pipeline_validation(void)
+{
+  if (atomic_load(&g_agent_core_ready) || !voice_channel_is_idle()) return -EBUSY;
+  int result = bkagent_cloud_validation_begin();
+  syslog(LOG_NOTICE, "BKPIPE begin=%d peer=memory no-network fixed-ASR-PCM\n", result);
+  if (result) return result;
+  atomic_store(&g_pipeline_window, true);
+  for (unsigned int session = 0; session < 3 && !result; session++)
+    {
+      bool cancel = session == 1;
+      atomic_store(&g_pipeline_media, false);
+      atomic_store(&g_pipeline_complete, false);
+      atomic_store(&g_pipeline_result, -EINPROGRESS);
+      result = bkagent_cloud_validation_reset(cancel);
+      if (!result) result = voice_channel_start();
+      if (!result)
+        {
+          nxsig_usleep(250000);
+          result = voice_channel_stop();
+        }
+      uint64_t deadline = bkvoice_config_now_ms(NULL) + 10000;
+      bool canceled = false;
+      while (!result && !atomic_load(&g_pipeline_complete) &&
+             bkvoice_config_now_ms(NULL) < deadline)
+        {
+          if (cancel && !canceled && atomic_load(&g_pipeline_media))
+            {
+              result = voice_channel_cancel();
+              canceled = true;
+            }
+          nxsig_usleep(20000);
+        }
+      if (!result && !atomic_load(&g_pipeline_complete)) result = -ETIMEDOUT;
+      if (result) (void)voice_channel_cancel();
+      deadline = bkvoice_config_now_ms(NULL) + 3000;
+      while ((!voice_channel_is_idle() || voice_asr_is_busy() ||
+              voice_tts_is_busy() || llm_request_busy()) &&
+             bkvoice_config_now_ms(NULL) < deadline)
+        {
+          (void)voice_channel_recover();
+          nxsig_usleep(20000);
+        }
+      if (!voice_channel_is_idle() || voice_asr_is_busy() ||
+          voice_tts_is_busy() || llm_request_busy())
+        {
+          result = -EBUSY; /* Do not read stats or free an in-flight owner. */
+          break;
+        }
+      int complete = atomic_load(&g_pipeline_result);
+      if (!result && complete != (cancel ? -ECANCELED : 0)) result = -EPROTO;
+      struct bkcloud_fixture_report_s peer;
+      struct bkagent_cloud_validation_s pcm;
+      struct bkcloud_fixture_pcm_expectation_s expected;
+      bkcloud_fixture_report(&peer);
+      bkagent_cloud_validation_pcm(&pcm);
+      bkcloud_fixture_pcm_expectation(&expected);
+      bool samples = pcm.bytes[0] == expected.expected_16k_bytes[0] &&
+                     pcm.hash[0] == expected.expected_16k_hash[0];
+      if (!cancel) samples = samples &&
+        pcm.bytes[1] == expected.expected_16k_bytes[1] &&
+        pcm.hash[1] == expected.expected_16k_hash[1];
+      bool idle = voice_channel_is_idle();
+      if (!result && (!idle || !samples || !atomic_load(&g_pipeline_media) ||
+          peer.asr_requests != 1 || peer.plan_requests != 1 ||
+          peer.final_requests != 1 || (cancel &&
+          (peer.tail_released_after_media || peer.tts_requests != 1 ||
+           pcm.bytes[1] != 0)) || (!cancel &&
+          (!peer.tail_released_after_media || peer.tts_requests != 2))))
+        result = -EPROTO;
+      syslog(LOG_NOTICE,
+        "BKPIPE session=%u ret=%d complete=%d idle=%d media=%d cancel=%d "
+        "asr=%u plan=%u final=%u tts=%u tail_after_media=%d samples=%d "
+        "pcm0=%zu/%08lx pcm1=%zu/%08lx\n", session, result, complete, idle,
+        atomic_load(&g_pipeline_media), canceled, peer.asr_requests,
+        peer.plan_requests, peer.final_requests, peer.tts_requests,
+        peer.tail_released_after_media, samples, pcm.bytes[0],
+        (unsigned long)pcm.hash[0], pcm.bytes[1], (unsigned long)pcm.hash[1]);
+      if (!idle)
+        {
+          int recovered = voice_channel_recover();
+          syslog(LOG_NOTICE, "BKPIPE recovery=%d idle=%d\n", recovered,
+                 voice_channel_is_idle());
+        }
+    }
+  int restored = bkagent_cloud_validation_end();
+  atomic_store(&g_pipeline_window, false);
+  syslog(LOG_NOTICE, "BKPIPE restore=%d idle=%d saved-config-untouched\n",
+         restored, voice_channel_is_idle());
+  return result ? result : restored;
+}
+#endif
