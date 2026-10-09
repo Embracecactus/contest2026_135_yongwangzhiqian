@@ -236,6 +236,17 @@ static void bk7258_agent_voice_event(int event, int result)
         }
     }
 #endif
+#ifdef CONFIG_BK7258_AUDIO_CAPTURE_VALIDATION
+  /* Bounded startup probes are not user conversation turns. Their voice
+   * owner still completes normally, but must not enqueue product re-entry
+   * while core readiness is deliberately withheld. */
+  if (event == VOICE_CHANNEL_EVENT_TURN_COMPLETE &&
+      !atomic_load(&g_agent_core_ready))
+    {
+      bk7258_agent_trigger_reply_discard();
+      return;
+    }
+#endif
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
   if (event == VOICE_CHANNEL_EVENT_OUTPUT_STARTED ||
       event == VOICE_CHANNEL_EVENT_OUTPUT_FINISHED)

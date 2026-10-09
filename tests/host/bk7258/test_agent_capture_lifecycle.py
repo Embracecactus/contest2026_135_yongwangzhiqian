@@ -33,7 +33,7 @@ def voice_source():
 
 def function(source, name):
     match = re.search(
-        r"(?:static )?(?:int|void) " + re.escape(name) + r"\([^;{}]*\)\s*\{",
+        r"(?:static )?(?:int|void)\s*\*?\s*" + re.escape(name) + r"\([^;{}]*\)\s*\{",
         source,
     )
     if match is None:
@@ -543,6 +543,172 @@ int main(void) {
                  str(source_path), "-o", str(binary)], check=True
             )
             subprocess.run([str(binary)], check=True, timeout=10)
+
+    def test_stop_epipe_after_owner_abort_is_not_capture_failure(self):
+        """Use the production recorder thread at the Media-close read edge.
+
+        The reader blocks in a controlled peer.  stop changes the real caller
+        to STOPPING and aborts the peer, which then returns EPIPE to the exact
+        production recording loop.  A pipe fault released while RECORDING must
+        remain an error; cancellation must still win the terminal result.
+        """
+        source = voice_source()
+        code = r"""
+#include <assert.h>
+#include <errno.h>
+#include <pthread.h>
+#include <semaphore.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <syslog.h>
+#include <time.h>
+#include <unistd.h>
+#define AGENT_ASR_CHUNK_SIZE 640
+#define AGENT_VOICE_SAMPLE_RATE 16000
+#define AGENT_VOICE_CHANNELS 1
+#define AUTO_ENDPOINT_SILENCE_MS 1
+#define AUTO_ENDPOINT_MIN_SPEECH_MS 1
+#define AUTO_ENDPOINT_WAIT_MS 1000
+#define AUTO_ENDPOINT_MEAN_ABS 1
+#define AUTO_ENDPOINT_MAX_MS 1000
+#define VOICE_IDLE 0
+#define VOICE_STARTING 1
+#define VOICE_RECORDING 2
+#define VOICE_STOPPING 3
+#define VOICE_PROCESSING 4
+#define VOICE_CHANNEL_EVENT_WAKE_ACK_CANCEL 1
+#define VOICE_CHANNEL_EVENT_CAPTURE_QUIESCENT 2
+#define VOICE_CHANNEL_EVENT_OUTPUT_FINISHED 3
+#define VOICE_CHANNEL_EVENT_TURN_COMPLETE 4
+#define AUTO_TURN_TIMEOUT_MS 180000
+#define TAG "test"
+enum voice_state { test_voice_idle = VOICE_IDLE,
+ test_voice_starting = VOICE_STARTING, test_voice_recording = VOICE_RECORDING,
+ test_voice_stopping = VOICE_STOPPING, test_voice_processing = VOICE_PROCESSING };
+typedef struct { int unused; } audio_capture_t;
+typedef struct { int unused; } voice_asr_stream_t;
+static audio_capture_t capture;
+static pthread_mutex_t peer_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t peer_changed = PTHREAD_COND_INITIALIZER;
+static int read_entered, release_read, peer_result, aborts, closes, recognizes;
+static struct {
+ pthread_mutex_t lock;
+ int state, turn_active, preconnect_active, canceled, wake_ack_pending;
+ int wake_ack_result, auto_endpoint, tts_abort, tts_active;
+ int capture_error, capture_cleanup_pending, capture_cleanup_result;
+ int tts_cleanup_pending, tts_cleanup_result, cleanup_in_progress;
+ int reply_stream_active;
+ audio_capture_t *cap;
+ voice_asr_stream_t *asr_stream;
+ void *tts_pb;
+ unsigned char *pcm_buf;
+ size_t pcm_len, pcm_cap;
+ pthread_t rec_thread;
+ uint64_t request_id, turn_started_ms;
+ sem_t rec_ready, rec_done;
+} s_voice = {.lock = PTHREAD_MUTEX_INITIALIZER};
+static struct timespec s_asr_done_ts;
+static uint64_t voice_now_ms(void) { return 100; }
+static void notify_channel_event(int event, int result)
+{ (void)event; (void)result; }
+static void reply_wake(void) {}
+static int alloc_fallback_buffer_locked(void) {
+ s_voice.pcm_buf = calloc(1, 4); s_voice.pcm_len = 4; return s_voice.pcm_buf ? 0 : -ENOMEM;
+}
+static int wake_ack_gate(audio_capture_t *c, uint64_t id,
+ unsigned char **r, size_t *n) { (void)c; (void)id; (void)r; (void)n; return 0; }
+static int process_audio_chunk(voice_asr_stream_t **s, const unsigned char *p,
+ size_t n, int *fallback, size_t *sent)
+{ (void)s; (void)p; (void)n; (void)fallback; (void)sent; return 0; }
+static int audio_capture_read(audio_capture_t *cap, void *buf, size_t n) {
+ (void)cap; (void)buf; (void)n;
+ pthread_mutex_lock(&peer_lock); read_entered = 1; pthread_cond_broadcast(&peer_changed);
+ while (!release_read) pthread_cond_wait(&peer_changed, &peer_lock);
+ pthread_mutex_unlock(&peer_lock); return peer_result;
+}
+static int audio_capture_abort(audio_capture_t *cap) {
+ assert(cap == &capture); aborts++; pthread_mutex_lock(&peer_lock);
+ release_read = 1; pthread_cond_broadcast(&peer_changed); pthread_mutex_unlock(&peer_lock); return 0;
+}
+static int audio_capture_close(audio_capture_t *cap) { assert(cap == &capture); closes++; return 0; }
+static int audio_capture_cleanup(unsigned ms) { (void)ms; return 0; }
+static int audio_playback_stop(void *p) { (void)p; return 0; }
+static int audio_playback_cleanup(unsigned ms) { (void)ms; return 0; }
+static int voice_asr_cancel(void) { return 0; }
+static int voice_tts_cancel(void) { return 0; }
+static int llm_cancel_request(void) { return 0; }
+static void voice_asr_stream_abort(voice_asr_stream_t *s) { (void)s; }
+static int voice_asr_stream_finish(voice_asr_stream_t *s, char *t, size_t n)
+{ (void)s; (void)t; (void)n; return -ECANCELED; }
+static int voice_asr_recognize_checked(const void *p, size_t l, char *t,
+ size_t n, int (*check)(void *), void *r)
+{ (void)p; (void)l; (void)check; (void)r; recognizes++; assert(n > 2); strcpy(t, "ok"); return 0; }
+"""
+        for name in (
+            "voice_request_status", "voice_request_check", "voice_request_complete",
+            "voice_channel_cancel", "voice_channel_recover", "voice_channel_stop_with_text",
+            "recording_thread",
+        ):
+            code += "\n" + function(source, name)
+        code += r"""
+static void reset(void) {
+ s_voice.state=VOICE_RECORDING; s_voice.turn_active=1; s_voice.canceled=0;
+ s_voice.cap=&capture; s_voice.asr_stream=NULL; s_voice.pcm_buf=NULL; s_voice.pcm_len=0;
+ s_voice.capture_error=0; s_voice.capture_cleanup_pending=0; s_voice.request_id++;
+ read_entered=release_read=aborts=closes=recognizes=0; peer_result=-EPIPE;
+ sem_init(&s_voice.rec_ready,0,0); sem_init(&s_voice.rec_done,0,0);
+ assert(pthread_create(&s_voice.rec_thread,NULL,recording_thread,NULL)==0);
+ pthread_mutex_lock(&peer_lock); while (!read_entered) pthread_cond_wait(&peer_changed,&peer_lock); pthread_mutex_unlock(&peer_lock);
+}
+static void release_recording_pipe(void) {
+ pthread_mutex_lock(&peer_lock); release_read=1; pthread_cond_broadcast(&peer_changed); pthread_mutex_unlock(&peer_lock);
+ assert(pthread_join(s_voice.rec_thread,NULL)==0);
+}
+int main(int argc, char **argv) {
+ assert(argc == 2);
+ char text[16];
+ reset();
+ if (!strcmp(argv[1], "stop") || !strcmp(argv[1], "stop-eof") ||
+     !strcmp(argv[1], "stop-ecanceled")) {
+  /* Expected Green: ownership-initiated EPIPE is not an ASR failure. */
+  if (!strcmp(argv[1], "stop-eof")) peer_result = 0;
+  if (!strcmp(argv[1], "stop-ecanceled")) peer_result = -ECANCELED;
+  assert(voice_channel_stop_with_text(text,sizeof(text)) == 0);
+  assert(!strcmp(text,"ok") && recognizes == 1 && aborts == 1 && closes == 1);
+ } else if (!strcmp(argv[1], "stop-eio")) {
+  peer_result = -EIO;
+  assert(voice_channel_stop_with_text(text,sizeof(text)) == -EIO);
+  assert(!text[0] && recognizes == 0 && aborts == 1 && closes == 1);
+ } else if (!strcmp(argv[1], "existing-error")) {
+  s_voice.capture_error = -EAGAIN;
+  assert(voice_channel_stop_with_text(text,sizeof(text)) == -EAGAIN);
+  assert(!text[0] && recognizes == 0 && aborts == 1 && closes == 1);
+ } else if (!strcmp(argv[1], "recording-pipe")) {
+  release_recording_pipe();
+  assert(s_voice.capture_error == -EPIPE);
+ } else if (!strcmp(argv[1], "cancel")) {
+  assert(voice_channel_cancel() == 0);
+  assert(voice_channel_stop_with_text(text,sizeof(text)) == -ECANCELED);
+  assert(!text[0] && aborts >= 1);
+ } else assert(0);
+ puts("VOICE_CAPTURE_STOP_EPIPE_PASS");
+ return 0;
+}
+"""
+        with tempfile.TemporaryDirectory(prefix="agent-capture-stop-epipe-") as path:
+            directory = Path(path)
+            source_path = directory / "test.c"
+            binary = directory / "test"
+            source_path.write_text(code)
+            subprocess.run(
+                ["cc", "-std=gnu11", "-Wall", "-Wextra", "-Werror", "-pthread",
+                 str(source_path), "-o", str(binary)], check=True
+            )
+            for mode in ("recording-pipe", "cancel", "stop", "stop-eof",
+                         "stop-ecanceled", "stop-eio", "existing-error"):
+                subprocess.run([str(binary), mode], check=True, timeout=5)
 
 
 if __name__ == "__main__":

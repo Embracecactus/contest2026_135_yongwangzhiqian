@@ -168,6 +168,7 @@ def add_lifecycle_regressions(suite):
              "test_start_failure_detaches_before_close",
              "test_real_voice_stop_cancel_serializes_capture_abort",
              "test_stop_cancel_overlap_joins_real_worker_before_heap_release",
+             "test_stop_epipe_after_owner_abort_is_not_capture_failure",
          )),
         ("RST-02", "trigger", "test_shaniu_reset_nfc.py",
          "ResetTriggerTest", (
@@ -1026,6 +1027,10 @@ def main():
     for variant in ("mixed", "mixed-tts", "missing-id", "duplicate-id"):
         add(suite, "AGENT-02." + variant, "AGENT-02", "L2",
             [sys.executable, HERE / "test_shaniu_mixed_tools.py", variant])
+    add(suite, "AGENT-04.cloud-fixture", "AGENT-04", "L2",
+        [sys.executable, HERE / "test_bk7258_cloud_fixture.py"], marker=False)
+    add(suite, "AGENT-04.cloud-fixture-http", "AGENT-04", "L2",
+        [sys.executable, HERE / "test_bk7258_cloud_fixture_http.py"])
     add(suite, "AGENT-03.vision-cancel", "AGENT-03", "L2",
         [sys.executable, HERE / "test_shaniu_mixed_tools.py", "vision-cancel"])
     add(suite, "AGENT-03.tool-vision-cancel", "AGENT-03", "L2",
