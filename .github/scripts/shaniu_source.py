@@ -57,7 +57,7 @@ def resolve_source(env, event):
                 base = sha(event['before'])
     return dict(schema=1, event=kind, repository=repo,
                 repository_url=f'https://github.com/{repo}.git', source_ref=candidate,
-                candidate_sha=candidate, head_sha=head, base_sha=base,
+                candidate_sha=candidate, head_sha=head, base_sha=base, fetch_ref=ref,
                 head_repository=head_repo)
 
 
@@ -69,7 +69,8 @@ def write_override(identity, path):
     root = ET.Element('manifest')
     ET.SubElement(root, 'remote', name='shaniu-candidate', fetch=f'https://github.com/{owner}/')
     ET.SubElement(root, 'extend-project', name=TEAM, path=TEAM,
-                  remote='shaniu-candidate', revision=sha(identity['candidate_sha']))
+                  remote='shaniu-candidate', revision=sha(identity['candidate_sha']),
+                  upstream=identity['fetch_ref'])
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     ET.ElementTree(root).write(path, encoding='utf-8', xml_declaration=True)

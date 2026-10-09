@@ -60,7 +60,8 @@ jobs:
           cd "$cold"
           candidate_url=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["repository_url"])' "$RUNNER_TEMP/source-inputs.json")
           repo init -u "$candidate_url" \
-            -b "$GITHUB_SHA" -m contest2026_135_yongwangzhiqian.xml \
+            -b "$GITHUB_SHA" --manifest-upstream-branch "$GITHUB_REF" \
+            -m contest2026_135_yongwangzhiqian.xml \
             -g default,bk7258-sdk,platform-linux
           # Lock the dependency manifest before syncing, not only the team
           # checkout afterwards: a newer branch tip must not change Agent inputs.

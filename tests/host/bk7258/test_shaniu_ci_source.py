@@ -99,6 +99,7 @@ class SourceResolutionTest(unittest.TestCase):
                                   "base": {"sha": BASE,
                                            "repo": {"full_name": TEAM}}}}
         got = self.resolve(event, GITHUB_REF="refs/pull/17/merge")
+        self.assertEqual(got["fetch_ref"], "refs/pull/17/merge")
         self.assert_identity(got, event="pull_request", repo=TEAM, candidate=SHA,
                              head=HEAD, base=BASE, head_repo="fork/voice")
 
@@ -143,7 +144,7 @@ class SourceResolutionTest(unittest.TestCase):
             self.assertEqual(extends[0].attrib, {
                 "name": "contest2026_135_yongwangzhiqian",
                 "path": "contest2026_135_yongwangzhiqian",
-                "remote": "shaniu-candidate", "revision": SHA,
+                "remote": "shaniu-candidate", "revision": SHA, "upstream": "refs/heads/dev-ai-contest-2026",
             })
 
     def test_team_project_resolves_to_explicit_official_remote(self):
@@ -184,6 +185,7 @@ class SourceResolutionTest(unittest.TestCase):
         self.assertIn("permissions:\n  contents: read\n", workflow)
         self.assertNotIn("pull_request_target", workflow)
         self.assertNotIn("heads/$GITHUB_REF_NAME", workflow)
+        self.assertIn('--manifest-upstream-branch "$GITHUB_REF"', workflow)
         self.assertNotIn("${{ secrets.", workflow)
         self.assertLess(workflow.index("shaniu_source.py\" override"),
                         workflow.index("repo sync -j4"))
