@@ -227,7 +227,7 @@ class SelectedCollectionGateTest(unittest.TestCase):
         with patch.object(runner, "add") as add:
             runner.add_lifecycle_regressions(unittest.TestSuite())
         cases = [call.args for call in add.call_args_list]
-        self.assertEqual(len(cases), 19)
+        self.assertEqual(len(cases), 21)
         ids = [case[1] for case in cases]
         prefixes = {ident.rsplit(".", 1)[0] + "." for ident in ids}
         self.assertCountEqual(ids, [ident for ident in runner.REQUIRED

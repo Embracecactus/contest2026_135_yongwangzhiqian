@@ -166,6 +166,8 @@ def add_lifecycle_regressions(suite):
          "CaptureLifecycleTest", (
              "test_detached_close_asr_and_cleanup",
              "test_start_failure_detaches_before_close",
+             "test_real_voice_stop_cancel_serializes_capture_abort",
+             "test_stop_cancel_overlap_joins_real_worker_before_heap_release",
          )),
         ("RST-02", "trigger", "test_shaniu_reset_nfc.py",
          "ResetTriggerTest", (
