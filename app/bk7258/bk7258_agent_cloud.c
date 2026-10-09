@@ -870,6 +870,14 @@ static int pcm_output(void *context, const void *data, size_t size)
 
 static int synthesize(struct pcm_output_s *output, const char *text)
 {
+#ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
+  if (g_validation && g_validation_sentence < 2)
+    {
+      static const char *const expected[] = { "这是第一句。", "这是尾句" };
+      g_validation_pcm.text_matches[g_validation_sentence] =
+        text && !strcmp(text, expected[g_validation_sentence]);
+    }
+#endif
   struct bkcloud_client_s *client = calloc(1, sizeof(*client));
   struct bkcloud_tts_s *decoder = calloc(1, sizeof(*decoder));
   int ret = -ENOMEM;

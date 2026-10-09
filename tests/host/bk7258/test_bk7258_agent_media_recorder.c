@@ -14,8 +14,10 @@
 #include <unistd.h>
 
 #define CONFIG_AI_AGENT_AUDIO_CAPTURE_GAIN 1
+#define CONFIG_MEDIA_GRAPH 1
 int media_recorder_get_socket(void *handle);
 int media_recorder_reset(void *handle);
+void media_recorder_close_socket(void *handle);
 #include "voice/audio_capture.c"
 
 static int peer_sockets[2];
@@ -35,6 +37,18 @@ static bool require_warm_route;
 static bool warm_prepared;
 static int close_error;
 static int route_error;
+/* The peer can hold the real public read after capture_read_device() has
+ * observed POLLIN.  It makes the Media socket ownership window observable
+ * without timing a scheduler race. */
+static pthread_mutex_t read_gate_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t read_gate = PTHREAD_COND_INITIALIZER;
+static bool hold_read;
+static bool read_active;
+static bool release_read;
+static bool close_socket_seen;
+static bool close_while_read;
+static unsigned int close_socket_calls;
+static int forced_read_error;
 
 int media_recorder_set_event_callback(void *handle, void *cookie,
                                       media_event_callback callback)
@@ -93,8 +107,31 @@ int media_recorder_get_socket(void *handle)
 ssize_t media_recorder_read_data(void *handle, void *data, size_t len)
 {
   assert(handle == &peer_handle);
+  if (hold_read)
+    {
+      assert(pthread_mutex_lock(&read_gate_lock) == 0);
+      read_active = true;
+      assert(pthread_cond_broadcast(&read_gate) == 0);
+      while (!release_read)
+        assert(pthread_cond_wait(&read_gate, &read_gate_lock) == 0);
+      read_active = false;
+      assert(pthread_cond_broadcast(&read_gate) == 0);
+      assert(pthread_mutex_unlock(&read_gate_lock) == 0);
+    }
+  if (forced_read_error) return forced_read_error;
   ssize_t n = recv(peer_sockets[0], data, len, 0);
   return n < 0 ? -errno : n;
+}
+
+void media_recorder_close_socket(void *handle)
+{
+  assert(handle == &peer_handle);
+  assert(pthread_mutex_lock(&read_gate_lock) == 0);
+  close_socket_calls++;
+  close_socket_seen = true;
+  close_while_read |= read_active;
+  assert(pthread_cond_broadcast(&read_gate) == 0);
+  assert(pthread_mutex_unlock(&read_gate_lock) == 0);
 }
 
 int media_recorder_stop(void *handle)
@@ -484,11 +521,103 @@ static void test_failed_release_keeps_owner(bool fail_route)
   assert(opens == 2 && closes == 2 && route_on == 2 && route_off == 2);
 }
 
+struct blocked_read_result
+{
+  audio_capture_t *cap;
+  int result;
+};
+
+static void *blocked_capture_read(void *arg)
+{
+  struct blocked_read_result *result = arg;
+  int16_t pcm[160];
+  result->result = audio_capture_read(result->cap, pcm, sizeof(pcm));
+  return NULL;
+}
+
+static void *blocked_capture_abort(void *arg)
+{
+  struct blocked_read_result *result = arg;
+  result->result = audio_capture_abort(result->cap);
+  return NULL;
+}
+
+static void test_abort_does_not_close_media_socket_during_read(void)
+{
+  audio_capture_t *cap = audio_capture_open(NULL, 16000, 1, 16);
+  assert(cap && audio_capture_start(cap) == 0);
+  hold_read = true;
+  release_read = false;
+  read_active = false;
+  close_socket_seen = false;
+  close_while_read = false;
+  close_socket_calls = 0;
+  uint8_t byte = 0x53;
+  int sent = send(peer_sockets[1], &byte, sizeof(byte), MSG_NOSIGNAL);
+  if (sent != (int)sizeof(byte))
+    fprintf(stderr, "blocked-peer send=%d errno=%d fd=%d/%d\n", sent, errno,
+            peer_sockets[0], peer_sockets[1]);
+  assert(sent == (int)sizeof(byte));
+  struct blocked_read_result reader = { .cap = cap, .result = -EINPROGRESS };
+  struct blocked_read_result aborter = { .cap = cap, .result = -EINPROGRESS };
+  pthread_t reader_thread;
+  pthread_t abort_thread;
+  assert(pthread_create(&reader_thread, NULL, blocked_capture_read, &reader) == 0);
+  assert(pthread_mutex_lock(&read_gate_lock) == 0);
+  while (!read_active)
+    assert(pthread_cond_wait(&read_gate, &read_gate_lock) == 0);
+  assert(pthread_mutex_unlock(&read_gate_lock) == 0);
+  assert(pthread_create(&abort_thread, NULL, blocked_capture_abort, &aborter) == 0);
+
+  /* Old code reaches close_socket here.  A bounded condition wait also lets a
+   * fixed owner lock release the reader before it may issue Media control. */
+  struct timespec deadline;
+  assert(clock_gettime(CLOCK_REALTIME, &deadline) == 0);
+  deadline.tv_sec += 2;
+  assert(pthread_mutex_lock(&read_gate_lock) == 0);
+  while (!close_socket_seen)
+    {
+      int ret = pthread_cond_timedwait(&read_gate, &read_gate_lock, &deadline);
+      assert(ret == 0 || ret == ETIMEDOUT);
+      if (ret == ETIMEDOUT) break;
+    }
+  release_read = true;
+  assert(pthread_cond_broadcast(&read_gate) == 0);
+  assert(pthread_mutex_unlock(&read_gate_lock) == 0);
+  assert(pthread_join(reader_thread, NULL) == 0);
+  assert(pthread_join(abort_thread, NULL) == 0);
+  assert(reader.result == 1 && aborter.result == 0);
+  /* This is the pre-fix Red: Media control touched the active reader. */
+  assert(!close_while_read);
+  int16_t pcm[160];
+  assert(audio_capture_read(cap, pcm, sizeof(pcm)) == -ECANCELED);
+  assert(close_socket_calls == 1);
+  assert(audio_capture_close(cap) == 0);
+
+  hold_read = false;
+  cap = audio_capture_open(NULL, 16000, 1, 16);
+  assert(cap && audio_capture_start(cap) == 0);
+  assert(send(peer_sockets[1], &byte, sizeof(byte), MSG_NOSIGNAL) == sizeof(byte));
+  forced_read_error = -EIO;
+  assert(audio_capture_read(cap, pcm, sizeof(pcm)) == -EIO);
+  assert(cap->stream_error == -EIO);
+  forced_read_error = 0;
+  assert(audio_capture_abort(cap) == 0);
+  assert(audio_capture_close(cap) == 0);
+  assert(opens == 2 && closes == 2 && close_socket_calls == 2);
+}
+
 int main(int argc, char **argv)
 {
   assert(audio_capture_set_route(capture_route) == 0);
   if (argc == 2)
     {
+      if (!strcmp(argv[1], "abort-read-ownership"))
+        {
+          test_abort_does_not_close_media_socket_during_read();
+          puts("ABORT_READ_OWNERSHIP_PASS CONTRACT_PASS");
+          return 0;
+        }
       assert(!strcmp(argv[1], "close-failure") || !strcmp(argv[1], "route-failure"));
       test_failed_release_keeps_owner(!strcmp(argv[1], "route-failure"));
       puts("CONTRACT_PASS");

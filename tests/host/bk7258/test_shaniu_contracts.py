@@ -1511,7 +1511,7 @@ def main():
         [HERE / "build/test_shaniu_power_owner", "owner-integration"],
         binaries["test_shaniu_power_owner"],
     )
-    for variant in ("close-failure", "route-failure"):
+    for variant in ("close-failure", "route-failure", "abort-read-ownership"):
         add(
             suite,
             "LIFE-02.capture-" + variant,
