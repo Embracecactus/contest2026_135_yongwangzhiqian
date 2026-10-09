@@ -1848,6 +1848,11 @@ def main():
         HERE / "test_hil_test.py",
         HERE / "test_agent_volc_tts_progress.c",
         HERE / "test_bk7258_cloud_http.py",
+        HERE / "test_bk7258_cloud_fixture.py",
+        HERE / "test_bk7258_cloud_fixture.c",
+        HERE / "test_bk7258_cloud_fixture_http.py",
+        HERE / "test_bk7258_cloud_fixture_http.c",
+
         HERE / "test_sc7a20_sampling.py",
         HERE / "test_shaniu_usbcdc_rx.py",
         HERE / "test_shaniu_usbcdc_tx.py",
