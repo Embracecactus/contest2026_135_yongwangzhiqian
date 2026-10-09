@@ -350,7 +350,9 @@ internal object DeviceUiAcceptance {
                     check((activityField("otaMessage").get(activity) as String).contains("状态已过期")) {
                         "UI-01 stale STATUS did not fail closed at the OTA action boundary"
                     }
-                    check(activityField("otaServer").get(activity) == null &&
+                    // The lease exists before its asynchronous server is ready.
+                    // Stale status must not create even a preparing source.
+                    check(activityField("otaSource").get(activity) == null &&
                         activityField("otaUpload").get(activity) == null &&
                         !otaPreferences.getBoolean("ota_expected_pending", false)) {
                         "UI-01 stale STATUS created OTA side effects"
