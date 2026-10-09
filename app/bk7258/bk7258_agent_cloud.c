@@ -58,7 +58,7 @@ struct cloud_backend_s
   bool response_received;
   atomic_bool canceled;
 #ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
-  struct bkcloud_fixture_ctx_s fixture;
+  struct bkcloud_fixture_ctx_s *fixture;
 #endif
 };
 
@@ -228,7 +228,11 @@ static void backend_release(struct cloud_backend_s *backend)
   /* The official registry prevents deinit while a request/cancel uses TLS. */
 #ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
   if (g_validation)
-    (void)bkcloud_fixture_end(&backend->fixture);
+    {
+      (void)bkcloud_fixture_end(backend->fixture);
+      free(backend->fixture);
+      backend->fixture = NULL;
+    }
   else
 #endif
     {
@@ -280,8 +284,17 @@ static int backend_prepare(struct cloud_backend_s *backend, uint8_t dialect)
 #ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
   if (g_validation)
     {
+      /* Do not consume scarce bootstrap SRAM with protocol reply buffers.
+       * This development window runs after the normal system heap is ready. */
+      backend->fixture = calloc(1, sizeof(*backend->fixture));
+      if (!backend->fixture)
+        {
+          bkcloud_config_clear(&backend->service);
+          settings_release(settings);
+          return -ENOMEM;
+        }
       backend->settings = settings;
-      return bkcloud_fixture_begin(&backend->fixture,
+      return bkcloud_fixture_begin(backend->fixture,
         backend == &g_asr ? BKCLOUD_FIXTURE_ASR :
         backend == &g_tts ? BKCLOUD_FIXTURE_TTS : BKCLOUD_FIXTURE_LLM,
         BKCLOUD_FIXTURE_NORMAL);
@@ -324,7 +337,7 @@ static int request_cancel(struct cloud_backend_s *backend)
 {
   atomic_store(&backend->canceled, true);
 #ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
-  if (g_validation) return bkcloud_fixture_cancel(&backend->fixture);
+  if (g_validation) return bkcloud_fixture_cancel(backend->fixture);
 #endif
   return bkvoice_tls_ops()->interrupt(&backend->tls);
 }
@@ -338,7 +351,7 @@ static int cloud_open(void *context, const char *host, uint16_t port,
   if (atomic_load(&backend->canceled)) return -ECANCELED;
 #ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
   if (g_validation)
-    return bkcloud_fixture_tls_ops()->open_verified(&backend->fixture,
+    return bkcloud_fixture_tls_ops()->open_verified(backend->fixture,
                                                     host, port, deadline);
 #endif
   struct addrinfo hints = { .ai_family = AF_INET, .ai_socktype = SOCK_STREAM };
@@ -364,7 +377,7 @@ static ssize_t cloud_send(void *context, const uint8_t *data, size_t size,
   struct cloud_backend_s *backend = context;
   if (atomic_load(&backend->canceled)) return -ECANCELED;
 #ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
-  if (g_validation) return bkcloud_fixture_tls_ops()->send(&backend->fixture,
+  if (g_validation) return bkcloud_fixture_tls_ops()->send(backend->fixture,
                                                           data, size, deadline);
 #endif
   return bkvoice_tls_ops()->send(&backend->tls, data, size, deadline);
@@ -376,7 +389,7 @@ static ssize_t cloud_recv(void *context, uint8_t *data, size_t size,
   struct cloud_backend_s *backend = context;
   if (atomic_load(&backend->canceled)) return -ECANCELED;
 #ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
-  if (g_validation) return bkcloud_fixture_tls_ops()->recv(&backend->fixture,
+  if (g_validation) return bkcloud_fixture_tls_ops()->recv(backend->fixture,
                                                           data, size, deadline);
 #endif
   if (backend == &g_tts)
@@ -399,7 +412,7 @@ static int cloud_close(void *context)
 {
 #ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
   if (g_validation) return bkcloud_fixture_tls_ops()->close(
-    &((struct cloud_backend_s *)context)->fixture);
+    ((struct cloud_backend_s *)context)->fixture);
 #endif
   return bkvoice_tls_ops()->close(&((struct cloud_backend_s *)context)->tls);
 }
