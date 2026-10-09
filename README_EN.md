@@ -8,6 +8,15 @@ T5-Board runs the Dolphin utility application. AIToyBoard runs Shaniu,
 a voice and vision companion using the official Agent, Session, Voice,
 Media and Trigger components.
 
+## Current finals entry
+
+Use the [official-source build instructions](README.md#官方源码构建当前主入口)
+and [scoped integration evidence](docs/verification/bk7258/2026-10-09-finals-integration.md).
+The team project defaults to the official repository; CI pins manifest and team source
+to the same event candidate before syncing. PR runs verify the exact merge commit,
+base and head. Agent remains pinned to `20890a97b9515cce3de34006ad7a9b1746a109ed`.
+A draft PR, a build and engineering HIL are separate from product acceptance.
+
 ## Real-device videos
 
 [![Project demonstration](docs/contest/assets/demo-cover.jpg)](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-demo.mp4)
@@ -38,8 +47,9 @@ entire upgrade; OTA evidence is recorded separately.
 “你好，openvela” enters an interaction: local acknowledgement, automatic
 capture, actual ASR, official Agent / selected LLM, TTS and speaker playback.
 Follow-up questions do not require another wake word. Session termination
-returns to hotword listening. ASR is batch, LLM returns complete text/tool
-results, and TTS delivers audio chunks; this is not an all-streaming pipeline.
+returns to hotword listening. ASR is batch. Final-body sentence streaming, cancellation and the next round have
+controlled-response engineering HIL evidence. Real cloud latency, acoustic quality
+and a total cancellation hard bound remain unproven.
 
 The device owns conversation execution. Android handles authenticated BLE
 provisioning and settings, plus Wi-Fi HTTPS delivery of eye assets and signed
@@ -69,17 +79,17 @@ Compiling does not require a physical board. Consult the
 [board bindings](boards/bk7258/README.md) and [configuration contract](boards/bk7258/CONFIGS.md);
 T5AI-EVB is not interchangeable with T5-Board.
 
-**Publication boundary:** the working baseline is the official repository
+**Historical publication record (2026-09-20, not the current build entry):** the working baseline was the official repository
 `open-vela/contest2026_135_yongwangzhiqian` on `dev-ai-contest-2026`, which now
 contains the F01-F12 remediation (`b72b8bbb..daacdc75`, 13 commits) and the
 later 636/637 commits (`019a449e`, `faab4493`, `7d667565`). Source snapshot
 `82610138` on `feat/shaniu-contest-delivery-20260920` was the historical fork
 delivery path; a fork push is not an upstream merge or a completed contest
 submission, and that content is merged into the baseline above.
-The existing Agent changes are now published unchanged as
+The Agent changes at that historical checkpoint were published as
 [`add0db19`](https://github.com/Embracecactus/packages_ai_agent/commit/add0db19d00301769907a5ece03fb9bd88d2edb4),
 based on official `e65550f18759f086d7f544edcf17d1e31223244f` (21 files).
-The team manifest pins that fork commit and 248 checked-out Linux dependency revisions.
+That historical manifest pinned this fork commit and 248 checked-out Linux dependency revisions.
 No retired patch/overlay chain is restored. Public source availability is not an
 upstream merge, a clean three-board build, or new board acceptance.
 See [provenance](SOURCE_PROVENANCE.md).
@@ -90,7 +100,8 @@ SDK/toolchain caches. See the [build record and hashes](docs/verification/bk7258
 These unsigned build checks were not flashed and do not replace the signed
 635/637 packages.
 
-Use Ubuntu 22.04 with the standard openvela build prerequisites:
+The following commands are the historical direct-build procedure. For the current signed
+first build, use the official-source entry linked above. Historical prerequisites: Ubuntu 22.04.
 
 ```bash
 repo init -u https://github.com/open-vela/contest2026_135_yongwangzhiqian \

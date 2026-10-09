@@ -1,6 +1,6 @@
 # BK7258 × openvela：三核平台适配与傻妞 AI 伴侣
 
-> **当前交付入口：** 下方“独立开发构建”使用新生成的开发发布身份，和设备首启
+> **当前交付入口：** 下方“官方源码构建”使用新生成的开发发布身份，和设备首启
 > TLS 身份、Android 安装签名、云 API 凭据彼此独立。后续赛事期旧流程是历史记录，
 > 不能用其手工供给或旧实机结果代替当前候选验收。
 
@@ -45,13 +45,14 @@ Windows Android 模拟器已运行此 APK，并实际操作导航、键盘和表
 定位符，仅查询回执；设备确认且本机绑定清理成功后才删除定位符。该生产流程
 已接通，主机/模拟器检查不等于实际多介质清理和重新扫码已通过。
 普通 K2 关机不撤销 owner，也没有“K2 五秒恢复出厂”的含义。
-当前仍有软件缺口：TTS 已有有界 PCM 队列，
-有效正文首句流水线尚未实现。不能把这些项目标成“只差现场”，
-也不能把 PCM 预缓冲当成首句延迟已经达标。
+正文首句流水与取消已接入实际 Agent、队列和 Media，固定响应的工程 HIL 已覆盖
+正常、取消、下一回合；真实云性能与声学体验仍待验，取消总耗时硬上界尚未证明。
+源码、主机、701 工程 HIL 和标准配置隔离分别见
+[决赛集成证据](docs/verification/bk7258/2026-10-09-finals-integration.md)。
 
 649 启动 OOM 的后续修复及 RAM 预算见
 [启动修复候选](docs/verification/bk7258/2026-09-23-cp-startup-repair.md)。
-本轮不无人值守刷板；新候选的启动、K2 睡眠/再开机仍需现场验证，649 仅作诊断。
+649 属于历史诊断。701 工程固件证据不替代标准产品的实体 K2、深睡/功耗和声学验收。
 
 更新页仅接收普通 OTA `.bkpack`，不能导入工厂全量软件包或 `factory.bin`。
 本地检查证明包格式与内容哈希；签名、布局和防回滚仍由设备正式校验。
@@ -128,7 +129,7 @@ tag 指向合并提交 `6a8a3e55`），fork 与官方仓两份资产 SHA256 一�
 `payloads/persistent_data.bin`（设备 TLS 身份私钥、本机配网凭据、云服务凭据），
 公开发布等于泄露这些凭据；需要可烧录整包的评委请按下一节用自己板子的整片读回物化。
 
-## 独立开发构建（当前主入口）
+## 官方源码构建（当前主入口）
 
 首次在自己的 Linux/openvela 工作区取得公开工程，使用仓库 manifest 锁定的
 依赖。准备 Python 3.10；以下命令不读取作者私钥、历史整片 base 或设备数据，需要网络下载公开的
@@ -138,8 +139,14 @@ tag 指向合并提交 `6a8a3e55`），fork 与官方仓两份资产 SHA256 一�
 在其他发布根上的板子；生产发行必须另用明确授权的长期身份。
 
 ```bash
-repo init -u https://github.com/Embracecactus/contest2026_135_yongwangzhiqian.git \
+repo init -u https://github.com/open-vela/contest2026_135_yongwangzhiqian.git \
   -b dev-ai-contest-2026 -m contest2026_135_yongwangzhiqian.xml -g default,bk7258-sdk,platform-linux
+# Freeze the team project to the manifest commit before sync (no dependency overrides).
+manifest_sha=$(git -C .repo/manifests rev-parse HEAD)
+mkdir -p .repo/local_manifests
+cat > .repo/local_manifests/shaniu-source.xml <<EOF
+<manifest><extend-project name="contest2026_135_yongwangzhiqian" path="contest2026_135_yongwangzhiqian" revision="$manifest_sha"/></manifest>
+EOF
 repo sync -j4 \
   apps apps/audioutils/speexdsp/speexdsp \
   apps/boot/mcuboot/mcuboot apps/crypto/mbedtls/mbedtls \
@@ -200,37 +207,23 @@ Android 签名，不能默认卸载或清掉 Keystore。K2 单独按住至少 3 
 云端冷构建由本仓库 `Shaniu cold delivery` 工作流执行：GitHub 托管的干净
 workspace 创建临时开发身份，完整编译并在独立 job 下载、校验公开交付物；
 不上传临时私钥或本板整片 BIN。普通第三方 fork 可自行启用 Actions。
-在自己的 fork 和本分支中，可用以下命令定位**本次提交、本次触发**的运行，
-而不是采用列表里不相关的最新结果（需先用 `gh auth status` 确认权限）：
+官方 PR 使用 `refs/pull/<编号>/merge` 对应的精确候选 SHA，并在同步前仅覆盖团队项目的
+来源；fork push、官方合并后 push 和手动触发也使用各自事件 SHA。`source-inputs.json`
+记录 base/head/candidate 与 manifest/source 实际 HEAD，独立交付 job 再次校验。
+不要将 PR 的 `编号/merge` 拼成分支，也不要让团队源码偷偷跟随个人 fork 尖端。
 
-```bash
-target_sha=$(git rev-parse HEAD)
-started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-gh workflow run shaniu-source-checks.yml \
-  --repo Embracecactus/contest2026_135_yongwangzhiqian \
-  --ref dev-ai-contest-2026
-for attempt in $(seq 1 24); do
-  run_id=$(gh run list --repo Embracecactus/contest2026_135_yongwangzhiqian \
-    --workflow shaniu-source-checks.yml --limit 30 \
-    --json databaseId,headSha,event,createdAt |
-    jq -r --arg sha "$target_sha" --arg started "$started" \
-      '[.[] | select(.headSha == $sha and .event == "workflow_dispatch" and
-                     .createdAt >= $started)] | sort_by(.createdAt) | last |
-       .databaseId // empty')
-  test -n "$run_id" && break
-  sleep 5
-done
-test -n "$run_id"
-gh run watch "$run_id" --repo Embracecactus/contest2026_135_yongwangzhiqian --exit-status
-gh run view "$run_id" --repo Embracecactus/contest2026_135_yongwangzhiqian
-delivery_dir=$(mktemp -d)
-gh run download "$run_id" --repo Embracecactus/contest2026_135_yongwangzhiqian \
-  --name "shaniu-cold-delivery-$target_sha" --dir "$delivery_dir"
-(cd "$delivery_dir" && sha256sum -c SHA256SUMS.txt)
-```
+PR/push 自动触发后先查看同一提交的运行，不再手动重复触发。只有没有适用运行时，
+才在有权限的仓库执行 `workflow_dispatch`。从对应运行下载
+`shaniu-cold-delivery-<candidate SHA>`，执行 `sha256sum -c SHA256SUMS.txt`，
+并核对 `source-inputs.json`；Artifacts 保留 7 天且下载需要 GitHub 登录。
+[官方 Actions](https://github.com/open-vela/contest2026_135_yongwangzhiqian/actions/workflows/shaniu-source-checks.yml)
+与 [开发 fork Actions](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/actions/workflows/shaniu-source-checks.yml)
+属于不同运行，旧成绩不能归到新候选。
 
-第三方 fork 运行时，把命令中的仓库名换成自己的 fork；临时 CI 签名只用于
-本次开发验证，后续维护须复用自己的持久开发身份或正式长期身份。
+在决赛 PR 合并之前，官方分支仍是旧版；评审候选以 PR 的 head/base/merge SHA 和
+对应运行交付物为准。合并后以上官方入口才取得该成果。标准构建关闭 BKTEST、固定云
+响应和自动工程自检，保留原 KWS、“我在”、K2 关机/恢复出厂契约及 K1/K3 音量。
+临时 CI 签名只用于本次构建验证，后续维护须复用自己的持久开发身份或正式长期身份。
 
 ## 历史赛事版评审流程（非当前候选操作入口）
 
