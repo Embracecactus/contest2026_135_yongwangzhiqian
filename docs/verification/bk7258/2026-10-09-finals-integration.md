@@ -41,6 +41,13 @@ workspace 用真实远端验证后，manifest 和团队源码均为上述候选 
 修复将真实检出校验提前到同步前，未取消 SHA/父提交门禁；测试先 Red 后 Green，
 并在实际候选 checkout 上复现了不同 merge 元数据的通过条件。旧失败运行保留。
 
+第三次 [37904410901](https://github.com/open-vela/contest2026_135_yongwangzhiqian/actions/runs/37904410901)
+已通过事件/实际父提交验证，但 runner 的发行版 `repo` 启动器不接受
+`--manifest-upstream-branch`。现使用通用的 `-b "$GITHUB_REF"` 初始化，随后在
+任何依赖同步前断言 manifest HEAD 等于 `GITHUB_SHA`；ref 已移动则 fail closed。
+团队项目仍固定 SHA 并声明 upstream。没有放宽校验或升级工具/依赖来绕过错误。
+来源测试先 Red 后 Green，真实 PR ref 初始化后再次核对了候选 SHA。
+
 本机预检完整门禁收集 743 项：695 PASS、7 FAIL_ASSERTION、41 SETUP_ERROR，
 225 项完整性错误，**未通过**。本机沙箱限制 socket 与 Gradle 缓存写入；在允许
 本地 socket 的同一环境复验，AUD-03 cancel-blocked-next 及三个 LIFE-02 采集
@@ -77,7 +84,9 @@ workspace 用真实远端验证后，manifest 和团队源码均为上述候选 
 
 工程流水的外部 ASR、LLM 与 TTS 是内存受控响应；设备仍执行请求序列化/解析、Agent、TTS 队列、Media 与清理路径。它没有真实云请求、DNS、网络 TLS 握手或小米套餐性能结论；首 Media 写入也不是声学首声。
 
-标准 `aidk_ai_toy / openvela_ap` 已在相同来源构建，但**未刷写**。其 resolved 配置中 `BK7258_AUDIO_PLAYBACK_VALIDATION`、`BK7258_AUDIO_CAPTURE_VALIDATION`、`BK7258_AUDIO_PIPELINE_VALIDATION` 均关闭；ELF/BIN 未含 fixture、固定 endpoint、假 key、测试响应或 BKPIPE 入口。该构建证明产品二进制隔离，不替代工程 701 HIL。
+标准 `aidk_ai_toy / openvela_ap` 已在相同来源构建，但**未刷写**。其 resolved 配置中 `BK7258_AUDIO_PLAYBACK_VALIDATION`、`BK7258_AUDIO_CAPTURE_VALIDATION`、`BK7258_AUDIO_PIPELINE_VALIDATION` 均关闭；ELF/BIN 未含 fixture、固定 endpoint、假 key、测试响应或 BKPIPE 入口。该构建证明产品二进制隔离，不替代工程 701 HIL。实际 CP/AP 配置也未启用
+`BK7258_ENGINEERING_TEST`、`BK7258_FACTORY_DIAGNOSTICS` 或
+`BK7258_POWER_PREPARE_VALIDATION`，不是只读取 Kconfig 的默认值。
 
 ## 输入与产物身份
 

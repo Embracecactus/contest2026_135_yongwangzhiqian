@@ -60,11 +60,11 @@ jobs:
           cd "$cold"
           candidate_url=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["repository_url"])' "$RUNNER_TEMP/source-inputs.json")
           repo init -u "$candidate_url" \
-            -b "$GITHUB_SHA" --manifest-upstream-branch "$GITHUB_REF" \
+            -b "$GITHUB_REF" \
             -m contest2026_135_yongwangzhiqian.xml \
             -g default,bk7258-sdk,platform-linux
-          # Lock the dependency manifest before syncing, not only the team
-          # checkout afterwards: a newer branch tip must not change Agent inputs.
+          # The distro launcher bootstraps from a full ref. Fail closed if it
+          # moved; no dependency sync/build occurs until the exact SHA matches.
           test "$(git -C .repo/manifests rev-parse HEAD)" = "$GITHUB_SHA"
           # Override only team source BEFORE sync; dependencies retain their pins/remotes.
           python3 "$GITHUB_WORKSPACE/.github/scripts/shaniu_source.py" override \
