@@ -944,9 +944,20 @@ int audio_playback_write(audio_playback_t* pb, const void* bytes, size_t size)
         return -ECANCELED;
     }
     const unsigned char* pcm = bytes;
-    if (test_mode < 5)
-        for (size_t i = 0; i < size; i++)
-            assert(pcm[i] == (unsigned char)((test_written + i) % 251));
+    for (size_t i = 0; i < size; i++) {
+        size_t offset = test_written + i;
+        unsigned char expected;
+        if (test_mode < 5) {
+            expected = (unsigned char)(offset % 251);
+        } else {
+            /* Each controlled sentence has a distinct pattern. The Media
+             * sink observes the one ordered queue, so this catches a lost,
+             * repeated, or cross-sentence PCM byte in the reply path. */
+            size_t sentence = offset / 8192 + 1;
+            expected = (unsigned char)((sentence * 37 + offset % 8192) % 251);
+        }
+        assert(pcm[i] == expected);
+    }
     test_written += size;
     atomic_store(&test_first_pcm, 1);
     usleep(1000); /* 有界慢消费者，强制覆盖队列满和环回。 */
@@ -982,6 +993,8 @@ int voice_tts_speak_stream_checked(const char* text, voice_tts_chunk_cb cb,
             atomic_store(&test_next_sentence_started, 1);
     }
     unsigned char chunk[1021]; /* 故意在 PCM 半帧处分块。 */
+    unsigned int sentence_pattern = test_mode >= 5 ?
+        (unsigned int)test_synth_calls * 37u : 0;
     size_t total = test_mode == 1 ? 200001 :
         test_mode >= 5 ? 8192 : 200000;
     for (size_t pos = 0; pos < total;) {
@@ -991,7 +1004,8 @@ int voice_tts_speak_stream_checked(const char* text, voice_tts_chunk_cb cb,
             maximum = 1u + test_fragment_seed % sizeof(chunk);
         }
         size_t n = total - pos < maximum ? total - pos : maximum;
-        for (size_t i = 0; i < n; i++) chunk[i] = (unsigned char)((pos + i) % 251);
+        for (size_t i = 0; i < n; i++)
+            chunk[i] = (unsigned char)((sentence_pattern + pos + i) % 251);
         cb(chunk, n, 0, context);
         if (atomic_load(&test_canceled)) return -ECANCELED;
         pos += n;
