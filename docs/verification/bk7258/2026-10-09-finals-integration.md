@@ -20,6 +20,26 @@
 Green 日志 SHA256：`50121da6f7b08041c28fa6ab66085b33187956675b92430f5ca0d11ba46a0be3`。
 完整新候选日志和产物由对应 Actions 运行提供，不将本地路径当公开下载地址。
 
+## 首次 PR 候选与同步修复
+
+[PR #125](https://github.com/open-vela/contest2026_135_yongwangzhiqian/pull/125)
+首次候选 `40593e6704fe9c117dd1b8b5e19400bb218710e4` 的父提交为官方 base
+`6052156862784037a449b9776dfc5c66b36518f6` 和 head
+`b077a95a4483382dfb42d597e24c1e17fc7491bd`。
+[自动运行 37903352486](https://github.com/open-vela/contest2026_135_yongwangzhiqian/actions/runs/37903352486)
+通过事件身份/来源测试后，在 `repo init` 失败：默认抓取 heads 无法取得仅存在于
+PR merge ref 的 SHA，未进入构建。未重跑同一候选。
+
+修复明确传入 manifest upstream ref，并为团队项目保留同一 upstream；revision
+仍为不可变 SHA。来源测试针对该缺口先 Red 后 Green（12 项通过）。在独立临时
+workspace 用真实远端验证后，manifest 和团队源码均为上述候选 SHA。
+
+本机预检完整门禁收集 743 项：695 PASS、7 FAIL_ASSERTION、41 SETUP_ERROR，
+225 项完整性错误，**未通过**。本机沙箱限制 socket 与 Gradle 缓存写入；在允许
+本地 socket 的同一环境复验，AUD-03 cancel-blocked-next 及三个 LIFE-02 采集
+用例通过。其余不改记 PASS；最终候选仍由自动 CI 完整执行构建、Android、合同
+与独立交付校验。
+
 ## 已有 CI 证据（复用，不是新候选评分）
 
 来源提交的 [GitHub Actions run 37890100009](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/actions/runs/37890100009)（attempt 1）已完成并成功：`build` 与 `verify-delivery` 两个 job 均通过。
