@@ -2,10 +2,12 @@
 # SPDX-License-Identifier: Apache-2.0
 """Exercise Agent's production ReAct loop and vision-cancel handoff.
 
-The LLM, tool registry, trace, and reply sink are controlled boundary peers.
+The planning LLM, tool registry and trace are controlled boundary peers.
 The coordinator, assistant/tool history construction, parallel tool dispatch,
 finalize deferral, final-phase transition, and vision adapter come from
-agent_loop.c itself.
+agent_loop.c itself. mixed-tts also uses the real final-response proxy/parser,
+voice reply stream and TTS queue, with controlled SSE, synthesis and Media.
+It invokes the ReAct core directly, not the Agent service worker or ASR.
 """
 
 import resource
@@ -17,7 +19,7 @@ from pathlib import Path
 from test_nfc_rf_lifecycle import ROOT
 
 
-CASES = ("mixed", "missing-id", "duplicate-id", "vision-cancel")
+CASES = ("mixed", "mixed-tts", "missing-id", "duplicate-id", "vision-cancel")
 MUTATION = "mutant-executes-finalize"
 
 
@@ -37,6 +39,7 @@ def source_for(case: str) -> str:
 
 def probe_code(case: str) -> str:
     scenario = "mixed" if case == MUTATION else case
+    tts_fixture = ROOT / "tests/host/bk7258/test_bk7258_agent_media_player.c"
     return r'''
 #include <assert.h>
 #include <errno.h>
@@ -50,7 +53,33 @@ int llm_chat_vision_checked(const char *prompt, const char *image_b64,
                             size_t buf_size, int (*check)(void *),
                             void *request_context);
 
+#ifdef TEST_MIXED_TTS
+/* Reuse the maintained real voice queue/Media fixture.  Renaming its cancel
+ * stub leaves Agent's normal final-stream cancellation symbol available. */
+#define TEST_AGENT_TTS_QUEUE 1
+#define llm_cancel_request tts_fixture_llm_cancel_request
+int tts_fixture_llm_cancel_request(void);
+#define main tts_fixture_regression_main
+#include "''' + str(tts_fixture) + r'''"
+#undef main
+#undef llm_cancel_request
+#endif
+
+#ifdef TEST_MIXED_TTS
+#define TAG agent_loop_fixture_tag
+/* Planning remains the existing controlled ReAct peer; the final request is
+ * the real proxy/stream implementation linked below. */
+#define llm_chat_plan_checked fixture_llm_chat_plan_checked
+#define llm_chat_tools_checked fixture_llm_chat_tools_checked
+int fixture_llm_chat_plan_checked(const char *, cJSON *, const char *,
+    llm_response_t *, int (*)(void *), void *);
+int fixture_llm_chat_tools_checked(const char *, cJSON *, const char *,
+    llm_response_t *, int (*)(void *), void *);
+#endif
 #include "agent_loop_under_test.c"
+#ifdef TEST_MIXED_TTS
+#undef TAG
+#endif
 
 static const char *scenario = "''' + scenario + r'''";
 static unsigned planning_requests;
@@ -61,8 +90,10 @@ static unsigned delta_events;
 static unsigned legacy_vision_calls;
 static unsigned checked_vision_calls;
 static int request_canceled;
+#ifndef TEST_MIXED_TTS
 static char spoken[128];
 static size_t spoken_size;
+#endif
 
 int llm_chat_vision(const char *prompt, const char *image_b64,
                     const char *mime_type, char *response_buf,
@@ -126,6 +157,14 @@ int llm_chat_plan_checked(const char *system, cJSON *messages,
     assert(check != NULL && check(request) == 0);
     memset(response, 0, sizeof(*response));
     planning_requests++;
+#ifdef TEST_MIXED_TTS
+    assert(cJSON_GetArraySize(messages) >= 1);
+    cJSON *user = cJSON_GetArrayItem(messages, 0);
+    cJSON *role = cJSON_GetObjectItemCaseSensitive(user, "role");
+    cJSON *content = cJSON_GetObjectItemCaseSensitive(user, "content");
+    assert(cJSON_IsString(role) && !strcmp(role->valuestring, "user"));
+    assert(cJSON_IsString(content) && !strcmp(content->valuestring, "fixed ASR input"));
+#endif
 
     if (planning_requests == 1) {
         response->tool_use = true;
@@ -144,14 +183,20 @@ int llm_chat_plan_checked(const char *system, cJSON *messages,
         return 0;
     }
 
-    assert(!strcmp(scenario, "mixed"));
+    assert(!strcmp(scenario, "mixed") || !strcmp(scenario, "mixed-tts"));
     assert(planning_requests == 2);
+#ifdef TEST_MIXED_TTS
+    assert(cJSON_GetArraySize(messages) == 4);
+    int offset = 1;
+#else
     assert(cJSON_GetArraySize(messages) == 3);
-    cJSON *assistant = cJSON_GetArrayItem(messages, 0);
+    int offset = 0;
+#endif
+    cJSON *assistant = cJSON_GetArrayItem(messages, offset);
     cJSON *tool_calls = cJSON_GetObjectItemCaseSensitive(assistant, "tool_calls");
     assert(cJSON_IsArray(tool_calls) && cJSON_GetArraySize(tool_calls) == 2);
-    assert_tool_result(cJSON_GetArrayItem(messages, 1), "real-1", "sunny");
-    assert_tool_result(cJSON_GetArrayItem(messages, 2), "finish-1", "deferred");
+    assert_tool_result(cJSON_GetArrayItem(messages, offset + 1), "real-1", "sunny");
+    assert_tool_result(cJSON_GetArrayItem(messages, offset + 2), "finish-1", "deferred");
     assert(registry_calls == 1 && final_requests == 0);
 
     response->tool_use = true;
@@ -174,6 +219,7 @@ int llm_chat_tools_checked(const char *system, cJSON *messages,
     abort();
 }
 
+#ifndef TEST_MIXED_TTS
 int llm_chat_final_stream_checked(const char *system, cJSON *messages,
                                   llm_response_t *response,
                                   llm_text_delta_t emit, void *emit_context,
@@ -210,6 +256,7 @@ void llm_response_free(llm_response_t *response)
     }
     memset(response, 0, sizeof(*response));
 }
+#endif
 
 int tool_registry_execute_checked(const char *name, const char *input,
                                   char *output, size_t output_size,
@@ -261,18 +308,27 @@ void agent_trace_step(agent_trace_t *trace, int iteration, const char *tool,
 void agent_trace_end(agent_trace_t *trace, int status)
 { (void)trace; (void)status; }
 
+#ifndef TEST_MIXED_TTS
 int message_bus_push_outbound(const agent_msg_t *message)
 { (void)message; abort(); }
+#endif
 
 static int request_status(uint64_t request_id)
 {
+#ifdef TEST_MIXED_TTS
+    return voice_request_status(request_id);
+#else
     assert(request_id == 7);
     return request_canceled ? -ECANCELED : 0;
+#endif
 }
 
 static int reply_sink(uint64_t request_id, int event,
                       const char *text, size_t length)
 {
+#ifdef TEST_MIXED_TTS
+    return voice_channel_reply_stream(request_id, event, text, length);
+#else
     assert(request_id == 7);
     if (event == AGENT_REPLY_BEGIN) {
         assert(text == NULL && length == 0);
@@ -286,7 +342,39 @@ static int reply_sink(uint64_t request_id, int event,
     spoken[spoken_size] = 0;
     delta_events++;
     return 0;
+#endif
 }
+
+#ifdef TEST_MIXED_TTS
+static int unused_transport(const char *request, char *response,
+    size_t capacity, size_t *length, int *status, void *context,
+    int (*check)(void *), void *request_context)
+{
+    (void)request; (void)response; (void)capacity; (void)length;
+    (void)status; (void)context; (void)check; (void)request_context;
+    abort();
+}
+
+static int controlled_final_transport(const char *request,
+    int (*receive)(void *, const char *, size_t), void *receive_context,
+    int *status, void *context, int (*check)(void *), void *request_context)
+{
+    (void)context;
+    assert(strstr(request, "\"stream\":true") != NULL);
+    assert(strstr(request, "fixed ASR input") != NULL);
+    assert(check && check(request_context) == 0);
+    assert(++final_requests == 1);
+    *status = 200;
+    const char first[] = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"你好，这是第一句。\"}}]}\n\n";
+    assert(receive(receive_context, first, sizeof(first) - 1) == 0);
+    test_wait_first_pcm();
+    assert(test_drains == 0 && test_closes == 0);
+    const char tail[] = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"这是尾句\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n";
+    int done = receive(receive_context, tail, sizeof(tail) - 1);
+    assert(done == 1);
+    return 0;
+}
+#endif
 
 int main(void)
 {
@@ -302,6 +390,22 @@ int main(void)
     strcpy(message.channel, AGENT_CHAN_VOICE);
     strcpy(message.chat_id, "chat");
     int failure = 0;
+
+#ifdef TEST_MIXED_TTS
+    /* Fixed text is injected after ASR. Planning, tools, history and the
+     * Media lower-half are controlled peers; capture/worker are not invoked. */
+    message.request_id = test_reply_prepare(5);
+    message.request_status = voice_request_status;
+    message.request_commit = voice_request_commit;
+    message.request_complete = voice_request_complete;
+    message.content = "fixed ASR input";
+    cJSON *user = cJSON_CreateObject();
+    assert(user && cJSON_AddStringToObject(user, "role", "user") &&
+           cJSON_AddStringToObject(user, "content", message.content) &&
+           cJSON_AddItemToArray(messages, user));
+    assert(llm_set_transports("fixture", "fixture.test", unused_transport,
+        controlled_final_transport, NULL, NULL) == 0);
+#endif
 
     if (!strcmp(scenario, "vision-cancel")) {
         message.content = "describe image";
@@ -327,11 +431,31 @@ int main(void)
         "\"input_schema\":{\"type\":\"object\",\"properties\":{}}}]",
         tool_output, sizeof(tool_output), &message, &failure);
 
-    if (!strcmp(scenario, "mixed")) {
+    if (!strcmp(scenario, "mixed") || !strcmp(scenario, "mixed-tts")) {
+#ifdef TEST_MIXED_TTS
+        assert(failure == 0 && text != NULL &&
+               !strcmp(text, "你好，这是第一句。这是尾句"));
+        assert(planning_requests == 2 && registry_calls == 1 && final_requests == 1);
+        test_history_count = test_cancel_at_history = 0;
+        assert(message_bus_reply_with_history(&message, text, 0, test_history) == 0);
+        text = NULL;
+        assert(test_history_count == 1 && s_voice.reply_committed);
+        assert(test_synth_calls == 2 && test_written == 16384);
+        assert(test_opens == 1 && test_drains == 1 && test_closes == 1);
+        assert(!strcmp(test_spoken[0], "你好，这是第一句。"));
+        assert(!strcmp(test_spoken[1], "这是尾句"));
+        assert(voice_channel_is_idle());
+        assert(llm_clear_transport() == 0);
+#else
         assert(failure == 0 && text != NULL && !strcmp(text, "Mixed final."));
         assert(planning_requests == 2 && registry_calls == 1 && final_requests == 1);
         assert(begin_events == 1 && delta_events == 1 && !strcmp(spoken, text));
+#endif
+#ifdef TEST_MIXED_TTS
+        assert(cJSON_GetArraySize(messages) == 6);
+#else
         assert(cJSON_GetArraySize(messages) == 5);
+#endif
     } else {
         assert(failure == -EPROTO && text == NULL);
         assert(planning_requests == 1 && registry_calls == 0 && final_requests == 0);
@@ -385,12 +509,23 @@ def build_and_run(case: str) -> tuple[bool, subprocess.CompletedProcess[str]]:
             "-o",
             str(temp / "probe"),
         ]
+        if case == "mixed-tts":
+            command.extend([
+                str(agent / "src/llm/llm_proxy.c"),
+                str(agent / "src/llm/llm_parse.c"),
+                str(agent / "src/llm/llm_stream.c"),
+                str(agent / "src/core/message_bus.c"),
+            ])
+            command.remove("-o")
+            command.remove(str(temp / "probe"))
+            command.extend(["-o", str(temp / "probe")])
+            command.insert(1, "-DTEST_MIXED_TTS=1")
         built = subprocess.run(command, capture_output=True, text=True)
         if built.returncode:
             print("SETUP_ERROR", built.stderr, end="")
             return False, built
         return True, subprocess.run(
-            [str(temp / "probe")], capture_output=True, text=True
+            [str(temp / "probe")], capture_output=True, text=True, timeout=15
         )
 
 
