@@ -35,7 +35,7 @@ def resolve_source(env, event):
     ref = env['GITHUB_REF']
     if not re.fullmatch(r'refs/(heads|tags|pull)/[A-Za-z0-9_./-]+', ref) or '..' in ref:
         raise ValueError('invalid event ref')
-    base, head, head_repo = None, candidate, None
+    base, head, head_repo, reported_merge = None, candidate, None, None
     if kind == 'pull_request':
         number = event.get('number')
         if type(number) is not int or number <= 0 or ref != f'refs/pull/{number}/merge':
@@ -45,8 +45,10 @@ def resolve_source(env, event):
             raise ValueError('PR candidate must belong to the base repository')
         base, head = sha(pr['base']['sha']), sha(pr['head']['sha'])
         head_repo = repository(pr['head']['repo']['full_name'])
-        if pr.get('merge_commit_sha') and sha(pr['merge_commit_sha']) != candidate:
-            raise ValueError('PR merge SHA differs from the event candidate')
+        # PR webhook merge_commit_sha can lag on synchronize. The Actions SHA
+        # and the checked-out commit's base/head parents are authoritative.
+        if pr.get('merge_commit_sha'):
+            reported_merge = sha(pr['merge_commit_sha'])
     else:
         if not ref.startswith(('refs/heads/', 'refs/tags/')):
             raise ValueError('push/dispatch requires a branch or tag ref')
@@ -58,7 +60,7 @@ def resolve_source(env, event):
     return dict(schema=1, event=kind, repository=repo,
                 repository_url=f'https://github.com/{repo}.git', source_ref=candidate,
                 candidate_sha=candidate, head_sha=head, base_sha=base, fetch_ref=ref,
-                head_repository=head_repo)
+                head_repository=head_repo, reported_merge_sha=reported_merge)
 
 
 def write_override(identity, path):
@@ -87,12 +89,19 @@ def verify_checkouts(identity, manifest_dir, source_dir, event_dir):
         result[field] = git(directory, 'rev-parse', 'HEAD')
         if result[field] != candidate:
             raise ValueError(f'{field} differs from candidate SHA')
+    result.update(verify_candidate(identity, event_dir))
+    return result
+
+
+def verify_candidate(identity, directory):
+    if git(directory, 'rev-parse', 'HEAD') != sha(identity['candidate_sha']):
+        raise ValueError('event checkout differs from candidate SHA')
     if identity['event'] == 'pull_request':
-        parents = git(event_dir, 'show', '-s', '--format=%P', 'HEAD').split()
+        parents = git(directory, 'show', '-s', '--format=%P', 'HEAD').split()
         if parents != [identity['base_sha'], identity['head_sha']]:
             raise ValueError('candidate parents differ from the event base/head')
-        result['candidate_parents'] = parents
-    return result
+        return {'candidate_parents': parents}
+    return {}
 
 
 def verify_delivery(identity, delivery):
@@ -128,6 +137,9 @@ def main():
     else:
         identity = json.loads(args.inputs.read_text())
     if args.action == 'resolve':
+        if args.event_checkout is None:
+            raise ValueError('resolve requires an event checkout')
+        verify_candidate(identity, args.event_checkout)
         args.inputs.write_text(json.dumps(identity, indent=2) + '\n')
     elif args.action == 'override':
         write_override(identity, args.output)

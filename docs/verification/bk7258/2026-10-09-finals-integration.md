@@ -34,6 +34,13 @@ PR merge ref 的 SHA，未进入构建。未重跑同一候选。
 仍为不可变 SHA。来源测试针对该缺口先 Red 后 Green（12 项通过）。在独立临时
 workspace 用真实远端验证后，manifest 和团队源码均为上述候选 SHA。
 
+第二次自动运行 [37904076270](https://github.com/open-vela/contest2026_135_yongwangzhiqian/actions/runs/37904076270)
+在事件解析失败：webhook `merge_commit_sha` 与 Actions `GITHUB_SHA` 不一致。
+按 [GitHub 事件定义](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request)，
+以 Actions 的候选 SHA、实际检出和 base/head 父提交为准，webhook merge 字段仅记录。
+修复将真实检出校验提前到同步前，未取消 SHA/父提交门禁；测试先 Red 后 Green，
+并在实际候选 checkout 上复现了不同 merge 元数据的通过条件。旧失败运行保留。
+
 本机预检完整门禁收集 743 项：695 PASS、7 FAIL_ASSERTION、41 SETUP_ERROR，
 225 项完整性错误，**未通过**。本机沙箱限制 socket 与 Gradle 缓存写入；在允许
 本地 socket 的同一环境复验，AUD-03 cancel-blocked-next 及三个 LIFE-02 采集

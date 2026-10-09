@@ -42,7 +42,7 @@ jobs:
           persist-credentials: false
       - name: Resolve the immutable event candidate
         run: |
-          python3 .github/scripts/shaniu_source.py resolve --inputs "$RUNNER_TEMP/source-inputs.json"
+          python3 .github/scripts/shaniu_source.py resolve --inputs "$RUNNER_TEMP/source-inputs.json" --event-checkout "$GITHUB_WORKSPACE"
           python3 -m unittest -v tests/host/bk7258/test_shaniu_ci_source.py
 
       - name: Install the manifest client

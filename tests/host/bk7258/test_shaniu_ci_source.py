@@ -100,10 +100,15 @@ class SourceResolutionTest(unittest.TestCase):
                                            "repo": {"full_name": TEAM}}}}
         got = self.resolve(event, GITHUB_REF="refs/pull/17/merge")
         self.assertEqual(got["fetch_ref"], "refs/pull/17/merge")
+        # synchronize payload may report an earlier computed merge; Actions SHA wins.
+        event["pull_request"]["merge_commit_sha"] = BASE
+        stale = self.resolve(event, GITHUB_REF="refs/pull/17/merge")
+        self.assertEqual(stale["candidate_sha"], SHA)
+        self.assertEqual(stale["reported_merge_sha"], BASE)
         self.assert_identity(got, event="pull_request", repo=TEAM, candidate=SHA,
                              head=HEAD, base=BASE, head_repo="fork/voice")
 
-    def test_pull_request_rejects_target_wrong_ref_repo_number_and_merge_mismatch(self):
+    def test_pull_request_rejects_target_wrong_ref_repo_and_number(self):
         base = {"event_name": "pull_request", "number": 17,
                 "pull_request": {"merge_commit_sha": SHA,
                                  "head": {"sha": HEAD, "repo": {"full_name": "fork/voice"}},
@@ -112,7 +117,6 @@ class SourceResolutionTest(unittest.TestCase):
             ({**base, "event_name": "pull_request_target"}, {}),
             (base, {"GITHUB_REF": "refs/heads/main"}),
             ({**base, "number": 18}, {}),
-            ({**base, "pull_request": {**base["pull_request"], "merge_commit_sha": BASE}}, {}),
             ({**base, "pull_request": {**base["pull_request"],
                                          "base": {"sha": BASE, "repo": {"full_name": "other/repo"}}}}, {}),
         ]
@@ -182,6 +186,7 @@ class SourceResolutionTest(unittest.TestCase):
     def test_workflow_pr_source_boundary_is_low_privilege_and_pre_sync(self):
         workflow = (ROOT / ".github/workflows/shaniu-source-checks.yml").read_text()
         self.assertIn("  pull_request:\n", workflow)
+        self.assertIn('--event-checkout "$GITHUB_WORKSPACE"', workflow)
         self.assertIn("permissions:\n  contents: read\n", workflow)
         self.assertNotIn("pull_request_target", workflow)
         self.assertNotIn("heads/$GITHUB_REF_NAME", workflow)
