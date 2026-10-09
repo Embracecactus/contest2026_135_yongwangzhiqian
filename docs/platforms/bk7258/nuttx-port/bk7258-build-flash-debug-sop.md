@@ -1,8 +1,17 @@
 # BK7258 build, package and hardware evidence SOP
 
-Last reviewed: 2026-09-20 (publication inputs and board SDK mapping)
+Current entry reviewed: 2026-10-09 (finals source integration).
 
-## Current reproduction and evidence boundary
+Use the root [official-source build entry](../../../../README.md#官方源码构建当前主入口)
+for signed first builds and the [finals evidence](../../../verification/bk7258/2026-10-09-finals-integration.md)
+for current validation boundaries. Team source and manifest must resolve to the same
+candidate SHA. Agent is pinned to `20890a97b9515cce3de34006ad7a9b1746a109ed`.
+Standard product builds disable engineering validation. No QEMU integration is required.
+
+The following 2026-09-20 procedure and device results are historical records; its
+638/Agent identities are not the current finals candidate.
+
+## Historical reproduction and evidence boundary (2026-09-20)
 
 The root README is the judge-facing three-board build entry. T5AI-Core and
 T5-Board select SDK `cp + ap`; AIToyBoard selects `cp-aidk + ap-aidk`.

@@ -40,9 +40,10 @@
            upstream="refs/tags/SpeexDSP-1.2.1"
            clone-depth="1"/>
 
-  <!-- Post-contest development belongs to the owner fork, not the frozen contest repo. -->
+  <!-- Official delivery defaults to team source; CI pins only this project to its candidate. -->
+  <remote name="shaniu-official" fetch="https://github.com/open-vela/"/>
   <project path="contest2026_135_yongwangzhiqian" name="contest2026_135_yongwangzhiqian"
-           remote="shaniu-agent" revision="dev-ai-contest-2026">
+           remote="shaniu-official" revision="dev-ai-contest-2026">
     <linkfile src="app/hello_app" dest="packages/demos/contest2026_135_hello_app"/>
     <linkfile src="app/bk7258" dest="apps/system/bk7258"/>
     <linkfile src="quickapp/hello_quickapp" dest="packages/apps/contest2026_135_hello_quickapp"/>

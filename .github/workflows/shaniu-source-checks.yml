@@ -6,6 +6,7 @@ on:
     branches: [dev-ai-contest-2026]
     paths:
       - '.github/workflows/shaniu-source-checks.yml'
+      - '.github/scripts/shaniu_source.py'
       - 'app/bk7258/**'
       - 'boards/bk7258/**'
       - 'chips/bk7258/**'
@@ -15,6 +16,9 @@ on:
       - 'tests/host/bk7258/**'
       - 'contest2026_135_yongwangzhiqian.xml'
       - 'openvela.xml'
+  pull_request:
+    branches: [dev-ai-contest-2026]
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 permissions:
@@ -31,6 +35,16 @@ jobs:
     outputs:
       checkout_sha: ${{ steps.source.outputs.checkout_sha }}
     steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Resolve the immutable event candidate
+        run: |
+          python3 .github/scripts/shaniu_source.py resolve --inputs "$RUNNER_TEMP/source-inputs.json"
+          python3 -m unittest -v tests/host/bk7258/test_shaniu_ci_source.py
+
       - name: Install the manifest client
         run: |
           sudo apt-get update
@@ -44,12 +58,17 @@ jobs:
           cold="$RUNNER_TEMP/shaniu-cold"
           mkdir -p "$cold"
           cd "$cold"
-          repo init -u "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" \
+          candidate_url=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["repository_url"])' "$RUNNER_TEMP/source-inputs.json")
+          repo init -u "$candidate_url" \
             -b "$GITHUB_SHA" -m contest2026_135_yongwangzhiqian.xml \
             -g default,bk7258-sdk,platform-linux
           # Lock the dependency manifest before syncing, not only the team
           # checkout afterwards: a newer branch tip must not change Agent inputs.
           test "$(git -C .repo/manifests rev-parse HEAD)" = "$GITHUB_SHA"
+          # Override only team source BEFORE sync; dependencies retain their pins/remotes.
+          python3 "$GITHUB_WORKSPACE/.github/scripts/shaniu_source.py" override \
+            --inputs "$RUNNER_TEMP/source-inputs.json" \
+            --output "$cold/.repo/local_manifests/shaniu-candidate.xml"
           repo sync -j4 \
             apps apps/audioutils/speexdsp/speexdsp \
             apps/boot/mcuboot/mcuboot apps/crypto/mbedtls/mbedtls \
@@ -73,13 +92,10 @@ jobs:
             prebuilts/tools vendor vendor/beken \
             vendor/beken/bk_avdk_smp
           project="$cold/contest2026_135_yongwangzhiqian"
-          # The manifest supplies linkfiles; the triggering fork supplies its
-          # own exact team-source commit, including unpublished fork changes.
-          git -C "$project" fetch --no-tags \
-            "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" \
-            "refs/heads/$GITHUB_REF_NAME"
-          git -C "$project" checkout --detach "$GITHUB_SHA"
-          test "$(git -C "$project" rev-parse HEAD)" = "$GITHUB_SHA"
+          python3 "$GITHUB_WORKSPACE/.github/scripts/shaniu_source.py" verify \
+            --inputs "$RUNNER_TEMP/source-inputs.json" \
+            --manifest "$cold/.repo/manifests" --source "$project" \
+            --event-checkout "$GITHUB_WORKSPACE"
           # -r resolves every manifest project, including unselected projects
           # that do not exist in this bounded AIDK checkout.
           repo manifest -o "$RUNNER_TEMP/declared-manifest.xml"
@@ -196,6 +212,7 @@ jobs:
           mkdir -p "$delivery/firmware" "$delivery/android"
           cp -a "$RUNNER_TEMP/shaniu-release/." "$delivery/firmware/"
           cp "$RUNNER_TEMP/declared-manifest.xml" "$delivery/declared-manifest.xml"
+          cp "$RUNNER_TEMP/source-inputs.json" "$delivery/source-inputs.json"
           git -C "$project" rev-parse HEAD > "$delivery/source-commit.txt"
           cp "$project/android/shaniu-companion/app/build/outputs/apk/debug/"*.apk "$delivery/android/"
           ! find "$delivery" -type f \( -name '*.pem' -o -name '*private*' -o -name '*identity*' \) -print -quit | grep -q .
@@ -250,6 +267,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(cat delivery/source-commit.txt)" = "$GITHUB_SHA"
+          python3 .github/scripts/shaniu_source.py delivery --inputs delivery
           (cd delivery && sha256sum -c SHA256SUMS.txt)
           test -s delivery/declared-manifest.xml
           test "$(find delivery/android -name '*.apk' -type f | wc -l)" -ge 1
