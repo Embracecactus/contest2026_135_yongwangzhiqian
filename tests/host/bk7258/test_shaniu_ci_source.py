@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Contract for the untrusted GitHub event to pinned-source CI boundary."""
 import importlib.util
+import hashlib
 import json
 import subprocess
 import tempfile
@@ -182,6 +183,121 @@ class SourceResolutionTest(unittest.TestCase):
             )).write(delivery / "declared-manifest.xml")
             with self.assertRaises(ValueError):
                 source_module().verify_delivery(identity, delivery)
+
+            pair = delivery / "pair"
+            repository = pair / "repository"
+            releases = pair / "releases/mcuboot"
+            configs = pair / "configs/mcuboot"
+            output = delivery / "staged"
+            repository.mkdir(parents=True)
+            releases.mkdir(parents=True)
+            inputs = {}
+            elfs = {}
+            roles = {}
+            maps = {"bl1": "bl.map", "bl2": "bl2.map",
+                    "cp": "nuttx.map", "ap": "nuttx.map"}
+            for index, role in enumerate(("bl1", "bl2", "cp", "ap")):
+                directory = releases / role
+                directory.mkdir()
+                elf = directory / (role + ".elf")
+                elf.write_bytes((role + "-elf").encode())
+                elfs[role] = {"path": str(elf.relative_to(pair)),
+                              "sha256": hashlib.sha256(elf.read_bytes()).hexdigest()}
+                image = directory / maps[role]
+                image.write_bytes((role + "-map").encode())
+                if role in ("cp", "ap"):
+                    config = directory / ".config"
+                    config.write_bytes((role + "-config").encode())
+                    seed = configs / role / "defconfig"
+                    seed.parent.mkdir(parents=True)
+                    seed.write_bytes((role + "-defconfig").encode())
+                    roles[role] = {"resolved_config_sha256": hashlib.sha256(
+                        config.read_bytes()).hexdigest()
+                    }
+                    roles[role]["seed_defconfig_sha256"] = hashlib.sha256(
+                        seed.read_bytes()).hexdigest()
+            for name in ("boot", "bl2", "cp", "ap"):
+                image = releases / (name + ".bin")
+                image.write_bytes((name + "-bin").encode())
+                inputs[name] = {"path": str(image.relative_to(pair)),
+                                "sha256": hashlib.sha256(image.read_bytes()).hexdigest()}
+            partition = repository / "partitions.csv"
+            partition.write_text("name,address,size\napp,0x1000,0x2000\n")
+            manifest = {
+                "elfs": elfs, "inputs": inputs, "roles": roles,
+                "layout": {"partition": "partitions.csv"},
+            }
+            manifest_path = releases / "build-manifest.json"
+            manifest_path.write_text(json.dumps(manifest))
+
+            with self.subTest("stage exact matching evidence"):
+                source_module().stage_build_evidence(manifest_path, repository, output)
+                self.assertEqual(set(path.name for path in output.iterdir()), {
+                    "bl1.elf", "bl2.elf", "cp.elf", "ap.elf", "boot.bin",
+                    "bl2.bin", "cp.bin", "ap.bin", "bl1.map", "bl2.map",
+                    "cp.map", "ap.map", "cp.config", "ap.config", "cp.defconfig",
+                    "ap.defconfig", "partitions.csv",
+                })
+                self.assertEqual((output / "partitions.csv").read_bytes(),
+                                 partition.read_bytes())
+                for records, suffix in ((elfs, ".elf"), (inputs, ".bin")):
+                    for name, record in records.items():
+                        copied = output / (name + suffix)
+                        self.assertEqual(hashlib.sha256(copied.read_bytes()).hexdigest(),
+                                         record["sha256"])
+                for role in ("cp", "ap"):
+                    self.assertEqual((output / (role + ".config")).read_bytes(),
+                                     (releases / role / ".config").read_bytes())
+                    self.assertEqual((output / (role + ".defconfig")).read_bytes(),
+                                     (configs / role / "defconfig").read_bytes())
+                for role, name in maps.items():
+                    self.assertEqual((output / (role + ".map")).read_bytes(),
+                                     (releases / role / name).read_bytes())
+
+            with self.subTest("independent evidence verification and product isolation"):
+                public = delivery / "public"
+                (public / "firmware/evidence").mkdir(parents=True)
+                (public / "build-evidence").mkdir()
+                for file in output.iterdir():
+                    (public / "build-evidence" / file.name).write_bytes(file.read_bytes())
+                public_manifest = public / "firmware/evidence/build-manifest.json"
+                public_manifest.write_text(json.dumps(manifest))
+                (public / "firmware/release.json").write_text(json.dumps({
+                    "build_manifest": {"path": "evidence/build-manifest.json"}}))
+                source_module().verify_build_evidence(public)
+                copied = public / "build-evidence/cp.config"
+                original = copied.read_bytes()
+                copied.write_bytes(b"CONFIG_BK7258_ENGINEERING_TEST=y\n")
+                with self.assertRaises(ValueError):
+                    source_module().verify_build_evidence(public)
+                changed = json.loads(public_manifest.read_text())
+                changed["roles"]["cp"]["resolved_config_sha256"] = hashlib.sha256(
+                    copied.read_bytes()).hexdigest()
+                public_manifest.write_text(json.dumps(changed))
+                with self.assertRaisesRegex(ValueError, "engineering"):
+                    source_module().verify_build_evidence(public)
+                copied.write_bytes(original)
+                public_manifest.write_text(json.dumps(manifest))
+                (public / "build-evidence/ap.map").unlink()
+                with self.assertRaises(ValueError):
+                    source_module().verify_build_evidence(public)
+
+            with self.subTest("reject changed elf before copy"):
+                bad_output = delivery / "changed-output"
+                (releases / "bl1/bl1.elf").write_bytes(b"changed")
+                with self.assertRaises(ValueError):
+                    source_module().stage_build_evidence(manifest_path, repository,
+                                                         bad_output)
+                self.assertFalse((bad_output / "bl1.elf").exists())
+
+            with self.subTest("reject pair-root escape before copy"):
+                bad_output = delivery / "escape-output"
+                manifest["elfs"]["bl1"]["path"] = "../outside.elf"
+                manifest_path.write_text(json.dumps(manifest))
+                with self.assertRaises(ValueError):
+                    source_module().stage_build_evidence(manifest_path, repository,
+                                                         bad_output)
+                self.assertFalse((bad_output / "bl1.elf").exists())
 
     def test_workflow_pr_source_boundary_is_low_privilege_and_pre_sync(self):
         workflow = (ROOT / ".github/workflows/shaniu-source-checks.yml").read_text()

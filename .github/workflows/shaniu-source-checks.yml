@@ -215,6 +215,10 @@ jobs:
           cp "$RUNNER_TEMP/declared-manifest.xml" "$delivery/declared-manifest.xml"
           cp "$RUNNER_TEMP/source-inputs.json" "$delivery/source-inputs.json"
           git -C "$project" rev-parse HEAD > "$delivery/source-commit.txt"
+          build_manifest=$(find "$RUNNER_TEMP/shaniu-cold/out/bk7258/aidk_ai_toy" \
+            -path '*/releases/mcuboot/build-manifest.json' -type f -print -quit)
+          python3 "$project/.github/scripts/shaniu_source.py" stage-evidence \
+            --inputs "$build_manifest" --source "$project" --output "$delivery/build-evidence"
           cp "$project/android/shaniu-companion/app/build/outputs/apk/debug/"*.apk "$delivery/android/"
           ! find "$delivery" -type f \( -name '*.pem' -o -name '*private*' -o -name '*identity*' \) -print -quit | grep -q .
           (cd "$delivery" && find . -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt)

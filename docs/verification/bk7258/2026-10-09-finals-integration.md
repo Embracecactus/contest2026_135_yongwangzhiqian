@@ -54,6 +54,16 @@ workspace 用真实远端验证后，manifest 和团队源码均为上述候选 
 用例通过。其余不改记 PASS；最终候选仍由自动 CI 完整执行构建、Android、合同
 与独立交付校验。
 
+## 本次交付文件完整性
+
+既有 CI 的 build manifest 记录 ELF/配置哈希，但工件没有其原件。现有工作流
+定向增加 17 项：BL1/BL2/CP/AP 的 ELF 和 map、4 个原始 BIN、CP/AP seed
+与 resolved 配置、分区 CSV。复制前检查构建清单哈希与路径边界；独立 job
+重新检查哈希、文件完整性和标准配置的工程开关。未新增 QEMU 接入或板端启动改动。
+同一来源测试组补充真实文件夹具，先因缺导出函数取得 Red，修复后 12 项通过；
+涵盖错哈希、越界路径、缺 map、与哈希一致但误开的工程配置。不增加同类测试组。
+最终候选的可下载工件和结果仍以 PR 对应 CI 为准，本文不把本地文件充当公开附件。
+
 ## 已有 CI 证据（复用，不是新候选评分）
 
 来源提交的 [GitHub Actions run 37890100009](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/actions/runs/37890100009)（attempt 1）已完成并成功：`build` 与 `verify-delivery` 两个 job 均通过。
