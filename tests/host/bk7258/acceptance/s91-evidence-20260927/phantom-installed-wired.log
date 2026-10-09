@@ -1,0 +1,32 @@
+test_real_tls_fragmentation_and_teardown (test_provision_tls.ProvisionTlsTest) ... ERROR
+
+======================================================================
+ERROR: test_real_tls_fragmentation_and_teardown (test_provision_tls.ProvisionTlsTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_provision_tls.py", line 188, in test_real_tls_fragmentation_and_teardown
+    run(
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_provision_tls.py", line 129, in run
+    raise RuntimeError(detail)
+RuntimeError: ......
+----------------------------------------------------------------------
+Ran 6 tests in 0.205s
+
+OK
+BKPROV_OWNER_PASS: automatic discovery, proof gates, lifecycle
+BKPROV_NETWORK_PASS: verified publication, cancellation and rollback quarantine
+/tmp/native-pack-mutant-9twnrtzw/root/tests/host/bk7258/test_provision_time.c:13:10: fatal error: netutils/ntpclient.h: No such file or directory
+   13 | #include <netutils/ntpclient.h>
+      |          ^~~~~~~~~~~~~~~~~~~~~~
+compilation terminated.
+/tmp/native-pack-mutant-9twnrtzw/root/app/bk7258/bk7258_provision_time.c:12:10: fatal error: netutils/ntpclient.h: No such file or directory
+   12 | #include <netutils/ntpclient.h>
+      |          ^~~~~~~~~~~~~~~~~~~~~~
+compilation terminated.
+
+Synthetic inputs: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s91/mutation-private/1790493757333618147
+
+----------------------------------------------------------------------
+Ran 1 test in 0.752s
+
+FAILED (errors=1)

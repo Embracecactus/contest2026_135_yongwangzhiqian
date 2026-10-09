@@ -1,0 +1,66 @@
+usage: bk7258.py workbench [-h] [--task-id TASK_ID]
+                           [--event-sequence EVENT_SEQUENCE]
+                           [--state {start,progress,success,failure,canceled}]
+                           [--ttl-ms TTL_MS] [--progress PROGRESS]
+                           [--file FILE] [--receipt RECEIPT]
+                           [--expected-trial-id EXPECTED_TRIAL_ID]
+                           [--operation-id OPERATION_ID]
+                           [--expression {neutral,happy,shy,sad,surprised,thinking,listening,speaking,sleepy}]
+                           [--pack-filename PACK_FILENAME]
+                           [--selection-epoch SELECTION_EPOCH]
+                           [--selection-nonce SELECTION_NONCE]
+                           [--expected-selection-id EXPECTED_SELECTION_ID]
+                           [--expected-default-revision EXPECTED_DEFAULT_REVISION]
+                           [--port PORT] [--profile PROFILE]
+                           [--certificate CERTIFICATE]
+                           [--certificate-sha256 CERTIFICATE_SHA256]
+                           [--pc-key-file PC_KEY_FILE] [--timeout TIMEOUT]
+                           [--request REQUEST] [--pending PENDING]
+                           [--response RESPONSE]
+                           [--confirm-device-sha256 CONFIRM_DEVICE_SHA256]
+                           [--allow {resources,scenes,tasks,diagnostics} [{resources,scenes,tasks,diagnostics} ...]]
+                           {status,info,save-profile,pair-start,pair-finish,task-event,task-status,trial-start,trial-status,trial-cancel,default-status,default-refresh,default-set,default-cancel,default-recover,resource-status,resource-upload,resource-resume,resource-cancel}
+
+positional arguments:
+  {status,info,save-profile,pair-start,pair-finish,task-event,task-status,trial-start,trial-status,trial-cancel,default-status,default-refresh,default-set,default-cancel,default-recover,resource-status,resource-upload,resource-resume,resource-cancel}
+
+options:
+  -h, --help            show this help message and exit
+  --task-id TASK_ID     32 hex digits; never reuse within an authorization
+                        binding
+  --event-sequence EVENT_SEQUENCE
+                        Monotonic across tasks for this authorization
+  --state {start,progress,success,failure,canceled}
+  --ttl-ms TTL_MS       Remaining receiver TTL; subtract caller queue age
+  --progress PROGRESS   0..100; omit for unknown, start requires 0
+  --file FILE           Public eye pack; never activated by upload
+  --receipt RECEIPT     Exclusive local public job receipt
+  --expected-trial-id EXPECTED_TRIAL_ID
+                        Exact latest ID read from this device
+  --operation-id OPERATION_ID
+                        Nonzero 16 lowercase hex digits; retain across a
+                        manual exact retry
+  --expression {neutral,happy,shy,sad,surprised,thinking,listening,speaking,sleepy}
+  --pack-filename PACK_FILENAME
+                        Installed .bkep name for trial-start or default-set;
+                        never a local path
+  --selection-epoch SELECTION_EPOCH
+                        32 lowercase hex scope from default-status
+  --selection-nonce SELECTION_NONCE
+                        Explicit nonzero 32-hex operation ID; retain for
+                        status/retry
+  --expected-selection-id EXPECTED_SELECTION_ID
+                        Latest selection job ID in this scope
+  --expected-default-revision EXPECTED_DEFAULT_REVISION
+                        Durable version from completed explicit refresh
+  --port PORT
+  --profile PROFILE
+  --certificate CERTIFICATE
+  --certificate-sha256 CERTIFICATE_SHA256
+  --pc-key-file PC_KEY_FILE
+  --timeout TIMEOUT
+  --request REQUEST
+  --pending PENDING
+  --response RESPONSE
+  --confirm-device-sha256 CONFIRM_DEVICE_SHA256
+  --allow {resources,scenes,tasks,diagnostics} [{resources,scenes,tasks,diagnostics} ...]

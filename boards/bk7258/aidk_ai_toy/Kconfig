@@ -110,7 +110,7 @@ config BK7258_AIDK_MFRC522
 	depends on BK7258_AP_CORE
 	depends on BK7258_UART1
 	select DRIVERS_CONTACTLESS
-	select CL_MFRC522
+	select CL_MFRC522_RF
 	help
 		Bind the MFRC522 RFID/NFC reader on the UART1 host interface (P0/P1)
 		as /dev/nfc0.  The board supplies only a UART register-transport adapter;
@@ -165,17 +165,36 @@ config BK7258_AIDK_CAMERA
 		640x480, 30 fps MJPEG through /dev/video0.
 
 config BK7258_AIDK_WAKE_REPLY_PCM
-	bool "Stage the operator-authorized personalized wake acknowledgement PCM"
-	default n
+	bool "Stage a local wake acknowledgement PCM"
+	default y
 	depends on BK7258_BOARD_AIDK_AI_TOY
 	help
-		Stage the local personalized wake acknowledgement
-		(app/bk7258/assets/wake_reply.pcm, 16 kHz mono PCM16LE) into the
-		media ROMFS at /etc/media/wake_reply.pcm.  The asset is an
-		operator-authorized private recording and is not part of the public
-		source distribution; its absence is not a defect.  Public, review and
-		forwarding builds keep this disabled, so a file that merely exists in
-		a local worktree cannot enter a shared image.  The private
-		demonstration build enables it explicitly and the build log records
-		the staged asset SHA-256.  Without the asset the wake acknowledgement
-		stays silent and the session lifecycle is unchanged.
+		Stage the reviewed public 16 kHz mono PCM16LE acknowledgement into
+		the media ROMFS. A personalized recording requires the separate
+		explicit private-asset option below.
+
+config BK7258_AIDK_PUBLIC_WAKE_REPLY_PCM
+	bool "Use the reviewed public synthetic wake acknowledgement"
+	default y
+	depends on BK7258_AIDK_WAKE_REPLY_PCM
+	help
+		Use app/bk7258/assets/wake_reply_public.pcm, a public non-cloned
+		ordinary synthetic voice asset. It is the default and needs no TTS
+		software when building firmware.
+
+config BK7258_AIDK_WAKE_REPLY_TONE_FALLBACK
+	bool "Use the two-note wake acknowledgement fallback"
+	default n
+	depends on BK7258_AIDK_WAKE_REPLY_PCM
+	help
+		Explicitly use the locally generated two-note acknowledgement instead
+		of either the public synthetic voice or an authorized private asset.
+
+config BK7258_AIDK_PRIVATE_WAKE_REPLY_PCM
+	bool "Use a locally authorized personalized wake acknowledgement"
+	default n
+	depends on BK7258_AIDK_WAKE_REPLY_PCM
+	help
+		Use app/bk7258/assets/wake_reply.pcm only when the operator has
+		authorized that recording for this specific build.  This is never
+		the public default or a prerequisite for an independent build.

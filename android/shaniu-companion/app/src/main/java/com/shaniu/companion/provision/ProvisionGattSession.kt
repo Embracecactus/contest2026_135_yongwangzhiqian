@@ -45,6 +45,7 @@ class ProvisionGattSession internal constructor(
     var failure: String? = null
         private set
     val established: Boolean get() = !closed && channel.established
+    val peerIdentity: ProvisionPeerIdentity? get() = if (closed) null else channel.peerIdentity
 
     /** Switch only after the control protocol has accepted its AUTH response.
      * Provisioning remains an absolute 120-second window; an authenticated

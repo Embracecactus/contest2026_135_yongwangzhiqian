@@ -16,6 +16,7 @@
 
 #include <errno.h>
 #include <sched.h>
+#include <pthread.h>
 #include <semaphore.h>
 #include <stdatomic.h>
 #include <stdio.h>
@@ -28,6 +29,10 @@
 #include <syslog.h>
 #include <unistd.h>
 #include <mbedtls/platform_util.h>
+#ifdef CONFIG_BK7258_FACTORY_DIAGNOSTICS
+#include <mbedtls/sha256.h>
+#include "bk7258_factory_diagnostics.h"
+#endif
 
 #include <nuttx/signal.h>
 #include <nuttx/mutex.h>
@@ -60,6 +65,9 @@
 #include "bk7258_haptic_service.h"
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
 #include "bk7258_display_service.h"
+#include "bk7258_display_job_service.h"
+#include "bk7258_display_job_control.h"
+#include "bk7258_display_selection_control.h"
 #include "bk7258_control_ota_request.h"
 #include "bk7258_cloud_http.h"
 #include "bk7258_voice_tls.h"
@@ -72,13 +80,34 @@
 #include "bk7258_agent_ota.h"
 #include "bk7258_cloud_config.h"
 #include "bk7258_provision_identity.h"
+#ifdef CONFIG_BK7258_PROVISION_NATIVE
+#include "bk7258_provision_bootstrap.h"
+#endif
 #include "bk7258_provision_claim.h"
 #include "bk7258_provision_settings.h"
+#include "bk7258_focus.h"
+#include "bk7258_pc_tasks.h"
+#ifdef CONFIG_BK7258_USBCDC
+#include "bk7258_pc_usb.h"
+#endif
+#include "bk7258_pc_grants.h"
+#include "bk7258_focus_intent.h"
+#ifdef CONFIG_BK7258_NFC_SERVICE
+#include "bk7258_nfc_service.h"
+#ifdef CONFIG_BK7258_PROVISION_GATT
+#include "bk7258_nfc_bindings.h"
+#include "bk7258_nfc_control.h"
+#endif
+#endif
+#include "bk7258_display_trial_control.h"
+#include "bk7258_provision_config.h"
+#include "bk7258_pc_authorization_owner.h"
 #include "bk7258_provision_storage.h"
 #include "bk7258_provision_time.h"
 #include "bk7258_provision_owner.h"
 #include "bk7258_provision_gatt.h"
 #include "bk7258_provision_network.h"
+#include "bk7258_provision_scan.h"
 #include "bk7258_agent_trigger.h"
 #include "bk7258_voice_media.h"
 #ifdef CONFIG_AI_AGENT_LVGL_UI
@@ -93,6 +122,10 @@
 #ifdef CONFIG_BK7258_PM_SOFT_OFF
 #include "bk7258_media_volume.h"
 #include <arch/chip/bk7258_pm.h>
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+#include "bk7258_agent_power.h"
+#include "bk7258_engineering_test.h"
+#endif
 #ifdef CONFIG_BK7258_VISION_SERVICE
 #include "bk7258_vision_service.h"
 #endif
@@ -131,7 +164,15 @@
  */
 
 static struct bkprov_identity_s g_identity;
+#ifdef CONFIG_BK7258_USBCDC
+static struct bkpc_usb_owner_s g_pc_usb_owner;
+static int product_pc_usb_stop(void);
+#endif
 static bool g_identity_bound;
+static bool g_control_bound;
+static bool g_save_first;
+static atomic_bool g_probe_running;
+static atomic_int g_probe_worker_result;
 static bool g_cloud_loaded;
 static bool g_configured;
 static bool g_trigger_started;
@@ -139,23 +180,29 @@ static int g_product_error;
 static int g_service_result = -ENOTCONN;
 static int g_probe_result = -ENOTCONN;
 static uint64_t g_config_revision;
+static uint64_t g_application_revision;
 static sem_t g_product_wake;
 static atomic_uint g_product_events;
 static atomic_bool g_agent_core_ready;
+#ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
+#include "bk7258_cloud_fixture.h"
+static atomic_bool g_pipeline_window;
+static atomic_bool g_pipeline_media;
+static atomic_bool g_pipeline_complete;
+static atomic_int g_pipeline_result;
+#endif
 static atomic_bool g_voice_initialized;
 static atomic_bool g_agent_ready;
 static atomic_int g_voice_event_result;
 static atomic_bool g_trigger_prepare_pending = ATOMIC_VAR_INIT(true);
 static mutex_t g_persona_lock = NXMUTEX_INITIALIZER;
 static atomic_int g_active_persona = ATOMIC_VAR_INIT(-1);
-#if defined(CONFIG_BK7258_PRODUCT_KEYS) && defined(CONFIG_BK7258_PM_SOFT_OFF)
-static bool g_power_pending;
-static bool g_power_volume_owned;
-static bool g_power_storage_stopped;
-static bool g_power_vision_quiesced;
-static bool g_power_haptic_quiesced;
-static uint64_t g_power_query_at;
-#endif
+/* This is process-local only. SRV1/SRR1 remain the restart-safe authority;
+ * FINISHING preserves the post-worker teardown when storage changes to
+ * positively empty after a successful reset. */
+enum product_reset_phase_e { PRODUCT_RESET_IDLE, PRODUCT_RESET_QUIESCING,
+                             PRODUCT_RESET_FINISHING };
+static enum product_reset_phase_e g_reset_phase;
 
 /* Media Trigger reports only product wake admission here. The official voice
  * channel remains the sole conversational lifecycle owner.
@@ -174,6 +221,57 @@ void bk7258_agent_product_wake(void)
 static void bk7258_agent_voice_event(int event, int result)
 {
   unsigned int flags = 0;
+#ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
+  if (atomic_load(&g_pipeline_window))
+    {
+      if (event == VOICE_CHANNEL_EVENT_OUTPUT_STARTED)
+        {
+          bkcloud_fixture_media_started();
+          atomic_store(&g_pipeline_media, true);
+        }
+      if (event == VOICE_CHANNEL_EVENT_TURN_COMPLETE)
+        {
+          atomic_store(&g_pipeline_result, result);
+          atomic_store(&g_pipeline_complete, true);
+        }
+    }
+#endif
+#ifdef CONFIG_BK7258_AUDIO_CAPTURE_VALIDATION
+  /* Bounded startup probes are not user conversation turns. Their voice
+   * owner still completes normally, but must not enqueue product re-entry
+   * while core readiness is deliberately withheld. */
+  if (event == VOICE_CHANNEL_EVENT_TURN_COMPLETE &&
+      !atomic_load(&g_agent_core_ready))
+    {
+      bk7258_agent_trigger_reply_discard();
+      return;
+    }
+#endif
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+  if (event == VOICE_CHANNEL_EVENT_OUTPUT_STARTED ||
+      event == VOICE_CHANNEL_EVENT_OUTPUT_FINISHED)
+    {
+      bk7258_display_speaking(event == VOICE_CHANNEL_EVENT_OUTPUT_STARTED);
+      return;
+    }
+#endif
+  if (event == VOICE_CHANNEL_EVENT_WAKE_ACK_REQUEST)
+    {
+      /* The Agent reader is paused; its producer still drains and erases
+       * microphone PCM until this synchronous playback has drained. */
+      voice_channel_wake_ack_result(bk7258_agent_trigger_reply());
+      return;
+    }
+  if (event == VOICE_CHANNEL_EVENT_WAKE_ACK_SKIP)
+    {
+      bk7258_agent_trigger_reply_discard();
+      return;
+    }
+  if (event == VOICE_CHANNEL_EVENT_WAKE_ACK_CANCEL)
+    {
+      bk7258_agent_trigger_reply_cancel();
+      return;
+    }
   if (event == VOICE_CHANNEL_EVENT_INITIALIZED)
     {
       atomic_store(&g_voice_initialized, result == 0);
@@ -186,6 +284,7 @@ static void bk7258_agent_voice_event(int event, int result)
     }
   else if (event == VOICE_CHANNEL_EVENT_TURN_COMPLETE)
     {
+      bk7258_agent_trigger_reply_discard();
       atomic_store(&g_voice_event_result, result);
       flags = 2;
     }
@@ -205,13 +304,13 @@ static void bk7258_agent_storage_changed(void)
 
 static bool product_voice_result_exits_interaction(int result)
 {
-  /* Use the official endpoint/cancel outcomes as the product interaction
-   * boundary. Other completed-turn failures have already released their
-   * official owners and may be retried without another wake word. If the
-   * user stays silent, the next official auto turn exits with -ENODATA.
+  /* 只有成功的回答继续免唤醒对话。超时、传输或工具失败已经结束
+   * 本次请求，必须恢复唤醒，不能立刻开启一次无人请求的录音。
+   * TURN_COMPLETE 仍是资源释放边界；未释放的 Media 由 recover
+   * 继续处理，rearm 的失败不能被当作已经恢复。
    */
 
-  return result == -ENODATA || result == -ECANCELED;
+  return result != 0;
 }
 
 #ifdef CONFIG_BK7258_PRODUCT_KEYS
@@ -220,215 +319,98 @@ static void product_keys_notify(void)
   sem_post(&g_product_wake);
 }
 
-#ifdef CONFIG_BK7258_PM_SOFT_OFF
-static int product_power_restore(void)
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+static struct bkengtest_s g_engineering_test;
+static struct bkengaudio_s g_engineering_audio;
+static int product_audio_validation_report(struct bkengaudio_report_s *report);
+
+static int product_engineering_key_begin(void *context, uint32_t session,
+                                         uint64_t now)
 {
-  int ret;
-  if (g_power_storage_stopped)
-    {
-      ret = bkprov_storage_start("/cpdata/shaniu");
-      if (ret < 0)
-        {
-          return ret;
-        }
+  (void)context;
+  return bkvoice_keys_engineering_begin(session, now);
+}
 
-      g_power_storage_stopped = false;
+static int product_engineering_key_event(void *context, uint32_t session,
+                                         uint32_t sequence,
+                                         uint32_t pressed, uint64_t now,
+                                         bool *power_accepted)
+{
+  (void)context;
+  return bkvoice_keys_engineering_event(session, sequence, pressed, now,
+                                         power_accepted);
+}
+
+static int product_engineering_key_end(void *context, uint32_t session)
+{
+  (void)context;
+  return bkvoice_keys_engineering_end(session);
+}
+
+static int product_engineering_system_status(void *context, uint32_t *voice,
+                                             uint32_t *storage,
+                                             uint32_t *network)
+{
+  struct bk7258_wifi_result_s wifi;
+  uint64_t revision;
+
+  (void)context;
+  *voice = !atomic_load(&g_voice_initialized) ? BKENGTEST_VOICE_UNAVAILABLE :
+           voice_channel_is_idle() ? BKENGTEST_VOICE_IDLE :
+           BKENGTEST_VOICE_BUSY;
+  *storage = bkprov_storage_revision(&revision) == 0 ?
+             BKENGTEST_STORAGE_READY : BKENGTEST_STORAGE_UNAVAILABLE;
+  *network = BKENGTEST_NETWORK_OFFLINE;
+  if (bk7258_wifi_read_link(&wifi) == 0)
+    {
+      *network = wifi.ipaddr && bk7258_wifi_native_lease_matches(&wifi) ?
+                 BKENGTEST_NETWORK_READY : BKENGTEST_NETWORK_LINK;
     }
 
-  if (g_power_volume_owned)
-    {
-      ret = bk7258_media_volume_release(BK7258_MEDIA_VOLUME_POWER);
-      if (ret < 0)
-        {
-          return ret;
-        }
-
-      g_power_volume_owned = false;
-    }
-
-#ifdef CONFIG_BK7258_VISION_SERVICE
-  if (g_power_vision_quiesced)
-    {
-      ret = bk7258_vision_quiesce(false);
-      if (ret < 0)
-        {
-          return ret;
-        }
-
-      g_power_vision_quiesced = false;
-    }
-
-#endif
-#ifdef CONFIG_BK7258_HAPTIC_SERVICE
-  if (g_power_haptic_quiesced)
-    {
-      ret = bkhaptic_service_quiesce(false);
-      if (ret < 0)
-        {
-          return ret;
-        }
-
-      g_power_haptic_quiesced = false;
-    }
-
-#endif
   return 0;
 }
 
-static int product_power_request(void)
+static int product_engineering_audio_run(
+  void *context, struct bkengaudio_report_s *report)
 {
+  uint32_t power_state;
+  int32_t power_error;
   int ret;
-  /* Power-off is accepted only from the idle end state; a cancel return or a
-   * boolean flag is not treated as proof of release. The control connection
-   * itself does not block power-off, but provisioning, claiming, model
-   * commit and update must still have finished.
-   */
 
-  if (!atomic_load(&g_agent_ready) || !voice_channel_is_idle() ||
-      bkprov_owner_pairing() || bkprov_network_busy() ||
-      bkagent_ota_busy() || bk7258_agent_trigger_model_pending())
+  (void)context;
+  if (report == NULL || !atomic_load(&g_voice_initialized) ||
+      !voice_channel_is_idle() || bkagent_ota_busy())
     {
       return -EBUSY;
     }
 
-  ret = bk7258_media_volume_acquire(BK7258_MEDIA_VOLUME_POWER);
+  ret = bk7258_agent_power_status(NULL, &power_state, &power_error);
   if (ret < 0)
     {
       return ret;
     }
 
-  g_power_volume_owned = true;
-#ifdef CONFIG_BK7258_VISION_SERVICE
-  ret = bk7258_vision_quiesce(true);
-  if (ret < 0)
+  if (power_state != 0 || power_error != 0)
     {
-      goto restore;
+      return -EBUSY;
     }
 
-  g_power_vision_quiesced = true;
-#endif
-#ifdef CONFIG_BK7258_HAPTIC_SERVICE
-  ret = bkhaptic_service_quiesce(true);
-  if (ret < 0)
-    {
-      goto restore;
-    }
+  return product_audio_validation_report(report);
+}
 
-  g_power_haptic_quiesced = true;
-#endif
-  ret = bkprov_storage_stop();
-  if (ret < 0)
-    {
-      goto restore;
-    }
-
-  g_power_storage_stopped = true;
-  ret = bk7258_agent_trigger_stop();
-  if (ret < 0)
-    {
-      goto restore;
-    }
-
-  g_trigger_started = false;
-  atomic_store(&g_trigger_prepare_pending, true);
-  sync();
-  ret = bk7258_pm_soft_off_request();
-  if (ret < 0)
-    {
-      /* A timeout does not mean the CP did not receive it; when the state is
-       * unknown, the cleaned-up resource boundary is retained.
-       */
-
-      int pending = bk7258_pm_soft_off_status();
-      if (pending == 0)
-        {
-          goto restore;
-        }
-    }
-
-  g_power_pending = true;
-  g_power_query_at = bkvoice_config_now_ms(NULL) + 500;
-  return ret;
-
-restore:
+static const struct bkengtest_ops_s g_engineering_test_ops =
 {
-  int cleanup = product_power_restore();
-  if (cleanup < 0)
-    {
-      g_power_pending = true;
-      g_power_query_at = bkvoice_config_now_ms(NULL) + 500;
-      return cleanup;
-    }
-}
-
-  return ret;
-}
+  .now_ms = bkvoice_config_now_ms,
+  .key_begin = product_engineering_key_begin,
+  .key_event = product_engineering_key_event,
+  .key_end = product_engineering_key_end,
+  .power_status = bk7258_agent_power_status,
+  .system_status = product_engineering_system_status,
+  .audio_run = product_engineering_audio_run,
+};
 #endif
 
-static bool product_keys_step(uint64_t now)
-{
-  unsigned int volume = 0;
-  int steps;
-  int ret;
-  bool power;
-  bkvoice_keys_take(&steps, &power);
-#ifdef CONFIG_BK7258_PM_SOFT_OFF
-  if (g_power_pending)
-    {
-      if (now >= g_power_query_at)
-        {
-          ret = bk7258_pm_soft_off_status();
-          g_power_query_at = now + 500;
-          if (ret == 0)
-            {
-              ret = product_power_restore();
-              if (!ret)
-                {
-                  g_power_pending = false;
-                }
-
-              syslog(LOG_WARNING, "BKKEYS power canceled restore=%d\n", ret);
-            }
-        }
-
-      return g_power_pending;
-    }
-
-#else
-  (void)now;
-#endif
-  if (power)
-    {
-#ifdef CONFIG_BK7258_PM_SOFT_OFF
-      ret = product_power_request();
-#else
-      ret = -ENOTSUP;
-#endif
-      g_product_error = ret;
-      syslog(ret ? LOG_WARNING : LOG_INFO,
-             "BKKEYS power request result=%d\n", ret);
-    }
-  else if (steps)
-    {
-      ret = bkagent_ota_busy() ? -EBUSY :
-              bkvoice_media_volume_step(steps, &volume);
-      if (!ret)
-        {
-          ret = bkvoice_volume_store_set(volume);
-        }
-
-      g_product_error = ret;
-      syslog(ret ? LOG_WARNING : LOG_INFO,
-             "BKKEYS volume steps=%d observed=%u result=%d\n",
-             steps, volume, ret);
-    }
-
-#ifdef CONFIG_BK7258_PM_SOFT_OFF
-  return g_power_pending;
-#else
-  return false;
-#endif
-}
+#include "bk7258_agent_product_power.inc"
 #endif
 
 static int product_apply_persona(int requested)
@@ -531,6 +513,12 @@ static int product_apply_persona(int requested)
   return ret;
 }
 
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+#include "bk7258_agent_display_control.inc"
+#else
+#define product_cancel voice_channel_cancel
+#endif
+
 static int product_control(void *context, enum bkcontrol_command_e command,
                             uint32_t value,
                             struct bkcontrol_status_s *status)
@@ -576,7 +564,7 @@ static int product_control(void *context, enum bkcontrol_command_e command,
         return -ENOTSUP;
 #endif
       case BKCONTROL_STATUS: break;
-      case BKCONTROL_CANCEL: ret = voice_channel_cancel(); break;
+      case BKCONTROL_CANCEL: ret = product_cancel(); break;
       case BKCONTROL_CLEAR_HISTORY:
         if (!voice_channel_is_idle())
         {
@@ -710,9 +698,12 @@ static char *product_tools(void)
     "milliseconds). Every repeat request needs a fresh tool call; never "
     "claim another action based on an earlier success. "
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
-    "Use action eyes with expression to show an emotion when requested "
-    "or helpful in conversation; local display handles blinking, never "
-    "call per frame. "
+    "Use action eyes only when the user explicitly asks to change the "
+    "eye expression. Do not call it to decorate an ordinary answer or joke; "
+    "local display handles blinking and the speaking state automatically. "
+    "Eyes returns accepted plus request_id, not completed. Never claim the "
+    "expression is visible from acceptance; device_status exposes the latest "
+    "eye_request with its ID and state. Do not repeatedly poll in one answer. "
 #endif
     "Report errors honestly.\","
     "\"input_schema\":{\"type\":\"object\",\"properties\":{"
@@ -733,6 +724,19 @@ static char *product_tools(void)
     "\"maximum\":" BK7258_STRINGIFY(BK7258_TOOL_VALUE_MAX) "},"
     "\"mood\":{\"type\":\"string\",\"enum\":[\"gentle\",\"playful\","
     "\"quiet\",\"serious\",\"tsundere_lite\"]}},\"required\":[\"action\"]}}"
+    ",{\"name\":\"focus_timer\",\"description\":"
+    "\"Only on an explicit user request, start/pause/resume/cancel the "
+    "device's local focus timer. Start requires integer seconds. Accepted "
+    "means queued, not running or completed; call status once if needed. "
+    "Status is a cached observation: phase 0 idle, 1 pending, 2 applied, "
+    "3 failed, 4 canceled; timer_state 0 idle, 1 running, 2 paused, "
+    "3 completed, 4 canceled. A timer completion does not confirm sound. "
+    "Do not repeatedly poll or start a timer without the user's request.\","
+    "\"input_schema\":{\"type\":\"object\",\"properties\":{"
+    "\"action\":{\"type\":\"string\",\"enum\":[\"status\",\"start\","
+    "\"pause\",\"resume\",\"cancel\"]},\"seconds\":{\"type\":\"integer\","
+    "\"minimum\":1,\"maximum\":4294967}},\"required\":[\"action\"],"
+    "\"additionalProperties\":false}}"
     ",{\"name\":\"read_file\",\"description\":"
     "\"Read a UTF-8 text file under /data/agent. Use it to open a skill "
     "document under /data/agent/skills before following that skill's "
@@ -749,7 +753,8 @@ static int product_tool_execute(const char *name, const char *input,
   int written = 0;
   if (!name || (strcmp(name, "device_status") &&
                 strcmp(name, "device_motion") &&
-                strcmp(name, "device_control") && strcmp(name, "read_file")))
+                strcmp(name, "device_control") && strcmp(name, "focus_timer") &&
+                strcmp(name, "read_file")))
     {
       return ERROR;
     }
@@ -786,6 +791,12 @@ static int product_tool_execute(const char *name, const char *input,
       goto out;
     }
 
+  if (!strcmp(name, "focus_timer"))
+    {
+      ret = bkfocus_tool_execute(args, output, capacity, check, context);
+      goto out;
+    }
+
   if (!strcmp(name, "device_status"))
     {
       char voltage[16] = "null";
@@ -794,6 +805,19 @@ static int product_tool_execute(const char *name, const char *input,
       const char *mood =
       bk7258_preferences_persona_name(atomic_load(&g_active_persona));
       unsigned int volume;
+      char eye_request[144] = "";
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+      struct bkdisplay_expression_request_s eye;
+      if (bk7258_display_expression_status(&eye) == 0)
+        {
+          static const char *const states[] = {
+            "idle", "pending", "running", "completed", "failed", "canceled"
+          };
+          snprintf(eye_request, sizeof(eye_request),
+            ",\"eye_request\":{\"id\":%lu,\"state\":\"%s\",\"error\":%d}",
+            (unsigned long)eye.id, states[eye.state], eye.error);
+        }
+#endif
 #ifdef CONFIG_BK7258_HEALTH_SERVICE
       struct bk7258_health_service_snapshot_s health;
       if (!bk7258_health_service_snapshot(&health))
@@ -836,8 +860,8 @@ static int product_tool_execute(const char *name, const char *input,
       written = snprintf(output, capacity,
         "{\"battery_mv\":%s,\"battery_state\":\"%s\","
         "\"battery_percent\":null,\"battery_source\":\"periodic_cache\","
-        "\"volume_percent\":%s,\"mood\":\"%s\"}",
-        voltage, state, level, mood ? mood : "unknown");
+        "\"volume_percent\":%s,\"mood\":\"%s\"%s}",
+        voltage, state, level, mood ? mood : "unknown", eye_request);
     }
 #ifdef CONFIG_BK7258_MOTION_SERVICE
   else if (!strcmp(name, "device_motion"))
@@ -868,6 +892,9 @@ static int product_tool_execute(const char *name, const char *input,
       cJSON *value = cJSON_GetObjectItemCaseSensitive(args, "value");
       cJSON *mood = cJSON_GetObjectItemCaseSensitive(args, "mood");
       unsigned int observed = 0;
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+      uint32_t eye_request_id = 0;
+#endif
     if (bkagent_ota_busy())
       {
         ret = -EBUSY;
@@ -916,7 +943,9 @@ static int product_tool_execute(const char *name, const char *input,
                 {
                   if (!strcmp(expression->valuestring, expressions[i]))
                     {
-                      ret = bk7258_display_set_expression(expressions[i]);
+                      /* Reserve output space before accepting a side effect. */
+                      ret = capacity < 128 ? -ENOSPC :
+                        product_expression_request(expressions[i], &eye_request_id, check, context);
                       break;
                     }
                 }
@@ -951,6 +980,15 @@ static int product_tool_execute(const char *name, const char *input,
           goto out;
         }
 
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+      if (eye_request_id)
+        {
+          written = snprintf(output, capacity,
+            "{\"ok\":true,\"action\":\"eyes\",\"state\":\"accepted\","
+            "\"request_id\":%lu,\"rendered\":false}", (unsigned long)eye_request_id);
+        }
+      else
+#endif
       if (!strcmp(action->valuestring, "volume"))
         {
           written = snprintf(output, capacity,
@@ -987,12 +1025,88 @@ out:
   return OK;
 }
 
+/* The authenticated control session reuses the single device scan worker.
+ * Results are public SSIDs, scoped to this GATT generation, never credentials.
+ */
+static struct
+{
+  bool pending;
+  bool ready;
+  uint32_t generation;
+  int result;
+  size_t size;
+  uint8_t wire[12 + BKPROV_SCAN_MAX_APS * 36];
+} g_control_scan;
+
+static void product_scan_step(void)
+{
+  if (g_control_scan.generation != bkprov_gatt_generation())
+    {
+      if (g_control_scan.pending) bkprov_scan_close();
+      memset(&g_control_scan, 0, sizeof(g_control_scan));
+      bkprov_scan_drain();
+      return;
+    }
+  if (!g_control_scan.pending) return;
+  struct bkprov_scan_result_s result;
+  int ret = bkprov_scan_poll(&result);
+  if (ret == -EAGAIN) return;
+  g_control_scan.pending = false;
+  g_control_scan.ready = true;
+  g_control_scan.result = ret ? ret : result.status;
+  if (g_control_scan.result) return;
+  memset(g_control_scan.wire, 0, sizeof(g_control_scan.wire));
+  memcpy(g_control_scan.wire, "WFS1", 4);
+  g_control_scan.wire[4] = result.count;
+  g_control_scan.wire[5] = result.truncated;
+  for (unsigned int i = 0; i < result.count; i++)
+    {
+      uint8_t *p = g_control_scan.wire + 12 + i * 36;
+      p[0] = result.aps[i].ssid_len;
+      p[1] = (uint8_t)result.aps[i].rssi;
+      p[2] = result.aps[i].channel;
+      p[3] = result.aps[i].security;
+      memcpy(p + 4, result.aps[i].ssid, 32);
+    }
+  g_control_scan.size = 12 + result.count * 36;
+}
+
+static int product_scan_read(uint32_t offset,
+                            struct bkcontrol_status_s *status)
+{
+  product_scan_step();
+  if (!offset && !g_control_scan.ready && !g_control_scan.pending)
+    {
+      if (bkprov_network_busy()) return -EBUSY;
+      int ret = bkprov_scan_start();
+      if (ret) return ret;
+      g_control_scan.pending = true;
+      g_control_scan.generation = bkprov_gatt_generation();
+    }
+  if (g_control_scan.pending) return -EAGAIN;
+  if (!g_control_scan.ready) return -ESTALE;
+  if (g_control_scan.result)
+    {
+      int ret = g_control_scan.result;
+      g_control_scan.ready = false;
+      return ret;
+    }
+  if (offset >= g_control_scan.size || (offset & 15u)) return -ERANGE;
+  status->config_total = g_control_scan.size;
+  size_t count = g_control_scan.size - offset;
+  if (count > sizeof(status->config_chunk)) count = sizeof(status->config_chunk);
+  memset(status->config_chunk, 0, sizeof(status->config_chunk));
+  memcpy(status->config_chunk, g_control_scan.wire + offset, count);
+  if (offset + count == g_control_scan.size) g_control_scan.ready = false;
+  return 0;
+}
+
 static bool product_available(void *unused)
 {
   (void)unused;
   return atomic_load(&g_agent_core_ready) &&
          atomic_load(&g_voice_initialized) &&
-         atomic_load(&g_agent_ready) &&
+         !atomic_load(&g_probe_running) &&
          voice_channel_is_idle() &&
          !bkagent_ota_busy() && !bkprov_network_busy();
 }
@@ -1000,13 +1114,60 @@ static bool product_available(void *unused)
 static int product_models(enum bkcontrol_command_e command, uint32_t offset,
   const uint8_t *record, size_t size, struct bkcontrol_status_s *status);
 
+static uint64_t product_be64(const uint8_t *record)
+{
+  uint64_t value = 0;
+  for (unsigned int i = 0; i < 8; i++) value = (value << 8) | record[i];
+  return value;
+}
+
+static void product_be32(uint8_t *record, uint32_t value)
+{
+  record[0] = value >> 24; record[1] = value >> 16;
+  record[2] = value >> 8; record[3] = value;
+}
+
+/* SRT1 is accepted only after the existing storage worker has durably
+ * committed SRV1.  The caller retries an exact request while it returns
+ * -EAGAIN; no accepted request is inferred from a disconnected response. */
+static int product_reset_control(enum bkcontrol_command_e command,
+  uint32_t offset, const uint8_t *record, size_t size,
+  struct bkcontrol_status_s *status)
+{
+  if (command == BKCONTROL_CONFIG_READ)
+    {
+      uint8_t wire[28] = {'S', 'R', 'S', '1'};
+      if (offset >= sizeof(wire) || (offset & 15u) || record == NULL || size != 16)
+        return -EINVAL;
+      int receipt = bkprov_storage_reset_receipt(record);
+      if (receipt < 0) return receipt;
+      product_be32(wire + 4, receipt == BKPROV_STORAGE_RESET_RECEIPT_PENDING ? 1u :
+                            receipt == BKPROV_STORAGE_RESET_RECEIPT_COMPLETED ? 2u : 0u);
+      memcpy(wire + 12, record, 16);
+      status->config_total = sizeof(wire);
+      memset(status->config_chunk, 0, sizeof(status->config_chunk));
+      size_t count = sizeof(wire) - offset;
+      if (count > sizeof(status->config_chunk)) count = sizeof(status->config_chunk);
+      memcpy(status->config_chunk, wire + offset, count);
+      return 0;
+    }
+  if (command == BKCONTROL_CONFIG_BEGIN) return size == 32 ? 0 : -EMSGSIZE;
+  if (command != BKCONTROL_CONFIG_APPLY || size != 32 || record == NULL ||
+      memcmp(record, "SRT1", 4) || record[4] || record[5] || record[6] || record[7])
+    return -EBADMSG;
+  uint8_t nonzero = 0;
+  for (unsigned int i = 16; i < 32; i++) nonzero |= record[i];
+  if (!nonzero) return -EBADMSG;
+  return bkprov_storage_reset_request(product_be64(record + 8), record + 16);
+}
+
 static int product_response_mode(enum bkcontrol_command_e command,
   uint32_t offset, const uint8_t *record, size_t size,
   struct bkcontrol_status_s *status)
 {
 #ifdef CONFIG_BK7258_PREFERENCES
   bool enabled = false;
-  int ret = bkagent_cloud_get_thinking(&enabled);
+  int ret = bk7258_preferences_thinking_get(&enabled);
   if (ret && ret != -EAGAIN)
     {
       return ret;
@@ -1036,12 +1197,8 @@ static int product_response_mode(enum bkcontrol_command_e command,
       return -EINVAL;
     }
 
-  if (!g_cloud_loaded)
-    {
-      return -EAGAIN;
-    }
-
-  if (!voice_channel_is_idle() || bkprov_network_busy())
+  if ((atomic_load(&g_voice_initialized) && !voice_channel_is_idle()) ||
+      bkprov_network_busy())
     {
       return -EBUSY;
     }
@@ -1238,18 +1395,22 @@ static int product_install_eyes(const uint8_t *record, size_t size)
   if (!ret && memcmp(digest, download->source.catalog_sha256,
                      sizeof(digest)))
     ret = -EBADMSG;
-  /* Resources are not activated once the control connection is gone; the
-   * download borrows no cloud session and changes no firmware update state.
+  if (download->tls.initialized)
+    {
+      bkvoice_tls_uninitialize(&download->tls);
+    }
+
+  /* The authenticated GATT generation is the commit lease.  TLS teardown may
+   * yield long enough for that connection to close, so validate the lease
+   * only after every pre-commit transport owner has been released and
+   * immediately before the persistent display import.  Once import starts,
+   * its result remains authoritative; a later disconnect cannot claim that
+   * the commit was canceled.
    */
 
   if (!ret && generation != bkprov_gatt_generation())
     {
       ret = -ECANCELED;
-    }
-
-  if (download->tls.initialized)
-    {
-      bkvoice_tls_uninitialize(&download->tls);
     }
 
   if (!ret)
@@ -1266,13 +1427,209 @@ static int product_install_eyes(const uint8_t *record, size_t size)
 }
 #endif
 
+/* The serialized product owner owns this bounded volatile task ledger.
+ * No notification is issued until a display feedback consumer is bound.
+ */
+static struct bkpc_tasks_s g_pc_tasks;
+
+static int product_pc_task_step(uint64_t now, bool admitted)
+{
+  struct bkprov_pc_snapshot_s view;
+  uint64_t binding = 0;
+  int ret;
+
+  if (!admitted)
+    {
+      bkpc_tasks_step(&g_pc_tasks, now, false);
+      return 0;
+    }
+
+  ret = bkpc_authorization_snapshot(NULL, &binding, &view);
+  if (ret == -EAGAIN)
+    {
+      /* A storage publication interval is not a grant revocation.  Keep the
+       * existing finite ledger unchanged until authority can be read again;
+       * its own monotonic deadline still bounds snapshots and visuals. */
+
+      mbedtls_platform_zeroize(&view, sizeof(view));
+      return ret;
+    }
+
+  if (ret == 0 && (view.capabilities & BKPC_CAP_TASKS) != 0)
+    {
+      bkpc_tasks_bind(&g_pc_tasks, binding, view.revision);
+    }
+  else
+    {
+      bkpc_tasks_bind(&g_pc_tasks, 0, 0);
+    }
+
+  mbedtls_platform_zeroize(&view, sizeof(view));
+  bkpc_tasks_step(&g_pc_tasks, now, ret == 0);
+  return ret;
+}
+
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+static struct bkselection_control_s g_phone_selection;
+
+/* Transport loss is not credential revocation. The phone owner retains its
+ * public operation scope until actual credentials or identity are replaced.
+ */
+
+static void product_phone_selection_step(void)
+{
+  uint8_t epoch[16];
+  int ret = bkprov_owner_control_scope(epoch, false);
+
+  if (g_phone_selection.bound &&
+      (ret < 0 || !g_identity_bound || !g_control_bound ||
+       memcmp(epoch, g_phone_selection.epoch, sizeof(epoch)) != 0))
+    {
+      bkselection_control_invalidate(&g_phone_selection);
+    }
+}
+
+static int product_phone_selection_config(enum bkcontrol_command_e command,
+  uint32_t kind, uint32_t offset, const uint8_t *record, size_t size,
+  struct bkcontrol_status_s *status)
+{
+  uint8_t epoch[16];
+  bool admitted = g_identity_bound && g_control_bound && !bkagent_ota_busy();
+  int ret;
+
+  product_phone_selection_step();
+  if (command != BKCONTROL_CONFIG_READ && !admitted)
+    {
+      return -EBUSY;
+    }
+
+  ret = bkprov_owner_control_scope(epoch, true);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (!g_phone_selection.bound)
+    {
+      if (!admitted)
+        {
+          return -EBUSY;
+        }
+
+      ret = bkselection_control_bind(&g_phone_selection, epoch);
+      if (ret < 0)
+        {
+          return ret;
+        }
+    }
+
+  return kind == BKCONTROL_CONFIG_RESOURCE_CATALOG ?
+    bkcatalog_control(&g_phone_selection, command, offset, record, size, status) :
+    bkselection_control(&g_phone_selection, command, offset, record, size, status);
+}
+#endif
+
 static int product_config(void *context, enum bkcontrol_command_e command,
   uint32_t kind, uint32_t offset, const uint8_t *record, size_t size,
   struct bkcontrol_status_s *status)
 {
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+  if (kind == BKCONTROL_CONFIG_DEFAULT_SELECTION ||
+      kind == BKCONTROL_CONFIG_RESOURCE_CATALOG)
+    {
+      return product_phone_selection_config(command, kind, offset, record,
+                                              size, status);
+    }
+#endif
+
+  if (kind == BKCONTROL_CONFIG_PC_TASK && command == BKCONTROL_CONFIG_READ)
+    {
+      struct bkprov_pc_snapshot_s view;
+      uint64_t binding = 0;
+      int ret = bkpc_authorization_snapshot(NULL, &binding, &view);
+      if (ret == 0 && (binding != g_pc_tasks.binding ||
+                       view.revision != g_pc_tasks.grant ||
+                       (view.capabilities & BKPC_CAP_TASKS) == 0))
+        {
+          ret = -ESTALE;
+        }
+
+      mbedtls_platform_zeroize(&view, sizeof(view));
+      return ret < 0 ? ret :
+        bkpc_tasks_control(&g_pc_tasks, command, offset, record, size,
+                            status, bkvoice_config_now_ms(NULL));
+    }
+
+  if (kind == BKCONTROL_CONFIG_PC_AUTHORIZATION &&
+      command == BKCONTROL_CONFIG_READ)
+    {
+      return bkpc_authorization_current(command, offset, record, size, status);
+    }
+
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+  if (kind == BKCONTROL_CONFIG_EXPRESSION_TRIAL && command == BKCONTROL_CONFIG_READ)
+    return bkdisplay_trial_control(command, offset, record, size, status,
+                                   bkvoice_config_now_ms(NULL));
+#endif
+#if defined(CONFIG_BK7258_NFC_SERVICE) && defined(CONFIG_BK7258_PROVISION_GATT)
+  if (kind == BKCONTROL_CONFIG_NFC_SCENE)
+    return bknfc_scene_control(command, offset, status);
+  if (kind == BKCONTROL_CONFIG_NFC_BINDINGS && command == BKCONTROL_CONFIG_READ)
+    return bknfc_control(command, offset, record, size, status);
+#endif
   if (bkagent_ota_busy())
     {
       return -EBUSY;
+    }
+#if defined(CONFIG_BK7258_NFC_SERVICE) && defined(CONFIG_BK7258_PROVISION_GATT)
+  if (kind == BKCONTROL_CONFIG_NFC_BINDINGS)
+    return bknfc_control(command, offset, record, size, status);
+#endif
+
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+  if (kind == BKCONTROL_CONFIG_EXPRESSION_TRIAL)
+    return bkdisplay_trial_control(command, offset, record, size, status,
+                                   bkvoice_config_now_ms(NULL));
+#endif
+
+  if (kind == BKCONTROL_CONFIG_PC_TASK)
+    {
+      int ret = product_pc_task_step(bkvoice_config_now_ms(NULL),
+                                     g_control_bound);
+      if (ret == -EAGAIN)
+        {
+          return ret;
+        }
+
+      return bkpc_tasks_control(&g_pc_tasks, command, offset, record, size,
+                                status, bkvoice_config_now_ms(NULL));
+    }
+
+  if (kind == BKCONTROL_CONFIG_PC_AUTHORIZATION)
+    {
+      return bkpc_authorization_current(command, offset, record, size, status);
+    }
+
+  if (kind == BKCONTROL_CONFIG_FOCUS)
+    {
+      return bkfocus_control(command, offset, record, size, status,
+                             bkvoice_config_now_ms(NULL));
+    }
+
+  if (kind == BKCONTROL_CONFIG_SETTINGS)
+    {
+      return bkprov_config_control(command, offset, record, size, status);
+    }
+
+  if (kind == BKCONTROL_CONFIG_WIFI_SCAN)
+    {
+      return command == BKCONTROL_CONFIG_READ ?
+        product_scan_read(offset, status) : -EINVAL;
+    }
+
+  if (kind == BKCONTROL_CONFIG_RESET_TRANSFER)
+    {
+      return product_reset_control(command, offset, record, size, status);
     }
 
   if (kind == BKCONTROL_CONFIG_CLOUD_MODELS)
@@ -1368,6 +1725,237 @@ static int product_config(void *context, enum bkcontrol_command_e command,
                                      record, size, status);
 }
 
+#ifdef CONFIG_BK7258_USBCDC
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+static struct bkpack_control_s g_pc_pack;
+static struct bkselection_control_s g_pc_selection;
+static uint64_t g_pc_selection_binding;
+static uint64_t g_pc_selection_grant;
+static uint8_t g_pc_selection_client[16];
+
+static void product_pc_pack_step(bool admitted)
+{
+  struct bkprov_pc_snapshot_s view;
+  uint64_t binding = 0;
+  int ret = bkpc_authorization_snapshot(NULL, &binding, &view);
+  bool valid = ret == 0 && (view.capabilities & BKPC_CAP_RESOURCES) != 0;
+  bool changed = valid && g_pc_pack.bound &&
+    (g_pc_pack.binding != binding || g_pc_pack.grant != view.revision ||
+     memcmp(g_pc_pack.client, view.client, sizeof(view.client)));
+
+  if (changed || (!valid && ret != -EAGAIN))
+    {
+      bkpack_control_invalidate(&g_pc_pack);
+    }
+
+  changed = valid && g_pc_selection.bound &&
+    (g_pc_selection_binding != binding ||
+     g_pc_selection_grant != view.revision ||
+     memcmp(g_pc_selection_client, view.client, sizeof(view.client)));
+  if (changed || (!valid && ret != -EAGAIN))
+    {
+      bkselection_control_invalidate(&g_pc_selection);
+    }
+
+  mbedtls_platform_zeroize(&view, sizeof(view));
+  (void)bk7258_display_job_quiesce(!admitted || !valid || !g_pc_pack.bound);
+}
+#endif
+
+/* Only the authenticated PC guard calls this adapter. Phone dispatch keeps
+ * its existing commands; the asynchronous service remains transport-neutral.
+ */
+
+static int product_pc_config(void *context, enum bkcontrol_command_e command,
+  uint32_t kind, uint32_t offset, const uint8_t *record, size_t size,
+  struct bkcontrol_status_s *status)
+{
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  if (kind == BKCONTROL_CONFIG_ENGINEERING_TEST)
+    {
+      return bkengtest_control(&g_engineering_test, &g_engineering_test_ops,
+                               NULL, command, offset, record, size, status);
+    }
+
+  if (kind == BKCONTROL_CONFIG_ENGINEERING_AUDIO)
+    {
+      return bkengaudio_control(&g_engineering_audio,
+                                &g_engineering_test_ops, NULL,
+                                command, offset, record, size, status);
+    }
+#endif
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+  if (kind == BKCONTROL_CONFIG_DEFAULT_SELECTION ||
+      kind == BKCONTROL_CONFIG_RESOURCE_CATALOG)
+    {
+      const struct bkpc_control_s *lease = &g_pc_usb_owner.usb.lease;
+      bool admitted = g_identity_bound && g_control_bound &&
+                      !bkagent_ota_busy();
+      int ret;
+
+      if (!lease->open || (lease->capabilities & BKPC_CAP_RESOURCES) == 0)
+        return -EACCES;
+      if (!g_pc_selection.bound)
+        {
+          uint8_t epoch[16];
+          if (!admitted || g_pc_usb_owner.pair == NULL) return -EBUSY;
+          ret = mbedtls_ctr_drbg_random(&g_pc_usb_owner.pair->tls.random,
+                                        epoch, sizeof(epoch));
+          if (ret != 0) return -EIO;
+          ret = bkselection_control_bind(&g_pc_selection, epoch);
+          if (ret < 0) return ret;
+          g_pc_selection_binding = lease->binding;
+          g_pc_selection_grant = lease->revision;
+          memcpy(g_pc_selection_client, lease->client, sizeof(lease->client));
+        }
+
+      if (g_pc_selection_binding != lease->binding ||
+          g_pc_selection_grant != lease->revision ||
+          memcmp(g_pc_selection_client, lease->client, sizeof(lease->client)))
+        return -ESTALE;
+      if (command != BKCONTROL_CONFIG_READ && !admitted) return -EBUSY;
+      return kind == BKCONTROL_CONFIG_RESOURCE_CATALOG ?
+        bkcatalog_control(&g_pc_selection, command, offset, record, size, status) :
+        bkselection_control(&g_pc_selection, command, offset, record, size, status);
+    }
+
+  if (kind == BKCONTROL_CONFIG_RESOURCE_JOB)
+    {
+      const struct bkpc_control_s *lease = &g_pc_usb_owner.usb.lease;
+      bool admitted = g_identity_bound && g_control_bound &&
+                      !bkagent_ota_busy();
+      int ret;
+
+      if (!lease->open || (lease->capabilities & BKPC_CAP_RESOURCES) == 0)
+        return -EACCES;
+      if (!g_pc_pack.bound)
+        {
+          uint8_t epoch[16];
+          if (!admitted || g_pc_usb_owner.pair == NULL) return -EBUSY;
+          ret = mbedtls_ctr_drbg_random(&g_pc_usb_owner.pair->tls.random,
+                                        epoch, sizeof(epoch));
+          if (ret != 0) return -EIO;
+          ret = bkpack_control_bind(&g_pc_pack, lease->binding,
+                                     lease->revision, lease->client, epoch);
+          if (ret < 0) return ret;
+        }
+
+      if (g_pc_pack.binding != lease->binding ||
+          g_pc_pack.grant != lease->revision ||
+          memcmp(g_pc_pack.client, lease->client, sizeof(lease->client)))
+        return -ESTALE;
+      if (command == BKCONTROL_CONFIG_READ)
+        return bkpack_control_read(&g_pc_pack, offset, record, size, status,
+                                    bkvoice_config_now_ms(NULL));
+      if (!admitted) return -EBUSY;
+      if (size < 64 || size > 64 + BKDISPLAY_UPLOAD_CHUNK_MAX)
+        return -EINVAL;
+      if (command == BKCONTROL_CONFIG_BEGIN) return 0;
+      if (command != BKCONTROL_CONFIG_APPLY) return -ENOTSUP;
+      return bkpack_control_apply(&g_pc_pack, record, size,
+                                   bkvoice_config_now_ms(NULL));
+    }
+#endif
+  return product_config(context, command, kind, offset, record, size, status);
+}
+
+static int product_pc_usb_stop(void)
+{
+  return bkpc_usb_owner_stop(&g_pc_usb_owner);
+}
+
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+static void product_pc_engineering_closed(void *context)
+{
+  (void)context;
+  (void)bkengtest_disconnect(&g_engineering_test, &g_engineering_test_ops,
+                             NULL);
+}
+#endif
+
+static void product_pc_usb_step(void)
+{
+  static const struct bkpc_source_s durable_source =
+    { NULL, bkpc_authorization_snapshot };
+#ifdef CONFIG_BK7258_FACTORY_DIAGNOSTICS
+  static const struct bkpc_source_s factory_source =
+    { NULL, bkfactory_diagnostics_snapshot };
+  uint8_t certificate_sha256[32];
+  uint32_t diagnostic_flags = 0;
+  uint32_t diagnostic_remaining = 0;
+  uint64_t now = bkvoice_config_now_ms(NULL);
+  bool factory_eligible = g_identity_bound && g_identity.generated &&
+                          !g_control_bound && !bkagent_ota_busy() &&
+                          bkprov_bootstrap_status() == 1 &&
+                          g_identity.certificate.raw.p != NULL &&
+                          g_identity.certificate.raw.len != 0;
+  bool factory_active = false;
+  int diagnostic_result;
+
+  memset(certificate_sha256, 0, sizeof(certificate_sha256));
+  if (factory_eligible)
+    {
+      diagnostic_result = mbedtls_sha256(g_identity.certificate.raw.p,
+                                         g_identity.certificate.raw.len,
+                                         certificate_sha256, 0);
+      if (diagnostic_result == 0)
+        {
+          diagnostic_result = bkfactory_diagnostics_gate(
+            true, certificate_sha256, now);
+        }
+      else
+        {
+          diagnostic_result = -EIO;
+        }
+    }
+  else
+    {
+      diagnostic_result = bkfactory_diagnostics_gate(false, NULL, now);
+    }
+
+  if (diagnostic_result == 0)
+    {
+      diagnostic_result = bkfactory_diagnostics_status(
+        now, &diagnostic_flags, &diagnostic_remaining);
+    }
+
+  factory_active = diagnostic_result == 0 &&
+                   (diagnostic_flags & BKFACTORY_DIAGNOSTICS_ACTIVE) != 0;
+  mbedtls_platform_zeroize(certificate_sha256,
+                           sizeof(certificate_sha256));
+  const struct bkpc_source_s *source = factory_active ?
+    &factory_source : &durable_source;
+#else
+  const struct bkpc_source_s *source = &durable_source;
+#endif
+  const struct bkpc_usb_config_s config =
+    {
+      source, &g_identity.certificate, &g_identity.key,
+      bkvoice_config_now_ms, NULL, product_control, product_pc_config, NULL
+    };
+
+  /* Same owner as phone dispatch; no key/certificate use after reset stop.
+   * Do not begin expensive handshakes during a live voice interaction.
+   * Existing sessions retain bounded control service while voice is busy.
+   */
+
+  (void)bkpc_usb_owner_step(&g_pc_usb_owner, &config,
+#ifdef CONFIG_BK7258_FACTORY_DIAGNOSTICS
+    factory_active ||
+#endif
+    (g_identity_bound && g_control_bound && !bkagent_ota_busy()),
+    !atomic_load(&g_voice_initialized) || voice_channel_is_idle());
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  if (g_pc_usb_owner.usb.lease.open)
+    {
+      (void)bkpc_control_set_close_handler(&g_pc_usb_owner.usb.lease,
+                                           product_pc_engineering_closed,
+                                           NULL);
+    }
+#endif
+}
+#endif
+
 #ifdef BKAGENT_APP_OTA_ENABLED
 static int product_ota(void *context, enum bkcontrol_command_e command,
   const uint8_t *record, size_t size, struct bkcontrol_status_s *status)
@@ -1396,11 +1984,27 @@ static int product_ota(void *context, enum bkcontrol_command_e command,
 }
 #endif
 
+static void product_application_loaded(int result)
+{
+  uint64_t revision = g_application_revision;
+  if (revision == 0)
+    {
+      return;
+    }
+
+  g_application_revision = 0;
+  (void)bkprov_config_application_publish(
+    revision, result == 0 ? BKPROV_CONFIG_APPLICATION_READY :
+                            BKPROV_CONFIG_APPLICATION_FAILED,
+    result == 0 ? 0 : result);
+}
+
 static int product_load_legacy(void *unused, const void *data, size_t size)
 {
   (void)unused;
   (void)data;
   (void)size;
+  product_application_loaded(-ENOTSUP);
   return -ENOTSUP;
 }
 
@@ -1453,7 +2057,7 @@ static int product_load_cloud_models(const void *trust, size_t trust_size,
                                      tts, sizeof(tts));
       if (!ret) (void)claw_config_get(AGENT_CFG_KEY_TTS_LOCATION,
                                      location, sizeof(location));
-      if (!ret && asr[0] && strcmp(asr, backend))
+      if (!ret && asr[0] && strcmp(asr, backend) && strcmp(asr, "funasr"))
         {
           ret = -EPERM;
         }
@@ -1485,6 +2089,11 @@ static int product_load_cloud_models(const void *trust, size_t trust_size,
       else if (!ret)
         {
           ret = -EINVAL;
+        }
+
+      if (!ret)
+        {
+          ret = bkagent_cloud_prepare_asr(asr);
         }
 
       if (!ret)
@@ -1538,8 +2147,34 @@ static int product_load_cloud(void *unused, const void *trust,
                               size_t cloud_size)
 {
   (void)unused;
-  return product_load_cloud_models(trust, trust_size, cloud, cloud_size,
-                                   NULL);
+  if (!g_save_first)
+    {
+      int ret = product_load_cloud_models(trust, trust_size, cloud,
+                                          cloud_size, NULL);
+      product_application_loaded(ret);
+      return ret;
+    }
+  /* SCB4 is authoritative: an old separate preferences override must not
+   * silently replace models just saved through the authenticated editor. */
+  struct bkcloud_config_s *decoded = calloc(1, sizeof(*decoded));
+  if (!decoded)
+    {
+      product_application_loaded(-ENOMEM);
+      return -ENOMEM;
+    }
+  struct bkcloud_models_s models = {0};
+  int ret = bkcloud_config_decode(decoded, cloud, cloud_size);
+  if (!ret)
+    {
+      memcpy(models.asr_model, decoded->asr_model, sizeof(models.asr_model));
+      memcpy(models.chat_model, decoded->chat_model, sizeof(models.chat_model));
+      memcpy(models.tts_model, decoded->tts_model, sizeof(models.tts_model));
+      ret = product_load_cloud_models(trust, trust_size, cloud, cloud_size, &models);
+    }
+  bkcloud_config_clear(decoded);
+  free(decoded);
+  product_application_loaded(ret);
+  return ret;
 }
 
 static int product_models(enum bkcontrol_command_e command, uint32_t offset,
@@ -1598,6 +2233,8 @@ static int product_models(enum bkcontrol_command_e command, uint32_t offset,
       return -EINVAL;
     }
 
+  if (g_save_first) return -ENOTSUP; /* Use the independent SCP1 settings editor. */
+  if (atomic_load(&g_probe_running)) return -EBUSY;
   if (size < 12 || size > BKCLOUD_MODELS_RECORD_MAX)
     {
       return -EMSGSIZE;
@@ -1751,39 +2388,63 @@ static int product_models(enum bkcontrol_command_e command, uint32_t offset,
   return ret;
 }
 
-static int product_connect(void *unused)
+static void *product_probe_worker(void *unused)
 {
   (void)unused;
-  g_probe_result = bkagent_cloud_verify_service();
-  g_service_result = g_probe_result;
-  return g_probe_result;
+  int ret = bkagent_cloud_verify_service();
+  atomic_store(&g_probe_worker_result, ret);
+  atomic_store(&g_probe_running, false);
+  bk7258_agent_product_wake();
+  return NULL;
+}
+
+static int product_connect(void *unused)
+{
+  pthread_attr_t attr;
+  pthread_t thread;
+  int ret;
+  bool expected = false;
+  (void)unused;
+  if (!atomic_compare_exchange_strong(&g_probe_running, &expected, true))
+    return -EBUSY;
+  g_probe_result = -EAGAIN;
+  atomic_store(&g_probe_worker_result, -EAGAIN);
+  ret = pthread_attr_init(&attr);
+  if (ret == 0)
+    {
+      ret = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+      if (ret == 0) ret = pthread_attr_setstacksize(&attr, 8192);
+      if (ret == 0)
+        ret = pthread_create(&thread, &attr, product_probe_worker, NULL);
+      pthread_attr_destroy(&attr);
+    }
+
+  if (ret != 0) atomic_store(&g_probe_running, false);
+  return -ret;
 }
 
 static int product_ready(void *unused)
 {
   (void)unused;
+  if (atomic_load(&g_probe_running)) return 0;
+  g_probe_result = atomic_load(&g_probe_worker_result);
+  g_service_result = g_probe_result;
   return g_probe_result == 0 ? 1 : g_probe_result;
 }
 
 static int product_clear(void *unused)
 {
   (void)unused;
-  if (!voice_channel_is_idle())
+  if (atomic_load(&g_probe_running) ||
+      (atomic_load(&g_voice_initialized) && !voice_channel_is_idle()))
     {
       return -EBUSY;
     }
 
-  if (g_trigger_started)
-    {
-      int ret = bk7258_agent_trigger_stop();
-      if (ret < 0)
-        {
-          return ret;
-        }
-
-      g_trigger_started = false;
-    }
-
+  /* Cloud backend replacement does not own the local KWS recorder. The
+   * official channel-idle check above excludes a live cloud turn; keep the
+   * local listener alive across failed Wi-Fi/service activation attempts.
+   */
   int ret = bkagent_cloud_clear();
   if (ret < 0)
     {
@@ -1798,15 +2459,214 @@ static int product_clear(void *unused)
   return 0;
 }
 
+/* Runs only after the product loop closed the old authenticated window,
+ * cancelled its network writer and stopped the trigger/cloud writers. The
+ * storage worker keeps SRV1 selected when any replica cannot be cleaned. */
+static int product_reset_cleanup(void)
+{
+  int ret;
+  if (g_trigger_started || atomic_load(&g_probe_running) ||
+      (atomic_load(&g_voice_initialized) && !voice_channel_is_idle()))
+    return -EBUSY;
+#if defined(CONFIG_BK7258_NFC_SERVICE) && defined(CONFIG_BK7258_PROVISION_GATT)
+  /* 存储重置工作者只在原NFC工作者真实退出后取得文件清理权。 */
+  ret = bk7258_nfc_service_quiesce(true);
+  if (ret < 0) return ret;
+  ret = bk7258_nfc_bindings_reset();
+  if (ret < 0) return ret;
+#endif
+#ifdef CONFIG_BK7258_PREFERENCES
+  ret = bkagent_memory_reset();
+  if (ret < 0) return ret;
+  ret = bk7258_preferences_reset();
+  if (ret < 0) return ret;
+#endif
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+  ret = bk7258_display_reset_selection();
+  if (ret < 0) return ret;
+#endif
+  return 0;
+}
+
+/* A persisted SRV1 revokes the old control immediately. Until cleanup and
+ * SRR1 completion, uncertainty remains quiesced and no new window opens. */
+static int product_reset_step(void)
+{
+  int pending = bkprov_storage_reset_pending();
+  /* Storage loading is a normal boot condition, not evidence of SRV1. Do not
+   * consume a real TURN_COMPLETE or block bootstrap merely because its worker
+   * has not published a snapshot yet. Other read failures remain fail-closed
+   * to callers, but never enter destructive reset cleanup without a marker. */
+  if (g_reset_phase == PRODUCT_RESET_IDLE &&
+      (pending == -EAGAIN || pending == -ENODEV)) return 0;
+  if (pending == 0 && g_reset_phase != PRODUCT_RESET_FINISHING) return 0;
+  if (pending != 1 &&
+      !(pending == 0 && g_reset_phase == PRODUCT_RESET_FINISHING)) return pending;
+  int ret;
+  if (g_reset_phase != PRODUCT_RESET_FINISHING)
+    {
+      g_reset_phase = PRODUCT_RESET_QUIESCING;
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+      int pack = bk7258_display_job_quiesce(true);
+#endif
+#ifdef CONFIG_BK7258_USBCDC
+      int usb = product_pc_usb_stop();
+#endif
+#ifdef CONFIG_BK7258_MOTION_SERVICE
+      int motion = bk7258_motion_service_quiesce(true);
+#endif
+#ifdef CONFIG_BK7258_NFC_SERVICE
+      /* 独立关闭采样准入；其他参与者失败也不能留下新的NFC作业。 */
+      int nfc = bk7258_nfc_service_quiesce(true);
+#endif
+      ret = bkprov_owner_quiesce(true);
+      if (ret < 0) return ret;
+#ifdef CONFIG_BK7258_MOTION_SERVICE
+      if (motion < 0) return motion;
+#endif
+#ifdef CONFIG_BK7258_NFC_SERVICE
+      if (nfc < 0) return nfc;
+#endif
+#ifdef CONFIG_BK7258_USBCDC
+      if (usb < 0) return usb;
+#endif
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+      if (pack < 0) return pack;
+#endif
+      ret = bkprov_network_cancel();
+      if (ret < 0 && ret != -EAGAIN) return ret;
+      bkprov_network_step();
+      if (bkprov_network_busy()) return -EAGAIN;
+      if (atomic_load(&g_voice_initialized) && !voice_channel_is_idle())
+        {
+          voice_channel_cancel();
+          /* 撤销门禁跳过普通循环，仍须由原所有者完成延迟资源回收。 */
+          (void)voice_channel_recover();
+          return -EAGAIN;
+        }
+
+      /* Reset owns local recorder shutdown; ordinary cloud replacement
+       * deliberately keeps KWS alive. Do not submit cleanup until its
+       * worker and recorder have stopped successfully.
+       */
+
+      if (g_trigger_started)
+        {
+          ret = bk7258_agent_trigger_stop();
+          if (ret < 0)
+            {
+              return ret;
+            }
+
+          g_trigger_started = false;
+        }
+
+      ret = product_clear(NULL);
+      if (ret < 0) return ret;
+      g_reset_phase = PRODUCT_RESET_FINISHING;
+      ret = bkprov_storage_reset_finish(product_reset_cleanup);
+      if (ret < 0) return ret;
+    }
+  else if (pending == 1)
+    {
+      /* Publish the worker's actual cleanup result. A failed worker must not
+       * be hidden as another ordinary retry while SRV1 is still selected. */
+      ret = bkprov_storage_reset_finish(product_reset_cleanup);
+      if (ret < 0) return ret;
+    }
+  /* A successful worker changes reset_pending() to zero before this code
+   * runs again. FINISHING deliberately owns that handoff. */
+  if (pending == 1) return -EAGAIN;
+#ifdef CONFIG_BK7258_PREFERENCES
+  ret = bk7258_preferences_cloud_models_reset_complete();
+  if (ret < 0) return ret;
+#endif
+  ret = bkprov_owner_unbind();
+  if (ret < 0) return ret;
+  ret = bkprov_network_unbind();
+  if (ret < 0) return ret;
+  bkprov_identity_clear(&g_identity);
+  g_identity_bound = false;
+  g_control_bound = false;
+  bkpc_authorization_unbind();
+  bkpc_tasks_bind(&g_pc_tasks, 0, 0);
+  g_configured = false;
+  g_cloud_loaded = false;
+  g_config_revision = 0;
+  atomic_store(&g_active_persona, -1);
+  atomic_store(&g_trigger_prepare_pending, true);
+  /* Restore admission only after cleanup, without revoking power intent. */
+#if defined(CONFIG_BK7258_PRODUCT_KEYS) && defined(CONFIG_BK7258_PM_SOFT_OFF)
+  if (!g_shutdown_requested && !g_shutdown_failed && !g_power_pending)
+#endif
+    {
+#ifdef CONFIG_BK7258_MOTION_SERVICE
+      ret = bk7258_motion_service_quiesce(false);
+      if (ret < 0) return ret;
+#endif
+#ifdef CONFIG_BK7258_NFC_SERVICE
+      ret = bk7258_nfc_service_quiesce(false);
+      if (ret < 0)
+        {
+#ifdef CONFIG_BK7258_MOTION_SERVICE
+          /* A later participant failed. Close the admission already reopened. */
+          (void)bk7258_motion_service_quiesce(true);
+#endif
+          return ret;
+        }
+#endif
+      ret = bkprov_owner_quiesce(false);
+      if (ret < 0)
+        {
+          (void)bkprov_owner_quiesce(true);
+#ifdef CONFIG_BK7258_MOTION_SERVICE
+          (void)bk7258_motion_service_quiesce(true);
+#endif
+#ifdef CONFIG_BK7258_NFC_SERVICE
+          (void)bk7258_nfc_service_quiesce(true);
+#endif
+          return ret;
+        }
+    }
+  g_reset_phase = PRODUCT_RESET_IDLE;
+  return 1;
+}
+
 static const struct bkprov_voice_ops_s g_provision_voice =
 {
   product_available, product_load_legacy, product_connect, product_ready,
   product_clear, product_load_cloud
 };
 
+static bool g_capture_route_negotiated;
+
+static int product_capture_prepare(unsigned int rate, unsigned int channels,
+                                   unsigned int bits)
+{
+  /* The product graph and all its capture consumers share this fixed format.
+   * Never warm-start a new/unnegotiated format using a previous route. */
+  if (rate != 16000 || channels != 1 || bits != 16) return -ENOTSUP;
+  if (!g_capture_route_negotiated) return 0;
+  int ret = bkvoice_media_source_prepare_warm(MEDIA_SOURCE_MIC);
+  return ret < 0 ? ret : 1;
+}
+
+/* 产品循环发布空闲准入；读卡I/O仍仅属于原NFC worker。 */
+static void product_nfc_scene_gate(bool admitted)
+{
+#if defined(CONFIG_BK7258_NFC_SERVICE) && defined(CONFIG_BK7258_PROVISION_GATT) && \
+    defined(CONFIG_CL_MFRC522_RF)
+  bk7258_nfc_scene_admit(admitted);
+#else
+  (void)admitted;
+#endif
+}
+
 static int product_capture_route(int active)
 {
-  return bkvoice_media_source_set_active(MEDIA_SOURCE_MIC, active != 0);
+  int ret = bkvoice_media_source_set_active(MEDIA_SOURCE_MIC, active != 0);
+  if (!ret && active) g_capture_route_negotiated = true;
+  return ret;
 }
 
 /* One bounded, zeroized workspace for protected storage reads. Parsed
@@ -1829,7 +2689,7 @@ static bool storage_unavailable(int result)
 static int bk7258_agent_activate_cloud(bool *storage_waiting)
 {
   *storage_waiting = false;
-  if (bkprov_owner_busy() || bkprov_network_busy())
+  if (bkprov_owner_pairing() || bkprov_network_busy())
     {
       return -EBUSY;
     }
@@ -1850,6 +2710,10 @@ static int bk7258_agent_activate_cloud(bool *storage_waiting)
   int ret = 0;
   if (!g_identity_bound)
     {
+#ifdef CONFIG_BK7258_PROVISION_NATIVE
+      ret = bkprov_bootstrap_status();
+      if (ret < 0) { *storage_waiting = true; goto out; }
+#endif
       ret = bkprov_storage_identity(work->identity,
                                   sizeof(work->identity), &size);
       *storage_waiting = storage_unavailable(ret);
@@ -1873,6 +2737,11 @@ static int bk7258_agent_activate_cloud(bool *storage_waiting)
           goto out;
         }
 
+#ifdef CONFIG_BK7258_PROVISION_NATIVE
+      if (g_identity.generated)
+        ret = bkprov_owner_window_handler(bkprov_bootstrap_window, &g_identity);
+      if (ret < 0) { (void)bkprov_owner_unbind(); goto out; }
+#endif
       g_identity_bound = true;
     }
 
@@ -1883,6 +2752,10 @@ static int bk7258_agent_activate_cloud(bool *storage_waiting)
     {
       goto out;
     }
+
+  (void)bkprov_config_application_publish(
+    revision, BKPROV_CONFIG_APPLICATION_APPLYING, 0);
+  g_application_revision = 0;
 
   ret = bkprov_settings_decode(&work->settings, work->bundle, size);
   if (ret < 0)
@@ -1896,30 +2769,65 @@ static int bk7258_agent_activate_cloud(bool *storage_waiting)
       goto out;
     }
 
-  ret = bkprov_owner_control(work->settings.control_key, product_control,
-                             NULL);
-  if (!ret)
+  if (!g_control_bound)
     {
-      ret = bkprov_owner_control_config(product_config);
+    ret = bkprov_owner_control(work->settings.control_key, product_control,
+                               NULL);
+    if (!ret)
+      {
+        ret = bkprov_owner_control_config(product_config);
+      }
+
+  #ifdef BKAGENT_APP_OTA_ENABLED
+    if (!ret)
+      {
+        ret = bkprov_owner_control_ota(product_ota);
+      }
+
+  #endif
+    if (ret < 0)
+      {
+        goto out;
+      }
+
+      g_control_bound = true;
     }
 
-#ifdef BKAGENT_APP_OTA_ENABLED
-  if (!ret)
-    {
-      ret = bkprov_owner_control_ota(product_ota);
-    }
+  /* Local PC authorization is independent of cloud and Wi-Fi activation.
+   * This owner is serialized with phone dispatch; storage copies the key.
+   * Preparation errors remain visible through the PC query, not cloud state.
+   * The USB consumer checks the same coherent snapshot before each command;
+   * changed or unavailable grants invalidate its authenticated connection.
+   */
 
-#endif
-  if (ret < 0)
-    {
-      goto out;
-    }
+  (void)bkpc_authorization_prepare(revision, work->bundle, size);
 
 #ifdef CONFIG_BK7258_PREFERENCES
   (void)bkagent_memory_bind(work->settings.control_key);
 #endif
+  g_save_first = work->settings.deferred;
+  if (!work->settings.ssid[0])
+    {
+      g_config_revision = revision;
+      g_configured = false;
+      (void)bkprov_config_application_publish(
+        revision, BKPROV_CONFIG_APPLICATION_READY, 0);
+      ret = 0;
+      goto out;
+    }
+
+  if (!atomic_load(&g_agent_core_ready) ||
+      !atomic_load(&g_voice_initialized))
+    {
+      ret = -EBUSY;
+      goto out;
+    }
+
   if (g_configured && revision == g_config_revision)
     {
+      (void)bkprov_config_application_publish(
+        revision, BKPROV_CONFIG_APPLICATION_READY, 0);
+      ret = 0;
       goto out;
     }
 
@@ -1932,9 +2840,24 @@ static int bk7258_agent_activate_cloud(bool *storage_waiting)
   if (!ret)
     {
       g_config_revision = revision;
+      g_application_revision = revision;
+      if (!work->settings.ca_size)
+        {
+          product_application_loaded(0);
+        }
     }
 
 out:
+  if (ret < 0 && ret != -EBUSY && revision != 0)
+    {
+      if (g_application_revision == revision)
+        {
+          g_application_revision = 0;
+        }
+
+      (void)bkprov_config_application_publish(
+        revision, BKPROV_CONFIG_APPLICATION_FAILED, ret);
+    }
   mbedtls_platform_zeroize(work, sizeof(*work));
   free(work);
   return ret;
@@ -1954,13 +2877,21 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
   bool storage_waiting = false;
   bool voice_interaction_active = false;
   bool preferences_pending = false;
+  bool threshold_ready = false;
   uint32_t connection_generation = bkprov_gatt_generation();
+  uint64_t link_check_at = 0;
+  bool link_expected = false;
+#ifdef CONFIG_BK7258_PROVISION_NATIVE
+  int bootstrap_observed = -EAGAIN;
+#endif
   uint64_t storage_deadline = 0;
   uint64_t storage_retry_at = 0;
   uint64_t voice_cleanup_at = 0;
   uint64_t voice_action_at = 0;
   uint64_t preferences_retry_at = 0;
   uint64_t trigger_retry_at = 0;
+  uint64_t network_retry_at = 0;
+  uint32_t network_backoff = 5000;
   int voice_turn_result = 0;
   enum voice_action_e voice_action = VOICE_ACTION_NONE;
   (void)argc; (void)argv;
@@ -1989,18 +2920,95 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
 
       if (waited < 0 && errno != ETIMEDOUT)
         {
-          return -errno;
+          int error = errno;
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+          (void)bk7258_display_job_quiesce(true);
+#endif
+#ifdef CONFIG_BK7258_USBCDC
+          (void)product_pc_usb_stop();
+#endif
+          return -error;
         }
 
       unsigned int events = atomic_exchange(&g_product_events, 0);
       bkagent_ota_poll();
+      product_scan_step();
       uint64_t now = bkvoice_config_now_ms(NULL);
+      int reset = product_reset_step();
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+      product_phone_selection_step();
+#endif
+      if (reset)
+        {
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+          (void)bk7258_display_job_quiesce(true);
+#endif
+#ifdef CONFIG_BK7258_USBCDC
+          (void)product_pc_usb_stop();
+#endif
+          product_nfc_scene_gate(false);
+          product_pc_task_step(now, false);
+          if (reset > 0 || g_reset_phase != PRODUCT_RESET_IDLE)
+            {
+              /* Do this before TURN_COMPLETE or preference recovery can
+               * revive an owner that SRV1 has already revoked. */
+              bkfocus_cancel();
+              bkfocus_intent_step(now, false);
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+              bk7258_display_focus(0);
+#endif
+              voice_action = VOICE_ACTION_NONE;
+              voice_interaction_active = false;
+              preferences_pending = false;
+              threshold_ready = false;
+              /* 完成撤销后必须重新绑定保留的设备身份；bootstrap 状态
+               * 未必变化，不能依赖一次已被消费的存储通知。 */
+              pending = reset == 1;
+              link_expected = false;
+              network_was_busy = false;
+              events = 0;
+              (void)atomic_exchange(&g_product_events, 0);
+            }
+          else
+            {
+              bkfocus_intent_step(now, false);
+              /* 未确认撤销的读取故障阻止新工作，但不吞掉完成通知。 */
+              atomic_fetch_or(&g_product_events, events);
+            }
+          if (reset != -EAGAIN && reset != 1) g_product_error = reset;
+          continue;
+        }
 #ifdef CONFIG_BK7258_PRODUCT_KEYS
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+      bkengtest_step(&g_engineering_test, &g_engineering_test_ops, NULL, now);
+#endif
       if (product_keys_step(now))
         {
+          product_nfc_scene_gate(false);
+          product_pc_task_step(now, false);
+          bkfocus_cancel();
+          bkfocus_intent_step(now, false);
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+          bk7258_display_focus(0);
+#endif
+          /* Retain completion events while shutdown is pending or failed.
+           * A failure keeps admission closed until an explicit retry; a
+           * durable configuration or canceled voice result is not discarded.
+           */
+          atomic_fetch_or(&g_product_events, events);
           continue;
         }
 
+#endif
+      product_pc_task_step(now, g_control_bound && !bkagent_ota_busy());
+      (void)bkfocus_step(now);
+      product_nfc_scene_gate(g_control_bound && !bkagent_ota_busy() &&
+        (!atomic_load(&g_voice_initialized) || voice_channel_is_idle()));
+      bkfocus_intent_step(now, g_control_bound && !bkagent_ota_busy());
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+      bk7258_display_focus(bkpc_tasks_visual(&g_pc_tasks, now,
+        !atomic_load(&g_voice_initialized) || voice_channel_is_idle(),
+        bkfocus_visual(now)));
 #endif
       if (now >= voice_cleanup_at)
         {
@@ -2073,7 +3081,15 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
       if (events & 8)
         {
           pending = true;
+          network_retry_at = 0;
+          network_backoff = 5000;
           atomic_store(&g_trigger_prepare_pending, true);
+          trigger_retry_at = 0;
+        }
+
+      if (events & 1)
+        {
+          trigger_retry_at = 0;
         }
 
       uint32_t generation = bkprov_gatt_generation();
@@ -2124,12 +3140,62 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
             }
         }
 
+#ifdef CONFIG_BK7258_PROVISION_NATIVE
+      int bootstrap_now = bkprov_bootstrap_status();
+      if (bootstrap_now != bootstrap_observed)
+        {
+          bootstrap_observed = bootstrap_now;
+          if (bootstrap_now >= 0) pending = true;
+        }
+#endif
+      bkprov_config_step();
       bkprov_network_step();
       bool network_busy = bkprov_network_busy();
       if (network_was_busy && !network_busy)
         {
-          g_configured = g_service_result == 0;
-          g_product_error = g_service_result;
+          int network_result = bkprov_network_result();
+          if (g_application_revision == g_config_revision)
+            {
+              /* A restore can end before its local loader runs (for example,
+               * Wi-Fi/time failure).  Keep SCA1 APPLYING for the retry, but
+               * prevent an unrelated later claim from completing it. */
+              g_application_revision = 0;
+            }
+
+          uint64_t desired_revision = 0;
+          int desired_result = bkprov_storage_revision(&desired_revision);
+          bool result_current = desired_result == 0 &&
+                                desired_revision == g_config_revision;
+          struct bk7258_wifi_result_s link = {0};
+          if (result_current && bk7258_wifi_read_link(&link) == 0)
+            link_expected = link.link_state == BK7258_WIFI_LINK_CONNECTED && link.ipaddr != 0;
+          else if (!result_current)
+            link_expected = false;
+          g_configured = result_current && network_result == 0 &&
+                         g_service_result == 0;
+          g_product_error = !result_current ?
+                            (desired_result ? desired_result : -EAGAIN) :
+                            (network_result ? network_result : g_service_result);
+          if (!result_current)
+            {
+              /* A newer durable selection superseded this trial.  Do not
+               * publish or retry the old result; activate the desired record
+               * through the normal owner below. */
+              pending = true;
+              network_retry_at = 0;
+              network_backoff = 5000;
+            }
+          else if (network_result && network_result != -ECANCELED)
+            {
+              network_retry_at = now + network_backoff;
+              if (network_backoff < 60000) network_backoff *= 2;
+              if (network_backoff > 60000) network_backoff = 60000;
+            }
+          else if (network_result == 0)
+            {
+              network_retry_at = 0;
+              network_backoff = 5000;
+            }
           syslog(g_configured ? LOG_INFO : LOG_WARNING,
                  "BKVOICE configuration ready=%d result=%d revision=%llu\n",
                  g_configured, g_product_error,
@@ -2137,16 +3203,29 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
         }
 
       network_was_busy = network_busy;
-      if (!atomic_load(&g_agent_core_ready) ||
-          !atomic_load(&g_voice_initialized) ||
-          !atomic_load(&g_agent_ready))
+      if (link_expected && !network_busy && now >= link_check_at)
         {
-          continue;
+          struct bk7258_wifi_result_s link = {0};
+          link_check_at = now + 1000;
+          if (bk7258_wifi_read_link(&link) == 0 &&
+              link.link_state != BK7258_WIFI_LINK_CONNECTED)
+            {
+              link_expected = false;
+              g_configured = false;
+              g_service_result = -ENETDOWN;
+              if (atomic_load(&g_voice_initialized)) voice_channel_cancel();
+              network_retry_at = now + 1000;
+              syslog(LOG_WARNING, "BKVOICE link lost; reconnect scheduled\n");
+            }
         }
-
+      if (network_retry_at && now >= network_retry_at)
+        {
+          network_retry_at = 0;
+          pending = true;
+        }
       if (pending && !bkagent_ota_busy() &&
-          voice_channel_is_idle() &&
-          !network_busy && !bkprov_owner_busy())
+          (!atomic_load(&g_voice_initialized) || voice_channel_is_idle()) &&
+          !network_busy && !bkprov_owner_pairing())
         {
           int ret = bk7258_agent_activate_cloud(&storage_waiting);
           if (storage_waiting && now < storage_deadline)
@@ -2164,21 +3243,44 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
               g_product_error = ret;
               syslog(LOG_WARNING,
                      "BKVOICE configuration unavailable result=%d\n", ret);
+              /* 同步启动失败尚未创建网络 trial，不会产生 busy->idle。
+               * 对暂态错误沿用退避，不能靠用户重填 Key 才重新激活。
+               * 存储、配置格式和认证错误仍由原有恢复入口处理。
+               */
+
+              if (!storage_waiting &&
+                  (ret == -EAGAIN || ret == -ENOMEM || ret == -EIO ||
+                   ret == -ENETDOWN || ret == -ENETUNREACH ||
+                   ret == -EHOSTUNREACH || ret == -ETIMEDOUT ||
+                   ret == -ECONNRESET))
+                {
+                  network_retry_at = now + network_backoff;
+                  if (network_backoff < 60000) network_backoff *= 2;
+                  if (network_backoff > 60000) network_backoff = 60000;
+                }
             }
 
           network_was_busy = bkprov_network_busy();
         }
 
       (void)bkprov_owner_step(bkvoice_config_now_ms(NULL), 0, false, false,
-        voice_channel_is_idle() &&
-        !bkprov_network_busy() && !bkagent_ota_busy());
-      if (bkagent_ota_busy())
+        !bkagent_ota_busy());
+#if defined(CONFIG_BK7258_DISPLAY_SERVICE) && defined(CONFIG_BK7258_USBCDC)
+      product_pc_pack_step(g_identity_bound && g_control_bound &&
+                            !bkagent_ota_busy());
+#endif
+#ifdef CONFIG_BK7258_USBCDC
+      product_pc_usb_step();
+#endif
+      if (!atomic_load(&g_agent_core_ready) ||
+          !atomic_load(&g_voice_initialized) || !g_identity_bound ||
+          bkagent_ota_busy())
         {
           continue;
         }
 
       bool model_was_pending = bk7258_agent_trigger_model_pending();
-      int model_result = bk7258_agent_trigger_model_step(g_configured);
+      int model_result = bk7258_agent_trigger_model_step(g_trigger_started);
       if (model_result < 0 && model_result != -EBUSY)
         {
           g_product_error = model_result;
@@ -2197,7 +3299,6 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
        */
 
       if (atomic_load(&g_trigger_prepare_pending) && g_identity_bound &&
-          !pending && !network_busy &&
           voice_channel_is_idle() && !bkprov_owner_busy() &&
           !bk7258_agent_trigger_model_pending())
         {
@@ -2216,12 +3317,9 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
              "BKVOICE wake model prepared=%d result=%d\n", ret == 0, ret);
     }
 
-      if (!g_configured || pending || bkprov_network_busy())
-        {
-          continue;
-        }
-
-      /* Display start-up briefly occupies the same SD; only the busy
+      /* Local model/listener progress does not depend on cloud activation
+       * or a Wi-Fi trial. Identity, storage and model checks still apply.
+       * Display start-up briefly occupies the same SD; only the busy
        * resource is retried, and it is not mistaken for lost
        * configuration.
        */
@@ -2237,13 +3335,16 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
             bk7258_preferences_wake_threshold_get(&threshold);
           if (!threshold_ret)
             {
-              bk7258_agent_trigger_threshold_set(threshold);
+              threshold_ret = bk7258_agent_trigger_threshold_set(threshold);
             }
 
+          threshold_ready = threshold_ret == 0;
           preferences_pending = threshold_ret == -EBUSY;
           syslog(threshold_ret ? LOG_WARNING : LOG_INFO,
                  "BKVOICE wake threshold restore=%d percent=%u\n",
                  threshold_ret, bk7258_agent_trigger_threshold_get());
+#else
+          threshold_ready = true;
 #endif
           /* Does not block voice start-up; the same configuration task
            * completes the restore once the session is idle.
@@ -2278,7 +3379,8 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
           preferences_retry_at = now + 1000;
         }
 
-      if (!g_trigger_started && now >= trigger_retry_at)
+      if (!g_trigger_started && threshold_ready &&
+          !atomic_load(&g_trigger_prepare_pending) && now >= trigger_retry_at)
         {
           unsigned int saved;
           unsigned int observed;
@@ -2313,13 +3415,18 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
             }
           else if (ret)
             {
-              g_configured = false;
+              /* A local model/media failure is not a cloud configuration
+               * failure. Retry only after a configuration/readiness event,
+               * rather than reopening the recorder every worker tick.
+               */
+              trigger_retry_at = UINT64_MAX;
             }
         }
 
       if (g_trigger_started && (events & 4))
         {
-          int ret = bk7258_agent_trigger_process();
+          int ret = bk7258_agent_trigger_process(g_configured && !pending &&
+                                                 !bkprov_network_busy());
           if (ret < 0)
             {
               voice_interaction_active = false;
@@ -2369,6 +3476,9 @@ static const char g_product_skill_device_assistant[] =
   "eyes (neutral/happy/shy/sad/surprised/thinking/listening/speaking/"
   "sleepy). Every repeat request needs a fresh tool call; report errors "
   "honestly.\n"
+  "4. Focus: use focus_timer only on the user's request. Start requires "
+  "seconds. Accepted is queued, not running; status reports the device "
+  "owner's last observation. Never promise a completion sound from it.\n"
   "\n"
   "## Example\n"
   "User asks about the battery in Chinese -> device_status -> answer with "
@@ -2415,6 +3525,11 @@ static void install_product_skills(void)
  * does not implement a second Agent loop, session store, ASR/TTS pipeline
  * or recovery scheduler.
  */
+
+#if defined(CONFIG_BK7258_AUDIO_PLAYBACK_VALIDATION) || \
+    defined(CONFIG_BK7258_ENGINEERING_TEST)
+#include "bk7258_agent_audio_validation.inc"
+#endif
 
 int ai_agent_main(int argc, FAR char *argv[])
 {
@@ -2499,11 +3614,40 @@ int ai_agent_main(int argc, FAR char *argv[])
       ret = voice_channel_init();
     }
 
+#ifdef CONFIG_BK7258_AUDIO_PLAYBACK_VALIDATION
+#ifdef CONFIG_BK7258_AUDIO_CAPTURE_VALIDATION
+  if (!ret)
+    {
+      syslog(LOG_NOTICE, "BKCAPTURE source=development-startup no-cloud\n");
+      ret = product_capture_validation();
+      syslog(LOG_NOTICE, "BKCAPTURE validation result=%d\n", ret);
+    }
+  if (!ret)
+    {
+      ret = product_voice_capture_validation();
+      syslog(LOG_NOTICE, "BKVOICECAP validation result=%d\n", ret);
+    }
+#endif
+  if (!ret)
+    {
+      syslog(LOG_NOTICE, "BKAUDIO source=development-startup no-capture\n");
+      ret = product_audio_validation();
+      syslog(LOG_NOTICE, "BKAUDIO validation result=%d\n", ret);
+    }
+#endif
+
   if (!ret)
     {
       ret = agent_loop_start();
     }
 
+#ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
+  if (!ret)
+    {
+      ret = product_pipeline_validation();
+      syslog(LOG_NOTICE, "BKPIPE validation result=%d\n", ret);
+    }
+#endif
   if (ret)
     {
       syslog(LOG_ERR, "bk7258: official Agent core init failed: %d\n", ret);
@@ -2609,6 +3753,9 @@ int bk7258_agent_product_prepare(void)
     {
       return ret;
     }
+
+  ret = audio_capture_set_route_prepare(product_capture_prepare);
+  if (ret != 0) return ret;
 
   if (sem_init(&g_product_wake, 0, 0) < 0)
     {
@@ -2722,7 +3869,7 @@ int bk7258_agent_product_start(void)
       g_bk7258_agent_pid = (int)launchpid;
       syslog(LOG_ERR, "bk7258: Agent coordinator failed: %d\n",
              (int)launchpid);
-      return (int)launchpid;
+      /* Keep local management and power control available on Agent failure. */
     }
 
 #ifdef CONFIG_BK7258_VOICE_TLS

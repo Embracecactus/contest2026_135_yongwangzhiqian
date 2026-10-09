@@ -1,0 +1,14 @@
+# Python tools imported by the manifest-pinned Beken SDK at build time.
+# The upstream CP/AP requirements.txt files are empty at cb080de1.
+click==8.1.8
+click-option-group==0.5.9
+cryptography==44.0.0
+cffi==2.1.1
+pycparser==3.0
+pycryptodome==3.23.0
+openpyxl==3.1.5
+et-xmlfile==2.0.0
+# Manifest-pinned MCUboot imgtool.py imports these at sign/verify time.
+intelhex==2.3.0
+cbor2==5.9.0
+PyYAML==6.0.2

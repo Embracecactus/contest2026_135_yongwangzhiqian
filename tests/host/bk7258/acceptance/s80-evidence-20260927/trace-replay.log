@@ -1,0 +1,19 @@
+SESSION_FAIL size=20 cmd=4 seq=1 expected=2 auth=1 ret=-71
+PAIR_FAIL received=0 expected=16 cmd=0 seq=0 sessionseq=0 ret=-71
+SESSION_FAIL size=48 cmd=1 seq=0 expected=0 auth=0 ret=-13
+PAIR_FAIL received=0 expected=16 cmd=0 seq=0 sessionseq=0 ret=-13
+PAIR_FAIL received=0 expected=16 cmd=0 seq=0 sessionseq=0 ret=-110
+SESSION_FAIL size=20 cmd=4 seq=0 expected=0 auth=0 ret=-71
+PAIR_FAIL received=0 expected=16 cmd=0 seq=0 sessionseq=0 ret=-71
+SESSION_FAIL size=48 cmd=1 seq=0 expected=0 auth=0 ret=-13
+PAIR_FAIL received=0 expected=16 cmd=0 seq=0 sessionseq=0 ret=-13
+PAIR_FAIL received=16 expected=16 cmd=0 seq=0 sessionseq=0 ret=-71
+SESSION_FAIL size=20 cmd=4 seq=1 expected=3 auth=1 ret=-71
+PAIR_FAIL received=0 expected=16 cmd=0 seq=0 sessionseq=0 ret=-71
+PAIR_FAIL received=0 expected=16 cmd=0 seq=0 sessionseq=1 ret=-116
+PAIR_FAIL received=16 expected=16 cmd=17 seq=1 sessionseq=1 ret=-71
+PAIR_FAIL received=0 expected=16 cmd=0 seq=0 sessionseq=0 ret=-110
+SESSION_FAIL size=16 cmd=2 seq=1 expected=13 auth=1 ret=-71
+PAIR_FAIL received=0 expected=16 cmd=0 seq=0 sessionseq=0 ret=-71
+PC_STEP_ERROR command=2 sequence=1 ret=-71 now=35250
+tls-replay: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_provision_tls.c:608: pc_exchange: Assertion `step_result == 0' failed.

@@ -1,0 +1,1 @@
+test: tests/host/bk7258/test_display_selection.c:120: main: Assertion `bkdisplay_store_activate_checked(root, name, 1, &v) == -ESTALE' failed.

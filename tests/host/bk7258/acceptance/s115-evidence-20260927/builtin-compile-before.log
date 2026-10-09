@@ -1,0 +1,13 @@
+RENDERER_SHA256=940a0e15cb465cef77f0b5c9fd8694f76bd1e9c1dd23e084eed49c13bf125ca4
+bk7258 package eye-pack: PASS output=/tmp/pack-trial-build-1vervvqf/green.bkep id=shaniu-upload-v1 revision=1 entries=11 size=10494 sha256=c0136ca3b702c15f41d15aed1e0a5e8714b851332024347c2bf13b1b7fea8e47
+PACK_TRIAL_INPUT_SHA256=c0136ca3b702c15f41d15aed1e0a5e8714b851332024347c2bf13b1b7fea8e47
+In file included from /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.c:117:
+/tmp/pack-trial-build-1vervvqf/power-render.inc: In function ‘bkdisplay_builtin_locked’:
+/tmp/pack-trial-build-1vervvqf/power-render.inc:57:25: error: comparison of integer expressions of different signedness: ‘int’ and ‘unsigned int’ [-Werror=sign-compare]
+   57 |       for (int y = 0; y < BKDISPLAY_CANVAS_HEIGHT; y++)
+      |                         ^
+/tmp/pack-trial-build-1vervvqf/power-render.inc:58:27: error: comparison of integer expressions of different signedness: ‘int’ and ‘unsigned int’ [-Werror=sign-compare]
+   58 |         for (int x = 0; x < BKDISPLAY_CANVAS_WIDTH; x++)
+      |                           ^
+cc1: all warnings being treated as errors
+SETUP_ERROR: Command '['cc', '-std=gnu11', '-Wall', '-Wextra', '-Werror', '-pthread', '-I', '/tmp/pack-trial-build-1vervvqf', '-I', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/mocks', '-I', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_pack.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_media_volume.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_selection_control.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_control_session.c', '-Wl,--wrap=write,--wrap=fsync,--wrap=readdir', '-o', '/tmp/pack-trial-build-1vervvqf/test']' returned non-zero exit status 1.

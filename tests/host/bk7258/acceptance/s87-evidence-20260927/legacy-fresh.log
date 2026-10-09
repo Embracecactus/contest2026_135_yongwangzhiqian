@@ -1,0 +1,13 @@
+make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'
+mkdir -p /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s87/legacy-build
+python3 /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tools/bk7258/bk7258.py package eye-pack \
+	--source /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/assets/display/shaniu-default-v1.json --output /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s87/legacy-build/shaniu-default-v1.bkep
+bk7258 package eye-pack: PASS output=/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s87/legacy-build/shaniu-default-v1.bkep id=shaniu-default-v1 revision=1 entries=11 size=10494 sha256=1bfa445365f6081d889fd604b0dadd3d1821d87fd7ee7548259acf47fb666395
+cc -std=gnu11 -Wall -Wextra -Werror -O2 test_bk7258_display_pack.c \
+	/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_pack.c \
+	/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c \
+	-I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -o /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s87/legacy-build/test_bk7258_display_pack
+.//home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s87/legacy-build/test_bk7258_display_pack /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s87/legacy-build/shaniu-default-v1.bkep
+make: .//home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s87/legacy-build/test_bk7258_display_pack: No such file or directory
+make: *** [Makefile:328: run-display-pack] Error 127
+make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'

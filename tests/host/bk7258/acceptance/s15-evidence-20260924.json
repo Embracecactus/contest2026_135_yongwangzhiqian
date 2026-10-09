@@ -1,0 +1,42 @@
+{
+  "interface_precondition": "No production interface at first test link; BLOCKED_INTERFACE, not business Red",
+  "protocol_oracle_correction": "Unauthenticated non-AUTH closes SDC1 with EPROTO, not EACCES; corrected test only, production authentication unchanged",
+  "hashes": {
+    "app/bk7258/bk7258_focus.c": "76e8012861085ca11b6b9325f72bb968f5d3a9a22a40bff4f9ef371315903cf1",
+    "app/bk7258/bk7258_focus.h": "7fd56781ca80aa81ab0c1f09c9abb3c0ddcdcb3f83cbdbd285f760425df259ee"
+  },
+  "builds": {
+    "bk7258_agent_product.c": {
+      "exit": 0,
+      "log": "\u001b[01m\u001b[K/home/lijian/project/open-vela/apps/system/bk7258/bk7258_agent_product.c:\u001b[m\u001b[K In function '\u001b[01m\u001b[Kinstall_product_skills\u001b[m\u001b[K':\n\u001b[01m\u001b[K/home/lijian/project/open-vela/apps/system/bk7258/bk7258_agent_product.c:2636:5:\u001b[m\u001b[K \u001b[01;35m\u001b[Kwarning: \u001b[m\u001b[Kmissing braces around initializer [\u001b[01;35m\u001b[K-Wmissing-braces\u001b[m\u001b[K]\n 2636 |     \u001b[01;35m\u001b[K{\u001b[m\u001b[K\n      |     \u001b[01;35m\u001b[K^\u001b[m\u001b[K\n 2637 |       \"device-assistant.md\", g_product_skill_device_assistant\n      |       \u001b[32m\u001b[K{\u001b[m\u001b[K\n 2638 |     };\n      |     \u001b[32m\u001b[K}\u001b[m\u001b[K\n"
+    },
+    "bk7258_control_session.c": {
+      "exit": 0,
+      "log": ""
+    },
+    "bk7258_focus.c": {
+      "exit": 0,
+      "log": ""
+    }
+  },
+  "TIMER-01": {
+    "interface": "PARTIAL: FOC1/FOS1 kind10, production product callback and tick wired",
+    "L1": "clock, replay, invalid PASS",
+    "L2": "real SDC1+focus PASS with routing callback; production full owner loop not executed on host",
+    "L3": "NOT_RUN",
+    "remaining": [
+      "Android UI",
+      "Display ring and local completion notification",
+      "NFC shared entry",
+      "Power/reset path integrated but no device acceptance",
+      "Cross-reboot product policy awaiting user answer"
+    ]
+  },
+  "resource_budget": {
+    "host_static_bytes": 88,
+    "heap_allocations": 0,
+    "new_threads": 0,
+    "per_tick_storage_writes": 0,
+    "CPU_p95_and_board_stack": "NOT_MEASURED"
+  }
+}

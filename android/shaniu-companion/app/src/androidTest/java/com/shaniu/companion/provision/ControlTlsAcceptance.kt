@@ -82,6 +82,7 @@ internal object ControlTlsAcceptance {
             error("TLS engines exceeded progress bound")
         }
         try {
+            check(client.peerIdentity == null)
             var rejected = false
             try {
                 server.start(); client.start()
@@ -91,7 +92,14 @@ internal object ControlTlsAcceptance {
                 rejected = true
             }
             check(rejected == reject)
+            if (reject) check(client.peerIdentity == null)
             if (!reject) {
+                val identity = requireNotNull(client.peerIdentity)
+                check(identity.sha256 == pin.joinToString("") { "%02x".format(it.toInt() and 255) })
+                val exported = java.security.cert.CertificateFactory.getInstance("X.509")
+                    .generateCertificate(identity.certificatePem.byteInputStream())
+                check(MessageDigest.getInstance("SHA-256").digest(exported.encoded).contentEquals(pin))
+                PcPairingAcceptance.run(identity)
                 val message = ByteArray(48) { (it + 1).toByte() }
                 client.send(message)
                 pumpUntil { serverPlain.size() == message.size }
@@ -103,6 +111,7 @@ internal object ControlTlsAcceptance {
             }
         } finally {
             client.close(); server.close()
+            check(client.peerIdentity == null)
             toClient.forEach { it.fill(0) }; toServer.forEach { it.fill(0) }
         }
     }

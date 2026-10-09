@@ -1,0 +1,2 @@
+["/tmp/shaniu-contract-rtjscbai/MSC-01.early-release/build/test_shaniu_volume_contract", "unmount-failure"]
+test_shaniu_volume_contract: test_shaniu_volume_contract.c:43: bk7258_usbmsc_initialize: Assertion `!mounted' failed.

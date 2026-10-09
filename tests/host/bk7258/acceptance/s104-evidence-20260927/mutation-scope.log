@@ -1,0 +1,1 @@
+owner: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_provision_owner.c:247: scope_fails: Assertion `bkprov_owner_control_scope(out, create) == expected' failed.

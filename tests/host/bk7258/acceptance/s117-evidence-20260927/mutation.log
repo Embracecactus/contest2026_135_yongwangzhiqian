@@ -1,0 +1,13 @@
+test_malformed (test_workbench_catalog.CatalogTest) ... 
+======================================================================
+FAIL: test_malformed (test_workbench_catalog.CatalogTest) (offset=224, value=1)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_catalog.py", line 129, in test_malformed
+    with self.subTest(offset=offset, value=value), self.assertRaises(
+AssertionError: ValueError not raised
+
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+FAILED (failures=1)

@@ -1,0 +1,18 @@
+make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'
+cc -std=gnu11 -Wall -Wextra -Werror -O2 -fstack-usage test_display_catalog.c \
+	/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_pack.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c \
+	-I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -Wl,--wrap=opendir,--wrap=readdir,--wrap=closedir,--wrap=close,--wrap=write -o build/test_display_catalog
+test_display_catalog.c: In function ‘main’:
+test_display_catalog.c:76:35: error: storage size of ‘page’ isn’t known
+   76 |   struct bkdisplay_catalog_page_s page;
+      |                                   ^~~~
+In file included from test_display_catalog.c:3:
+test_display_catalog.c:80:14: error: implicit declaration of function ‘bkdisplay_store_catalog_page’; did you mean ‘bkdisplay_store_activate’? [-Werror=implicit-function-declaration]
+   80 |       assert(bkdisplay_store_catalog_page(root, NULL, NULL, NULL, &page) == -ENOENT);
+      |              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+test_display_catalog.c:76:35: error: unused variable ‘page’ [-Werror=unused-variable]
+   76 |   struct bkdisplay_catalog_page_s page;
+      |                                   ^~~~
+cc1: all warnings being treated as errors
+make: *** [Makefile:2059: build/test_display_catalog] Error 1
+make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'

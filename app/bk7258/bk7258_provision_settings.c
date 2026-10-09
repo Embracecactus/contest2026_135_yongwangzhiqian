@@ -9,68 +9,263 @@
 #include <mbedtls/platform_util.h>
 
 static uint32_t get32(const uint8_t *p)
-{ return ((uint32_t)p[0]<<24)|((uint32_t)p[1]<<16)|((uint32_t)p[2]<<8)|p[3]; }
-static void put16(uint8_t *p, size_t n) { p[0] = n>>8;p[1] = n; }
+{
+  return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) |
+         ((uint32_t)p[2] << 8) | p[3];
+}
+
+static void put16(uint8_t *p, size_t n)
+{
+  p[0] = n >> 8;
+  p[1] = n;
+}
+
+static void put32(uint8_t *p, size_t n)
+{
+  p[0] = n >> 24;
+  p[1] = n >> 16;
+  p[2] = n >> 8;
+  p[3] = n;
+}
+
+static bool address_valid(const uint8_t *p)
+{
+  return p[0] != 0 && p[0] != 127 && p[0] < 224;
+}
 
 int bkprov_settings_decode(struct bkprov_settings_s *settings,
-                            const void *bundle, size_t size)
+                           const void *bundle, size_t size)
 {
   const uint8_t *p = bundle;
-  size_t ssid, password, host, ca, cloud, control;
+  size_t ssid;
+  size_t password;
+  size_t host;
+  size_t ca;
+  size_t cloud;
+  size_t control;
   uint64_t utc = 0;
-  if (settings == NULL) return -EINVAL;
+  bool deferred;
+  bool endpoint;
+
+  if (settings == NULL)
+    {
+      return -EINVAL;
+    }
+
   mbedtls_platform_zeroize(settings, sizeof(*settings));
-  if (p == NULL || size<32 || (memcmp(p, "SCB1", 4) && memcmp(p, "SCB2", 4) &&
-     memcmp(p, "SCB3", 4)) ||
-     p[7] || p[10] || p[11]) return -EBADMSG;
-  cloud = get32(p+28);
-  control = p[3]=='3' ? BKPROV_CONTROL_KEY_BYTES : 0;
-  if ((p[3]=='1' && cloud) || (p[3]!='1' && (cloud<24 || cloud>BKCLOUD_CONFIG_MAX)))
-    return -EBADMSG;
-  ssid = p[4];password = p[5];host = p[6];ca = get32(p+24);
-  for (int i = 16;i<24;i++) utc = (utc<<8)|p[i];
-  if (ssid == 0 || ssid>32 || (password != 0 && (password<8 || password>64)) ||
-     host == 0 || host>127 || ca == 0 || ca>4096 ||
-     size != 32+ssid+password+host+ca+cloud+control || (p[8] == 0 && p[9] == 0) ||
-     p[12] == 0 || p[12] == 127 || p[12] >= 224 ||
-     utc<UINT64_C(1704067200) || utc>UINT64_C(4133980799)) return -EBADMSG;
+  if (p == NULL || size < 32 || memcmp(p, "SCB", 3) ||
+      p[3] < '1' || p[3] > '4' || p[7] || p[10] || p[11])
+    {
+      return -EBADMSG;
+    }
+
+  deferred = p[3] == '4';
+  cloud = get32(p + 28);
+  control = p[3] >= '3' ? BKPROV_CONTROL_KEY_BYTES : 0;
+  if ((p[3] == '1' && cloud != 0) ||
+      (p[3] != '1' && !deferred && cloud < 24) ||
+      (cloud != 0 && cloud < 24) || cloud > BKCLOUD_CONFIG_MAX)
+    {
+      return -EBADMSG;
+    }
+
+  ssid = p[4];
+  password = p[5];
+  host = p[6];
+  ca = get32(p + 24);
+  endpoint = !deferred || cloud != 0;
+  for (int i = 16; i < 24; i++)
+    {
+      utc = (utc << 8) | p[i];
+    }
+
+  if (ssid > 32 || (!deferred && ssid == 0) ||
+      (ssid == 0 && password != 0) ||
+      (password != 0 && (password < 8 || password > 64)) ||
+      host > 127 || ca > 4096 ||
+      size != 32 + ssid + password + host + ca + cloud + control ||
+      utc < UINT64_C(1704067200) || utc > UINT64_C(4133980799))
+    {
+      return -EBADMSG;
+    }
+
+  if (endpoint)
+    {
+      if (host == 0 || ca == 0 || (p[8] == 0 && p[9] == 0) ||
+          !address_valid(p + 12) ||
+          !bkvoice_config_host_valid(p + 32 + ssid + password, host))
+        {
+          return -EBADMSG;
+        }
+    }
+  else if (host || ca || p[8] || p[9] || p[12] || p[13] ||
+           p[14] || p[15])
+    {
+      /* An owner-only record has no invented cloud or network endpoint. */
+
+      return -EBADMSG;
+    }
+
   if (control)
     {
       uint8_t nonzero = 0;
-      for (size_t i = size-control;i<size;i++)nonzero |= p[i];
-      if (!nonzero)return -EBADMSG;
-    }
-  if (memchr(p+32, 0, ssid+password) ||
-     !bkvoice_config_host_valid(p+32+ssid+password, host)) return -EBADMSG;
-  if (password == 64)
-    {
-      for (size_t i = 0;i<64;i++)
+      for (size_t i = size - control; i < size; i++)
         {
-          uint8_t ch = p[32+ssid+i];
-          if (!((ch>='0' && ch<='9') || (ch>='a' && ch<='f') ||
-               (ch>='A' && ch<='F'))) return -EBADMSG;
+          nonzero |= p[i];
+        }
+
+      if (!nonzero)
+        {
+          return -EBADMSG;
         }
     }
+
+  if (memchr(p + 32, 0, ssid + password))
+    {
+      return -EBADMSG;
+    }
+
+  if (password == 64)
+    {
+      for (size_t i = 0; i < 64; i++)
+        {
+          uint8_t ch = p[32 + ssid + i];
+          if (!((ch >= '0' && ch <= '9') ||
+                (ch >= 'a' && ch <= 'f') ||
+                (ch >= 'A' && ch <= 'F')))
+            {
+              return -EBADMSG;
+            }
+        }
+    }
+
   if (cloud)
     {
       struct bkcloud_config_s *config = malloc(sizeof(*config));
-      if (!config) return -ENOMEM;
-      const uint8_t *record = p+32+ssid+password+host+ca;
-      int ret = bkcloud_config_decode(config, record, cloud);
+      const uint8_t *record = p + 32 + ssid + password + host + ca;
+      int ret;
+
+      if (config == NULL)
+        {
+          return -ENOMEM;
+        }
+
+      ret = bkcloud_config_decode(config, record, cloud);
       if (ret == 0 && (strlen(config->host) != host ||
-          memcmp(config->host, p+32+ssid+password, host) ||
-          config->port != (((uint16_t)p[8]<<8)|p[9]))) ret = -EBADMSG;
-      bkcloud_config_clear(config);free(config);
-      if (ret<0) return ret;
-      settings->cloud = record;settings->cloud_size = cloud;
+          memcmp(config->host, p + 32 + ssid + password, host) ||
+          config->port != (((uint16_t)p[8] << 8) | p[9])))
+        {
+          ret = -EBADMSG;
+        }
+
+      bkcloud_config_clear(config);
+      free(config);
+      if (ret < 0)
+        {
+          return ret;
+        }
+
+      settings->cloud = record;
+      settings->cloud_size = cloud;
     }
-  memcpy(settings->ssid, p+32, ssid);
-  memcpy(settings->password, p+32+ssid, password);
-  memcpy(settings->host, p+32+ssid+password, host);
-  memcpy(settings->address, p+12, 4);
-  settings->port = ((uint16_t)p[8]<<8)|p[9];settings->utc = utc;
-  settings->ca = p+32+ssid+password+host;settings->ca_size = ca;
-  settings->control_key = control ? p+size-control : NULL;
+
+  memcpy(settings->ssid, p + 32, ssid);
+  memcpy(settings->password, p + 32 + ssid, password);
+  memcpy(settings->host, p + 32 + ssid + password, host);
+  memcpy(settings->address, p + 12, 4);
+  settings->port = ((uint16_t)p[8] << 8) | p[9];
+  settings->utc = utc;
+  settings->ca = ca ? p + 32 + ssid + password + host : NULL;
+  settings->ca_size = ca;
+  settings->control_key = control ? p + size - control : NULL;
+  settings->deferred = deferred;
+  return 0;
+}
+
+int bkprov_settings_encode(const struct bkprov_settings_s *settings,
+                           void *output, size_t capacity, size_t *size)
+{
+  struct bkprov_settings_s checked;
+  uint8_t *p = output;
+  uint8_t *cursor;
+  size_t ssid;
+  size_t password;
+  size_t host;
+  size_t total;
+  uint64_t utc;
+  int ret;
+
+  if (settings == NULL || p == NULL || size == NULL ||
+      settings->control_key == NULL)
+    {
+      return -EINVAL;
+    }
+
+  *size = 0;
+  ssid = strnlen(settings->ssid, sizeof(settings->ssid));
+  password = strnlen(settings->password, sizeof(settings->password));
+  host = strnlen(settings->host, sizeof(settings->host));
+  if (ssid > 32 || password > 64 || host > 127 ||
+      settings->ca_size > 4096 ||
+      settings->cloud_size > BKCLOUD_CONFIG_MAX ||
+      (settings->ca_size && settings->ca == NULL) ||
+      (settings->cloud_size && settings->cloud == NULL))
+    {
+      return -EINVAL;
+    }
+
+  total = 64 + ssid + password + host + settings->ca_size +
+          settings->cloud_size;
+  if (total > capacity)
+    {
+      return -ENOSPC;
+    }
+
+  memset(p, 0, 32);
+  memcpy(p, "SCB4", 4);
+  p[4] = ssid;
+  p[5] = password;
+  p[6] = host;
+  put16(p + 8, settings->port);
+  memcpy(p + 12, settings->address, 4);
+  utc = settings->utc;
+  for (int i = 23; i >= 16; i--)
+    {
+      p[i] = utc;
+      utc >>= 8;
+    }
+
+  put32(p + 24, settings->ca_size);
+  put32(p + 28, settings->cloud_size);
+  cursor = p + 32;
+  memcpy(cursor, settings->ssid, ssid);
+  cursor += ssid;
+  memcpy(cursor, settings->password, password);
+  cursor += password;
+  memcpy(cursor, settings->host, host);
+  cursor += host;
+  if (settings->ca_size)
+    {
+      memcpy(cursor, settings->ca, settings->ca_size);
+      cursor += settings->ca_size;
+    }
+
+  if (settings->cloud_size)
+    {
+      memcpy(cursor, settings->cloud, settings->cloud_size);
+      cursor += settings->cloud_size;
+    }
+
+  memcpy(cursor, settings->control_key, BKPROV_CONTROL_KEY_BYTES);
+  ret = bkprov_settings_decode(&checked, p, total);
+  mbedtls_platform_zeroize(&checked, sizeof(checked));
+  if (ret < 0)
+    {
+      mbedtls_platform_zeroize(p, total);
+      return ret;
+    }
+
+  *size = total;
   return 0;
 }
 

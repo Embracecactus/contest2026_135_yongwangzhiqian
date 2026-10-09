@@ -1,0 +1,186 @@
+{
+  "parent": "3c5a96c12c31cebae082b32c4316f580a257ffd8",
+  "counts": {
+    "selected": 647,
+    "PASS": 647,
+    "original_including_two_restores": 63,
+    "added": 584,
+    "new_L2": 7,
+    "runner_gates": 19,
+    "original_mutations_detected": 2,
+    "extra_mutation_detected": 1,
+    "extra_restore": 1,
+    "browser_scenario": 1
+  },
+  "new_ids": [
+    "USB-02.browser-cancel_is_intent_not_remote_completion",
+    "USB-02.browser-http_authority_rejects_before_operation",
+    "USB-02.browser-http_upload_reaches_tls_and_native_installer",
+    "USB-02.browser-invalid_upload_does_not_open_device",
+    "USB-02.browser-large_counters_preserve_exact_value",
+    "USB-02.browser-page_headers_and_no_credential_paths",
+    "USB-02.browser-polling_is_local_and_duplicate_is_not_replayed"
+  ],
+  "new_units": [
+    {
+      "id": "USB-02.browser-http_authority_rejects_before_operation",
+      "parent": "USB-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.6243615710409358,
+      "evidence": "USB-02.browser-http_authority_rejects_before_operation.log",
+      "evidence_sha256": "da10f65f8b570a7c24a4fb2d6badd34f3d2b84857d933ef65b731bc1e0032faf"
+    },
+    {
+      "id": "USB-02.browser-polling_is_local_and_duplicate_is_not_replayed",
+      "parent": "USB-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.6213155010482296,
+      "evidence": "USB-02.browser-polling_is_local_and_duplicate_is_not_replayed.log",
+      "evidence_sha256": "74603304b425687a22ffda36b619a0c2e53337cce53a8fc4a60d03fd2fbff381"
+    },
+    {
+      "id": "USB-02.browser-cancel_is_intent_not_remote_completion",
+      "parent": "USB-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.6274612200213596,
+      "evidence": "USB-02.browser-cancel_is_intent_not_remote_completion.log",
+      "evidence_sha256": "5bb4722ef8b37216a004b14f79a511deb3f87c49a942faef7363f4bc6704c291"
+    },
+    {
+      "id": "USB-02.browser-page_headers_and_no_credential_paths",
+      "parent": "USB-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.6229037839802913,
+      "evidence": "USB-02.browser-page_headers_and_no_credential_paths.log",
+      "evidence_sha256": "e57f7cda61c879ae50a9d0fd8fa4afe401cf047098b7ce48644be9bd9c3e2275"
+    },
+    {
+      "id": "USB-02.browser-invalid_upload_does_not_open_device",
+      "parent": "USB-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.6258193089743145,
+      "evidence": "USB-02.browser-invalid_upload_does_not_open_device.log",
+      "evidence_sha256": "356c615ee6a4f1b0784eb5529bda2e2af40627c3f819537afc950a1cad18ec0d"
+    },
+    {
+      "id": "USB-02.browser-http_upload_reaches_tls_and_native_installer",
+      "parent": "USB-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.8299027829780243,
+      "evidence": "USB-02.browser-http_upload_reaches_tls_and_native_installer.log",
+      "evidence_sha256": "c64a8651f4c1d0a82fb466ff470f53ff88fa703c721fd3e987a8e80e81d83fba"
+    },
+    {
+      "id": "USB-02.browser-large_counters_preserve_exact_value",
+      "parent": "USB-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.6297559220110998,
+      "evidence": "USB-02.browser-large_counters_preserve_exact_value.log",
+      "evidence_sha256": "7777e0b6f99af60b9a87d6e5cc87efb2083db48a2a8a8339e57680a110426dc5"
+    }
+  ],
+  "implementation": "Loopback browser workbench through existing sole public CLI workbench serve. Same profile/TLS/client and resource hooks; bounded one-job owner,64 identities,8 timed HTTP connections,128KiB file cap; exact Host/Origin/bearer, no arbitrary paths or commands. Readonly polling is local. Resources import/query/resume/cancel, trial/default UI and public result export.",
+  "baseline": "First six behavior specifications predated new interface: missing module BLOCKED_INTERFACE, not business Red. Added HTTP/TLS/native binding proves actual installation separately from mocked external-workbench boundary cases.",
+  "test_correction": {
+    "case": "browser local flow",
+    "old": "Matched prior unconfirmed message before new asynchronous submission settled; receipt length still zero",
+    "new": "Wait for this submission receipt ID, then check unconfirmed result",
+    "production_changed_for_correction": false,
+    "old_evidence": "browser-observer-before.log"
+  },
+  "oracle": [
+    "Actual HTTP service and request guards; unauthorized/foreign host/origin and unknown operations rejected before worker",
+    "20 local status queries and repeated identical request do not replay USB operation; concurrent or changed-content request rejected",
+    "Cancel intent leaves running/receiving state until operation resolves; exception contents not exposed",
+    "Actual HTTP -> workbench.run -> TLS client -> native session/job/worker/store installs exact fixture; replaces external channel/credential source, not installer",
+    "uint64 version remains exact decimal string for JavaScript"
+  ],
+  "mutation": "Copied service skips bearer check; unauthorized POST returns202 instead of403. Detected assertion, restored production passes; no in-tree mutation or hardware operation.",
+  "browser": {
+    "runtime": {
+      "PASS": true,
+      "browser": "151.0.7922.34",
+      "checks": [
+        "desktop and360px dark layout",
+        "no horizontal overflow",
+        "unknown gates",
+        "missing profile remains unconfirmed",
+        "reload retains local access",
+        "keyboard input",
+        "real file upload form with missing-profile error"
+      ],
+      "limits": "No physical device, no successful browser hardware flow"
+    },
+    "playwright": "1.58.2 installed in temporary validation directory",
+    "screenshots_local_only": {
+      "out/shaniu-s110/workbench-desktop.png": "042572f3e37ee02ef9028657df9273f703aa7db88f784430591d85ebd436d18a",
+      "out/shaniu-s110/workbench-mobile-dark.png": "f7e35780c6a5b42a73440415dbf1d00b1d8b62aa3a2e850d3e2d6cd19999c0b9"
+    },
+    "local_server_stopped": true,
+    "live_local_access_token_log_excluded": true
+  },
+  "inputs_verified": true,
+  "firmware_app_agent_models_unchanged": true,
+  "parent_gaps": {
+    "USB-02": {
+      "interface": "Browser entry now implemented, same-worker resource cancel and local snapshots; no service platform or arbitrary shell",
+      "L1_L2": "7 new HTTP/job/TLS-native cases plus separate browser layout/error scenario; no measured physical latency",
+      "L3": "NOT_RUN: actual native USB/COM identity and device/phone coexistence"
+    },
+    "RES-03": {
+      "interface": "Browser import/query/explicit resume/cancel plus installed-name trial/default forms; installed catalog/version compare still absent",
+      "L1_L2": "HTTP successful import through TLS to native installer; trial/default adapters reuse earlier client tests, successful browser-to-native trial/default not newly claimed",
+      "L3": "NOT_RUN: actual SD and screen output"
+    }
+  },
+  "resource_budget": {
+    "PC": "One job worker, at most8 HTTP threads each3s socket timeout,64 remembered IDs, max190000-byte request/128KiB pack, <=8MiB retained pack data per run, no additional device buffers/threads",
+    "limits": "CPU p95/process memory and real USB latency not measured; callback and OS I/O bounds do not prove hardware timing. CTRL+C uses existing deadline and retains receipts."
+  },
+  "limits": [
+    "647 collected units are not56 accepted product requirements",
+    "No real serial opened, no phone install, no flash or data erase",
+    "Actual physical device and APK46/COM16 questions remain pending",
+    "No firmware or APK rebuild because neither changed",
+    "Host full evidence production_digest covers firmware/App; new PC and assets additionally frozen by explicit SHA256 inputs",
+    "Browser records and receipt directory deliberately bounded; restart new directory, prior receipt recovery uses existing CLI"
+  ],
+  "raw_evidence_sha256": {
+    "s110-evidence-20260927/CFG-01.wifi-clears-cloud.log": "0f1ccdc95875b61ac77b090254f23c01fdb0f07690bc88de98ec4a7a69fff17e",
+    "s110-evidence-20260927/MSC-01.early-release.log": "e394823817de956dc0836f036dc382a60b6847ff0e086010290bd1b0777fda9b",
+    "s110-evidence-20260927/USB-02.browser-cancel_is_intent_not_remote_completion.log": "5bb4722ef8b37216a004b14f79a511deb3f87c49a942faef7363f4bc6704c291",
+    "s110-evidence-20260927/USB-02.browser-http_authority_rejects_before_operation.log": "da10f65f8b570a7c24a4fb2d6badd34f3d2b84857d933ef65b731bc1e0032faf",
+    "s110-evidence-20260927/USB-02.browser-http_upload_reaches_tls_and_native_installer.log": "c64a8651f4c1d0a82fb466ff470f53ff88fa703c721fd3e987a8e80e81d83fba",
+    "s110-evidence-20260927/USB-02.browser-invalid_upload_does_not_open_device.log": "356c615ee6a4f1b0784eb5529bda2e2af40627c3f819537afc950a1cad18ec0d",
+    "s110-evidence-20260927/USB-02.browser-large_counters_preserve_exact_value.log": "7777e0b6f99af60b9a87d6e5cc87efb2083db48a2a8a8339e57680a110426dc5",
+    "s110-evidence-20260927/USB-02.browser-page_headers_and_no_credential_paths.log": "e57f7cda61c879ae50a9d0fd8fa4afe401cf047098b7ce48644be9bd9c3e2275",
+    "s110-evidence-20260927/USB-02.browser-polling_is_local_and_duplicate_is_not_replayed.log": "74603304b425687a22ffda36b619a0c2e53337cce53a8fc4a60d03fd2fbff381",
+    "s110-evidence-20260927/before.log": "5c3888b8549a63ada3fab12b597d46d53b5bfb8b034e5f61cb056c3876a3e848",
+    "s110-evidence-20260927/browser-check.cjs": "d734b079d240597b3dad08fe27dbcddf318ae59cca6a4d2ff048dffe7c2f5300",
+    "s110-evidence-20260927/browser-final.log": "1a55d6be825b64f3d0699588a3165b5f2c981f4ed2c746747f20105247d077f8",
+    "s110-evidence-20260927/browser-observer-before.log": "d626cde0507ac200bc2f1551d099e886877cc31bfbdbb7a2f30259c1d255c5a9",
+    "s110-evidence-20260927/browser-setup.log": "640f5a2a9802046d0e22de83c2468d78ddd1ad7734f27ebee70a6f2ecd72f2d4",
+    "s110-evidence-20260927/full.log": "4da442a037f8e1fc97159f321fef74bad0ed2f875eb235599b78bb383ce34505",
+    "s110-evidence-20260927/help.log": "1e41fe19c92a2416006f93dd71efb267471e403fca8863399717ed8ab4db4000",
+    "s110-evidence-20260927/mutation.log": "9819b893e25fdbc4034cef3ad4a3dafba6639986f559e2047b4a2bfb7d426b1d",
+    "s110-evidence-20260927/restored.log": "8c4aba4686004091230355e2700abd3221685abc29a406425c8fb3cde452435f",
+    "s110-evidence-20260927/runner-gates.log": "d43ce3ea7ad998f55bad5a498475d5b046bc92ac2e361e95a98dd6e2965011e0",
+    "s110-evidence-20260927/source-hashes.json": "31f135198d05bc97244de048d04dd6319a165dda4ac9bc2904bb733dac48a0da",
+    "s110-evidence-20260927/style.log": "fc02f80946539e851851f29307ea5b05e8c18433fcf4b824204a000c6ba36ce0",
+    "s110-evidence-20260927/web-final.log": "07b40d3293864c5b9de2e42676ac8742cfce88f476305a47ac08c12516be9827"
+  }
+}

@@ -1,0 +1,143 @@
+{
+  "parent": "711f0e0075461c3b5710b2d57c71df1d6fc651cb",
+  "counts": {
+    "selected": 614,
+    "PASS": 614,
+    "original_including_restores": 63,
+    "added": 551,
+    "new_ids": 10,
+    "owner_scope_cases": 7,
+    "native_adapter_cases": 3,
+    "runner_gates": 19,
+    "original_mutations": 2,
+    "extra_mutations": 2,
+    "extra_restores": 2
+  },
+  "implementation": "Phone owner creates a public volatile16-byte operation scope using its own currently authenticated TLS DRBG. Disconnect/quiesce keeps it; successful credential/identity replacement/removal clears it. Phone kind17 uses an independent272-byte selection controller and the shared native job/store/renderer. PC credentials or installer state are not borrowed. Product loop checks revocation before reset/power early exits and callback checks again before dispatch. Committed saves cannot be undone by invalidation.",
+  "test_first": {
+    "initial_status": "BLOCKED_INTERFACE",
+    "business_red": false,
+    "evidence": [
+      "interface-before.log",
+      "phone-interface-before.log"
+    ],
+    "order": "Owner and adapter behavior cases preceded their corresponding new interfaces. Existing production SDC1/owner and selection job paths are compiled; no replacement success implementation."
+  },
+  "integration": {
+    "owner": "Real owner/control session and AUTH; only TLS pair transport, entropy, GATT and storage snapshot are deterministic external peers. Tests assert no entropy before authentication, stale generation rejection, failure output zero, scope stability across reconnect and invalidation on revoke/replace/identity changes.",
+    "adapter": "Exact product_phone_selection_config and product_phone_selection_step extracted verbatim; real SDC1 staging, selection controller/job, store, volume and framebuffer pixel checks. External scope provider/mount/framebuffer are peers; owner scope tested separately. Queued revocation cancels with zero writes; same owner reconnect finishes once; committed save remains DONE after revocation.",
+    "limits": "Phone owner authentication and native selection adapter are separate harnesses, not one actual BLE/TLS-to-screen path. Existing TLS suite passed separately. Android protocol/controller/UI kind17 not implemented yet. No physical or emulator actions this slice."
+  },
+  "test_corrections": {
+    "strengthened_assertion": "Initial product mutant failed on forbidden rendering via framebuffer assertion. Added explicit CANCELED check before stepping worker, so failure names the violated terminal contract. Original614-pass collection preserved, then full collection repeated. No assertions removed or thresholds relaxed.",
+    "mutation_launcher": "Initial temporary python -c launcher ignored main return value; fixed sys.exit(main()) before counting detection. Only final nonzero compiled mutation runs count; no production source mutated."
+  },
+  "validation": {
+    "inputs_match": true,
+    "production_unchanged_during_final_run": true,
+    "AP": "PASS incremental linked target; not signed/deployed",
+    "AP_ELF_sha256": "6597c3ccb9f0ebc552034ecfec0284e9ae1b8875a0cbddef26d65c4a39cca057",
+    "layers": "PASS sources550 kconfig253 legacy-exceptions2",
+    "style": [
+      {
+        "file": "app/bk7258/bk7258_provision_owner.c",
+        "exit_code": 1,
+        "baseline_exit_code": 1,
+        "new_diagnostic_types": [],
+        "note": "Existing files retain legacy diagnostics; new function ranges add no nxstyle diagnostics. No block comments found also exists at baseline; paths normalized."
+      },
+      {
+        "file": "app/bk7258/bk7258_provision_owner.h",
+        "exit_code": 1,
+        "baseline_exit_code": 1,
+        "new_diagnostic_types": [],
+        "note": "Existing files retain legacy diagnostics; new function ranges add no nxstyle diagnostics. No block comments found also exists at baseline; paths normalized."
+      },
+      {
+        "file": "app/bk7258/bk7258_agent_product.c",
+        "exit_code": 1,
+        "baseline_exit_code": 1,
+        "new_diagnostic_types": [],
+        "note": "Existing files retain legacy diagnostics; new function ranges add no nxstyle diagnostics. No block comments found also exists at baseline; paths normalized."
+      }
+    ],
+    "black": "24.10.0 thin Python adapter",
+    "nxstyle_nuttx_commit": "76354c637858ecb0aa4601629327acb6f44a26bb",
+    "diff_check": "Source/tests/docs PASS. Raw AP console log retains three original trailing-whitespace lines (11,2059,2097); raw evidence not normalized."
+  },
+  "mutations": {
+    "mutations": [
+      {
+        "name": "missing-scope-invalidation",
+        "detected": true,
+        "exit_code": -6,
+        "source_sha256": "3c310040997f5649a0f37d45a826f219087d41ec2cab0b0514a2da75bc643809",
+        "mutant_sha256": "c21f2b8a6ce49fb3dc244b96f7eba4fa3bc96607a5102b6e35f2820c4a558045",
+        "case": "NET-03.phone-scope-replace"
+      },
+      {
+        "name": "missing-product-revocation",
+        "detected": true,
+        "exit_code": 1,
+        "source_sha256": "3a0009572978062e0af0ad566e78273d4f1a127de66697b90f7f164ee82bcd95",
+        "mutant_sha256": "f6e006e51e58bafdb34c766e6b85a5e02b3fcb4337191e030cda46ee3b8a67f5",
+        "case": "RES-02.phone-default-native-revoke"
+      }
+    ],
+    "restores": 2
+  },
+  "resources": {
+    "new_static_bytes": 288,
+    "breakdown": "272B phone selection controller confirmed in target nm plus16B owner scope; no new thread/heap/unbounded queue. One lazy16B DRBG request; polling is metadata-only.",
+    "not_measured": "Target CPU/p95, worst scheduling/ISR, stack high-water and physical audio/SD/USB contention remain unmeasured. No device performance claim."
+  },
+  "parent_gaps": {
+    "RES-02": {
+      "interface": "Phone and PC firmware routes now share selection service with independent scopes; Android UI/controller absent",
+      "L1_L2": "Native phone adapter and owner scope separately exercised; full BLE/TLS vertical and mixed authenticated clients pending",
+      "L3": "NOT_RUN"
+    },
+    "NET-03": {
+      "interface": "Phone scope bound to control credentials; existing SDC1 authentication/sequence validation retained",
+      "L1_L2": "Seven new real-owner cases; PC grant independence by separate state and existing regressions",
+      "L3": "NOT_RUN"
+    }
+  },
+  "preserved": "Original63 IDs, e3ecd6b8 baseline reports, Agent manifest, original model/我在, Android sources/resources and current hardware data untouched.",
+  "next": "Android kind17 protocol, controller generation/transaction ownership and native default selection UI, tests first. PC browser/light interface, active/2 downgrade/migration, physical vertical/combination and final release gates remain open.",
+  "evidence_dir": "s104-evidence-20260927",
+  "evidence_sha256": {
+    "CFG-01.wifi-clears-cloud.log": "85c80dd02298a1041d39b254fd1ac46b10681627530d57649542083c2cee7567",
+    "MSC-01.early-release.log": "7c3635910268a5fe61197471232ecdc6c83cbe77ca4020320457c99e6f912fc5",
+    "NET-03.phone-scope-entropy.log": "8b9a9470ba01ac826a6037de08164fc8ee6e9283377f20dd0d47ea8f73eea5ca",
+    "NET-03.phone-scope-identity.log": "c64c23d79598c3bba62eee56e60c3c3ed3cd853d877e5f34ec7b2d30cfb769cc",
+    "NET-03.phone-scope-reconnect.log": "85778f41b1682b4cc929ddbba08e2d4307797a53136eb97a920f0dc5a160ba45",
+    "NET-03.phone-scope-replace.log": "2fbcaf35c91225f53bb3ea013a5c94cc27a186e1e47ea962aef944c4cd764f3f",
+    "NET-03.phone-scope-revoke.log": "3487cd3a83cbe8f94e146238a9a1b022213f555438a561aaa29dc1b1908e8362",
+    "NET-03.phone-scope-stale.log": "34545ceee00eb49357b826092d25e54b005c4d09418ad25c62e3090fe02d47cc",
+    "NET-03.phone-scope-unauthenticated.log": "f86f0b51ee39a048f05664601ee2c93a8e78339887cf257783129ef3d0a59590",
+    "RES-02.phone-default-native-reconnect.log": "66176087b6fbac11c2f3f63645ad06973bfb6d6451faf111954767ced86d8347",
+    "RES-02.phone-default-native-replace.log": "a01977a9db93c52590ead0f24b4e3a614d1ad8d7e741dadd7232b091c1e8788c",
+    "RES-02.phone-default-native-revoke.log": "1fbb8ad4b8a8be8e66f3adbc82a645f2cbcdae129717c297d01f0ebf532debfb",
+    "USB-01.tls-transport.log": "f7ba576a456b98d8ded5c5de2f7362e5cc24b95cfd5e16f2dbc1c383d54befa5",
+    "ap.log": "d563ce6b762c34de1262c7476637497439a95fe82d0485e8b84c1f5602a4c480",
+    "before-strengthened-assertion.json": "0958ce3c7c1b9002cce90b24ba9672fed0c96c91034419929a0396c4f6a43f00",
+    "full-before-assertion.log": "adb629f17f178552f6ce7f9bd8ca85da508742dd2c228c87f17ba8344bf52789",
+    "full.log": "b6ece950086261454b1b33843d04a3b51989fff0de9575b5a6694a6ea522b2bf",
+    "gates.log": "9f818b7c86593331e9a846abf87fb9f8094734748afbcf8b573a7cb692a72b6f",
+    "interface-before.log": "45d3a753528a07116b265d594b87cbb62b271367a55d6519265eed6f98fc465f",
+    "layers.log": "027609397eae350c61a6eb847a6c4ab94f0c926dfa48f65914118948fd3b6c40",
+    "mutation-product-before-assertion.log": "76bc2c7ce4acc2acef10dbeb4b5d0bf3f24e687b7e480205680675dfdd064568",
+    "mutation-product.log": "b1e30453d1561bdfdeafa964a80912c90f7553fe1cca4def5fe47bb62c862fc6",
+    "mutation-scope-build.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "mutation-scope.log": "38e1e00044aa4ab7f50e737dc9c3e73106f10eed3dbac5225b4c71d9ef456249",
+    "mutations.json": "3f12a5ac012c0e7c3d5c004ec1b340e3cfdc4189af139fc9864023e64806855d",
+    "owner-build.log": "0d55c06a56af965f89e001bae3920236be7c38de8a6140f073ed687ea198d172",
+    "phone-interface-before.log": "2df0f7ae2036dfd6a65442aa4907d8957d9afa59bc99873dd70fc1d082c878a2",
+    "restore-product.log": "d567eb28fe5b9b6690a84b751fa716eac3abf11d98ec8dd46f1067556ac2662a",
+    "restore-scope.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "style-python.log": "a708b86fc0deb32cc5864b5d6f276e494df877d204946aad9bec9a2688ccfd7b",
+    "style.json": "1b06ad95f19d847bb7dc871124b95a09d6b23a2aba5a28b649587838d87adecd",
+    "target-symbols.log": "ead53b5a8d71e43066110962b1f732fd1372f017a979f50a636e341638ba373c"
+  }
+}

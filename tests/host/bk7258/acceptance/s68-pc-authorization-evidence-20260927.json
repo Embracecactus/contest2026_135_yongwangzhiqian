@@ -1,0 +1,252 @@
+{
+  "slice": "S68",
+  "parent": "765ecaaa5ced648d7b541d3d3cf5da7de64b058e",
+  "date": "2026-09-27",
+  "counts": {
+    "PASS": 361,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 298,
+      "counts": {
+        "PASS": 298,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "new_execution_units": [
+    {
+      "id": "NET-03.pc-auth-basic",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.11430728202685714,
+      "evidence": "NET-03.pc-auth-basic.log",
+      "evidence_sha256": "f234b848ff84b8aab61232e43900c62e40a045b42c5fb9d79dce08ea418e7ecf"
+    },
+    {
+      "id": "NET-03.pc-auth-auth",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.11415604699868709,
+      "evidence": "NET-03.pc-auth-auth.log",
+      "evidence_sha256": "960b88bfab9efdaaee9ed7a43f4ae94bd9b9921a23fbd771d9a49af34b7c9874"
+    },
+    {
+      "id": "NET-03.pc-auth-invalid",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.11417907901341096,
+      "evidence": "NET-03.pc-auth-invalid.log",
+      "evidence_sha256": "8aa10f5e9e8e38235b2ac11f7e3f8206fbcff33ed62a95c87d0a6932ac071ad2"
+    },
+    {
+      "id": "NET-03.pc-auth-cancel",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.11404157499782741,
+      "evidence": "NET-03.pc-auth-cancel.log",
+      "evidence_sha256": "d013c3a0aa5aadbf6d733267c7b0fb3b61a696dfa86f30e9322bfcbe4f4f49b2"
+    },
+    {
+      "id": "NET-03.pc-auth-failure",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.06401625100988895,
+      "evidence": "NET-03.pc-auth-failure.log",
+      "evidence_sha256": "f633eef6f542fc03bd4d9fd0a30452b9570e2d48444b56788260ad2206f81da0"
+    },
+    {
+      "id": "NET-03.pc-auth-unknown",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.06399547401815653,
+      "evidence": "NET-03.pc-auth-unknown.log",
+      "evidence_sha256": "c5494810fcf292f824f1a04ec778e30f11baf9669b3f5a16a6fa2ab6100448b5"
+    },
+    {
+      "id": "NET-03.pc-auth-pending",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.1143379490240477,
+      "evidence": "NET-03.pc-auth-pending.log",
+      "evidence_sha256": "035aacc92374bb15e23378c85e3a606939528d99a7f48281f91f58af0af79ea1"
+    },
+    {
+      "id": "NET-03.pc-auth-reopen",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.11417974199866876,
+      "evidence": "NET-03.pc-auth-reopen.log",
+      "evidence_sha256": "0083216dcaa2252aa5e8b128577fd1862476fa44bfd5b73de57709b688423c66"
+    },
+    {
+      "id": "NET-03.pc-auth-retry-error",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.06411996902897954,
+      "evidence": "NET-03.pc-auth-retry-error.log",
+      "evidence_sha256": "1f2338b864d8cbf16f12f4698392fa21badd5f667fd831f88043205fd8b8aceb"
+    }
+  ],
+  "source_hashes": {
+    "app/bk7258/CMakeLists.txt": "c87f4be054f26dd675ed74f3e06110f058357f0c22cace6bbfe9ba2e9e0d5321",
+    "app/bk7258/Makefile": "25f71924f388c4659231e48a871b8f3f46800da32421701b24b8fd9724a2abbe",
+    "app/bk7258/bk7258_control_session.c": "b9dd795cce682b6fbe431496c9fc984e4567551bd23d6465ccbbf8f8660dad41",
+    "app/bk7258/bk7258_control_session.h": "619e96b6684b99ad1b44ca2f71ca019f5af38c795fccc22dee0d664075a4eea2",
+    "app/bk7258/bk7258_provision_storage.c": "ba09a76cb91387dda3e7c4a346ae7e7acf675820741924b62b18d1facc3913f4",
+    "app/bk7258/bk7258_provision_storage.h": "14cfeed808b21f9e75ccaccc14eef3f054777098e3f6988b234f68ba2fc55d4a",
+    "goal-objective.md": "8272cbe1e9e39bf96faabb77f4ac6c6bb5f71342fa83a2ff20254502cba7300e",
+    "tests/host/bk7258/Makefile": "a80a1e82f3575bd87b56e5f83dabc663defa25bbe01c09709d4f685bf687f26c",
+    "tests/host/bk7258/README.md": "81eecc785cf7790f8d73ba77abc16fc3806fcec1cfaa9e56dd434eb36fd3deac",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "6283b588de912619f2921d40dfb9bb5c642514077f642c3e568f4dd9a5ecee56",
+    "tests/host/bk7258/test_pc_storage.c": "f2f49081536f9da3a6e026dcbf9149931ca02e5bcb42440da1a3007f3e5f39e0",
+    "tests/host/bk7258/test_shaniu_contracts.py": "1938254a10efad0b8c9f892fcd45db14ffe814cffa399bf9a231810b86a5b5c3",
+    "app/bk7258/bk7258_pc_authorization.c": "23cd7d38ecdeda39c0c0c3b2b7dffd51af14f512eb8cf38cc03785444e693760",
+    "app/bk7258/bk7258_pc_authorization.h": "b2381958803c913026e19057d114d9491154ad1003e28b377ee76ffdf3f9d6b4",
+    "tests/host/bk7258/test_pc_authorization.c": "9a2f83be2243894c0f1df2bf240c8a0900b348f5b6e3ed28cd364fb0a657b007",
+    "tests/host/bk7258/test_pc_authorization.py": "b4e35eb7c9f0b8d19adfe537dd50eed2bc86ac0d115bf4f1fd5e651c132d94bd"
+  },
+  "evidence_root": "out/shaniu-s68",
+  "evidence_sha256": {
+    "interface-before.log": "a460e012c66d2a3db5b874293420bbe946464b6dac612bbb94ddd42884b7e8f8",
+    "receipt-red.log": "41d891d27131c3514411467280cdaa73068174e30a80b0e3393414c12527a11a",
+    "receipt-green.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "contracts/results.json": "77512b865dc9182af737279fc090a1b31f294acc4b2dc706cd129afdb9f6cc10",
+    "contracts-final/results.json": "fe98e6111d372f44955a3c6982ace314ef1d003619972b52d4a9a0c67527058f",
+    "mutations.log": "7ddf067653041b41a9173880f690299db4c87f3684ada301834969e67dcd35f8",
+    "mutations-final/mutations.json": "3faeb08a99e9281443bc68350bd007b55184af763931adcfbdc5c6b2ca95a3aa",
+    "runner-gate.log": "60b5edc8087e061f2f9c8555ca9c1875fac04657d569ed1c0f03fc9a75a17576",
+    "build-ap-final.log": "a23505a799204651e3386633468d998f7d80e41c20aac23f8b4e3062e30d8531",
+    "manifest.log": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac",
+    "style-equivalence.json": "2195595a2505660eaba99c58d1f22d84ae7cf39fae9c9aa46905ae09e8da26d3",
+    "style-c-checked.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "style-h-checked.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "build-ap-style.log": "a0c8b90e7a0aa655d3a158eb3b6417852c159e469bb308a476d30911d9f887f7",
+    "manifest-style.log": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac"
+  },
+  "initial_interface": "BLOCKED_INTERFACE, not a business assertion failure",
+  "behavior_red": "Completed syscall EAGAIN was indistinguishable from pending in PCR1. Independent phase assertion failed; implementation now carries phase separately.",
+  "test_corrections": [
+    "First full run:355PASS/6SETUP_ERROR; mistakenly excluded the old storage test main from its Make target. Repaired only build wiring.",
+    "First mutation missed an incorrect pending phase; strengthened the phase assertion. Raw failure and earlier logs retained."
+  ],
+  "mutations": [
+    {
+      "mutation": "key-in-public-snapshot",
+      "case": "basic",
+      "mode": "mutated",
+      "exit_code": -6,
+      "detected": true,
+      "log": "key-in-public-snapshot-mutated.log",
+      "sha256": "519292b5d5860c0ede3478cc16b63f75304ebe488248cfaecfcc408588a5eeb7"
+    },
+    {
+      "mutation": "key-in-public-snapshot",
+      "case": "basic",
+      "mode": "restored",
+      "exit_code": 0,
+      "detected": false,
+      "log": "key-in-public-snapshot-restored.log",
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4"
+    },
+    {
+      "mutation": "pending-is-success",
+      "case": "pending",
+      "mode": "mutated",
+      "exit_code": -6,
+      "detected": true,
+      "log": "pending-is-success-mutated.log",
+      "sha256": "1aa4815b627da83d0f2f0f8e04eaf702b87de1e46757400b9940c1c15b304c69"
+    },
+    {
+      "mutation": "pending-is-success",
+      "case": "pending",
+      "mode": "restored",
+      "exit_code": 0,
+      "detected": false,
+      "log": "pending-is-success-restored.log",
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4"
+    },
+    {
+      "mutation": "retry-error-is-pending",
+      "case": "retry-error",
+      "mode": "mutated",
+      "exit_code": -6,
+      "detected": true,
+      "log": "retry-error-is-pending-mutated.log",
+      "sha256": "0b96524e5c500d9dc791baa12c7f871f8fcdda1fdac576cb9958a91d4a01ad6c"
+    },
+    {
+      "mutation": "retry-error-is-pending",
+      "case": "retry-error",
+      "mode": "restored",
+      "exit_code": 0,
+      "detected": false,
+      "log": "retry-error-is-pending-restored.log",
+      "sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4"
+    }
+  ],
+  "post_test_whitespace_only": {
+    "change": "Remove two blank lines before function closing braces only",
+    "whitespace_tokens_equal": true,
+    "before_sha256": "4f99a4bdc22ee8dfc59e5e879d50118ba782e27f44438ab2cf1643e0e2d821ec",
+    "after_sha256": "23cd7d38ecdeda39c0c0c3b2b7dffd51af14f512eb8cf38cc03785444e693760"
+  },
+  "scope": {
+    "interface": "Phone-only kind14 adapter, no production dispatch caller yet. Trusted current configuration revision required.",
+    "L1_L2": "Real SDC1 session, async storage worker, PC grant and durable store; only fsync failure/blocking injected. Golden bytes independent of encoder.",
+    "L3": "NOT_RUN",
+    "runtime_binding": "NOT_IMPLEMENTED; no phone UI, current-owner binding, USB worker/session arbitration or activation"
+  },
+  "open_tls_failure": "S66 remains UNRESOLVED. This run passing USB-01.tls-transport is not causal closure.",
+  "resources": {
+    "new_thread": false,
+    "new_resident_state": false,
+    "new_dma": false,
+    "local_public_record_bytes": 64,
+    "local_internal_view_bytes": 80,
+    "cpu_p95_stack_high_water": "NOT_MEASURED"
+  },
+  "contract": "README S68 wire layouts and semantics; no secret in snapshot/receipt; staging cancel cannot undo worker commit."
+}

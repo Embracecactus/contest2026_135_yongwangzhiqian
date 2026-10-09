@@ -1,0 +1,79 @@
+{
+  "date": "2026-09-28",
+  "production_commit": "ff103c25919249a58b5eab2655c060c87d40d71f",
+  "agent": "831b8b54cef8763229431ae2750e2cdfbd825887",
+  "production_changed": false,
+  "reason": "AIDK CONFIG_MEDIA=y uses the Agent adapter; previous AUD-03.media-* cover only the no-Media bridge and remain valid only for that profile.",
+  "execution_layer": "L1 actual deployed Agent adapter with controlled Media/socket/clock boundaries; not actual FFmpeg/DAC",
+  "input": {
+    "test_sha256": "da3cdde6ceac823b9acedff50a4a2cf8ff03152d4c954547057217d681840a4b",
+    "production_sha256": "29b1c5f13aa7b2f44fb10037ca0365e1b463a43fb68d3701fe91deb05a6b75ad",
+    "pcm_8002_sha256": "051f94be3b64aa8641dd9f286b8eb01edb5689e25ee87a9381d9958de38b50cb",
+    "clock": "virtual monotonic time",
+    "Media_socket_boundary": "deterministic peer with 37-byte partial writes, completion/error and close failure"
+  },
+  "results": [
+    {
+      "id": "AUD-03.agent-tail",
+      "status": "PASS",
+      "exit": 0,
+      "output": "CONTRACT_PASS\n"
+    },
+    {
+      "id": "AUD-03.agent-cancel-next",
+      "status": "PASS",
+      "exit": 0,
+      "output": "CONTRACT_PASS\n"
+    },
+    {
+      "id": "AUD-03.agent-close-failure",
+      "status": "PASS",
+      "exit": 0,
+      "output": "CONTRACT_PASS\n"
+    },
+    {
+      "id": "AUD-03.agent-eof-failure",
+      "status": "PASS",
+      "exit": 0,
+      "output": "CONTRACT_PASS\n"
+    }
+  ],
+  "mutations": [
+    {
+      "mutation": "premature-eof",
+      "case": "tail",
+      "status": "DETECTED",
+      "restore": null
+    },
+    {
+      "mutation": null,
+      "case": "tail",
+      "status": "PASS",
+      "restore": "unchanged production binary"
+    },
+    {
+      "mutation": "ignore-cancel",
+      "case": "cancel-next",
+      "status": "DETECTED",
+      "restore": null
+    },
+    {
+      "mutation": null,
+      "case": "cancel-next",
+      "status": "PASS",
+      "restore": "unchanged production binary"
+    }
+  ],
+  "runner_selftests": "21 PASS",
+  "full_selection": {
+    "required_ids": 729,
+    "status": "NOT_RUN for this test-only delta; previous exact-commit CI covers 725"
+  },
+  "real_board": "NOT_RUN for new adapter-specific cases; normal firmware remains 671",
+  "limits": [
+    "This does not run full Media/FFmpeg or DAC on the host.",
+    "Current CP lacks a Media command; AP exposes local socket only. No new network configuration or playback stimulus was added.",
+    "No new production failure was found; four baseline Greens are not presented as Red-to-Green fixes."
+  ],
+  "local_evidence_root": "out/shaniu-core-20260928"
+}

@@ -34,7 +34,8 @@ internal class AndroidDeviceControlFactory(
                 val created = try {
                     DeviceControlConnection(appContext, device, deviceId,
                         result = { command, snapshot -> post { events.result(command, snapshot) } },
-                        onClosed = { reason -> post { events.closed(reason) } })
+                        onClosed = { reason -> post { events.closed(reason) } },
+                        onPeerIdentity = { identity -> post { events.peerIdentity(identity) } })
                 } catch (_: Exception) {
                     post { events.closed("Control connection unavailable") }
                     return@execute

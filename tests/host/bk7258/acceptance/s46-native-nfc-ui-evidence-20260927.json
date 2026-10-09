@@ -1,0 +1,498 @@
+{
+  "slice": "S46",
+  "date": "2026-09-27",
+  "parent": "f8e91d13cbc76813f6677757227cf7d39025e553",
+  "scope": "Native NFC binding UI, actual Views with synthetic admission, no BLE",
+  "counts": {
+    "PASS": 226,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 163,
+      "counts": {
+        "PASS": 163,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "existing_mutations": [
+    {
+      "id": "MSC-01.early-release",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.007697032007854432,
+      "source": "app/bk7258/bk7258_media_volume.c",
+      "original_sha256": "58ebb18ae63adccf21262253da18f153bbb7c680cc0b64719ca20e8a6d9681c8",
+      "mutant_sha256": "bf298373a95ac54d5587f93ece34a30a7f661a65a969c69db9e27c6570770c57",
+      "expected_assertion": "!mounted",
+      "evidence": "MSC-01.early-release.log"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.0639249209780246,
+      "source": "app/bk7258/bk7258_provision_config.c",
+      "original_sha256": "98f5100ca49ca44e45fe3e5da4bb2da0add7466f0e357a205ca8b1e307a5818e",
+      "mutant_sha256": "4c0c615b8ffc99247b0fd91bd934d3df0409a1180769cb939b2820f9e6f69427",
+      "expected_assertion": "bkcloud_config_decode",
+      "evidence": "CFG-01.wifi-clears-cloud.log"
+    }
+  ],
+  "ui_profiles": [
+    {
+      "profile": "dark-412-large-fixed",
+      "size": "1236x2400",
+      "density": "480",
+      "font": "2.0",
+      "night": "yes",
+      "status": "PASS"
+    },
+    {
+      "profile": "light-360-fixed",
+      "size": "1080x1920",
+      "density": "480",
+      "font": "1.0",
+      "night": "no",
+      "status": "PASS"
+    }
+  ],
+  "related_ui": [
+    {
+      "probe": "focus_draft_probe",
+      "status": "PASS"
+    },
+    {
+      "probe": "expression_trial_probe",
+      "status": "PASS"
+    }
+  ],
+  "historical_profiles": [
+    {
+      "profile": "light-360",
+      "size": "1080x1920",
+      "density": "480",
+      "font": "1.0",
+      "night": "no",
+      "status": "PASS"
+    },
+    {
+      "profile": "dark-412-large",
+      "size": "1236x2400",
+      "density": "480",
+      "font": "2.0",
+      "night": "yes",
+      "status": "FAIL_ASSERTION"
+    }
+  ],
+  "test_first": [
+    {
+      "log": "interface-missing.log",
+      "status": "BLOCKED_INTERFACE"
+    },
+    {
+      "log": "ui-draft.log",
+      "status": "FAIL_ASSERTION",
+      "cause": "Spinner asynchronous callback did not preserve slot at immediate close",
+      "fix": "capture actual selection on close and save"
+    },
+    {
+      "log": "ui-layout-diagnostic.log",
+      "status": "FAIL_ASSERTION",
+      "cause": "input height 117px at density 2.625 below48dp",
+      "fix": "View.minimumHeight56dp"
+    },
+    {
+      "log": "dark-412-large.log",
+      "status": "FAIL_ASSERTION",
+      "cause": "input bottom1530 exceeds visible frame1524",
+      "fix": "sheet honors parent measurement and IME resize"
+    }
+  ],
+  "source_and_artifact_sha256": {
+    "android/shaniu-companion/app/src/androidTest/java/com/shaniu/companion/provision/ControlKeyInstrumentation.kt": "6082edad4be903acce33f3998574d1437d666b4b44e433628cd5ae06bd553b90",
+    "android/shaniu-companion/app/src/androidTest/java/com/shaniu/companion/provision/DeviceUiAcceptance.kt": "9189fa4661b1dce20ce737db15b37ab2bc492b9caaade8bebfc01904d50e32e0",
+    "android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt": "72e3f88521019c22ef8021a2f7585a7b03b1add01fd3d283999f948f968755a4",
+    "android/shaniu-companion/app/build/outputs/apk/debug/app-debug.apk": "3c41abbf04ce5aaec00eddae9d20c3ab5f62030b6af38e646e869f165b6dcc00",
+    "android/shaniu-companion/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk": "4b03ae43f9d18df82702bf3a0b768b1378ac66409ded251f251487835f153281"
+  },
+  "logs": {
+    "build-draft-fix.log": {
+      "sha256": "2e79ccfa4510d131e46aa4ac04157730a0e1f827d66f9616768a29de6a560079",
+      "bytes": 8106,
+      "tail": [
+        "> Task :app:mergeDebugAndroidTestJavaResource UP-TO-DATE",
+        "> Task :app:mergeProjectDexDebugAndroidTest UP-TO-DATE",
+        "> Task :app:packageDebugAndroidTest UP-TO-DATE",
+        "> Task :app:createDebugAndroidTestApkListingFileRedirect UP-TO-DATE",
+        "> Task :app:assembleDebugAndroidTest UP-TO-DATE",
+        "",
+        "BUILD SUCCESSFUL in 2s",
+        "64 actionable tasks: 6 executed, 58 up-to-date"
+      ]
+    },
+    "build-final.log": {
+      "sha256": "c1b6efe956a3d8f5e84a39978f98e0e98fae823822a8abe38fac574c848caaa2",
+      "bytes": 8062,
+      "tail": [
+        "> Task :app:mergeDebugAndroidTestJavaResource UP-TO-DATE",
+        "> Task :app:mergeProjectDexDebugAndroidTest",
+        "> Task :app:packageDebugAndroidTest",
+        "> Task :app:createDebugAndroidTestApkListingFileRedirect UP-TO-DATE",
+        "> Task :app:assembleDebugAndroidTest",
+        "",
+        "BUILD SUCCESSFUL in 3s",
+        "64 actionable tasks: 9 executed, 55 up-to-date"
+      ]
+    },
+    "build-keyboard-fix.log": {
+      "sha256": "ad831b53b7194aa7508227fd4cf8843a7a3b99d57e691edcd4c2d7f569abafd3",
+      "bytes": 4051,
+      "tail": [
+        "> Task :app:validateSigningDebugAndroidTest UP-TO-DATE",
+        "> Task :app:writeDebugAndroidTestSigningConfigVersions UP-TO-DATE",
+        "> Task :app:packageDebugAndroidTest UP-TO-DATE",
+        "> Task :app:createDebugAndroidTestApkListingFileRedirect UP-TO-DATE",
+        "> Task :app:assembleDebugAndroidTest UP-TO-DATE",
+        "",
+        "BUILD SUCCESSFUL in 862ms",
+        "64 actionable tasks: 64 up-to-date"
+      ]
+    },
+    "build-keyboard-fixed.log": {
+      "sha256": "5ba9ce15752f58b143a17d5e6b17816120cd841e2fa0ea917b8432bbfe026052",
+      "bytes": 8347,
+      "tail": [
+        "> Task :app:mergeDebugAndroidTestJavaResource UP-TO-DATE",
+        "> Task :app:mergeProjectDexDebugAndroidTest UP-TO-DATE",
+        "> Task :app:packageDebugAndroidTest UP-TO-DATE",
+        "> Task :app:createDebugAndroidTestApkListingFileRedirect UP-TO-DATE",
+        "> Task :app:assembleDebugAndroidTest UP-TO-DATE",
+        "",
+        "BUILD SUCCESSFUL in 3s",
+        "64 actionable tasks: 6 executed, 58 up-to-date"
+      ]
+    },
+    "build-size-fix.log": {
+      "sha256": "4a0826d25b0f5697657e310d7958951098b5a22a5986d8cf808d25dc278e653f",
+      "bytes": 6577,
+      "tail": [
+        "> Task :app:createDebugAndroidTestApkListingFileRedirect UP-TO-DATE",
+        "> Task :app:assembleDebugAndroidTest UP-TO-DATE",
+        "> Task :app:packageDebug",
+        "> Task :app:createDebugApkListingFileRedirect UP-TO-DATE",
+        "> Task :app:assembleDebug",
+        "",
+        "BUILD SUCCESSFUL in 2s",
+        "64 actionable tasks: 5 executed, 59 up-to-date"
+      ]
+    },
+    "build.log": {
+      "sha256": "5eccf159ec3a73a87b8a0b597539eb6e5ab77b9076140d483cae5e323c5d0b7e",
+      "bytes": 8106,
+      "tail": [
+        "> Task :app:mergeDebugAndroidTestJavaResource UP-TO-DATE",
+        "> Task :app:mergeProjectDexDebugAndroidTest UP-TO-DATE",
+        "> Task :app:packageDebugAndroidTest UP-TO-DATE",
+        "> Task :app:createDebugAndroidTestApkListingFileRedirect UP-TO-DATE",
+        "> Task :app:assembleDebugAndroidTest UP-TO-DATE",
+        "",
+        "BUILD SUCCESSFUL in 3s",
+        "64 actionable tasks: 6 executed, 58 up-to-date"
+      ]
+    },
+    "contracts-final.log": {
+      "sha256": "5f6edd72b1f52199f40779e58083d1fb45decd7395ec025d635e5e8ce3b7355b",
+      "bytes": 11425,
+      "tail": [
+        "unittest.case.FunctionTestCase (run)",
+        "MSC-01.restored ... ok",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 2 tests in 0.116s",
+        "",
+        "OK",
+        "{\"PASS\": 226, \"FAIL_ASSERTION\": 0, \"SETUP_ERROR\": 0, \"NOT_RUN\": 0} production_unchanged= True"
+      ]
+    },
+    "contracts-keyboard-fixed.log": {
+      "sha256": "2df3a10b6a05e7fe787ef6a8b39c37eae40b1f1db5ef4d9e912f1349acef9bfd",
+      "bytes": 11425,
+      "tail": [
+        "unittest.case.FunctionTestCase (run)",
+        "MSC-01.restored ... ok",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 2 tests in 0.066s",
+        "",
+        "OK",
+        "{\"PASS\": 226, \"FAIL_ASSERTION\": 0, \"SETUP_ERROR\": 0, \"NOT_RUN\": 0} production_unchanged= True"
+      ]
+    },
+    "contracts-size-fixed.log": {
+      "sha256": "eb258cd1fe738c7967841d02c583c2b69fcfe56e62c2d84cdc8b7f9744d1ae2e",
+      "bytes": 11425,
+      "tail": [
+        "unittest.case.FunctionTestCase (run)",
+        "MSC-01.restored ... ok",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 2 tests in 0.066s",
+        "",
+        "OK",
+        "{\"PASS\": 226, \"FAIL_ASSERTION\": 0, \"SETUP_ERROR\": 0, \"NOT_RUN\": 0} production_unchanged= True"
+      ]
+    },
+    "contracts.log": {
+      "sha256": "02c563af9b8d145c33d2c8eead137171bfe4adadc4e9f423716f15c1b5d024fb",
+      "bytes": 11425,
+      "tail": [
+        "unittest.case.FunctionTestCase (run)",
+        "MSC-01.restored ... ok",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 2 tests in 0.066s",
+        "",
+        "OK",
+        "{\"PASS\": 226, \"FAIL_ASSERTION\": 0, \"SETUP_ERROR\": 0, \"NOT_RUN\": 0} production_unchanged= True"
+      ]
+    },
+    "dark-412-large-fixed.log": {
+      "sha256": "7755f52688b481041a7f01fb962ef3a4442dbb37f5b5286ae598db0aa8f1ffd4",
+      "bytes": 109,
+      "tail": [
+        "PASS: NFC-02.card-draft 20 real View navigation rounds and Activity recreation; synthetic admission, no BLE"
+      ]
+    },
+    "dark-412-large.log": {
+      "sha256": "bb0b84d05dd4d63a3a507dd7e0329493d113431e8cafedcca564f19503b663de",
+      "bytes": 227,
+      "tail": [
+        "FAIL: IllegalStateException: NFC-02.card-draft: keyboard obscures input: top=1344 height=186 frame=Rect(0, 72 - 1236, 1524) at com.shaniu.companion.provision.DeviceUiAcceptance.runNfcDraft$lambda$87(DeviceUiAcceptance.kt:328)"
+      ]
+    },
+    "expression_trial_probe.log": {
+      "sha256": "b07eb322d4299366b7605f4943bff29d89900db0ad8f63ec00cdf897ea274f77",
+      "bytes": 109,
+      "tail": [
+        "PASS: RES-02.trial-draft 20 real View navigation rounds and Activity recreation; synthetic admission, no BLE"
+      ]
+    },
+    "focus_draft_probe.log": {
+      "sha256": "e65175aafdaa869309f1837441159dadbc885495df37e991a9e56aebb16efb97",
+      "bytes": 108,
+      "tail": [
+        "PASS: UI-02.focus-draft 20 real View navigation rounds and Activity recreation; synthetic admission, no BLE"
+      ]
+    },
+    "install-baseline.log": {
+      "sha256": "7ed8077e18ea1232bc80f6cf16f0e955db5bfc14dab4220ae2251853311aa9fb",
+      "bytes": 76,
+      "tail": [
+        "Performing Streamed Install",
+        "Success",
+        "Performing Streamed Install",
+        "Success"
+      ]
+    },
+    "install-diagnostic.log": {
+      "sha256": "c4aa470acafcf8576c15b0f0b5ae7e852d1ec5413372d0e6a9272e788e1306d3",
+      "bytes": 38,
+      "tail": [
+        "Performing Streamed Install",
+        "Success"
+      ]
+    },
+    "install-draft-fix.log": {
+      "sha256": "7ed8077e18ea1232bc80f6cf16f0e955db5bfc14dab4220ae2251853311aa9fb",
+      "bytes": 76,
+      "tail": [
+        "Performing Streamed Install",
+        "Success",
+        "Performing Streamed Install",
+        "Success"
+      ]
+    },
+    "install-final.log": {
+      "sha256": "7ed8077e18ea1232bc80f6cf16f0e955db5bfc14dab4220ae2251853311aa9fb",
+      "bytes": 76,
+      "tail": [
+        "Performing Streamed Install",
+        "Success",
+        "Performing Streamed Install",
+        "Success"
+      ]
+    },
+    "install-size-fix.log": {
+      "sha256": "7ed8077e18ea1232bc80f6cf16f0e955db5bfc14dab4220ae2251853311aa9fb",
+      "bytes": 76,
+      "tail": [
+        "Performing Streamed Install",
+        "Success",
+        "Performing Streamed Install",
+        "Success"
+      ]
+    },
+    "interface-build.log": {
+      "sha256": "7237637387c43e75e92d03eb2e5b2a1670031f1582f4b1a1b6b9097dc3ec5b17",
+      "bytes": 5545,
+      "tail": [
+        "> Task :app:mergeDebugAndroidTestJavaResource UP-TO-DATE",
+        "> Task :app:mergeProjectDexDebugAndroidTest",
+        "> Task :app:packageDebugAndroidTest",
+        "> Task :app:createDebugAndroidTestApkListingFileRedirect UP-TO-DATE",
+        "> Task :app:assembleDebugAndroidTest",
+        "",
+        "BUILD SUCCESSFUL in 3s",
+        "64 actionable tasks: 4 executed, 60 up-to-date"
+      ]
+    },
+    "interface-missing.log": {
+      "sha256": "cf139b6eb971febefe1c07b927edc36f984e925ed884e3e10f8fed2413266bc2",
+      "bytes": 129,
+      "tail": [
+        "FAIL: NoSuchMethodException: com.shaniu.companion.MainActivity.showNfcBindings [] at java.lang.Class.getMethod(Class.java:2940)"
+      ]
+    },
+    "keyboard-fixed-install-app-debug-androidTest.apk.log": {
+      "sha256": "c4aa470acafcf8576c15b0f0b5ae7e852d1ec5413372d0e6a9272e788e1306d3",
+      "bytes": 38,
+      "tail": [
+        "Performing Streamed Install",
+        "Success"
+      ]
+    },
+    "keyboard-fixed-install-app-debug.apk.log": {
+      "sha256": "c4aa470acafcf8576c15b0f0b5ae7e852d1ec5413372d0e6a9272e788e1306d3",
+      "bytes": 38,
+      "tail": [
+        "Performing Streamed Install",
+        "Success"
+      ]
+    },
+    "layout-diagnostic-build.log": {
+      "sha256": "8cbb13cae7dcdba330dd5e5b2da94242cc8056cda8825b974ff9c660bf6877df",
+      "bytes": 4561,
+      "tail": [
+        "> Task :app:mergeDebugAndroidTestJavaResource UP-TO-DATE",
+        "> Task :app:mergeProjectDexDebugAndroidTest",
+        "> Task :app:packageDebugAndroidTest",
+        "> Task :app:createDebugAndroidTestApkListingFileRedirect UP-TO-DATE",
+        "> Task :app:assembleDebugAndroidTest",
+        "",
+        "BUILD SUCCESSFUL in 1s",
+        "47 actionable tasks: 4 executed, 43 up-to-date"
+      ]
+    },
+    "layout-test-build.log": {
+      "sha256": "7484056d2c546972f9f4342eb22b686fd1d1aa2d9ff9fef9815120f1cd42839c",
+      "bytes": 4561,
+      "tail": [
+        "> Task :app:mergeDebugAndroidTestJavaResource UP-TO-DATE",
+        "> Task :app:mergeProjectDexDebugAndroidTest",
+        "> Task :app:packageDebugAndroidTest",
+        "> Task :app:createDebugAndroidTestApkListingFileRedirect UP-TO-DATE",
+        "> Task :app:assembleDebugAndroidTest",
+        "",
+        "BUILD SUCCESSFUL in 1s",
+        "47 actionable tasks: 4 executed, 43 up-to-date"
+      ]
+    },
+    "light-360-fixed.log": {
+      "sha256": "7755f52688b481041a7f01fb962ef3a4442dbb37f5b5286ae598db0aa8f1ffd4",
+      "bytes": 109,
+      "tail": [
+        "PASS: NFC-02.card-draft 20 real View navigation rounds and Activity recreation; synthetic admission, no BLE"
+      ]
+    },
+    "light-360.log": {
+      "sha256": "7755f52688b481041a7f01fb962ef3a4442dbb37f5b5286ae598db0aa8f1ffd4",
+      "bytes": 109,
+      "tail": [
+        "PASS: NFC-02.card-draft 20 real View navigation rounds and Activity recreation; synthetic admission, no BLE"
+      ]
+    },
+    "ui-draft-fixed.log": {
+      "sha256": "3d0aab3761e39c58d65c95d3c1af3efdd24a3f826119cff7f0df7d6f87de7f8b",
+      "bytes": 146,
+      "tail": [
+        "FAIL: IllegalStateException: Check failed. at com.shaniu.companion.provision.DeviceUiAcceptance.runNfcDraft$lambda$86(DeviceUiAcceptance.kt:325)"
+      ]
+    },
+    "ui-draft.log": {
+      "sha256": "e928007b9709de2e7505a4f9e0645400c3a35417e28dcc96718396127cf3df90",
+      "bytes": 171,
+      "tail": [
+        "FAIL: IllegalStateException: NFC-02.card-draft: slot lost at com.shaniu.companion.provision.DeviceUiAcceptance.runNfcDraft$lambda$71$lambda$69(DeviceUiAcceptance.kt:265)"
+      ]
+    },
+    "ui-layout-diagnostic.log": {
+      "sha256": "bc7ef08f1d89af791382ae81d4a73e8a29a64ee8e2d4c08cc0271462d1305557",
+      "bytes": 219,
+      "tail": [
+        "FAIL: IllegalStateException: NFC input size=966x117 density=2.625 min=-1/0 laid=true requested=false root=1080x2273 at com.shaniu.companion.provision.DeviceUiAcceptance.runNfcDraft$lambda$87(DeviceUiAcceptance.kt:325)"
+      ]
+    },
+    "ui-size-fixed.log": {
+      "sha256": "7755f52688b481041a7f01fb962ef3a4442dbb37f5b5286ae598db0aa8f1ffd4",
+      "bytes": 109,
+      "tail": [
+        "PASS: NFC-02.card-draft 20 real View navigation rounds and Activity recreation; synthetic admission, no BLE"
+      ]
+    }
+  },
+  "screenshots": {
+    "out/shaniu-s46/dark-412-large-fixed.png": "9b99ba4b1d8326986225f42c7499e705863d70035ee603c234ffb20db93fa0b9",
+    "out/shaniu-s46/light-360.png": "7db219cd596655da3a9601ba08bcc8a56d6a0646b9e23342730f63bf9350a17a",
+    "out/shaniu-s46/light-360-fixed.png": "1fbea7da43ef8a0aa24c67502cb7211f1fee7d79e6205bfd0ad4a305635b6611"
+  },
+  "emulator": "emulator-5554 google/sdk_gphone64_x86_64/emu64xa:16/BP22.250325.006/13344233:user/release-keys",
+  "restored_settings": {
+    "size": "physical1080x2400 no override",
+    "density": "physical420 no override",
+    "font_scale": 1.0,
+    "night": "no"
+  },
+  "layers": {
+    "interface": "NFC binding page wired to existing real Session controller",
+    "L1_L2": "226 PASS; separate UI scenarios, no real transport in UI probe",
+    "L3": "NOT_RUN; current ADB lists emulator only",
+    "not_implemented": [
+      "automatic NFC dwell/reentry",
+      "card-to-focus dispatch"
+    ]
+  },
+  "limits": [
+    "No physical flash/install/reset/key/SD operation",
+    "Debug APK version and signing configuration unchanged",
+    "No real BLE enrollment or card recognition claim",
+    "226 is not56 product requirements; UI round count separate",
+    "No new threads or polling; actual runtime resource and latency budgets unmeasured"
+  ],
+  "setup_notes": [
+    "Initial keyboard-fix editing command used incorrect relative path and changed nothing; rerun from correct path, final build-keyboard-fixed.log applies"
+  ]
+}

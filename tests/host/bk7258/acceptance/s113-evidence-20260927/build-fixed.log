@@ -1,0 +1,5 @@
+make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'
+cc -std=gnu11 -Wall -Wextra -Werror -O2 -fstack-usage test_display_catalog.c \
+	/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_pack.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c \
+	-I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -Wl,--wrap=opendir,--wrap=readdir,--wrap=closedir,--wrap=close,--wrap=write -o build/test_display_catalog
+make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'

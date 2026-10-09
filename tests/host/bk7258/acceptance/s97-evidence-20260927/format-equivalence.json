@@ -1,0 +1,7 @@
+{
+  "path": "app/bk7258/bk7258_display_trial_control.c",
+  "tested_sha256": "39ef898a3efde90bed2511cfde7a573315295a77243f9332773dc267b2c865d7",
+  "final_sha256": "dd20996c8746e85ac0ccc26cf095cce31c309009eba6ade35aaf9f0dc6d4cfa0",
+  "noncomment_nonwhitespace_equal": true,
+  "scope": "Comment and operator/comma whitespace only after frozen full; focused cases and AP rebuilt."
+}

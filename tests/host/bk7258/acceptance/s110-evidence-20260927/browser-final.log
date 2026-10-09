@@ -1,0 +1,1 @@
+{"PASS":true,"browser":"151.0.7922.34","checks":["desktop and360px dark layout","no horizontal overflow","unknown gates","missing profile remains unconfirmed","reload retains local access","keyboard input","real file upload form with missing-profile error"],"limits":"No physical device, no successful browser hardware flow"}

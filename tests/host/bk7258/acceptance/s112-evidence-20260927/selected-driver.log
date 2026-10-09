@@ -1,0 +1,2 @@
+{"fixture": "synthetic-workbench-tls", "certificate_sha256": "f5e5a987d16962271026b251d4a92995510f2132647f81070cdabdebcaa3c3ca", "alternate_certificate_sha256": "98a0ace9b8744892c5f0b8d31ca760a483f0706aa3df367f3eafbc627bc6bb6d", "openssl": "OpenSSL 3.0.2 15 Mar 2022"}
+{'PASS': 9, 'FAIL_ASSERTION': 0, 'SETUP_ERROR': 0, 'SKIP': 0, 'NOT_RUN': 0} global registry: 654 not all executed this slice

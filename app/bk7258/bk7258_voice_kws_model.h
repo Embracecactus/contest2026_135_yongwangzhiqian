@@ -19,6 +19,7 @@ struct bkvoice_kws_model_spec_s
 {
   const unsigned char *data;
   size_t bytes;
+  /* Explicit frontend ID from the validated package; never inferred by shape. */
   const char *frontend;
   const char *labels[BKVOICE_KWS_CLASSES];
 };
@@ -34,6 +35,10 @@ int bkvoice_kws_model_open(const struct bkvoice_kws_model_spec_s *spec,
                            struct bkvoice_kws_model_s **model);
 int bkvoice_kws_model_infer(void *context, const float *features,
                            float scores[BKVOICE_KWS_CLASSES]);
+bool bkvoice_kws_model_is_streaming(const struct bkvoice_kws_model_s *model);
+int bkvoice_kws_model_step(void *context, const float *feature,
+                           float scores[BKVOICE_KWS_CLASSES]);
+void bkvoice_kws_model_reset(void *context);
 size_t bkvoice_kws_model_arena_used(const struct bkvoice_kws_model_s *model);
 void bkvoice_kws_model_close(struct bkvoice_kws_model_s *model);
 

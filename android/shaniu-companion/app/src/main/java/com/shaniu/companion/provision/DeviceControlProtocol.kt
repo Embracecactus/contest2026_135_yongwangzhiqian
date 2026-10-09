@@ -38,6 +38,8 @@ internal class DeviceControlProtocol(
     private var used = 0
     private var sequence = 0
     private var pending: Command? = null
+    private var pendingBeginKind = 0
+    private var configKind = 0
     private var deadline = 0L
     private var lastNow = nowMs()
     var authenticated = false
@@ -88,13 +90,20 @@ internal class DeviceControlProtocol(
         check(!closed && authenticated)
         require(command.isConfig)
         require(when (command) {
-            Command.CONFIG_READ -> payload.size == 4 && ByteBuffer.wrap(payload).let {
+            Command.CONFIG_READ -> (payload.size == 4 || payload.size == 20) && ByteBuffer.wrap(payload).let {
                 val argument = it.int
                 val kind = argument ushr 16; val offset = argument and 0xffff
-                ((kind in 1..2 || kind == 5) && offset % 16 == 0) || ((kind == 4 || kind == 6 || kind == 0x7fff) && offset == 0) }
+                if (payload.size == 20) (kind == RESET_TRANSFER_KIND && offset % 16 == 0) ||
+                    (kind == 14 && offset in 0..16 && offset % 16 == 0) ||
+                    (kind == 17 && offset in 0..112 && offset % 16 == 0 && payload.drop(4).any { b -> b != 0.toByte() })
+                else if (kind in 10..14) offset % 16 == 0 && offset < when (kind) {
+                    10, 11 -> 32; 12 -> 112; 13 -> 16; else -> 64
+                }
+                else ((kind in 1..2 || kind == 5 || kind == 7 || kind == 8) && offset % 16 == 0) ||
+                    ((kind == 4 || kind == 6 || kind == 0x7fff) && offset == 0) }
             Command.CONFIG_BEGIN -> payload.size == 8 && ByteBuffer.wrap(payload).let {
                 val kind = it.int; val size = it.int
-                when (kind) { 1 -> size in 15..393; 2 -> size in 137..65672; 3 -> size == 4; 4 -> size == 12; 5 -> size in 44..3371; 6 -> size == 12; else -> false } }
+                when (kind) { 1 -> size in 15..393; 2 -> size in 137..65676; 3 -> size == 4; 4 -> size == 12; 5 -> size in 44..3371; 6 -> size == 12; 7 -> size in 52..9216; RESET_TRANSFER_KIND, 10 -> size == 32; 11 -> size == 32 || size == 72; 12 -> size == 40; 14 -> size == 88; 17 -> size == 96; else -> false } }
             Command.CONFIG_APPEND -> payload.size in 1..512
             Command.CONFIG_APPLY, Command.CONFIG_CANCEL -> payload.isEmpty()
             else -> false
@@ -105,12 +114,25 @@ internal class DeviceControlProtocol(
         return true
     }
 
+    private var pendingReadKind = 0
+    private var pendingReadReceipt = false
+
     private fun transmit(command: Command, payload: ByteArray) {
+        if (command == Command.CONFIG_READ) {
+            pendingReadKind = ByteBuffer.wrap(payload).int ushr 16
+            pendingReadReceipt = payload.size == 20
+        }
+        if (command == Command.CONFIG_BEGIN) pendingBeginKind = ByteBuffer.wrap(payload).int
         check(sequence < Int.MAX_VALUE)
         val frame = ByteBuffer.allocate(16 + payload.size).putInt(0x53444331)
             .putInt(command.wire).putInt(sequence).putInt(payload.size).put(payload).array()
         pending = command
-        lastNow = nowMs(); deadline = lastNow + 10_000
+        // Eye APPLY replies after its bounded HTTPS fetch AND SD installation.
+        // Give that operation a separate response budget, without extending
+        // AUTH, fragment writes, ordinary settings or the control idle lease.
+        val responseBudget = if (command == Command.CONFIG_APPLY && configKind == 5)
+            30_000L else 10_000L
+        lastNow = nowMs(); deadline = lastNow + responseBudget
         try { send(frame) } catch (_: Exception) {
             close(); throw IllegalStateException("Control request could not be sent")
         } finally { frame.fill(0) }
@@ -167,7 +189,11 @@ internal class DeviceControlProtocol(
                     if (command == Command.CONFIG_READ) {
                         require(error <= 0)
                         val chunk = if (error == 0) {
-                            require(flags in 12..393)
+                            if (pendingReadKind == 17) require(flags == 128)
+                            if (pendingReadKind in 10..14) require(flags == when (pendingReadKind) {
+                                10, 11 -> 32; 12 -> 112; 13 -> 16; else -> if (pendingReadReceipt) 32 else 64
+                            })
+                            require(flags in 12..(when (pendingReadKind) { 7 -> 824; 8 -> 876; RESET_TRANSFER_KIND -> 28; else -> 393 }))
                             ConfigChunk(flags, input.copyOfRange(24, 40))
                         } else null
                         complete(command, Snapshot(error, false, false, null, null, null, null,
@@ -206,6 +232,15 @@ internal class DeviceControlProtocol(
     }
 
     private fun complete(command: Command, snapshot: Snapshot) {
+        if (command == Command.CONFIG_BEGIN) {
+            if (snapshot.error == 0) configKind = pendingBeginKind
+            pendingBeginKind = 0
+        } else if ((command == Command.CONFIG_CANCEL && snapshot.error == 0) ||
+                   (command == Command.CONFIG_APPLY && snapshot.error != -61)) {
+            // ENODATA means the board retained an incomplete staging record;
+            // every fully staged APPLY consumes it, including rejected installs.
+            configKind = 0
+        }
         input.fill(0); used = 0; pending = null; sequence++
         result(command, snapshot)
     }
@@ -218,8 +253,14 @@ internal class DeviceControlProtocol(
     private fun Int.unsignedOrNull(): Long? =
         takeUnless { it == -1 }?.toUInt()?.toLong()
 
+    companion object {
+        /** Authenticated SDC1 config kind; never a claim or binding mutation. */
+        const val RESET_TRANSFER_KIND = 9
+    }
+
     override fun close() {
         secret.fill(0); input.fill(0); used = 0; pending = null
+        pendingBeginKind = 0; configKind = 0
         authenticated = false; closed = true
     }
 }

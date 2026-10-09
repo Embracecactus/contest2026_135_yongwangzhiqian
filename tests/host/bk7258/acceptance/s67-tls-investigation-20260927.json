@@ -1,0 +1,71 @@
+{
+  "slice": "S67-diagnostic",
+  "date": "2026-09-27",
+  "production_commit": "0fbd1144d2f1823c5b51fd5655febc6e60008a41",
+  "production_modified": false,
+  "strict_suite_rerun": false,
+  "latest_strict_result": "S66:351 PASS / 1 FAIL_ASSERTION; unchanged",
+  "failure_status": "UNRESOLVED",
+  "experiments": [
+    {
+      "name": "control handshake fragmentation",
+      "fragment_bytes": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+      ],
+      "certificate_samples": 20,
+      "paths_per_sample": [
+        "GATT",
+        "independent memory stream",
+        "PTY"
+      ],
+      "exit_code": 0,
+      "scope": "Only host put() fragment cap changes during control handshake. TLS/authentication/time limits unchanged."
+    },
+    {
+      "name": "entropy-recording bounded search",
+      "certificate_samples": 500,
+      "paths_per_sample": [
+        "GATT",
+        "independent memory stream",
+        "PTY"
+      ],
+      "exit_code": 0,
+      "scope": "Link-wrap entropy_func in host test; first failure would retain synthetic certificate/key, entropy and test executable locally. No failure occurred. Replay facility was not exercised and does not record wall-clock inputs."
+    }
+  ],
+  "evidence_root": "out/shaniu-s67",
+  "sha256": {
+    "tls-fragments.c": "7b4134d5ff106ebb6a392c21cfb381519a0cc5c892cd9624f5ed0a18eba5a8db",
+    "tls-fragments.py": "e763bec755ab828cc3e0f83839910e4339e188ad9943bcdbbfe9b108e5888c6f",
+    "tls-fragments.log": "8f7d708aecf3f67785f6ec59eae35d2c8e1b3a3f8384ab0a7bd071169622dbd2",
+    "entropy-record.c": "b7667feab6fbe4ae9b7aa77637411301c3d071e45a7b77d2a6c46b76fd81f3a3",
+    "tls-record.py": "7a2fe9450aa265b55104a8952652e9a453a4185a49fc25a4a67cfc592985162d",
+    "tls-record.log": "e9e3363c6426a94019e7cb4f8fb99d14808951482d2dd4db297850a8421e525f"
+  },
+  "limits": [
+    "Non-reproduction does not close or reclassify the S66 handshake failure.",
+    "No change to production authentication, thresholds, dependencies or test selection.",
+    "No hardware or release acceptance.",
+    "Synthetic secrets are not included in this report or publication."
+  ],
+  "next": "Keep TLS issue as release/USB activation gap; stop enlarging random trials. Proceed with independent phone authorization protocol tests over real storage before production binding."
+}

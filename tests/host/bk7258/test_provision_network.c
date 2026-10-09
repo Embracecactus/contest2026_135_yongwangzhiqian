@@ -22,6 +22,20 @@ static int time_status = -EAGAIN;
 static const uint8_t candidate[] = {42};
 static uint8_t transaction[16] = {1};
 void mbedtls_platform_zeroize(void *p, size_t n) { memset(p, 0, n); }
+int mbedtls_ct_memcmp(const void *a, const void *b, size_t n)
+{
+  const uint8_t *left = a, *right = b;
+  unsigned difference = 0;
+  for (size_t i = 0; i < n; i++) difference |= left[i] ^ right[i];
+  return difference;
+}
+int bkprov_storage_snapshot(void *out, size_t capacity, size_t *size,
+                            uint64_t *revision, uint8_t transaction[16])
+{
+  (void)out; (void)capacity; (void)size; (void)revision; (void)transaction;
+  return -ENOENT; /* This fixture exercises a new, unconfigured device. */
+}
+int bkprov_storage_refresh(void) { return 0; }
 int bkprov_time_get(uint64_t minimum, uint64_t *utc)
 { (void)minimum;*utc = 1800000000;return time_status; }
 int bkvoice_config_validate(const void *p, size_t n) { assert(p && n == 1); return validation; }
@@ -29,7 +43,7 @@ uint64_t bkvoice_config_now_ms(void *context) { (void)context; return 1000; }
 int __wrap_clock_settime(clockid_t id, const struct timespec *value)
 { assert(id == CLOCK_REALTIME && value); clock_writes++; return 0; }
 int bkprov_settings_decode(struct bkprov_settings_s *s, const void *p, size_t n)
-{ assert(n == 1 && *(const uint8_t *)p == 42); strcpy(s->ssid, "test");strcpy(s->password, "test-only-password");if (cloud_candidate){s->cloud = p;s->cloud_size = n;}return 0; }
+{ assert(n == 1 && *(const uint8_t *)p == 42); strcpy(s->ssid, "test");strcpy(s->password, "test-only-password");s->ca_size = 1;if (cloud_candidate){s->cloud = p;s->cloud_size = n;}return 0; }
 int bkprov_settings_voice(const struct bkprov_settings_s *s, const uint8_t *cert, size_t cn,
                           const uint8_t *key, size_t kn, void *out, size_t cap, size_t *n)
 { assert(s && cert && key && cn == 1 && kn == 1 && cap >= 1); *(uint8_t *)out = 42;*n = 1;return 0; }
@@ -112,7 +126,8 @@ int main(void)
 
   old_loads = loads;time_status = -ETIMEDOUT;
   assert(bkprov_network_restore(candidate, 1) == 0);complete(0);
-  assert(!finish_commit && loads == old_loads);
+  /* A restore retains its working Wi-Fi lease when TLS time fails. */
+  assert(finish_commit && loads == old_loads);
   complete(0);assert(!bkprov_network_busy() && ops->poll(NULL) == -ETIMEDOUT);
   assert(commits == old_commits);
   assert(ops->commit(NULL, NULL, candidate, 1) == -EINVAL);

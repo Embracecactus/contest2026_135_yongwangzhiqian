@@ -1,0 +1,117 @@
+{
+  "parent": "51b8e2d185dd59165ac45973aae913834510033c",
+  "counts": {
+    "selected": 571,
+    "PASS": 571,
+    "original_including_restores": 63,
+    "added": 508,
+    "new_ids": 7,
+    "runner_gates": 19,
+    "original_mutations": 2,
+    "extra_mutations": 1,
+    "extra_restore_runs": 1
+  },
+  "implementation": "Durable default name/revision in one active/2 marker. Read-only active/1 compatibility at revision0. Checked write rejects stale revision or exhaustion; ordinary local activation also increments. Parser rejects malformed/unknown/zero-v2 markers, no automatic replacement. Existing temp exclusive creation/rename/directory sync and output-on-success boundaries retained.",
+  "test_contract_adjustment": {
+    "requirement": "RES-02/CFG-02 preserved desired choice and old-revision exclusion; unknown revision must not silently reset.",
+    "affected": "test_bk7258_display_pack legacy malformed marker recovery; newly collected RES-02.selection-version-legacy-recovery",
+    "old": "A malformed marker failed resolve but unconditional activate replaced it with success.",
+    "new": "Both resolve and ordinary activate report EPROTO without replacing malformed marker; explicit reset_selection then activation demonstrates recovery.",
+    "basis": "Replacing an unknowable marker would recreate revision0 and defeat stale-write protection; strong precondition recorded before implementation in contracts.md.",
+    "failure_evidence": "legacy-contract-before.log retained actual prior expectation failure; legacy-contract-after.log and final collection pass strengthened recovery assertions.",
+    "approval_basis": "User allows explained test corrections and versioned architecture implementation; no hardware reset authorized."
+  },
+  "first_attempt": {
+    "status": "BLOCKED_INTERFACE",
+    "log": "first-interface.log",
+    "reason": "New API/struct absent before implementation; compiler failure is not business Red."
+  },
+  "integration": {
+    "real": "Production store/parser and real host files. External fsync wrapper injects directory failure; child process rereads on-disk marker.",
+    "oracle": "Independent literal active/1 and active/2 JSON; exact written bytes checked; revision0/1/2/MAX expected; rejected writes do not write; output sentinel unchanged after failed commit.",
+    "limit": "Exclusive volume owner remains caller obligation. No concurrent uncoordinated filesystem writer guarantee, physical FAT power-loss proof or remote worker flow."
+  },
+  "validation": {
+    "input_hashes_match": true,
+    "production_unchanged_during_full": true,
+    "AP": "PASS incremental final build. Existing activation links new version reader/common writer; checked remote API has no caller and is not linked yet.",
+    "layers": "PASS",
+    "style": {
+      "bk7258_display_store.c": {
+        "added_diagnostic_types": []
+      },
+      "bk7258_display_store.h": {
+        "added_diagnostic_types": []
+      },
+      "limit": "Existing diagnostics remain; no whole-file style pass claimed.",
+      "nxstyle_nuttx_commit": "76354c637858ecb0aa4601629327acb6f44a26bb"
+    }
+  },
+  "mutation": {
+    "mutation": "remove expected-revision guard",
+    "status": "DETECTED",
+    "exit": -6,
+    "restored_exit": 0,
+    "source_sha256": "0ab8e1792a007e04decb32c57f519fedf8800cd6a76623ff2c4d11393336f00b",
+    "mutant_sha256": "ea3de96c870cdd4e28aebf0ecc8696d1cb1cf05ed422ed220d50d78d25a22412",
+    "source_note": "Mutation ran before initializer-only formatting from {0} to {{0},0}; final full tests ran final source with exact hashes. Both initializers zero the same aggregate."
+  },
+  "migration": {
+    "up": "Read-only v1 retained; first explicit default mutation writesv2 with revision1.",
+    "down": "Old firmware cannot parsev2. Downgrade requires explicit reviewed migration and authorization/job invalidation; no silent revision rollback. No device migration performed.",
+    "reset": "Existing explicit reset removes marker; prior job/authorization scope must be invalidated by product reset owner."
+  },
+  "resources": {
+    "memory": "48-byte name/u64 version value on32-bit target plus local parser scalars; same128-byte marker buffer, no heap/thread/queue introduced. Stack frame/peak use must be measured on target.",
+    "io": "An explicit default write first reads current marker; read query only parses marker and does not mount/scan/activate. Existing commit write/sync/rename contract retained.",
+    "unmeasured": "Target CPU/p95, stack highwater, actual FAT durability and audio/USB contention."
+  },
+  "parent_gaps": {
+    "RES-02": {
+      "interface": "Versioned storage primitive implemented; async default job, protocol and client/UI pending.",
+      "L1_L2": "6 new storage cases and legacy-recovery target pass; stale guard mutation detected.",
+      "L3": "NOT_RUN; no board or phone operation."
+    }
+  },
+  "remaining": [
+    "Continue asynchronous versioned default operation, shared authenticated service and App/PC UI.",
+    "Do not deploy this schema without target/artifact preflight and explaining migration/recovery scope.",
+    "COM9 identity/APK approval, historical TLS, hardware/resource budget, combination and final release still open; goal ACTIVE."
+  ],
+  "evidence_sha256": {
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/CFG-01.wifi-clears-cloud.log": "aaf9a65c570884b32a40dacee33bacbbde9a9c166b33f340d86348a5d8c89cdf",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/MSC-01.early-release.log": "ac660e9332dd38759147d28ac0e22daa4723623fb84c6d0357b43db709d8a5e3",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/RES-02.selection-version-directory-failure.log": "a0b8c3a310cd856ee056ea384c2bf8b29cea557722fa70d77541e459d6c36eb7",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/RES-02.selection-version-legacy-recovery.log": "3bf172b2792cad860f88ba830475f52ece3557a1cdfa51de11bfeaa1dbd9a3b3",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/RES-02.selection-version-local-writer.log": "6d302877d85062933a7baada36cf446fd4e8417c74ef5e72fa4ff044e6f31e87",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/RES-02.selection-version-malformed.log": "3c2f7e5fffcd199a6ab6cb0188df9daa4c51bbd733e95745c8cc8845c1222fc2",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/RES-02.selection-version-migration.log": "aaa781026b9a4079454d30af042c98195200b4cd92f46e28eab85be4dea2ea9c",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/RES-02.selection-version-overflow.log": "c0e5e8539060544585c322db7f78d424bdd1917af137820541e803e05a9db784",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/RES-02.selection-version-stale.log": "b4c7797f1e7f4ff70b690c162ad986b6cd5dc0fcb99db74084f14f0a332426b5",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/ap.log": "572c45075b32c902e7d17b3277d41c11df48cad3d8a2e4ba26772378b583ccab",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/bk7258_display_store.c-after.log": "8548dd8d12b62be15799ab53155f9beeb68e80b9fc845b7b22dd4cf4e95926d3",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/bk7258_display_store.c-before.log": "5c5b408fc9d1a89b28f2ce80a25c831a2b31d91853e6fbf958d70395a8ea488f",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/bk7258_display_store.h-after.log": "9f1a73cc9c57c3b50375e0d3bb8e313b8b36f1036c0a884a3b5f20595d053588",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/bk7258_display_store.h-before.log": "e5dd8e34fa8c1705a5226d5836a6264b45fdfd001c8de5c601970c9fb8498d93",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/build.log": "97243c9470ec29b461b1d24a70737105621f7ce838e442ab81c23aa807bfa7d0",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/directory-failure.log": "3e819f92b78ed216af1a876c4ecd909530959ee3ac6954b2e41175edab93783b",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/final-targets.log": "b22c661c1bfdc74a66df585dfd6891c577343a79628ebd6690b1ebeb3ec4499a",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/first-interface.log": "3ee141aa9a79fc7e20ac459245fdd60b7d69d49122e3114b0ea6c2aab519efc2",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/full.log": "2707b091139642a9d9f960b9231fd5baa49fec8eaafb915db8a0c0e52403898b",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/gates.log": "88ff93f38f6b4b2e03f5980ce8fe28de43855f71c3b764e458dea92ebf88e256",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/layers.log": "710268dfb47cd80406e5e3114f8d4e9fa899ff333a4aa4b65452813f14a7ea7d",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/legacy-contract-after.log": "dc09f9bdad10182c40066ca6f9a6ddd486baa53fc4789c2f31d900be63449af1",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/legacy-contract-before.log": "b4314b750d8acf8574a4b1b6cfa00263ff4205679e689154a9649392d0cf6193",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/local-writer.log": "3e819f92b78ed216af1a876c4ecd909530959ee3ac6954b2e41175edab93783b",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/malformed.log": "3e819f92b78ed216af1a876c4ecd909530959ee3ac6954b2e41175edab93783b",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/migration.log": "3e819f92b78ed216af1a876c4ecd909530959ee3ac6954b2e41175edab93783b",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/mutation-build.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/mutation-restored.log": "3e819f92b78ed216af1a876c4ecd909530959ee3ac6954b2e41175edab93783b",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/mutation-stale.log": "9c1791482b56d8bdc0e71b40174a7e5a08aa3018e460227612320ea9d8e9448f",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/mutation.json": "44beca4b1a6f8030083b8aeb4e82cf8db4d35bc760a674c93ed7a84870e221a5",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/overflow.log": "3e819f92b78ed216af1a876c4ecd909530959ee3ac6954b2e41175edab93783b",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/stale.log": "3e819f92b78ed216af1a876c4ecd909530959ee3ac6954b2e41175edab93783b",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/style-final.log": "c8cb933abd61bcf7df732f2f3b8ba275f1eca7f8fdc07ca5804721629f31b521",
+    "tests/host/bk7258/acceptance/s99-evidence-20260927/style.json": "b91379f0d63312b92ce9575dcfdb183131aed565511d35469dbdc34bccdef242"
+  }
+}

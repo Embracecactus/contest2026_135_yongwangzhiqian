@@ -1,0 +1,280 @@
+{
+  "schema_version": 1,
+  "slice": "S72",
+  "parent_commit": "5222e5a3ca842125c1663bb48f7d5012d205ada2",
+  "agent_commit": "62a304ea69c4076f0f3ef7955a9af69a5ed35277",
+  "counts": {
+    "PASS": 406,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 343,
+      "counts": {
+        "PASS": 343,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "controller_cases": [
+    {
+      "id": "provision.PcAuthorizationControllerTest.grantCloseAndDisconnectDoNotReplayOrExposeCredential",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.012,
+      "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml",
+      "evidence_sha256": "6c7e6e70df77458dda191cf923d5d447be80cfe274c3fe0233229c26ae392180"
+    },
+    {
+      "id": "provision.PcAuthorizationControllerTest.knownEagainFailureDoesNotBecomePendingOrReplay",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.004,
+      "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml",
+      "evidence_sha256": "6c7e6e70df77458dda191cf923d5d447be80cfe274c3fe0233229c26ae392180"
+    },
+    {
+      "id": "provision.PcAuthorizationControllerTest.restoredPublicTargetConfirmsOnlyMatchingGrantWithoutReplaying",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.002,
+      "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml",
+      "evidence_sha256": "6c7e6e70df77458dda191cf923d5d447be80cfe274c3fe0233229c26ae392180"
+    },
+    {
+      "id": "provision.PcAuthorizationControllerTest.closeBeforeApplyCancelsStagingButAfterApplyDoesNotClaimRemoteCancel",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml",
+      "evidence_sha256": "6c7e6e70df77458dda191cf923d5d447be80cfe274c3fe0233229c26ae392180"
+    },
+    {
+      "id": "provision.PcAuthorizationControllerTest.grantUsesIndependentCredentialAndRequiresExactDurableReadback",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.014,
+      "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml",
+      "evidence_sha256": "6c7e6e70df77458dda191cf923d5d447be80cfe274c3fe0233229c26ae392180"
+    },
+    {
+      "id": "provision.PcAuthorizationControllerTest.disconnectLateAckAndRecreationNeverReplayWrite",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.002,
+      "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml",
+      "evidence_sha256": "6c7e6e70df77458dda191cf923d5d447be80cfe274c3fe0233229c26ae392180"
+    },
+    {
+      "id": "provision.PcAuthorizationControllerTest.invalidGrantInputsNeverBeginOrChangeBorrowedKey",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml",
+      "evidence_sha256": "6c7e6e70df77458dda191cf923d5d447be80cfe274c3fe0233229c26ae392180"
+    },
+    {
+      "id": "provision.PcAuthorizationControllerTest.staleConfirmationAndOtherEditorsTransactionAreNotOverwritten",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml",
+      "evidence_sha256": "6c7e6e70df77458dda191cf923d5d447be80cfe274c3fe0233229c26ae392180"
+    },
+    {
+      "id": "provision.PcAuthorizationControllerTest.revokeNeedsDurableReceiptAndMatchingReadback",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.002,
+      "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml",
+      "evidence_sha256": "6c7e6e70df77458dda191cf923d5d447be80cfe274c3fe0233229c26ae392180"
+    },
+    {
+      "id": "provision.PcAuthorizationControllerTest.uncertainReceiptAndMismatchedReadbackCannotConfirm",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml",
+      "evidence_sha256": "6c7e6e70df77458dda191cf923d5d447be80cfe274c3fe0233229c26ae392180"
+    },
+    {
+      "id": "provision.PcAuthorizationControllerTest.mismatchedReceiptCannotConfirmAnotherTransaction",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml",
+      "evidence_sha256": "6c7e6e70df77458dda191cf923d5d447be80cfe274c3fe0233229c26ae392180"
+    },
+    {
+      "id": "provision.PcAuthorizationControllerTest.changingEitherRevisionRejectsMixedSnapshot",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml",
+      "evidence_sha256": "6c7e6e70df77458dda191cf923d5d447be80cfe274c3fe0233229c26ae392180"
+    },
+    {
+      "id": "provision.PcAuthorizationControllerTest.grantRejectsWrongReadbackClientCapabilitiesAndRevision",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.005,
+      "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml",
+      "evidence_sha256": "6c7e6e70df77458dda191cf923d5d447be80cfe274c3fe0233229c26ae392180"
+    },
+    {
+      "id": "provision.PcAuthorizationControllerTest.restoredRevokeTargetAndInvalidMetadataStaySeparate",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml",
+      "evidence_sha256": "6c7e6e70df77458dda191cf923d5d447be80cfe274c3fe0233229c26ae392180"
+    },
+    {
+      "id": "provision.PcAuthorizationControllerTest.unsupportedAndInvalidSnapshotsCannotEnableRevoke",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml",
+      "evidence_sha256": "6c7e6e70df77458dda191cf923d5d447be80cfe274c3fe0233229c26ae392180"
+    }
+  ],
+  "runner_gate": {
+    "PASS": 13
+  },
+  "new_mutations_and_restore": [
+    {
+      "id": "omit-grant-key",
+      "exit_code": 1,
+      "collected": 15,
+      "failures": [
+        "grantUsesIndependentCredentialAndRequiresExactDurableReadback"
+      ],
+      "status": "DETECTED",
+      "source_sha256": "a18f367f91f4cdb7b1e91d970fd26c33e7b001f25f0d9e0718ee1afc6d89eb76"
+    },
+    {
+      "id": "ignore-target",
+      "exit_code": 1,
+      "collected": 15,
+      "failures": [
+        "uncertainReceiptAndMismatchedReadbackCannotConfirm",
+        "grantRejectsWrongReadbackClientCapabilitiesAndRevision"
+      ],
+      "status": "DETECTED",
+      "source_sha256": "fa10a778e0d08b31206a3c2f311254b466a5514754e5a70398ccc0840d42045d"
+    },
+    {
+      "id": "restored",
+      "exit_code": 0,
+      "collected": 15,
+      "failures": [],
+      "status": "PASS",
+      "source_sha256": "45a69151f0253797fa493d3425d4e4b93d241e465750cd100100bb30e8cf037f"
+    }
+  ],
+  "original_mutations": [
+    {
+      "id": "MSC-01.early-release",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.007782268978189677,
+      "source": "app/bk7258/bk7258_media_volume.c",
+      "original_sha256": "58ebb18ae63adccf21262253da18f153bbb7c680cc0b64719ca20e8a6d9681c8",
+      "mutant_sha256": "bf298373a95ac54d5587f93ece34a30a7f661a65a969c69db9e27c6570770c57",
+      "expected_assertion": "!mounted",
+      "evidence": "MSC-01.early-release.log"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.06404003000352532,
+      "source": "app/bk7258/bk7258_provision_config.c",
+      "original_sha256": "98f5100ca49ca44e45fe3e5da4bb2da0add7466f0e357a205ca8b1e307a5818e",
+      "mutant_sha256": "4c0c615b8ffc99247b0fd91bd934d3df0409a1180769cb939b2820f9e6f69427",
+      "expected_assertion": "bkcloud_config_decode",
+      "evidence": "CFG-01.wifi-clears-cloud.log"
+    }
+  ],
+  "source_inputs": {
+    "android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt": "ec235704cee085137dcd99f632c390510fc878188f9c93705c6d02b70c4087c1",
+    "android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/PcAuthorizationController.kt": "45a69151f0253797fa493d3425d4e4b93d241e465750cd100100bb30e8cf037f",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/PcAuthorizationControllerTest.kt": "208a1d5b5d33a7a94ea19c1fd2551ecf8752ea469122422668cd5c5d6df82cf9",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "968b8d03d59f4a06226fd47993986eb638e89aa22b3255f20c1dd560d77618f7"
+  },
+  "environment": {
+    "platform": "Linux-5.15.167.4-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+    "python": "3.10.12",
+    "cc": "cc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0",
+    "cmake": "cmake version 4.0.2",
+    "java": "openjdk version \"21.0.6\" 2025-01-21 LTS"
+  },
+  "apk": {
+    "sha256": "5d9a3ee7301daf7611f801f0b0840cce60cbb6da99bbf028caec18443636fa13",
+    "installed": false
+  },
+  "logs": {
+    "out/shaniu-s72/interface-before.log": "e40de34570d49c16a924bfd90149580c3bdf1735852a63b116a6fd680ab9dec1",
+    "out/shaniu-s72/controller.log": "cd569fa2a9f14a7c9a67c0b52665a42a80d20b783690680500736412990bca1f",
+    "out/shaniu-s72/build.log": "7672ab9a823482281d5152570be67ea181f2a7722fc788c01eb733628d4014a5",
+    "out/shaniu-s72/build-corrected.log": "a1ee109d1ad21a7475d7c5dc218b7853037db88cef459ce428a83ac4429d98bf",
+    "out/shaniu-s72/strict.log": "38b6ff6dc52955d2ad0852e49dbed7fe8972142005d5178933e3dafef1fa0800",
+    "out/shaniu-s72/runner-gate.log": "1a3749a3d3fd8b608c60936eba4594f2494db9aa26be9248c6c5f4e9b3ec15a0",
+    "out/shaniu-s72/omit-grant-key.log": "c3b595503286221b6e59cee643d23e6e30a057273b33b58a21264cb29359f227",
+    "out/shaniu-s72/ignore-target.log": "bdae17e3ac488bd28affa3e7fce5931185f4eafa802bae2aa3142e427053a338",
+    "out/shaniu-s72/restored.log": "7aa9cc0a7531b8f47964b7faf84de598b4a1452a22ea93dad6e85a2f047cbd85",
+    "out/shaniu-s72/strict-final.log": "27c1b98af7f325dd65c1165579566a8f89ce9df0a1329c46dc41a582b175cb90",
+    "out/shaniu-s72/strict-final/results.json": "987d4f47d1b3a5a29bf8d7f06ac0826e4de6cce06a2376d86b93f00cc505deeb",
+    "out/shaniu-s72/mutation-final/omit-grant-key.log": "61ae51538ba64ad5a0533c70d18ab627fa7c8eee05e105bfe5472989f6dd2e7c",
+    "out/shaniu-s72/mutation-final/ignore-target.log": "45a085afe1048fb52ee7c0bc0c233231cd4dcd5908580d96b753ab7b73fb6baa",
+    "out/shaniu-s72/mutation-final/restored.log": "7aa9cc0a7531b8f47964b7faf84de598b4a1452a22ea93dad6e85a2f047cbd85"
+  },
+  "test_first": "Missing grant interface yielded a compile failure, classified BLOCKED_INTERFACE, not business assertion Red. Requirements and tests preceded implementation.",
+  "setup_error": "First combined Gradle invocation incorrectly attached --tests to assembleDebug; corrected task argument order, no test or assertion weakened.",
+  "expectation_change": "Original revocation confirmation now also verifies expected grant revision and client/capabilities. Public Target is saved only after APPLY. Old resume state without Target stays UNKNOWN instead of claiming exact operation confirmation.",
+  "limits": [
+    "No first-grant UI or trusted phone-PC exchange is connected; grant is a production API, not a completed user flow",
+    "Host peer replaces remote device; actual C grant/store covered by prior slices, new Android grant-to-C integration not yet executed",
+    "Activity saved-state wiring compiled and reviewed, not newly instrumented or phone-verified",
+    "No board/phone operations or firmware changes; S66 intermittent TLS failure remains open",
+    "406 passing units do not mean 56 requirements or final release passed"
+  ],
+  "final_test_adjustment": "Positive grant starts from no active authorization; replacement rejection cases retained. Initial 406-green report retained separately; final collection and both mutations rerun on final tests."
+}

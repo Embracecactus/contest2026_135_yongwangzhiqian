@@ -3,7 +3,9 @@
 #include "bk7258_provision_storage.h"
 #include "bk7258_provision_store.h"
 #include "bk7258_provision_claim.h"
+#include "bk7258_pc_grants.h"
 #include <errno.h>
+#include <dirent.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <sys/stat.h>
@@ -19,10 +21,24 @@
 #include <string.h>
 #include <mbedtls/platform_util.h>
 
-enum job_e { JOB_IDLE, JOB_LOAD, JOB_COMMIT, JOB_IDENTITY, JOB_STOP };
+enum job_e
+{ JOB_IDLE, JOB_LOAD, JOB_COMMIT, JOB_IDENTITY, JOB_RESET,
+  JOB_PC_LOAD, JOB_PC_SET, JOB_STOP };
 struct storage_s
 {
+  struct bkpc_grants_s pc;
+  uint64_t pc_config_revision;
+  uint64_t pc_expected;
+  uint8_t pc_owner[32];
+  uint8_t pc_transaction[16];
+  uint8_t pc_client[16];
+  uint8_t pc_key[32];
+  uint32_t pc_capabilities;
+  int pc_status;
+  int pc_result;
+  bool pc_completed;
   pthread_t thread;
+  bool stopped;
   struct bkprov_store_s store;
   struct bkprov_store_s identity_store;
   int identity_status;
@@ -37,6 +53,11 @@ struct storage_s
   int status;
   int result;
   bool completed;
+  bool reset_completed;
+  int reset_result;
+  int (*reset_cleanup)(void);
+  int reset_receipt_status;
+  uint8_t reset_receipt_transaction[16];
   uint64_t revision;
   uint64_t expected;
   size_t size;
@@ -50,6 +71,160 @@ static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t g_wake = PTHREAD_COND_INITIALIZER;
 static struct storage_s *g_storage;
 static void (*g_notify)(void);
+
+static bool reset_marker(const void *record, size_t size)
+{
+  return size == 4 && memcmp(record, "SRV1", 4) == 0;
+}
+
+/* This is deliberately a public, fixed-size acknowledgement only: it has no
+ * owner record, revision, configuration or identity material.  It is written
+ * before removing SRV1, so an interrupted final deletion remains a reset
+ * pending on the next load rather than a false completion. */
+static int load_reset_receipt(const char *root, uint8_t transaction[16])
+{
+  char path[192];
+  uint8_t record[20];
+  struct stat info;
+  if (snprintf(path, sizeof(path), "%s/reset-receipt", root) >= (int)sizeof(path))
+    return -ENAMETOOLONG;
+  int fd = open(path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK);
+  if (fd < 0) return -errno;
+  int ret = fstat(fd, &info) < 0 ? -errno : 0;
+  if (ret == 0 && (!S_ISREG(info.st_mode) || info.st_size != (off_t)sizeof(record)))
+    ret = -EBADMSG;
+  size_t done = 0;
+  while (ret == 0 && done < sizeof(record))
+    {
+      ssize_t n = read(fd, record + done, sizeof(record) - done);
+      if (n < 0 && errno == EINTR) continue;
+      if (n <= 0) { ret = n == 0 ? -EIO : -errno; break; }
+      done += (size_t)n;
+    }
+  if (close(fd) < 0 && ret == 0) ret = -errno;
+  if (ret == 0 && memcmp(record, "SRR1", 4)) ret = -EBADMSG;
+  if (ret == 0) memcpy(transaction, record + 4, 16);
+  mbedtls_platform_zeroize(record, sizeof(record));
+  return ret;
+}
+
+static int save_reset_receipt(const char *root, const uint8_t transaction[16])
+{
+  char active[192], pending[192];
+  uint8_t record[20] = {'S', 'R', 'R', '1'};
+  if (snprintf(active, sizeof(active), "%s/reset-receipt", root) >= (int)sizeof(active) ||
+      snprintf(pending, sizeof(pending), "%s/reset-receipt.pending", root) >= (int)sizeof(pending))
+    return -ENAMETOOLONG;
+  memcpy(record + 4, transaction, 16);
+  if (unlink(pending) < 0 && errno != ENOENT) return -errno;
+  int fd = open(pending, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_NONBLOCK, 0600);
+  if (fd < 0) return -errno;
+  size_t done = 0;
+  int ret = 0;
+  while (done < sizeof(record))
+    {
+      ssize_t n = write(fd, record + done, sizeof(record) - done);
+      if (n < 0 && errno == EINTR) continue;
+      if (n <= 0) { ret = n == 0 ? -EIO : -errno; break; }
+      done += (size_t)n;
+    }
+  if (ret == 0 && fsync(fd) < 0) ret = -errno;
+  if (close(fd) < 0 && ret == 0) ret = -errno;
+  if (ret == 0 && rename(pending, active) < 0) ret = -EINPROGRESS;
+  if (ret == 0) ret = bkprov_store_sync_directory(root);
+  if (ret < 0) (void)unlink(pending);
+  mbedtls_platform_zeroize(record, sizeof(record));
+  return ret;
+}
+
+/* Delete only declared user records. Keep identity, the revocation marker
+ * and voice-ota's firmware transaction; never touch mounts or trust counters. */
+static int reset_user_tree(const char *path, unsigned int depth, unsigned int *budget)
+{
+  struct stat st;
+  if (depth > 8 || !*budget) return -E2BIG;
+  (*budget)--;
+  if (lstat(path, &st) < 0) return errno == ENOENT ? 0 : -errno;
+  if (S_ISREG(st.st_mode)) return unlink(path) == 0 ? 0 : -errno;
+  if (!S_ISDIR(st.st_mode)) return -EPERM;
+  DIR *dir = opendir(path);
+  if (!dir) return -errno;
+  int ret = 0;
+  for (;;)
+    {
+      errno = 0;
+      struct dirent *entry = readdir(dir);
+      if (!entry) { if (errno) ret = -errno; break; }
+      if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, "..")) continue;
+      char child[320];
+      if (snprintf(child, sizeof(child), "%s/%s", path, entry->d_name) >= (int)sizeof(child))
+        { ret = -ENAMETOOLONG; break; }
+      ret = reset_user_tree(child, depth + 1, budget);
+      if (ret) break;
+    }
+  if (closedir(dir) < 0 && !ret) ret = -errno;
+  if (!ret && rmdir(path) < 0) ret = -errno;
+  return ret;
+}
+
+/* PC grants are private user credentials. Only their two transaction files
+ * belong to reset; unknown siblings are not ours to delete. The product must
+ * stop all credential consumers before entering JOB_RESET, including any
+ * future USB worker. Keep SRV1 until this directory is durably synchronized.
+ */
+
+static int reset_pc_records(const char *root)
+{
+  struct bkprov_store_s store;
+  char path[192];
+  int ret;
+
+  if (snprintf(path, sizeof(path), "%s/pc-grants", root) >=
+      (int)sizeof(path))
+    {
+      return -ENAMETOOLONG;
+    }
+
+  ret = bkprov_store_open(&store, path);
+  if (ret == -ENOENT)
+    {
+      return 0;
+    }
+
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (unlink(store.pending) < 0 && errno != ENOENT)
+    {
+      return -errno;
+    }
+
+  if (unlink(store.active) < 0 && errno != ENOENT)
+    {
+      return -errno;
+    }
+
+  return bkprov_store_sync_directory(store.directory);
+}
+
+static int reset_user_records(const char *root)
+{
+  static const char *const names[] = {
+    "memory-policy", "memory-snapshot", "cloud-models", "voice-volume", "wake-models"
+  };
+  unsigned int budget = 4096;
+  for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); i++)
+    {
+      char path[192];
+      if (snprintf(path, sizeof(path), "%s/%s", root, names[i]) >= (int)sizeof(path))
+        return -ENAMETOOLONG;
+      int ret = reset_user_tree(path, 0, &budget);
+      if (ret) return ret;
+    }
+  return bkprov_store_sync_directory(root);
+}
 
 void bkprov_storage_set_notify(void (*notify)(void))
 {
@@ -86,6 +261,20 @@ static int prepare_directory(const char *root)
 #endif
 }
 
+static void pc_clear(struct storage_s *s)
+{
+  mbedtls_platform_zeroize(&s->pc, sizeof(s->pc));
+  mbedtls_platform_zeroize(s->pc_owner, sizeof(s->pc_owner));
+  mbedtls_platform_zeroize(s->pc_key, sizeof(s->pc_key));
+  memset(s->pc_client, 0, sizeof(s->pc_client));
+  memset(s->pc_transaction, 0, sizeof(s->pc_transaction));
+  s->pc_config_revision = s->pc_expected = 0;
+  s->pc_capabilities = 0;
+  s->pc_status = -ENODEV;
+  s->pc_result = 0;
+  s->pc_completed = false;
+}
+
 static void *worker(void *context)
 {
   struct storage_s *s = context;
@@ -101,6 +290,7 @@ static void *worker(void *context)
       int ret;
       if (job == JOB_LOAD)
         {
+          pc_clear(s);
           mbedtls_platform_zeroize(s->bundle, sizeof(s->bundle));
           s->size = 0;
           s->revision = 0;
@@ -112,6 +302,10 @@ static void *worker(void *context)
           if (ret == 0)
             ret = bkprov_store_load(&s->store, s->bundle, sizeof(s->bundle),
                                     &s->size, &s->revision, s->transaction);
+          if (ret == 0 && reset_marker(s->bundle, s->size)) ret = -EOWNERDEAD;
+          memset(s->reset_receipt_transaction, 0, 16);
+          s->reset_receipt_status = load_reset_receipt(s->root,
+                                                       s->reset_receipt_transaction);
           char identity_root[160];
           snprintf(identity_root, sizeof(identity_root), "%s/identity", s->root);
           if (identity_ret == 0) identity_ret = prepare_directory(identity_root);
@@ -123,6 +317,21 @@ static void *worker(void *context)
             identity_ret = bkprov_store_load(&s->identity_store, s->identity, sizeof(s->identity),
                                               &s->identity_size, &identity_revision, NULL);
           s->identity_status = identity_ret;
+        }
+      else if (job == JOB_PC_LOAD)
+        {
+          char pc_root[192];
+          mbedtls_platform_zeroize(&s->pc, sizeof(s->pc));
+          ret = snprintf(pc_root, sizeof(pc_root), "%s/pc-grants", s->root);
+          if (ret < 0 || ret >= (int)sizeof(pc_root)) ret = -ENAMETOOLONG;
+          else ret = prepare_directory(pc_root);
+          if (ret == 0) ret = bkpc_grants_open(&s->pc, pc_root, s->pc_owner);
+        }
+      else if (job == JOB_PC_SET)
+        {
+          ret = bkpc_grants_set(&s->pc, s->pc_expected, s->pc_transaction,
+              s->pc_capabilities ? s->pc_client : NULL,
+              s->pc_capabilities ? s->pc_key : NULL, s->pc_capabilities);
         }
       else if (job == JOB_IDENTITY)
         {
@@ -136,6 +345,34 @@ static void *worker(void *context)
             {
               memcpy(s->identity, s->identity_candidate, s->identity_candidate_size);
               s->identity_size = s->identity_candidate_size;
+            }
+        }
+      else if (job == JOB_RESET)
+        {
+          /* The marker remains selected until every product-owned replica
+           * has been cleaned. No format, identity erase or broad tree erase. */
+          ret = s->reset_cleanup();
+          if (ret == 0) ret = reset_pc_records(s->root);
+          if (ret == 0) ret = reset_user_records(s->root);
+          if (ret == 0 && unlink(s->store.pending) < 0 && errno != ENOENT)
+            ret = -errno;
+          if (ret == 0) ret = save_reset_receipt(s->root, s->transaction);
+          if (ret == 0 && unlink(s->store.active) < 0) ret = -errno;
+          if (ret == 0) ret = bkprov_store_sync_directory(s->store.directory);
+          if (ret == 0)
+            {
+              uint8_t reset_transaction[16];
+              pc_clear(s);
+              memcpy(reset_transaction, s->transaction, sizeof(reset_transaction));
+              mbedtls_platform_zeroize(s->bundle, sizeof(s->bundle));
+              mbedtls_platform_zeroize(s->candidate, sizeof(s->candidate));
+              s->size = s->candidate_size = 0;
+              s->revision = 0;
+              memset(s->transaction, 0, 16);
+              memset(s->candidate_transaction, 0, 16);
+              memcpy(s->reset_receipt_transaction, reset_transaction, 16);
+              mbedtls_platform_zeroize(reset_transaction, sizeof(reset_transaction));
+              s->reset_receipt_status = 0;
             }
         }
       else
@@ -154,17 +391,37 @@ static void *worker(void *context)
         }
       pthread_mutex_lock(&g_lock);
       if (job == JOB_LOAD) s->status = ret;
+      else if (job == JOB_PC_LOAD) s->pc_status = ret;
+      else if (job == JOB_PC_SET)
+        {
+          s->pc_completed = true;
+          s->pc_result = ret;
+          if (ret == -EINPROGRESS) s->pc_status = ret;
+        }
       else if (job == JOB_IDENTITY)
         {
           s->identity_result = ret;
           s->identity_completed = true;
           if (ret == 0 || ret == -EINPROGRESS) s->identity_status = ret;
         }
+      else if (job == JOB_RESET)
+        {
+          s->reset_result = ret;
+          s->reset_completed = true;
+          s->status = ret == 0 ? -ENOENT :
+                      ret == -EINPROGRESS ? -EINPROGRESS : -EOWNERDEAD;
+        }
       else
         {
           s->result = ret;
           s->completed = true;
           if (ret == 0 || ret == -EINPROGRESS) s->status = ret;
+          if (ret == 0 && reset_marker(s->bundle, s->size))
+            {
+              s->status = -EOWNERDEAD;
+              s->reset_completed = false;
+              s->reset_result = 0;
+            }
           /* Candidate is retained for exact idempotent polls until refresh,
            * next transaction or shutdown, never owned by the BLE session. */
         }
@@ -174,6 +431,11 @@ static void *worker(void *context)
       if (notify) notify();
       pthread_mutex_lock(&g_lock);
     }
+  /* The product coordinator belongs to a different NuttX task group from
+   * the startup owner. Publish the final buffer-release boundary explicitly;
+   * pthread_join cannot reap another group's thread. */
+  s->stopped = true;
+  pthread_cond_broadcast(&g_wake);
   pthread_mutex_unlock(&g_lock);
   return NULL;
 }
@@ -198,6 +460,7 @@ int bkprov_storage_start(const char *root)
       if (stack_size < PTHREAD_STACK_MIN) stack_size = PTHREAD_STACK_MIN;
 #endif
       ret = pthread_attr_setstacksize(&attr, stack_size);
+      if (ret == 0) ret = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
       if (ret == 0) ret = pthread_create(&s->thread, &attr, worker, s);
       pthread_attr_destroy(&attr);
     }
@@ -225,7 +488,8 @@ int bkprov_storage_identity(void *record, size_t capacity, size_t *size)
 
 int bkprov_storage_identity_install(const void *record, size_t size)
 {
-  if (record == NULL || size < 48 || size > 8192 || memcmp(record, "BPI1", 4)) return -EINVAL;
+  if (record == NULL || size < 48 || size > 8192 ||
+      (memcmp(record, "BPI1", 4) && memcmp(record, "BPI2", 4))) return -EINVAL;
   pthread_mutex_lock(&g_lock);
   struct storage_s *s = g_storage;
   int ret;
@@ -273,6 +537,29 @@ int bkprov_storage_snapshot(void *bundle, size_t capacity, size_t *size,
   return ret;
 }
 
+int bkprov_storage_revision(uint64_t *revision)
+{
+  if (revision == NULL)
+    {
+      return -EINVAL;
+    }
+
+  pthread_mutex_lock(&g_lock);
+  struct storage_s *s = g_storage;
+  /* The worker owns revision while any job is non-idle and may update it
+   * outside g_lock before publishing completion.  Only expose the stable
+   * durable view after that publication boundary. */
+  int ret = s == NULL ? -ENODEV :
+            s->job != JOB_IDLE ? -EAGAIN : s->status;
+  if (ret == 0)
+    {
+      *revision = s->revision;
+    }
+
+  pthread_mutex_unlock(&g_lock);
+  return ret;
+}
+
 int bkprov_storage_commit(uint64_t expected, const uint8_t transaction[16],
                           const void *bundle, size_t size)
 {
@@ -316,17 +603,82 @@ int bkprov_storage_refresh(void)
   /* A read through the same mounted filesystem cannot prove a previously
    * failed durable publication survived power loss. Preserve uncertainty
    * until a fresh worker/boot reload instead of clearing it by readback. */
-  if (ret == 0 && (s->status == -EINPROGRESS || s->identity_status == -EINPROGRESS)) ret = -EINPROGRESS;
+  if (ret == 0 && (s->status == -EINPROGRESS || s->identity_status == -EINPROGRESS ||
+                   s->pc_status == -EINPROGRESS)) ret = -EINPROGRESS;
   if (ret == 0)
     {
       mbedtls_platform_zeroize(s->candidate, sizeof(s->candidate));
       memset(s->candidate_transaction, 0, 16);
       s->completed = false; s->candidate_size = 0;
+      s->reset_completed = false;
       mbedtls_platform_zeroize(s->identity_candidate, sizeof(s->identity_candidate));
       s->identity_candidate_size = 0; s->identity_completed = false;
       s->job = JOB_LOAD;
       pthread_cond_signal(&g_wake);
     }
+  pthread_mutex_unlock(&g_lock);
+  return ret;
+}
+
+int bkprov_storage_reset_request(uint64_t expected, const uint8_t transaction[16])
+{
+  if (expected == 0) return -EPERM;
+  return bkprov_storage_commit(expected, transaction, "SRV1", 4);
+}
+
+int bkprov_storage_reset_pending(void)
+{
+  pthread_mutex_lock(&g_lock);
+  struct storage_s *s = g_storage;
+  int ret = s == NULL ? -ENODEV : s->job != JOB_IDLE ? -EAGAIN :
+            s->status == -EOWNERDEAD ? 1 :
+            s->status == 0 || s->status == -ENOENT ? 0 : s->status;
+  pthread_mutex_unlock(&g_lock);
+  return ret;
+}
+
+int bkprov_storage_reset_finish(int (*cleanup)(void))
+{
+  if (cleanup == NULL) return -EINVAL;
+  pthread_mutex_lock(&g_lock);
+  struct storage_s *s = g_storage;
+  int ret;
+  if (s == NULL) ret = -ENODEV;
+  else if (s->job != JOB_IDLE) ret = -EAGAIN;
+  else if (s->reset_completed) ret = s->reset_result;
+  else if (s->status != -EOWNERDEAD) ret = -EPERM;
+  else
+    {
+      s->reset_cleanup = cleanup;
+      s->job = JOB_RESET;
+      pthread_cond_signal(&g_wake);
+      ret = -EAGAIN;
+    }
+  pthread_mutex_unlock(&g_lock);
+  return ret;
+}
+
+int bkprov_storage_reset_receipt(const uint8_t transaction[16])
+{
+  if (transaction == NULL) return -EINVAL;
+  pthread_mutex_lock(&g_lock);
+  struct storage_s *s = g_storage;
+  int ret = s == NULL ? -ENODEV : s->job != JOB_IDLE ? -EAGAIN : 0;
+  /* 读取失败或提交结果不确定不能被解释成事务不存在。 */
+  if (ret == 0 && s->status != 0 && s->status != -ENOENT &&
+      s->status != -EOWNERDEAD)
+    ret = s->status;
+  if (ret == 0 && s->status == -EOWNERDEAD &&
+      !memcmp(s->transaction, transaction, 16))
+    ret = BKPROV_STORAGE_RESET_RECEIPT_PENDING;
+  else if (ret == 0 && s->reset_receipt_status != 0 &&
+           s->reset_receipt_status != -ENOENT)
+    ret = s->reset_receipt_status;
+  else if (ret == 0 && s->reset_receipt_status == 0 &&
+           !memcmp(s->reset_receipt_transaction, transaction, 16))
+    ret = BKPROV_STORAGE_RESET_RECEIPT_COMPLETED;
+  else if (ret == 0)
+    ret = BKPROV_STORAGE_RESET_RECEIPT_ABSENT;
   pthread_mutex_unlock(&g_lock);
   return ret;
 }
@@ -350,19 +702,164 @@ int bkprov_storage_stop(void)
   struct storage_s *s = g_storage;
   if (s == NULL) { pthread_mutex_unlock(&g_lock); return 0; }
   if (s->job != JOB_IDLE) { pthread_mutex_unlock(&g_lock); return -EBUSY; }
-  if (s->status == -EINPROGRESS || s->identity_status == -EINPROGRESS)
+  if (s->status == -EINPROGRESS || s->identity_status == -EINPROGRESS ||
+                   s->pc_status == -EINPROGRESS)
     { pthread_mutex_unlock(&g_lock); return -EINPROGRESS; }
   s->job = JOB_STOP;
   pthread_cond_signal(&g_wake);
+  while (!s->stopped) pthread_cond_wait(&g_wake, &g_lock);
+  g_storage = NULL;
+  mbedtls_platform_zeroize(s, sizeof(*s));
+  free(s);
   pthread_mutex_unlock(&g_lock);
-  int ret = pthread_join(s->thread, NULL);
+  return 0;
+}
+
+
+static bool pc_zero(const uint8_t *bytes, size_t size)
+{
+  uint8_t bits = 0;
+  for (size_t i = 0; i < size; i++) bits |= bytes[i];
+  return bits == 0;
+}
+
+int bkprov_storage_pc_load(uint64_t revision, const uint8_t owner[32])
+{
+  if (owner == NULL || pc_zero(owner, 32)) return -EINVAL;
   pthread_mutex_lock(&g_lock);
-  if (ret == 0)
+  struct storage_s *s = g_storage;
+  int ret;
+  if (s == NULL) ret = -ENODEV;
+  else if (s->job == JOB_PC_LOAD)
+    ret = s->pc_config_revision == revision &&
+          !memcmp(s->pc_owner, owner, 32) ?
+          -EAGAIN : -EBUSY;
+  else if (s->job != JOB_IDLE) ret = -EBUSY;
+  else if (s->status != 0) ret = s->status;
+  else if (revision != s->revision) ret = -ESTALE;
+  else if (s->pc_status == -EINPROGRESS) ret = -EINPROGRESS;
+  else if (s->pc_config_revision == revision &&
+           !memcmp(s->pc_owner, owner, 32)) ret = s->pc_status;
+  else
     {
-      g_storage = NULL;
-      mbedtls_platform_zeroize(s, sizeof(*s));
-      free(s);
+      pc_clear(s);
+      s->pc_config_revision = revision;
+      memcpy(s->pc_owner, owner, 32);
+      s->pc_status = -EAGAIN;
+      s->job = JOB_PC_LOAD;
+      pthread_cond_signal(&g_wake);
+      ret = -EAGAIN;
     }
   pthread_mutex_unlock(&g_lock);
-  return -ret;
+  return ret;
+}
+
+int bkprov_storage_pc_set(uint64_t revision, uint64_t expected,
+                          const uint8_t transaction[16],
+                          const uint8_t client[16], const uint8_t key[32],
+                          uint32_t capabilities)
+{
+  if (transaction == NULL || pc_zero(transaction, 16) ||
+      (capabilities & ~BKPC_CAP_ALL) ||
+      (capabilities && (!client || !key ||
+                        pc_zero(client, 16) || pc_zero(key, 32))) ||
+      (!capabilities && (client || key))) return -EINVAL;
+  pthread_mutex_lock(&g_lock);
+  struct storage_s *s = g_storage;
+  int ret;
+  if (s == NULL) ret = -ENODEV;
+  else if (s->job != JOB_IDLE && s->job != JOB_PC_SET) ret = -EBUSY;
+  else if (s->status != 0) ret = s->status;
+  else if (revision != s->revision || revision != s->pc_config_revision)
+    ret = -ESTALE;
+  else if (s->pc_status != 0) ret = s->pc_status;
+  else if (!memcmp(transaction, s->pc_transaction, 16))
+    {
+      if (expected != s->pc_expected || capabilities != s->pc_capabilities ||
+          (capabilities && (memcmp(client, s->pc_client, 16) ||
+                            memcmp(key, s->pc_key, 32)))) ret = -EINVAL;
+      else ret = s->pc_completed ? s->pc_result : -EAGAIN;
+    }
+  else if (s->job != JOB_IDLE) ret = -EBUSY;
+  else if (expected != s->pc.revision) ret = -ESTALE;
+  else if (expected == UINT64_MAX) ret = -EOVERFLOW;
+  else
+    {
+      s->pc_expected = expected;
+      memcpy(s->pc_transaction, transaction, 16);
+      memset(s->pc_client, 0, 16);
+      mbedtls_platform_zeroize(s->pc_key, 32);
+      if (capabilities)
+        {
+          memcpy(s->pc_client, client, 16);
+          memcpy(s->pc_key, key, 32);
+        }
+      s->pc_capabilities = capabilities;
+      s->pc_completed = false;
+      s->pc_result = -EAGAIN;
+      s->job = JOB_PC_SET;
+      pthread_cond_signal(&g_wake);
+      ret = -EAGAIN;
+    }
+  pthread_mutex_unlock(&g_lock);
+  return ret;
+}
+
+int bkprov_storage_pc_snapshot(uint64_t revision,
+                               struct bkprov_pc_snapshot_s *view)
+{
+  if (view == NULL) return -EINVAL;
+  memset(view, 0, sizeof(*view));
+  pthread_mutex_lock(&g_lock);
+  struct storage_s *s = g_storage;
+  int ret = s == NULL ? -ENODEV :
+            s->job != JOB_IDLE ? -EAGAIN : s->status;
+  if (ret == 0 && (revision != s->revision || revision != s->pc_config_revision))
+    ret = -ESTALE;
+  if (ret == 0) ret = s->pc_status;
+  if (ret == 0)
+    {
+      ret = bkpc_grants_snapshot(&s->pc, &view->revision, view->client,
+                                 &view->capabilities);
+      if (ret == 0)
+        {
+          memcpy(view->transaction, s->pc.transaction, 16);
+          if (view->capabilities)
+            ret = bkpc_grants_key(&s->pc, view->revision, view->key,
+                                   &view->capabilities);
+        }
+    }
+  if (ret < 0) mbedtls_platform_zeroize(view, sizeof(*view));
+  pthread_mutex_unlock(&g_lock);
+  return ret;
+}
+
+int bkprov_storage_pc_receipt(uint64_t revision,
+                              const uint8_t transaction[16], int *result)
+{
+  if (!result) return -EINVAL;
+  *result = 0;
+  if (!transaction || pc_zero(transaction, 16)) return -EINVAL;
+  pthread_mutex_lock(&g_lock);
+  struct storage_s *s = g_storage;
+  int ret;
+  if (!s) ret = -ENODEV;
+  else if (s->job != JOB_IDLE && s->job != JOB_PC_SET) ret = -EBUSY;
+  else if (s->status != 0) ret = s->status;
+  else if (revision != s->revision || revision != s->pc_config_revision)
+    ret = -ESTALE;
+  else if (!memcmp(transaction, s->pc_transaction, 16))
+    {
+      *result = s->pc_result;
+      ret = !s->pc_completed ? BKPROV_PC_PENDING :
+            s->pc_result == 0 ? BKPROV_PC_SUCCEEDED :
+            s->pc_result == -EINPROGRESS ? BKPROV_PC_UNKNOWN : BKPROV_PC_FAILED;
+    }
+  else if (s->job != JOB_IDLE) ret = -EBUSY;
+  else if (s->pc_status != 0) ret = s->pc_status;
+  else if (!memcmp(transaction, s->pc.transaction, 16))
+    ret = BKPROV_PC_SUCCEEDED;
+  else ret = -ENODATA;
+  pthread_mutex_unlock(&g_lock);
+  return ret;
 }

@@ -60,6 +60,9 @@ class AndroidProvisionGatt(
     private val transportStartedAtMs = System.nanoTime() / 1_000_000
     private val session = ProvisionGattSession(tls, ::deliverPlaintext)
 
+    /** Read only on the GATT worker, after control AUTH. */
+    val peerIdentity: ProvisionPeerIdentity? get() = if (stopping.get()) null else session.peerIdentity
+
     private fun deliverPlaintext(bytes: ByteArray) {
         if (stopping.get()) return
         if (!reportedReady) {
@@ -174,7 +177,7 @@ class AndroidProvisionGatt(
             stop("notification_registration_failed"); return
         }
         val value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-        val accepted = if (Build.VERSION.SDK_INT >= 33) candidate.writeDescriptor(descriptor, value) == 0
+        val accepted = if (Build.VERSION.SDK_INT >= 33) candidate.writeDescriptor(descriptor, value) == android.bluetooth.BluetoothStatusCodes.SUCCESS
         else { descriptor.value = value; candidate.writeDescriptor(descriptor) }
         if (!accepted) stop("descriptor_write_start_failed")
     }
@@ -187,7 +190,7 @@ class AndroidProvisionGatt(
         val target = requireNotNull(tx)
         val connection = requireNotNull(gatt)
         val accepted = if (Build.VERSION.SDK_INT >= 33) {
-            connection.writeCharacteristic(target, write.value, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT) == 0
+            connection.writeCharacteristic(target, write.value, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT) == android.bluetooth.BluetoothStatusCodes.SUCCESS
         } else {
             target.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
             target.value = write.value

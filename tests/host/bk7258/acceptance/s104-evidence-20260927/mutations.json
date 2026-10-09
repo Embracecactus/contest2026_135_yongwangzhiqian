@@ -1,0 +1,21 @@
+{
+  "mutations": [
+    {
+      "name": "missing-scope-invalidation",
+      "detected": true,
+      "exit_code": -6,
+      "source_sha256": "3c310040997f5649a0f37d45a826f219087d41ec2cab0b0514a2da75bc643809",
+      "mutant_sha256": "c21f2b8a6ce49fb3dc244b96f7eba4fa3bc96607a5102b6e35f2820c4a558045",
+      "case": "NET-03.phone-scope-replace"
+    },
+    {
+      "name": "missing-product-revocation",
+      "detected": true,
+      "exit_code": 1,
+      "source_sha256": "3a0009572978062e0af0ad566e78273d4f1a127de66697b90f7f164ee82bcd95",
+      "mutant_sha256": "f6e006e51e58bafdb34c766e6b85a5e02b3fcb4337191e030cda46ee3b8a67f5",
+      "case": "RES-02.phone-default-native-revoke"
+    }
+  ],
+  "restores": 2
+}

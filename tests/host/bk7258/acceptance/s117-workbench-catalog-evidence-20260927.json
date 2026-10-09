@@ -1,0 +1,130 @@
+{
+  "parent": "0c117a0840038b84b854fbec7a76993484aa0edb",
+  "counts": {
+    "full": 698,
+    "PASS": 698,
+    "original_including_two_restores": 63,
+    "previous_ids_preserved": 687,
+    "new_codec_client_L1": 7,
+    "new_HTTP_TLS_native_L2": 3,
+    "new_browser_controller_L1": 1,
+    "runner_gates": 19,
+    "original_mutations_detected": 2,
+    "extra_mutation_detected": 1,
+    "extra_restore_PASS": 1,
+    "browser_check_separate": 1
+  },
+  "new_ids": [
+    "RES-02.pc-catalog-decode",
+    "RES-02.pc-catalog-golden",
+    "RES-02.pc-catalog-identity_and_snapshot",
+    "RES-02.pc-catalog-malformed",
+    "RES-02.pc-catalog-page_order_and_cursor",
+    "RES-02.pc-catalog-staging",
+    "RES-02.pc-catalog-validation_before_credentials",
+    "RES-02.web-display-tls-catalog_cancel_recovery",
+    "RES-02.web-display-tls-catalog_lifecycle",
+    "RES-02.web-display-tls-catalog_stale_receipt",
+    "UI-01.catalog-browser-gates"
+  ],
+  "implementation": "Sole workbench CLI adds catalog-status/page/cancel/recover; strict ECC1/ECL1 codec, one operation staging, nonce snapshot verification, expected authority/job/operation checks, no automatic replay. Browser explicit directory scan/status/cancel/recovery and next-page controls use existing HTTP worker; selection only fills filename and never writes device. Shared default/catalog cached controls invalidated before attempting request.",
+  "test_first": "Missing codec and UI are BLOCKED_INTERFACE. Initially unsupported HTTP route rejected request; not proof of native behavior failure. After binding, explicit lost-start-response test reproduced stale browser next-page control re-enabled by old local snapshot. Fixed pre-I/O invalidation; same assertion passes. No native business state machine replaced by success mock.",
+  "oracles": [
+    "Independent608B vectors, ECC1 request bytes, padding/reserved/ordering/4-entry cursor and exact receipt checks",
+    "Real HTTP to Python client/TLS/SDC1/native catalog worker/store: explicit scan returns2 installed files, no display/default writes; next cursor returns valid empty page",
+    "Queued cancellation never scans; failed volume release returns UNKNOWN with no entries; close recovery preserves UNKNOWN",
+    "New default refresh invalidates old catalog receipt across fresh TLS sessions; stale read remains unconfirmed",
+    "Actual shipped JS with external DOM/fetch peers rejects stale/unknown list and preserves keyboard-neutral local selection",
+    "Real Chromium desktop and360px dark screenshots with synthetic HTTP states, not hardware evidence"
+  ],
+  "mutation": "Isolated codec removes zero unused entry-slot validation. Compiled mutation fails independent offset224 assertion; original restored run passes.",
+  "resources": {
+    "wire_snapshot_bytes": 608,
+    "status_exchanges": 39,
+    "page_max_entries": 4,
+    "browser_local_request_capacity_unchanged": 64,
+    "new_threads": 0,
+    "new_device_memory": 0,
+    "limits": "Native resource allocation unchanged fromS116. Browser uses existing bounded worker and HTTP slots. CPU/RSS/p95 and physical USB latency not measured; no runtime threshold changed."
+  },
+  "parent_gaps": {
+    "RES-02": {
+      "interface": "CLI and browser catalog list/page/cancel/recover bound; native Android catalog picker remains outstanding",
+      "L1_L2": "Independent codec plus realHTTP/TLS/controller/worker/store; browser DOM state uses external peers",
+      "L3": "NOT_RUN actual USB/SD/display and Android selection"
+    },
+    "RES-03": {
+      "interface": "Workstation catalog reachable through existing native CDC client and protected profile",
+      "L1_L2": "RealTLS tests bind synthetic authority directly; physical PC pairing/grant and productUSB combined path not established by these tests",
+      "L3": "NOT_RUN physical authorized USB import/catalog/use"
+    },
+    "UI-01": {
+      "interface": "Browser empty/pending/unknown/stale distinctions and local-only selection implemented",
+      "L1_L2": "Production JS behavioral harness plus separate real Chromium layout/keyboard; no synthetic state claims real hardware",
+      "L3": "NOT_RUN physical desktop/board workflow"
+    }
+  },
+  "build": "No C/Android source change; existing build identities unchanged. Python tests/import, JS execution, existing full host/JVM tests and layers PASS. No redundant firmware rebuild/deployment.",
+  "inputs": {
+    "tests/host/bk7258/acceptance/contracts.md": "3b643beccb0c38f2058f750c8ddca6c4c326f914f9ab8155a14ccdf719e5c145",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "a51ef0cfb2f61a315159eef0ececb6601801ed0593dd003c4e0d0a7ff7582f89",
+    "tests/host/bk7258/test_shaniu_contracts.py": "a1f4000caaec06dbcd81f35c2440de46c6763653845aace7662029836b2647c5",
+    "tests/host/bk7258/test_workbench_web_display.py": "20ba3750f4f1f5b975a65b4c729d039e32ae339740a8e31cbcc7c04de271ecbc",
+    "tools/bk7258/README.md": "471af147b3da404817de1e285c3f516ff368a028b1d715e96d66e2dcc6079aca",
+    "tools/bk7258/_lib/workbench.py": "d7f068cfa2530fd222f7bbcb601d8cc4f7278f6aefe02140a774671682b857ce",
+    "tools/bk7258/_lib/workbench_web.py": "01a5beb7ccc6b8a93cc0262a765b5d4d7adb25db1fc957394c15be58d7eeb458",
+    "tools/bk7258/_lib/workbench_web/app.js": "87c796a792157c6ef20800fe1c268461a5c60eadf7d5ecd64ee0963f590f306f",
+    "tools/bk7258/_lib/workbench_web/index.html": "8ca3044eaf811952f1f5a50227db7c7d4a0c145b7a2dc0e9937f0a0711631a85",
+    "tools/bk7258/_lib/workbench_web/style.css": "36f11dd0b2dd3b80b64a395feeb7af5ad9cb8d94dd8ceb0117a5a9e4f4810a75",
+    "tests/host/bk7258/test_workbench_catalog.py": "b1e8ef73eab01d612953ead23b169500bb36db80755b082c043aa4924f0368fd",
+    "tests/host/bk7258/test_workbench_catalog_ui.cjs": "24ab6384eed0253e819403c59dd1bf37fab666c5026fd2a93ea4a5d23f135683",
+    "tools/bk7258/_lib/workbench_catalog.py": "91756908c20e07cb004180c7b3b2f638c08359161446427a37cd024ba88e979e"
+  },
+  "screenshots": {
+    "out/shaniu-s117/workbench-desktop.png": "00f3ee151944eaa3883e0a987adbad6154ae04d3e39a56e153555faa46143adb",
+    "out/shaniu-s117/workbench-mobile-dark.png": "2d63c2d7dd12530262aa8bc6cec84f1c569ed63e1626b412d0a1307092ce4d5b"
+  },
+  "limits": [
+    "Original models/response, K2/K1/K3, native Android direction, manifest and device thresholds unchanged",
+    "No actual serial open, flash, phone install, erase, reset or physical action",
+    "698 host units are not56 completed product requirements",
+    "Loopback test service stopped; ephemeral access token/private launch log not archived"
+  ],
+  "raw_evidence_sha256": {
+    "s117-evidence-20260927/CFG-01.wifi-clears-cloud.log": "a6345ed4be4abfa5ae0483b67b66a8c28384d826f468328b989385fd71204497",
+    "s117-evidence-20260927/MSC-01.early-release.log": "0fb44f7c0a3cf826ae5b14dbf1dce63a96ec8c138e7e7885b5a25a6a4cbb13cd",
+    "s117-evidence-20260927/RES-02.pc-catalog-decode.log": "571c924e5bb98ff2ad8c904ec1058339cce93eec45a9a22367bd2b0f3102448e",
+    "s117-evidence-20260927/RES-02.pc-catalog-golden.log": "1b033dfcf4147831e84e614bbad0fbae8dc281650145f8c529f2a5eea3525e42",
+    "s117-evidence-20260927/RES-02.pc-catalog-identity_and_snapshot.log": "d58cf14a296d001795d2ecfbfe9407067f7059bd5c6b945d7787f74b540d12d7",
+    "s117-evidence-20260927/RES-02.pc-catalog-malformed.log": "526752efb936d23d8ea83084dc2d4e016da78024a86470b864175bd56864aa74",
+    "s117-evidence-20260927/RES-02.pc-catalog-page_order_and_cursor.log": "f67c31ef4f2e5b392ac845339c5a9eb741d729862f0b7d7c9d429bbd3f93b220",
+    "s117-evidence-20260927/RES-02.pc-catalog-staging.log": "4ba38727e240e5bd4a90ce2a78081190a8960264e2c30c7dc2843873050a9667",
+    "s117-evidence-20260927/RES-02.pc-catalog-validation_before_credentials.log": "48a1f200e11e7966ec17d8bccc48b443129875653d65af7edecb1be4c0cce61a",
+    "s117-evidence-20260927/RES-02.web-display-tls-catalog_cancel_recovery.log": "26efba8225bad0b68dcd593e7cefecfdddac4c5f48d0c5066636429106e95b6f",
+    "s117-evidence-20260927/RES-02.web-display-tls-catalog_lifecycle.log": "560865329435805c23758c2ca6273717999996ae390ff5cfb3c8d3f14e088a55",
+    "s117-evidence-20260927/RES-02.web-display-tls-catalog_stale_receipt.log": "b7ea6b83811341e8fa998927025aa943859035efcc064fd8f6423b93236f2f97",
+    "s117-evidence-20260927/UI-01.catalog-browser-gates.log": "ec73e1d452cdccc38b4d268d410f18d0890a64a9e0b071903947d4375ddb9390",
+    "s117-evidence-20260927/browser-runner.cjs": "42a2db55959496e9808ff0f36d5b35899f1cc93e035f3f29d7fadcca28f0e2af",
+    "s117-evidence-20260927/browser.log": "ebf996e1d94d56d87171c762eae8a9aeb338eb4cc5ab01925cb5b810b5155cd2",
+    "s117-evidence-20260927/catalog_cancel_recovery.log": "eb1fca10ae1f1dccec1acf5e086a9de17eb3290f156382fb9191ed0fb8e1a0e4",
+    "s117-evidence-20260927/catalog_lifecycle.log": "9e25794e0dfb4735451be7499d1d59be24c4e7150466f5366344fca82d4173ce",
+    "s117-evidence-20260927/catalog_stale_receipt.log": "fbb30945cac32ccbeb81a83c47e26573650d8e693695f9e5f7bd38e89d792511",
+    "s117-evidence-20260927/cli-help.log": "3e974be0c9b4e5d137770d8c780da579402676282d7407ffa7728fee6af9b0c1",
+    "s117-evidence-20260927/client-after.log": "e586fc0f3bb2a05f4c80f07d1b4c6171e830592f6c7aaf70d4af3b0aa3ebd072",
+    "s117-evidence-20260927/client-before.log": "4a4b6ee2dfb66fca4948ddf5a28e59b4ed7bf0cf6e53d4527f2127a06de745cd",
+    "s117-evidence-20260927/full.log": "c2b03af5b47dfb9af063f3fb17d82ccea2c2b075ed2529237a6a2294638b4a01",
+    "s117-evidence-20260927/layers.log": "027609397eae350c61a6eb847a6c4ab94f0c926dfa48f65914118948fd3b6c40",
+    "s117-evidence-20260927/mutation-runner.py": "0001e1e3812915baccd3af872e8a4a03b9cdd73863b836f9462aef6a7d371c56",
+    "s117-evidence-20260927/mutation.json": "c6833b15e041d355b93c1b6cad8870576e7084eb745f7b69027a12930ce3c04a",
+    "s117-evidence-20260927/mutation.log": "a57bd5b5c8d3fa160c827a7046b379910e4d15c393e774dfe90fc8f76c48479d",
+    "s117-evidence-20260927/node-version.txt": "b8139b18707113247bd3eba5bff8ee50ed8f6bfd5076113805af4e414abfdf23",
+    "s117-evidence-20260927/restored.log": "d10ffbd9f0faa72cd6837063279524e199b59fbc3d035051302a1e8dbc4b36ad",
+    "s117-evidence-20260927/runner-gates.log": "dd2316119d0ae7f51409e17a929854becaf2881ef76387b9eefe9cbbf56a0e9a",
+    "s117-evidence-20260927/style.log": "25369eabb8c122f861d58ddb255f81f4b9ee797f42f3882975bef953218258ed",
+    "s117-evidence-20260927/ui-after.log": "b6c702f5fbe57590f9a579a79637180bf4ffd42ffde787b33152845837c30741",
+    "s117-evidence-20260927/ui-before.log": "d14198d915a529e57588bbf6aec3e216da6c132cffaaa03e7886bbf466f413f2",
+    "s117-evidence-20260927/ui-lost-before.log": "14aa31c034e5651b13698d8b3c1cb5b9f330e4f625007d8d3ebe3e3d873e8c40",
+    "s117-evidence-20260927/web-before.log": "a3929e85f45fd7d6054479a22ce83c6f102914b505eeadfe89938f6c50afb470"
+  },
+  "raw_log_whitespace": "mutation.log retains unittest progress-line trailing space before subtest failure. Excluded only this raw log from whitespace check; original bytes and hash preserved. Source whitespace check passes."
+}

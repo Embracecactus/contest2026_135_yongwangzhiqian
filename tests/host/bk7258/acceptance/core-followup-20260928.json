@@ -1,0 +1,135 @@
+{
+  "base": "9b23f888",
+  "agent": {
+    "previous": "62a304ea69c4076f0f3ef7955a9af69a5ed35277",
+    "current": "831b8b54cef8763229431ae2750e2cdfbd825887",
+    "published": "Embracecactus/packages_ai_agent dev; exact Git objects verified via GitHub API after Git HTTPS TLS failures; non-force ref update"
+  },
+  "R4": {
+    "before": "offline/pending/event/identity/threshold/failure/cloud-clear routing assertions fail; online/core-denial controls pass",
+    "after": "11 L1 cases pass; two isolated mutations detected and restored",
+    "hil": "665/666/667 capture and inference started before cloud readiness; 667 AP startup timestamp 3.692875 s, threshold restored first; not physical cold-start p95 or offline human wake acceptance"
+  },
+  "R3": {
+    "before": "intended PC terminal selection fails after real focus completion",
+    "after": "real timer + task receiver composite and prior task regressions pass",
+    "observer_correction": "first Make failed and stale binary ran; original files retained, classified SETUP_ERROR in r3-observer-correction.json",
+    "hil": "deployed in 666/667; live authenticated task/focus stimulus and physical screen not verified"
+  },
+  "AGENT-01": {
+    "test_correction": "prior parser test required deleting a complete no-tool body, contrary to frozen user requirement; original PASS retained as invalid evidence for that requirement",
+    "before": "parser retention, final-phase reuse and sink-cancel request-count assertions fail",
+    "after": "real proxy/parser and extracted actual Agent final-phase pass; no extra final request for complete no-tool body; empty/finalize and cancel preserved",
+    "limit": "no live cloud round, acoustic latency or complete mixed-tool/history integration claimed"
+  },
+  "gate": {
+    "counts": {
+      "PASS": 723,
+      "FAIL_ASSERTION": 0,
+      "SETUP_ERROR": 0,
+      "NOT_RUN": 0
+    },
+    "collection_errors": [],
+    "original_63": 63,
+    "old_mutations": [
+      [
+        "MSC-01.early-release",
+        "DETECTED"
+      ],
+      [
+        "CFG-01.wifi-clears-cloud",
+        "DETECTED"
+      ]
+    ],
+    "ci": "PENDING publication/run"
+  },
+  "hil": {
+    "version": "0.7.22+667",
+    "pair": "A confirmed",
+    "transport": "COM9 existing BK Loader; inactive signed CP/AP only",
+    "package": {
+      "path": "package/shaniu-bk7258-aidk_ai_toy-app__openvela_ap-v0.7.22+667-bshaniu-core-final-body-667-ota.bkpack",
+      "sha256": "7e9c130a3d3a138e13f486e7aa473d4226bf579936163598d67d729c350f4371"
+    },
+    "data": "owner/config/SD/identity/trust areas excluded; configured revision 6, original built-in model and threshold 85 restored",
+    "runtime_evidence": "/tmp/shaniu-20260928-agent-boot/serial.txt",
+    "limits": "normal startup and local capture/inference; no physical K2, deep sleep, acoustic, phone or factory-first-use acceptance"
+  },
+  "remaining": [
+    "R1 read-only power outcome query after product transport closes",
+    "Media close EOF/mix error correlation and real online cancel/next round",
+    "full mixed-tool/vision integration and calibrated live latency",
+    "phone/manual/independent sleep-recovery gates",
+    "runtime resource high-water/CPU measurements unknown"
+  ],
+  "evidence": {
+    "r4-frozen-before.json": {
+      "path": "out/shaniu-core-20260928/r4-frozen-before.json",
+      "sha256": "7d6810312b8e682a5a9259b65ece243b7232b67369c575356d900d7807cf23a9"
+    },
+    "r4-clear-before.json": {
+      "path": "out/shaniu-core-20260928/r4-clear-before.json",
+      "sha256": "00c25fc762f1bcb3aafbb29e02b9fd1f48764d7285b8f3ece8885c313f72dcd6"
+    },
+    "r4-admission-before.json": {
+      "path": "out/shaniu-core-20260928/r4-admission-before.json",
+      "sha256": "f04077eb8a2f4a5e569a9f04ccc82f9ec0338efffe49ef60c24e0f2a3c235b66"
+    },
+    "r4-baseline-final-input.json": {
+      "path": "out/shaniu-core-20260928/r4-baseline-final-input.json",
+      "sha256": "6e42bb0f23a0a64c300b06cdee9cf7f247e108b7767a9423a0b857e7394d5f0d"
+    },
+    "r4-frozen-after.json": {
+      "path": "out/shaniu-core-20260928/r4-frozen-after.json",
+      "sha256": "5392e720db77680914efda79a589e82c5dd94f65738d3466ebb699ac67bace32"
+    },
+    "r4-mutations.json": {
+      "path": "out/shaniu-core-20260928/r4-mutations.json",
+      "sha256": "188c3fb78401ea33b21a4e23a489820499ce785082421bd00712ad929a23b745"
+    },
+    "r3-observer-correction.json": {
+      "path": "out/shaniu-core-20260928/r3-observer-correction.json",
+      "sha256": "4a45cf54f04970cb17df2069c67ee70a1809ae7cb4158555b043dd0ed42f7ee0"
+    },
+    "r3-valid-before.json": {
+      "path": "out/shaniu-core-20260928/r3-valid-before.json",
+      "sha256": "e4f3a49c15296c1363df0c11b7b397e438e6421de48b25c3afebf9f6b602e522"
+    },
+    "r3-after.json": {
+      "path": "out/shaniu-core-20260928/r3-after.json",
+      "sha256": "aef1f2d42a5f9fd61f7a7ea3eb54e624df1cd446104bf1974c1fa41205ef73f5"
+    },
+    "agent-body-before.json": {
+      "path": "out/shaniu-core-20260928/agent-body-before.json",
+      "sha256": "6a6e68dab32115fb90e066a2a6ee88756dfb254edc1267feab52f3ced26c9558"
+    },
+    "agent-phase-before.json": {
+      "path": "out/shaniu-core-20260928/agent-phase-before.json",
+      "sha256": "972e1d8d0d77ffe3ecef1f111acdc48039225b3c21730199591b13f0ef83d018"
+    },
+    "agent-phase-after.json": {
+      "path": "out/shaniu-core-20260928/agent-phase-after.json",
+      "sha256": "67257e4a70388f87c6b0583eb04c77e9b5ac5a69e8b3510e8b77426cd4bcd04b"
+    },
+    "agent-body-after.log": {
+      "path": "out/shaniu-core-20260928/agent-body-after.log",
+      "sha256": "c650017c1a3033375ededfd9405f1f6d0a692d864e93677bb826f8f9329ecb6f"
+    },
+    "contracts-release/results.json": {
+      "path": "out/shaniu-core-20260928/contracts-release/results.json",
+      "sha256": "5486ae17b1154e02551fe043e462b43655ebd7a2ede392da98441fefea19fb06"
+    },
+    "agent-hil/result.json": {
+      "path": "out/shaniu-core-20260928/agent-hil/result.json",
+      "sha256": "1cc41e1a5f9844495bc5b225126fae047514ea820779a796c9888f44131f79ff"
+    },
+    "agent-build-artifacts/sha256.json": {
+      "path": "out/shaniu-core-20260928/agent-build-artifacts/sha256.json",
+      "sha256": "07cf85a2db514e6256ab49da3b41ce9871d134ba117f67c029b059add93fe4ea"
+    },
+    "agent-release/evidence/build-manifest.json": {
+      "path": "out/shaniu-core-20260928/agent-release/evidence/build-manifest.json",
+      "sha256": "81b102d5dd5a146bc8892fc3f108af7a2a8329c62023ed035b5be623e8d802a7"
+    }
+  }
+}

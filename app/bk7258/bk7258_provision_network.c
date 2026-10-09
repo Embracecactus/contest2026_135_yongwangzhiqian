@@ -36,6 +36,8 @@ struct trial_s
   bool clock_saved;
   bool committing;
   bool restoring;
+  bool deferred;
+  bool wifi_connected;
   uint64_t started;
 };
 static struct trial_s *g_trial;
@@ -53,6 +55,10 @@ static void bkprov_failure(const char *stage, int ret)
 }
 
 bool bkprov_network_busy(void) { return g_trial != NULL; }
+int bkprov_network_result(void)
+{
+  return g_trial != NULL ? -EAGAIN : g_last_error;
+}
 int bkprov_network_bind(struct bkprov_identity_s *identity,
                          const struct bkprov_voice_ops_s *voice, void *context)
 {
@@ -81,11 +87,10 @@ static void release_trial(void)
    */
   if (restore) (void)bkprov_storage_refresh();
 }
-static int begin(void *context, const uint8_t *bundle, size_t size)
+static int begin_trial(const uint8_t *bundle, size_t size, bool restoring)
 {
-  (void)context;
   if (g_trial != NULL) return -EBUSY;
-  if (g_identity == NULL || !g_voice->available(g_context)) return -EBUSY;
+  if (g_identity == NULL || g_voice == NULL) return -ENODEV;
   if (bundle == NULL || size == 0 || size > BKPROV_BUNDLE_MAX) return -EINVAL;
   struct trial_s *t = calloc(1, sizeof(*t));
   if (t == NULL)
@@ -116,7 +121,26 @@ static int begin(void *context, const uint8_t *bundle, size_t size)
     }
   mbedtls_platform_zeroize(owner_key, sizeof(owner_key));
   if (ret < 0) bkprov_failure("decode", ret);
-  if (ret == 0)
+  t->restoring = restoring;
+  t->deferred = ret == 0 && t->settings.deferred && !restoring;
+  /* SCB4 persists a validated candidate without trying the network. This
+   * also allows the initial owner-only transaction while fully offline.
+   * Legacy transactions retain their trial-before-commit contract.
+   */
+  if (ret == 0 && t->deferred)
+    {
+      t->phase = VERIFIED;
+      t->started = bkvoice_config_now_ms(NULL);
+      g_trial = t;
+      g_commit_known = false;
+      g_last_error = 0;
+      return 0;
+    }
+
+  if (ret == 0 && !t->settings.ssid[0]) ret = -ENODATA;
+  if (ret == 0 && t->settings.ca_size &&
+      !g_voice->available(g_context)) ret = -EBUSY;
+  if (ret == 0 && t->settings.ca_size)
     {
       ret = bkprov_settings_voice(&t->settings, g_identity->record + 48,
                 g_identity->certificate_size,
@@ -125,7 +149,7 @@ static int begin(void *context, const uint8_t *bundle, size_t size)
       if (ret < 0) bkprov_failure("voice_record", ret);
     }
   if (ret == 0 && t->settings.cloud_size && !g_voice->load_cloud) ret = -ENOTSUP;
-  if (ret == 0)
+  if (ret == 0 && t->settings.ca_size)
     {
       ret = bkvoice_config_validate(t->voice, t->voice_size);
       if (ret < 0) bkprov_failure("validate", ret);
@@ -143,11 +167,14 @@ static int begin(void *context, const uint8_t *bundle, size_t size)
   g_trial = t; g_commit_known = false; g_last_error = 0;
   return 0;
 }
+static int begin(void *context, const uint8_t *bundle, size_t size)
+{
+  (void)context;
+  return begin_trial(bundle, size, false);
+}
 int bkprov_network_restore(const void *bundle, size_t size)
 {
-  int ret = begin(NULL, bundle, size);
-  if (ret == 0) g_trial->restoring = true;
-  return ret;
+  return begin_trial(bundle, size, true);
 }
 static int poll_trial(void *context)
 {
@@ -163,6 +190,15 @@ static void abort_trial(void *context)
   g_trial->phase = ABORTING;
   if (g_trial->wifi_pending) (void)bk7258_wifi_connect_cancel(g_trial->ticket);
 }
+int bkprov_network_cancel(void)
+{
+  if (g_trial == NULL) return 0;
+  if (g_trial->phase == QUARANTINE) return -EINPROGRESS;
+  if (g_trial->committing) return -EBUSY;
+  g_trial->error = -ECANCELED;
+  abort_trial(NULL);
+  return -EAGAIN;
+}
 static void persist_result(int ret)
 {
   struct trial_s *t = g_trial;
@@ -172,7 +208,13 @@ static void persist_result(int ret)
   g_commit_known = true;
   if (ret == -EINPROGRESS)
     { t->phase = QUARANTINE; t->error = ret; }
-  else if (ret == 0) t->phase = FINISH;
+  else if (ret == 0)
+    {
+#ifdef __NuttX__
+      if (t->deferred) (void)bkprov_time_owner_utc(t->settings.utc);
+#endif
+      t->phase = FINISH;
+    }
   else
     { t->committing = false; t->error = ret; abort_trial(NULL); }
 }
@@ -215,7 +257,13 @@ void bkprov_network_step(void)
         { bkprov_failure("wifi_poll", ret); t->error = ret; t->phase = QUARANTINE; return; }
       if (result.status < 0)
         { bkprov_failure("wifi_result", result.status); t->error = result.status; t->phase = ABORTING; }
-      if (t->phase == WIFI) t->phase = t->restoring ? TIME : VOICE;
+      if (t->phase == WIFI)
+        {
+          t->wifi_connected = true;
+          t->phase = t->settings.ca_size ?
+                     (t->restoring ? TIME : VOICE) : FINISH;
+          if (t->phase == FINISH) t->committing = true;
+        }
     }
   uint64_t now_ms = bkvoice_config_now_ms(NULL);
   if (!t->committing && t->phase != ABORTING &&
@@ -291,7 +339,7 @@ void bkprov_network_step(void)
           if (ret < 0) { t->error = ret; return; }
           t->voice_loaded = false;
         }
-      if (t->clock_saved)
+      if (t->clock_saved && !t->restoring)
         {
           uint64_t now = bkvoice_config_now_ms(NULL);
           if (now < t->previous_monotonic) { t->error = -EIO; return; }
@@ -306,9 +354,18 @@ void bkprov_network_step(void)
     }
   if (t->phase == ABORTING || t->phase == FINISH)
     {
+      if (t->deferred)
+        {
+          release_trial();
+          return;
+        }
+
       if (!t->finish_pending)
         {
-          ret = bk7258_wifi_trial_finish(t->lease, t->phase == FINISH, &t->ticket);
+          bool keep = t->phase == FINISH ||
+                      (t->restoring && t->wifi_connected &&
+                       t->error != -ECANCELED);
+          ret = bk7258_wifi_trial_finish(t->lease, keep, &t->ticket);
           if (ret < 0) { t->error = ret; return; }
           t->finish_pending = true;
         }

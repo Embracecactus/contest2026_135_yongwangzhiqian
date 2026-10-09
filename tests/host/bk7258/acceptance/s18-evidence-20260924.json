@@ -1,0 +1,85 @@
+{
+  "scope": "S18 UI-02 focus minutes draft; actual Android Views and Activity recreation with synthetic admission only",
+  "production_parent": "5fae9404a7aab958321cae8a7d0f1d9edf2c0b75",
+  "contract_baseline": "e3ecd6b802c010a5063f10f13cc604496ec71af6",
+  "jvm_cases": [
+    {
+      "id": "FocusTimerControllerTest.acceptedStartWaitsForDeviceReadback",
+      "status": "PASS",
+      "seconds": "0.044"
+    },
+    {
+      "id": "FocusTimerControllerTest.rejectedBeginCannotCancelAnotherEditorsTransaction",
+      "status": "PASS",
+      "seconds": "0.001"
+    },
+    {
+      "id": "FocusTimerControllerTest.changedRevisionCannotProduceMixedSnapshot",
+      "status": "PASS",
+      "seconds": "0.001"
+    },
+    {
+      "id": "FocusTimerControllerTest.unsupportedDeviceDoesNotStartLocalTimer",
+      "status": "PASS",
+      "seconds": "0.0"
+    },
+    {
+      "id": "FocusTimerControllerTest.disconnectAndLateAckNeverReplayMutation",
+      "status": "PASS",
+      "seconds": "0.004"
+    }
+  ],
+  "instrumentation": {
+    "id": "UI-02.focus-draft",
+    "status": "PASS",
+    "navigation_rounds": 20,
+    "activity_recreations": 1,
+    "synthetic_admission": true,
+    "transport_confirmation": false,
+    "duration_seconds": null
+  },
+  "counts": {
+    "JVM_PASS": 5,
+    "new_emulator_case_PASS": 1,
+    "board_executed": 0,
+    "baseline_119_reexecuted": 0
+  },
+  "limits": [
+    "No BLE, physical phone install or board mutation",
+    "No claim of all UI-02 requirements: font, keyboard, multi-size layout and physical use remain open",
+    "119-unit S17 result remains historical; this slice reruns only relevant Android tests",
+    "Same APK version label; identify this candidate by hash"
+  ],
+  "hashes": {
+    "android/shaniu-companion/app/src/main/java/com/shaniu/companion/MainActivity.kt": "7f286f7b4aaa3b95fd55c8941ede042ea52dc5767161dd9ba7cc3bcde638c073",
+    "android/shaniu-companion/app/src/androidTest/java/com/shaniu/companion/provision/DeviceUiAcceptance.kt": "a93a58e0969da7e27f3705b04ab470082c0727597537b152eee0b67b644c011f",
+    "android/shaniu-companion/app/src/androidTest/java/com/shaniu/companion/provision/ControlKeyInstrumentation.kt": "9ab3e81f7f5272b20adc54ba9924d79d5105b0fe370f3d8de694f7fee10d36c7",
+    "android/shaniu-companion/app/build/outputs/apk/debug/app-debug.apk": "f83b1c9420ffc5b77c3659a24e51d3b22d5f4049744416da05915cee8b9d3557",
+    "android/shaniu-companion/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk": "0cef0e2459a61a1bc63244e434e3d99dcf7cbe109d1044db011f37a7d4810a58"
+  },
+  "logs": {
+    "focus-red.log": {
+      "sha256": "1fa1a501aa6da4779e622c12e208630f7ad0973473085d74e8825ac41c1e96b3",
+      "text": "FAIL: IllegalStateException: UI-02.focus-draft: navigation lost minutes at round 1 at com.shaniu.companion.provision.DeviceUiAcceptance.runFocusDraft$lambda$12$lambda$10(DeviceUiAcceptance.kt:61)\n"
+    },
+    "focus-fixture-dismiss-error.log": {
+      "sha256": "a60deb785d8632ba30170e20dd54c81ff4c6e9ed41b6e4f17a8898c1b2059423",
+      "text": "FAIL: IllegalStateException: Check failed. at com.shaniu.companion.provision.DeviceUiAcceptance.runFocusDraft$lambda$11$lambda$10(DeviceUiAcceptance.kt:70)\n"
+    },
+    "focus-green.log": {
+      "sha256": "87252ef67c9d0d1af66eb35706c6720db53469ca381a6dab1d1fa4fc815b688b",
+      "text": "PASS: UI-02.focus-draft 20 real View navigation rounds; synthetic admission, no BLE\n"
+    },
+    "focus-recreation.log": {
+      "sha256": "e91a5d2af8ed121d99153c2996acd4b57dd7725c942c3465644327e5dafc105d",
+      "text": "PASS: UI-02.focus-draft 20 real View navigation rounds and Activity recreation; synthetic admission, no BLE\n"
+    }
+  },
+  "test_correction": {
+    "affected": "UI-02.focus-draft fixture cleanup",
+    "reason": "Dialog onDismiss callback is queued; await UI idle before checking cleanup",
+    "change": "Retained cleanup assertion after waitForIdleSync",
+    "original_failure": "focus-fixture-dismiss-error.log; not product Red"
+  },
+  "build": "build-green.log: BUILD SUCCESSFUL; build-recreation.log: BUILD SUCCESSFUL"
+}

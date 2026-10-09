@@ -1,0 +1,1 @@
+Second run deliberately terminated before completion: black expanded unrelated existing runner formatting. Restored only that unrelated formatting while retaining exactly the ten new required IDs and actual tests. No completed result claimed for interrupted run. First 685 PASS / 2 SETUP_ERROR report retained. Third run uses scoped runner diff.

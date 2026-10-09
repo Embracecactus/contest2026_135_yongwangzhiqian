@@ -1,0 +1,116 @@
+{
+  "parent": "a2921aeeb065dea59b88e6f0a56e1c9ba2fef292",
+  "counts": {
+    "selected": 556,
+    "PASS": 556,
+    "original_including_restores": 63,
+    "added": 493,
+    "new_ids": 4,
+    "runner_gates": 19,
+    "original_mutations": 2,
+    "extra_mutations": 1,
+    "extra_restore_runs": 1
+  },
+  "implementation": "ETC2 start-only installed-pack trial over authenticated config kind11, canonical72-byte record. Existing ETC1 cancel/ETS1 readback, auth/sequence/PC scene permission and serialized product route unchanged. No default persistence or I/O in control callback.",
+  "first_attempt": {
+    "status": "BLOCKED_INTERFACE",
+    "raw_exit": 1,
+    "log": "wire-first-red.log",
+    "explanation": "Test written first against unsupported72-byte BEGIN. Assertion exit is retained, but absence of a newly specified protocol is not claimed as an existing business regression."
+  },
+  "integration": {
+    "production": "Actual SDC1 session, trial wire control, shared intent/identity, renderer/cache, store/parser, volume. Existing product config route already dispatches kind11.",
+    "external": "Test authenticated session dispatch adapter, virtual monotonic clock, mount/umount and framebuffer sink; no TLS/USB/PC guard in this new wire-to-pixel fixture. Existing separate TLS/guard tests pass.",
+    "oracle": "Independent ETC2 bytes; every trial pixel0x07e0; default background0x0842. Postsetup file writes stay zero. Repeated record/reconnect no TTL renewal; changed filename/version conflicts; cancel pending is distinct from restored.",
+    "new_cases": [
+      "wire-cancel",
+      "wire-expiry",
+      "wire-invalid",
+      "wire-missing"
+    ]
+  },
+  "AP": {
+    "status": "PASS incremental final build",
+    "linked": "bk7258_display_trial_pack_checked now retained in System.map, unlike S95",
+    "hardware": "NOT_RUN; no sign, flash or APK installation"
+  },
+  "full": {
+    "production_unchanged": true,
+    "input_hash_exception": {
+      "path": "app/bk7258/bk7258_display_trial_control.c",
+      "tested_sha256": "39ef898a3efde90bed2511cfde7a573315295a77243f9332773dc267b2c865d7",
+      "final_sha256": "dd20996c8746e85ac0ccc26cf095cce31c309009eba6ade35aaf9f0dc6d4cfa0",
+      "noncomment_nonwhitespace_equal": true,
+      "scope": "Comment and operator/comma whitespace only after frozen full; focused cases and AP rebuilt."
+    },
+    "validation_after_whitespace": "11 pack cases, legacy authenticated trial case, AP final build passed; all other frozen report input hashes unchanged."
+  },
+  "mutation": {
+    "mutation": "authenticated ETC2 wrongly calls expression-only trial",
+    "status": "DETECTED",
+    "exit": 1,
+    "restored_exit": 0,
+    "source_sha256": "39ef898a3efde90bed2511cfde7a573315295a77243f9332773dc267b2c865d7",
+    "mutant_sha256": "845664ef8c3a6d5281492640ac11b546555c7fad02cd740d7e3caba24680d5c1",
+    "oracle": "Every selected pack pixel independently fixed RGB565 0x07e0."
+  },
+  "style": {
+    "nxstyle_nuttx_commit": "76354c637858ecb0aa4601629327acb6f44a26bb",
+    "exit": 1,
+    "added_diagnostic_texts": [],
+    "limit": "Existing file diagnostics remain; not whole-file style PASS."
+  },
+  "resource_budget": {
+    "added_static_bytes_ap": 44,
+    "detail": "Last request grows32 to72 plus32-bit size_t. No new queue/thread/heap; bounded72-byte compare/copy on existing control owner.",
+    "not_measured": "CPU/p95, critical-section duration, actual stack/peak memory and SD/USB/audio coexistence on target."
+  },
+  "parent_gaps": {
+    "RES-02": {
+      "interface": "Native authenticated ETC2 route implemented and linked; PC CLI/App pack argument and versioned persistent default pending.",
+      "L1_L2": "Wire-to-real-render/store passes four new cases; wrong-route mutation detected. No joint TLS plus new wire-to-pixel fixture.",
+      "L3": "NOT_RUN; device screen and physical resource timing unverified."
+    }
+  },
+  "remaining": [
+    "Connect PC/App pack selection and versioned set-default/light UI.",
+    "Pending phone APK approval and COM9 target identity unchanged.",
+    "Historical TLS, resource budgets, hardware combination and final delivery remain open; goal ACTIVE."
+  ],
+  "evidence_sha256": {
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/CFG-01.wifi-clears-cloud.log": "140088e0c2faa836856ffdfc6d2ef3c5e6d36e6ec3ec2259a3bf81e82a8fccac",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/MSC-01.early-release.log": "c178842b62592eacf3a61f0ec7986f7a44e5b29bcfae57640ea71e6e9a169f06",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/ap.log": "aedd718cd3fc43f3ae14aabcbd4d75e4971ecc7027cbbdd622be0d77e026f00f",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/final-cancel.log": "15d7a3e54231feb76439767c379eb5cce142a966923fa18bd0c96c9ba68fdf09",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/final-expiry.log": "3ec9e59b48a7af079324aee7690d4431949e4a0da8b3bd7b56e8162c8fe1f7c5",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/final-invalid.log": "dfadbb0a6041f4d29ccfd9e8cb314a7b9598a544a04b356563037ffb8993a84b",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/final-missing.log": "8e182a5ff9efacf2ce680eb3d22db450238a1ca75cced7bd6f86935484f77d91",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/final-queued-cancel.log": "eddc6e6fd481c45ce998426477030344368780390f4362bf62644f552c08742d",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/final-queued-expiry.log": "67297384649970651b817c1cf9e6d41fa3673fefffb62c4505f09bbbd1643eb4",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/final-supersede.log": "15e31f8adebef24d16d62dc1c715ee82ab4ee65d8169c973fd6726d06be67f33",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/final-wire-cancel.log": "dd2d35d404f5d9c23c26dba3e47d98071d2b6dfae547cd894b500bbb7f90da6a",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/final-wire-expiry.log": "099ed16c35f68eb17f7526a81b45d0fd6a71bd5120d4d5b80e6d56891f942273",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/final-wire-invalid.log": "5b1bc5f1bf79b804ae14f2865967710aa553e33493f4293b17354fa8a7c60fe1",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/final-wire-missing.log": "24319145db524b9c7cfe69265c04b7b8cbc4ea710cace702886c3b4c3229e75a",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/format-equivalence.json": "b6b99862bae1facea40c5b735a520a3108999f4c4fdefb6fbe057142c328ba57",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/full.log": "26e787393503c789bc88d3e953a460a4d664e219a38f54b0471e96135c54391d",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/gates.log": "448c76019b692cc408025d8da1deb207e9d6a488776376dcd99c1d790ddba9bc",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/layers.log": "710268dfb47cd80406e5e3114f8d4e9fa899ff333a4aa4b65452813f14a7ea7d",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/legacy-final.log": "374dbd80ba255376653592af4de9bd406d3d42df1c25876db48b8ab172cc561f",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/legacy-wire.log": "374dbd80ba255376653592af4de9bd406d3d42df1c25876db48b8ab172cc561f",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/mutation-restored.log": "0f335ff01c8a548ed30fd6d9a2379f59c6ca9f8b45b95b2b81b67df94a47d158",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/mutation-wrong-pack.log": "6bebed687394cb2c9602fea01448260bd6937091e161d33ca62fb767a330d991",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/mutation.json": "dbecd59d53290d4e6bc528b2dab1c689905080e4da31ef27294e295afd75fc7a",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/style-after.log": "dbc24b8a2219ed0e13f66c2918e55a24fa32a8f0caa2ac3d1fb4407c1eb3ebda",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/style-before.log": "63e110468edf17920bd09990753a2916f37d6fd45ab2984ce6c897d8c6a4dd94",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/style-final.json": "9ab5d376d1765b01ae1a6f35d2f539af238a41e4e279345d3fd6bf92c8966453",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/style-final.log": "c1b49c3a3d97e9a35e81f7edc667e0214047598e45c73959fda24f4cfd866c28",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/style.json": "565578f3d76ccafdf0857877a0cb12fa597fa5f7302f468c93476818db256c65",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/symbols.log": "3e88c0bf0874ef95f84a4f19e7d465087668bb4ba3d2bf6c260eecd3908d7719",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/wire-cancel.log": "a459950a18f032a8faa8036fcf1406234f0757404347662728d01eaebe4a6ce6",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/wire-expiry.log": "1d0470d9ce600413e25c602d4a0b7e1d6289f3abdab871a75f9ed786af42e924",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/wire-first-red.log": "c27b7547c0979f1b5a110677945867e4c9c395344e17b974943892b10e035ec0",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/wire-invalid.log": "ebe425c800e5b6fe052512190594c38903140920fe39b63d0dca91635b89f413",
+    "tests/host/bk7258/acceptance/s97-evidence-20260927/wire-missing.log": "d47b0330449ac60bb8c8dac46d2622725ce2d6cce4369ed16d6809e8cc38f9e7"
+  }
+}

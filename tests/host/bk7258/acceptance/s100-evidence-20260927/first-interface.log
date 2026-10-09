@@ -1,0 +1,29 @@
+bk7258 package eye-pack: PASS output=/tmp/pack-trial-build-jt1klw9j/green.bkep id=shaniu-upload-v1 revision=1 entries=11 size=10494 sha256=c0136ca3b702c15f41d15aed1e0a5e8714b851332024347c2bf13b1b7fea8e47
+PACK_TRIAL_INPUT_SHA256=c0136ca3b702c15f41d15aed1e0a5e8714b851332024347c2bf13b1b7fea8e47
+In file included from /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.c:4:
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.c: In function ‘__wrap_write’:
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.c:37:36: error: implicit declaration of function ‘bk7258_display_selection_cancel’; did you mean ‘bk7258_display_activate’? [-Werror=implicit-function-declaration]
+   37 |     { cancel_on_write=false;assert(bk7258_display_selection_cancel(selection_id)==-EBUSY); }
+      |                                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.c: In function ‘test_mount’:
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.c:43:42: error: storage size of ‘s’ isn’t known
+   43 |      struct bkdisplay_selection_status_s s;assert(bk7258_display_selection_status(&s)==0);
+      |                                          ^
+In file included from /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.c:4:
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.c:43:51: error: implicit declaration of function ‘bk7258_display_selection_status’; did you mean ‘bk7258_display_expression_status’? [-Werror=implicit-function-declaration]
+   43 |      struct bkdisplay_selection_status_s s;assert(bk7258_display_selection_status(&s)==0);
+      |                                                   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.c:44:22: error: ‘BKDISPLAY_SELECTION_CANCEL_PENDING’ undeclared (first use in this function); did you mean ‘BKDISPLAY_TRIAL_CANCEL_PENDING’?
+   44 |      assert(s.state==BKDISPLAY_SELECTION_CANCEL_PENDING);}
+      |                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.c:44:22: note: each undeclared identifier is reported only once for each function it appears in
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.c:43:42: error: unused variable ‘s’ [-Werror=unused-variable]
+   43 |      struct bkdisplay_selection_status_s s;assert(bk7258_display_selection_status(&s)==0);
+      |                                          ^
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.c: At top level:
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.c:62:10: fatal error: bk7258_display_selection.inc: No such file or directory
+   62 | #include "bk7258_display_selection.inc"
+      |          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+cc1: all warnings being treated as errors
+compilation terminated.
+SETUP_ERROR: Command '['cc', '-std=gnu11', '-Wall', '-Wextra', '-Werror', '-pthread', '-I', '/tmp/pack-trial-build-jt1klw9j', '-I', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/mocks', '-I', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_pack.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_media_volume.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_control_session.c', '-Wl,--wrap=write', '-o', '/tmp/pack-trial-build-jt1klw9j/test']' returned non-zero exit status 1.

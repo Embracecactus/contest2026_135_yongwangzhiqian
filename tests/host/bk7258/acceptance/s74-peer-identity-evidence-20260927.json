@@ -1,0 +1,1561 @@
+{
+  "schema_version": 1,
+  "slice": "S74",
+  "parent_commit": "b7fd2d016cfc3a82d3db419eea9cf7592966b7ae",
+  "agent_commit": "62a304ea69c4076f0f3ef7955a9af69a5ed35277",
+  "counts": {
+    "PASS": 427,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 364,
+      "counts": {
+        "PASS": 364,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "runner_gate": {
+    "PASS": 13
+  },
+  "collection_change": {
+    "new_methods": 4,
+    "existing_tls_methods_newly_required": 6,
+    "new_required_ids": 10
+  },
+  "interop": {
+    "counts": {
+      "PASS": 232
+    },
+    "collected": [
+      {
+        "id": "com.shaniu.companion.provision.FocusTimerControllerTest.acceptedStartWaitsForDeviceReadback",
+        "seconds": 0.003,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.FocusTimerControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.FocusTimerControllerTest.rejectedBeginCannotCancelAnotherEditorsTransaction",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.FocusTimerControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.FocusTimerControllerTest.changedRevisionCannotProduceMixedSnapshot",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.FocusTimerControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.FocusTimerControllerTest.unsupportedDeviceDoesNotStartLocalTimer",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.FocusTimerControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.FocusTimerControllerTest.disconnectAndLateAckNeverReplayMutation",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.FocusTimerControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.gateway.GatewaySecurityTest.configurationRejectsMalformedOrImplicitlyTrimmedValues",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.gateway.GatewaySecurityTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.gateway.GatewaySecurityTest.configurationAcceptsSystemTrustOrCanonicalSha256Pins",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.gateway.GatewaySecurityTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.gateway.GatewaySecurityTest.tokenPolicyAcceptsBearerAlphabetAndRejectsHeaderInjection",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.gateway.GatewaySecurityTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.gateway.GatewaySecurityTest.explicitBlankOriginLeavesGatewayDisabled",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.gateway.GatewaySecurityTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.protocol.CompanionStoreTest.eventGapFailsClosedUntilSnapshotRecovery",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.protocol.CompanionStoreTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.protocol.CompanionStoreTest.otaStateIsReportedWithoutInventingSuccess",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.protocol.CompanionStoreTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.protocol.CompanionStoreTest.higherGenerationNeedsSnapshotAndOldGenerationIsRejected",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.protocol.CompanionStoreTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.protocol.CompanionStoreTest.staleReportedPreferenceFailsClosedUntilSnapshot",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.protocol.CompanionStoreTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.protocol.CompanionStoreTest.wrongDeviceAndProtocolNeverChangeState",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.protocol.CompanionStoreTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.protocol.CompanionStoreTest.reportedEmotionDoesNotChangePersonaOrRevision",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.protocol.CompanionStoreTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.protocol.CompanionStoreTest.duplicateEventIsIdempotent",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.protocol.CompanionStoreTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionBindingStoreTest.committedTransactionAtomicallyBindsAndConsumesReceipt",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionBindingStoreTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionBindingStoreTest.unconfirmedSurvivesRestartWithoutChangingBinding",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionBindingStoreTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionBindingStoreTest.failedCommitRetainsPendingAndDoesNotPublishBinding",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionBindingStoreTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionBindingStoreTest.committedStateIsPublishedOnlyAfterAtomicBindingCommit",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionBindingStoreTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionBindingStoreTest.encryptedControlKeySurvivesPendingRestartAndAtomicCommit",
+        "seconds": 0.003,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionBindingStoreTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionBindingStoreTest.controlCipherRejectsTamperingAndInvalidKeys",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionBindingStoreTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionBindingStoreTest.legacyPendingReceiptIsReadAndMigratedByCommit",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionBindingStoreTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionBindingStoreTest.androidCommitExceptionAlsoInvalidatesSharedReaders",
+        "seconds": 0.004,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionBindingStoreTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionBindingStoreTest.failedReconciliationRetainsReceiptAsUnconfirmed",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionBindingStoreTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionBindingStoreTest.verifiedFailureClearsReceiptOnlyWhenItsWriteSucceeds",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionBindingStoreTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionBindingStoreTest.clearBoundRequiresMatchingDeviceAndRetainsPendingRecovery",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionBindingStoreTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionBindingStoreTest.pendingControlIdentityIsExactTransactionScopedAndWiped",
+        "seconds": 0.002,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionBindingStoreTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionBindingStoreTest.corruptDurableValuesCannotBeSilentlyOverwritten",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionBindingStoreTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionBindingStoreTest.androidFailedWriteCannotPublishInMemoryBindingAcrossStoreInstances",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionBindingStoreTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionBindingStoreTest.dailyTrustSurvivesRecoveryAndCannotBeReplacedOrRemoved",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionBindingStoreTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionBindingStoreTest.failedClearLeavesAuthoritativeBindingIntact",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionBindingStoreTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionBindingStoreTest.laterCommitReplacesExistingBoundDevice",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionBindingStoreTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionBindingStoreTest.wrongDeviceOrTransactionFailsClosed",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionBindingStoreTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionBindingStoreTest.missingOrSubstitutedEncryptedControlKeyCannotDowngradeToLegacyClaim",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionBindingStoreTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionBindingStoreTest.notCommittedAndConfirmedFailureClearOnlyMatchingReceipt",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionBindingStoreTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.ota.BkpackInspectorTest.rejectsMismatchedImageTraversalAndTruncation",
+        "seconds": 0.016,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.ota.BkpackInspectorTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.ota.BkpackInspectorTest.rejectsAmbiguousAndNonIntegralCounters",
+        "seconds": 0.008,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.ota.BkpackInspectorTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.ota.BkpackInspectorTest.validPackageReportsIntegrityMetadata",
+        "seconds": 0.003,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.ota.BkpackInspectorTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.ota.BkpackInspectorTest.rejectsInvalidCounterExtraMissingAndOversizedMetadata",
+        "seconds": 0.005,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.ota.BkpackInspectorTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.ota.BkpackInspectorTest.rejectsTooDeepCatalogAndInvalidHashes",
+        "seconds": 0.005,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.ota.BkpackInspectorTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.ota.OtaHttpRangeTest.rejectsRangesPathsAndBodies",
+        "seconds": 0.003,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.ota.OtaHttpRangeTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.ota.OtaHttpRangeTest.fullRequestSelectsWhitelistedEntry",
+        "seconds": 0.003,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.ota.OtaHttpRangeTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.ota.OtaHttpRangeTest.explicitAndOpenEndedRangesAreBounded",
+        "seconds": 0.004,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.ota.OtaHttpRangeTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.ota.OtaHttpRangeTest.rejectsMalformedAndOversizedHeaders",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.ota.OtaHttpRangeTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlPresentationTest.volumeKeepsFreshControlsEnabledDuringReadButLocksWrites",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlPresentationTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlPresentationTest.volumeExplainsAuthenticationFreshnessAndBusyGates",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlPresentationTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.ota.OtaUpdatePolicyTest.gateRejectsDoubleStartAndFailedPersistence",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.ota.OtaUpdatePolicyTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.ota.OtaUpdatePolicyTest.confirmsOnlyFirmwareConfirmedPhase",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.ota.OtaUpdatePolicyTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.gateway.OkHttpConsoleGatewaySessionTest.crossOriginRequestStopsBeforeNetworkDispatch",
+        "seconds": 0.168,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.gateway.OkHttpConsoleGatewaySessionTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.gateway.OkHttpConsoleGatewaySessionTest.websocketHandshakeInjectsCredentialAndMapsAuthorizationFailure",
+        "seconds": 0.021,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.gateway.OkHttpConsoleGatewaySessionTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.gateway.OkHttpConsoleGatewaySessionTest.authenticatedRequestIsSameOriginAndBodyIsBounded",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.gateway.OkHttpConsoleGatewaySessionTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.gateway.OkHttpConsoleGatewaySessionTest.missingCredentialStopsBeforeNetworkDispatch",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.gateway.OkHttpConsoleGatewaySessionTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.gateway.OkHttpConsoleGatewaySessionTest.productionClientDisablesRedirectsRetriesAndLoggingInterceptors",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.gateway.OkHttpConsoleGatewaySessionTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.gateway.OkHttpConsoleGatewaySessionTest.oversizedResponseFailsAsProtocolError",
+        "seconds": 0.004,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.gateway.OkHttpConsoleGatewaySessionTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionBootstrapTest.ownedSecretAndTemporaryCopiesAreClearedOnCloseAndFailure",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionBootstrapTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionBootstrapTest.rejectsAmbiguousMalformedAndUnboundedBootstrapWithoutEchoingInput",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionBootstrapTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.gateway.ConsoleEnrollmentTest.rejectsAmbiguousInvalidOrExpiredOwnerPackages",
+        "seconds": 0.019,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.gateway.ConsoleEnrollmentTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.gateway.ConsoleEnrollmentTest.parsesBoundHttpsEnrollmentAndWipesTemporaryToken",
+        "seconds": 0.007,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.gateway.ConsoleEnrollmentTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.gateway.ConsoleEnrollmentTest.existingBindingCannotBeReplacedByAnotherDevicePackage",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.gateway.ConsoleEnrollmentTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlSessionTest.writeWaitsBehindReadAndRequiresQuantizedReadback",
+        "seconds": 0.002,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlSessionTest.configCancelWaitsForInFlightAckAndPreventsOtherWriters",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlSessionTest.delayedCurrentIdentityPublishesWithoutAdditionalCommands",
+        "seconds": 0.003,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlSessionTest.otherActivityGraceAndForegroundReturnHaveDifferentPolicies",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlSessionTest.claimHandoffDropsOldIdentityRetryAndCachedStatus",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlSessionTest.ordinaryErrorIsNotDisconnectionAndDoesNotReplaceValue",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlSessionTest.infoAndOtaDoNotReplaceStatusAndFragmentsStayContiguous",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlSessionTest.failedReconnectKeepsOneCappedForegroundRetry",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlSessionTest.graceDisconnectCannotReopenAnExplicitlyClosedSession",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlSessionTest.tabsSubscribeTwentyTimesWithoutOpeningAnotherConnection",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlSessionTest.disconnectAndOldIdentityCannotContaminateNewGeneration",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlSessionTest.peerCertificateCannotAuthenticateSessionOrAppearBeforeStatus",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlSessionTest.failedConfigAckDoesNotReleaseStagingUntilExplicitCancel",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlSessionTest.temporaryReadFailurePreservesConnectionAndUnconfirmedWrite",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlSessionTest.reconnectDropsWritesAndOldCallbacksCannotPolluteNewState",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlSessionTest.foregroundPollContinuesAcross120Seconds",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlSessionTest.identityReleaseRejectsLateConfigResultAndDoesNotReplayIt",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlSessionTest.peerIdentityRejectsMalformedAndOversizedCertificates",
+        "seconds": 0.002,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.gateway.FakeConsoleGatewayTest.failedUpdateCanOnlyClaimRollbackAfterNewSnapshot",
+        "seconds": 0.004,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.gateway.FakeConsoleGatewayTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.gateway.FakeConsoleGatewayTest.otaNeedsTrialSnapshotBeforeConfirmation",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.gateway.FakeConsoleGatewayTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.gateway.FakeConsoleGatewayTest.preferencesAndEmotionChangeOnlyAfterReportedEvents",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.gateway.FakeConsoleGatewayTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlProtocolTest.infoIsCapabilityGatedAndUsesItsOwnPayload",
+        "seconds": 0.002,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlProtocolTest.eyeApplyStillHasAHardDeadlineWithoutReplay",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlProtocolTest.otaRequestsEnforceCommandAndPayloadBoundariesAndScrubBorrowedFrames",
+        "seconds": 0.002,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlProtocolTest.eyeApplyAllowsInstallationThenRestoresOrdinaryCommandDeadline",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlProtocolTest.otaRepliesUseOnlyOtaStatusAndSupportFragmentsAndUnsignedValues",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlProtocolTest.timeoutAndSendFailureNeverReplayMutation",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlProtocolTest.malformedOtaReplyClosesWithoutReplay",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlProtocolTest.authenticatesThenAcceptsOnlyConfirmedFragmentedState",
+        "seconds": 0.003,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlProtocolTest.authenticatedScanReadAcceptsBoundedRecordsButCannotWriteScanKind",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlProtocolTest.memoryMutationDistinguishesPendingConfirmedAndUncertain",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlProtocolTest.incompleteEyeApplyRetainsItsBudgetButAppendDoesNotExtendItsDeadline",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlProtocolTest.onlyAnAcceptedEyeTransactionExtendsApplyDeadline",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlProtocolTest.wifiStatusPreservesUnknownOfflineAndReady",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlProtocolTest.wrongSequenceMalformedStatusAndReplayedAuthCloseConnection",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.DeviceStatusTextTest.configuredSessionDoesNotClaimWifiOrCloudReachability",
+        "seconds": 0.004,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.DeviceStatusTextTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.DeviceStatusTextTest.wakeFrontendIsExplicitAndBounded",
+        "seconds": 0.019,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.DeviceStatusTextTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.DeviceStatusTextTest.storageWorkIsNotPresentedAsConversation",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.DeviceStatusTextTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.DeviceStatusTextTest.modelStatusPreservesLegacyAndRejectsMixedFrontendLayout",
+        "seconds": 0.005,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.DeviceStatusTextTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.ota.OtaSessionContractTest.OTA_01_lateTransportCallbackIsFilteredBySession",
+        "seconds": 0.013,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.ota.OtaSessionContractTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.ota.OtaSessionContractTest.OTA_01_cancelIsPendingUntilProtocolAcknowledges",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.ota.OtaSessionContractTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.ota.OtaSessionContractTest.OTA_01_lateWireAckCannotRestartCanceledUpload",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.ota.OtaSessionContractTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.ota.OtaSelfSignedCertificateTest.v3CertificateHasDnsSanAndVerifiesItsSignature",
+        "seconds": 0.05,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.ota.OtaSelfSignedCertificateTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionSettingsTest.rejectsMalformedInputsBeforeCreatingBundle",
+        "seconds": 0.002,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionSettingsTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionSettingsTest.packsCloudAndNetworkInOneTransaction",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionSettingsTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionSettingsTest.revisionExhaustionAndEmptyOperationCannotProducePatch",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionSettingsTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionSettingsTest.wifiOnlyPatchPreservesCloudAndBindsExpectedRevision",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionSettingsTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionSettingsTest.ownerKeyIsBoundToTheSameCandidateAndCallerKeepsOwnership",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionSettingsTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionSettingsTest.packsCompleteCandidateWithoutDeviceKeys",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionSettingsTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionSettingsTest.reportsNetworkInputErrorsBeforeEndpointLookup",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionSettingsTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionSettingsTest.rejectsMissingEntropyAndMalformedControlKeySizes",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionSettingsTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionSettingsTest.CFG_03_wifiPatchMatchesIndependentGolden",
+        "seconds": 0.002,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionSettingsTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionSettingsTest.keepReplaceAndClearRemainDifferentPatchOperations",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionSettingsTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionTlsTest.engineChannelHandlesTwentyByteFragmentsAndRejectsCorruption",
+        "seconds": 0.02,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionTlsTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionTlsTest.channelRefusesEarlyWritesAndFailsClosedOnBackpressure",
+        "seconds": 0.003,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionTlsTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionTlsTest.gattDeadlinesAndQueueLimitsFailClosed",
+        "seconds": 0.003,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionTlsTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionTlsTest.gattSessionsSerializeAcknowledgedWritesAcrossMtuChanges",
+        "seconds": 0.014,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionTlsTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionTlsTest.rejectsWrongPinAndInvalidDatesAcrossTrustOverloads",
+        "seconds": 0.008,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionTlsTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionTlsTest.realTlsAllowsApplicationBytesOnlyWithMatchingPin",
+        "seconds": 0.109,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionTlsTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionActivationTest.rejectsInvalidBootstrapAndMixedFields",
+        "seconds": 0.012,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionActivationTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionActivationTest.completePackageTransfersOnlyBootstrapOwnership",
+        "seconds": 0.003,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionActivationTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionActivationTest.rejectsInvalidRoutesAndCertificates",
+        "seconds": 0.004,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionActivationTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionActivationTest.rejectsDuplicateMissingUnknownAndTrailingFields",
+        "seconds": 0.002,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionActivationTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionActivationTest.fourFieldBootstrapPackageIsNormalActivationWithoutGatewayRoute",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionActivationTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.PcAuthorizationControllerTest.grantCloseAndDisconnectDoNotReplayOrExposeCredential",
+        "seconds": 0.004,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.PcAuthorizationControllerTest.knownEagainFailureDoesNotBecomePendingOrReplay",
+        "seconds": 0.002,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.PcAuthorizationControllerTest.restoredPublicTargetConfirmsOnlyMatchingGrantWithoutReplaying",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.PcAuthorizationControllerTest.closeBeforeApplyCancelsStagingButAfterApplyDoesNotClaimRemoteCancel",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.PcAuthorizationControllerTest.grantUsesIndependentCredentialAndRequiresExactDurableReadback",
+        "seconds": 0.009,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.PcAuthorizationControllerTest.disconnectLateAckAndRecreationNeverReplayWrite",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.PcAuthorizationControllerTest.invalidGrantInputsNeverBeginOrChangeBorrowedKey",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.PcAuthorizationControllerTest.staleConfirmationAndOtherEditorsTransactionAreNotOverwritten",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.PcAuthorizationControllerTest.revokeNeedsDurableReceiptAndMatchingReadback",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.PcAuthorizationControllerTest.uncertainReceiptAndMismatchedReadbackCannotConfirm",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.PcAuthorizationControllerTest.mismatchedReceiptCannotConfirmAnotherTransaction",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.PcAuthorizationControllerTest.changingEitherRevisionRejectsMixedSnapshot",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.PcAuthorizationControllerTest.grantRejectsWrongReadbackClientCapabilitiesAndRevision",
+        "seconds": 0.002,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.PcAuthorizationControllerTest.restoredRevokeTargetAndInvalidMetadataStaySeparate",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.PcAuthorizationControllerTest.unsupportedAndInvalidSnapshotsCannotEnableRevoke",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.PcAuthorizationControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlTlsInteropTest.pinnedTlsCarriesControlAcrossTwentyByteTransport",
+        "seconds": 0.857,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlTlsInteropTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.DeviceControlInteropTest.androidExchangesRealFramesWithFirmwareSession",
+        "seconds": 0.014,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.DeviceControlInteropTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.ota.OtaControlUploadTest.cancelWaitsForAcknowledgementAndHandlesStartRace",
+        "seconds": 0.002,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.ota.OtaControlUploadTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.ota.OtaControlUploadTest.sendsBoundedChunksAndAcceptsOnlyStartAcknowledgement",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.ota.OtaControlUploadTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.ota.OtaControlUploadTest.cancellationRequestWaitsForRemoteConfirmation",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.ota.OtaControlUploadTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.ota.OtaControlUploadTest.acceptedTerminalCannotBecomeCanceledFromLateAckOrClose",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.ota.OtaControlUploadTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.ota.OtaControlUploadTest.lateAcknowledgementCannotOverwriteCanceledTerminalState",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.ota.OtaControlUploadTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.ota.OtaControlUploadTest.rejectsUnavailableTransportWithoutReplayAndAllowsMaximumRecord",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.ota.OtaControlUploadTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.ota.OtaControlUploadTest.localCloseIgnoresLateAckWithoutClaimingRemoteCancellation",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.ota.OtaControlUploadTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.ota.OtaControlUploadTest.closeCancelsWithoutSending",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.ota.OtaControlUploadTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.ota.OtaControlUploadTest.responseErrorsAndMismatchesFailAndDoNotReuseRecord",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.ota.OtaControlUploadTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.protocol.ConsoleWireV1Test.unsupportedVersionAndOversizeMessageHaveDistinctFailures",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.protocol.ConsoleWireV1Test.xml"
+      },
+      {
+        "id": "com.shaniu.companion.protocol.ConsoleWireV1Test.updateFailuresDecodeWithoutBecomingSchemaErrors",
+        "seconds": 0.002,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.protocol.ConsoleWireV1Test.xml"
+      },
+      {
+        "id": "com.shaniu.companion.protocol.ConsoleWireV1Test.acceptedReceiptCannotCarryAnError",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.protocol.ConsoleWireV1Test.xml"
+      },
+      {
+        "id": "com.shaniu.companion.protocol.ConsoleWireV1Test.releaseCatalogCarriesOnlyVerifiedMetadata",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.protocol.ConsoleWireV1Test.xml"
+      },
+      {
+        "id": "com.shaniu.companion.protocol.ConsoleWireV1Test.cancellationRemainsPendingUntilReportedIdle",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.protocol.ConsoleWireV1Test.xml"
+      },
+      {
+        "id": "com.shaniu.companion.protocol.ConsoleWireV1Test.unknownDeviceValuesRoundTripWithoutInventingDefaults",
+        "seconds": 0.002,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.protocol.ConsoleWireV1Test.xml"
+      },
+      {
+        "id": "com.shaniu.companion.protocol.ConsoleWireV1Test.gatewayHttpsVectorsMatchAndroidContract",
+        "seconds": 0.004,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.protocol.ConsoleWireV1Test.xml"
+      },
+      {
+        "id": "com.shaniu.companion.protocol.ConsoleWireV1Test.reportedEmotionRoundTripsAndUnknownValueFailsClosed",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.protocol.ConsoleWireV1Test.xml"
+      },
+      {
+        "id": "com.shaniu.companion.protocol.ConsoleWireV1Test.firmwareMutationHasStableVectorAndRoundTrips",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.protocol.ConsoleWireV1Test.xml"
+      },
+      {
+        "id": "com.shaniu.companion.protocol.ConsoleWireV1Test.releaseCatalogEnforcesSharedGatewayBounds",
+        "seconds": 0.003,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.protocol.ConsoleWireV1Test.xml"
+      },
+      {
+        "id": "com.shaniu.companion.protocol.ConsoleWireV1Test.volumeFailuresDecodeWithoutBecomingSchemaErrors",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.protocol.ConsoleWireV1Test.xml"
+      },
+      {
+        "id": "com.shaniu.companion.protocol.ConsoleWireV1Test.stateSnapshotRoundTripsWithExplicitPermissions",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.protocol.ConsoleWireV1Test.xml"
+      },
+      {
+        "id": "com.shaniu.companion.protocol.ConsoleWireV1Test.unknownFieldsAndMissingPermissionStatesFailClosed",
+        "seconds": 0.003,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.protocol.ConsoleWireV1Test.xml"
+      },
+      {
+        "id": "com.shaniu.companion.protocol.ConsoleWireV1Test.forbiddenOperationHasNoWireRepresentation",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.protocol.ConsoleWireV1Test.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.SceneControlProtocolTest.newKindsPreserveAuthenticationAndSequenceValidation",
+        "seconds": 0.002,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.SceneControlProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.SceneControlProtocolTest.pcReceiptAndSnapshotCannotBeInterchanged",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.SceneControlProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.SceneControlProtocolTest.newReadKindsRejectMalformedResponseSize",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.SceneControlProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.SceneControlProtocolTest.newKindsRejectWrongLengthsOffsetsAndUnknownKindsBeforeSending",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.SceneControlProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.SceneControlProtocolTest.sceneKindsCanReadAndWriteThroughProductionCodec",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.SceneControlProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.SceneControlProtocolTest.sceneCapabilityRemainsReadOnly",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.SceneControlProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.SceneControlProtocolTest.pcSnapshotReceiptAndWriteUseTheirOwnBoundedShapes",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.SceneControlProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.protocol.ConsolePolicyTest.forbiddenOperationCannotBeGranted",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.protocol.ConsolePolicyTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.protocol.ConsolePolicyTest.staleRevisionAndGenerationAreRejected",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.protocol.ConsolePolicyTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.protocol.ConsolePolicyTest.validPreferenceMutationIsAccepted",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.protocol.ConsolePolicyTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.protocol.ConsolePolicyTest.expiredRequestIsRejectedBeforeExecution",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.protocol.ConsolePolicyTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.protocol.ConsolePolicyTest.missingPrivacyPermissionIsRejected",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.protocol.ConsolePolicyTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.protocol.ConsolePolicyTest.adminMutationsRequireExplicitLocalConfirmation",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.protocol.ConsolePolicyTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ExpressionTrialControllerTest.rejectedBeginCannotCancelAnotherEditorsTransaction",
+        "seconds": 0.007,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ExpressionTrialControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ExpressionTrialControllerTest.acceptedTrialUsesGoldenRecordAndDeviceReadback",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ExpressionTrialControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ExpressionTrialControllerTest.invalidDurationAndMismatchedReceiptCannotClaimSuccess",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ExpressionTrialControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ExpressionTrialControllerTest.cancellationAcceptanceIsNotRestoredCompletion",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ExpressionTrialControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ExpressionTrialControllerTest.changedHeaderCannotProduceMixedSnapshot",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ExpressionTrialControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ExpressionTrialControllerTest.unsupportedDeviceDoesNotPretendToTrial",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ExpressionTrialControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ExpressionTrialControllerTest.closingActiveTrialDoesNotSendRemoteCancel",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ExpressionTrialControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ExpressionTrialControllerTest.disconnectAndLateAckNeverReplayMutation",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ExpressionTrialControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.CloudSettingsTest.matchesFirmwareLayoutWithGenericModels",
+        "seconds": 0.002,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.CloudSettingsTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.CloudSettingsTest.keepsCallerKeyOwnedAndAllowsExplicitTlsPort",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.CloudSettingsTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.CloudSettingsTest.reportsSpecificCloudInputErrors",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.CloudSettingsTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.CloudSettingsTest.rejectsUnsafeEndpointAndCredential",
+        "seconds": 0.002,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.CloudSettingsTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionClaimProtocolTest.validatedRemoteAuthenticationFailureRetainsOnlyStageAndCode",
+        "seconds": 0.002,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionClaimProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionClaimProtocolTest.configurationPersistencePrecedesApplyAndWipesCopiesOnFailure",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionClaimProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionClaimProtocolTest.failedReceiptPersistencePreventsApply",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionClaimProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionClaimProtocolTest.rejectsWrongTransactionAndDoesNotLeakConfigurationBeforeConfirmation",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionClaimProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionClaimProtocolTest.verifiedApplyFailureDoesNotClaimCommitAndRetainsVerificationCode",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionClaimProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionClaimProtocolTest.interruptedApplyRemainsUnconfirmed",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionClaimProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionClaimProtocolTest.waitsForPhysicalConfirmationThenUploadsAndCommits",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionClaimProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionClaimProtocolTest.recoveryOnlyQueriesSavedTransactionAfterLocalConfirmation",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionClaimProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionClaimProtocolTest.malformedApplyResponseLeavesOutcomeUnconfirmedWithoutFailureCode",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionClaimProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionClaimProtocolTest.savesMatchingReceiptBeforeApplyBytes",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionClaimProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionBootstrapDeviceIdTest.rejectsMalformedOrOversizedActivityResults",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionBootstrapDeviceIdTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.ProvisionBootstrapDeviceIdTest.acceptsTheSamePublicDeviceLocatorFormatAsBootstrapParsing",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.ProvisionBootstrapDeviceIdTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.gateway.ConsoleGatewayClientTest.credentialFailureIsNotCollapsedIntoRetryableNetworkFailure",
+        "seconds": 0.004,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.gateway.ConsoleGatewayClientTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.gateway.ConsoleGatewayClientTest.originAcceptsOnlyCredentialFreeHttpsRoot",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.gateway.ConsoleGatewayClientTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.gateway.ConsoleGatewayClientTest.snapshotRequestIsBoundToDeviceAndContainsNoCredential",
+        "seconds": 0.019,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.gateway.ConsoleGatewayClientTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.gateway.ConsoleGatewayClientTest.transportAndAuthorizationFailuresStayContentFree",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.gateway.ConsoleGatewayClientTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.gateway.ConsoleGatewayClientTest.otaMutationUsesManifestReferenceAndVerifiesReceiptIdentity",
+        "seconds": 0.003,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.gateway.ConsoleGatewayClientTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.gateway.ConsoleGatewayClientTest.callersCannotOverrideCredentialOrRoutingHeaders",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.gateway.ConsoleGatewayClientTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.gateway.ConsoleGatewayClientTest.releaseCatalogMustMatchRequestedGeneration",
+        "seconds": 0.005,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.gateway.ConsoleGatewayClientTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.gateway.ConsoleGatewayClientTest.eventCursorUsesWssAndGenerationSequencePreconditions",
+        "seconds": 0.003,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.gateway.ConsoleGatewayClientTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.NfcBindingControllerTest.rejectsUnrepresentableCounterAndUnknownOutcome",
+        "seconds": 0.004,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.NfcBindingControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.NfcBindingControllerTest.sceneCapabilityComesFromIndependentRead",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.NfcBindingControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.NfcBindingControllerTest.rejectedBeginDoesNotCancelAnotherTransaction",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.NfcBindingControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.NfcBindingControllerTest.oldSceneEndpointDoesNotInvalidateConfirmedBindings",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.NfcBindingControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.NfcBindingControllerTest.verifiesOperationAndRevisionAcrossAllChunks",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.NfcBindingControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.NfcBindingControllerTest.cancelNamesCurrentJobWithoutAllocatingNewId",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.NfcBindingControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.NfcBindingControllerTest.sceneReadDisconnectCannotRestoreOldCapability",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.NfcBindingControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.NfcBindingControllerTest.blockedReaderIsNotReportedAsReady",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.NfcBindingControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.NfcBindingControllerTest.disconnectDropsMutationAndLateAck",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.NfcBindingControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.NfcBindingControllerTest.malformedSceneDoesNotInventSupport",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.NfcBindingControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.NfcBindingControllerTest.acceptedEnrollmentRemainsPendingUntilDeviceConfirms",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.NfcBindingControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.NfcBindingControllerTest.supersedingJobCannotConfirmOwnOperation",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.NfcBindingControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.NfcBindingControllerTest.closeNeverClaimsAcceptedDeviceJobCanceled",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.NfcBindingControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.NfcBindingControllerTest.newOperationInvalidatesSceneSnapshot",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.NfcBindingControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.NfcBindingControllerTest.unsupportedFirmwareStaysReadOnly",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.NfcBindingControllerTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.NfcHandoverProtocolTest.malformedLocatorNeverSuppliesDiscoveryHint",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.NfcHandoverProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.NfcHandoverProtocolTest.malformedOrOtherApplicationsNeverSucceed",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.NfcHandoverProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.NfcHandoverProtocolTest.locatorRequiresCurrentSelectionAndIsSingleUse",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.NfcHandoverProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.NfcHandoverProtocolTest.selectionReturnsOnlyVersionWhileForeground",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.NfcHandoverProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.WifiScanProtocolTest.authenticatedControlScanUsesDeviceResultsAndRejectsMalformedRecords",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.WifiScanProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.WifiScanProtocolTest.scanResponseAcceptsFragmentsAndPreservesUtf8Bytes",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.WifiScanProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.WifiScanProtocolTest.wrongSequenceAndOverLimitReplyFailClosed",
+        "seconds": 0.001,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.WifiScanProtocolTest.xml"
+      },
+      {
+        "id": "com.shaniu.companion.provision.WifiScanProtocolTest.cancelSuppressesLateResult",
+        "seconds": 0.0,
+        "status": "PASS",
+        "evidence": "TEST-com.shaniu.companion.provision.WifiScanProtocolTest.xml"
+      }
+    ]
+  },
+  "emulator": {
+    "serial": "emulator-5554",
+    "runs": 2,
+    "first_console": "PASS; outer collector incorrectly expected raw result marker without -r",
+    "raw_recheck": "PASS, INSTRUMENTATION_CODE: -1",
+    "scope": "Real Android TLS provider + ephemeral test Keystore/preferences; transport in memory, no physical BLE/USB",
+    "phone": "Mi10 online, not installed or operated"
+  },
+  "mutations": [
+    {
+      "id": "accept-old-identity",
+      "status": "DETECTED",
+      "collected": 24,
+      "failures": [
+        "disconnectAndOldIdentityCannotContaminateNewGeneration"
+      ],
+      "exit_code": 1,
+      "source_sha256": "ebdc17033c186e89d6f3c9c6e3cee58a4caa7581713772c4c0b52bbcab8de6e8"
+    },
+    {
+      "id": "retain-old-identity",
+      "status": "DETECTED",
+      "collected": 24,
+      "failures": [
+        "disconnectAndOldIdentityCannotContaminateNewGeneration"
+      ],
+      "exit_code": 1,
+      "source_sha256": "df9466c44cdd29d4ceef1417d1ef8607da60bfb9ec05b10c94b2132d3ba909c7"
+    },
+    {
+      "id": "restored",
+      "status": "PASS",
+      "collected": 24,
+      "failures": [],
+      "exit_code": 0,
+      "source_sha256": "a1150565e6944862e3a0064fb6f778de68dcaf2b1e3886592d9232c8dd8ee429"
+    }
+  ],
+  "original_mutations": [
+    {
+      "id": "MSC-01.early-release",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.007865879975724965,
+      "source": "app/bk7258/bk7258_media_volume.c",
+      "original_sha256": "58ebb18ae63adccf21262253da18f153bbb7c680cc0b64719ca20e8a6d9681c8",
+      "mutant_sha256": "bf298373a95ac54d5587f93ece34a30a7f661a65a969c69db9e27c6570770c57",
+      "expected_assertion": "!mounted",
+      "evidence": "MSC-01.early-release.log"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.06449610099662095,
+      "source": "app/bk7258/bk7258_provision_config.c",
+      "original_sha256": "98f5100ca49ca44e45fe3e5da4bb2da0add7466f0e357a205ca8b1e307a5818e",
+      "mutant_sha256": "4c0c615b8ffc99247b0fd91bd934d3df0409a1180769cb939b2820f9e6f69427",
+      "expected_assertion": "bkcloud_config_decode",
+      "evidence": "CFG-01.wifi-clears-cloud.log"
+    }
+  ],
+  "source_inputs": {
+    "android/shaniu-companion/app/src/androidTest/java/com/shaniu/companion/provision/ControlKeyInstrumentation.kt": "69fc2f4b3021a1a4482a494e2bb1a5e6bc44103eca7eb1df4ce39effbd0fdd8c",
+    "android/shaniu-companion/app/src/androidTest/java/com/shaniu/companion/provision/ControlTlsAcceptance.kt": "5bd77dbc29853289f99b082164c90564f48bba3fa420c7a6894c487e07979660",
+    "android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/AndroidDeviceControlTransport.kt": "42d3a14eade61730a67e973d5db9e5a2fae26c55965de6d2d99e07e2bbbbcf9e",
+    "android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/AndroidProvisionGatt.kt": "8f58d521e07275a6c66729c95432b9c0304d4d23413acd2614780ef386aae0c5",
+    "android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/DeviceControlConnection.kt": "ec8a02138254b3202529349d5105aeb4282cc2ab598ce009d8114cc3d8ee6ae7",
+    "android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/DeviceControlSession.kt": "a1150565e6944862e3a0064fb6f778de68dcaf2b1e3886592d9232c8dd8ee429",
+    "android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/ProvisionGattSession.kt": "97f77090eedddc4173e624ed0fb392a5078417d6d8cca167424649babe0a12ef",
+    "android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/ProvisionTls.kt": "bbd0d1d0b6d14cb8ef56f9461867ad939615b59a320842e76521282314944ee6",
+    "android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/ProvisionTlsChannel.kt": "c99e0c762ff11935b8e8a9f4144ab03011c4c885b91932c18be1f8a0936dff78",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DeviceControlSessionTest.kt": "d2ea572b85e27c857563b880d36b4a72baa608dd3f26f9d5ad36650c3cc1baa9",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DeviceControlTlsInteropTest.kt": "0dab4df96ed9762ebac600c86de2acaa5aca756ca0fc9200e0727c28c67624e4",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/ProvisionTlsTest.kt": "4e53101381f1903a67eb1ae02c82ae83fa5c21dfd39ec41fcfbc70af0547ed51",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "64b564097009751452ad337e3981dafcc2dbfb661d07f7fca37733eea9aa525f",
+    "tests/host/bk7258/test_shaniu_contracts.py": "728da30488b8c23c90e74bf29565c011e298040783266ed899c4484181b90e7d",
+    "android/shaniu-companion/app/src/test/resources/pc-identity.pem": "3f3f09dcf613f524644efe368ec214fd6044531f9c133e2f41fc3f6cd392e8ac"
+  },
+  "environment": {
+    "platform": "Linux-5.15.167.4-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+    "python": "3.10.12",
+    "cc": "cc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0",
+    "cmake": "cmake version 4.0.2",
+    "java": "openjdk version \"21.0.6\" 2025-01-21 LTS"
+  },
+  "apks": {
+    "android/shaniu-companion/app/build/outputs/apk/debug/app-debug.apk": "c8b25370d00950ffe6627913b5feda0e98cd14c6a6d804050a948f46ceb92709",
+    "android/shaniu-companion/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk": "18b60dd081659041f61459f25af9906647ddcdb2e5372309f68fea056eab05c7"
+  },
+  "logs": {
+    "out/shaniu-s74/interface-before.log": "3a07d25845eca05757afd7c9cdaaf88f11676acf2f7cf7c33b1dddaee242c0f5",
+    "out/shaniu-s74/android.log": "932f5ce3aa9496ce1610ba250b3d41e8b2b14e46c720c1c6d078e84d97e47817",
+    "out/shaniu-s74/c-jvm-interop.log": "749e20b4f09bbe9726f1ca6cb6dcb587443e1d00a95d840a29f966654cc15143",
+    "out/shaniu-s74/strict.log": "093838602fbcc194700eadf5646c442668e7909c1c6e2e087f9eb9157149fa7e",
+    "out/shaniu-s74/runner-gate.log": "70dda53ed6532662b4a5d5937db093045a2f33eb20893e23b1621d64667776ac",
+    "out/shaniu-s74/accept-old-identity.log": "c673c6d9c3b9e041cc3f7223ae433785f68dc8a9aad23e910fb246f350de71ab",
+    "out/shaniu-s74/retain-old-identity.log": "b9bd415dff726621daa144cf123794b011358d18c3d91ec065d78fb459f61cef",
+    "out/shaniu-s74/restored.log": "8df085d8cfcd9f7420caed5bf90e4f80dd10c49e02bccff752d1b0f834359576",
+    "out/shaniu-s74/emulator-build.log": "fce5a3ef8054e9ea3d0987d8aa28d61b1ee55ba8520dae212bbf41fedd4dc655",
+    "out/shaniu-s74/emulator-install.log": "7ed8077e18ea1232bc80f6cf16f0e955db5bfc14dab4220ae2251853311aa9fb",
+    "out/shaniu-s74/emulator-identity.log": "45feefea2c09c676413358c06b3466bb4b559380c1fc84d0b06ff2911cf998f2",
+    "out/shaniu-s74/emulator-identity-raw.log": "0a1dd14b90db174ed397e424a7afd88f8ceb1f30a9515e0ece17773d4de0e3de"
+  },
+  "limits": [
+    "427 and 232 overlap; neither is 56 completed acceptance cases",
+    "Identity object parsing does not authenticate a peer; production source is the existing pinned TLS handshake and AUTH success",
+    "Android transport adapter callbacks compiled and reviewed; actual Bluetooth transport not exercised",
+    "Encrypted PC pairing request/response, confirmation and import are not wired by this slice",
+    "No board/phone operations; S66 intermittent TLS fault remains open"
+  ],
+  "test_first": "Missing peerIdentity interfaces caused initial compile failure; BLOCKED_INTERFACE, not business Red. Assertions added before production implementation.",
+  "fixture": "Public parser certificate only; original synthetic private key deleted with temporary directory"
+}

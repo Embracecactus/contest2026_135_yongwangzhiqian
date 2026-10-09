@@ -1,0 +1,3286 @@
+{
+  "schema_version": 1,
+  "production_baseline": "272b3b2f366cf9ac9ae510757ac4288f0c68d3a0",
+  "checkout_head": "413a9c97786d2340887f85f1f9dafadcf6d6c759",
+  "test_commit": "See submission commit; input hashes bind uncommitted test execution",
+  "agent_head": "62a304ea69c4076f0f3ef7955a9af69a5ed35277",
+  "production_before": "e593edc3d646f89ff1cc4185febe5ce0d70256523fd5f8f2f6b797824e75a150",
+  "production_after": "e593edc3d646f89ff1cc4185febe5ce0d70256523fd5f8f2f6b797824e75a150",
+  "production_unchanged": true,
+  "environment": {
+    "platform": "Linux-5.15.167.4-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+    "python": "3.10.12",
+    "cc": "cc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0",
+    "cmake": "cmake version 4.0.2",
+    "java": "openjdk version \"21.0.6\" 2025-01-21 LTS"
+  },
+  "inputs": {
+    "tests/host/bk7258/test_shaniu_config_contract.c": "402e810903d22f30327d7a6b4579334b0da53849df32c84b50b0d93d95746717",
+    "tests/host/bk7258/test_shaniu_focus_render.c": "7d630a1f80cbfd97a9c94dea8f5b54a78588cd49b098de64cf189b42b6c43672",
+    "tests/host/bk7258/test_shaniu_volume_transition.c": "2a46c4cb1375c6382736e10fb8472143cab433afb727b678416e71da11ef5441",
+    "tests/host/bk7258/test_shaniu_focus.c": "0b2fdb6525858c7f8db7068290be358b9c3d619c4c8bc5e2d780cdd2053ac403",
+    "tests/host/bk7258/test_shaniu_capture_release.py": "c9640777d4434031c9dc922b5b16df12b26b6a471e4a9ea86c25b811b3207675",
+    "tests/host/bk7258/test_shaniu_focus_pixels.c": "1fdb64d0a57fe8101209e3954e1e3fc93113f25b5096276ef90b34214d94e9d7",
+    "tests/host/bk7258/test_shaniu_config_restart.py": "a11762422ba0a4a387295f3dff8999cf0b964417455e857ab1c889f75212df3f",
+    "tests/host/bk7258/test_shaniu_control_quiesce.c": "3805034a5d5cbd46f7c80df3cfb636c0af1073cba750a96d44893c20de5da4b3",
+    "tests/host/bk7258/test_shaniu_runner_gate.py": "bca3bd907127160a4b826853e8b9788ed715e69aaa417b6bb7b1d73be4648b29",
+    "tests/host/bk7258/test_shaniu_power_contract.c": "8d235e869f86159926ea3ff97d28eb95186edb5c27f50e4065b28af74149501c",
+    "tests/host/bk7258/test_shaniu_usb_cleanup.c": "b13007514350026421d31005f3a987f2d47b44793e6581c80451cd6705770abf",
+    "tests/host/bk7258/test_shaniu_msc_stop.c": "cb787bfa7f14db52b16df586aeb7624ad870c4b3456161795a3a44382df21d76",
+    "tests/host/bk7258/test_shaniu_contracts.py": "79261f5d73f9cec6a3f1ce318ce23dd440e64442c2c621131e18f20e9ef30b12",
+    "tests/host/bk7258/test_shaniu_key_contract.c": "78bbad2ce5651d44f5b4595d178d3e98bd8b06496def5861c78c0c37d95cf113",
+    "tests/host/bk7258/test_shaniu_volume_contract.c": "4242eeb502a62fc4765c158abc6eef9e72b10defd58f18e4fc19a166cf13396a",
+    "tests/host/bk7258/test_shaniu_focus_wire.c": "4f03520ddef307eece0edb0c1e8acf7f2d0d7239b2da5260a66c5cbbe91585af",
+    "tests/host/bk7258/test_shaniu_power_pixels.c": "0223f454e414d5be53f8f82e1e22c9c2a58f71e40fcaef4f908ffac87402f600",
+    "tests/host/bk7258/acceptance/cases.v1.json": "10aa524f2dfc7434b8215989b5f9f1f411f502e4c5018f66233dffe34ef8bb43",
+    "tests/host/bk7258/acceptance/data-manifest.v1.json": "815d4a7555ab0b2a0de0b96904f18280e82240c557e8231239f418856e506948",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "9bc95d5abedfcd2e0e9f922d681a8b351ab1ca03144375dfb18eabdd979b937c",
+    "android/shaniu-companion/app/src/test/resources/shaniu/scp1-wifi.hex": "ac45928494cf0f3be56d0b0e203be782499ebfbae8b82c582d22cf124e573208",
+    "tests/host/bk7258/Makefile": "b300e9945425d3027c88d41eab4693f180a3b16b5bbdb6888cf8707a8177d33d",
+    "tests/host/bk7258/test_provision_owner.c": "2830e74653edffcb52aad906bd8d2149636e7ea9ec72ce28fd3a23ae99603774",
+    "tests/host/bk7258/test_bk7258_agent_media_player.c": "9216a818acc08b71d396e4e678014bb26ef6d6f966e656bb0bee50ed0ddf131f",
+    "tests/host/bk7258/test_bk7258_cloud_http.py": "f762e3dc482ce272132fee37edc88f576f3ddb9212fd0f606f57f6f24083af58",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/ota/OtaSelfSignedCertificateTest.kt": "66d993be00604a6ddf2c8ec8ce56a8805dc1df1db7d4b32980a0b5e6b4ba6eb5",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/ota/OtaUpdatePolicyTest.kt": "f71b791dd96d5d8d84b7a258a35147117e864e2863a2460702564e299de0aef1",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/ota/BkpackInspectorTest.kt": "7f216463fc313e22382c947ad2cdc04524ceeaac2e3b5a31203fbbb00ca2e253",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/ota/OtaControlUploadTest.kt": "5d91eb15779733fd31f365b8ae044b1fb6845401d309f6954d012ab361cc5ae6",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/ota/OtaHttpRangeTest.kt": "03fbd0977d86ed9c2341cd20d0512cca6214bc14d6e3cf79b4d1ef5bfbeb6a6e",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/ota/OtaSessionContractTest.kt": "2f7862782f64f5a843395787aa6a45b5bafa4bb08d04710f0a1da5ac93f1a3f7",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/ProvisionBootstrapDeviceIdTest.kt": "ff3bbad6e4f0b860fc89521b061dded144e6634e9b69736f467757cce1fe1999",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/ProvisionClaimProtocolTest.kt": "cc0da87fe7bbce4846d831c5bf75a959fdfafc7947ff135f7700229a01b35b90",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/FocusTimerControllerTest.kt": "86549ed1db3bcacc24ed85e9da7b32876c2f82a1d6482ee5d1593e26c9f43701",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/ProvisionActivationTest.kt": "d91eac620fc648d9a1de6545d20508d6a3530ce105b7d4607931209ea47aec1b",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/CloudSettingsTest.kt": "7e46d6f327cbb5e5c6f2f0ed9026a46784c719cba658e8170fa36abf0341302c",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DeviceControlPresentationTest.kt": "3ecff790b34dca896e06a75dad664c95e3a5464526a730f93cecd77f387d076d",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/ProvisionTlsTest.kt": "3330adcd3ce86c210464c2133e8ae2095c47b111369a749009f425e04794b0df",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/WifiScanProtocolTest.kt": "e708750794373d7dcc36701f7c42d2651a762f5a64d21d24dc612561565224f8",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/ProvisionBootstrapTest.kt": "b95c613ecbd73fc8cc3756a95c1743601260cfaa5c0754d2a55a3b09bc13c76b",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DeviceControlSessionTest.kt": "fdb7b65066583463875c2b0840e1775352b4c320a80d9faf37ec0816c3fe4f8a",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DeviceControlProtocolTest.kt": "25305d00de456ad03121014163237e77a889a6634b66bf03630af83879893387",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DeviceControlInteropTest.kt": "89c1e746f354a19ddb67345da7fd7ebf85dcffa583c421183584cb5bbe0de832",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/ProvisionSettingsTest.kt": "8827fcc1f75781aed9c8c7bb3342525435087292764b746702c2f58c264bc39a",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DeviceControlTlsInteropTest.kt": "05a67e073b035dbccb863abaec662ffe2ba40afc1f5bae068a3531cfe5c01c5b",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/ProvisionBindingStoreTest.kt": "acbf886c304786a9f011cf08e5146c55f000bf9442572407a91a93d721096256",
+    "android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/NfcHandoverProtocolTest.kt": "2d21bf2086ac871afbb5cbf66c4c6db96ad2690f33c971ac5784e0194208a529"
+  },
+  "capture_inputs": {
+    "packages/ai_agent/src/voice/audio_capture.c": "7a7899334d028a468e6548c8569a107b03e7e6b9986f621d9c3b093fb71addc8",
+    "packages/ai_agent/include/voice/audio_capture.h": "df65f59a60e384c5d171cda551c71d98624dbaa2513b7dcddee14912d105c668",
+    "contest2026_135_yongwangzhiqian/tests/host/bk7258/test_bk7258_agent_media_recorder.c": "f1f6b47b026d8450a4e0c647bd856935949906cc5a20f9a7436c13841c398552"
+  },
+  "public_ca_sha256": "d2d3e6d9d8f19ad1511dfbcf3847217c5a3f3b42837d1eadfe75485fca944fce",
+  "counts": {
+    "PASS": 119,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 56,
+      "counts": {
+        "PASS": 56,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "collection_errors": [],
+  "selected_execution_ids": [
+    "K2-01.release-2999",
+    "K2-01.release-3000",
+    "K2-01.release-3001",
+    "K2-01.held",
+    "K2-03.epoch",
+    "K2-03.rollback",
+    "K2-03.volume",
+    "MSC-01.unmount-failure",
+    "MSC-01.local-busy",
+    "MSC-01.wrong-owner",
+    "MSC-01.handoff",
+    "AUD-01.pcm-1",
+    "AUD-01.pcm-20260924",
+    "AUD-01.pcm-4294967295",
+    "AUD-03.cancel-late",
+    "AUD-01.sse-1",
+    "AUD-01.sse-20260924",
+    "K2-01.legacy-suite",
+    "MSC-02.legacy-suite",
+    "MOT-01.legacy-suite",
+    "NFC-01.legacy-suite",
+    "CFG-01.wifi-reopen",
+    "CFG-03.stale",
+    "CFG-03.conflict",
+    "CFG-03.keep-key",
+    "CFG-03.replace-key",
+    "CFG-03.clear-cloud",
+    "CFG-03.cross-host-retain",
+    "CFG-01.restored",
+    "MSC-01.restored",
+    "provision.DeviceControlSessionTest.writeWaitsBehindReadAndRequiresQuantizedReadback",
+    "provision.DeviceControlSessionTest.configCancelWaitsForInFlightAckAndPreventsOtherWriters",
+    "provision.DeviceControlSessionTest.otherActivityGraceAndForegroundReturnHaveDifferentPolicies",
+    "provision.DeviceControlSessionTest.claimHandoffDropsOldIdentityRetryAndCachedStatus",
+    "provision.DeviceControlSessionTest.ordinaryErrorIsNotDisconnectionAndDoesNotReplaceValue",
+    "provision.DeviceControlSessionTest.infoAndOtaDoNotReplaceStatusAndFragmentsStayContiguous",
+    "provision.DeviceControlSessionTest.failedReconnectKeepsOneCappedForegroundRetry",
+    "provision.DeviceControlSessionTest.graceDisconnectCannotReopenAnExplicitlyClosedSession",
+    "provision.DeviceControlSessionTest.tabsSubscribeTwentyTimesWithoutOpeningAnotherConnection",
+    "provision.DeviceControlSessionTest.failedConfigAckDoesNotReleaseStagingUntilExplicitCancel",
+    "provision.DeviceControlSessionTest.temporaryReadFailurePreservesConnectionAndUnconfirmedWrite",
+    "provision.DeviceControlSessionTest.reconnectDropsWritesAndOldCallbacksCannotPolluteNewState",
+    "provision.DeviceControlSessionTest.foregroundPollContinuesAcross120Seconds",
+    "provision.DeviceControlSessionTest.identityReleaseRejectsLateConfigResultAndDoesNotReplayIt",
+    "provision.ProvisionSettingsTest.rejectsMalformedInputsBeforeCreatingBundle",
+    "provision.ProvisionSettingsTest.packsCloudAndNetworkInOneTransaction",
+    "provision.ProvisionSettingsTest.revisionExhaustionAndEmptyOperationCannotProducePatch",
+    "provision.ProvisionSettingsTest.wifiOnlyPatchPreservesCloudAndBindsExpectedRevision",
+    "provision.ProvisionSettingsTest.ownerKeyIsBoundToTheSameCandidateAndCallerKeepsOwnership",
+    "provision.ProvisionSettingsTest.packsCompleteCandidateWithoutDeviceKeys",
+    "provision.ProvisionSettingsTest.reportsNetworkInputErrorsBeforeEndpointLookup",
+    "provision.ProvisionSettingsTest.rejectsMissingEntropyAndMalformedControlKeySizes",
+    "provision.ProvisionSettingsTest.CFG_03_wifiPatchMatchesIndependentGolden",
+    "provision.ProvisionSettingsTest.keepReplaceAndClearRemainDifferentPatchOperations",
+    "ota.OtaControlUploadTest.cancelWaitsForAcknowledgementAndHandlesStartRace",
+    "ota.OtaControlUploadTest.sendsBoundedChunksAndAcceptsOnlyStartAcknowledgement",
+    "ota.OtaControlUploadTest.lateAcknowledgementCannotOverwriteCanceledTerminalState",
+    "ota.OtaControlUploadTest.rejectsUnavailableTransportWithoutReplayAndAllowsMaximumRecord",
+    "ota.OtaControlUploadTest.closeCancelsWithoutSending",
+    "ota.OtaControlUploadTest.responseErrorsAndMismatchesFailAndDoNotReuseRecord",
+    "ota.OtaSessionContractTest.OTA_01_lateTransportCallbackIsFilteredBySession",
+    "ota.OtaSessionContractTest.OTA_01_cancelIsPendingUntilProtocolAcknowledges",
+    "ota.OtaSessionContractTest.OTA_01_lateWireAckCannotRestartCanceledUpload",
+    "K2-03.release-rollback",
+    "K2-03.combination",
+    "ota.OtaControlUploadTest.cancellationRequestWaitsForRemoteConfirmation",
+    "ota.OtaControlUploadTest.acceptedTerminalCannotBecomeCanceledFromLateAckOrClose",
+    "ota.OtaControlUploadTest.localCloseIgnoresLateAckWithoutClaimingRemoteCancellation",
+    "MSC-01.acquiring",
+    "MSC-01.releasing",
+    "MSC-01.retry",
+    "LIFE-02.capture-close-failure",
+    "LIFE-02.capture-route-failure",
+    "LIFE-02.power-normal",
+    "LIFE-02.power-admission-failure",
+    "LIFE-02.power-partial-failure",
+    "LIFE-02.power-cp-declined",
+    "LIFE-02.power-cp-unknown",
+    "LIFE-02.power-admission-stops-trigger",
+    "LIFE-02.power-storage-stops-trigger",
+    "LIFE-02.power-trigger-failure",
+    "LIFE-02.power-unpublished-trigger",
+    "LIFE-02.power-admission-drains",
+    "LIFE-02.power-failed-drains",
+    "NET-03.quiesce-queries",
+    "NET-03.quiesce-staging",
+    "NET-03.quiesce-config-staging",
+    "NET-03.quiesce-ota-commit",
+    "NET-03.quiesce-invalid",
+    "NET-03.owner-queries",
+    "NET-03.owner-unauthenticated",
+    "NET-03.owner-invalid-sequence",
+    "NET-03.owner-legacy",
+    "LIFE-02.power-final-close-drains",
+    "LIFE-01.owner-integration",
+    "LIFE-02.power-failure-display",
+    "DISP-01.power-pixels",
+    "STORE-02.file-sync-failure",
+    "STORE-02.file-sync-retry",
+    "STORE-02.directory-sync-unknown",
+    "STORE-02.restart-before-publish",
+    "STORE-02.restart-after-publish",
+    "MSC-01.backend-stop-normal",
+    "MSC-01.backend-stop-retry",
+    "MSC-01.backend-stop-start-cleanup",
+    "MSC-01.failed-start-handoff",
+    "AUD-03.media-tail",
+    "AUD-03.media-cancel-next",
+    "TIMER-01.clock",
+    "TIMER-01.replay",
+    "TIMER-01.invalid",
+    "TIMER-01.wire",
+    "provision.FocusTimerControllerTest.acceptedStartWaitsForDeviceReadback",
+    "provision.FocusTimerControllerTest.changedRevisionCannotProduceMixedSnapshot",
+    "provision.FocusTimerControllerTest.disconnectAndLateAckNeverReplayMutation",
+    "provision.FocusTimerControllerTest.unsupportedDeviceDoesNotStartLocalTimer",
+    "provision.FocusTimerControllerTest.rejectedBeginCannotCancelAnotherEditorsTransaction",
+    "TIMER-01.pixels",
+    "TIMER-01.render"
+  ],
+  "collected": [
+    {
+      "id": "K2-01.release-2999",
+      "parent": "K2-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0017421560041839257,
+      "evidence": "K2-01.release-2999.log",
+      "evidence_sha256": "b566fb5594f1425a70adc235402e883c0153ab83f7cbe93020c424599dca8ca2"
+    },
+    {
+      "id": "K2-01.release-3000",
+      "parent": "K2-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013584590051323175,
+      "evidence": "K2-01.release-3000.log",
+      "evidence_sha256": "fb2c02d2a1579306828470758749006b0e9c98e490485da59f0587a3965ec3ec"
+    },
+    {
+      "id": "K2-01.release-3001",
+      "parent": "K2-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013302459992701188,
+      "evidence": "K2-01.release-3001.log",
+      "evidence_sha256": "e06ae32ad7d1d81ee839949da7a326731c19f1e8c9bc9063d58e00bcdd7edb7b"
+    },
+    {
+      "id": "K2-01.held",
+      "parent": "K2-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013179329980630428,
+      "evidence": "K2-01.held.log",
+      "evidence_sha256": "abf891a99612f7823235598a316dab2523d00887e98408644858637b8e196eff"
+    },
+    {
+      "id": "K2-03.epoch",
+      "parent": "K2-03",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013356810086406767,
+      "evidence": "K2-03.epoch.log",
+      "evidence_sha256": "e9b04610a1448d803771bebeeaee92520b6ad64193edc168e85e48f7d0ead37b"
+    },
+    {
+      "id": "K2-03.rollback",
+      "parent": "K2-03",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0014210429944796488,
+      "evidence": "K2-03.rollback.log",
+      "evidence_sha256": "c7d3c671bb797ef26a2338642b33ff9191f90cd07b45f60ec344c88925a067ea"
+    },
+    {
+      "id": "K2-03.release-rollback",
+      "parent": "K2-03",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.001301129988860339,
+      "evidence": "K2-03.release-rollback.log",
+      "evidence_sha256": "5ec564b83147a0ff346ebd9325b0e479f25ff55175b237851c93578c485d1c25"
+    },
+    {
+      "id": "K2-03.combination",
+      "parent": "K2-03",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.001305629004491493,
+      "evidence": "K2-03.combination.log",
+      "evidence_sha256": "6e19cce93d04aba8678e5a1ccf98ea2ca6963b8695779524afdccb03ed09566a"
+    },
+    {
+      "id": "K2-03.volume",
+      "parent": "K2-03",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0012792390043614432,
+      "evidence": "K2-03.volume.log",
+      "evidence_sha256": "0cbb6281293165c6613af82108198588078d62a5831be3c664547dcfc6b6b63c"
+    },
+    {
+      "id": "DISP-01.power-pixels",
+      "parent": "DISP-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0016472059942316264,
+      "evidence": "DISP-01.power-pixels.log",
+      "evidence_sha256": "53d8bca3a4535c60256a8007d391dd0f3818054742829f9c637959c0b825a518"
+    },
+    {
+      "id": "MSC-01.failed-start-handoff",
+      "parent": "MSC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0016822890029288828,
+      "evidence": "MSC-01.failed-start-handoff.log",
+      "evidence_sha256": "d85281e07d5195212b1f51a0663934523d248d8edad398589106a6d89c30553a"
+    },
+    {
+      "id": "TIMER-01.pixels",
+      "parent": "TIMER-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0021135730057721958,
+      "evidence": "TIMER-01.pixels.log",
+      "evidence_sha256": "0ce0c52ebc4db8879f159316d376d08fabdc1356bc31bd1857d3b8fc63d49aaa"
+    },
+    {
+      "id": "TIMER-01.render",
+      "parent": "TIMER-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0014672950055683032,
+      "evidence": "TIMER-01.render.log",
+      "evidence_sha256": "c0d4b12aabd6e4a14ee4ac5a265f45def5cbbceb3540f3f6daf056b7f5c11594"
+    },
+    {
+      "id": "TIMER-01.clock",
+      "parent": "TIMER-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.001706825991277583,
+      "evidence": "TIMER-01.clock.log",
+      "evidence_sha256": "d3fa38c04593d59c5afcb11c8a64d6200ec8dff3ff25610f1bdcb711a8e1da9e"
+    },
+    {
+      "id": "TIMER-01.replay",
+      "parent": "TIMER-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013466109958244488,
+      "evidence": "TIMER-01.replay.log",
+      "evidence_sha256": "4387b26f2ba1e95878361f28ae873b379d513435b3e8c8309262d60dc6e8e824"
+    },
+    {
+      "id": "TIMER-01.invalid",
+      "parent": "TIMER-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013305070024216548,
+      "evidence": "TIMER-01.invalid.log",
+      "evidence_sha256": "ccca173a62e66f7fdea3492384623a7342cbf09d8967c829cb49dd24a8427493"
+    },
+    {
+      "id": "TIMER-01.wire",
+      "parent": "TIMER-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.001550875007524155,
+      "evidence": "TIMER-01.wire.log",
+      "evidence_sha256": "da4abb6a954a7d6c615dbe3a8ea22f6f4c387c88aa727a8a85918bd6c9599bb0"
+    },
+    {
+      "id": "AUD-03.media-tail",
+      "parent": "AUD-03",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.003704211994772777,
+      "evidence": "AUD-03.media-tail.log",
+      "evidence_sha256": "7289e38806f5f10ca129243f96cdbc2f41b5d94d84885ad381f2bed8706cd2d7"
+    },
+    {
+      "id": "AUD-03.media-cancel-next",
+      "parent": "AUD-03",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.007460735010681674,
+      "evidence": "AUD-03.media-cancel-next.log",
+      "evidence_sha256": "102470a9ba2abdb5fa2c0d2c903b86d5b7c452ed19238fcbadcdf654709d1b1e"
+    },
+    {
+      "id": "MSC-01.backend-stop-normal",
+      "parent": "MSC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0015363569982582703,
+      "evidence": "MSC-01.backend-stop-normal.log",
+      "evidence_sha256": "4fe5794b834d995d753a8a9cd4f6a6dbeb3aba1e33ab2f4c7e2759b306959b8e"
+    },
+    {
+      "id": "MSC-01.backend-stop-retry",
+      "parent": "MSC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013408049999270588,
+      "evidence": "MSC-01.backend-stop-retry.log",
+      "evidence_sha256": "b93538dc095dae8cebcbe6c5c3e9ae56fc512d50cc5c8c00d97cad41ab6ae804"
+    },
+    {
+      "id": "MSC-01.backend-stop-start-cleanup",
+      "parent": "MSC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.001364609008305706,
+      "evidence": "MSC-01.backend-stop-start-cleanup.log",
+      "evidence_sha256": "d7d25628821963aef78e9a9548119d93148677cec923984cfa258c664cdaa61f"
+    },
+    {
+      "id": "LIFE-02.power-normal",
+      "parent": "LIFE-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0016031830018619075,
+      "evidence": "LIFE-02.power-normal.log",
+      "evidence_sha256": "8d4f3caa9b3769cfd2ca37b5ddd31b81ea855593cadc55b12484727aa415198d"
+    },
+    {
+      "id": "LIFE-02.power-admission-failure",
+      "parent": "LIFE-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0014513219939544797,
+      "evidence": "LIFE-02.power-admission-failure.log",
+      "evidence_sha256": "0cc1981f8e3cf0a0b983792bc8f53bad02844227e675c0ed2e5f6733835181ce"
+    },
+    {
+      "id": "LIFE-02.power-partial-failure",
+      "parent": "LIFE-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.001314319990342483,
+      "evidence": "LIFE-02.power-partial-failure.log",
+      "evidence_sha256": "a626236e7d7715bcdbb4ec51ad404dd53ff692363d600feec86eb5cbe183f3b7"
+    },
+    {
+      "id": "LIFE-02.power-cp-declined",
+      "parent": "LIFE-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013186839933041483,
+      "evidence": "LIFE-02.power-cp-declined.log",
+      "evidence_sha256": "1512411e2dd5209c2a8ce0d614db0e9e4f04b696453678f8d8407086201add7d"
+    },
+    {
+      "id": "LIFE-02.power-cp-unknown",
+      "parent": "LIFE-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.001337815003353171,
+      "evidence": "LIFE-02.power-cp-unknown.log",
+      "evidence_sha256": "03c70ed1380c4ef446e941cf68609fb803982a4a3e7fb0c048cf9fb5d116fef3"
+    },
+    {
+      "id": "LIFE-02.power-admission-stops-trigger",
+      "parent": "LIFE-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0014211520028766245,
+      "evidence": "LIFE-02.power-admission-stops-trigger.log",
+      "evidence_sha256": "1f0f107f876d2f7a1c5bdffbee0c0983f08bd19907730d015fc734bb6c615752"
+    },
+    {
+      "id": "LIFE-02.power-storage-stops-trigger",
+      "parent": "LIFE-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013178419903852046,
+      "evidence": "LIFE-02.power-storage-stops-trigger.log",
+      "evidence_sha256": "ef6e8ed7adf36bafa024214556f439743f8351e687c0db1575e4fe1abd1900a5"
+    },
+    {
+      "id": "LIFE-02.power-trigger-failure",
+      "parent": "LIFE-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013521380024030805,
+      "evidence": "LIFE-02.power-trigger-failure.log",
+      "evidence_sha256": "9abdb0b09f18267eb0af73a2129a9ad2d90fb524e18b2c97855d066f03099eac"
+    },
+    {
+      "id": "LIFE-02.power-unpublished-trigger",
+      "parent": "LIFE-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0014919520035618916,
+      "evidence": "LIFE-02.power-unpublished-trigger.log",
+      "evidence_sha256": "621c7064ad37f0f79324d687aa52edc1816ba673c21b25aec4eb21b3f6173839"
+    },
+    {
+      "id": "LIFE-02.power-admission-drains",
+      "parent": "LIFE-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013739489950239658,
+      "evidence": "LIFE-02.power-admission-drains.log",
+      "evidence_sha256": "cc76eab9f1e852ec078dc4423a0fb1eefbc00fd3ff2878afe707c6b5edefe3de"
+    },
+    {
+      "id": "LIFE-02.power-failed-drains",
+      "parent": "LIFE-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013613429910037667,
+      "evidence": "LIFE-02.power-failed-drains.log",
+      "evidence_sha256": "882495fd67ee2c8e85b37597c9e6ce0614c90852ca0fcb5e7f4e68e0b777357d"
+    },
+    {
+      "id": "LIFE-02.power-final-close-drains",
+      "parent": "LIFE-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013953689922345802,
+      "evidence": "LIFE-02.power-final-close-drains.log",
+      "evidence_sha256": "948bf3fd3c61699e22b1e4aa7ff0105a22d6974e1a7c88afc305008650b6876e"
+    },
+    {
+      "id": "LIFE-02.power-failure-display",
+      "parent": "LIFE-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.001287773993681185,
+      "evidence": "LIFE-02.power-failure-display.log",
+      "evidence_sha256": "22495ddc585515be22a5f1f66248603aa61f5af60ff6d57c86f046c28489b6c9"
+    },
+    {
+      "id": "NET-03.quiesce-queries",
+      "parent": "NET-03",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0017489510064478964,
+      "evidence": "NET-03.quiesce-queries.log",
+      "evidence_sha256": "631d5c2e93130d00895d91a3572309fdadd6e17e431e3e25aa4f8ff21d60c4e6"
+    },
+    {
+      "id": "NET-03.quiesce-staging",
+      "parent": "NET-03",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013683670113096014,
+      "evidence": "NET-03.quiesce-staging.log",
+      "evidence_sha256": "5e856cebd82add0b9c080dfb4ec3d6fab58a74e7a3db6b93e248343c9ee6fc6a"
+    },
+    {
+      "id": "NET-03.quiesce-config-staging",
+      "parent": "NET-03",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.00128774500626605,
+      "evidence": "NET-03.quiesce-config-staging.log",
+      "evidence_sha256": "40f64a65fde18f891053b9ade59e2a99d00bd175cfe14862ae75d80092a61cc5"
+    },
+    {
+      "id": "NET-03.quiesce-ota-commit",
+      "parent": "NET-03",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013039059995207936,
+      "evidence": "NET-03.quiesce-ota-commit.log",
+      "evidence_sha256": "25c80b299294c36776ea54905a9d04cc64a58744e3f9ed4e543900f98ea23c0b"
+    },
+    {
+      "id": "NET-03.quiesce-invalid",
+      "parent": "NET-03",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013687479950021952,
+      "evidence": "NET-03.quiesce-invalid.log",
+      "evidence_sha256": "9672ae851d115cda6d49a7727ff538031a6661043f47d97818a2627145f992d1"
+    },
+    {
+      "id": "NET-03.owner-queries",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0015126829966902733,
+      "evidence": "NET-03.owner-queries.log",
+      "evidence_sha256": "e60add3b6473afaf332d2dfeaef721f98f647c1b4ffa468794ccd283b6b58c66"
+    },
+    {
+      "id": "NET-03.owner-unauthenticated",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.001381734007736668,
+      "evidence": "NET-03.owner-unauthenticated.log",
+      "evidence_sha256": "17da5d7f57a5884aa7da53a7a2e3cfdd66dbe7e428bc274e085f63f2bfd45688"
+    },
+    {
+      "id": "NET-03.owner-invalid-sequence",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013125519908498973,
+      "evidence": "NET-03.owner-invalid-sequence.log",
+      "evidence_sha256": "ed8a59425602a51484caf7857dab3d809ad4f89cbb0871b1b3d9ea2f95e9a9ac"
+    },
+    {
+      "id": "NET-03.owner-legacy",
+      "parent": "NET-03",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0014045049902051687,
+      "evidence": "NET-03.owner-legacy.log",
+      "evidence_sha256": "b8c58d1d1d4cc4964f00158187cab0f67e21ced6a557bdb8c6c654f021feaeef"
+    },
+    {
+      "id": "LIFE-01.owner-integration",
+      "parent": "LIFE-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0015669349959352985,
+      "evidence": "LIFE-01.owner-integration.log",
+      "evidence_sha256": "0aef1491f68126550961d666448f3039507c84460cd620c583fbb3365665799b"
+    },
+    {
+      "id": "LIFE-02.capture-close-failure",
+      "parent": "LIFE-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.2647329679894028,
+      "evidence": "LIFE-02.capture-close-failure.log",
+      "evidence_sha256": "e8a913e66aed31a7193ac6b900050428d86449df0ab72962b608a076d24e8077"
+    },
+    {
+      "id": "LIFE-02.capture-route-failure",
+      "parent": "LIFE-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.2647039909934392,
+      "evidence": "LIFE-02.capture-route-failure.log",
+      "evidence_sha256": "38a67bb19b33eba70194173604ad30f7921162c453655e58715cb12dd9b5d9fa"
+    },
+    {
+      "id": "MSC-01.acquiring",
+      "parent": "MSC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.005535310003324412,
+      "evidence": "MSC-01.acquiring.log",
+      "evidence_sha256": "59f0b79dd8ede0d64aa94fad0958f93e67e640f09ce1add3bb983b96e2dcf5f6"
+    },
+    {
+      "id": "MSC-01.releasing",
+      "parent": "MSC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0014534299989463761,
+      "evidence": "MSC-01.releasing.log",
+      "evidence_sha256": "a22040b6e661b725458cf998119e1ac79074821578b15a5b60c9981c6d9be7bd"
+    },
+    {
+      "id": "MSC-01.retry",
+      "parent": "MSC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0014423669927055016,
+      "evidence": "MSC-01.retry.log",
+      "evidence_sha256": "43daf61acd83b160e3626ac3ed84f57ff9e9567484c3770913bfbe4f55618834"
+    },
+    {
+      "id": "MSC-01.unmount-failure",
+      "parent": "MSC-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0017205759941134602,
+      "evidence": "MSC-01.unmount-failure.log",
+      "evidence_sha256": "a7efe770929bec81e58207bc8742134f1041165ec5a062a81136dafeedba52b1"
+    },
+    {
+      "id": "MSC-01.local-busy",
+      "parent": "MSC-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0014756730088265613,
+      "evidence": "MSC-01.local-busy.log",
+      "evidence_sha256": "18fb737932f5a911f17759c16e88f73a49098e8353908ec5f28a3279974d928e"
+    },
+    {
+      "id": "MSC-01.wrong-owner",
+      "parent": "MSC-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0013287269975990057,
+      "evidence": "MSC-01.wrong-owner.log",
+      "evidence_sha256": "6b360a6b37d4643d712887804edd8e5c0264b58b5cf6b115427b0b7d240d189f"
+    },
+    {
+      "id": "MSC-01.handoff",
+      "parent": "MSC-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.001360246998956427,
+      "evidence": "MSC-01.handoff.log",
+      "evidence_sha256": "1d3b3e9086bb6e645cdb7fff10837300583a233b8b8248c37ecf29f8d77a0caf"
+    },
+    {
+      "id": "AUD-01.pcm-1",
+      "parent": "AUD-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.11425993200100493,
+      "evidence": "AUD-01.pcm-1.log",
+      "evidence_sha256": "6b825861d6a8cd7ee0143d78a44db3ff3b5aa5f308e522ef53fa2ab91e862638"
+    },
+    {
+      "id": "AUD-01.pcm-20260924",
+      "parent": "AUD-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.11433363299875055,
+      "evidence": "AUD-01.pcm-20260924.log",
+      "evidence_sha256": "aca8b2661965c630906e56827f8c45953f4e938181c74650be28f6a76a10fcd9"
+    },
+    {
+      "id": "AUD-01.pcm-4294967295",
+      "parent": "AUD-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.1143848609935958,
+      "evidence": "AUD-01.pcm-4294967295.log",
+      "evidence_sha256": "dc275e55d5855121fbbf1b11dad079c51483a3239624d9233ac8a08b796af54a"
+    },
+    {
+      "id": "AUD-03.cancel-late",
+      "parent": "AUD-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.007719784989603795,
+      "evidence": "AUD-03.cancel-late.log",
+      "evidence_sha256": "7ad4368133a47348085f387160ff4b128d67f2bc6e57c0a7479b270c8ad1e126"
+    },
+    {
+      "id": "AUD-01.sse-1",
+      "parent": "AUD-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.01576362799096387,
+      "evidence": "AUD-01.sse-1.log",
+      "evidence_sha256": "b86b4ec28c2f74be7e100899931688d90b3c81b3eefdb7a8089e67f50c68479c"
+    },
+    {
+      "id": "AUD-01.sse-20260924",
+      "parent": "AUD-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.01580405300774146,
+      "evidence": "AUD-01.sse-20260924.log",
+      "evidence_sha256": "17dc299cb665d635e2bcde61c13aa923062bdc0ccfc2658453380a3142fdb2af"
+    },
+    {
+      "id": "K2-01.legacy-suite",
+      "parent": "K2-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.005423869006335735,
+      "evidence": "K2-01.legacy-suite.log",
+      "evidence_sha256": "ea80bc19f967b5402be8192068925930a0de093a2727e93cde9e5d5a3e3dc0bf"
+    },
+    {
+      "id": "MSC-02.legacy-suite",
+      "parent": "MSC-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0016347540076822042,
+      "evidence": "MSC-02.legacy-suite.log",
+      "evidence_sha256": "0d5939e4ae15ebada68484ffac9535afc11d4425a141cd356e2c1933f10b5faf"
+    },
+    {
+      "id": "MOT-01.legacy-suite",
+      "parent": "MOT-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0016948979900917038,
+      "evidence": "MOT-01.legacy-suite.log",
+      "evidence_sha256": "9cfd0e033585e8fe373dd126206711a5c65192e609ae038fa200807a8d59c33b"
+    },
+    {
+      "id": "NFC-01.legacy-suite",
+      "parent": "NFC-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0015696890040999278,
+      "evidence": "NFC-01.legacy-suite.log",
+      "evidence_sha256": "b6055320a00a8b9ee26dae19bfb2b3f3274cbe61768abdc7ad8f94b53ef29101"
+    },
+    {
+      "id": "CFG-01.wifi-reopen",
+      "parent": "CFG-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0318261720094597,
+      "evidence": "CFG-01.wifi-reopen.log",
+      "evidence_sha256": "5345c8a9972e921b9a099d4be5f0e2e65a0671bc5c58c3b31bd82fff4162af3b"
+    },
+    {
+      "id": "STORE-02.file-sync-failure",
+      "parent": "STORE-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.031932163998135366,
+      "evidence": "STORE-02.file-sync-failure.log",
+      "evidence_sha256": "8bd7804021aa045749308acc0ebadfde742e2d99ee91a91db58c354deac677ce"
+    },
+    {
+      "id": "STORE-02.file-sync-retry",
+      "parent": "STORE-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.031960659005562775,
+      "evidence": "STORE-02.file-sync-retry.log",
+      "evidence_sha256": "33232af0c590ace3d1da3e44cf3f07b6a787d168f03d0e42763814f96462cbcc"
+    },
+    {
+      "id": "STORE-02.directory-sync-unknown",
+      "parent": "STORE-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0319031469989568,
+      "evidence": "STORE-02.directory-sync-unknown.log",
+      "evidence_sha256": "228b6935424d40c79711e3f5ec12d9e4639be3deab0e485ff29ee3abe1d428ca"
+    },
+    {
+      "id": "CFG-03.stale",
+      "parent": "CFG-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.03206205999595113,
+      "evidence": "CFG-03.stale.log",
+      "evidence_sha256": "89a55d15258f88a6386f2f04e33dc65ec5ee8e795224235790b49faa60e74c8a"
+    },
+    {
+      "id": "CFG-03.conflict",
+      "parent": "CFG-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.03209167899331078,
+      "evidence": "CFG-03.conflict.log",
+      "evidence_sha256": "cbad1f004ea69a7f20ebbf15ff739965c5774443b89606cb459d7b060865ca92"
+    },
+    {
+      "id": "CFG-03.keep-key",
+      "parent": "CFG-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.03200413899321575,
+      "evidence": "CFG-03.keep-key.log",
+      "evidence_sha256": "50aec79f2d3b4640de1afe7bc9b0bebf867ec04a7485c6bf941f470b5d4adfc4"
+    },
+    {
+      "id": "CFG-03.replace-key",
+      "parent": "CFG-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.03187278199766297,
+      "evidence": "CFG-03.replace-key.log",
+      "evidence_sha256": "477493a3a063227c676f00d3a09131afa61a9c09decf91c80b66707a9a41e30a"
+    },
+    {
+      "id": "CFG-03.clear-cloud",
+      "parent": "CFG-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.03186945400375407,
+      "evidence": "CFG-03.clear-cloud.log",
+      "evidence_sha256": "1e6da06d303de384078262ddd3345b81d9df9c6046ab214b2050314934a43542"
+    },
+    {
+      "id": "CFG-03.cross-host-retain",
+      "parent": "CFG-03",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.031939967986545525,
+      "evidence": "CFG-03.cross-host-retain.log",
+      "evidence_sha256": "2debbc8202c2bf9f3f94b04fe8e27ebc485036c02755f88e15843f5cf803e4ec"
+    },
+    {
+      "id": "STORE-02.restart-before-publish",
+      "parent": "STORE-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.06421690600109287,
+      "evidence": "STORE-02.restart-before-publish.log",
+      "evidence_sha256": "799106d213355ed0548455fc616aa87045996b981865db77586c247cf354e27d"
+    },
+    {
+      "id": "STORE-02.restart-after-publish",
+      "parent": "STORE-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.06443447900528554,
+      "evidence": "STORE-02.restart-after-publish.log",
+      "evidence_sha256": "b7258e85011720e250e48546e842d38aa99e1b69f76a21e98e201a90280b08e0"
+    },
+    {
+      "id": "CFG-01.restored",
+      "parent": "CFG-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.06420669599901885,
+      "evidence": "CFG-01.restored.log",
+      "evidence_sha256": "36a05b68535713c84d33defd3bae56efc4bfd87aa20fe2887b39019469bf0ac4"
+    },
+    {
+      "id": "MSC-01.restored",
+      "parent": "MSC-01",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.0016368470096495003,
+      "evidence": "MSC-01.restored.log",
+      "evidence_sha256": "a7efe770929bec81e58207bc8742134f1041165ec5a062a81136dafeedba52b1"
+    },
+    {
+      "id": "provision.DeviceControlSessionTest.writeWaitsBehindReadAndRequiresQuantizedReadback",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.009,
+      "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml",
+      "evidence_sha256": "345aa7fea9a86716615a936441d0dcacc12cc3688c441375029768a4e7ad08b8"
+    },
+    {
+      "id": "provision.DeviceControlSessionTest.configCancelWaitsForInFlightAckAndPreventsOtherWriters",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml",
+      "evidence_sha256": "345aa7fea9a86716615a936441d0dcacc12cc3688c441375029768a4e7ad08b8"
+    },
+    {
+      "id": "provision.DeviceControlSessionTest.otherActivityGraceAndForegroundReturnHaveDifferentPolicies",
+      "parent": "UI-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml",
+      "evidence_sha256": "345aa7fea9a86716615a936441d0dcacc12cc3688c441375029768a4e7ad08b8"
+    },
+    {
+      "id": "provision.DeviceControlSessionTest.claimHandoffDropsOldIdentityRetryAndCachedStatus",
+      "parent": "UI-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.002,
+      "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml",
+      "evidence_sha256": "345aa7fea9a86716615a936441d0dcacc12cc3688c441375029768a4e7ad08b8"
+    },
+    {
+      "id": "provision.DeviceControlSessionTest.ordinaryErrorIsNotDisconnectionAndDoesNotReplaceValue",
+      "parent": "UI-01",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.004,
+      "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml",
+      "evidence_sha256": "345aa7fea9a86716615a936441d0dcacc12cc3688c441375029768a4e7ad08b8"
+    },
+    {
+      "id": "provision.DeviceControlSessionTest.infoAndOtaDoNotReplaceStatusAndFragmentsStayContiguous",
+      "parent": "OTA-01",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml",
+      "evidence_sha256": "345aa7fea9a86716615a936441d0dcacc12cc3688c441375029768a4e7ad08b8"
+    },
+    {
+      "id": "provision.DeviceControlSessionTest.failedReconnectKeepsOneCappedForegroundRetry",
+      "parent": "NET-01",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml",
+      "evidence_sha256": "345aa7fea9a86716615a936441d0dcacc12cc3688c441375029768a4e7ad08b8"
+    },
+    {
+      "id": "provision.DeviceControlSessionTest.graceDisconnectCannotReopenAnExplicitlyClosedSession",
+      "parent": "UI-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml",
+      "evidence_sha256": "345aa7fea9a86716615a936441d0dcacc12cc3688c441375029768a4e7ad08b8"
+    },
+    {
+      "id": "provision.DeviceControlSessionTest.tabsSubscribeTwentyTimesWithoutOpeningAnotherConnection",
+      "parent": "UI-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml",
+      "evidence_sha256": "345aa7fea9a86716615a936441d0dcacc12cc3688c441375029768a4e7ad08b8"
+    },
+    {
+      "id": "provision.DeviceControlSessionTest.failedConfigAckDoesNotReleaseStagingUntilExplicitCancel",
+      "parent": "NET-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml",
+      "evidence_sha256": "345aa7fea9a86716615a936441d0dcacc12cc3688c441375029768a4e7ad08b8"
+    },
+    {
+      "id": "provision.DeviceControlSessionTest.temporaryReadFailurePreservesConnectionAndUnconfirmedWrite",
+      "parent": "NET-01",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.004,
+      "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml",
+      "evidence_sha256": "345aa7fea9a86716615a936441d0dcacc12cc3688c441375029768a4e7ad08b8"
+    },
+    {
+      "id": "provision.DeviceControlSessionTest.reconnectDropsWritesAndOldCallbacksCannotPolluteNewState",
+      "parent": "NET-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml",
+      "evidence_sha256": "345aa7fea9a86716615a936441d0dcacc12cc3688c441375029768a4e7ad08b8"
+    },
+    {
+      "id": "provision.DeviceControlSessionTest.foregroundPollContinuesAcross120Seconds",
+      "parent": "NET-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.002,
+      "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml",
+      "evidence_sha256": "345aa7fea9a86716615a936441d0dcacc12cc3688c441375029768a4e7ad08b8"
+    },
+    {
+      "id": "provision.DeviceControlSessionTest.identityReleaseRejectsLateConfigResultAndDoesNotReplayIt",
+      "parent": "UI-03",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.DeviceControlSessionTest.xml",
+      "evidence_sha256": "345aa7fea9a86716615a936441d0dcacc12cc3688c441375029768a4e7ad08b8"
+    },
+    {
+      "id": "provision.ProvisionSettingsTest.rejectsMalformedInputsBeforeCreatingBundle",
+      "parent": "CFG-03",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.005,
+      "evidence": "TEST-com.shaniu.companion.provision.ProvisionSettingsTest.xml",
+      "evidence_sha256": "3ffc6ff321055b8339972e98aafd85a06fc239779ccc374e4ec9da685ab8efdf"
+    },
+    {
+      "id": "provision.ProvisionSettingsTest.packsCloudAndNetworkInOneTransaction",
+      "parent": "CFG-03",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.ProvisionSettingsTest.xml",
+      "evidence_sha256": "3ffc6ff321055b8339972e98aafd85a06fc239779ccc374e4ec9da685ab8efdf"
+    },
+    {
+      "id": "provision.ProvisionSettingsTest.revisionExhaustionAndEmptyOperationCannotProducePatch",
+      "parent": "CFG-03",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.ProvisionSettingsTest.xml",
+      "evidence_sha256": "3ffc6ff321055b8339972e98aafd85a06fc239779ccc374e4ec9da685ab8efdf"
+    },
+    {
+      "id": "provision.ProvisionSettingsTest.wifiOnlyPatchPreservesCloudAndBindsExpectedRevision",
+      "parent": "CFG-03",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.ProvisionSettingsTest.xml",
+      "evidence_sha256": "3ffc6ff321055b8339972e98aafd85a06fc239779ccc374e4ec9da685ab8efdf"
+    },
+    {
+      "id": "provision.ProvisionSettingsTest.ownerKeyIsBoundToTheSameCandidateAndCallerKeepsOwnership",
+      "parent": "CFG-03",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.002,
+      "evidence": "TEST-com.shaniu.companion.provision.ProvisionSettingsTest.xml",
+      "evidence_sha256": "3ffc6ff321055b8339972e98aafd85a06fc239779ccc374e4ec9da685ab8efdf"
+    },
+    {
+      "id": "provision.ProvisionSettingsTest.packsCompleteCandidateWithoutDeviceKeys",
+      "parent": "CFG-03",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.ProvisionSettingsTest.xml",
+      "evidence_sha256": "3ffc6ff321055b8339972e98aafd85a06fc239779ccc374e4ec9da685ab8efdf"
+    },
+    {
+      "id": "provision.ProvisionSettingsTest.reportsNetworkInputErrorsBeforeEndpointLookup",
+      "parent": "CFG-03",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.ProvisionSettingsTest.xml",
+      "evidence_sha256": "3ffc6ff321055b8339972e98aafd85a06fc239779ccc374e4ec9da685ab8efdf"
+    },
+    {
+      "id": "provision.ProvisionSettingsTest.rejectsMissingEntropyAndMalformedControlKeySizes",
+      "parent": "CFG-03",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.ProvisionSettingsTest.xml",
+      "evidence_sha256": "3ffc6ff321055b8339972e98aafd85a06fc239779ccc374e4ec9da685ab8efdf"
+    },
+    {
+      "id": "provision.ProvisionSettingsTest.CFG_03_wifiPatchMatchesIndependentGolden",
+      "parent": "CFG-03",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.003,
+      "evidence": "TEST-com.shaniu.companion.provision.ProvisionSettingsTest.xml",
+      "evidence_sha256": "3ffc6ff321055b8339972e98aafd85a06fc239779ccc374e4ec9da685ab8efdf"
+    },
+    {
+      "id": "provision.ProvisionSettingsTest.keepReplaceAndClearRemainDifferentPatchOperations",
+      "parent": "CFG-03",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.ProvisionSettingsTest.xml",
+      "evidence_sha256": "3ffc6ff321055b8339972e98aafd85a06fc239779ccc374e4ec9da685ab8efdf"
+    },
+    {
+      "id": "provision.FocusTimerControllerTest.acceptedStartWaitsForDeviceReadback",
+      "parent": "TIMER-01",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.008,
+      "evidence": "TEST-com.shaniu.companion.provision.FocusTimerControllerTest.xml",
+      "evidence_sha256": "894d78c3f675462a444c995313558676115b9ac179dbca875e0870b7c225d08f"
+    },
+    {
+      "id": "provision.FocusTimerControllerTest.rejectedBeginCannotCancelAnotherEditorsTransaction",
+      "parent": "TIMER-01",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.FocusTimerControllerTest.xml",
+      "evidence_sha256": "894d78c3f675462a444c995313558676115b9ac179dbca875e0870b7c225d08f"
+    },
+    {
+      "id": "provision.FocusTimerControllerTest.changedRevisionCannotProduceMixedSnapshot",
+      "parent": "TIMER-01",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.FocusTimerControllerTest.xml",
+      "evidence_sha256": "894d78c3f675462a444c995313558676115b9ac179dbca875e0870b7c225d08f"
+    },
+    {
+      "id": "provision.FocusTimerControllerTest.unsupportedDeviceDoesNotStartLocalTimer",
+      "parent": "TIMER-01",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.FocusTimerControllerTest.xml",
+      "evidence_sha256": "894d78c3f675462a444c995313558676115b9ac179dbca875e0870b7c225d08f"
+    },
+    {
+      "id": "provision.FocusTimerControllerTest.disconnectAndLateAckNeverReplayMutation",
+      "parent": "TIMER-01",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.FocusTimerControllerTest.xml",
+      "evidence_sha256": "894d78c3f675462a444c995313558676115b9ac179dbca875e0870b7c225d08f"
+    },
+    {
+      "id": "ota.OtaControlUploadTest.cancelWaitsForAcknowledgementAndHandlesStartRace",
+      "parent": "OTA-01",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.019,
+      "evidence": "TEST-com.shaniu.companion.ota.OtaControlUploadTest.xml",
+      "evidence_sha256": "9ab50b1421835ff1b93a73bcedad828b06b8db6b75394efdd894509db99ffb2c"
+    },
+    {
+      "id": "ota.OtaControlUploadTest.sendsBoundedChunksAndAcceptsOnlyStartAcknowledgement",
+      "parent": "OTA-01",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.002,
+      "evidence": "TEST-com.shaniu.companion.ota.OtaControlUploadTest.xml",
+      "evidence_sha256": "9ab50b1421835ff1b93a73bcedad828b06b8db6b75394efdd894509db99ffb2c"
+    },
+    {
+      "id": "ota.OtaControlUploadTest.cancellationRequestWaitsForRemoteConfirmation",
+      "parent": "OTA-01",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.ota.OtaControlUploadTest.xml",
+      "evidence_sha256": "9ab50b1421835ff1b93a73bcedad828b06b8db6b75394efdd894509db99ffb2c"
+    },
+    {
+      "id": "ota.OtaControlUploadTest.acceptedTerminalCannotBecomeCanceledFromLateAckOrClose",
+      "parent": "OTA-01",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.ota.OtaControlUploadTest.xml",
+      "evidence_sha256": "9ab50b1421835ff1b93a73bcedad828b06b8db6b75394efdd894509db99ffb2c"
+    },
+    {
+      "id": "ota.OtaControlUploadTest.lateAcknowledgementCannotOverwriteCanceledTerminalState",
+      "parent": "OTA-01",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.ota.OtaControlUploadTest.xml",
+      "evidence_sha256": "9ab50b1421835ff1b93a73bcedad828b06b8db6b75394efdd894509db99ffb2c"
+    },
+    {
+      "id": "ota.OtaControlUploadTest.rejectsUnavailableTransportWithoutReplayAndAllowsMaximumRecord",
+      "parent": "OTA-01",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.ota.OtaControlUploadTest.xml",
+      "evidence_sha256": "9ab50b1421835ff1b93a73bcedad828b06b8db6b75394efdd894509db99ffb2c"
+    },
+    {
+      "id": "ota.OtaControlUploadTest.localCloseIgnoresLateAckWithoutClaimingRemoteCancellation",
+      "parent": "OTA-01",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.ota.OtaControlUploadTest.xml",
+      "evidence_sha256": "9ab50b1421835ff1b93a73bcedad828b06b8db6b75394efdd894509db99ffb2c"
+    },
+    {
+      "id": "ota.OtaControlUploadTest.closeCancelsWithoutSending",
+      "parent": "OTA-01",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.ota.OtaControlUploadTest.xml",
+      "evidence_sha256": "9ab50b1421835ff1b93a73bcedad828b06b8db6b75394efdd894509db99ffb2c"
+    },
+    {
+      "id": "ota.OtaControlUploadTest.responseErrorsAndMismatchesFailAndDoNotReuseRecord",
+      "parent": "OTA-01",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.ota.OtaControlUploadTest.xml",
+      "evidence_sha256": "9ab50b1421835ff1b93a73bcedad828b06b8db6b75394efdd894509db99ffb2c"
+    },
+    {
+      "id": "ota.OtaSessionContractTest.OTA_01_lateTransportCallbackIsFilteredBySession",
+      "parent": "OTA-01",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.013,
+      "evidence": "TEST-com.shaniu.companion.ota.OtaSessionContractTest.xml",
+      "evidence_sha256": "2d02c79f741a6580b33296290ba2ca4925f450026a419e9e131a001b131dca78"
+    },
+    {
+      "id": "ota.OtaSessionContractTest.OTA_01_cancelIsPendingUntilProtocolAcknowledges",
+      "parent": "OTA-01",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.ota.OtaSessionContractTest.xml",
+      "evidence_sha256": "2d02c79f741a6580b33296290ba2ca4925f450026a419e9e131a001b131dca78"
+    },
+    {
+      "id": "ota.OtaSessionContractTest.OTA_01_lateWireAckCannotRestartCanceledUpload",
+      "parent": "OTA-01",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.ota.OtaSessionContractTest.xml",
+      "evidence_sha256": "2d02c79f741a6580b33296290ba2ca4925f450026a419e9e131a001b131dca78"
+    }
+  ],
+  "cases": [
+    {
+      "id": "K2-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "K2-01.release-2999",
+        "K2-01.release-3000",
+        "K2-01.release-3001",
+        "K2-01.held",
+        "K2-01.legacy-suite"
+      ],
+      "outstanding_layers": [
+        "L1",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L1": {
+          "status": "PARTIAL",
+          "collected": [
+            "K2-01.release-2999",
+            "K2-01.release-3000",
+            "K2-01.release-3001",
+            "K2-01.held",
+            "K2-01.legacy-suite"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "keys"
+      },
+      "binding": "keys",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "K2-02",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L1",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L1": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "power"
+      },
+      "binding": "power",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "K2-03",
+      "status": "NOT_RUN",
+      "collected": [
+        "K2-03.epoch",
+        "K2-03.rollback",
+        "K2-03.release-rollback",
+        "K2-03.combination",
+        "K2-03.volume"
+      ],
+      "outstanding_layers": [
+        "L1"
+      ],
+      "evidence_by_layer": {
+        "L1": {
+          "status": "PARTIAL",
+          "collected": [
+            "K2-03.epoch",
+            "K2-03.rollback",
+            "K2-03.release-rollback",
+            "K2-03.combination",
+            "K2-03.volume"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "keys"
+      },
+      "binding": "keys",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "LIFE-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "LIFE-01.owner-integration"
+      ],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "LIFE-01.owner-integration"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "power"
+      },
+      "binding": "power",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "LIFE-02",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "LIFE-02.power-normal",
+        "LIFE-02.power-admission-failure",
+        "LIFE-02.power-partial-failure",
+        "LIFE-02.power-cp-declined",
+        "LIFE-02.power-cp-unknown",
+        "LIFE-02.power-admission-stops-trigger",
+        "LIFE-02.power-storage-stops-trigger",
+        "LIFE-02.power-trigger-failure",
+        "LIFE-02.power-unpublished-trigger",
+        "LIFE-02.power-admission-drains",
+        "LIFE-02.power-failed-drains",
+        "LIFE-02.power-final-close-drains",
+        "LIFE-02.power-failure-display",
+        "LIFE-02.capture-close-failure",
+        "LIFE-02.capture-route-failure"
+      ],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "LIFE-02.capture-close-failure",
+            "LIFE-02.capture-route-failure"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "power"
+      },
+      "binding": "power",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "PWR-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "power"
+      },
+      "binding": "power",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "FAULT-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "power"
+      },
+      "binding": "power",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "RST-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "reset"
+      },
+      "binding": "reset",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "RST-02",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "reset"
+      },
+      "binding": "reset",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "CFG-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "CFG-01.wifi-reopen",
+        "CFG-01.restored"
+      ],
+      "outstanding_layers": [
+        "L1",
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L1": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "CFG-01.wifi-reopen",
+            "CFG-01.restored"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "config"
+      },
+      "binding": "config",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "CFG-02",
+      "status": "BLOCKED_INTERFACE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "config"
+      },
+      "binding": "config",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "CFG-03",
+      "status": "BLOCKED_INTERFACE",
+      "collected": [
+        "CFG-03.stale",
+        "CFG-03.conflict",
+        "CFG-03.keep-key",
+        "CFG-03.replace-key",
+        "CFG-03.clear-cloud",
+        "CFG-03.cross-host-retain",
+        "provision.ProvisionSettingsTest.rejectsMalformedInputsBeforeCreatingBundle",
+        "provision.ProvisionSettingsTest.packsCloudAndNetworkInOneTransaction",
+        "provision.ProvisionSettingsTest.revisionExhaustionAndEmptyOperationCannotProducePatch",
+        "provision.ProvisionSettingsTest.wifiOnlyPatchPreservesCloudAndBindsExpectedRevision",
+        "provision.ProvisionSettingsTest.ownerKeyIsBoundToTheSameCandidateAndCallerKeepsOwnership",
+        "provision.ProvisionSettingsTest.packsCompleteCandidateWithoutDeviceKeys",
+        "provision.ProvisionSettingsTest.reportsNetworkInputErrorsBeforeEndpointLookup",
+        "provision.ProvisionSettingsTest.rejectsMissingEntropyAndMalformedControlKeySizes",
+        "provision.ProvisionSettingsTest.CFG_03_wifiPatchMatchesIndependentGolden",
+        "provision.ProvisionSettingsTest.keepReplaceAndClearRemainDifferentPatchOperations"
+      ],
+      "outstanding_layers": [
+        "L1",
+        "L2"
+      ],
+      "evidence_by_layer": {
+        "L1": {
+          "status": "PARTIAL",
+          "collected": [
+            "provision.ProvisionSettingsTest.rejectsMalformedInputsBeforeCreatingBundle",
+            "provision.ProvisionSettingsTest.packsCloudAndNetworkInOneTransaction",
+            "provision.ProvisionSettingsTest.revisionExhaustionAndEmptyOperationCannotProducePatch",
+            "provision.ProvisionSettingsTest.wifiOnlyPatchPreservesCloudAndBindsExpectedRevision",
+            "provision.ProvisionSettingsTest.ownerKeyIsBoundToTheSameCandidateAndCallerKeepsOwnership",
+            "provision.ProvisionSettingsTest.packsCompleteCandidateWithoutDeviceKeys",
+            "provision.ProvisionSettingsTest.reportsNetworkInputErrorsBeforeEndpointLookup",
+            "provision.ProvisionSettingsTest.rejectsMissingEntropyAndMalformedControlKeySizes",
+            "provision.ProvisionSettingsTest.CFG_03_wifiPatchMatchesIndependentGolden",
+            "provision.ProvisionSettingsTest.keepReplaceAndClearRemainDifferentPatchOperations"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "CFG-03.stale",
+            "CFG-03.conflict",
+            "CFG-03.keep-key",
+            "CFG-03.replace-key",
+            "CFG-03.clear-cloud",
+            "CFG-03.cross-host-retain"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "config"
+      },
+      "binding": "config",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "STORE-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "store"
+      },
+      "binding": "store",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "STORE-02",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "STORE-02.file-sync-failure",
+        "STORE-02.file-sync-retry",
+        "STORE-02.directory-sync-unknown",
+        "STORE-02.restart-before-publish",
+        "STORE-02.restart-after-publish"
+      ],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "STORE-02.file-sync-failure",
+            "STORE-02.file-sync-retry",
+            "STORE-02.directory-sync-unknown",
+            "STORE-02.restart-before-publish",
+            "STORE-02.restart-after-publish"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "store"
+      },
+      "binding": "store",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "MSC-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "MSC-01.failed-start-handoff",
+        "MSC-01.backend-stop-normal",
+        "MSC-01.backend-stop-retry",
+        "MSC-01.backend-stop-start-cleanup",
+        "MSC-01.acquiring",
+        "MSC-01.releasing",
+        "MSC-01.retry",
+        "MSC-01.unmount-failure",
+        "MSC-01.local-busy",
+        "MSC-01.wrong-owner",
+        "MSC-01.handoff",
+        "MSC-01.restored"
+      ],
+      "outstanding_layers": [
+        "L1",
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L1": {
+          "status": "PARTIAL",
+          "collected": [
+            "MSC-01.failed-start-handoff",
+            "MSC-01.backend-stop-normal",
+            "MSC-01.backend-stop-retry",
+            "MSC-01.backend-stop-start-cleanup",
+            "MSC-01.acquiring",
+            "MSC-01.releasing",
+            "MSC-01.retry"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "MSC-01.unmount-failure",
+            "MSC-01.local-busy",
+            "MSC-01.wrong-owner",
+            "MSC-01.handoff",
+            "MSC-01.restored"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "volume"
+      },
+      "binding": "volume",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "MSC-02",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "MSC-02.legacy-suite"
+      ],
+      "outstanding_layers": [
+        "L1",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L1": {
+          "status": "PARTIAL",
+          "collected": [
+            "MSC-02.legacy-suite"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "volume"
+      },
+      "binding": "volume",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "AUD-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "AUD-01.pcm-1",
+        "AUD-01.pcm-20260924",
+        "AUD-01.pcm-4294967295",
+        "AUD-01.sse-1",
+        "AUD-01.sse-20260924"
+      ],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "AUD-01.pcm-1",
+            "AUD-01.pcm-20260924",
+            "AUD-01.pcm-4294967295",
+            "AUD-01.sse-1",
+            "AUD-01.sse-20260924"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "audio"
+      },
+      "binding": "audio",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "AUD-02",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "audio"
+      },
+      "binding": "audio",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "AUD-03",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "AUD-03.media-tail",
+        "AUD-03.media-cancel-next",
+        "AUD-03.cancel-late"
+      ],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "AUD-03.cancel-late"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "audio"
+      },
+      "binding": "audio",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "AUD-04",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "audio"
+      },
+      "binding": "audio",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "CAP-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "audio"
+      },
+      "binding": "audio",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "ASR-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "agent"
+      },
+      "binding": "agent",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "AGENT-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "agent"
+      },
+      "binding": "agent",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "AGENT-02",
+      "status": "NOT_RUN",
+      "collected": [],
+      "outstanding_layers": [
+        "L2"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "agent"
+      },
+      "binding": "agent",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "AGENT-03",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "agent"
+      },
+      "binding": "agent",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "DISP-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "DISP-01.power-pixels"
+      ],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "scene"
+      },
+      "binding": "scene",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "NET-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "provision.DeviceControlSessionTest.failedReconnectKeepsOneCappedForegroundRetry",
+        "provision.DeviceControlSessionTest.temporaryReadFailurePreservesConnectionAndUnconfirmedWrite"
+      ],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "provision.DeviceControlSessionTest.failedReconnectKeepsOneCappedForegroundRetry",
+            "provision.DeviceControlSessionTest.temporaryReadFailurePreservesConnectionAndUnconfirmedWrite"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "config"
+      },
+      "binding": "config",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "NET-02",
+      "status": "BLOCKED_INTERFACE",
+      "collected": [
+        "provision.DeviceControlSessionTest.reconnectDropsWritesAndOldCallbacksCannotPolluteNewState",
+        "provision.DeviceControlSessionTest.foregroundPollContinuesAcross120Seconds"
+      ],
+      "outstanding_layers": [
+        "L2"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "provision.DeviceControlSessionTest.reconnectDropsWritesAndOldCallbacksCannotPolluteNewState",
+            "provision.DeviceControlSessionTest.foregroundPollContinuesAcross120Seconds"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "session"
+      },
+      "binding": "session",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "NET-03",
+      "status": "BLOCKED_INTERFACE",
+      "collected": [
+        "NET-03.quiesce-queries",
+        "NET-03.quiesce-staging",
+        "NET-03.quiesce-config-staging",
+        "NET-03.quiesce-ota-commit",
+        "NET-03.quiesce-invalid",
+        "NET-03.owner-queries",
+        "NET-03.owner-unauthenticated",
+        "NET-03.owner-invalid-sequence",
+        "NET-03.owner-legacy",
+        "provision.DeviceControlSessionTest.writeWaitsBehindReadAndRequiresQuantizedReadback",
+        "provision.DeviceControlSessionTest.configCancelWaitsForInFlightAckAndPreventsOtherWriters",
+        "provision.DeviceControlSessionTest.failedConfigAckDoesNotReleaseStagingUntilExplicitCancel"
+      ],
+      "outstanding_layers": [
+        "L2"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "NET-03.owner-queries",
+            "NET-03.owner-unauthenticated",
+            "NET-03.owner-invalid-sequence",
+            "provision.DeviceControlSessionTest.writeWaitsBehindReadAndRequiresQuantizedReadback",
+            "provision.DeviceControlSessionTest.configCancelWaitsForInFlightAckAndPreventsOtherWriters",
+            "provision.DeviceControlSessionTest.failedConfigAckDoesNotReleaseStagingUntilExplicitCancel"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "session"
+      },
+      "binding": "session",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "NET-04",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "session"
+      },
+      "binding": "session",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "UI-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "provision.DeviceControlSessionTest.ordinaryErrorIsNotDisconnectionAndDoesNotReplaceValue"
+      ],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "provision.DeviceControlSessionTest.ordinaryErrorIsNotDisconnectionAndDoesNotReplaceValue"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "ui"
+      },
+      "binding": "ui",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "UI-02",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "provision.DeviceControlSessionTest.otherActivityGraceAndForegroundReturnHaveDifferentPolicies",
+        "provision.DeviceControlSessionTest.graceDisconnectCannotReopenAnExplicitlyClosedSession",
+        "provision.DeviceControlSessionTest.tabsSubscribeTwentyTimesWithoutOpeningAnotherConnection"
+      ],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "provision.DeviceControlSessionTest.otherActivityGraceAndForegroundReturnHaveDifferentPolicies",
+            "provision.DeviceControlSessionTest.graceDisconnectCannotReopenAnExplicitlyClosedSession",
+            "provision.DeviceControlSessionTest.tabsSubscribeTwentyTimesWithoutOpeningAnotherConnection"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "ui"
+      },
+      "binding": "ui",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "UI-03",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "provision.DeviceControlSessionTest.claimHandoffDropsOldIdentityRetryAndCachedStatus",
+        "provision.DeviceControlSessionTest.identityReleaseRejectsLateConfigResultAndDoesNotReplayIt"
+      ],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "provision.DeviceControlSessionTest.claimHandoffDropsOldIdentityRetryAndCachedStatus",
+            "provision.DeviceControlSessionTest.identityReleaseRejectsLateConfigResultAndDoesNotReplayIt"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "ui"
+      },
+      "binding": "ui",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "UI-04",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "ui"
+      },
+      "binding": "ui",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "OTA-01",
+      "status": "BLOCKED_INTERFACE",
+      "collected": [
+        "provision.DeviceControlSessionTest.infoAndOtaDoNotReplaceStatusAndFragmentsStayContiguous",
+        "ota.OtaControlUploadTest.cancelWaitsForAcknowledgementAndHandlesStartRace",
+        "ota.OtaControlUploadTest.sendsBoundedChunksAndAcceptsOnlyStartAcknowledgement",
+        "ota.OtaControlUploadTest.cancellationRequestWaitsForRemoteConfirmation",
+        "ota.OtaControlUploadTest.acceptedTerminalCannotBecomeCanceledFromLateAckOrClose",
+        "ota.OtaControlUploadTest.lateAcknowledgementCannotOverwriteCanceledTerminalState",
+        "ota.OtaControlUploadTest.rejectsUnavailableTransportWithoutReplayAndAllowsMaximumRecord",
+        "ota.OtaControlUploadTest.localCloseIgnoresLateAckWithoutClaimingRemoteCancellation",
+        "ota.OtaControlUploadTest.closeCancelsWithoutSending",
+        "ota.OtaControlUploadTest.responseErrorsAndMismatchesFailAndDoNotReuseRecord",
+        "ota.OtaSessionContractTest.OTA_01_lateTransportCallbackIsFilteredBySession",
+        "ota.OtaSessionContractTest.OTA_01_cancelIsPendingUntilProtocolAcknowledges",
+        "ota.OtaSessionContractTest.OTA_01_lateWireAckCannotRestartCanceledUpload"
+      ],
+      "outstanding_layers": [
+        "L1",
+        "L2"
+      ],
+      "evidence_by_layer": {
+        "L1": {
+          "status": "PARTIAL",
+          "collected": [
+            "ota.OtaControlUploadTest.cancelWaitsForAcknowledgementAndHandlesStartRace",
+            "ota.OtaControlUploadTest.sendsBoundedChunksAndAcceptsOnlyStartAcknowledgement",
+            "ota.OtaControlUploadTest.cancellationRequestWaitsForRemoteConfirmation",
+            "ota.OtaControlUploadTest.acceptedTerminalCannotBecomeCanceledFromLateAckOrClose",
+            "ota.OtaControlUploadTest.lateAcknowledgementCannotOverwriteCanceledTerminalState",
+            "ota.OtaControlUploadTest.rejectsUnavailableTransportWithoutReplayAndAllowsMaximumRecord",
+            "ota.OtaControlUploadTest.localCloseIgnoresLateAckWithoutClaimingRemoteCancellation",
+            "ota.OtaControlUploadTest.closeCancelsWithoutSending",
+            "ota.OtaControlUploadTest.responseErrorsAndMismatchesFailAndDoNotReuseRecord"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "provision.DeviceControlSessionTest.infoAndOtaDoNotReplaceStatusAndFragmentsStayContiguous",
+            "ota.OtaSessionContractTest.OTA_01_lateTransportCallbackIsFilteredBySession",
+            "ota.OtaSessionContractTest.OTA_01_cancelIsPendingUntilProtocolAcknowledges",
+            "ota.OtaSessionContractTest.OTA_01_lateWireAckCannotRestartCanceledUpload"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "ota"
+      },
+      "binding": "ota",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "OTA-02",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "ota"
+      },
+      "binding": "ota",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "RES-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "resource"
+      },
+      "binding": "resource",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "RES-02",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "scene"
+      },
+      "binding": "scene",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "RES-03",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "usb"
+      },
+      "binding": "usb",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "KWS-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L1",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L1": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "kws"
+      },
+      "binding": "kws",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "KWS-02",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L1",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L1": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "kws"
+      },
+      "binding": "kws",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "KWS-03",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "kws"
+      },
+      "binding": "kws",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "MOT-01",
+      "status": "BLOCKED_INTERFACE",
+      "collected": [
+        "MOT-01.legacy-suite"
+      ],
+      "outstanding_layers": [
+        "L1",
+        "L2"
+      ],
+      "evidence_by_layer": {
+        "L1": {
+          "status": "PARTIAL",
+          "collected": [
+            "MOT-01.legacy-suite"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "motion"
+      },
+      "binding": "motion",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "MOT-02",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "scene"
+      },
+      "binding": "scene",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "MOT-03",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "scene"
+      },
+      "binding": "scene",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "TIMER-01",
+      "status": "BLOCKED_INTERFACE",
+      "collected": [
+        "TIMER-01.pixels",
+        "TIMER-01.render",
+        "TIMER-01.clock",
+        "TIMER-01.replay",
+        "TIMER-01.invalid",
+        "TIMER-01.wire",
+        "provision.FocusTimerControllerTest.acceptedStartWaitsForDeviceReadback",
+        "provision.FocusTimerControllerTest.rejectedBeginCannotCancelAnotherEditorsTransaction",
+        "provision.FocusTimerControllerTest.changedRevisionCannotProduceMixedSnapshot",
+        "provision.FocusTimerControllerTest.unsupportedDeviceDoesNotStartLocalTimer",
+        "provision.FocusTimerControllerTest.disconnectAndLateAckNeverReplayMutation"
+      ],
+      "outstanding_layers": [
+        "L2"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "PARTIAL",
+          "collected": [
+            "TIMER-01.wire",
+            "provision.FocusTimerControllerTest.acceptedStartWaitsForDeviceReadback",
+            "provision.FocusTimerControllerTest.rejectedBeginCannotCancelAnotherEditorsTransaction",
+            "provision.FocusTimerControllerTest.changedRevisionCannotProduceMixedSnapshot",
+            "provision.FocusTimerControllerTest.unsupportedDeviceDoesNotStartLocalTimer",
+            "provision.FocusTimerControllerTest.disconnectAndLateAckNeverReplayMutation"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "scene"
+      },
+      "binding": "scene",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "TIMER-02",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "scene"
+      },
+      "binding": "scene",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "NFC-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [
+        "NFC-01.legacy-suite"
+      ],
+      "outstanding_layers": [
+        "L1",
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L1": {
+          "status": "PARTIAL",
+          "collected": [
+            "NFC-01.legacy-suite"
+          ],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "PARTIAL_BINDING",
+        "gap": "nfc"
+      },
+      "binding": "nfc",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "NFC-02",
+      "status": "BLOCKED_INTERFACE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "scene"
+      },
+      "binding": "scene",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "USB-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "usb"
+      },
+      "binding": "usb",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "USB-02",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "usb"
+      },
+      "binding": "usb",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "PC-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "scene"
+      },
+      "binding": "scene",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "BOOT-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "delivery"
+      },
+      "binding": "delivery",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "DEL-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "delivery"
+      },
+      "binding": "delivery",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "DEL-02",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "delivery"
+      },
+      "binding": "delivery",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    },
+    {
+      "id": "CROSS-01",
+      "status": "BLOCKED_DEVICE",
+      "collected": [],
+      "outstanding_layers": [
+        "L2",
+        "L3"
+      ],
+      "evidence_by_layer": {
+        "L2": {
+          "status": "NOT_RUN",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        },
+        "L3": {
+          "status": "BLOCKED_DEVICE",
+          "collected": [],
+          "gap": "Composite coverage remains outstanding; see binding and contract"
+        }
+      },
+      "interface": {
+        "status": "REQUIRES_BINDING_REVIEW",
+        "gap": "cross"
+      },
+      "binding": "cross",
+      "remaining": "See contracts.md binding and per-case scope; composite is not complete"
+    }
+  ],
+  "builds": [
+    {
+      "id": "build-test_shaniu_key_contract",
+      "exit_code": 0,
+      "seconds": 0.007933397995657288,
+      "evidence": "build-test_shaniu_key_contract.log"
+    },
+    {
+      "id": "build-test_shaniu_volume_contract",
+      "exit_code": 0,
+      "seconds": 0.0039040470001054928,
+      "evidence": "build-test_shaniu_volume_contract.log"
+    },
+    {
+      "id": "build-test_shaniu_volume_transition",
+      "exit_code": 0,
+      "seconds": 0.0036862059932900593,
+      "evidence": "build-test_shaniu_volume_transition.log"
+    },
+    {
+      "id": "build-test_bk7258_agent_capture",
+      "exit_code": 0,
+      "seconds": 0.0036946850013919175,
+      "evidence": "build-test_bk7258_agent_capture.log"
+    },
+    {
+      "id": "build-test_shaniu_power_contract",
+      "exit_code": 0,
+      "seconds": 0.003652414001408033,
+      "evidence": "build-test_shaniu_power_contract.log"
+    },
+    {
+      "id": "build-test_shaniu_power_pixels",
+      "exit_code": 0,
+      "seconds": 0.003702930989675224,
+      "evidence": "build-test_shaniu_power_pixels.log"
+    },
+    {
+      "id": "build-test_shaniu_msc_stop",
+      "exit_code": 0,
+      "seconds": 0.003592054999899119,
+      "evidence": "build-test_shaniu_msc_stop.log"
+    },
+    {
+      "id": "build-test_shaniu_usb_cleanup",
+      "exit_code": 0,
+      "seconds": 0.0036254059959901497,
+      "evidence": "build-test_shaniu_usb_cleanup.log"
+    },
+    {
+      "id": "build-test_shaniu_control_quiesce",
+      "exit_code": 0,
+      "seconds": 0.0038832330028526485,
+      "evidence": "build-test_shaniu_control_quiesce.log"
+    },
+    {
+      "id": "build-test_shaniu_owner",
+      "exit_code": 0,
+      "seconds": 0.003727827002876438,
+      "evidence": "build-test_shaniu_owner.log"
+    },
+    {
+      "id": "build-test_shaniu_power_owner",
+      "exit_code": 0,
+      "seconds": 0.0036070080095669255,
+      "evidence": "build-test_shaniu_power_owner.log"
+    },
+    {
+      "id": "build-test_bk7258_agent_media_player",
+      "exit_code": 0,
+      "seconds": 0.0036096130061196163,
+      "evidence": "build-test_bk7258_agent_media_player.log"
+    },
+    {
+      "id": "build-test_shaniu_focus",
+      "exit_code": 0,
+      "seconds": 0.0036007609887747094,
+      "evidence": "build-test_shaniu_focus.log"
+    },
+    {
+      "id": "build-test_shaniu_focus_pixels",
+      "exit_code": 0,
+      "seconds": 0.003614657005527988,
+      "evidence": "build-test_shaniu_focus_pixels.log"
+    },
+    {
+      "id": "build-test_shaniu_focus_render",
+      "exit_code": 0,
+      "seconds": 0.003647224002634175,
+      "evidence": "build-test_shaniu_focus_render.log"
+    },
+    {
+      "id": "build-test_shaniu_focus_wire",
+      "exit_code": 0,
+      "seconds": 0.003665780008304864,
+      "evidence": "build-test_shaniu_focus_wire.log"
+    },
+    {
+      "id": "build-test_agent_tts_queue",
+      "exit_code": 0,
+      "seconds": 0.0036078590055694804,
+      "evidence": "build-test_agent_tts_queue.log"
+    },
+    {
+      "id": "build-test_bk7258_product_keys",
+      "exit_code": 0,
+      "seconds": 0.0036776810011360794,
+      "evidence": "build-test_bk7258_product_keys.log"
+    },
+    {
+      "id": "build-test_bk7258_usbmode_lease",
+      "exit_code": 0,
+      "seconds": 0.0041940340015571564,
+      "evidence": "build-test_bk7258_usbmode_lease.log"
+    },
+    {
+      "id": "build-test_bk7258_motion_core",
+      "exit_code": 0,
+      "seconds": 0.003572382003767416,
+      "evidence": "build-test_bk7258_motion_core.log"
+    },
+    {
+      "id": "build-test_bk7258_nfc_core",
+      "exit_code": 0,
+      "seconds": 0.003592068998841569,
+      "evidence": "build-test_bk7258_nfc_core.log"
+    },
+    {
+      "id": "config-build",
+      "exit_code": 0,
+      "seconds": 4.37550359099987,
+      "evidence": "config-build.log"
+    },
+    {
+      "id": "public-cert",
+      "exit_code": 0,
+      "seconds": 0.004081699007656425,
+      "evidence": "public-cert.log"
+    },
+    {
+      "id": "MSC-01.early-release-build",
+      "exit_code": 0,
+      "seconds": 0.31494055601069704,
+      "evidence": "MSC-01.early-release-build.log"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud-build",
+      "exit_code": 0,
+      "seconds": 0.7659938239958137,
+      "evidence": "CFG-01.wifi-clears-cloud-build.log"
+    },
+    {
+      "id": "config-restored-build",
+      "exit_code": 0,
+      "seconds": 0.7659753680054564,
+      "evidence": "config-restored-build.log"
+    },
+    {
+      "id": "JVM",
+      "exit_code": 0,
+      "seconds": 11.045430084006512,
+      "collected": 41,
+      "evidence": "jvm.log"
+    }
+  ],
+  "mutations": [
+    {
+      "id": "MSC-01.early-release",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.007920653006294742,
+      "source": "app/bk7258/bk7258_media_volume.c",
+      "original_sha256": "58ebb18ae63adccf21262253da18f153bbb7c680cc0b64719ca20e8a6d9681c8",
+      "mutant_sha256": "bf298373a95ac54d5587f93ece34a30a7f661a65a969c69db9e27c6570770c57",
+      "expected_assertion": "!mounted",
+      "evidence": "MSC-01.early-release.log"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.06436185099300928,
+      "source": "app/bk7258/bk7258_provision_config.c",
+      "original_sha256": "98f5100ca49ca44e45fe3e5da4bb2da0add7466f0e357a205ca8b1e307a5818e",
+      "mutant_sha256": "4c0c615b8ffc99247b0fd91bd934d3df0409a1180769cb939b2820f9e6f69427",
+      "expected_assertion": "bkcloud_config_decode",
+      "evidence": "CFG-01.wifi-clears-cloud.log"
+    }
+  ]
+}

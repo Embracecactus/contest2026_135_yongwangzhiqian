@@ -1,0 +1,154 @@
+{
+  "schema_version": 1,
+  "slice": "S75",
+  "parent_commit": "d32ae97c3b49eb0f4bbb99ed0deedb2dc9c9fc1e",
+  "counts": {
+    "PASS": 438,
+    "FAIL_ASSERTION": 1,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 376,
+      "counts": {
+        "PASS": 375,
+        "FAIL_ASSERTION": 1,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "collection_errors": [
+    "not PASS: USB-01.tls-transport: FAIL_ASSERTION"
+  ],
+  "new_required_ids": 12,
+  "separate": {
+    "runner_gate_pass": 13,
+    "dpapi_pass": 3,
+    "jvm_python_dpapi_tls_interop_pass": 1,
+    "emulator_provider": "PASS, emulator-5554 only",
+    "mutation_detected": 2,
+    "mutation_restored_pass": 7
+  },
+  "regression": {
+    "id": "USB-01.tls-transport",
+    "status": "FAIL_ASSERTION",
+    "line": 981,
+    "synthetic_inputs_retained": true,
+    "fixed_certificate_replays": 150,
+    "fixed_certificate_result": "PASS, does not erase original failure or resolve root cause"
+  },
+  "setup_history": [
+    "missing Python/Kotlin interfaces were BLOCKED_INTERFACE, not business Red",
+    "root Gradle command failed 127; later Android-cwd build passed",
+    "isolated replay preparation intercepted an unrelated openssl request and lacked a fixture; SETUP_ERROR preserved; corrected direct executable replay used existing fixed certificate"
+  ],
+  "limitations": [
+    "Phone consent/grant receipt/response export UI not connected",
+    "No phone install, physical USB or board operation",
+    "DPAPI Windows-only; UTC rollback lifetime not monotonic across restarts",
+    "Pending retained; no single-use or secure-erasure claim",
+    "S66 TLS issue remains open; no release approval"
+  ],
+  "logs": [
+    {
+      "path": "out/shaniu-s75/pairing-final.log",
+      "sha256": "1856f63cfd1c1024bafdb6443e0e06a496050feb700cc80febf7c20961958305"
+    },
+    {
+      "path": "out/shaniu-s75/interop.log",
+      "sha256": "63806c431475a4f373a715612c639992feeacccb094d169f52be99e636053244"
+    },
+    {
+      "path": "out/shaniu-s75/interop/jvm.log",
+      "sha256": "658e50371425f92f44a8ccd36d88b3e4c281d55a959a85fc6a2067f12ea8e01f"
+    },
+    {
+      "path": "out/shaniu-s75/interop/public-evidence.json",
+      "sha256": "9c85929c96c9b147f759b7e0ad5de0e4ed9da20d898bff658c738cb2fbe568e3"
+    },
+    {
+      "path": "out/shaniu-s75/dpapi.log",
+      "sha256": "3efc599de457766112b149e36e444a2ad8ca7ed63f4cf2bcdab46c11ec016eec"
+    },
+    {
+      "path": "out/shaniu-s75/runner-gate.log",
+      "sha256": "dfda3b56a13749fce0dcf2921d170f8be57be48d31b8170607e47075eab24d94"
+    },
+    {
+      "path": "out/shaniu-s75/android-first.log",
+      "sha256": "31dcc4422dd2fc247d457bb55dbf5bed3a8e2e65ff02968dda89aae2177b5531"
+    },
+    {
+      "path": "out/shaniu-s75/android-build.log",
+      "sha256": "c42cdfd6a96884f493780eb0bb09757daedb546ac4903971573b046803d712ac"
+    },
+    {
+      "path": "out/shaniu-s75/emulator.log",
+      "sha256": "32003031337b79ce0d618beda052616c0f941afabdb802d58457b0285baddd7e"
+    },
+    {
+      "path": "out/shaniu-s75/mutations.json",
+      "sha256": "6bc578f915fd406c794b5f5fcca8fd6c46e65b8c3d9c64953f12af32e0b0a514"
+    },
+    {
+      "path": "out/shaniu-s75/mutation-request-binding.log",
+      "sha256": "468c9d4847662d79c1ccb9f8816f08ef945d37695848669210f3e61623b0e9f2"
+    },
+    {
+      "path": "out/shaniu-s75/mutation-capability-binding.log",
+      "sha256": "d2eb54bfa109a0f65a9d4a2462572d4e00efdbf0bc1f828b450ac46e4b53a78c"
+    },
+    {
+      "path": "out/shaniu-s75/mutation-restored.log",
+      "sha256": "db24f880c4d0efad70d6052535475fa6e9e6af2605c5bf1fd203c689f5241b4d"
+    },
+    {
+      "path": "out/shaniu-s75/contracts/USB-01.tls-transport.log",
+      "sha256": "be2fd65d058d3984c533a44e71051473ab8ffb0069422ec4bd6f0d0a5ebeb172"
+    },
+    {
+      "path": "out/shaniu-s75/tls-replay.log",
+      "sha256": "130d0147288da40db39c48aee4738499afac1ad7c00a28041fa650b8f3a44abb"
+    },
+    {
+      "path": "out/shaniu-s75/tls-replay/fixed-input.log",
+      "sha256": "5cf9ffe066b0d0f8367990fa5a2860b95d45172d9fce0b6dcbc5ba953a70e706"
+    },
+    {
+      "path": "out/shaniu-s75/tls-replay/fixed-input-results.json",
+      "sha256": "31b26269fa89eaa92f332c755d3d3c9c176ff06e5db868d6e4f1ac4d262418d7"
+    },
+    {
+      "path": "out/shaniu-s75/interface-before.log",
+      "sha256": "7367b298d87f405f410bcf764e6acc87ea01c73d6d081a50635f19e6300e7f79"
+    },
+    {
+      "path": "out/shaniu-s75/android-interface-before.log",
+      "sha256": "ae3f4a4ea9ade0ed891420cdcfa11e0f20410acbd2e079b1bf4b1247b0c3e43f"
+    },
+    {
+      "path": "out/shaniu-s75/root-command-not-used.log",
+      "sha256": "92603223a78c2b6722e2e33385a59d3776cedf1c78a832f4c414242da7c1af32"
+    }
+  ]
+}

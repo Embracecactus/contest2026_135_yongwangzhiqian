@@ -1,0 +1,7 @@
+app/bk7258/bk7258_display_job.h:10:1: warning: #include outside of 'Included Files' section
+app/bk7258/bk7258_display_job.h:11:1: warning: #include outside of 'Included Files' section
+app/bk7258/bk7258_display_job.h:14:80: error: Long line found
+app/bk7258/bk7258_display_job.h:50:1: error: Missing blank line after comment
+app/bk7258/bk7258_display_job.h:87:1: error: Missing blank line before comment found
+app/bk7258/bk7258_display_job.h:94:1: error: Missing blank line before comment found
+app/bk7258/bk7258_display_job.h:97:1: error: Missing blank line before comment found

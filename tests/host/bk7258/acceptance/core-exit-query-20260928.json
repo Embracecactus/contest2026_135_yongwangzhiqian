@@ -1,0 +1,131 @@
+{
+  "date": "2026-09-28",
+  "scope": "R1 read-only outcome and deferred NFC exit; no physical K2/deep sleep claim",
+  "production_base": "94c69f96b8b694fd3370d7485a896e09bcbce7fa",
+  "agent": "831b8b54cef8763229431ae2750e2cdfbd825887",
+  "tests": {
+    "power_query_before": "BLOCKED_INTERFACE: getter/command absent, not business Red",
+    "power_query_after": "PASS real coordinator + health core; 100 queries preserve terminal state and do not resubmit",
+    "power_variants": 30,
+    "existing_health_core": "PASS",
+    "nfc_before": "FAIL_ASSERTION: initial ENOENT at stop returned permanent failure instead of pending cleanup",
+    "nfc_after": "PASS deferred-registration + 6 existing lifecycle cases; existing 34 RPC cases and core/RF lifecycle pass",
+    "new_mutations": {
+      "query_resend_CP": "DETECTED; restore PASS",
+      "ignore_initial_NFC_cleanup": "DETECTED; restore PASS"
+    },
+    "pre_nfc_full_gate": {
+      "PASS": 724,
+      "FAIL_ASSERTION": 0,
+      "SETUP_ERROR": 0,
+      "collection_errors": [],
+      "original_63": "all collected",
+      "original_mutations": "both DETECTED"
+    },
+    "final_selected_count": 725,
+    "final_gate": {
+      "counts": {
+        "PASS": 725,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      },
+      "collection_errors": [],
+      "production_unchanged": false,
+      "overall": "NONZERO provenance guard",
+      "explanation": "Staging the new header during the run changed git ls-files, which defines production_digest membership; no production file contents changed. Execution ordering error, not behavior failure.",
+      "verification": "Both recorded digests exactly reproduced by current source with/without that one header; independent final-production-hashes.json unchanged. Exact committed CI gate required."
+    }
+  },
+  "hardware": {
+    "668": {
+      "download": "PASS",
+      "boot": "confirmed",
+      "outcome": "FAILED_PREPARE: phase=3 unresolved=0 error=-2; retained as real board failure",
+      "cause_evidence": "NFC initial RF-off ENOENT before deferred registration; stop suppressed its initial retry"
+    },
+    "669": {
+      "download": "PASS",
+      "boot": "confirmed",
+      "power_query": "phase=0 unresolved=0 error=0",
+      "config_revision": 6
+    },
+    "670": {
+      "download": "PASS",
+      "boot": "confirmed",
+      "prepare": "actual participants reached CP-before-submit guard at AP 4.733187s",
+      "power_query_after_transport_exit": "phase=3 unresolved=0 error=-125 (intentional prepare-only guard)",
+      "final_CP_transition": "NOT_EXECUTED"
+    },
+    "671": {
+      "download": "PASS",
+      "boot": "confirmed slot A counter 671",
+      "prepare_validation_enabled": false,
+      "local_listening_at_ap_seconds": 4.294188,
+      "cloud_config_later": "revision 6 ready",
+      "original_threshold": 85,
+      "NFC_RF_off_at_ap_seconds": 4.988406,
+      "cold_physical_boot_or_acoustic_acceptance": false,
+      "final_power_query": "phase=0 unresolved=0 error=0",
+      "port": "COM9 released after bounded capture"
+    }
+  },
+  "changes": [
+    "Atomic read-only coordinator snapshot through existing health RPC/NSH; original STATUS wire preserved and reply kind checked",
+    "Keep NFC initial RF-off cleanup pending across shutdown before deferred device registration; existing 500ms cadence and coordinator 30s limit unchanged"
+  ],
+  "resource_measurement": {
+    "snapshot_storage_bytes": 12,
+    "getter_arm_text_bytes": 88,
+    "added_threads": 0,
+    "cpu_latency_stack_high_water": "NOT_MEASURED"
+  },
+  "limits": [
+    "No independent deep-sleep recovery, physical K2, GPIO/power or acoustic fixture verified",
+    "Media EOF/mix warnings retained; no root-cause closure or acoustic claim",
+    "Phone BLE/scan/App OTA/install retention remain NOT_RUN",
+    "Factory first use and destructive reset separate and not authorized here"
+  ],
+  "evidence_root": "out/shaniu-core-20260928",
+  "logs": [
+    "power-query-before-build.log",
+    "power-query-wire-before.log",
+    "power-query-targeted-corrected.json",
+    "power-query-mutation.json",
+    "nfc-deferred-before.json",
+    "nfc-deferred-after.json",
+    "nfc-deferred-mutation.json",
+    "query-prepare-hil/result.json",
+    "query-normal-hil/result.json",
+    "nfc-prepare-hil/result.json",
+    "nfc-normal-hil/result.json",
+    "contracts-final-core/results.json",
+    "final-gate-provenance-explanation.json"
+  ],
+  "observer_corrections": [
+    "Accidental --help on runner executed tests inside restricted sandbox, terminated; not used as product baseline or gate. Historical reports untouched.",
+    "Initial ad-hoc power enumeration ran owner-integration with wrong binary; preserved original result, corrected binding to real owner target; not a production failure."
+  ],
+  "artifacts": {
+    "query-prepare": {
+      "package": "out/shaniu-core-20260928/query-prepare-release/package/shaniu-bk7258-aidk_ai_toy-app__openvela_ap_power_prepare_validation-v0.7.23+668-bshaniu-power-query-668-ota.bkpack",
+      "sha256": "5f0c7b4238e648c611d9b04709114665644e3518ee32ad06014a9dfddabb9c30",
+      "matching_symbols": "out/shaniu-core-20260928/query-prepare-artifacts/sha256.json"
+    },
+    "query-normal": {
+      "package": "out/shaniu-core-20260928/query-normal-release/package/shaniu-bk7258-aidk_ai_toy-app__openvela_ap-v0.7.24+669-bshaniu-power-query-669-ota.bkpack",
+      "sha256": "2bdbfc409362a13bf5b7c0986922fc0a6e63b09a2ddf2a43c54fbca9081d9467",
+      "matching_symbols": "out/shaniu-core-20260928/query-normal-artifacts/sha256.json"
+    },
+    "nfc-prepare": {
+      "package": "out/shaniu-core-20260928/nfc-prepare-release/package/shaniu-bk7258-aidk_ai_toy-app__openvela_ap_power_prepare_validation-v0.7.25+670-bshaniu-nfc-exit-670-ota.bkpack",
+      "sha256": "59bd49927f9b97c3ad5de934a66682f81ed34e2a9291ea6136bb6e99a5e81157",
+      "matching_symbols": "out/shaniu-core-20260928/nfc-prepare-artifacts/sha256.json"
+    },
+    "nfc-normal": {
+      "package": "out/shaniu-core-20260928/nfc-normal-release/package/shaniu-bk7258-aidk_ai_toy-app__openvela_ap-v0.7.26+671-bshaniu-core-exit-671-ota.bkpack",
+      "sha256": "8d8d26dbd8a614b993ab9f2642c0fbf6cc2faa2aefa1d660e0638a9fc6637ed2",
+      "matching_symbols": "out/shaniu-core-20260928/nfc-normal-artifacts/sha256.json"
+    }
+  }
+}

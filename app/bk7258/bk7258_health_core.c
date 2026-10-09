@@ -24,7 +24,8 @@ bool bkhealth_rpc_request_valid(
 {
   return request != NULL && request->magic == BKHEALTH_RPC_MAGIC &&
          request->version == BKHEALTH_RPC_VERSION &&
-         request->command == BKHEALTH_RPC_STATUS &&
+         (request->command == BKHEALTH_RPC_STATUS ||
+          request->command == BKHEALTH_RPC_POWER_STATUS) &&
          request->session != 0 && request->sequence != 0 &&
          request->reserved[0] == 0 && request->reserved[1] == 0;
 }
@@ -41,6 +42,27 @@ bool bkhealth_rpc_response_valid(
     BKHEALTH_FLAG_BATTERY_VOLTAGE_VALID |
     BKHEALTH_FLAG_TEMPERATURE_RAW_VALID;
   uint32_t flags;
+
+  if (response != NULL && response->command == BKHEALTH_RPC_POWER_RESPONSE)
+    {
+      if (response->magic != BKHEALTH_RPC_MAGIC ||
+          response->version != BKHEALTH_RPC_VERSION ||
+          !response->session || !response->sequence ||
+          response->rpc_status > 0 || response->operation_status > 0 ||
+          response->flags || response->battery_state ||
+          response->battery_voltage_mv || response->temperature_raw_code ||
+          response->temperature_reference_raw || response->temperature_millicelsius ||
+          response->temperature_generation || response->temperature_sequence ||
+          response->battery_state_status != -ENODATA ||
+          response->battery_voltage_status != -ENODATA ||
+          response->temperature_status != -ENODATA)
+        return false;
+      if (response->rpc_status < 0 || response->operation_status < 0)
+        return response->operation_status < 0 &&
+               response->reserved[0] == 0 && response->reserved[1] == 0;
+      return (response->reserved[0] & ~259u) == 0 &&
+             (int32_t)response->reserved[1] <= 0;
+    }
 
   if (response == NULL || response->magic != BKHEALTH_RPC_MAGIC ||
       response->version != BKHEALTH_RPC_VERSION ||
@@ -127,7 +149,8 @@ void bkhealth_rpc_make_response(
   memset(response, 0, sizeof(*response));
   response->magic = BKHEALTH_RPC_MAGIC;
   response->version = BKHEALTH_RPC_VERSION;
-  response->command = BKHEALTH_RPC_RESPONSE;
+  response->command = request && request->command == BKHEALTH_RPC_POWER_STATUS ?
+                      BKHEALTH_RPC_POWER_RESPONSE : BKHEALTH_RPC_RESPONSE;
   response->rpc_status = rpc_status;
   response->operation_status = -ENODATA;
   response->battery_state_status = -ENODATA;
@@ -299,6 +322,21 @@ int bkhealth_rpc_handle_request(
     }
 
   bkhealth_rpc_make_response(response, request, 0);
+  if (request->command == BKHEALTH_RPC_POWER_STATUS)
+    {
+      uint32_t state = 0;
+      int32_t error = 0;
+      int ret = ops->power_status ? ops->power_status(context, &state, &error) :
+                                   -ENOTSUP;
+      if (ret > 0 || (ret == 0 && ((state & ~259u) || error > 0))) ret = -EPROTO;
+      response->operation_status = ret;
+      if (ret == 0)
+        {
+          response->reserved[0] = state;
+          response->reserved[1] = (uint32_t)error;
+        }
+      return ret;
+    }
   bkhealth_collect_battery(response, ops, context,
                            &first_error, &any_valid);
   bkhealth_collect_temperature(response, ops, context,

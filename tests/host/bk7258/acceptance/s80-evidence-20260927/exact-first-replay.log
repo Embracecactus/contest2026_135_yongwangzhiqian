@@ -1,0 +1,2 @@
+PC_STEP_ERROR command=2 sequence=1 ret=-71 now=35250
+tls-replay: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_provision_tls.c:608: pc_exchange: Assertion `step_result == 0' failed.

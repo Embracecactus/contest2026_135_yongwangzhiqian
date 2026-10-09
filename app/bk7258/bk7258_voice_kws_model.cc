@@ -20,10 +20,15 @@
 
 struct bkvoice_kws_model_s
 {
-  tflite::MicroMutableOpResolver<6> resolver;
+  tflite::MicroMutableOpResolver<9> resolver;
   tflite::MicroInterpreter *interpreter = nullptr;
   TfLiteTensor *input = nullptr;
   TfLiteTensor *output = nullptr;
+  bool streaming = false;
+  TfLiteTensor *state_input[5] = {};
+  TfLiteTensor *state_output[5] = {};
+  int8_t *state = nullptr;
+  size_t state_bytes = 0;
 #ifdef __NuttX__
   uint64_t timing_report_ms = 0;
   uint64_t health_report_ms = 0;
@@ -31,6 +36,8 @@ struct bkvoice_kws_model_s
   float health_max_wake = 0.0f;
 #endif
 };
+
+static const int g_state_rows[] = {8, 16, 32, 64, 128};
 
 static bool bkvoice_kws_quantized(const TfLiteTensor *tensor)
 {
@@ -58,7 +65,8 @@ int bkvoice_kws_model_open(const struct bkvoice_kws_model_spec_s *spec,
       spec->bytes > BKVOICE_KWS_MODEL_MAX_BYTES || arena == nullptr ||
       arena_bytes < 16 || reinterpret_cast<uintptr_t>(arena) % 16 != 0 ||
       spec->frontend == nullptr ||
-      std::strcmp(spec->frontend, BKVOICE_KWS_FRONTEND_ID) != 0)
+      (std::strcmp(spec->frontend, BKVOICE_KWS_FRONTEND_ID) != 0 &&
+       std::strcmp(spec->frontend, BKVOICE_KWS_FRONTEND_V2_ID) != 0))
     {
       return -EINVAL;
     }
@@ -90,9 +98,29 @@ int bkvoice_kws_model_open(const struct bkvoice_kws_model_spec_s *spec,
       return -ENOTSUP;
     }
 
+  /* The binding lives inside the model bytes covered by the package hash.
+   * Only historical unannotated models may use the legacy v1 frontend. */
+  bool frontend_bound = false;
+  if (flatmodel->metadata() != nullptr)
+    for (const auto *metadata : *flatmodel->metadata())
+      {
+        if (metadata->name() == nullptr || metadata->name()->size() != 16 ||
+            std::memcmp(metadata->name()->c_str(), "bkvoice.frontend", 16)) continue;
+        if (frontend_bound || flatmodel->buffers() == nullptr ||
+            metadata->buffer() >= flatmodel->buffers()->size()) return -EPROTO;
+        const auto *binding = flatmodel->buffers()->Get(metadata->buffer())->data();
+        if (binding == nullptr || binding->size() != std::strlen(spec->frontend) ||
+            std::memcmp(binding->data(), spec->frontend, binding->size()))
+          return -EPROTO;
+        frontend_bound = true;
+      }
+  if (!frontend_bound && std::strcmp(spec->frontend, BKVOICE_KWS_FRONTEND_ID))
+    return -EPROTO;
+
   const auto *graph = flatmodel->subgraphs()->Get(0);
-  if (graph->inputs() == nullptr || graph->inputs()->size() != 1 ||
-      graph->outputs() == nullptr || graph->outputs()->size() != 1)
+  if (graph->inputs() == nullptr || graph->outputs() == nullptr ||
+      !((graph->inputs()->size() == 1 && graph->outputs()->size() == 1) ||
+        (graph->inputs()->size() == 6 && graph->outputs()->size() == 6)))
     {
       return -ENOTSUP;
     }
@@ -106,6 +134,7 @@ int bkvoice_kws_model_open(const struct bkvoice_kws_model_spec_s *spec,
       return -ENOMEM;
     }
   instance = new (storage) bkvoice_kws_model_s;
+  instance->streaming = graph->inputs()->size() == 6;
 
   auto &resolver = instance->resolver;
   if (resolver.AddConv2D(tflite::Register_CONV_2D_INT8()) != kTfLiteOk ||
@@ -113,7 +142,10 @@ int bkvoice_kws_model_open(const struct bkvoice_kws_model_spec_s *spec,
       resolver.AddAveragePool2D(tflite::Register_AVERAGE_POOL_2D_INT8()) != kTfLiteOk ||
       resolver.AddReshape() != kTfLiteOk ||
       resolver.AddFullyConnected(tflite::Register_FULLY_CONNECTED_INT8()) != kTfLiteOk ||
-      resolver.AddSoftmax(tflite::Register_SOFTMAX_INT8()) != kTfLiteOk)
+      resolver.AddSoftmax(tflite::Register_SOFTMAX_INT8()) != kTfLiteOk ||
+      resolver.AddConcatenation() != kTfLiteOk ||
+      resolver.AddStridedSlice() != kTfLiteOk ||
+      resolver.AddQuantize() != kTfLiteOk)
     {
       bkvoice_kws_model_close(instance);
       return -ENOTSUP;
@@ -146,13 +178,78 @@ int bkvoice_kws_model_open(const struct bkvoice_kws_model_spec_s *spec,
 
   instance->input = instance->interpreter->input(0);
   instance->output = instance->interpreter->output(0);
+  if (instance->streaming)
+    {
+      instance->input = nullptr;
+      instance->output = nullptr;
+      int channels = 0;
+      for (unsigned int i = 0; i < 6; i++)
+        {
+          auto *in = instance->interpreter->input(i);
+          auto *out = instance->interpreter->output(i);
+          if (!bkvoice_kws_quantized(in) || !bkvoice_kws_quantized(out) ||
+              in->dims == nullptr || out->dims == nullptr)
+            {
+              bkvoice_kws_model_close(instance);
+              return -EPROTO;
+            }
+
+          if (in->dims->size == 4 && in->dims->data[1] == 1 &&
+              in->dims->data[2] == BKVOICE_KWS_BINS)
+            instance->input = in;
+          if (out->dims->size == 2 &&
+              out->dims->data[1] == BKVOICE_KWS_CLASSES)
+            instance->output = out;
+          for (unsigned int j = 0; j < 5; j++)
+            {
+              if (in->dims->size == 4 &&
+                  in->dims->data[1] == g_state_rows[j])
+                instance->state_input[j] = in;
+              if (out->dims->size == 4 &&
+                  out->dims->data[1] == g_state_rows[j])
+                instance->state_output[j] = out;
+            }
+        }
+
+      for (unsigned int j = 0; j < 5; j++)
+        {
+          auto *in = instance->state_input[j];
+          auto *out = instance->state_output[j];
+          if (in == nullptr || out == nullptr || in->dims->data[0] != 1 ||
+              in->dims->data[2] != 1 || in->dims->data[3] < 1 ||
+              in->dims->data[3] > 64 ||
+              (channels && channels != in->dims->data[3]) ||
+              std::memcmp(in->dims->data, out->dims->data, 4 * sizeof(int)) ||
+              in->bytes != static_cast<size_t>(g_state_rows[j] * in->dims->data[3]) ||
+              out->bytes != in->bytes)
+            {
+              bkvoice_kws_model_close(instance);
+              return -EPROTO;
+            }
+
+          channels = in->dims->data[3];
+          instance->state_bytes += in->bytes;
+        }
+
+      instance->state = static_cast<int8_t *>(std::malloc(instance->state_bytes));
+      if (instance->state == nullptr)
+        {
+          bkvoice_kws_model_close(instance);
+          return -ENOMEM;
+        }
+
+      bkvoice_kws_model_reset(instance);
+    }
+
   auto *input = instance->input;
   auto *output = instance->output;
   if (!bkvoice_kws_quantized(input) || !bkvoice_kws_quantized(output) ||
       input->dims == nullptr || input->dims->size != 4 ||
-      input->dims->data[0] != 1 || input->dims->data[1] != BKVOICE_KWS_ROWS ||
+      input->dims->data[0] != 1 ||
+      input->dims->data[1] != (instance->streaming ? 1 : BKVOICE_KWS_ROWS) ||
       input->dims->data[2] != BKVOICE_KWS_BINS || input->dims->data[3] != 1 ||
-      input->bytes != BKVOICE_KWS_FEATURES || output->dims == nullptr ||
+      input->bytes != static_cast<size_t>(instance->streaming ?
+        BKVOICE_KWS_BINS : BKVOICE_KWS_FEATURES) || output->dims == nullptr ||
       output->dims->size != 2 || output->dims->data[0] != 1 ||
       output->dims->data[1] != BKVOICE_KWS_CLASSES ||
       output->bytes != BKVOICE_KWS_CLASSES ||
@@ -166,11 +263,13 @@ int bkvoice_kws_model_open(const struct bkvoice_kws_model_spec_s *spec,
   return 0;
 }
 
-int bkvoice_kws_model_infer(void *context, const float *features,
-                           float scores[BKVOICE_KWS_CLASSES])
+static int bkvoice_kws_model_run(void *context, const float *features,
+                                 float scores[BKVOICE_KWS_CLASSES],
+                                 bool streaming)
 {
   auto *model = static_cast<bkvoice_kws_model_s *>(context);
-  if (model == nullptr || features == nullptr || scores == nullptr)
+  if (model == nullptr || features == nullptr || scores == nullptr ||
+      model->streaming != streaming)
     {
       return -EINVAL;
     }
@@ -180,7 +279,8 @@ int bkvoice_kws_model_infer(void *context, const float *features,
   float feature_max = features[0];
   unsigned int clipped = 0;
 #endif
-  for (unsigned int i = 0; i < BKVOICE_KWS_FEATURES; i++)
+  const unsigned int count = streaming ? BKVOICE_KWS_BINS : BKVOICE_KWS_FEATURES;
+  for (unsigned int i = 0; i < count; i++)
     {
       if (!std::isfinite(features[i]))
         {
@@ -196,6 +296,17 @@ int bkvoice_kws_model_infer(void *context, const float *features,
 #endif
       value = value < -128.0f ? -128.0f : (value > 127.0f ? 127.0f : value);
       model->input->data.int8[i] = static_cast<int8_t>(value);
+    }
+
+  if (streaming)
+    {
+      size_t offset = 0;
+      for (unsigned int i = 0; i < 5; i++)
+        {
+          auto *input = model->state_input[i];
+          std::memcpy(input->data.int8, model->state + offset, input->bytes);
+          offset += input->bytes;
+        }
     }
 
 #ifdef __NuttX__
@@ -222,6 +333,38 @@ int bkvoice_kws_model_infer(void *context, const float *features,
   if (invoke_result != kTfLiteOk)
     {
       return -EIO;
+    }
+
+  if (streaming)
+    {
+      /* Tensor planner lifetimes may overlap. Copy every output into the
+       * bounded state cache before writing any input for the next invoke.
+       * Different affine state quantizers require explicit requantization.
+       */
+
+      size_t offset = 0;
+      for (unsigned int i = 0; i < 5; i++)
+        {
+          auto *input = model->state_input[i];
+          auto *output = model->state_output[i];
+          if (input->params.scale == output->params.scale &&
+              input->params.zero_point == output->params.zero_point)
+            {
+              std::memcpy(model->state + offset, output->data.int8, input->bytes);
+              offset += input->bytes;
+              continue;
+            }
+          for (size_t j = 0; j < input->bytes; j++)
+            {
+              float value = (output->data.int8[j] - output->params.zero_point) *
+                            output->params.scale / input->params.scale;
+              value = std::round(value) + input->params.zero_point;
+              value = value < -128 ? -128 : value > 127 ? 127 : value;
+              model->state[offset + j] = static_cast<int8_t>(value);
+            }
+
+          offset += input->bytes;
+        }
     }
 
   for (unsigned int i = 0; i < BKVOICE_KWS_CLASSES; i++)
@@ -259,6 +402,36 @@ int bkvoice_kws_model_infer(void *context, const float *features,
   return 0;
 }
 
+bool bkvoice_kws_model_is_streaming(const struct bkvoice_kws_model_s *model)
+{
+  return model != nullptr && model->streaming;
+}
+
+void bkvoice_kws_model_reset(void *context)
+{
+  auto *model = static_cast<bkvoice_kws_model_s *>(context);
+  if (model == nullptr || !model->streaming || model->state == nullptr) return;
+  size_t offset = 0;
+  for (unsigned int i = 0; i < 5; i++)
+    {
+      auto *input = model->state_input[i];
+      std::memset(model->state + offset, input->params.zero_point, input->bytes);
+      offset += input->bytes;
+    }
+}
+
+int bkvoice_kws_model_infer(void *context, const float *features,
+                           float scores[BKVOICE_KWS_CLASSES])
+{
+  return bkvoice_kws_model_run(context, features, scores, false);
+}
+
+int bkvoice_kws_model_step(void *context, const float *feature,
+                          float scores[BKVOICE_KWS_CLASSES])
+{
+  return bkvoice_kws_model_run(context, feature, scores, true);
+}
+
 size_t bkvoice_kws_model_arena_used(const struct bkvoice_kws_model_s *model)
 {
   return model == nullptr ? 0 : model->interpreter->arena_used_bytes();
@@ -268,6 +441,11 @@ void bkvoice_kws_model_close(struct bkvoice_kws_model_s *model)
 {
   if (model != nullptr)
     {
+      if (model->state != nullptr)
+        {
+          std::memset(model->state, 0, model->state_bytes);
+          std::free(model->state);
+        }
       if (model->interpreter != nullptr)
         {
           model->interpreter->~MicroInterpreter();

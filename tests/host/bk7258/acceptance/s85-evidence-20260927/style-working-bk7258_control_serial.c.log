@@ -1,0 +1,13 @@
+/tmp/s85-style-0e_cjkru/working/apps/app/bk7258/bk7258_control_serial.c: error: No block comments found
+/tmp/s85-style-0e_cjkru/working/apps/app/bk7258/bk7258_control_serial.c:2:0: error: Path relative to repository other than "nuttx" must begin with the root directory
+/tmp/s85-style-0e_cjkru/working/apps/app/bk7258/bk7258_control_serial.c:2:1: warning: #define outside of 'Pre-processor Definitions' section
+/tmp/s85-style-0e_cjkru/working/apps/app/bk7258/bk7258_control_serial.c:3:1: warning: #include outside of 'Included Files' section
+/tmp/s85-style-0e_cjkru/working/apps/app/bk7258/bk7258_control_serial.c:4:1: warning: #include outside of 'Included Files' section
+/tmp/s85-style-0e_cjkru/working/apps/app/bk7258/bk7258_control_serial.c:5:1: warning: #include outside of 'Included Files' section
+/tmp/s85-style-0e_cjkru/working/apps/app/bk7258/bk7258_control_serial.c:6:1: warning: #include outside of 'Included Files' section
+/tmp/s85-style-0e_cjkru/working/apps/app/bk7258/bk7258_control_serial.c:7:1: warning: #include outside of 'Included Files' section
+/tmp/s85-style-0e_cjkru/working/apps/app/bk7258/bk7258_control_serial.c:8:1: warning: #include outside of 'Included Files' section
+/tmp/s85-style-0e_cjkru/working/apps/app/bk7258/bk7258_control_serial.c:9:1: warning: #include outside of 'Included Files' section
+/tmp/s85-style-0e_cjkru/working/apps/app/bk7258/bk7258_control_serial.c:95:1: error: Missing blank line after comment
+/tmp/s85-style-0e_cjkru/working/apps/app/bk7258/bk7258_control_serial.c:107:1: error: Missing blank line after comment
+/tmp/s85-style-0e_cjkru/working/apps/app/bk7258/bk7258_control_serial.c:130:1: error: "Private/Public Functions" not found! File will not be checked

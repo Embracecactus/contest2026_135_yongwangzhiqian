@@ -1,0 +1,17 @@
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.c: In function ‘main’:
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.c:116:3: error: this ‘for’ clause does not guard... [-Werror=misleading-indentation]
+  116 |   for(unsigned i=0;i<5;i++)free(service.frames[i]);free(service.speaking_frame);
+      |   ^~~
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.c:116:52: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘for’
+  116 |   for(unsigned i=0;i<5;i++)free(service.frames[i]);free(service.speaking_frame);
+      |                                                    ^~~~
+In file included from /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.c:41:
+At top level:
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_intent.inc:85:13: error: ‘bkdisplay_intent_supersede’ defined but not used [-Werror=unused-function]
+   85 | static void bkdisplay_intent_supersede(void)
+      |             ^~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_intent.inc:76:13: error: ‘bkdisplay_intent_pending’ defined but not used [-Werror=unused-function]
+   76 | static bool bkdisplay_intent_pending(void)
+      |             ^~~~~~~~~~~~~~~~~~~~~~~~
+cc1: all warnings being treated as errors
+SETUP_ERROR: Command '['cc', '-std=gnu11', '-Wall', '-Wextra', '-Werror', '-pthread', '-I', '/tmp/pack-trial-build-uy7mkj93', '-I', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/mocks', '-I', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pack_trial.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_pack.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_media_volume.c', '-Wl,--wrap=write', '-o', '/tmp/pack-trial-build-uy7mkj93/test']' returned non-zero exit status 1.

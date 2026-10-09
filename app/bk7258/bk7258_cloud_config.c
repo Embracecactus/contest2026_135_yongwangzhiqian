@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
+#define _POSIX_C_SOURCE 200809L
 #include "bk7258_cloud_config.h"
 #include <errno.h>
 #include <stdbool.h>

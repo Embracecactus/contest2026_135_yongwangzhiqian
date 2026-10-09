@@ -1,0 +1,391 @@
+{
+  "slice": "S58",
+  "date": "2026-09-27",
+  "parent": "d838f198ba5256a31f094ac0d0dea4d4c38a7f64",
+  "counts": {
+    "PASS": 320,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 257,
+      "counts": {
+        "PASS": 257,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "new_cases": [
+    {
+      "id": "USB-02.tx-start_failure",
+      "parent": "USB-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.2642742359894328,
+      "evidence": "USB-02.tx-start_failure.log",
+      "evidence_sha256": "1075bd558b3bc0349393bdc000b7e0d5d7c1353e3c9ad3f3c202a157fefc580a"
+    },
+    {
+      "id": "USB-02.tx-queued_progress",
+      "parent": "USB-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.2643053130013868,
+      "evidence": "USB-02.tx-queued_progress.log",
+      "evidence_sha256": "9d6f34e73becb67ea313762531745e621f0db7d4b843ff21602312d1c163ffd9"
+    },
+    {
+      "id": "USB-02.tx-upper_start",
+      "parent": "USB-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.2643518990371376,
+      "evidence": "USB-02.tx-upper_start.log",
+      "evidence_sha256": "f3f12a7c9bdcb51f6a133178844e1bff1845a0d3794022f9d5d67cf9fce601f1"
+    },
+    {
+      "id": "USB-02.tx-upper_backpressure",
+      "parent": "USB-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.2643072879873216,
+      "evidence": "USB-02.tx-upper_backpressure.log",
+      "evidence_sha256": "15b9a0e35066801d55ac83aad21166bb1c65dbd42212f490e16bd74dc78e9391"
+    },
+    {
+      "id": "USB-02.tx-wrong_completion",
+      "parent": "USB-02",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.2642609350150451,
+      "evidence": "USB-02.tx-wrong_completion.log",
+      "evidence_sha256": "0bd120cbbc7e75ab66ed167f7c372461ddf695a216d3566dd35cdd4621eef9db"
+    }
+  ],
+  "baseline": "5 compiled cases FAIL_ASSERTION before repair; exact C assert output retained",
+  "runner_gate": {
+    "tests": 13,
+    "status": "PASS"
+  },
+  "mutations": [
+    {
+      "id": "drop-rejected-bytes",
+      "case": "start_failure",
+      "status": "DETECTED",
+      "restore": "PASS",
+      "source_sha256": "f753ecd69981c7806c3632bce0f09f84a12701cd2ae4ff2bd6a91fa1ea470d53",
+      "mutant_sha256": "fd8409dd7a4b26190d2c7b5ebad36a4600bbd9d977eb4867a3a89d403b5c4f81"
+    },
+    {
+      "id": "alias-upper-tx",
+      "case": "upper_backpressure",
+      "status": "DETECTED",
+      "restore": "PASS",
+      "source_sha256": "f753ecd69981c7806c3632bce0f09f84a12701cd2ae4ff2bd6a91fa1ea470d53",
+      "mutant_sha256": "f3c3f51dd73e2b567a814670bf0e4b399a930b884571226387e4e2b26f95c0c2"
+    },
+    {
+      "id": "strand-lower-queue",
+      "case": "queued_progress",
+      "status": "DETECTED",
+      "restore": "PASS",
+      "source_sha256": "f753ecd69981c7806c3632bce0f09f84a12701cd2ae4ff2bd6a91fa1ea470d53",
+      "mutant_sha256": "d34a4be4a5c2010a21b01cacbf431a930420dbe59c3f411238b6a4adf4132cf8"
+    }
+  ],
+  "existing_mutations": [
+    {
+      "id": "MSC-01.early-release",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.007886561972554773,
+      "source": "app/bk7258/bk7258_media_volume.c",
+      "original_sha256": "58ebb18ae63adccf21262253da18f153bbb7c680cc0b64719ca20e8a6d9681c8",
+      "mutant_sha256": "bf298373a95ac54d5587f93ece34a30a7f661a65a969c69db9e27c6570770c57",
+      "expected_assertion": "!mounted",
+      "evidence": "MSC-01.early-release.log"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.06409060803707689,
+      "source": "app/bk7258/bk7258_provision_config.c",
+      "original_sha256": "98f5100ca49ca44e45fe3e5da4bb2da0add7466f0e357a205ca8b1e307a5818e",
+      "mutant_sha256": "4c0c615b8ffc99247b0fd91bd934d3df0409a1180769cb939b2820f9e6f69427",
+      "expected_assertion": "bkcloud_config_decode",
+      "evidence": "CFG-01.wifi-clears-cloud.log"
+    }
+  ],
+  "inputs": {
+    "chips/bk7258/ap/bk7258_usbcdc.c": "f753ecd69981c7806c3632bce0f09f84a12701cd2ae4ff2bd6a91fa1ea470d53",
+    "goal-objective.md": "1667af0649bb5d5fa116f64b2986b8bfd671b58dd9bbb34b898f27460399944f",
+    "tests/host/bk7258/README.md": "d24ef0497f9824f74490b93fb9d255d96f17bac95a9f67aa8097a2fe0cfced90",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "47b7d23d5cfdc5506341993b85a64d32dd1bafc1fdd58434ed8989a8df293b43",
+    "tests/host/bk7258/test_shaniu_contracts.py": "3d9bb7f57efc5a0671729f409a31d18b0ae17e94fb968360b815d64c797af026",
+    "tests/host/bk7258/test_shaniu_usbcdc_tx.py": "79a6930958512e8e3485713243d174a59ab7128142b9817e4f710d48b28ccac0"
+  },
+  "external_inputs": {
+    "nuttx/drivers/serial/serial_io.c": "7dbf092897a4bea064ee4372b1ec56df693af0f8f75a080b90371c228a45aa51",
+    "nuttx/include/nuttx/serial/serial.h": "8a82d35d89fd9bef83e30c6e9b7f777b435372cd1fa1ecf9c89e9b1d028a3429",
+    "vendor/beken/bk_avdk_smp/ap/components/bk_usb/CherryUSB/port/beken_musb/usb_dc_beken_musb_mhdrc.c": "3f0b307132ec6f36a9be7148bbabdf818749ea1800ee6dd7c2fc785d29cd69d6"
+  },
+  "nuttx_commit": "76354c637858ecb0aa4601629327acb6f44a26bb",
+  "logs": {
+    "after.log": {
+      "sha256": "f8cc0cff3693968f7a24ee11ad1706ed987188c36aa31710cbab0b21a3ede9e8",
+      "tail": [
+        ".....",
+        "----------------------------------------------------------------------",
+        "Ran 5 tests in 1.085s",
+        "",
+        "OK"
+      ]
+    },
+    "alias-upper-tx-restore.log": {
+      "sha256": "4390eef64364c0b3eb1bf4a05aa3983556023e81570681a8817395ef88b3d1d9",
+      "tail": [
+        ".",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.233s",
+        "",
+        "OK"
+      ]
+    },
+    "alias-upper-tx.log": {
+      "sha256": "99df8da2d8a27e478922a7cc8f1d854f41437d24646ebfe0da73dc9369ff870e",
+      "tail": [
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/cdc-tx-hzs3hsih/case']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.237s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "before.log": {
+      "sha256": "75eba079f1d305c8f92c5e82ddb000cec80c3ffd15b76c9cb8d239913a252385",
+      "tail": [
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/cdc-tx-856qhyrr/case']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 5 tests in 1.179s",
+        "",
+        "FAILED (errors=5)"
+      ]
+    },
+    "build-target.log": {
+      "sha256": "ed4df6ca4c8b14f37c398f24a2ae4f137e085e56d8ddadde0682de5ea673fe5c",
+      "tail": [
+        "#### build completed successfully (1 seconds) ####",
+        "bk7258 layer gate: PASS sources=528 kconfig=253 legacy-exceptions=2",
+        "bk7258 build: PASS layout=bk7258-510173147382a879",
+        "bl1 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.map",
+        "bl2 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.map copy_size=13632",
+        "cp elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.map identity=bk7258-role-9a0b5b6e466d063f seed=41811cb113e14cd5ce35630f0a6d42f0d32f88a10c512bb971734bce9a28c016 config=dd503376e1b5436c9221274dc5a9ff86bf2e49660dfad4d306292e1113d82bed",
+        "ap elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.map identity=bk7258-role-5a3061a4da19ae9f seed=9507a2073a35e2970300a150395dc4d8c48458a68cb24412497ab54c714a7fec config=4e73b6c67a5176a8136b7c46a43c46329f7ef19e5ec74e626937d64bdeddfcee",
+        "build manifest=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    },
+    "contracts.log": {
+      "sha256": "cb110d1a59d08f3ad27a4a64d1ba1b445860d57dad972f59be57cc8b59a52288",
+      "tail": [
+        "unittest.case.FunctionTestCase (run)",
+        "MSC-01.restored ... ok",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 2 tests in 0.066s",
+        "",
+        "OK",
+        "{\"PASS\": 320, \"FAIL_ASSERTION\": 0, \"SETUP_ERROR\": 0, \"NOT_RUN\": 0} production_unchanged= True"
+      ]
+    },
+    "drop-rejected-bytes-restore.log": {
+      "sha256": "c4b85d3f5a796661aadc8b8aa6f0ecd25c887a0f419ae23c62d10fa609850fe9",
+      "tail": [
+        ".",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.232s",
+        "",
+        "OK"
+      ]
+    },
+    "drop-rejected-bytes.log": {
+      "sha256": "56f5920364c5316b74493e0448cf5c3ef26eddafa73f03fb67a7d4880c3feb7f",
+      "tail": [
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/cdc-tx-wx_dfawq/case']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.217s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "mutations.log": {
+      "sha256": "7ec31ca83e28b1bef451924954b21c366914803a0cc1917b8380da8ce766035c",
+      "tail": [
+        "[{'id': 'drop-rejected-bytes', 'case': 'start_failure', 'status': 'DETECTED', 'restore': 'PASS', 'source_sha256': 'f753ecd69981c7806c3632bce0f09f84a12701cd2ae4ff2bd6a91fa1ea470d53', 'mutant_sha256': 'fd8409dd7a4b26190d2c7b5ebad36a4600bbd9d977eb4867a3a89d403b5c4f81'}, {'id': 'alias-upper-tx', 'case': 'upper_backpressure', 'status': 'DETECTED', 'restore': 'PASS', 'source_sha256': 'f753ecd69981c7806c3632bce0f09f84a12701cd2ae4ff2bd6a91fa1ea470d53', 'mutant_sha256': 'f3c3f51dd73e2b567a814670bf0e4b399a930b884571226387e4e2b26f95c0c2'}, {'id': 'strand-lower-queue', 'case': 'queued_progress', 'status': 'DETECTED', 'restore': 'PASS', 'source_sha256': 'f753ecd69981c7806c3632bce0f09f84a12701cd2ae4ff2bd6a91fa1ea470d53', 'mutant_sha256': 'd34a4be4a5c2010a21b01cacbf431a930420dbe59c3f411238b6a4adf4132cf8'}]"
+      ]
+    },
+    "object-symbols.log": {
+      "sha256": "1e2a1521c1422dffe3f26d649c40b62a4971553303873cafe5f7006f500976bf",
+      "tail": [
+        "00000000 000000b0 t bk7258_usbcdc_ep_in_cb",
+        "00000000 0000011c t bk7258_usbcdc_kick_tx.constprop.0",
+        "00000000 00000098 t bk7258_usbcdc_txint",
+        "00000000 000006e0 d g_bk7258_usbcdc"
+      ]
+    },
+    "runner-gate.log": {
+      "sha256": "6550c381799ba6b8a85a932e9824ca1a90c1ebfca5fbdb3f0cbed439c60c0c2a",
+      "tail": [
+        ".............",
+        "----------------------------------------------------------------------",
+        "Ran 13 tests in 0.034s",
+        "",
+        "OK"
+      ]
+    },
+    "rx-regression.log": {
+      "sha256": "b3b2ea6f18d68b80b8aa7b8fbd1e90c95e9ed6b8270ef258a45eee2ab0f3a34a",
+      "tail": [
+        ".......",
+        "----------------------------------------------------------------------",
+        "Ran 7 tests in 1.523s",
+        "",
+        "OK"
+      ]
+    },
+    "strand-lower-queue-restore.log": {
+      "sha256": "8270162f72b25037bb5ce5a9dbc2742241e25cf4009d87afa4e1bffe0f45d892",
+      "tail": [
+        ".",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.246s",
+        "",
+        "OK"
+      ]
+    },
+    "strand-lower-queue.log": {
+      "sha256": "a227948d37cf547d2f6decfe177da6535e87f577937dcca0317ba62f6b321fde",
+      "tail": [
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/cdc-tx-rx7iaig2/case']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.248s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "style-baseline.log": {
+      "sha256": "3d6c96046e0b9efd563de06ec1808e9d99d3d5f867209e6aec408ba5bb5d7563",
+      "tail": [
+        "/tmp/tmpayyuno7z/bk7258_usbcdc.c:176:0: error: Mixed case identifier found",
+        "/tmp/tmpayyuno7z/bk7258_usbcdc.c:322:5: error: Mixed case identifier found",
+        "/tmp/tmpayyuno7z/bk7258_usbcdc.c:323:5: error: Mixed case identifier found",
+        "/tmp/tmpayyuno7z/bk7258_usbcdc.c:324:5: error: Mixed case identifier found",
+        "/tmp/tmpayyuno7z/bk7258_usbcdc.c:325:5: error: Mixed case identifier found",
+        "/tmp/tmpayyuno7z/bk7258_usbcdc.c:545:1: error: Missing blank line before comment found",
+        "/tmp/tmpayyuno7z/bk7258_usbcdc.c:545:78: error: Long line found",
+        "/tmp/tmpayyuno7z/bk7258_usbcdc.c:802:1: error: \"Private/Public Functions\" not found! File will not be checked"
+      ]
+    },
+    "style-c.log": {
+      "sha256": "f9079b248c33fb52a6ed881413656d73027472606183d111f353e24a34abd2ec",
+      "tail": [
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_usbcdc.c:177:0: error: Mixed case identifier found",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_usbcdc.c:324:5: error: Mixed case identifier found",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_usbcdc.c:325:5: error: Mixed case identifier found",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_usbcdc.c:326:5: error: Mixed case identifier found",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_usbcdc.c:327:5: error: Mixed case identifier found",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_usbcdc.c:570:1: error: Missing blank line before comment found",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_usbcdc.c:570:78: error: Long line found",
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/chips/bk7258/ap/bk7258_usbcdc.c:828:1: error: \"Private/Public Functions\" not found! File will not be checked"
+      ]
+    },
+    "style-python.log": {
+      "sha256": "1a56c7cd8457fd05d978cfbd139d7bfd86e86acaa9b57668e718ef8bccc0cf48",
+      "tail": [
+        "All done! ✨ 🍰 ✨",
+        "1 file would be left unchanged."
+      ]
+    },
+    "verify-manifest.log": {
+      "sha256": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac",
+      "tail": [
+        "bk7258 verify build-manifest: PASS boot=mcuboot board=aidk_ai_toy layout=bk7258-510173147382a879 source=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    }
+  },
+  "style": {
+    "nxstyle_current_exit": 1,
+    "nxstyle_baseline_exit": 1,
+    "black_new_test": "PASS",
+    "note": "Existing full-file style errors remain; no full style pass claimed."
+  },
+  "layers": {
+    "L1": "Actual CDC TX submission/queue callbacks; external USB and IRQ peers",
+    "L2": "Pinned uart_xmitchars and real TX array bindings; actual serial write syscall not run",
+    "protocol": "BLOCKED_INTERFACE: PC authorization, product frames and common services",
+    "target": "AIDK AP build and manifest PASS, no other board build",
+    "L3": "NOT_RUN"
+  },
+  "budget": {
+    "ARM_CDC_state_bytes": 1760,
+    "added_bytes": 256,
+    "new_threads": 0,
+    "new_heap": 0,
+    "new_dma_allocation": 0,
+    "new_polling": 0,
+    "submission_buffer_bound": 256,
+    "unmeasured": [
+      "IRQ duration",
+      "CPU/p95",
+      "stack",
+      "real wire throughput"
+    ]
+  },
+  "remaining": [
+    "rejected write requires later send/enable, no timed retry/status yet",
+    "full reconnect queue and authorization lifetime",
+    "PC independent credentials and framing",
+    "resource workbench, task events",
+    "physical USB slow/unplug/reset tests"
+  ],
+  "physical_actions": []
+}

@@ -14,6 +14,7 @@ extern "C"
 #endif
 
 #define BKVOICE_KWS_FRONTEND_ID "bkvoice-microfrontend-v1"
+#define BKVOICE_KWS_FRONTEND_V2_ID "bkvoice-microfrontend-pcan-v2"
 #define BKVOICE_KWS_RATE         16000
 #define BKVOICE_KWS_SAMPLES      (3 * BKVOICE_KWS_RATE)
 #define BKVOICE_KWS_WINDOW       480
@@ -33,9 +34,14 @@ struct bkvoice_kws_frontend_s
 {
   struct FrontendState state;
   int initialized;
+  int version;
+  int warmed;
 };
 
 int bkvoice_kws_frontend_init(struct bkvoice_kws_frontend_s *frontend);
+int bkvoice_kws_frontend_init_version(struct bkvoice_kws_frontend_s *frontend,
+                                     int version);
+void bkvoice_kws_frontend_reset(struct bkvoice_kws_frontend_s *frontend);
 void bkvoice_kws_frontend_uninitialize(struct bkvoice_kws_frontend_s *frontend);
 int bkvoice_kws_frontend_frame(struct bkvoice_kws_frontend_s *frontend,
                                const int16_t *pcm, float *features);
@@ -48,6 +54,15 @@ int bkvoice_kws_frontend_frame(struct bkvoice_kws_frontend_s *frontend,
 
 int bkvoice_kws_features(const int16_t *pcm, size_t samples,
                         float *features, size_t count);
+
+/* Version 2 retains the upstream noise estimate and PCAN state between
+ * overlapping frames. Warm-up PCM is processed but not returned. It must
+ * be real preceding context from the same source, never another split.
+ */
+
+int bkvoice_kws_features_version(const int16_t *pcm, size_t samples,
+                                float *features, size_t count, int version,
+                                size_t warmup_hops);
 
 #ifdef __cplusplus
 }

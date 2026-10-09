@@ -1,0 +1,159 @@
+{
+  "parent": "de66afa0a922000dd31805205f8d4285f3f099c5",
+  "counts": {
+    "selected": 622,
+    "PASS": 622,
+    "original_including_restores": 63,
+    "added": 559,
+    "new_ids": 8,
+    "new_L1": 3,
+    "new_L2": 5,
+    "runner_gates": 19,
+    "additional_original_protocol_tests": 14,
+    "emulator_scenarios": 1,
+    "emulator_navigation_rounds": 20,
+    "original_mutations": 2,
+    "extra_mutations": 1,
+    "extra_restores": 1
+  },
+  "implementation": "Android kind17 strict READ/BEGIN/response bounds; foreground DefaultSelectionController on existing authenticated serialized Session. Nonzero query nonce freezes128-byte snapshot with tail sequence recheck;96-byte ESC1 uses3x32-byte APPEND. Unsigned64-bit durable revisions preserved. No write before known snapshot, no auto replay. ACK followed by readback; epoch/operation mismatch remains unconfirmed. Close cancels only owned staging, not remote async job. Native Canva-style default sheet and existing local resource picker path; PC decoder also rejects saved/pending or rendering/unsaved contradictions.",
+  "test_first": {
+    "initial_missing_class_and_wire_kind": "BLOCKED_INTERFACE, not business Red",
+    "new_behavior_red": [
+      "Android and PC accepted saved flags in pending/preparing/cancel-pending snapshots",
+      "Android and PC accepted rendering without saved confirmation",
+      "Refresh-pending message incorrectly described waiting to save"
+    ],
+    "evidence": [
+      "pending-saved-red.log",
+      "pc-pending-saved-red.log",
+      "state-audit-red.xml",
+      "pc-rendering-red.log"
+    ],
+    "green": "8 final JVM units plus existing PC codec/native regressions in622; additional14 original parser tests separate"
+  },
+  "test_corrections": [
+    "Malformed response is publicly wrapped as IllegalStateException and closes the protocol. Corrected the test exception class; did not weaken close assertion. wire-exception-type-before.xml preserves failure.",
+    "UI observer originally read a noninteractive TextView enabled flag instead of the disabled row/button. Corrected observer to accessible interactive node; original failure retained.",
+    "Dialog dismissal callback is asynchronous. Moved cleanup observation after waitForIdleSync, as existing UI harness does; no sleep or timeout enlargement. Original close-observer failure retained.",
+    "Class-level L2 label was narrowed to L1 for3 pure codec/protocol units; collection IDs unchanged. Intermediate full collections preserved.",
+    "Initial wrong working directory/heredoc destination and misplaced Gradle --tests were setup mistakes, never counted as product failures. Final commands use verified task-scoped options."
+  ],
+  "integration": {
+    "L1": "Independent ESC1 offsets,64-bit boundary and ESS1 contradictions; actual DeviceControlProtocol AUTH and framing; bounded17 reads and exact96/128 lengths. Existing14 parser regressions pass separately.",
+    "L2": "Real DefaultSelectionController and DeviceControlSession; only transport callbacks/time/token providers controlled. Actual native firmware/storage tests retained in full suite, but not one Android-to-TLS-to-native-default vertical path yet.",
+    "UI": "Actual native Activity/sheet controls,20 open/unknown-write-gate/close rounds on emulator-5554. Synthetic in-memory auth with no transport; not BLE or saved/default rendering proof. Emulator APK updated with install-r only.",
+    "limits": "No Mi10 installation, board/serial/flash or physical button operations. Installed resource directory API absent: sheet selects an installed canonical name using local pack metadata; local file version/hash is not verified against installed content. Cross-recreation local resource selection remains unverified."
+  },
+  "artifacts": {
+    "versionCode": 45,
+    "versionName": "0.7.15-shaniu-default-selection",
+    "apk": "android/shaniu-companion/app/build/outputs/apk/debug/app-debug.apk",
+    "apk_sha256": "0ccffa14774365e81bf47e7656798e8ef1645db574d6474859f0a04056a30f53",
+    "apk_bytes": 18791007,
+    "test_apk_sha256": "78265e49a575f7443f987f2f522a72a20c7a50acdec54fc76cb163ba9e85d374",
+    "signer_sha256": "b2ea591116f967af230d0f06f678cc5fdd99d5884cc429b8d22c6489ba96050b",
+    "signature": "apksigner verified final APK; existing Android Debug identity, not a production firmware release identity",
+    "build_config_sha256": "aba5c0532662629a0afee6d63c29114cf24abf29d5173947e5161bdaa2158cd3"
+  },
+  "validation": {
+    "input_hashes_match": true,
+    "production_unchanged_during_final_run": true,
+    "digest_limit": "New Kotlin controller is explicitly input-hashed even before git staging; version/build config and APK identity additionally recorded here.",
+    "build": "assembleDebug and assembleDebugAndroidTest PASS; JVM full622 and14 parser regressions PASS",
+    "firmware": "Unchanged against parent; no redundant AP build",
+    "layers": "PASS sources550 kconfig253 legacy-exceptions2",
+    "style": "git diff --check; changed Python codec/test black24.10.0 PASS. No ktlint available; Kotlin compiled with existing toolchain."
+  },
+  "mutation": {
+    "source_sha256": "ea7a1fec3a627022f3bf8ae1aed8529f3d1dcad208c51ae52313c69cab77674d",
+    "mutant_sha256": "65eb8b2a9a6b266fb3f9a24abf7c8077f4a8b469507779a100096b351b029ebf",
+    "mutation": {
+      "exit_code": 1,
+      "tests": 1,
+      "failures": 1
+    },
+    "restore": {
+      "exit_code": 0,
+      "tests": 1,
+      "failures": 0
+    }
+  },
+  "resources": {
+    "bounded": "Existing one Session/connection; one128-byte snapshot accumulator,96-byte operation,16-byte query token, bounded current receipt. No polling loop, new background service or unbounded queue.",
+    "unmeasured": "Object/allocator overhead, Android peak heap/CPU/frame latency and real BLE/device resource contention not measured; raw buffer sizes are not total memory measurements."
+  },
+  "parent_gaps": {
+    "RES-02": {
+      "interface": "Android/PC/native default selection implemented by component; old firmware explicitly unsupported",
+      "L1_L2": "8 new Android units and shared native regressions; actual Android-to-native TLS vertical still pending",
+      "L3": "NOT_RUN"
+    },
+    "UI-01/UI-02": {
+      "interface": "Native default sheet with one primary action and truthful status",
+      "L1_L2": "20 synthetic emulator navigation/unknown gate/close rounds; resource selection across reconstruction and full font/theme matrix outstanding",
+      "L3": "Mi10 NOT_RUN"
+    }
+  },
+  "next": "Bind real Android client to native default-selection service in cross-layer tests, verify local resource choice preservation across reconstruction, continue installed-pack trials/browser workbench and actual hardware/combination/release gates.",
+  "evidence_dir": "s105-evidence-20260927",
+  "evidence_sha256": {
+    "CFG-01.wifi-clears-cloud.log": "dbcf886ffe615bc670c8b101f98c56286726de628e262061e2c5053246e92718",
+    "MSC-01.early-release.log": "5b81ea2eea00a749a2dec49e4a9795bc5c7582de97550d142dcf12dae8b9b5a3",
+    "RES-02.pc-default-malformed.log": "9d04974e730ca29b04f4dfe11f423234fccff0973487041e4a2c95a10e626739",
+    "TEST-com.shaniu.companion.provision.DefaultSelectionControllerTest.xml": "ec9c58c68e07a43b265130d35e3bf68385ae4c7fa7cd6b74395799ea58aa1f1e",
+    "android-build.log": "c94d1bf87a6e0098c6872a378d68bab30e2659fd43d435542bd474f1f43249a4",
+    "android-final-local.log": "b486b1d22ca053537c7721cf13e47afe60d8ad1d07bcc551be0088c85b4d5b92",
+    "android-final.log": "45d58590fac493211ac752910ed8008c5ce49f71f9b2ba09ffc8dfad1e6df49a",
+    "android-test-final.log": "d5a9e8855fcb74c3daf5285897cdea58f9cf3d4fb15a980fe4e07b6a95ea154d",
+    "apk-badging-final.log": "0af8168a0b08471d5a487a214b58effea29e0789692090d675fe9ac3b73e19bf",
+    "apk-badging.log": "0af8168a0b08471d5a487a214b58effea29e0789692090d675fe9ac3b73e19bf",
+    "apk-sha256-final.log": "c87cf2dccafac4b7df280454660aad567676c9e7693f6c2b39e5cd02d8f1ec8a",
+    "apk-sha256.log": "219b1d75b3008eea74383bcb6e53d50e220f34f7c71efb1c770dd1cddfce42ac",
+    "apk-signature-final.log": "dc48f589a74a7d42f2c9ead0cba2a5a500d596a2d09b9324570f7ff9c72e3ff4",
+    "apk-signature.log": "dc48f589a74a7d42f2c9ead0cba2a5a500d596a2d09b9324570f7ff9c72e3ff4",
+    "controller-final-local.log": "460d5419f54f93bdfe12dd7f95809a07dbb70358bc22bb48686e204b06edd602",
+    "controller-first.log": "4802c7e47a1d8096a92a1f0a33284c3b7082a0f086a52c12a6288a61fcffaa30",
+    "controller-run.log": "012723e9de2d0a4ffacfaff4042d8a371eddab57f1615ed6f6246f8d8ae3ce7a",
+    "controller-valid-run.log": "4802c7e47a1d8096a92a1f0a33284c3b7082a0f086a52c12a6288a61fcffaa30",
+    "emulator-default-ui-before-close-observer.log": "baf24ce3f9f00ef5ca2b6ef47c0abbca2a61ac158bf9e601279ecd0d3ef728f4",
+    "emulator-default-ui-before-observer.log": "50a97380043a316a3014128218de174cc8f2c226dd77ffb56e7f5bd4f3e346c8",
+    "emulator-default-ui-final.log": "7e0435b74c7a2e824fbb98cbfc3caa09476e2488f5d44ef8d78cf8a331b58800",
+    "emulator-default-ui.log": "77bfeb8c372f96dc4893314bec5c11a6df42853bcdb0474fdbe7f146c4c7400d",
+    "final-mutation-receipt.log": "e8f7a72eb1cbcfa8741b523f2e23b64bf561bb271b75503b816b6d9087128170",
+    "final-mutation-receipt.xml": "6439c9a122d68dfb2dcc95a6629e015c3bc5e2acf2946fb3f2af344f8fabf495",
+    "final-mutation.json": "ee45d1fbb4b36644b6a1ffa7998cb639b1fde93dcc3613d8143cb8f3b8c69ab8",
+    "final-restore-receipt.log": "2a51aa8ed8f9287db2812adc0b95ed8bfb61242e1efd1631ebdbaefe742cd137",
+    "final-restore-receipt.xml": "ce8df66cdda3f0de572439fec8a0c349790c22e6cb592044d73d2c0236675c2d",
+    "full-before-close-observer.json": "d2ae537ce051a94e87a9ebe11ddad9e681d9d68a2acf479ef16a07517c3f7b56",
+    "full-before-close-observer.log": "5fde840f6fa9dc46c127b2a83eae2271b2f600d12d144089368a85e85ae95d24",
+    "full-before-state-audit.json": "5baf4aa19520dd342fa026d5f72c8ab739c119e0f4f4129b7eed1b2a065928a7",
+    "full-before-state-audit.log": "2e55e0f30985a82e0b9e2223fc4beda561992dea556d2a9a62c0410be5eb3489",
+    "full-before-ui-observer.json": "4348b1f9fffe2756463b742c78b2493833fb53320bb1b95e0c6d101018493910",
+    "full-before-ui-observer.log": "d62a7676ade2a8c1f048fe7b5e61fd1a0112ed835063f02d42c3b779b075943b",
+    "full.log": "c863a1fdc91f7cc9dfe7c2f3af31e8c786aeb9f91702f628300f31fdf70b3273",
+    "gates-final.log": "8150dbe2955141efcb5ca24fee30d3d5d385affcfb244cce9dbe8ad48eed145a",
+    "gates.log": "d68d5ea68b529deff7f957215b45b7551f8acae47f5ea1736979a7eed352f83a",
+    "interface-before.log": "4802c7e47a1d8096a92a1f0a33284c3b7082a0f086a52c12a6288a61fcffaa30",
+    "jvm.log": "bfe6bda398c538b44c3dd2a8a3c9387e96c4159490bd358c04b71f0474d0f281",
+    "layers.log": "027609397eae350c61a6eb847a6c4ab94f0c926dfa48f65914118948fd3b6c40",
+    "mutation-receipt.log": "6b28797c5cb7a9ca135590c2bc902b2371c2f00f9e726e34f3f13cbf0c942be2",
+    "mutation-receipt.xml": "889c0ccf596da71e6d04c827f100d36914feaa7397a30cce04e5111a09eac1a5",
+    "pc-pending-saved-green.log": "d10ffbd9f0faa72cd6837063279524e199b59fbc3d035051302a1e8dbc4b36ad",
+    "pc-pending-saved-red.log": "159331b83b518f133a64f543c42e9f5fd3a721ee7b699ca5087c6d1ed0ca059e",
+    "pc-rendering-green.log": "fb184ea57734512b1f088f9181209901b9cd46df3eb7eaa2500ea9e48dde20b5",
+    "pc-rendering-red.log": "93705b7495df5e08bd79282f7db59b2dc1d0ee780548905b094993a197bea173",
+    "pending-saved-red.log": "0bc898d3533a6e3c9b360afefe95657bda1ab961136ba6a67223c39c770f9ad6",
+    "protocol-regression.log": "f4e702ae221c9ac7cfc4a56ffac4654a01d2a0c2a5452d9b9aa86d151620eb42",
+    "protocol-regression.xml": "a94d299d1ea593aa2baf55c38de799ffd9258d0cdba74476218a5fc07d333fca",
+    "python-style-final.log": "b9cf511501d306d2bd8355ccb165c8ddc0a6fdd62d7c72c4a7b1795cf8934c8c",
+    "python-style.log": "b9cf511501d306d2bd8355ccb165c8ddc0a6fdd62d7c72c4a7b1795cf8934c8c",
+    "restore-receipt.log": "7aa9cc0a7531b8f47964b7faf84de598b4a1452a22ea93dad6e85a2f047cbd85",
+    "restore-receipt.xml": "86147dc75dbb36947ca30f4e3dec531328fdfc7de18d1efd49caa4ff4d0d8a3e",
+    "state-audit-red.log": "1c811dc07cc8d4933370063cba26276a9efa038881d27a68f03a3d2393986eb5",
+    "state-audit-red.xml": "04a94981e4cc00736a31ec6cbd2f8531f87739e423c7e332ef388e61d60672d6",
+    "wire-after.log": "a7c25a32f6419ee5b7a7fb54c4d1244e10af72d7056f63c788ed3ddf16833900",
+    "wire-before.log": "7e7cf8123c51fe474296c0509eb54a55e8682cc0a21899669bf56fb9566bcd49",
+    "wire-exception-type-before.xml": "df55731fe78fdd978ef0d7db1a70d32fb607a97bfa50a7afff02295fa50eb76c"
+  }
+}

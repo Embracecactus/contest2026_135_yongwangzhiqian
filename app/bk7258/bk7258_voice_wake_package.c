@@ -17,13 +17,15 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#define WKA_DESC 321u
+#define WKA_DESC_V1 321u
+#define WKA_SIZE_V1 (4u + 2u * WKA_DESC_V1)
+#define WKA_DESC (WKA_DESC_V1 + 4u)
 #define WKA_SIZE (4u + 2u * WKA_DESC)
 
 static const char g_root[] = BKVOICE_WAKE_PACKAGE_ROOT;
 static mutex_t g_model_store_lock = NXMUTEX_INITIALIZER;
 
-/* WKA1 selection and WKM1 assets live in the existing protected CP store.
+/* WKA2 selection and WKM1/WKM2 assets live in the protected CP store.
  * Serialize only this asset transaction; mounting the unrelated SD/FAT
  * preferences volume would make model loading depend on removable storage. */
 static int with_model_store(int (*operation)(void *), void *context)
@@ -39,6 +41,32 @@ static int bounded(const char *s, size_t cap, size_t *n)
 {
   *n = strnlen(s, cap);
   return *n == cap ? -EBADMSG : 0;
+}
+
+static uint32_t read_u32(const uint8_t *p)
+{
+  return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) |
+         ((uint32_t)p[2] << 8) | p[3];
+}
+
+static void write_u32(uint8_t *p, uint32_t n)
+{
+  p[0] = n >> 24;
+  p[1] = n >> 16;
+  p[2] = n >> 8;
+  p[3] = n;
+}
+
+const char *bkvoice_wake_package_frontend_id(uint32_t version)
+{
+  return version == 1 ? BKVOICE_KWS_FRONTEND_ID :
+         version == 2 ? BKVOICE_KWS_FRONTEND_V2_ID : NULL;
+}
+
+size_t bkvoice_wake_package_header_size(uint32_t version)
+{
+  return version == 1 ? BKVOICE_WAKE_PACKAGE_HEADER :
+         version == 2 ? BKVOICE_WAKE_PACKAGE_HEADER_V2 : 0;
 }
 
 static int utf8(const uint8_t *p, size_t n)
@@ -115,22 +143,36 @@ int bkvoice_wake_package_decode(const void *record, size_t size,
 {
   const uint8_t *p = record;
   size_t n;
+  size_t header;
+  uint32_t frontend;
 
-  if (!p || !s || size < BKVOICE_WAKE_PACKAGE_HEADER ||
-      memcmp(p, "WKM1", 4))
+  if (!p || !s || size < BKVOICE_WAKE_PACKAGE_HEADER)
     return -EBADMSG;
-  n = ((size_t)p[4] << 24) | ((size_t)p[5] << 16) |
-      ((size_t)p[6] << 8) | p[7];
+  if (!memcmp(p, "WKM1", 4))
+    {
+      header = BKVOICE_WAKE_PACKAGE_HEADER;
+      frontend = 1;
+    }
+  else if (!memcmp(p, "WKM2", 4) &&
+           size >= BKVOICE_WAKE_PACKAGE_HEADER_V2)
+    {
+      header = BKVOICE_WAKE_PACKAGE_HEADER_V2;
+      frontend = read_u32(p + BKVOICE_WAKE_PACKAGE_HEADER);
+      if (!bkvoice_wake_package_frontend_id(frontend)) return -EBADMSG;
+    }
+  else return -EBADMSG;
+  n = read_u32(p + 4);
   if (!n || n > BKVOICE_WAKE_PACKAGE_MAX_MODEL ||
-      size != BKVOICE_WAKE_PACKAGE_HEADER + n)
+      size != header + n)
     return -EBADMSG;
   memset(s, 0, sizeof(*s));
   if (text(p + 40, 32, s->label, sizeof(s->label), true) ||
       text(p + 72, 64, s->phrase, sizeof(s->phrase), false))
     return -EBADMSG;
   memcpy(s->sha256, p + 8, 32);
-  s->model = p + BKVOICE_WAKE_PACKAGE_HEADER;
+  s->model = p + header;
   s->model_size = n;
+  s->frontend_version = frontend;
   return 0;
 }
 
@@ -146,11 +188,11 @@ int bkvoice_wake_package_validate(const struct bkvoice_wake_package_s *s)
   struct bkvoice_kws_model_spec_s spec = {
     .data = s ? s->model : NULL,
     .bytes = s ? s->model_size : 0,
-    .frontend = BKVOICE_KWS_FRONTEND_ID,
+    .frontend = s ? bkvoice_wake_package_frontend_id(s->frontend_version) : NULL,
     .labels = {"silence", "unknown", s ? s->label : NULL}
   };
 
-  if (!s || !s->model || !s->model_size ||
+  if (!s || !s->model || !s->model_size || !spec.frontend ||
       s->model_size > BKVOICE_WAKE_PACKAGE_MAX_MODEL)
     return -EINVAL;
   if (mbedtls_sha256(s->model, s->model_size, hash, 0) ||
@@ -168,7 +210,9 @@ int bkvoice_wake_package_validate(const struct bkvoice_wake_package_s *s)
   ret = bkvoice_kws_model_open(&spec, arena,
                                CONFIG_BK7258_VOICE_KWS_ARENA_BYTES, &model);
   if (!ret)
-    ret = bkvoice_kws_model_infer(model, zero, scores);
+    ret = bkvoice_kws_model_is_streaming(model) ?
+          bkvoice_kws_model_step(model, zero, scores) :
+          bkvoice_kws_model_infer(model, zero, scores);
   if (!ret && (!isfinite(scores[0]) || !isfinite(scores[1]) ||
                !isfinite(scores[2])))
     ret = -EPROTO;
@@ -321,7 +365,7 @@ int bkvoice_wake_package_stage(const struct bkvoice_wake_package_s *s,
   struct stage_s x;
   int ret;
 
-  if (!s || !d)
+  if (!s || !d || !bkvoice_wake_package_frontend_id(s->frontend_version))
     return -EINVAL;
   memset(d, 0, sizeof(*d));
   hex(s->sha256, d->sha256_hex);
@@ -329,6 +373,7 @@ int bkvoice_wake_package_stage(const struct bkvoice_wake_package_s *s,
            d->sha256_hex, d->sha256_hex + 24, d->sha256_hex + 48);
   strcpy(d->label, s->label);
   strcpy(d->phrase, s->phrase);
+  d->frontend_version = s->frontend_version;
   x = (struct stage_s){s, d, 0};
   ret = with_model_store(stage_io, &x);
   return ret ? ret : x.ret;
@@ -351,9 +396,11 @@ static int descriptor_valid(const struct bkvoice_wake_package_descriptor_s *d,
       bounded(d->phrase, sizeof(d->phrase), &phrase_len))
     return -EBADMSG;
   if (path_len == 0)
-    return allow_empty && hash_len == 0 && label_len == 0 && phrase_len == 0
+    return allow_empty && hash_len == 0 && label_len == 0 && phrase_len == 0 &&
+           d->frontend_version == 0
              ? 0 : -EBADMSG;
-  if (hash_len != 64 || label_len == 0 || phrase_len == 0 ||
+  if (!bkvoice_wake_package_frontend_id(d->frontend_version) ||
+      hash_len != 64 || label_len == 0 || phrase_len == 0 ||
       utf8((const uint8_t *)d->phrase, phrase_len))
     return -EBADMSG;
   for (size_t i = 0; i < hash_len; i++)
@@ -364,10 +411,34 @@ static int descriptor_valid(const struct bkvoice_wake_package_descriptor_s *d,
           (d->label[i] >= '0' && d->label[i] <= '9') || d->label[i] == '_'))
       return -EBADMSG;
   if (!strcmp(d->model_path, "/etc/media/nihao_openvela.tflite"))
-    return 0;
+    return d->frontend_version == 1 ? 0 : -EBADMSG;
   snprintf(expected, sizeof(expected), "%s/%.24s/%.24s/%s", g_root,
            d->sha256_hex, d->sha256_hex + 24, d->sha256_hex + 48);
   return strcmp(expected, d->model_path) ? -EBADMSG : 0;
+}
+
+int bkvoice_wake_package_encode_header(void *record, size_t capacity,
+  const struct bkvoice_wake_package_descriptor_s *d, size_t model_size)
+{
+  uint8_t *p = record;
+  if (!p || descriptor_valid(d, false) || !model_size ||
+      model_size > BKVOICE_WAKE_PACKAGE_MAX_MODEL) return -EINVAL;
+  size_t header = bkvoice_wake_package_header_size(d->frontend_version);
+  if (capacity < header) return -ENOSPC;
+  memset(p, 0, header);
+  memcpy(p, d->frontend_version == 1 ? "WKM1" : "WKM2", 4);
+  write_u32(p + 4, model_size);
+  for (size_t i = 0; i < 32; i++)
+    {
+      const char *digits = "0123456789abcdef";
+      p[8 + i] = ((strchr(digits, d->sha256_hex[2 * i]) - digits) << 4) |
+                 (strchr(digits, d->sha256_hex[2 * i + 1]) - digits);
+    }
+  memcpy(p + 40, d->label, sizeof(d->label));
+  memcpy(p + 72, d->phrase, sizeof(d->phrase));
+  if (d->frontend_version != 1)
+    write_u32(p + BKVOICE_WAKE_PACKAGE_HEADER, d->frontend_version);
+  return (int)header;
 }
 
 static void encode_desc(uint8_t *p,
@@ -377,16 +448,19 @@ static void encode_desc(uint8_t *p,
   memcpy(p + 160, d->sha256_hex, 65);
   memcpy(p + 225, d->label, 32);
   memcpy(p + 257, d->phrase, 64);
+  write_u32(p + WKA_DESC_V1, d->frontend_version);
 }
 
 static void decode_desc(const uint8_t *p,
-                        struct bkvoice_wake_package_descriptor_s *d)
+                        struct bkvoice_wake_package_descriptor_s *d, bool legacy)
 {
   memset(d, 0, sizeof(*d));
   memcpy(d->model_path, p, 160);
   memcpy(d->sha256_hex, p + 160, 65);
   memcpy(d->label, p + 225, 32);
   memcpy(d->phrase, p + 257, 64);
+  d->frontend_version = legacy ? (d->model_path[0] ? 1 : 0) :
+                        read_u32(p + WKA_DESC_V1);
 }
 
 struct load_s
@@ -410,10 +484,11 @@ static int load_io(void *v)
   x->ret = bkprov_store_load(&s, b, sizeof(b), &n, x->r, NULL);
   if (x->ret)
     return x->ret;
-  if (n != sizeof(b) || memcmp(b, "WKA1", 4))
+  bool legacy = n == WKA_SIZE_V1 && !memcmp(b, "WKA1", 4);
+  if (!legacy && (n != sizeof(b) || memcmp(b, "WKA2", 4)))
     return x->ret = -EBADMSG;
-  decode_desc(b + 4, x->a);
-  decode_desc(b + 4 + WKA_DESC, x->p);
+  decode_desc(b + 4, x->a, legacy);
+  decode_desc(b + 4 + (legacy ? WKA_DESC_V1 : WKA_DESC), x->p, legacy);
   return x->ret = descriptor_valid(x->a, false) ||
                          descriptor_valid(x->p, true) ? -EBADMSG : 0;
 }
@@ -442,8 +517,8 @@ struct commit_s
 static int commit_io(void *v)
 {
   struct commit_s *x = v;
-  uint8_t b[WKA_SIZE] = {"WKA1"};
-  uint8_t t[16] = {'W', 'K', 'A', '1'};
+  uint8_t b[WKA_SIZE] = {"WKA2"};
+  uint8_t t[16] = {'W', 'K', 'A', '2'};
   struct bkprov_store_s s;
   uint64_t next = x->rev + 1;
 

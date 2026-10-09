@@ -1,0 +1,18 @@
+[
+  {
+    "id": "torn-snapshot-accepted",
+    "status": "DETECTED",
+    "test": "TasksTest.test_readback",
+    "exit_code": 1,
+    "restore_exit_code": 0,
+    "restore_count": 6
+  },
+  {
+    "id": "task-before-auth",
+    "status": "DETECTED",
+    "test": "TasksTest.test_failure",
+    "exit_code": 1,
+    "restore_exit_code": 0,
+    "restore_count": 6
+  }
+]

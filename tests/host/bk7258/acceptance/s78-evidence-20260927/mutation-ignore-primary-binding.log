@@ -1,0 +1,1 @@
+test: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_provision_tls.c:463: control_terminal: Assertion `error == expected' failed.

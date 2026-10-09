@@ -1,0 +1,116 @@
+{
+  "parent": "aaaa0fdbbb89d5ea57989cede2a1cbbcf206b3e5",
+  "scope": "Installed catalog store API groundwork; not yet callable by the product service, authenticated transport or UI",
+  "counts": {
+    "selected_units": 28,
+    "PASS": 28,
+    "new_catalog_units": 11,
+    "existing_upload_units": 12,
+    "existing_HTTP_TLS_display_units": 5,
+    "runner_gates": 19,
+    "mutation_detected": 1,
+    "mutation_restore_PASS": 1,
+    "global_registered": 665,
+    "global_executed": false,
+    "last_full": "S111 652 units"
+  },
+  "baseline": "First test compile lacked the new catalog interface: BLOCKED_INTERFACE, not FAIL_ASSERTION. Initial implementation build failed -Werror format-truncation; preserved as SETUP_ERROR. Bounded copy follows independently checked canonical filename length. Final build and assertions pass.",
+  "contract": [
+    "Caller holds mounted volume lease and excludes directory mutations; synchronous worker-only API",
+    "Sorted pages of at most4 fully validated canonical installed packs; at most256 directory entries scanned, including non-pack and dot entries",
+    "No mount, directory creation, writes or default marker read/mutation",
+    "Errors/cancellation clear whole output; checked directory and pack closes propagate errors",
+    "Cancellation between entries/files, not within pack parser; error does not establish safely released volume",
+    "Source SHA is source metadata, not full-file content hash; pages not atomic cross-call snapshots"
+  ],
+  "oracle": [
+    "Fixture IDs a,b,c,d,e,z have independent lexical page expectations and share source metadata intentionally",
+    "Corrupt/symlink/over-budget candidates reject without partial output",
+    "Fault wrappers replace filesystem boundary, retaining real catalog, pack validation and upload/render state machines",
+    "Ignored close error mutant compiles and fails ret == -EIO; restored original passes; separate from product count"
+  ],
+  "parent_gaps": {
+    "RES-02": {
+      "interface": "Store API exists; async display-owner job, transport schema, revision-consistent paging and native Android/browser binding remain BLOCKED_INTERFACE",
+      "L1_L2": "11 store cases plus12 existing upload and5 HTTP TLS display paths PASS; one legacy pack target also passes, not counted as individual cases",
+      "L3": "NOT_RUN actual SD latency/exit/DMA and rendering"
+    },
+    "RES-03": {
+      "interface": "USB installed catalog not available yet; no workbench menu claims it",
+      "L1_L2": "Existing transport/display regression only, not catalog transport acceptance",
+      "L3": "NOT_RUN native USB device"
+    },
+    "LIFE-02": {
+      "interface": "New close return exposes failure; existing callers that ignore it are not repaired by this increment",
+      "L1_L2": "Injected close failures surfaced by catalog; no universal lifecycle exit claim",
+      "L3": "NOT_RUN physical release behavior"
+    }
+  },
+  "resource_budget": {
+    "bounded": "4 records,5 filename candidates,256 scanned directory entries; no persistent worker or new heap state beyond existing pack parser",
+    "host_function_stack_bytes": 1968,
+    "host_stack_limit": "GCC x86_64 -O2 static estimate for catalog function only, not target stack high-water or whole call chain",
+    "target": "AP incremental compile/link PASS. Catalog API has no production caller yet and may be link-GC removed; this build does not prove target execution or budget. Existing worker stack/cancellation latency need validation before wiring."
+  },
+  "build": {
+    "role": "AP only incremental",
+    "result": "PASS",
+    "warning": "Existing agent product initializer missing braces at3151; no zero-warning claim",
+    "artifacts": {
+      "nuttx": "c80b28b9a5e503cabd2d8f4337168ca3b23aaa5418b94b349829116066f1294f",
+      "nuttx.bin": "c05a7d96f5d632bb4b3c3c3fff60c99afbbc2786adbfefd5ec252b0b74c920e9"
+    }
+  },
+  "limits": [
+    "No signing, flashing, serial open, phone install, model/resource default or dependency change",
+    "No complete global665 execution; original63 identifiers retained, original2 mutation regressions not rerun in this scoped slice",
+    "Not full-file digest or same-name upgrade support; existing immutable filename publication remains",
+    "Tighten worker ownership and cancellation before enabling catalog through a transport"
+  ],
+  "raw_evidence_sha256": {
+    "s113-evidence-20260927/RES-01.upload-cancel.log": "0daba558bc80bb3d28ec260b4bf6c81f4aa0317a3395e8204d03c1f0506a82c4",
+    "s113-evidence-20260927/RES-01.upload-close-failure.log": "0eff881722be974e98c46a40e9803b1b3f9621766ca6556fb42db320fc5b6bd8",
+    "s113-evidence-20260927/RES-01.upload-collision.log": "96096bdd7b34fa6e17c26e49f5fc1e27c550f579277a5298357e8954a9e4ea23",
+    "s113-evidence-20260927/RES-01.upload-corrupt.log": "0658a8c8d5d142d73b7799da86ed87a3afaea11808e6e3469644001ee462a48c",
+    "s113-evidence-20260927/RES-01.upload-directory-failure.log": "198fff552dc23efcf445cff0a69e51847fa804491cdf4b03e60174c5f2a73039",
+    "s113-evidence-20260927/RES-01.upload-fragmented.log": "5ebb1d0357fed2558a3d7a6c86663028c40d2f82aa6757162f5bf9f91c3e36dd",
+    "s113-evidence-20260927/RES-01.upload-normal.log": "868e14ce8684fccaa3d0442ee66c1f61a534e4dd837ef4c0478352c7698f4586",
+    "s113-evidence-20260927/RES-01.upload-preserve.log": "f73c6c594b60e3dba14ba2b269f989461311c2bef4d90544feeed8b08eea0aa1",
+    "s113-evidence-20260927/RES-01.upload-sync-failure.log": "47924744b89446547f878db03ab10b57cd169a6db67d32621402c67cd50502e7",
+    "s113-evidence-20260927/RES-01.upload-write-failure.log": "95f529694784f666c7a674cae3502ea229ca77d140930effad8d31c75dccc36d",
+    "s113-evidence-20260927/RES-02.activate-collision.log": "174c694bbce15b3de64d6e8e3fe4e211cdc65377de8863775cff05dc71b0461d",
+    "s113-evidence-20260927/RES-02.activate-directory-failure.log": "bcb104a3503fbbf971b5807a2f1e8b3c64a0725ebd07c1e052b714c84da6236f",
+    "s113-evidence-20260927/RES-02.catalog-cancel-before.log": "c63bc614eb144ba7128c0bf3aa58542523fc23946bcd825197eb84b7f9f9dfac",
+    "s113-evidence-20260927/RES-02.catalog-cancel-during.log": "643d1d78b0cf13b3865087a8defd96d87d34c9684d949b1c385f11fc3fa50b54",
+    "s113-evidence-20260927/RES-02.catalog-corrupt.log": "9f5f5a278f2609e21e5db351ba17e21698aad003788c993c941daf8e6a61d995",
+    "s113-evidence-20260927/RES-02.catalog-directory-close.log": "2d3e1e79ca5d910dee66f496959d5cd0e70267120ff0514ea66c7e6e3804ff2d",
+    "s113-evidence-20260927/RES-02.catalog-file-close.log": "f79bd969c101fca8872eb6d89af81abd198413195399f33de0ad6efebd5e18f7",
+    "s113-evidence-20260927/RES-02.catalog-invalid-cursor.log": "50dbf6aa6a356b4f6cc67f9d2a6d076843a89bffcce8f9bc7f143fd9ee61386a",
+    "s113-evidence-20260927/RES-02.catalog-missing.log": "e0d8e5cb9dea0e0b216f639c3f8748f05925f0359e12df76a5bc32c71267efb4",
+    "s113-evidence-20260927/RES-02.catalog-pages.log": "470f8195cc156e08e466b1ded0fca8d62df93f2e6da3e1a9aa686113e08eb7e4",
+    "s113-evidence-20260927/RES-02.catalog-read-error.log": "f98b6f5e46a46f513960a1721f6f62437313708ddc3e9e8b4a8aa0aafbff6523",
+    "s113-evidence-20260927/RES-02.catalog-scan-limit.log": "7a8145d40a8ab58947c19762d9c1f02066d84ff6922f3c26a6e711f281df22df",
+    "s113-evidence-20260927/RES-02.catalog-symlink.log": "a2b58c66e5dffe3f54cb1a916388a3a603fef5858fc9f5b7b5ad32e879b70600",
+    "s113-evidence-20260927/RES-02.web-display-tls-default_supersedes_trial.log": "ba9a08c7c84b585beb45c03107bae120c9b7611b98de5dbadfc9a26322f8ffa7",
+    "s113-evidence-20260927/RES-02.web-display-tls-missing_pack.log": "76c9a18c529872ef18874a8138f0a015d56bd117dd158bc27aaace2a33fb49ba",
+    "s113-evidence-20260927/RES-02.web-display-tls-release_recovery_stays_unknown.log": "ad9929ed5bea8cb7646d9103dc20dce310df46129b2a39d6c5aaec3f16504397",
+    "s113-evidence-20260927/RES-02.web-display-tls-trial_cancel.log": "71ca23e6354c5fbeceef070353ba64bae9c2fe8e92860560d5058389368136ac",
+    "s113-evidence-20260927/RES-02.web-display-tls-trial_expiry.log": "018335637d7da60e890292a668c6a90a3afab1aa70e00ab4945cd44ba0b6e0b8",
+    "s113-evidence-20260927/ap.log": "84af521cf77629e6f6afd6c85f4735f6362ba11dd7bf06cae6a45be94df7c9bc",
+    "s113-evidence-20260927/before.log": "0c5360d93d2118ae27834638385278158dab442b83ed14bb7e119742d27d65ad",
+    "s113-evidence-20260927/build-fixed.log": "088217bb175f97c9465a321cc5a9b199f60927a2ec6775ebe93963601835e46f",
+    "s113-evidence-20260927/build-runner.py": "ea151c71c135157bf54398cbe1e11134e7e24c1dde7e7d1542797453337de565",
+    "s113-evidence-20260927/build.log": "b5a287f727a3c154f83f5874cab44e403c9fb4f460cba522cf9fe2e7729c1566",
+    "s113-evidence-20260927/host-stack-usage.txt": "ad1211d4dd4bfeca47c25a92afd75e628e54e4a7fc94a709af3134789e06baf9",
+    "s113-evidence-20260927/layers.log": "027609397eae350c61a6eb847a6c4ab94f0c926dfa48f65914118948fd3b6c40",
+    "s113-evidence-20260927/mutation-build.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "s113-evidence-20260927/mutation-detected.log": "cf3c4b257dea55aa74ab9f30184dc6858b5905a23f7afe4e1b9c8ecefb559f2a",
+    "s113-evidence-20260927/mutation-restored.log": "c26de83abdc9496cd1301470918ec39ecca1cf389ef0ae1c6504da1800d1c431",
+    "s113-evidence-20260927/mutation-runner.py": "5e08cf5968ba3671438331a8344b540e9e7896282d449ceac4e79291129984ef",
+    "s113-evidence-20260927/mutation.json": "21d319ba094771d2b6b1b52b5729404df49f3a3be72b1610cf58919b2de53b8f",
+    "s113-evidence-20260927/regression-build.log": "abb0d91c214ad02ad1119687e8ba1196abfa8adc6af7bc1926266344d8289a18",
+    "s113-evidence-20260927/runner-gates.log": "5e479c7d73e7decf0c96635c1b9bbc510c1232f52bf7c314ad2e9f477406b954",
+    "s113-evidence-20260927/selected-driver.log": "2598c34a3073cb8c13ed0db57aaf2af1d3bd7f83fad9dc567c31adc9d0ff2dde",
+    "s113-evidence-20260927/verify-runner.py": "439d6201676849c931c64c8d2456c9183788a351fd903f75d0c0085439d6449c"
+  }
+}

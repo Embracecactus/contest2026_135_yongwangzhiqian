@@ -1,0 +1,237 @@
+{
+  "format": "shaniu.voice-cleanup-power-hil-evidence/1",
+  "date": "2026-09-29",
+  "scope": "The product shutdown coordinator preserves the voice-owner cleanup result: EAGAIN and EBUSY remain bounded in-progress states, while a permanent error fails the current intent immediately without submitting CP or reopening completed participants.",
+  "source": {
+    "test_first_commit": "66cbaa3b8300865a9ea4a5b29d8472a0af27bf7d",
+    "product_commit": "1a48178fc7cbbcb3f0d0d6133f933d3391f9318f",
+    "deadline_guard_commit": "aa56f633bb671a5ccc11a4d6e0a8438b836ce768",
+    "agent_commit": "52b12476145ed1870d596da367fb507de86e5edf",
+    "production_source": "app/bk7258/bk7258_agent_product_power.inc",
+    "production_source_sha256": "af10d564be713692aeea47a10bf0c0b0dcfc56369912443e4226daf1f001da77",
+    "test_source": "tests/host/bk7258/test_shaniu_power_contract.c",
+    "test_source_sha256": "301729978afd1aff898f6d3ed2db8f1e1785f4b2157602b86e92a9da75d2f5b2",
+    "required_units_sha256": "68b2c02a5fc9fc768e44d8c17523ecbe95125ef51be7f1696523a37c28bfb5ec"
+  },
+  "contract": {
+    "production_path": "The real product power coordinator executes with controlled external participant results. The coordinator itself, error publication, admission state and CP request path are production code.",
+    "expectation": "A retryable voice cleanup result keeps admission closed and preserves the original deadline. A permanent result is published immediately, sends no CP request and remains failed during polling. A later explicit user intent may retry only after cleanup succeeds and voice is idle.",
+    "cases": {
+      "LIFE-02.power-voice-cleanup-pending": {
+        "old_status": "PASS",
+        "old_evidence": "out/shaniu-core-20260929/voice-exit/pending-before.log",
+        "old_evidence_sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+        "new_status": "PASS",
+        "new_evidence": "out/shaniu-core-20260929/voice-exit/voice-cleanup-pending-after.log",
+        "new_evidence_sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+        "complete_gate_case_sha256": "44f56d6d04326ec8ef5dd47db3228087eaa0bf955ee89a9d712d1f7b67f8a6d6"
+      },
+      "LIFE-02.power-voice-cleanup-failure": {
+        "old_status": "FAIL_ASSERTION",
+        "old_exit_code": 134,
+        "old_evidence": "out/shaniu-core-20260929/voice-exit/failure-before.log",
+        "old_evidence_sha256": "82dab0775c5549bf491628c1d2df11a323c97db1e0bd839634b7a4d79f4daf09",
+        "new_status": "PASS",
+        "new_evidence": "out/shaniu-core-20260929/voice-exit/voice-cleanup-failure-after.log",
+        "new_evidence_sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+        "complete_gate_case_sha256": "7927ba456be16e2843480e44cf41cca94af2f2ef3824ee9f36a8573e48400b5a"
+      },
+      "LIFE-02.power-voice-cleanup-deadline": {
+        "old_status": "PASS",
+        "old_production_commit": "fdbfc1d8c82781addc54d8f26ada175f97b1351a",
+        "old_evidence": "out/shaniu-core-20260929/voice-exit/deadline-old.log",
+        "old_evidence_sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+        "old_build_manifest": "out/shaniu-core-20260929/voice-exit/deadline-old-manifest.json",
+        "old_build_manifest_sha256": "053120de447a1a75cdf134d0b3dc63cdbfeb43300430f3fa20997574fc2635e7",
+        "new_status": "PASS",
+        "new_evidence": "out/shaniu-core-20260929/voice-exit/deadline-current.log",
+        "new_evidence_sha256": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+        "complete_gate_case_sha256": "82c2e459b9b9d67c36e57c27156b5e46662f2a3d2aff5ae0d0b8033cdb1c3204",
+        "classification": "preserved Green baseline; no product change was required"
+      }
+    },
+    "affected_power_regression": {
+      "power_cases": 30,
+      "prepare_only": "PASS",
+      "real_owner_integration": "PASS",
+      "evidence": "out/shaniu-core-20260929/voice-exit/power-regression-after.log",
+      "sha256": "8f340319290ec5d78c4f0178f2dba15aa418d3b5c1b021589a7ce79b3c0c314c"
+    },
+    "agent_audio_regression": {
+      "cases": 4,
+      "status": "PASS",
+      "coverage": [
+        "tail drain",
+        "cancel then next conversation",
+        "close failure",
+        "EOF failure"
+      ],
+      "evidence": "out/shaniu-core-20260929/voice-exit/agent-audio-regression.log",
+      "sha256": "e55b2afbdf8e35bd9bc2bad90217b5d616445380f11a00973ef2be620d89c59f"
+    },
+    "runner_selftest": {
+      "tests": 27,
+      "status": "PASS",
+      "evidence": "out/shaniu-core-20260929/voice-exit/runner-gate-after-deadline.log",
+      "sha256": "1ef87a4192cbc8e73449429669b8b581d444aeb1f4c1d89d628305006fa6103f"
+    },
+    "complete_gate": {
+      "selected": 788,
+      "collected": 788,
+      "counts": {
+        "PASS": 788,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      },
+      "collection_errors": [],
+      "original_63_preserved": true,
+      "mutations_detected": [
+        "MSC-01.early-release",
+        "CFG-01.wifi-clears-cloud"
+      ],
+      "production_unchanged_during_run": true,
+      "checkout_head": "aa56f633bb671a5ccc11a4d6e0a8438b836ce768",
+      "agent_head": "52b12476145ed1870d596da367fb507de86e5edf",
+      "evidence": "out/shaniu-core-20260929/voice-exit/contracts-aa56f633/results.json",
+      "sha256": "4c83de95e0b016e65ca1556e6d345a50614e65248eac611e007870193c01c831"
+    }
+  },
+  "implementation": {
+    "behavior": "product_power_drain now returns the real voice_channel_recover outcome. The coordinator includes voice in the existing participant decision, preserves EAGAIN and EBUSY as incomplete, and publishes other negative results immediately.",
+    "preserved": [
+      "new work admission remains closed during exit",
+      "the original 30 second deadline is not renewed",
+      "completed participants are not reopened by polling or a late callback",
+      "CP is not submitted after a permanent cleanup failure",
+      "a fresh explicit intent can retry after successful cleanup",
+      "three second K2 release, old-session, rollback, combination-key and repeated-release protections"
+    ]
+  },
+  "artifact": {
+    "board": "aidk_ai_toy",
+    "version": "0.7.43+688",
+    "security_counter": 688,
+    "source_commit": "1a48178fc7cbbcb3f0d0d6133f933d3391f9318f",
+    "agent_commit": "52b12476145ed1870d596da367fb507de86e5edf",
+    "source_dirty": false,
+    "build_manifest": "out/shaniu-core-20260929/voice-exit/release-688-ota/evidence/build-manifest.json",
+    "build_manifest_sha256": "603e68afed3ca71824ae19e60358e95809b70e3cc51368323bcb64e2d3fd2e6b",
+    "build_manifest_verify_evidence": "out/shaniu-core-20260929/voice-exit/build-688-verify.log",
+    "build_manifest_verify_sha256": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac",
+    "layout_identity": "bk7258-510173147382a879",
+    "layout_sha256": "510173147382a879c3c3a1012a142bb5d87d64ffa8cb5881c27f1e289d8c1657",
+    "mcuboot_public_fingerprint": "7163228f3221da6e81fcf5e9c6f13ae6c4afbd1e3b91b7669783a37d2f12fbc0",
+    "package": "out/shaniu-core-20260929/voice-exit/release-688-ota/package/shaniu-bk7258-aidk_ai_toy-app__openvela_ap-v0.7.43+688-bshaniu-voice-exit-688-ota-ota.bkpack",
+    "package_sha256": "818b7e9407f2ed96cafcf17b4f9217fd10b09a680bc2503b11dcc5da89db8905",
+    "package_verify": "PASS",
+    "package_verify_evidence": "out/shaniu-core-20260929/voice-exit/package-688-verify.log",
+    "package_verify_evidence_sha256": "3322709522b13fb49915a27b81690946bb901dff0b825c32dad885876eb39576",
+    "public_trust_verify": "PASS",
+    "public_trust_verify_evidence": "out/shaniu-core-20260929/voice-exit/trust-688-verify.log",
+    "public_trust_verify_evidence_sha256": "12f899426465b363f10be20502328bb12cd1d6f9236ba68918f414596e4e413d",
+    "package_erase_operations": [],
+    "cp_image_sha256": "09582b780a067295a7c376507da84a5f649a81e18a662da08dc153f35b4a726e",
+    "ap_image_sha256": "927225fdf299d3fadf893dbfc108aae73c2de2e4062b697e996c9aab5fd755ba",
+    "ap_elf_sha256": "bdaf17e4730334bc8af5c2fe56c99f8fd807d2173a8dc520424e09673097bac6",
+    "ap_map_sha256": "edbe868becb6ea8b36c4d6d5e1a10db2b4db3cbbe4e65fc67876472ddd434d47",
+    "cp_elf_sha256": "caa159be87168f48a4844b0007d97c52f8d2833c14851ad111b6610420ab08b1",
+    "cp_map_sha256": "d8fb4ceab1dfda974f67d16e43008fdebb924fe09078fa8ddd1c3209a6756af9"
+  },
+  "hil": {
+    "pre_state": {
+      "status": "PASS",
+      "running": "active A, inactive B, pair confirmed, version 0.7.42+687, counter 687, faults 0, recoveries 0",
+      "evidence": "out/shaniu-core-20260929/voice-exit/board/pre-hil-688/session.json",
+      "sha256": "627b8e05e1f5df9832170c63bbc81ffccd0a1933837555ddf8ef2a2fa8d31f1a"
+    },
+    "preflight": {
+      "status": "preflight-passed",
+      "port": "COM9",
+      "transport": "multi",
+      "evidence": "out/shaniu-core-20260929/voice-exit/preflight-688.json",
+      "sha256": "7b9d6f7c65e4c46737afeffd5933dbefb154c0fa7699e8aa1f18113b81125f13"
+    },
+    "download": {
+      "status": "passed",
+      "port": "COM9",
+      "transport": "multi",
+      "automatic_retry": false,
+      "reset_strategy": "loader-software-reboot",
+      "write_bounds": [
+        "cp 0x352000+0x132000",
+        "ap 0x484000+0x20f000"
+      ],
+      "success_markers_complete": true,
+      "failure_markers": [],
+      "evidence": "out/shaniu-core-20260929/voice-exit/hil-688/result.json",
+      "sha256": "0f7ea2b8366d248abe731790846a2da33656edf208237356cce507ab1f773c1e"
+    },
+    "confirmed_runtime": {
+      "status": "PASS",
+      "version": "0.7.43+688",
+      "slot": "B",
+      "pair": "confirmed",
+      "faults": 0,
+      "recoveries": 0,
+      "evidence": "out/shaniu-core-20260929/voice-exit/board/post-hil-688/session.json",
+      "sha256": "ff340f7ddf5526d42a5bb5b6ca176d739a48c098a309a24643e02ec028343ea3"
+    },
+    "controlled_reboot": {
+      "status": "PASS",
+      "kind": "software reboot, not physical K2 or cold boot",
+      "boot_slot": "B",
+      "expected_identity_matched": true,
+      "hardfault_assert_panic": false,
+      "evidence": "out/shaniu-core-20260929/voice-exit/board/reboot-688/session.json",
+      "sha256": "451f06156966dd28cab2387f8548dd14a6ccbc05fd9df7e27857366787148da6"
+    },
+    "post_reboot_runtime": {
+      "status": "PASS",
+      "version": "0.7.43+688",
+      "slot": "B",
+      "pair": "confirmed",
+      "faults": 0,
+      "recoveries": 0,
+      "evidence": "out/shaniu-core-20260929/voice-exit/board/final-status-688/session.json",
+      "sha256": "3bcac561d015d345446a18041ea262c27c572d8d1f8c17f1d8b50060f6f83335"
+    },
+    "preserved_identity": {
+      "wake_label": "nihao_openvela",
+      "frontend": 1,
+      "model_sha256": "922eba9175fcda60f7c8a4505ca4eb5a97c86ceb30fbe48c685fd612098ac910",
+      "threshold_percent": 85,
+      "configuration_revision": 6,
+      "eye_pack": "shaniu-cyan-v3",
+      "eye_pack_revision": 3,
+      "plaintext_secrets_read": false
+    },
+    "ports_released": {
+      "before": [
+        "COM16",
+        "COM9"
+      ],
+      "after": [
+        "COM16",
+        "COM9"
+      ],
+      "note": "The before file uses CRLF and the after file LF, so their byte hashes differ while the enumerated ports are identical."
+    }
+  },
+  "ci": {
+    "status": "PENDING_FINAL_MAIN_HEAD",
+    "reason": "The exact-head run is created by the single branch push after this evidence file is committed."
+  },
+  "observer_corrections": [
+    "The first runner selftest correctly rejected the two new cases being present only in added_ids but absent from the top-level required IDs. The metadata was corrected without changing an assertion; all 27 runner tests then passed.",
+    "An accidental invocation of test_shaniu_contracts.py with --help began the runner because that script has no help parser. It was stopped before completion and is not counted as product evidence.",
+    "The first Windows serial enumeration method listed only Win32_SerialPort COM16; the present PnP port class and SerialPort API both showed COM9 and COM16. No HIL command used the incomplete enumeration result."
+  ],
+  "not_proven": [
+    "The exact permanent voice cleanup failure is L1 production-coordinator evidence. Normal firmware has no safe authenticated injector for that fault, so HIL proves artifact linkage, bounded deployment, boot identity and steady-state health rather than the injected failure branch itself.",
+    "No physical K2 press, electrical debounce, actual shutdown/deep sleep, wake-up or power measurement.",
+    "No acoustic capture or onsite listener; startup and Media logs cannot claim absence of audible truncation, xrun or hiss.",
+    "No phone BLE or App OTA; HIL download is not App OTA.",
+    "No screen camera, NFC card or physical motion stimulus."
+  ]
+}

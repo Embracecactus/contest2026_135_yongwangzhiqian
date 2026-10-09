@@ -1,0 +1,10 @@
+{
+  "bk7258_display_store.c": {
+    "added_diagnostic_types": []
+  },
+  "bk7258_display_store.h": {
+    "added_diagnostic_types": []
+  },
+  "limit": "Existing diagnostics remain; no whole-file style pass claimed.",
+  "nxstyle_nuttx_commit": "76354c637858ecb0aa4601629327acb6f44a26bb"
+}

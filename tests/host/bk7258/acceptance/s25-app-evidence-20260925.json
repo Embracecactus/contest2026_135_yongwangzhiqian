@@ -1,0 +1,57 @@
+{
+  "slice": "S25",
+  "date": "2026-09-25",
+  "parent": "38cccddfd1a004857c488258631cbb3282a18b76",
+  "case": "UI-01.settings-unknown",
+  "requirement": "A pending or uncertain save must not permit another save; reconciliation reads remain available. UI-01/CFG-02 user-approved contract.",
+  "oracle": "SCS1 states 1 (pending), 4 (uncertain) block save. States 0/2/3 without outstanding local receipt allow editing. Existing device busy guard uses the same public protocol semantics.",
+  "red": "FAIL_ASSERTION: saveAction state=1 enabled incorrectly",
+  "green": "PASS",
+  "parameters": {
+    "states": [
+      0,
+      1,
+      4,
+      2,
+      3
+    ],
+    "revision": 7,
+    "local_receipt": "isolated UUID device ID; synthetic ab operation; removed in finally"
+  },
+  "coverage": "Actual DeviceSettingsEditor Views and editable path; reflection supplies public snapshots. No real Session protocol response routing or BLE acceptance claimed. Footer and both legacy save buttons, pending receipt, disabled admission, and read availability checked.",
+  "production_change": "Save controls and save() guard share pending/unknown/receipt gate; unresolved state receives truthful reconciliation text even without matching local receipt.",
+  "counts": {
+    "contract_units": 124,
+    "contract_pass": 124,
+    "additional_instrumentation_cases": 1,
+    "instrumentation_pass": 1
+  },
+  "jvm_xml_snapshot": {
+    "tests": 41,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "device": "emulator-5554 sdk_gphone64_x86_64; Mi 10 online but untouched",
+  "limits": [
+    "No physical installation, board mutation, firmware build or BLE integration in this slice.",
+    "Original 63 IDs retained; 124 plus 1 UI case is not 56-parent acceptance.",
+    "Future unknown error-code messaging and cross-layer response scenarios remain uncovered."
+  ],
+  "hashes": {
+    "android/shaniu-companion/app/src/main/java/com/shaniu/companion/provision/DeviceSettingsEditor.kt": "acf90e0da61301231af272fa2717b79d7b739c487c00e9034b5f061dcdc945f6",
+    "android/shaniu-companion/app/src/androidTest/java/com/shaniu/companion/provision/DeviceUiAcceptance.kt": "14aa6e649d129de9ff1df26aebd7000ae6aa9c42389a4cb711b483de20a6cf7d",
+    "android/shaniu-companion/app/src/androidTest/java/com/shaniu/companion/provision/ControlKeyInstrumentation.kt": "ed2fd0f201fabafd18615dbd612ffbbbdfd4a7856820747e4a680964ad3e1f62",
+    "out/shaniu-s25/ui-red.log": "a9f6b13acfeb883843dbaf6904ef61cd1196d9c45beb644b1fcbd24a6b6574a1",
+    "out/shaniu-s25/ui-green.log": "aedb4242d2b4c7307a61388677a02bdd6376fea0e8d6bf4955b216fbaf1e1295",
+    "out/shaniu-s25/build-red.log": "e8315a6cc9f8a4d2c65ab74e204c105de733615577923a10e23a3ae982a3031a",
+    "out/shaniu-s25/build-green.log": "98e3c9bf059832ef8c59b31c027b837016325c0c2476976f36c3669385dacb2c",
+    "out/shaniu-s25/contracts.log": "4cb5a89a95ea3079184497423775441938bb71cc88781f634cb86fb09798b084",
+    "android/shaniu-companion/app/build/outputs/apk/debug/app-debug.apk": "76318b1090f7179e584f0c33d1a4b20db41270bfc6c6b0e390b95542d8615305",
+    "android/shaniu-companion/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk": "847df20134f0ab48ea5536f555b9a4674c6d68276931e2f2febf2c4d5000238d"
+  },
+  "logs": {
+    "out/shaniu-s25/ui-red.log": "Performing Streamed Install\nSuccess\nPerforming Streamed Install\nSuccess\nFAIL: IllegalStateException: UI-01.settings-unknown: saveAction state=1 enabled incorrectly\n",
+    "out/shaniu-s25/ui-green.log": "Performing Streamed Install\nSuccess\nPerforming Streamed Install\nSuccess\nPASS: UI-01.settings-unknown real editor controls; synthetic snapshots, no BLE\n"
+  }
+}

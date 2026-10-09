@@ -1,0 +1,16 @@
+[
+  {
+    "id": "STORE-02.ignore-file-sync-error",
+    "status": "DETECTED",
+    "exit": -6,
+    "evidence": "test: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_config_contract.c:196: main: Assertion `outcome == -EINPROGRESS && !bkprov_config_busy()' failed.\n",
+    "source_sha256": "e08a4935e6e7d115c1b2782f4d8c18829875784428288e31e0eef4dd7df7697b"
+  },
+  {
+    "id": "STORE-02.restored",
+    "status": "PASS",
+    "exit": 0,
+    "evidence": "CONTRACT_PASS\n",
+    "source_sha256": "2e2472575f8f41605e98a6176c792cea91a88cc80bf576d14014a09c0c62dac8"
+  }
+]

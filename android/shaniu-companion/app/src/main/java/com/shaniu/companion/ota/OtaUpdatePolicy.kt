@@ -5,6 +5,10 @@ package com.shaniu.companion.ota
 internal object OtaUpdatePolicy {
     const val CONFIRMED_PHASE = 6L
 
+    fun mayAdmitStart(authenticated: Boolean, snapshotFresh: Boolean,
+                      otaSupported: Boolean): Boolean =
+        authenticated && snapshotFresh && otaSupported
+
     fun confirmed(expectedDeviceId: String, connectedDeviceId: String,
                   expectedVersion: String, expectedCounter: Long,
                   actualVersion: String, actualCounter: Long,
@@ -20,17 +24,25 @@ internal object OtaUpdatePolicy {
 
 /** Prevents duplicate asynchronous source preparation until its owner releases it. */
 internal class OtaStartGate {
-    private var held = false
-    fun acquire(): Boolean {
-        if (held) return false
-        held = true
+    internal class Lease
+    private var owner: Lease? = null
+
+    fun acquireLease(): Lease? {
+        if (owner != null) return null
+        return Lease().also { owner = it }
+    }
+    fun release(lease: Lease): Boolean {
+        if (owner !== lease) return false
+        owner = null
         return true
     }
-    fun release() { held = false }
+    fun acquire(): Boolean = acquireLease() != null
+    /** Invalidates the current owner during explicit connection teardown. */
+    fun release() { owner = null }
     fun begin(persist: () -> Boolean): Boolean {
-        if (!acquire()) return false
+        val lease = acquireLease() ?: return false
         if (persist()) return true
-        release()
+        release(lease)
         return false
     }
 }

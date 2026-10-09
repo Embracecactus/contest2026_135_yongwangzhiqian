@@ -1,0 +1,20 @@
+{
+  "red_backend": "exit=-6\nmsc: tests/host/bk7258/test_shaniu_msc_stop.c:67: main: Assertion `closes == 0' failed.\n",
+  "red_mode": "exit=-6\ntest_shaniu_usb_cleanup: test_shaniu_usb_cleanup.c:9: bk7258_usbcdc_initialize: Assertion `!resources' failed.\n",
+  "intermediate_regression": "[\"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/build/test_bk7258_usbmode_lease\"]\ntest_bk7258_usbmode_lease: test_bk7258_usbmode_lease.c:87: test_queries_and_failed_handoffs: Assertion `bk7258_usbmode_initialize() == 0' failed.\n",
+  "regression_resolution": "Preserved original assertion; initialize cleans retained CDC before retry, retained MSC still requires explicit set",
+  "ap_builds": {
+    "bk7258_usbmsc.c.log": "",
+    "bk7258_usbmode-final.log": ""
+  },
+  "hashes": {
+    "chips/bk7258/ap/bk7258_usbmsc_start.inc": "7fb1483598e90b37f0f21772c67c090e3911dfec8b3ade2d677137eb1d8daebd",
+    "chips/bk7258/ap/bk7258_usbmode.c": "0f844dd2df213992fa244b6554777a24298e1fcf46d8d230fbb0871119b29bb3"
+  },
+  "limits": [
+    "No real endpoint/DMA or block I/O",
+    "Startup uses external USB stubs; actual production init and mode logic compiled",
+    "No board actions",
+    "close_blockdriver failure recovery still unverified"
+  ]
+}

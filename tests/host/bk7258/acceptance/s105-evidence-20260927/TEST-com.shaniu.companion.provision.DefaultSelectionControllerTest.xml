@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.shaniu.companion.provision.DefaultSelectionControllerTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-09-27T11:04:41.744Z" hostname="DESKTOP-0B20O0K" time="0.041">
+  <properties/>
+  <testcase name="unsupportedAndMalformedSnapshotNeverEnableWrites" classname="com.shaniu.companion.provision.DefaultSelectionControllerTest" time="0.021"/>
+  <testcase name="changedSequenceAndWrongOperationCannotPublishSuccess" classname="com.shaniu.companion.provision.DefaultSelectionControllerTest" time="0.004"/>
+  <testcase name="explicitRefreshThenSaveUsesThreeChunksAndDoesNotClaimAckAsSaved" classname="com.shaniu.companion.provision.DefaultSelectionControllerTest" time="0.004"/>
+  <testcase name="cancellationRecoveryAndUnknownRemainDistinct" classname="com.shaniu.companion.provision.DefaultSelectionControllerTest" time="0.005"/>
+  <testcase name="realProtocolRequiresAuthenticatedNonceReadAndExactDefaultLength" classname="com.shaniu.companion.provision.DefaultSelectionControllerTest" time="0.002"/>
+  <testcase name="decoderRejectsInconsistentSuccessAndReservedFields" classname="com.shaniu.companion.provision.DefaultSelectionControllerTest" time="0.001"/>
+  <testcase name="goldenRecordPreservesUnsignedRevisionAndCanonicalName" classname="com.shaniu.companion.provision.DefaultSelectionControllerTest" time="0.001"/>
+  <testcase name="disconnectAndLateAckNeverReplayAndCloseCannotCancelAnotherEditor" classname="com.shaniu.companion.provision.DefaultSelectionControllerTest" time="0.002"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

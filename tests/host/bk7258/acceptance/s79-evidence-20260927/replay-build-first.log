@@ -1,0 +1,8 @@
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s79/replay.c: In function ‘main’:
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s79/replay.c:1103:3: error: this ‘for’ clause does not guard... [-Werror=misleading-indentation]
+ 1103 |   for (int i=0;i<32;i++) printf("%02x",trace[i]); puts(" BKPROV_TLS_HOST_PASS");
+      |   ^~~
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/out/shaniu-s79/replay.c:1103:51: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘for’
+ 1103 |   for (int i=0;i<32;i++) printf("%02x",trace[i]); puts(" BKPROV_TLS_HOST_PASS");
+      |                                                   ^~~~
+cc1: all warnings being treated as errors

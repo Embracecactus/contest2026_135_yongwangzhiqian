@@ -1,0 +1,130 @@
+{
+  "parent": "308770eec60c9a7e73c02d5fdb3ee12624542e2e",
+  "counts": {
+    "selected": 652,
+    "PASS": 652,
+    "original_including_two_restores": 63,
+    "added": 589,
+    "new_L2": 5,
+    "runner_gates": 19,
+    "original_mutations_detected": 2,
+    "extra_renderer_mutation_detected": 1,
+    "extra_restore": 1
+  },
+  "new_ids": [
+    "RES-02.web-display-tls-default_supersedes_trial",
+    "RES-02.web-display-tls-missing_pack",
+    "RES-02.web-display-tls-release_recovery_stays_unknown",
+    "RES-02.web-display-tls-trial_cancel",
+    "RES-02.web-display-tls-trial_expiry"
+  ],
+  "new_units": [
+    {
+      "id": "RES-02.web-display-tls-trial_expiry",
+      "parent": "RES-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 8.110799101006705,
+      "evidence": "RES-02.web-display-tls-trial_expiry.log",
+      "evidence_sha256": "adf80156544af8185b4e2bf943106802d86dc1b3eaf435f2f23345c35c2f1911"
+    },
+    {
+      "id": "RES-02.web-display-tls-trial_cancel",
+      "parent": "RES-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 9.145165905996691,
+      "evidence": "RES-02.web-display-tls-trial_cancel.log",
+      "evidence_sha256": "e58c43146d58f423fb82346852e3ce5a9f6035ebea62a227c2995bc5c86e4dd4"
+    },
+    {
+      "id": "RES-02.web-display-tls-missing_pack",
+      "parent": "RES-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 7.560501650965307,
+      "evidence": "RES-02.web-display-tls-missing_pack.log",
+      "evidence_sha256": "eac87e83373ec2534e3f0c81c2f0b150b3fd373e49ff19fa292c62f80f2684c6"
+    },
+    {
+      "id": "RES-02.web-display-tls-default_supersedes_trial",
+      "parent": "RES-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 12.611766328976955,
+      "evidence": "RES-02.web-display-tls-default_supersedes_trial.log",
+      "evidence_sha256": "9487c02adc88035af775938fd74d74eada9afa41caabceede7cfececf4b40e61"
+    },
+    {
+      "id": "RES-02.web-display-tls-release_recovery_stays_unknown",
+      "parent": "RES-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 10.3175058090128,
+      "evidence": "RES-02.web-display-tls-release_recovery_stays_unknown.log",
+      "evidence_sha256": "bfe77ffbe37930a9c0e1773a2b9656dbbcb5cacedcb70cf3e5717ccf263c0bbf"
+    }
+  ],
+  "scope": "Test-only integration. Existing HTTP Service -> workbench.run -> fresh PC client TLS/SDC1 -> native pair/session -> real trial/selection/store/render. Native peer preserves device display state while disconnecting/reconnecting TLS between HTTP operations. No production behavior change.",
+  "baseline": "Already implemented paths baseline green; no fabricated Red or product fix. Tests precede any resulting implementation decision; current result requires no business change.",
+  "oracle": [
+    "Each accepted action remains pending before explicit worker scheduling, with no store/frame side effect",
+    "Green installed-pack pixels checked by existing native sink for both160x160 screens; exactly two render frames and two restore frames",
+    "Temporary trial leaves persisted filename/revision/write count unchanged; repeated expiry does not render again",
+    "Cancel accepted != canceled; only actual restore yields confirmed cancellation",
+    "Missing package yields failed without fallback frames or persistent default change",
+    "New default durable revision2 supersedes trial, old timeout adds no frames/writes",
+    "Failed volume release reports saved-but-not-rendered unknown; explicit close-only recovery clears release error without claiming rendered/completed"
+  ],
+  "auth_boundary": "Synthetic authority bound directly to existing native pair, stable epoch across transport reconnection. Does not integrate real PC grant store/product route/USB adapter in this fixture; those earlier tests remain separate.",
+  "mutation": "Existing isolated extracted renderer mutation suppresses FB1 while returning success. HTTP trial assertion observed2 frames vs expected3 (relative to mutated initial frame count), DETECTED. Original restored path passes.",
+  "input_hashes_match": true,
+  "production_unchanged_from_parent": true,
+  "parent_gaps": {
+    "RES-02": {
+      "interface": "Existing HTTP trial/default paths now bound to real native rendering and persistence across TLS reconnects; installed catalog/version comparison still absent",
+      "L1_L2": "Five new true native cases pass, original Android TLS fixture cases also preserved",
+      "L3": "NOT_RUN: actual USB, PC grant plus product dispatch plus display combined, SD/DMA and visible physical screens"
+    },
+    "USB-02": {
+      "interface": "No new product interface in this test slice",
+      "L1_L2": "Native transport scheduling fixture, no claim of physical USB reconnect timing",
+      "L3": "COM16 confirmation and physical workflows remain pending"
+    }
+  },
+  "resources": {
+    "product_delta": "None: no new device/PC product threads, memory buffers, protocol, defaults or timing budgets",
+    "fixture": "One bounded native process and30s watchdog per selected case, existing10s client timeout, fresh TLS per HTTP device operation; controlled worker and monotonic display clock"
+  },
+  "limits": [
+    "652 host units are not56 completed product acceptance requirements",
+    "No new browser DOM scenario; S110 browser layout/error evidence remains separate from these HTTP semantic tests",
+    "No board flash, serial open, phone install or data reset",
+    "No firmware/APK build because production and configuration unchanged"
+  ],
+  "raw_evidence_sha256": {
+    "s111-evidence-20260927/CFG-01.wifi-clears-cloud.log": "5f2de08803710dcf7ad419649fb349fcc2240fb170c2e13e26db96d7e73d5726",
+    "s111-evidence-20260927/MSC-01.early-release.log": "1b04505f23ec1d153e6308a1460fbb55b50cd1d5cfa024a87850b470db506770",
+    "s111-evidence-20260927/RES-02.web-display-tls-default_supersedes_trial.log": "9487c02adc88035af775938fd74d74eada9afa41caabceede7cfececf4b40e61",
+    "s111-evidence-20260927/RES-02.web-display-tls-missing_pack.log": "eac87e83373ec2534e3f0c81c2f0b150b3fd373e49ff19fa292c62f80f2684c6",
+    "s111-evidence-20260927/RES-02.web-display-tls-release_recovery_stays_unknown.log": "bfe77ffbe37930a9c0e1773a2b9656dbbcb5cacedcb70cf3e5717ccf263c0bbf",
+    "s111-evidence-20260927/RES-02.web-display-tls-trial_cancel.log": "e58c43146d58f423fb82346852e3ce5a9f6035ebea62a227c2995bc5c86e4dd4",
+    "s111-evidence-20260927/RES-02.web-display-tls-trial_expiry.log": "adf80156544af8185b4e2bf943106802d86dc1b3eaf435f2f23345c35c2f1911",
+    "s111-evidence-20260927/default_supersedes_trial.log": "a754ded562e7e626add5c2c757205f86b31a89cd5c7a247c3a432370418f4374",
+    "s111-evidence-20260927/expiry.log": "f0d8861e48289bd3478bf5f09978c3695614b67044e5f6c8fe461862ac2fb64d",
+    "s111-evidence-20260927/full.log": "d543afd6d6604c591ba1a7d7c60a36d30f10c71c013e85f9929125fa4950b3c2",
+    "s111-evidence-20260927/missing_pack.log": "e1ba30e94bce8b306c5f1bc04d71fbe88d1bf332df753dc27e3216f054afeb60",
+    "s111-evidence-20260927/mutation.log": "3c6d2bee0b6e6610bf11758e92b0d3344901a4d025edbe76c66497de9a0e1de0",
+    "s111-evidence-20260927/release_recovery_stays_unknown.log": "0149b79f265eb743b73b89d03e374f71d3810c8c98246b3d89350f85deb3a5e2",
+    "s111-evidence-20260927/restored.log": "ab10c355b40e9d3470126f5cc19682dd2fd078e5bbbe00fb24dd388c64b9ff83",
+    "s111-evidence-20260927/runner-gates.log": "79f3b3df5c78c600b6acf3186df32e3aeab0e44e821711dbbf5d01fd34d53011",
+    "s111-evidence-20260927/style.log": "3381cc09661259091a59f026030d6ad0cbc162186f85e6c8ab2d6237eabac133",
+    "s111-evidence-20260927/targeted.json": "73fbc75d66e87caaf1ad593453a7e6a35901a8ad609b7f7ece64a6ef10cf2d53",
+    "s111-evidence-20260927/trial_cancel.log": "a2afd9d550728448fdab8dd49d014c5d7b07136138c9dbb25886004df9e7b43a"
+  }
+}

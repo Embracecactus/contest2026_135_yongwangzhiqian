@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "source": "USER-20260924-PLAN-V2 and CASES-V1",
+  "spec_version": 1,
+  "production_baseline": "272b3b2f366cf9ac9ae510757ac4288f0c68d3a0",
+  "dependency_checkouts": {
+    "packages/ai_agent": {
+      "git_head": "62a304ea69c4076f0f3ef7955a9af69a5ed35277",
+      "dirty": false
+    },
+    "apps/crypto/mbedtls/mbedtls": {
+      "git_head": "fc76e9843a54c87876235b16764114da5622355e",
+      "dirty": false
+    },
+    "apps/netutils/webclient": {
+      "git_head": "550cd3ba60a03f8ebf9ac7b72f6eed6aea3bedbe",
+      "dirty": true,
+      "dirty_scope": "Containing apps repository has unrelated changes; consumed webclient/netlib/header paths have no diff. No change made here."
+    },
+    "apps/netutils/cjson/cJSON": {
+      "git_head": "172877b32e24c9e4d02125a97dfddaea9ca1794c",
+      "dirty": false
+    }
+  },
+  "fixture_hashes_file": "fixtures.sha256",
+  "generated_pcm": {
+    "definition": "byte[i]=i%251, i=0..199999; 24000Hz mono PCM16",
+    "sha256": "e24bc62381f1224fbbb74688663f8f9743b9680b193edd666835e97b06e730eb",
+    "seeds": [
+      1,
+      20260924,
+      4294967295
+    ]
+  },
+  "sse_seeds": [
+    1,
+    20260924
+  ],
+  "known_assertion_failures": [
+    "K2-01.release-3000",
+    "K2-01.release-3001",
+    "K2-01.legacy-suite",
+    "ota.OtaControlUploadTest.lateAcknowledgementCannotOverwriteCanceledTerminalState"
+  ],
+  "known_failures_are_not_pass": true,
+  "pending_parameters": [
+    "T_reset",
+    "T_confirm",
+    "confirmation_gesture",
+    "T_quiesce",
+    "T_control",
+    "preview_TTL",
+    "queue_limit",
+    "jitter_envelope",
+    "motion_dedup",
+    "haptic_pulse_and_cooldown",
+    "PC_TTL_and_rate",
+    "timer_power_loss_policy",
+    "independent_service_schema",
+    "USB_product_schema"
+  ],
+  "hardware_identity": "BLOCKED_DEVICE; no serial/ADB reads in this phase",
+  "review": "self-review only; user implementation approval pending",
+  "external_source_hashes": {
+    "apps/netutils/webclient/webclient.c": "70903a4a65d25a82752de3993f78fac73ea97a7ca762b6125bc472535279a292",
+    "apps/netutils/netlib/netlib_parseurl.c": "f40817d338d8c64b665db5e539d99d97371779f0423f56451ac7f88fa01dc6a9",
+    "apps/include/netutils/webclient.h": "f1b8258bd3b3c6dd60ded6ef9207c3b5c3ef93828ecb25d68c9d736c87fb5034",
+    "packages/ai_agent/src/voice/voice_channel.c": "0f2bb36bfcae0abfb14893f254c29f40c62fc833128838d13e0304ee6c2f4e9a",
+    "packages/ai_agent/src/llm/llm_stream.c": "0c7fcb2855113cc51cfd7a8316e7f99c88ce6c3b83cce734b9a33618da5de8c3",
+    "packages/ai_agent/src/core/message_bus.c": "57a4dc79147d7e39d400fa817881f89cde0feeba34726758aa7b8533e94b60cb",
+    "apps/netutils/cjson/cJSON/cJSON.c": "cf9e08c8524c17406a0d430a47376080aebcdc8e851f7de24d277be61973eaeb"
+  }
+}

@@ -218,6 +218,24 @@ void up_irqinitialize(void)
 
   arm_ramvec_initialize();
 
+#ifndef CONFIG_BK7258_AP_CORE
+  /* The SRAM fault entry is copied by CP startup before IRQ initialization.
+   * Keep Flash boot vectors usable while that copy is not initialized yet.
+   */
+
+  {
+    extern void bk7258_hardfault_handler(void);
+    int nmi = arm_ramvec_attach(NVIC_IRQ_NMI, bk7258_hardfault_handler);
+    int fault = arm_ramvec_attach(NVIC_IRQ_HARDFAULT,
+                                  bk7258_hardfault_handler);
+
+    if (nmi < 0 || fault < 0)
+      {
+        PANIC();
+      }
+  }
+#endif
+
   /* Step 5: Repair the two boot-magic slots (64/65) that the bootloader
    * requires but that NuttX must route through exception_common.  These
    * are logical IRQ/vector slots 64 and 65.  Do not use ordinary

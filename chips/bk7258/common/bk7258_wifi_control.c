@@ -1970,6 +1970,21 @@ static int bk7258_wifi_connect(
   memcpy(config.ssid, request->ssid, request->ssid_len);
   memcpy(config.password, request->password, request->password_len);
   config.security = BK7258_WIFI_SECURITY_AUTO;
+  /* The pinned SDK otherwise writes credentials to EasyFlash and retries
+   * forever when both limits are zero. Persistence and reconnect admission
+   * belong to the caller, not a second hidden SDK configuration owner.
+   * Fast-connect information stays in SDK RAM for this connection only.
+   */
+
+  config.no_auto_fci = 1;
+  config.auto_reconnect_count = 1;
+  /* The SDK's overall reconnect timer also disconnects WPA_COMPLETED and
+   * is not cancelled on DHCP success.  The polling deadline below owns
+   * connection timeout; do not leave a timer armed on a healthy link.
+   */
+
+  config.auto_reconnect_timeout = 0;
+  config.disable_auto_reconnect = true;
 
   /* The official v3.1.1.9 API requires stop-before-restart.  In particular,
    * bk_wifi_sta_start() returns success without issuing another controller

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #include <assert.h>
 #include <errno.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <nuttx/mutex.h>
@@ -16,6 +17,7 @@ int bkvoice_volume_store_set(unsigned int value)
 {if (store_error)return store_error;stored = value;return 0;}
 int bk7258_preferences_storage_begin(void) {return media_error;}
 int bk7258_preferences_storage_end(int ret) {return ret;}
+uint32_t bk7258_preferences_storage_generation(void) {return 0;}
 int property_get_with_err(const char *key, char *value)
 {
   /* A stale KVDB volume must never be read in the device-volume profile. */
@@ -24,6 +26,7 @@ int property_get_with_err(const char *key, char *value)
 }
 int property_set(const char *key, const char *value)
 {assert(!strcmp(key, "persist.shaniu.persona"));(void)value;return 0;}
+int property_delete(const char *key) {(void)key;return 0;}
 int property_commit(void) {return 0;}
 int main(void)
 {

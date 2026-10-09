@@ -1,0 +1,17 @@
+test_cooperative_cancel_after_first_chunk (test_workbench_resource_flow.ResourceFlow) ... FAIL
+
+======================================================================
+FAIL: test_cooperative_cancel_after_first_chunk (test_workbench_resource_flow.ResourceFlow)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_resource_flow.py", line 120, in test_cooperative_cancel_after_first_chunk
+    self.assertEqual(result["state"], "canceled")
+AssertionError: 'done' != 'canceled'
+- done
++ canceled
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.137s
+
+FAILED (failures=1)

@@ -1,0 +1,7 @@
+["/usr/bin/python3", "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_resource_flow.py", "ResourceFlow.test_cli_tls_cooperative_cancel"]
+{"fixture": "synthetic-workbench-tls", "certificate_sha256": "0619825cfa1ac83f5dbdfb74bc5c179157140bc0a9308d5feeb7492fd39b4b06", "alternate_certificate_sha256": "631240ed718c17cd29d69742e82cba62323305406dc044892e5282639e7d4c87", "openssl": "OpenSSL 3.0.2 15 Mar 2022"}
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.117s
+
+OK

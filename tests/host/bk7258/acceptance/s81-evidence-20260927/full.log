@@ -1,0 +1,723 @@
+unittest.case.FunctionTestCase (run)
+K2-01.release-2999 ... ok
+unittest.case.FunctionTestCase (run)
+K2-01.release-3000 ... ok
+unittest.case.FunctionTestCase (run)
+K2-01.release-3001 ... ok
+unittest.case.FunctionTestCase (run)
+K2-01.held ... ok
+unittest.case.FunctionTestCase (run)
+K2-03.epoch ... ok
+unittest.case.FunctionTestCase (run)
+K2-03.rollback ... ok
+unittest.case.FunctionTestCase (run)
+K2-03.release-rollback ... ok
+unittest.case.FunctionTestCase (run)
+K2-03.combination ... ok
+unittest.case.FunctionTestCase (run)
+K2-03.volume ... ok
+unittest.case.FunctionTestCase (run)
+DISP-01.power-pixels ... ok
+unittest.case.FunctionTestCase (run)
+MSC-01.failed-start-handoff ... ok
+unittest.case.FunctionTestCase (run)
+TIMER-01.pixels ... ok
+unittest.case.FunctionTestCase (run)
+TIMER-01.render ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.rf-switch ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.rf-stuck ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.rf-registration ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.rf-registration-failure ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.rf-close ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.rf-open-cleanup ... ok
+unittest.case.FunctionTestCase (run)
+RST-02.nfc-busy ... ok
+unittest.case.FunctionTestCase (run)
+RST-02.nfc-failed ... ok
+unittest.case.FunctionTestCase (run)
+RST-02.nfc-owner_failure_still_closes_admission ... ok
+unittest.case.FunctionTestCase (run)
+RST-02.nfc-resume_failure ... ok
+unittest.case.FunctionTestCase (run)
+RST-02.nfc-power_intent_and_no_reset ... ok
+unittest.case.FunctionTestCase (run)
+RST-01.nfc-filesystem ... ok
+unittest.case.FunctionTestCase (run)
+RST-01.nfc-cleanup ... ok
+unittest.case.FunctionTestCase (run)
+RST-01.bindings-reset ... ok
+unittest.case.FunctionTestCase (run)
+RST-01.bindings-reset-sync ... ok
+unittest.case.FunctionTestCase (run)
+RST-01.bindings-reset-path ... ok
+unittest.case.FunctionTestCase (run)
+RST-01.bindings-reset-absent ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.jobs-persist ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.jobs-cancel ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.jobs-stop ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.jobs-pending ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.jobs-failure ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.jobs-reset ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.jobs-commit ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.jobs-unknown ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.jobs-remove ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.jobs-conflict ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.control-auth ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.control-invalid ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.control-cancel ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.control-disconnect ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.control-quiesce ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.control-floor ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.control-sequence ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.control-staging ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.control-capabilities ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.control-cap-auth ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.selection-probe_error ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.selection-timeout ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.selection-malformed ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.selection-select_error ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.selection-invalid ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.selection-valid ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.card-valid ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.card-error ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.card-close ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.card-version ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.card-replay ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.card-validation ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.card-malformed ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.bindings-persist ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.bindings-revision ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.bindings-invalid ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.bindings-writefail ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.bindings-durability ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.bindings-corrupt ... ok
+unittest.case.FunctionTestCase (run)
+LIFE-02.nfc-queued ... ok
+unittest.case.FunctionTestCase (run)
+LIFE-02.nfc-active ... ok
+unittest.case.FunctionTestCase (run)
+LIFE-02.nfc-close-error ... ok
+unittest.case.FunctionTestCase (run)
+LIFE-02.nfc-rf-error ... ok
+unittest.case.FunctionTestCase (run)
+LIFE-02.nfc-prestart ... ok
+unittest.case.FunctionTestCase (run)
+LIFE-02.nfc-late ... ok
+unittest.case.FunctionTestCase (run)
+RST-02.motion-busy ... ok
+unittest.case.FunctionTestCase (run)
+RST-02.motion-failed ... ok
+unittest.case.FunctionTestCase (run)
+RST-02.motion-other_failure ... ok
+unittest.case.FunctionTestCase (run)
+RST-02.motion-resume_failure ... ok
+unittest.case.FunctionTestCase (run)
+RST-02.motion-resume_rollback ... ok
+unittest.case.FunctionTestCase (run)
+RST-02.motion-owner_resume_failure ... ok
+unittest.case.FunctionTestCase (run)
+RST-02.motion-power_intent ... ok
+unittest.case.FunctionTestCase (run)
+MOT-02.candidate-move-settle ... ok
+unittest.case.FunctionTestCase (run)
+MOT-02.candidate-tilt ... ok
+unittest.case.FunctionTestCase (run)
+MOT-02.candidate-freshness ... ok
+unittest.case.FunctionTestCase (run)
+MOT-02.candidate-gate ... ok
+unittest.case.FunctionTestCase (run)
+MOT-02.candidate-error ... ok
+unittest.case.FunctionTestCase (run)
+MOT-02.candidate-cooldown ... ok
+unittest.case.FunctionTestCase (run)
+MOT-02.candidate-creep ... ok
+unittest.case.FunctionTestCase (run)
+MOT-02.candidate-extreme ... ok
+unittest.case.FunctionTestCase (run)
+MOT-02.candidate-gate-cooldown ... ok
+unittest.case.FunctionTestCase (run)
+MOT-01.quiesce-prestart ... ok
+unittest.case.FunctionTestCase (run)
+MOT-01.quiesce-queued ... ok
+unittest.case.FunctionTestCase (run)
+MOT-01.quiesce-active ... ok
+unittest.case.FunctionTestCase (run)
+MOT-01.quiesce-idle ... ok
+unittest.case.FunctionTestCase (run)
+MOT-01.quiesce-close-error ... ok
+unittest.case.FunctionTestCase (run)
+MOT-01.quiesce-open-cleanup ... ok
+unittest.case.FunctionTestCase (run)
+MOT-01.quiesce-late ... ok
+unittest.case.FunctionTestCase (run)
+MOT-01.quiesce-queued-cycle ... ok
+unittest.case.FunctionTestCase (run)
+MOT-01.quiesce-waiter-cycle ... ok
+unittest.case.FunctionTestCase (run)
+MOT-01.quiesce-publication-cycle ... ok
+unittest.case.FunctionTestCase (run)
+LIFE-01.motion-busy ... ok
+unittest.case.FunctionTestCase (run)
+LIFE-01.motion-failed ... ok
+unittest.case.FunctionTestCase (run)
+LIFE-02.power-nfc-busy ... ok
+unittest.case.FunctionTestCase (run)
+LIFE-02.power-nfc-failed ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.worker-dwell ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.worker-unknown ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.worker-enroll ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.worker-pending-cancel ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.worker-revoke ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.worker-stop ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.worker-release ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.worker-error ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.worker-load-revoke ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.worker-first-enroll ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.worker-capability ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.worker-capability-inflight ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.scene-dwell ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.scene-unknown ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.scene-stale ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.scene-gate ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.scene-busy ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.scene-binding ... ok
+unittest.case.FunctionTestCase (run)
+NFC-02.scene-invalid ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.observe-off ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.observe-quiet ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.observe-watchdog ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.observe-timer_error ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.observe-partial ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.observe-selection_timeout ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.observe-invalid_uid ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.observe-collision ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.observe-present ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.observe-residual_error ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.observe-null ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.deadline-crc_deadline ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.deadline-crc_wrap ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.deadline-crc_success ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.deadline-comm_deadline ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.deadline-comm_wrap ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.deadline-comm_success ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.deadline-hardware ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.deadline-protocol ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-owner-offline ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-product-offline ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-owner-revision ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-product-revision ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-owner-owner ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-product-owner ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-owner-invalid ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-product-invalid ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-owner-unbind ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-product-unbind ... ok
+unittest.case.FunctionTestCase (run)
+PC-01.task-terminal ... ok
+unittest.case.FunctionTestCase (run)
+PC-01.task-duplicate ... ok
+unittest.case.FunctionTestCase (run)
+PC-01.task-ordering ... ok
+unittest.case.FunctionTestCase (run)
+PC-01.task-expiry ... ok
+unittest.case.FunctionTestCase (run)
+PC-01.task-binding ... ok
+unittest.case.FunctionTestCase (run)
+PC-01.task-readonly ... ok
+unittest.case.FunctionTestCase (run)
+PC-01.task-invalid ... ok
+unittest.case.FunctionTestCase (run)
+PC-01.task-quiesce ... ok
+unittest.case.FunctionTestCase (run)
+PC-01.task-rate ... ok
+unittest.case.FunctionTestCase (run)
+PC-01.task-product ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-owner-source ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-owner-source-revision ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-auth-basic ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-auth-auth ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-auth-invalid ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-auth-cancel ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-auth-failure ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-auth-unknown ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-auth-pending ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-auth-reopen ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-auth-retry-error ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-storage-blocked-copy ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-storage-revision ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-storage-reopen ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-storage-write-failure ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-storage-unknown ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-storage-reset ... ok
+unittest.case.FunctionTestCase (run)
+RST-01.pc-clear ... ok
+unittest.case.FunctionTestCase (run)
+RST-01.pc-unlink ... ok
+unittest.case.FunctionTestCase (run)
+RST-01.pc-sync ... ok
+unittest.case.FunctionTestCase (run)
+RST-01.pc-symlink ... ok
+unittest.case.FunctionTestCase (run)
+RST-01.pc-absent ... ok
+unittest.case.FunctionTestCase (run)
+RST-01.pc-no-marker ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-grant-persist ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-grant-owner ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-grant-revision ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-grant-invalid ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-grant-writefail ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-grant-uncertain ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-grant-corrupt ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-grant-golden ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.pc-grant-aliased-key ... ok
+unittest.case.FunctionTestCase (run)
+USB-02.serial-binary ... ok
+unittest.case.FunctionTestCase (run)
+USB-02.serial-backpressure ... ok
+unittest.case.FunctionTestCase (run)
+USB-02.serial-disconnect ... ok
+unittest.case.FunctionTestCase (run)
+USB-02.serial-invalid ... ok
+unittest.case.FunctionTestCase (run)
+USB-02.serial-failed-open ... ok
+unittest.case.FunctionTestCase (run)
+USB-01.pc-client-fragmented_tls_auth_status_and_info ... ok
+unittest.case.FunctionTestCase (run)
+USB-01.pc-client-certificate_pin_mismatch_sends_no_secret ... ok
+unittest.case.FunctionTestCase (run)
+USB-01.pc-client-valid_chain_with_wrong_leaf_never_receives_pc_key ... ok
+unittest.case.FunctionTestCase (run)
+USB-01.pc-client-wrong_principal_closes_without_status ... ok
+unittest.case.FunctionTestCase (run)
+USB-01.pc-client-malformed_authenticated_responses_close ... ok
+unittest.case.FunctionTestCase (run)
+USB-01.pc-client-stall_and_backpressure_have_absolute_deadlines ... ok
+unittest.case.FunctionTestCase (run)
+USB-01.pc-client-error_response_is_not_success_or_replayed ... ok
+unittest.case.FunctionTestCase (run)
+USB-01.pc-client-no_request_before_auth_or_after_close ... ok
+unittest.case.FunctionTestCase (run)
+USB-01.pc-client-cli_uses_real_client_without_printing_credentials ... ok
+unittest.case.FunctionTestCase (run)
+USB-01.pc-client-native_adapter_preserves_partial_io_without_global_output_redirect ... ok
+unittest.case.FunctionTestCase (run)
+USB-01.pc-client-native_port_filter_rejects_uart_without_opening ... ok
+unittest.case.FunctionTestCase (run)
+USB-01.pc-client-cli_invalid_certificate_never_opens_port ... ok
+unittest.case.FunctionTestCase (run)
+USB-01.pc-client-clock_rollback_terminates_without_replay ... ok
+unittest.case.FunctionTestCase (run)
+PC-01.sender-golden ... ok
+unittest.case.FunctionTestCase (run)
+PC-01.sender-invalid ... ok
+unittest.case.FunctionTestCase (run)
+PC-01.sender-staging ... ok
+unittest.case.FunctionTestCase (run)
+PC-01.sender-readback ... ok
+unittest.case.FunctionTestCase (run)
+PC-01.sender-failure ... ok
+unittest.case.FunctionTestCase (run)
+PC-01.sender-cli ... ok
+unittest.case.FunctionTestCase (run)
+USB-01.pc-profile-profile_binds_pin_certificate_key_and_clears_borrowed_plaintext ... ok
+unittest.case.FunctionTestCase (run)
+USB-01.pc-profile-tampered_truncated_and_unknown_profiles_fail_closed ... ok
+unittest.case.FunctionTestCase (run)
+USB-01.pc-profile-existing_profile_and_symlink_are_never_overwritten ... ok
+unittest.case.FunctionTestCase (run)
+USB-01.pc-profile-invalid_material_and_os_failure_never_create_profile ... ok
+unittest.case.FunctionTestCase (run)
+USB-01.pc-profile-cli_profile_reaches_real_tls_client_without_plaintext_file ... ok
+unittest.case.FunctionTestCase (run)
+USB-01.pc-profile-cli_invalid_profile_never_opens_port_or_falls_back ... ok
+unittest.case.FunctionTestCase (run)
+USB-01.pc-profile-cli_save_profile_is_offline_and_preserves_import_source ... ok
+unittest.case.FunctionTestCase (run)
+USB-01.pc-profile-io_failures_do_not_publish_success_or_overwrite ... ok
+unittest.case.FunctionTestCase (run)
+USB-01.pc-profile-cli_mixed_profile_credentials_never_downgrade ... ok
+unittest.case.FunctionTestCase (run)
+USB-01.pc-profile-os_bridge_uses_stdin_current_user_and_generic_failure ... ok
+unittest.case.FunctionTestCase (run)
+USB-01.pc-profile-authenticated_profile_with_wrong_trust_binding_is_rejected ... ok
+unittest.case.FunctionTestCase (run)
+USB-01.pc-pairing-request_layout_pending_protection_and_roundtrip ... ok
+unittest.case.FunctionTestCase (run)
+USB-01.pc-pairing-expiry_rollback_and_invalid_permissions_fail_without_profile ... ok
+unittest.case.FunctionTestCase (run)
+USB-01.pc-pairing-tamper_wrong_request_caps_key_and_trusted_pin_rejected ... ok
+unittest.case.FunctionTestCase (run)
+USB-01.pc-pairing-existing_outputs_are_not_replaced_and_import_does_not_authorize_device ... ok
+unittest.case.FunctionTestCase (run)
+USB-01.pc-pairing-invalid_pending_or_unavailable_protection_never_exposes_private_material ... ok
+unittest.case.FunctionTestCase (run)
+USB-01.pc-pairing-cli_pairing_is_offline_and_rejects_mixed_credentials ... ok
+unittest.case.FunctionTestCase (run)
+USB-01.pc-pairing-pending_readback_failure_never_publishes_request ... ok
+unittest.case.FunctionTestCase (run)
+USB-01.tls-transport ... ok
+unittest.case.FunctionTestCase (run)
+USB-02.rx-fast_reader ... ok
+unittest.case.FunctionTestCase (run)
+USB-02.rx-slow_reader ... ok
+unittest.case.FunctionTestCase (run)
+USB-02.rx-partial ... ok
+unittest.case.FunctionTestCase (run)
+USB-02.rx-upper_backpressure ... ok
+unittest.case.FunctionTestCase (run)
+USB-02.rx-arm_failure ... ok
+unittest.case.FunctionTestCase (run)
+USB-02.rx-reset ... ok
+unittest.case.FunctionTestCase (run)
+USB-02.rx-duplicate_callback ... ok
+unittest.case.FunctionTestCase (run)
+USB-02.tx-start_failure ... ok
+unittest.case.FunctionTestCase (run)
+USB-02.tx-queued_progress ... ok
+unittest.case.FunctionTestCase (run)
+USB-02.tx-upper_start ... ok
+unittest.case.FunctionTestCase (run)
+USB-02.tx-upper_backpressure ... ok
+unittest.case.FunctionTestCase (run)
+USB-02.tx-wrong_completion ... ok
+unittest.case.FunctionTestCase (run)
+USB-02.life-wake_disconnect ... ok
+unittest.case.FunctionTestCase (run)
+USB-02.life-fast_reconnect ... ok
+unittest.case.FunctionTestCase (run)
+USB-02.life-drop_old_queue ... ok
+unittest.case.FunctionTestCase (run)
+USB-02.life-new_open ... ok
+unittest.case.FunctionTestCase (run)
+USB-02.life-offline_open ... ok
+unittest.case.FunctionTestCase (run)
+MOT-01.sensor-register ... ok
+unittest.case.FunctionTestCase (run)
+MOT-01.sensor-inactive ... ok
+unittest.case.FunctionTestCase (run)
+MOT-01.sensor-invalid ... ok
+unittest.case.FunctionTestCase (run)
+MOT-01.sensor-not_ready ... ok
+unittest.case.FunctionTestCase (run)
+MOT-01.sensor-partial ... ok
+unittest.case.FunctionTestCase (run)
+MOT-01.sensor-status_error ... ok
+unittest.case.FunctionTestCase (run)
+MOT-01.sensor-data_error ... ok
+unittest.case.FunctionTestCase (run)
+MOT-01.sensor-fresh ... ok
+unittest.case.FunctionTestCase (run)
+TIMER-01.intent-voice ... ok
+unittest.case.FunctionTestCase (run)
+TIMER-01.intent-gate ... ok
+unittest.case.FunctionTestCase (run)
+TIMER-01.intent-revision ... ok
+unittest.case.FunctionTestCase (run)
+TIMER-01.intent-cancel ... ok
+unittest.case.FunctionTestCase (run)
+TIMER-01.intent-invalid ... ok
+unittest.case.FunctionTestCase (run)
+TIMER-01.shared-start ... ok
+unittest.case.FunctionTestCase (run)
+TIMER-01.shared-retry ... ok
+unittest.case.FunctionTestCase (run)
+TIMER-01.shared-cancel ... ok
+unittest.case.FunctionTestCase (run)
+TIMER-01.shared-invalid ... ok
+unittest.case.FunctionTestCase (run)
+TIMER-01.clock ... ok
+unittest.case.FunctionTestCase (run)
+TIMER-01.replay ... ok
+unittest.case.FunctionTestCase (run)
+TIMER-01.invalid ... ok
+unittest.case.FunctionTestCase (run)
+TIMER-01.wire ... ok
+unittest.case.FunctionTestCase (run)
+AUD-03.media-tail ... ok
+unittest.case.FunctionTestCase (run)
+AUD-03.media-cancel-next ... ok
+unittest.case.FunctionTestCase (run)
+NET-02.display-snapshot ... ok
+unittest.case.FunctionTestCase (run)
+DISP-01.expression-intent ... ok
+unittest.case.FunctionTestCase (run)
+DISP-01.expression-cancel ... ok
+unittest.case.FunctionTestCase (run)
+RES-02.trial-wire ... ok
+unittest.case.FunctionTestCase (run)
+RES-02.expression-trial ... ok
+unittest.case.FunctionTestCase (run)
+RES-02.expression-ownership ... ok
+unittest.case.FunctionTestCase (run)
+CFG-02.models-unknown ... ok
+unittest.case.FunctionTestCase (run)
+MSC-01.backend-stop-normal ... ok
+unittest.case.FunctionTestCase (run)
+MSC-01.backend-stop-retry ... ok
+unittest.case.FunctionTestCase (run)
+MSC-01.backend-stop-start-cleanup ... ok
+unittest.case.FunctionTestCase (run)
+MSC-01.backend-stop-close-error ... ok
+unittest.case.FunctionTestCase (run)
+LIFE-02.power-normal ... ok
+unittest.case.FunctionTestCase (run)
+LIFE-02.power-admission-failure ... ok
+unittest.case.FunctionTestCase (run)
+LIFE-02.power-partial-failure ... ok
+unittest.case.FunctionTestCase (run)
+LIFE-02.power-cp-declined ... ok
+unittest.case.FunctionTestCase (run)
+LIFE-02.power-cp-unknown ... ok
+unittest.case.FunctionTestCase (run)
+LIFE-02.power-admission-stops-trigger ... ok
+unittest.case.FunctionTestCase (run)
+LIFE-02.power-storage-stops-trigger ... ok
+unittest.case.FunctionTestCase (run)
+LIFE-02.power-trigger-failure ... ok
+unittest.case.FunctionTestCase (run)
+LIFE-02.power-unpublished-trigger ... ok
+unittest.case.FunctionTestCase (run)
+LIFE-02.power-admission-drains ... ok
+unittest.case.FunctionTestCase (run)
+LIFE-02.power-failed-drains ... ok
+unittest.case.FunctionTestCase (run)
+LIFE-02.power-final-close-drains ... ok
+unittest.case.FunctionTestCase (run)
+LIFE-02.power-failure-display ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.quiesce-queries ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.quiesce-staging ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.quiesce-config-staging ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.quiesce-ota-commit ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.quiesce-invalid ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.owner-queries ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.owner-unauthenticated ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.owner-invalid-sequence ... ok
+unittest.case.FunctionTestCase (run)
+NET-03.owner-legacy ... ok
+unittest.case.FunctionTestCase (run)
+LIFE-01.owner-integration ... ok
+unittest.case.FunctionTestCase (run)
+LIFE-02.capture-close-failure ... ok
+unittest.case.FunctionTestCase (run)
+LIFE-02.capture-route-failure ... ok
+unittest.case.FunctionTestCase (run)
+MSC-01.acquiring ... ok
+unittest.case.FunctionTestCase (run)
+MSC-01.releasing ... ok
+unittest.case.FunctionTestCase (run)
+MSC-01.retry ... ok
+unittest.case.FunctionTestCase (run)
+MSC-01.unmount-failure ... ok
+unittest.case.FunctionTestCase (run)
+MSC-01.local-busy ... ok
+unittest.case.FunctionTestCase (run)
+MSC-01.wrong-owner ... ok
+unittest.case.FunctionTestCase (run)
+MSC-01.handoff ... ok
+unittest.case.FunctionTestCase (run)
+AUD-01.pcm-1 ... ok
+unittest.case.FunctionTestCase (run)
+AUD-01.pcm-20260924 ... ok
+unittest.case.FunctionTestCase (run)
+AUD-01.pcm-4294967295 ... ok
+unittest.case.FunctionTestCase (run)
+AUD-03.cancel-late ... ok
+unittest.case.FunctionTestCase (run)
+AUD-01.sse-1 ... ok
+unittest.case.FunctionTestCase (run)
+AUD-01.sse-20260924 ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.uid-empty ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.select-timeout ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.select-error ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.uid-size ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.uid-incomplete ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.uid-4 ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.uid-7 ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.uid-10 ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.empty ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.oversize ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.hce-positive ... ok
+unittest.case.FunctionTestCase (run)
+K2-01.legacy-suite ... ok
+unittest.case.FunctionTestCase (run)
+MSC-02.legacy-suite ... ok
+unittest.case.FunctionTestCase (run)
+MOT-01.legacy-suite ... ok
+unittest.case.FunctionTestCase (run)
+NFC-01.legacy-suite ... ok
+unittest.case.FunctionTestCase (run)
+CFG-01.wifi-reopen ... ok
+unittest.case.FunctionTestCase (run)
+STORE-02.file-sync-failure ... ok
+unittest.case.FunctionTestCase (run)
+STORE-02.file-sync-retry ... ok
+unittest.case.FunctionTestCase (run)
+STORE-02.directory-sync-unknown ... ok
+unittest.case.FunctionTestCase (run)
+CFG-03.stale ... ok
+unittest.case.FunctionTestCase (run)
+CFG-03.conflict ... ok
+unittest.case.FunctionTestCase (run)
+CFG-03.keep-key ... ok
+unittest.case.FunctionTestCase (run)
+CFG-03.replace-key ... ok
+unittest.case.FunctionTestCase (run)
+CFG-03.clear-cloud ... ok
+unittest.case.FunctionTestCase (run)
+CFG-03.cross-host-retain ... ok
+unittest.case.FunctionTestCase (run)
+STORE-02.restart-before-publish ... ok
+unittest.case.FunctionTestCase (run)
+STORE-02.restart-after-publish ... ok
+
+----------------------------------------------------------------------
+Ran 354 tests in 51.044s
+
+OK
+unittest.case.FunctionTestCase (run)
+CFG-01.restored ... ok
+unittest.case.FunctionTestCase (run)
+MSC-01.restored ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.066s
+
+OK
+{"PASS": 461, "FAIL_ASSERTION": 0, "SETUP_ERROR": 0, "NOT_RUN": 0} production_unchanged= True

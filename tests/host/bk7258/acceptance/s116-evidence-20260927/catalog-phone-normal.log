@@ -1,0 +1,4 @@
+RENDERER_SHA256=940a0e15cb465cef77f0b5c9fd8694f76bd1e9c1dd23e084eed49c13bf125ca4
+bk7258 package eye-pack: PASS output=/tmp/pack-trial-build-8lja2lns/green.bkep id=shaniu-upload-v1 revision=1 entries=11 size=10494 sha256=c0136ca3b702c15f41d15aed1e0a5e8714b851332024347c2bf13b1b7fea8e47
+PACK_TRIAL_INPUT_SHA256=c0136ca3b702c15f41d15aed1e0a5e8714b851332024347c2bf13b1b7fea8e47
+CONTRACT_PASS pack trial real renderer

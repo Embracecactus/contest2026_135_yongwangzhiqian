@@ -1,0 +1,82 @@
+{
+  "slice": "S27",
+  "date": "2026-09-25",
+  "parent": "0bda563b879041bd06fbf7f2348d51174b4448e5",
+  "case": "RES-02.expression-ownership",
+  "requirement": "A late restore must not override a newer explicit display selection, including a selection with the same name.",
+  "red": {
+    "slice": "S27 in progress",
+    "status": "FAIL_ASSERTION",
+    "case": "RES-02.same-expression-new-intent",
+    "production_base": "0bda563b879041bd06fbf7f2348d51174b4448e5",
+    "oracle": "An old restore must not overwrite a newer explicit selection, including a new selection of the same expression.",
+    "path": "Real vision feedback begin/finish + exact extracted production display command bodies + production async intent; external renderer and mutex substituted.",
+    "positive": "No newer selection: neutral restored",
+    "negative": "New explicit happy during feedback hold: expected happy retained, actual neutral",
+    "next": "Introduce atomic operation identity capture/conditional replacement, bind both vision result and delayed restore; preserve normal restore, reject stale identities even if names match. No default trial TTL required for this fix.",
+    "hashes": {
+      "tests/host/bk7258/test_shaniu_expression_ownership.c": "dab621ea36eace67edd42a569efae9e264522d69c1808a2f7fbf4514ef38c7df",
+      "app/bk7258/bk7258_display_service.c": "3d64defcf9ee802f9257f5c62ba7447143417fc50d3d00a7ed8cf865272cdc94",
+      "app/bk7258/bk7258_display_intent.inc": "560dce25979b848317ef242dd12cd3400656843a7425f1a83d7559c6a0da8a2b",
+      "app/bk7258/bk7258_vision_feedback.c": "1e515b7275787612839accff60e1a8403782e3e053d713bb6c51d7263e3ea346",
+      "out/shaniu-s27/red.log": "e92fa1911658788fd751c15b7e5af25c3bc5cbc50d38409e28f8f63e398db10b"
+    },
+    "log": "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\npython3 -c 'from pathlib import Path; s=Path(\"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c\").read_text(); a=s.index(\"int bk7258_display_set_expression(\"); b=s.index(\"int bk7258_display_show_mapping_test(\",a); Path(\"build/display-commands.inc\").write_text(s[a:b])'\ncc -std=gnu11 -Wall -Wextra -Werror -O2 -pthread -I mocks -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -I build test_shaniu_expression_ownership.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_vision_feedback.c -o build/test_shaniu_expression_ownership\n./build/test_shaniu_expression_ownership\ntest_shaniu_expression_ownership: test_shaniu_expression_ownership.c:52: main: Assertion `strcmp(g_bkdisplay_service.status.expression, \"happy\") == 0' failed.\nmake: *** [Makefile:1897: run-expression-ownership] Aborted (core dumped)\nmake: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\n"
+  },
+  "original_red_test": "/* SPDX-License-Identifier: Apache-2.0 */\n/* Real display commands and vision feedback; only render/OS are substitutes.\n * The Make target extracts the command bodies verbatim from production. */\n#include <assert.h>\n#include <errno.h>\n#include <pthread.h>\n#include <stdbool.h>\n#include <stdio.h>\n#include <string.h>\n#include \"bk7258_display_service.h\"\n#include \"bk7258_vision_feedback.h\"\nstruct bkdisplay_service_s {\n  pthread_mutex_t lock;\n  struct bkdisplay_service_status_s status;\n};\nstatic struct bkdisplay_service_s g_bkdisplay_service = { .lock = PTHREAD_MUTEX_INITIALIZER };\n#define nxmutex_lock pthread_mutex_lock\nstatic void bkdisplay_unlock(struct bkdisplay_service_s *service)\n{ assert(pthread_mutex_unlock(&service->lock) == 0); }\nstatic int bkdisplay_render_locked(struct bkdisplay_service_s *service, const char *expression)\n{ strcpy(service->status.expression, expression); return 0; }\n#include \"bk7258_display_intent.inc\"\n#include \"display-commands.inc\"\nstatic int set(void *unused, const char *expression)\n{ (void)unused; return bk7258_display_set_expression(expression); }\nstatic int replace(void *unused, const char *expected, const char *replacement)\n{ (void)unused; return bk7258_display_replace_expression(expected, replacement); }\nstatic bool newer_selection;\nstatic void wait_ms(void *unused, unsigned int duration)\n{\n  (void)unused;\n  assert(duration == BKVISION_FEEDBACK_HOLD_MS);\n  if (newer_selection) assert(bk7258_display_set_expression(\"happy\") == 0);\n}\nint main(void)\n{\n  const struct bkvision_feedback_ops_s ops = {\n    .set_expression = set, .replace_expression = replace, .wait_ms = wait_ms\n  };\n  struct bkvision_feedback_s feedback;\n  bkdisplay_intent_gate(true);\n  bkdisplay_intent_supersede();\n  assert(!bkdisplay_intent_pending());\n  assert(!bkdisplay_intent_step(&g_bkdisplay_service, true));\n  bkvision_feedback_initialize(&feedback, &ops);\n  bkvision_feedback_snapshot_begin(&feedback);\n  bkvision_feedback_snapshot_finish(&feedback, true);\n  assert(strcmp(g_bkdisplay_service.status.expression, \"neutral\") == 0);\n  newer_selection = true;\n  bkvision_feedback_snapshot_begin(&feedback);\n  bkvision_feedback_snapshot_finish(&feedback, true);\n  assert(strcmp(g_bkdisplay_service.status.expression, \"happy\") == 0);\n  puts(\"CONTRACT_PASS expression ownership\");\n  return 0;\n}\n",
+  "green": "125 strict units PASS, including original 63 IDs; separate legacy vision feedback target PASS",
+  "production_path": "Real vision feedback begin/finish and exact display command bodies, production render identity wrapper and intent state. Only pixel rendering and OS synchronization are substituted. Actual vision-service adapters compile/link in target build.",
+  "protocol": "No external wire format changed. Internal string-only compare/replace replaced by atomic uint64 identity capture/update under display mutex. Resource render attempts, fallback/claim/power renders and mapping diagnostics invalidate identity; normal animation does not. Pending asynchronous requests reject old replacements.",
+  "coverage": [
+    "normal result and neutral restore",
+    "same-name explicit choice during wait retained",
+    "same-name choice during capture prevents old result too",
+    "pending asynchronous choice not overwritten",
+    "first render I/O failure can recover while still owned",
+    "overlay invalidation helper rejects old identity",
+    "NULL token and uint64 exhaustion",
+    "existing positive/failure feedback cases retained"
+  ],
+  "test_contract_adjustment": "External behavior unchanged. Existing vision fixture now models identity-aware render callbacks. Conditional result transition adds one replace call; old string-argument assertions updated to token mismatch assertions where newer selection intervenes. Original Red source retained verbatim and verified against pre-fix hash; no time allowance changed.",
+  "mutation": {
+    "mutation": "remove identity mismatch rejection",
+    "isolated": true,
+    "compiled": true,
+    "detected": true,
+    "exit": -6,
+    "unchanged_production_rerun": "PASS"
+  },
+  "resources": "One static uint64 counter (8 bytes), volatile token/bool in existing feedback object; no new heap allocation, thread, I/O or wait. Existing 800 ms hold remains unchanged. Board CPU/p95/stack high-water not measured.",
+  "build": "Official incremental build, layer verifier, build-manifest verifier and runner gate PASS; no new signing/deployment.",
+  "limits": [
+    "No preview TTL or App preview interface implemented in this slice.",
+    "Not a general scene-priority/lease system; focus/voice animation uses existing arbitration.",
+    "No physical render/DMA/latency validation; frame sink is a host substitute.",
+    "The extraction target compiles exact current command bodies; it does not execute full pixel/SD implementation on host."
+  ],
+  "hashes": {
+    "app/bk7258/bk7258_display_service.c": "b2d625df66939c52bb4714ae06704b024522f2b52ba280fdef6e5b7feb464a9e",
+    "app/bk7258/bk7258_display_service.h": "8ec97a7ec31f8be56a005ffe43a829f6027bfa97827b1c0c9afe7c65de070d43",
+    "app/bk7258/bk7258_display_render_identity.inc": "247f2a6327045007d483a544301205c0346bc172f8ac7d92f3cc962f3f0b0566",
+    "app/bk7258/bk7258_vision_feedback.c": "fc66de62905c1ce3fff1282c06bc5205af5baa5d5010a4df0dc10484c525d67d",
+    "app/bk7258/bk7258_vision_feedback.h": "5971343328aabcb37fe140e894869da8cb2ebe86b80ed2905b201d24fb8c9d7b",
+    "app/bk7258/bk7258_vision_service.c": "cc775c7fa3260b02418a7b6c61bb81c3fba25ab51a6590f01c70bfef0a76cdca",
+    "tests/host/bk7258/test_shaniu_expression_ownership.c": "1d9019186f8cc44484d334be7a08c157088ac3908360e59dcb7d2c632a3188ff",
+    "tests/host/bk7258/test_bk7258_vision_feedback.c": "ed5d8142a650e536e603dbc5834e4192ad254b76d3107670615a9ca5c2ef3900",
+    "out/shaniu-s27/red.log": "e92fa1911658788fd751c15b7e5af25c3bc5cbc50d38409e28f8f63e398db10b",
+    "out/shaniu-s27/green.log": "6e6cd4280f07142b10f3cbcd8a16094a998fcb8eb85efdcf5c945f82c5dfdc11",
+    "out/shaniu-s27/build.log": "17cc7930cbb08a1ab7b02c560834a966877c71e987acc4413d0e7d5ab07394eb",
+    "out/shaniu-s27/manifest.log": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac",
+    "out/shaniu-s27/layers.log": "cab5506d4a62929feaece7a1324c950ff7577663e0c3752c16f06517206d2c9e",
+    "out/shaniu-s27/contracts.log": "81f0c8156cf64bc7b636e860640d0de3df72fbbb73f096244ca2434e0f5456c3",
+    "out/shaniu-s27/mutant-build.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/shaniu-s27/mutant.log": "625734ab69225987b92288f1b38af50906adc7759191cc854e55b2742d4bf42a",
+    "out/shaniu-s27/restored.log": "d5ac00cbac486dd1ae094dbc3453bbd0d4872ff34cd2d94a3636a21c2cb56453",
+    "out/shaniu-s27/runner-gate.log": "8ffa5975dbde749685ff98587bd42d81c65a4fbb8cdb7823318908026d6cecb9"
+  },
+  "outputs": {
+    "green": "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\npython3 -c 'from pathlib import Path; s=Path(\"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_service.c\").read_text(); a=s.index(\"int bk7258_display_set_expression(\"); b=s.index(\"int bk7258_display_show_mapping_test(\",a); Path(\"build/display-commands.inc\").write_text(s[a:b])'\ncc -std=gnu11 -Wall -Wextra -Werror -O2 -pthread -I mocks -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -I build test_shaniu_expression_ownership.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_vision_feedback.c -o build/test_shaniu_expression_ownership\n./build/test_shaniu_expression_ownership\nCONTRACT_PASS expression ownership\ncc -std=gnu11 -Wall -Wextra -Werror -O2 test_bk7258_vision_feedback.c \\\n\t/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_vision_feedback.c \\\n\t-I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -o build/test_bk7258_vision_feedback\n./build/test_bk7258_vision_feedback\nBKVISION_FEEDBACK_HOST_PASS\nmake: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\n",
+    "mutant": "mutant: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_expression_ownership.c:55: main: Assertion `strcmp(g_bkdisplay_service.status.expression, \"happy\") == 0' failed.\n",
+    "restored": "CONTRACT_PASS expression ownership\n"
+  }
+}

@@ -1,0 +1,83 @@
+/tmp/shaniu-s97-old-control.c: error: No block comments found
+/tmp/shaniu-s97-old-control.c:2:0: error: Relative file path does not match actual file
+/tmp/shaniu-s97-old-control.c:2:1: warning: #include outside of 'Included Files' section
+/tmp/shaniu-s97-old-control.c:3:1: warning: #include outside of 'Included Files' section
+/tmp/shaniu-s97-old-control.c:4:1: warning: #include outside of 'Included Files' section
+/tmp/shaniu-s97-old-control.c:5:1: warning: #include outside of 'Included Files' section
+/tmp/shaniu-s97-old-control.c:7:80: error: Long line found
+/tmp/shaniu-s97-old-control.c:7:1: error: Missing blank line after comment
+/tmp/shaniu-s97-old-control.c:12:23: error: Operator/assignment must be preceded with whitespace
+/tmp/shaniu-s97-old-control.c:12:24: error: Operator/assignment must be followed with whitespace
+/tmp/shaniu-s97-old-control.c:12:44: error: Operator/assignment must be preceded with whitespace
+/tmp/shaniu-s97-old-control.c:12:45: error: Operator/assignment must be followed with whitespace
+/tmp/shaniu-s97-old-control.c:12:65: error: Operator/assignment must be preceded with whitespace
+/tmp/shaniu-s97-old-control.c:12:66: error: Operator/assignment must be followed with whitespace
+/tmp/shaniu-s97-old-control.c:12:77: error: Right bracket not on separate line
+/tmp/shaniu-s97-old-control.c:14:33: error: Operator/assignment must be preceded with whitespace
+/tmp/shaniu-s97-old-control.c:14:34: error: Operator/assignment must be followed with whitespace
+/tmp/shaniu-s97-old-control.c:14:52: error: Operator/assignment must be preceded with whitespace
+/tmp/shaniu-s97-old-control.c:14:58: error: Right bracket not on separate line
+/tmp/shaniu-s97-old-control.c:16:6: error: Operator/assignment must be preceded with whitespace
+/tmp/shaniu-s97-old-control.c:16:6: error: Operator/assignment must be followed with whitespace
+/tmp/shaniu-s97-old-control.c:16:8: error: Operator/assignment must be preceded with whitespace
+/tmp/shaniu-s97-old-control.c:16:9: error: Operator/assignment must be followed with whitespace
+/tmp/shaniu-s97-old-control.c:16:18: error: Operator/assignment must be preceded with whitespace
+/tmp/shaniu-s97-old-control.c:16:18: error: Operator/assignment must be followed with whitespace
+/tmp/shaniu-s97-old-control.c:16:20: error: Operator/assignment must be preceded with whitespace
+/tmp/shaniu-s97-old-control.c:16:21: error: Operator/assignment must be followed with whitespace
+/tmp/shaniu-s97-old-control.c:16:30: error: Operator/assignment must be preceded with whitespace
+/tmp/shaniu-s97-old-control.c:16:30: error: Operator/assignment must be followed with whitespace
+/tmp/shaniu-s97-old-control.c:16:32: error: Operator/assignment must be preceded with whitespace
+/tmp/shaniu-s97-old-control.c:16:33: error: Operator/assignment must be followed with whitespace
+/tmp/shaniu-s97-old-control.c:16:41: error: Operator/assignment must be preceded with whitespace
+/tmp/shaniu-s97-old-control.c:16:41: error: Operator/assignment must be followed with whitespace
+/tmp/shaniu-s97-old-control.c:16:45: error: Right bracket not on separate line
+/tmp/shaniu-s97-old-control.c:18:15: error: Missing whitespace after comma
+/tmp/shaniu-s97-old-control.c:18:17: error: Operator/assignment must be preceded with whitespace
+/tmp/shaniu-s97-old-control.c:18:18: error: Operator/assignment must be followed with whitespace
+/tmp/shaniu-s97-old-control.c:18:36: error: Operator/assignment must be preceded with whitespace
+/tmp/shaniu-s97-old-control.c:18:39: error: Missing whitespace after comma
+/tmp/shaniu-s97-old-control.c:18:44: error: Right bracket not on separate line
+/tmp/shaniu-s97-old-control.c:19:1: error: Blank line follows left brace
+/tmp/shaniu-s97-old-control.c:24:43: error: Left bracket not on separate line
+/tmp/shaniu-s97-old-control.c:37:30: error: Multiple data definitions
+/tmp/shaniu-s97-old-control.c:37:25: error: Left bracket not on separate line
+/tmp/shaniu-s97-old-control.c:37:29: error: Missing whitespace after comma
+/tmp/shaniu-s97-old-control.c:37:33: error: Missing whitespace after comma
+/tmp/shaniu-s97-old-control.c:37:37: error: Missing whitespace after comma
+/tmp/shaniu-s97-old-control.c:39:94: error: Long line found
+/tmp/shaniu-s97-old-control.c:41:84: error: Long line found
+/tmp/shaniu-s97-old-control.c:42:21: error: Operator/assignment must be preceded with whitespace
+/tmp/shaniu-s97-old-control.c:42:24: error: Missing whitespace after comma
+/tmp/shaniu-s97-old-control.c:43:21: error: Operator/assignment must be preceded with whitespace
+/tmp/shaniu-s97-old-control.c:43:24: error: Missing whitespace after comma
+/tmp/shaniu-s97-old-control.c:44:21: error: Operator/assignment must be preceded with whitespace
+/tmp/shaniu-s97-old-control.c:44:25: error: Missing whitespace after comma
+/tmp/shaniu-s97-old-control.c:45:21: error: Operator/assignment must be preceded with whitespace
+/tmp/shaniu-s97-old-control.c:45:25: error: Missing whitespace after comma
+/tmp/shaniu-s97-old-control.c:47:18: error: Operator/assignment must be preceded with whitespace
+/tmp/shaniu-s97-old-control.c:47:22: error: Missing whitespace after comma
+/tmp/shaniu-s97-old-control.c:47:42: error: Operator/assignment must be preceded with whitespace
+/tmp/shaniu-s97-old-control.c:47:46: error: Missing whitespace after comma
+/tmp/shaniu-s97-old-control.c:49:33: error: Missing whitespace after comma
+/tmp/shaniu-s97-old-control.c:49:37: error: Operator/assignment must be preceded with whitespace
+/tmp/shaniu-s97-old-control.c:49:45: error: Missing whitespace after comma
+/tmp/shaniu-s97-old-control.c:53:33: error: Missing whitespace after comma
+/tmp/shaniu-s97-old-control.c:53:40: error: Missing whitespace after comma
+/tmp/shaniu-s97-old-control.c:53:64: error: Operator/assignment must be preceded with whitespace
+/tmp/shaniu-s97-old-control.c:54:24: error: Operator/assignment must be preceded with whitespace
+/tmp/shaniu-s97-old-control.c:55:37: error: Operator/assignment must be preceded with whitespace
+/tmp/shaniu-s97-old-control.c:56:39: error: Operator/assignment must be preceded with whitespace
+/tmp/shaniu-s97-old-control.c:57:39: error: Operator/assignment must be preceded with whitespace
+/tmp/shaniu-s97-old-control.c:58:41: error: Operator/assignment must be preceded with whitespace
+/tmp/shaniu-s97-old-control.c:62:43: error: Operator/assignment must be preceded with whitespace
+/tmp/shaniu-s97-old-control.c:62:47: error: Missing whitespace after comma
+/tmp/shaniu-s97-old-control.c:62:67: error: Operator/assignment must be preceded with whitespace
+/tmp/shaniu-s97-old-control.c:62:71: error: Missing whitespace after comma
+/tmp/shaniu-s97-old-control.c:64:23: error: Missing whitespace after comma
+/tmp/shaniu-s97-old-control.c:64:44: error: Missing whitespace after comma
+/tmp/shaniu-s97-old-control.c:69:72: error: Operator/assignment must be preceded with whitespace
+/tmp/shaniu-s97-old-control.c:70:90: error: Long line found
+/tmp/shaniu-s97-old-control.c:72:29: error: Missing whitespace after comma
+/tmp/shaniu-s97-old-control.c:72:36: error: Missing whitespace after comma
+/tmp/shaniu-s97-old-control.c:76:1: error: "Private/Public Functions" not found! File will not be checked

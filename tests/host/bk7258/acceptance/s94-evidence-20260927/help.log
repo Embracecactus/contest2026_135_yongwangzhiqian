@@ -1,0 +1,4 @@
+usage: bk7258.py [-h]
+                 {workbench,voice,identity,build,deploy,toolchain,sdk,package,release,verify}
+                 ...
+bk7258.py: error: argument command: invalid choice: 'usb' (choose from 'workbench', 'voice', 'identity', 'build', 'deploy', 'toolchain', 'sdk', 'package', 'release', 'verify')

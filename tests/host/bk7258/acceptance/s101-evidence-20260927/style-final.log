@@ -1,0 +1,4 @@
+/tmp/bk7258_display_selection.inc.c:2:1: error: Relative file path does not match actual file
+/tmp/bk7258_display_selection_request.inc.c:2:1: error: Relative file path does not match actual file
+bk7258_display_selection.inc exit=1
+bk7258_display_selection_request.inc exit=1

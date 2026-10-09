@@ -1,0 +1,1 @@
+case: tests/host/bk7258/test_display_job.c:111: main: Assertion `bkdisplay_job_status(&job, &status) == 0' failed.

@@ -1,0 +1,5 @@
+tests/host/bk7258/test_display_job_service.c: In function ‘wait_state’:
+tests/host/bk7258/test_display_job_service.c:82:33: error: comparison of integer expressions of different signedness: ‘enum bkdisplay_job_state_e’ and ‘int’ [-Werror=sign-compare]
+   82 |       if (!ret && (status.state == state || (state < 0 && status.state >= BKDISPLAY_JOB_DONE))) return status;
+      |                                 ^~
+cc1: all warnings being treated as errors

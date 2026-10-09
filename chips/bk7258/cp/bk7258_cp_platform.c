@@ -505,10 +505,26 @@ static const struct bk7258_stage_desc_s g_bk7258_cp_stages[] =
                   BK7258_STAGE_MANDATORY, 0,
                   BK7258_CP_STAGE_BIT(BK7258_CP_STAGE_RADIO_STORAGE)),
 #endif
+#if defined(CONFIG_BK7258_PSRAM) && defined(CONFIG_BK7258_WIFI_VNET)
+  /* Wi-Fi has completed the shared PHY/RF calibration. Establish the
+   * PSRAM allocator before optional IPC threads consume the remaining boot
+   * SRAM: its lock/control block must itself be allocated in internal RAM.
+   * Bluetooth-only profiles still calibrate in BT_CONTROLLER below.
+   */
+
+  BK7258_CP_STAGE(BK7258_CP_STAGE_PSRAM,
+                  BK7258_STAGE_MANDATORY,
+                  BK7258_STAGE_FLAG_ALWAYS_RUN,
+                  BK7258_CP_STAGE_BIT(BK7258_CP_STAGE_WIFI_CONTROLLER)),
+#endif
 #ifdef CONFIG_BK7258_BT_IPC
   BK7258_CP_STAGE(BK7258_CP_STAGE_BT_CONTROLLER,
                   BK7258_STAGE_MANDATORY, 0,
-                  BK7258_CP_STAGE_BIT(BK7258_CP_STAGE_RADIO_STORAGE)),
+                  BK7258_CP_STAGE_BIT(BK7258_CP_STAGE_RADIO_STORAGE)
+#if defined(CONFIG_BK7258_PSRAM) && defined(CONFIG_BK7258_WIFI_VNET)
+                  | BK7258_CP_STAGE_BIT(BK7258_CP_STAGE_PSRAM)
+#endif
+                  ),
 #endif
 #ifdef CONFIG_BK7258_AP_CONTROL
   BK7258_CP_STAGE(BK7258_CP_STAGE_AP_CONTROL,
@@ -518,7 +534,7 @@ static const struct bk7258_stage_desc_s g_bk7258_cp_stages[] =
                   BK7258_STAGE_MANDATORY, 0, 0),
 #  endif
 #endif
-#ifdef CONFIG_BK7258_PSRAM
+#if defined(CONFIG_BK7258_PSRAM) && !defined(CONFIG_BK7258_WIFI_VNET)
   BK7258_CP_STAGE(BK7258_CP_STAGE_PSRAM,
                   BK7258_STAGE_MANDATORY,
                   BK7258_STAGE_FLAG_ALWAYS_RUN,

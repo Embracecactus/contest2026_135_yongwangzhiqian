@@ -1,0 +1,8 @@
+{
+  "tools/bk7258/_lib/workbench_web.py": "3831a841b793032f68b1865e12518707660cb66f00ca5b4384f31abd1dab8c1a",
+  "tools/bk7258/_lib/workbench_web/index.html": "66e5dda279ddf34fb125b9ee620231900f8f895e56c1979fecf7aeebbd7c5f76",
+  "tools/bk7258/_lib/workbench_web/app.js": "469e8e2e09fa070ad5c222bc60a2d87a8a050d894be097add7687a55afad89ac",
+  "tools/bk7258/_lib/workbench_web/style.css": "79d173d0ec9630b869097871b9d501526027944e62f3f08f4f2cb28001f5aa26",
+  "tests/host/bk7258/test_workbench_web.py": "8fa18eef6e57f42b3ea68a550c32192eab8d91e49c0341df69bb4f96e1588aee",
+  "tools/bk7258/_lib/workbench.py": "c233a8172df2c892de741292db54b8a4b9a3dbddd209b5aae5c8106d1c37f754"
+}

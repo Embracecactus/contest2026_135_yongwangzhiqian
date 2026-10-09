@@ -1,0 +1,18 @@
+{
+  "bk7258_display_job.c": {
+    "exit": 0,
+    "diagnostics": 0
+  },
+  "bk7258_display_job.h": {
+    "exit": 0,
+    "diagnostics": 0
+  },
+  "bk7258_display_job_service.c": {
+    "exit": 0,
+    "diagnostics": 0
+  },
+  "bk7258_display_job_service.h": {
+    "exit": 0,
+    "diagnostics": 0
+  }
+}

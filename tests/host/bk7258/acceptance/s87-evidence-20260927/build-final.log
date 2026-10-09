@@ -1,0 +1,12 @@
+make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'
+rm -f build/shaniu-default-v1.bkep.tmp
+python3 /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tools/bk7258/bk7258.py package eye-pack \
+	--source /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/assets/display/shaniu-default-v1.json --output build/shaniu-default-v1.bkep.tmp
+bk7258 package eye-pack: PASS output=/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/build/shaniu-default-v1.bkep.tmp id=shaniu-default-v1 revision=1 entries=11 size=10494 sha256=1bfa445365f6081d889fd604b0dadd3d1821d87fd7ee7548259acf47fb666395
+mv build/shaniu-default-v1.bkep.tmp build/shaniu-default-v1.bkep
+python3 -c 'import json; from pathlib import Path; d=json.loads(Path("/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/assets/display/shaniu-default-v1.json").read_text()); d["pack_id"]="shaniu-upload-v1"; Path("build/upload-second.json").write_text(json.dumps(d))'
+rm -f build/upload-second.bkep.tmp
+python3 /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tools/bk7258/bk7258.py package eye-pack --source build/upload-second.json --output build/upload-second.bkep.tmp
+bk7258: error: missing eye source: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/build/upload-second.json
+make: *** [Makefile:335: build/upload-second.bkep] Error 1
+make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'

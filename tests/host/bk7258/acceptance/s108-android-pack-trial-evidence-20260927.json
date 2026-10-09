@@ -1,0 +1,222 @@
+{
+  "parent": "576635bc742c64fe3cf9d0838ea49074c4b8ef0b",
+  "counts": {
+    "selected_host_units": 635,
+    "PASS": 635,
+    "original_including_two_restores": 63,
+    "added": 572,
+    "new_host_ids": 10,
+    "new_L1": 1,
+    "new_L2": 9,
+    "runner_gates": 19,
+    "original_mutations_detected": 2,
+    "extra_original_protocol_regression": 14,
+    "emulator_scenarios": 2,
+    "trial_navigation_rounds": 20,
+    "trial_recreation_rounds": 1,
+    "eye_draft_recreation_rounds": 3
+  },
+  "implementation": "Android kind11 accepts only32 or72. Optional canonical installed filename uses ETC2 and32/32/8 APPENDs; cancellation and builtin trials remain ETC1. Existing Session ownership, readback and generation guards retained. Native trial page selects default or named installed pack and retains local source preference.",
+  "production_changed": [
+    "MainActivity trial source choice and saved preference",
+    "ExpressionTrialController optional filename and bounded chunking",
+    "DeviceControlProtocol kind11 size validation",
+    "APK47 version metadata"
+  ],
+  "firmware_agent_models_unchanged": true,
+  "input_hashes_match": true,
+  "production_unchanged_during_final_run": true,
+  "baseline": {
+    "business_red": "Existing production protocol rejected valid72-byte ETC2 BEGIN; recorded JUnit failure before production change",
+    "interface_boundary": "New controller parameter initially missing binding; not claimed as an executed business failure",
+    "setup_error": "First shared Kotlin fixture extraction selected nested transport close; compilation failed before TLS test. Corrected extraction and retained SETUP_ERROR log."
+  },
+  "new_ids": [
+    "RES-02.android-trial-tls-cancel",
+    "RES-02.android-trial-tls-expiry",
+    "RES-02.android-trial-tls-missing",
+    "RES-02.android-trial-tls-supersede",
+    "provision.ExpressionTrialControllerTest.disconnectedPackAppendCannotReviveAndCancelRemainsEtc1",
+    "provision.ExpressionTrialControllerTest.failedPackAppendCancelsOwnedStageWithoutApply",
+    "provision.ExpressionTrialControllerTest.installedPackUsesGoldenEtc2AndThreeBoundedChunks",
+    "provision.ExpressionTrialControllerTest.invalidInstalledNameNeverAcquiresStaging",
+    "provision.ExpressionTrialControllerTest.realProtocolAcceptsPackTrialLengthWithoutWeakeningOtherKinds",
+    "provision.ExpressionTrialControllerTest.unsupportedPackFormatNeverFallsBackToBuiltinTrial"
+  ],
+  "new_units": [
+    {
+      "id": "RES-02.android-trial-tls-expiry",
+      "parent": "RES-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 15.985666905005928,
+      "evidence": "RES-02.android-trial-tls-expiry.log",
+      "evidence_sha256": "d9ecd4f6949c7dadfe3c64d9061587f17a7e8d49db48bd351c27077e5df1cfe1"
+    },
+    {
+      "id": "RES-02.android-trial-tls-cancel",
+      "parent": "RES-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 15.599522953969426,
+      "evidence": "RES-02.android-trial-tls-cancel.log",
+      "evidence_sha256": "9cdf4f5e8b9cb6d52f597e7bc09962b4caecddab7ac03af7ecd41f34bbe85da8"
+    },
+    {
+      "id": "RES-02.android-trial-tls-missing",
+      "parent": "RES-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 15.047673346998636,
+      "evidence": "RES-02.android-trial-tls-missing.log",
+      "evidence_sha256": "1b2d522fd86ffc0e3536eb2ba88a63fefd30c6937c4371f0481dc0852f338b21"
+    },
+    {
+      "id": "RES-02.android-trial-tls-supersede",
+      "parent": "RES-02",
+      "layer": "L2",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 17.601541685988195,
+      "evidence": "RES-02.android-trial-tls-supersede.log",
+      "evidence_sha256": "757a15f4ce92669e48d0960d89796a5ca368c576c167955469d0ccc2b3605029"
+    },
+    {
+      "id": "provision.ExpressionTrialControllerTest.unsupportedPackFormatNeverFallsBackToBuiltinTrial",
+      "parent": "RES-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.004,
+      "evidence": "TEST-com.shaniu.companion.provision.ExpressionTrialControllerTest.xml",
+      "evidence_sha256": "ce3d31626fca5eb09675bc4840067109a7f98269ebf49bbf6aba4c18f665504d"
+    },
+    {
+      "id": "provision.ExpressionTrialControllerTest.failedPackAppendCancelsOwnedStageWithoutApply",
+      "parent": "RES-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.ExpressionTrialControllerTest.xml",
+      "evidence_sha256": "ce3d31626fca5eb09675bc4840067109a7f98269ebf49bbf6aba4c18f665504d"
+    },
+    {
+      "id": "provision.ExpressionTrialControllerTest.realProtocolAcceptsPackTrialLengthWithoutWeakeningOtherKinds",
+      "parent": "RES-02",
+      "layer": "L1",
+      "status": "PASS",
+      "seconds": 0.002,
+      "evidence": "TEST-com.shaniu.companion.provision.ExpressionTrialControllerTest.xml",
+      "evidence_sha256": "ce3d31626fca5eb09675bc4840067109a7f98269ebf49bbf6aba4c18f665504d"
+    },
+    {
+      "id": "provision.ExpressionTrialControllerTest.invalidInstalledNameNeverAcquiresStaging",
+      "parent": "RES-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.ExpressionTrialControllerTest.xml",
+      "evidence_sha256": "ce3d31626fca5eb09675bc4840067109a7f98269ebf49bbf6aba4c18f665504d"
+    },
+    {
+      "id": "provision.ExpressionTrialControllerTest.installedPackUsesGoldenEtc2AndThreeBoundedChunks",
+      "parent": "RES-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.001,
+      "evidence": "TEST-com.shaniu.companion.provision.ExpressionTrialControllerTest.xml",
+      "evidence_sha256": "ce3d31626fca5eb09675bc4840067109a7f98269ebf49bbf6aba4c18f665504d"
+    },
+    {
+      "id": "provision.ExpressionTrialControllerTest.disconnectedPackAppendCannotReviveAndCancelRemainsEtc1",
+      "parent": "RES-02",
+      "layer": "L2",
+      "status": "PASS",
+      "seconds": 0.0,
+      "evidence": "TEST-com.shaniu.companion.provision.ExpressionTrialControllerTest.xml",
+      "evidence_sha256": "ce3d31626fca5eb09675bc4840067109a7f98269ebf49bbf6aba4c18f665504d"
+    }
+  ],
+  "oracle": [
+    "independent72-byte ETC2 golden plus32/32/8 segmentation",
+    "true Android Session/protocol/TLS to native control_pair/session/trial/store/renderer",
+    "persisted filename/revision and write count remain unchanged by temporary trial",
+    "each framebuffer pixel checked; expected two-eye render and restore frame counts",
+    "missing pack does not render a fallback",
+    "new durable default supersedes prior trial; later expiry adds no frames/writes"
+  ],
+  "preserved_default_tls_tests": {
+    "original_three_test_bodies_unchanged": true,
+    "sha256": "3c9e88dc37ac8cce43f264c71e7de5096fb7b531349eaea268e2d0ef815204f3"
+  },
+  "ui": "Actual native page20 rounds/recreation, no-source and unknown gates, local real BKep import and valid-source enablement. Device status/auth admission synthetic only, no live BLE.",
+  "apk": {
+    "versionCode": 47,
+    "versionName": "0.7.17-shaniu-pack-trial",
+    "sha256": "936caf9d9e1da46cff061cc02af8850820e29f54a66debdbe807c6b75d1a04ad",
+    "test_sha256": "3886cfb949e1c56207070e14531dbd5733b656d0177d676fd43141dbcc4b189a",
+    "signature": "apksigner verified existing debug identity",
+    "emulator_installed_bytes_match": true
+  },
+  "parent_gaps": {
+    "RES-02": {
+      "interface": "Android ETC2 now bound to existing native trial service; installed catalog and actual installed version/hash comparison remain absent",
+      "L1_L2": "6 new JVM +4 TLS/native cases pass; prior default3 TLS and all625 IDs retained. Phone owner/product route remains separately tested, not included in this combined fixture.",
+      "L3": "NOT_RUN: phone/BLE, actual SD/DMA/screens and mixed physical interaction"
+    },
+    "USB-02": {
+      "interface": "CLI PC workbench remains; lightweight browser entrance not yet implemented",
+      "L1_L2": "Existing cases retained",
+      "L3": "NOT_RUN; latest enumerated COM16 remains unconfirmed/unopened"
+    }
+  },
+  "resources": {
+    "bounded": "Extra40 request bytes plus offset, each fragment<=32, same single Session transaction; no new thread or device owner",
+    "unknown": "Object overhead, CPU p95, real BLE latency and hardware resource contention not measured"
+  },
+  "limits": [
+    "No phone install, serial open, flash, reset or physical button action",
+    "Earlier APK46 installation permission request remains unanswered and does not automatically authorize APK47",
+    "APK47 installed only on emulator; phone version42 was last read in S107, not reread this slice",
+    "635 units are not56 completed requirements",
+    "No AP rebuild because firmware sources/configuration/dependency unchanged"
+  ],
+  "raw_evidence_sha256": {
+    "s108-evidence-20260927/CFG-01.wifi-clears-cloud.log": "547efdaf90ab1d81211bb9eb919731e649fb12b074abddd77e2ef6aa08077cb3",
+    "s108-evidence-20260927/MSC-01.early-release.log": "ea25814fe7226fee2b3782ab554bfd411a1d5c4cde9e8a46a6a7988badbf675d",
+    "s108-evidence-20260927/RES-02.android-default-tls-cancel.log": "e95850a9c1432a9b58bba84978de0bea44730d0caae61397d8f1ef3905e7e1e9",
+    "s108-evidence-20260927/RES-02.android-default-tls-recovery.log": "f7a07c950ecc369f4ecba122d82d344f0cab5a5728924b745d907e9c11031806",
+    "s108-evidence-20260927/RES-02.android-default-tls-save.log": "35333f2e95dce31890bd310b6a24bc5bef22ed879ee60d18a22b6bf82be375e3",
+    "s108-evidence-20260927/RES-02.android-trial-tls-cancel.log": "9cdf4f5e8b9cb6d52f597e7bc09962b4caecddab7ac03af7ecd41f34bbe85da8",
+    "s108-evidence-20260927/RES-02.android-trial-tls-expiry.log": "d9ecd4f6949c7dadfe3c64d9061587f17a7e8d49db48bd351c27077e5df1cfe1",
+    "s108-evidence-20260927/RES-02.android-trial-tls-missing.log": "1b2d522fd86ffc0e3536eb2ba88a63fefd30c6937c4371f0481dc0852f338b21",
+    "s108-evidence-20260927/RES-02.android-trial-tls-supersede.log": "757a15f4ce92669e48d0960d89796a5ca368c576c167955469d0ccc2b3605029",
+    "s108-evidence-20260927/TEST-com.shaniu.companion.provision.ExpressionTrialControllerTest.xml": "ce3d31626fca5eb09675bc4840067109a7f98269ebf49bbf6aba4c18f665504d",
+    "s108-evidence-20260927/android-build.log": "e42ef561072fe1a971c0f72c906291808c9221a825e102fbe2d6262f266fec89",
+    "s108-evidence-20260927/apk-badging.log": "0ffbf0b3dda590e928a4ce911a837a348ef9f8ab9e78541b20f4a3997a654d01",
+    "s108-evidence-20260927/apk-sha256.log": "ee8a70eacf03921355c5efb12471985c0498d1bcf65966bf10394ae125a07485",
+    "s108-evidence-20260927/apk-signature.log": "dc48f589a74a7d42f2c9ead0cba2a5a500d596a2d09b9324570f7ff9c72e3ff4",
+    "s108-evidence-20260927/controller-after.log": "fe78be134d6991d4439f4c7b6c030aae0960b689d8e40f8ce494bd0b59e19b26",
+    "s108-evidence-20260927/default-test-preservation.json": "39f8dcb6a11b3b2516e3caa2b6c978d4575e4e0079a4900323975f3b87f5d16f",
+    "s108-evidence-20260927/emulator-artifact.json": "a7bc0aa99cd280841e7fa1e34d08878225048e5e5f7c49bc2f2d6e3de5c1151c",
+    "s108-evidence-20260927/eye-draft-regression.log": "3bb2d523e2dca87273764daf55664ef884dd484cd40cf69a1eac17308b308c64",
+    "s108-evidence-20260927/full.log": "6f83a1fb4cd122efda4857a82d8c43fd1e460729ea3938369b1b69b3694ef6de",
+    "s108-evidence-20260927/install-test.log": "c4aa470acafcf8576c15b0f0b5ae7e852d1ec5413372d0e6a9272e788e1306d3",
+    "s108-evidence-20260927/install.log": "c4aa470acafcf8576c15b0f0b5ae7e852d1ec5413372d0e6a9272e788e1306d3",
+    "s108-evidence-20260927/jvm.log": "55a6f1d29303c908a7c80ec3a8057ea08ee591c0c29eea99fe89febd0bd56c43",
+    "s108-evidence-20260927/native-cancel.log": "05d9e9468b8de1df22b7e734791ce716e3e989674d36091d9c47a674cad842f3",
+    "s108-evidence-20260927/native-expiry-wired.log": "d24a6efe58481637e7c10ab5dcf2c4ab542a2e996d32c4775dfdaf5a335e6908",
+    "s108-evidence-20260927/native-expiry.log": "36ae5f9c90fa66edec645278d08f5317e7a0b915411021d00333cb2f3e3bf506",
+    "s108-evidence-20260927/native-missing.log": "cec9aaa01c7d798996c7a5eb979a5035002b3311db74004604b7a98c4013dc1a",
+    "s108-evidence-20260927/native-supersede.log": "412df34c867a4188e774454cf74d972499ede581cab9f2022ce2a2d1dbd70e12",
+    "s108-evidence-20260927/protocol-before.log": "9b6907036efbd1f90d7e0dcdfd9247971159110151d5b61fd4bd3e954aeee816",
+    "s108-evidence-20260927/protocol-before.xml": "eda6c2a8e658c5e0a97739811f163ac24476d937e184baf70f282e3c0eea1344",
+    "s108-evidence-20260927/protocol-regression.log": "3f1fa2e242cda1a36461bc4ba4982180c6a8fd3fa625e8f394c3403704522cff",
+    "s108-evidence-20260927/protocol-regression.xml": "63c77299fb4427a24480644d5d455d1274daa5c02158de3063fa5ff129f35652",
+    "s108-evidence-20260927/runner-gates.log": "30fef72c12f29cee7095d78b3723b53daa76e89cd754d0bbe843fbac24d63b61",
+    "s108-evidence-20260927/trial-ui.log": "ede605fb9cf5a9ff2ae67858339c16b7814abb98924a921a4f52a53f2177a951"
+  },
+  "publication_whitespace_exception": "Preserve exact validated input and raw bytes: one trailing blank EOF in NativeDisplayTlsFixture.kt, plus trailing blank EOF in eleven raw TLS logs. No other whitespace errors; no normalization after frozen run."
+}

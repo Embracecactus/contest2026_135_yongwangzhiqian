@@ -1,0 +1,9 @@
+/tmp/nxstyle-inc-ls5qy6oh/projection.c:2:1: error: Relative file path does not match actual file
+/tmp/nxstyle-inc-ls5qy6oh/projection.c:5:1: error: Missing blank line after comment
+/tmp/nxstyle-inc-ls5qy6oh/projection.c:6:79: error: Long line found
+/tmp/nxstyle-inc-ls5qy6oh/projection.c:6:1: error: Missing blank line after comment
+/tmp/nxstyle-inc-ls5qy6oh/projection.c:45:79: error: Long line found
+/tmp/nxstyle-inc-ls5qy6oh/projection.c:64:7: error: Right brace must be followed by a blank line
+/tmp/nxstyle-inc-ls5qy6oh/projection.c:70:78: error: Long line found
+/tmp/nxstyle-inc-ls5qy6oh/projection.c:86:3: error: Right brace must be followed by a blank line
+/tmp/nxstyle-inc-ls5qy6oh/projection.c:108:80: error: Long line found

@@ -1,0 +1,1 @@
+test: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_control_serial.c:93: main: Assertion `bkcontrol_serial_close(&serial)==-EINTR' failed.

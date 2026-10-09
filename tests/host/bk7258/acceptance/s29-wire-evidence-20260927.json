@@ -1,0 +1,95 @@
+{
+  "slice": "S29",
+  "date": "2026-09-27",
+  "parent": "2003c6605edf6ba57de827ede9ee90604f3ec7d3",
+  "case": "RES-02.trial-wire",
+  "contract": "ETC1/ETS1 kind 11, declared in bk7258_display_trial_control.h before implementation. Literal request and expected response vectors are independent of the production encoder.",
+  "implementation": "Authenticated SDC1 config BEGIN/APPEND/APPLY/READ reaches production trial controller and display service. Product handler admits read-only result queries during OTA/quiesce; new writes keep existing gates. Expected trial ID checked atomically inside display admission. Same last accepted record is idempotent; reused operation with different bytes rejected. Staging cancel does not cancel a rendered trial.",
+  "coverage": [
+    "unauthenticated BEGIN rejected",
+    "wrong secret rejected",
+    "actual two-fragment staging and apply",
+    "accepted versus ACTIVE and CANCEL_PENDING versus CANCELED",
+    "close/reopen/authenticate then retry retains original deadline",
+    "operation collision rejected",
+    "stale exact cancel cannot affect newer trial",
+    "same request after expiry does not restart",
+    "bad reserved field/expression/zero operation rejected",
+    "direct checked admission rejects stale ID",
+    "local new trial cannot inherit old wire operation receipt",
+    "old authenticated sequence rejected",
+    "query during quiesce allowed, writes rejected"
+  ],
+  "fixture_correction": "Expanded reconnect test initially reopened an already-open Session. Production correctly rejected this. Added actual session_close before reconnect; original 126 PASS / 1 FAIL_ASSERTION runner output preserved separately. Review classifies that failure as fixture setup error, not business Red. No production guard weakened.",
+  "missing_interface": "Initial absent controller source is BLOCKED_INTERFACE, not product assertion failure.",
+  "counts": {
+    "current_collected": 127,
+    "current_pass": 127,
+    "original_ids_retained": 63,
+    "additional_mutations": 2
+  },
+  "mutation": {
+    "isolated_mutations": [
+      {
+        "name": "drop-operation-dedupe",
+        "compiled": true,
+        "detected": true,
+        "exit": -6
+      },
+      {
+        "name": "drop-atomic-id",
+        "compiled": true,
+        "detected": true,
+        "exit": -6
+      }
+    ],
+    "unchanged_production_rerun": "PASS"
+  },
+  "evidence_layers": {
+    "host": "Real control Session, controller, display intent/trial and render identity. Pixel sink, monotonic clock and OS shims external. Thin config routing callback mirrors kind dispatch; production product route separately target-built.",
+    "target_build": "Incremental AP/CP build, layer and manifest checks pass. nm confirms protocol/checked-start/status/cancel symbols retained in actual AP ELF.",
+    "physical": "NOT_RUN; no board or phone mutation",
+    "app": "NOT_IMPLEMENTED for this new wire format; next slice is native App controller/view."
+  },
+  "resources": {
+    "new_named_static_bytes": 37,
+    "new_threads": 0,
+    "new_heap_allocations": 0,
+    "new_persistence": 0,
+    "request_bytes": 32,
+    "status_bytes": 32,
+    "status_chunk_bytes": 16,
+    "cpu_p95_and_stack_high_water": "NOT_MEASURED",
+    "long_io": "none in controller; renderer runs on existing display owner",
+    "radio": "bounded existing config frames; board throughput not measured"
+  },
+  "hashes": {
+    "app/bk7258/bk7258_display_trial_control.c": "9a7449d4b3b7684bdda41911d5f9ce11c98ac026d6ede5b965053720199d6297",
+    "app/bk7258/bk7258_display_trial_control.h": "22822e7d877eb42334e3a339d120bd1b0427fbc5b6c6170dbdf7b097e04f4134",
+    "app/bk7258/bk7258_display_intent.inc": "1b0ca62aa7548ef36414186d4380da04e710be79758fb103c653df55eadb0911",
+    "app/bk7258/bk7258_agent_product.c": "f3047c5431d4b4bba4dfe5bf4d3149ee3568b451b9ac62cfde19aee4b83e0c8d",
+    "app/bk7258/bk7258_control_session.c": "0b2740e34c0695309e766e61f1d8cd7a976305dfb8dd4ccf86d3ee9569446ec1",
+    "tests/host/bk7258/test_shaniu_trial_wire.c": "48b3e61d3715985d4bfda2789305b02f05225a05cf18803c86337e41e53a4971",
+    "out/shaniu-s29/interface-missing.log": "c3662fdc33aab90a5cc1dce58fcf767be4494bff3c9d736fd03a1557236f9fe5",
+    "out/shaniu-s29/fixture-error.log": "173b800736e63c25a9437b18714e73aa5f2c240682212df878f26d591f6b4160",
+    "out/shaniu-s29/green.log": "374dbd80ba255376653592af4de9bd406d3d42df1c25876db48b8ab172cc561f",
+    "out/shaniu-s29/contracts.log": "d5fdf76fd6e1abccd77ea5af693293a652c4520af48fcf945494bb88580337df",
+    "out/shaniu-s29/contracts-fixture-error.log": "d6ba549d5fe96e02246c4f551ae35803950bd70b7edcb9bf499ffa89b48b339d",
+    "out/shaniu-s29/build.log": "8a5dd513e43d2c5694b4df570e6a77ab2d57a1a468af7c363fe9d7143bc636bd",
+    "out/shaniu-s29/layers.log": "5ebb2287da4af6672b227ce008e47addf59f719fe8f1a74e70b007333301fef5",
+    "out/shaniu-s29/manifest.log": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac",
+    "out/shaniu-s29/symbols.log": "d297a7e657b3705bd23b0f8472a273dc37ad0e7909d4fe51b84d79e1d3abfecf",
+    "out/shaniu-s29/drop-operation-dedupe.log": "cf19dd32a008eb5429302ade9dc16bb56760754d5c8cdbe758e482c6e201e2cf",
+    "out/shaniu-s29/drop-atomic-id.log": "ed0728d638a0f624ee8a3a5f3b7ba94ab7585a3f6c0dcbc3a186dc5ebe24822f",
+    "out/shaniu-s29/restored.log": "5f79cd94837f8e16c0af96e9bf78eae71cfb7eb3e9dc907c998fbc562d5f8781",
+    "out/shaniu-s29/runner-gate.log": "c0cb98a70693b463069afba413d352f8fdc8540f469b9f3860e3385ec8c426dd"
+  },
+  "outputs": {
+    "fixture-error": "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\ncc -std=gnu11 -Wall -Wextra -Werror -O2 -pthread -I mocks -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_shaniu_trial_wire.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_control_session.c -o build/test_shaniu_trial_wire\n./build/test_shaniu_trial_wire\ntest_shaniu_trial_wire: test_shaniu_trial_wire.c:50: open_session: Assertion `bkcontrol_session_open(&session,key,execute,NULL)==0' failed.\nmake: *** [Makefile:1909: run-trial-wire] Aborted (core dumped)\nmake: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\n",
+    "green": "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\ncc -std=gnu11 -Wall -Wextra -Werror -O2 -pthread -I mocks -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_shaniu_trial_wire.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_trial_control.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_control_session.c -o build/test_shaniu_trial_wire\n./build/test_shaniu_trial_wire\nCONTRACT_PASS trial authenticated wire\nmake: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\n",
+    "symbols": "02164418 00000094 T bk7258_display_cancel_trial\n021645a2 00000030 T bk7258_display_trial_checked\n021643c8 00000050 T bk7258_display_trial_status\n02164e08 00000280 T bkdisplay_trial_control\n28069ab5 00000001 b g_trial_have_request\n28069ab8 00000004 b g_trial_last_id\n28069abc 00000020 b g_trial_last_request\n",
+    "drop-operation-dedupe": "test: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_trial_wire.c:87: main: Assertion `apply(start)==0' failed.\n",
+    "drop-atomic-id": "test: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_trial_wire.c:111: main: Assertion `bk7258_display_trial_checked(\"sad\",100,1,&external_id)==-ESTALE' failed.\n",
+    "restored": "CONTRACT_PASS trial authenticated wire\n"
+  }
+}

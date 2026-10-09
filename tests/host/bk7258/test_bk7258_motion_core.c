@@ -198,8 +198,42 @@ static void test_wire_fields_and_flags(void)
   assert(!bkmotion_rpc_response_valid(&response));
 }
 
+static void test_failed_sample_does_not_reuse_previous_result(void)
+{
+  struct fixture_s fixture = {0};
+  struct bkmotion_rpc_request_s request = make_request();
+  struct bkmotion_rpc_response_s response;
+
+  fixture.sample.timestamp_us = 321;
+  fixture.sample.x = 1.0f;
+  fixture.sample.z = 9.8f;
+  assert(bkmotion_rpc_handle_request(&request, &response, &g_ops,
+                                    &fixture) == 0);
+  request.session++;
+  request.sequence++;
+  fixture.read_result = -EIO;
+  assert(bkmotion_rpc_handle_request(&request, &response, &g_ops,
+                                    &fixture) == -EIO);
+  assert(response.session == request.session &&
+         response.sequence == request.sequence);
+  assert(response.flags == 0 && response.timestamp_us == 0);
+  assert(response.x_mms2 == 0 && response.y_mms2 == 0 &&
+         response.z_mms2 == 0);
+  assert(bkmotion_rpc_response_valid(&response));
+  assert(fixture.open_calls == 2 && fixture.close_calls == 2);
+
+  /* A malformed query must not open hardware or sample a sensor. */
+
+  request.sequence = 0;
+  assert(bkmotion_rpc_handle_request(&request, &response, &g_ops,
+                                    &fixture) < 0);
+  assert(fixture.open_calls == 2 && fixture.read_calls == 2 &&
+         fixture.close_calls == 2);
+}
+
 int main(void)
 {
+  test_failed_sample_does_not_reuse_previous_result();
   test_valid_positive_and_negative_samples();
   test_zero_timestamp_and_invalid_floats();
   test_scale_overflow_and_source_errors();

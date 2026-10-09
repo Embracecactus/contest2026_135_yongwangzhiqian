@@ -1,0 +1,170 @@
+{
+  "parent": "6ee0ce762631a78217ba93130ac5f5ee3eb657f3",
+  "scope": "RJI1/RJS1 PC-only authenticated adapter wired to native asynchronous pack job; no desktop file sender yet",
+  "counts": {
+    "selected": 510,
+    "original_including_two_restores": 63,
+    "added": 447,
+    "new_execution_ids": 8,
+    "runner_gates": 17,
+    "original_mutations": 2,
+    "extra_mutations": 3,
+    "extra_restore_runs": 2
+  },
+  "before_implementation": "New native-wire fixture written first; missing public header recorded BLOCKED_INTERFACE, not a business Red. Existing native job implementation is used throughout.",
+  "setup_errors": [
+    "First standalone crypto link retained unused mbedTLS functions; added function/data sections and linker GC, no dependency changes.",
+    "First success invocation supplied nonexistent display-fixture.bkep; corrected to existing shaniu-default-v1.bkep. This assertion was fixture preparation failure, not a product defect."
+  ],
+  "test_corrections": [
+    {
+      "id": "RES-03.job-wire-success",
+      "reason": "Initial absence check named .active/res/display rather than the actual public shaniu/display/active.json path. Corrected before full collection; initial predicate was insufficient to detect accidental default activation. Existing store import/default tests remain separate."
+    }
+  ],
+  "integration": {
+    "native": "Real job worker, mailbox, streaming store, parser, files and volume; external task/sem/mount/root peers only.",
+    "product": "Actual product_pc_config and product_pc_pack_step extracted into native fixture; authentication source and RNG external peers. Full upload/reconnect and active revocation tested.",
+    "guard": "Actual TLS/PC guard verifies kind16 RESOURCES routing and denies other scope; guard fixture returns ENOTSUP at downstream resource handler, not fabricated installation success.",
+    "remaining": "Combined real TLS + entire native upload + desktop tool in one process is not yet covered; physical USB and rendering NOT_RUN."
+  },
+  "ap": {
+    "result": "PASS",
+    "begin_worker_reachable": true,
+    "controller_bytes": 288,
+    "job_bytes": 4784,
+    "apply_own_stack_frame_bytes": 200,
+    "read_own_stack_frame_bytes": 128,
+    "limit": "Compiler own frames are not call-chain high-water. CPU/p95/longest blocking/heap peak/stack high-water/wireless impact/SD sustained throughput NOT_MEASURED. No new permanent thread; one existing on-demand worker and one4KiB mailbox."
+  },
+  "parent_gaps": {
+    "RES-03": {
+      "interface": "PARTIAL: device file-job commands enabled; desktop file sender/default activation pending",
+      "L1_L2": "PARTIAL: 8 new execution IDs; real native and SDC1/product path; separate real TLS guard tests",
+      "L3": "BLOCKED_DEVICE: no deployment or physical USB exercise this slice"
+    },
+    "USB-01": {
+      "interface": "PARTIAL: new kind restricted to current RESOURCES grant",
+      "L1_L2": "PARTIAL: malformed/epoch/retry/revocation and existing TLS authentication",
+      "L3": "BLOCKED_DEVICE: no physical enumeration/traffic proof"
+    },
+    "USB-02": {
+      "interface": "PARTIAL: bounded queued upload, status/cancel, latest volatile result",
+      "L1_L2": "PARTIAL: reconnect query and cleanup; performance/persistence still open",
+      "L3": "BLOCKED_DEVICE: slow-host coexistence not exercised"
+    }
+  },
+  "limits": [
+    "Latest receipt is RAM only; reboot/new epoch or replacement means unknown, never automatic restart.",
+    "DONE is installed, not default/activated/rendered.",
+    "Historical S66/S75/S76 intermittent TLS faults remain OPEN despite this passing run.",
+    "Original wake model, 我在, native App, Agent dependency and physical devices unchanged."
+  ],
+  "mutations": [
+    {
+      "name": "changed-chunk",
+      "build_exit": 0,
+      "case": "RES-03.job-wire-retry",
+      "exit": -6,
+      "detected": true
+    },
+    {
+      "name": "terminal-reopen",
+      "build_exit": 0,
+      "case": "RES-03.job-wire-retry",
+      "exit": -6,
+      "detected": true
+    },
+    {
+      "name": "authority-revocation",
+      "case": "RES-03.product-job-route-revoke",
+      "exit": 1,
+      "detected": true
+    },
+    {
+      "name": "restored-retry",
+      "exit": 0,
+      "status": "PASS_RESTORED"
+    },
+    {
+      "name": "restored-route",
+      "exit": 0,
+      "status": "PASS_RESTORED"
+    }
+  ],
+  "evidence_sha256": {
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/RES-03.job-wire-authority.log": "d2e73c4b6bd1d0a56de7fc6b5ff47e35e21b23b5ab33890e396c2b23de3e9872",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/RES-03.job-wire-malformed.log": "c87f9be6dfa9abd2a946a06935624c3b0fff50898c532bffdc5a4dd91f4a8ce5",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/RES-03.job-wire-retry.log": "c54b7d0975d954288290b1d30692a22a86fceecf3cdd5b8eeb68934e5877f8c1",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/RES-03.job-wire-session.log": "6614c2a3dabad1a0263f8cea08b6c885ae2e9005a3a5b8b95cda9480354f4eed",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/RES-03.job-wire-snapshot.log": "739b05c0707f86b1bfb2bba644975c4606ac8d169be0527d30f939d5baad8883",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/RES-03.job-wire-success.log": "8e9e4217b033cc93fb0410915f4625e94d5bd97e25d72bdda3e6fa5c2849f60e",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/RES-03.product-job-route.log": "561c47ab11b6eb59d43148359f023c44253b3207989ab8671734e39883c4d818",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/USB-01.tls-transport.log": "4ba5dd891e9a9152b8b33a08c2703f22f4a7a13f98ecc55a582713482d178698",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/ap-final.log": "e052b6765effd8478cc158e6b74e8f5cb1c9f6f22dca4353646b1b9eb8483a54",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/ap-gated.log": "f8726fa664c38d7ec74ed2d320713bc1a2ba3d1ee7f69b137230f84e72a1b6ae",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/changed-chunk-mutant.log": "26f0f7b0cb51b3d4ec460e122987be0804b15f636e88ed2ce3d5a066f0c52f5d",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/collected-RES-03.job-wire-authority.log": "d2e73c4b6bd1d0a56de7fc6b5ff47e35e21b23b5ab33890e396c2b23de3e9872",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/collected-RES-03.job-wire-malformed.log": "c87f9be6dfa9abd2a946a06935624c3b0fff50898c532bffdc5a4dd91f4a8ce5",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/collected-RES-03.job-wire-retry.log": "c54b7d0975d954288290b1d30692a22a86fceecf3cdd5b8eeb68934e5877f8c1",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/collected-RES-03.job-wire-session.log": "6614c2a3dabad1a0263f8cea08b6c885ae2e9005a3a5b8b95cda9480354f4eed",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/collected-RES-03.job-wire-snapshot.log": "739b05c0707f86b1bfb2bba644975c4606ac8d169be0527d30f939d5baad8883",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/collected-RES-03.job-wire-success.log": "8e9e4217b033cc93fb0410915f4625e94d5bd97e25d72bdda3e6fa5c2849f60e",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/collected-RES-03.product-job-route-revoke.log": "5f1566f4ed5b704fef8b6309cc5994b66ef2f76b04af86dde0ee8e35a9a66a08",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/collected-RES-03.product-job-route-session.log": "75ab62093d9b682d4aab2e1cd224f205df13c10293c9529852294981b9af3871",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/collected-USB-01.tls-transport.log": "81479ad2bfc6a49056d62247d3f95df6daf7da68e263e57f223119f12871b0d6",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/collected.log": "0ab6dcddc8a9511528fd9acf0ca8f19aaf9e63a4021b040eb43fab63ae205584",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/control-build.log": "a519ff7f150d82590a085f5224cb4f99a3b7563dcea98046c83a983462baff87",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/dependency-check.log": "3a399014ebd4046108a27df08dc6ce2ac1e976dc8bc9f96825c7928f929c86f6",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/dependency-restores.log": "f7e4871a82adb626217f45e3e20634dc7cae551c9af826e6519ea207aba89311",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/final-changed-chunk-build.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/final-changed-chunk-mutant.log": "26f0f7b0cb51b3d4ec460e122987be0804b15f636e88ed2ce3d5a066f0c52f5d",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/final-mutations.json": "11bb39c4984b7806c94f981cbe70ab13af4afc2d39108c5d8cc65b7f7420cae2",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/final-restored-retry.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/final-restored-route.log": "10c2dd968c9a45ca39e3b7235b070d4ac7692b602645ddd51bbac73c241675cb",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/final-revocation-mutant.log": "976ffc0f3b44959d265ae9956c7e768eaa8affdeaff3174d6fb4d31c160715b1",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/final-terminal-reopen-build.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/final-terminal-reopen-mutant.log": "97f90269fa3435095e20f9ce446874640a369ca0d83947551828954c58a3990e",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/final.log": "037402a9240e00333dbc2141634dc711f7fa0f6cbdd4a950def1f1c863ef392b",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/gates.log": "d15a9e91e388b1be1a4d7d0fa461c91f79a622e2517208c74192b743af800645",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/interface-before.log": "f984644d7c7854348171d6c20e178b39820311f251fb8d49c5f6684583929d56",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/intermediate-509-results.json": "035839ca78ada632be55caa5763a421571c7f2de78d674dcdcb09c0275dd8545",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/linked-final-symbols.log": "29908a64ed03af2b4993ddd0c05c06e1baac9ad3676c51d5a0f9084f0187e53f",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/linked-symbols.log": "e9d3a1ebbf8ed9a8c79b102ad29b49b3b7b3fac9dd92bb62a44862649d608ac7",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/mutations.json": "e5ef16d6890e1f07257ea0d9a03b7d1909823ac85c942770967f2ebb1ac63313",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/pack-control-metrics.su": "ddd55e1792ddb97ba1754f2dea192e462f86899d2eea1e48a13b741001ac89aa",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/restored-retry.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/restored-route.log": "291ac696af07c79a0fc0f1a0910889b12be9aef16f229e8584a6060030721fb4",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/revocation-mutant.log": "4f3b76e5fe10ef8d0fd53e48ef3b71634329e109a0ede4e48886db2746326d95",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/route-first.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/route-revoke-separate.log": "10c2dd968c9a45ca39e3b7235b070d4ac7692b602645ddd51bbac73c241675cb",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/route-revoke.log": "291ac696af07c79a0fc0f1a0910889b12be9aef16f229e8584a6060030721fb4",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/route-session-separate.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/session.log": "80637b5e27949b4219cd81a44a0e7a7513fd7b7d7504814f180976e24129d3e4",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/stack-build.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/style-final-c.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/style-final-h.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/style-first-c.log": "cf1ee8349a649727501d4bc75c88023bcd7962f6c978be8b07eb2895c343b8c8",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/style-first-h.log": "c4f839d18161dbf01d1c90d92f363f41b53f1f72c34469c7fda46adb867ca258",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/success-first.log": "aa4f5a970bca58ec84ce90dc538b6a419829ce579ef30defa6f47fe8d6509fc2",
+    "tests/host/bk7258/acceptance/s89-evidence-20260927/terminal-reopen-mutant.log": "97f90269fa3435095e20f9ce446874640a369ca0d83947551828954c58a3990e"
+  },
+  "collection_correction": "Intermediate 509 run had product route session/revoke in one aggregate unit; final run separates them into two execution IDs. All original63 retained, no assertions removed; intermediate result and log preserved.",
+  "build_scope": "Controller compiled only with DISPLAY_SERVICE + VOICE_TLS + USBCDC so display-only builds gain no implicit crypto dependency. Selected AP gated incremental build PASS; other configurations not built.",
+  "source_sha256": {
+    "app/bk7258/CMakeLists.txt": "d532096d0eb8b73eb413d598db2fc639207a3f4f2b4ea92caa5464cb7bcaf7f6",
+    "app/bk7258/Makefile": "f0acf1f9371f492a4c8eb77075363fd5c54da45e7ee290b8ade097fea13fd3c8",
+    "app/bk7258/bk7258_agent_product.c": "f8a74f4fea182710fdc05f5d8488cb3d4896248bc33bb3d7b62255ecee3c6505",
+    "app/bk7258/bk7258_display_job_control.c": "c871a6710b196aec2d4629893b0c71a478e4dc4af161c415f6208e41cbf65124",
+    "app/bk7258/bk7258_display_job_control.h": "f3eae71494d224399866bc4aaa290447e67c43609b5feae5832735a60e3fb1b2",
+    "app/bk7258/bk7258_control_session.c": "36ab9ad6f3870a848cda5746e9ef9a82fcaa23b3fb27b5d509e6648994d84045",
+    "app/bk7258/bk7258_control_session.h": "663bbbadca31824b2990df0d6600d0d1af8fa533c8b73ccbcdfa2c0ec5ce84f9",
+    "app/bk7258/bk7258_pc_control.c": "697f5afc0767016fe165bfca3ccf06a874daa864578050621cc85cfb2545337b",
+    "tests/host/bk7258/test_display_job_service.c": "d5b004c17ba544884ab0f5d998deb2a42763cc5438fb35b4eab1c8b6892f18d1",
+    "tests/host/bk7258/test_pack_product_route.py": "ed117b76406ba9449b2f6aa1b6f3278bd9ce22966097cbbd94dd922d3fe8ea51",
+    "tests/host/bk7258/test_provision_tls.c": "5eba8fa22932f5aebb705940b73bfe758353980aa7539ab27b1e872cc3f6e415",
+    "tests/host/bk7258/test_shaniu_contracts.py": "e0a70db37c0db849206c2cb6cdd06732c617f92762d1aaa5e7d24f6a9f6b5967",
+    "tests/host/bk7258/Makefile": "2e767d70a08554288ba3b08118e18ceeec569e8ee0d0dae94c7d568c58718359"
+  },
+  "post_collection_build_dependency": "Added explicit control_session.c/.h prerequisite to new host target; command and production/test behavior unchanged. Six wire and two product-route executions rechecked separately; not added to510 denominator."
+}

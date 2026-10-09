@@ -1,0 +1,13 @@
+E
+======================================================================
+ERROR: test_pack_golden (__main__.TrialTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_trial.py", line 81, in test_pack_golden
+    self.codec().encode("start", 0, "0102030405060708", "happy", 1000,
+TypeError: encode() got an unexpected keyword argument 'pack_filename'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)

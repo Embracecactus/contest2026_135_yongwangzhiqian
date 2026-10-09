@@ -24,6 +24,10 @@ int bkprov_storage_identity_install(const void *record, size_t size);
  * positively read empty store. Output is untouched on failure. */
 int bkprov_storage_snapshot(void *bundle, size_t capacity, size_t *size,
                             uint64_t *revision, uint8_t transaction[16]);
+/* Read the stable durable main-config revision without copying secrets.  Any
+ * active worker job returns -EAGAIN because the backing revision may be owned
+ * by that worker until it publishes completion. */
+int bkprov_storage_revision(uint64_t *revision);
 /* Copy once, then poll by the same transaction, expected revision and exact
  * bytes. A different in-flight operation returns -EBUSY. Disconnect does not
  * cancel the file job. Only a trusted owner may submit verified settings. */
@@ -35,6 +39,66 @@ int bkprov_storage_refresh(void);
 /* 1 = matching durable receipt; 0 = positively empty store. A different
  * selected transaction is unknown, never proof that this one failed. */
 int bkprov_storage_receipt(const uint8_t transaction[16]);
+/* Authenticated product reset only. First publish a durable revocation marker
+ * in the mutable record. A marker is never an empty/unclaimed configuration.
+ * The product must quiesce all writers, then let this worker clean its exact
+ * user-data replicas. Identity, hardware data and firmware trust are untouched.
+ * A failed cleanup retains the marker; restart resumes from reset_pending=1.
+ */
+int bkprov_storage_reset_request(uint64_t expected, const uint8_t transaction[16]);
+int bkprov_storage_reset_pending(void);
+int bkprov_storage_reset_finish(int (*cleanup)(void));
+/* Query only the public reset transaction receipt. PENDING proves SRV1 was
+ * durably selected and still revokes the old owner; COMPLETED proves cleanup,
+ * receipt publication and marker deletion survived the worker's fsync path.
+ * ABSENT is positive absence, never an ordinary config receipt. */
+enum bkprov_storage_reset_receipt_e
+{
+  BKPROV_STORAGE_RESET_RECEIPT_ABSENT = 0,
+  BKPROV_STORAGE_RESET_RECEIPT_PENDING = 1,
+  BKPROV_STORAGE_RESET_RECEIPT_COMPLETED = 2
+};
+int bkprov_storage_reset_receipt(const uint8_t transaction[16]);
+/* Device-internal PC authorization view, NEVER a public protocol response.
+ * The serialized product owner supplies a previously validated phone key and
+ * the exact current main configuration revision. Loading/setting are explicit
+ * asynchronous jobs on this worker; snapshot has no I/O and clears on error.
+ * Return -EAGAIN while accepted work is pending, not successful persistence.
+ * Exact repeated set returns the recorded result; a new transaction is needed
+ * after a known failure. An uncertain PC commit blocks reload/refresh/stop.
+ * Main configuration changes invalidate this binding even if owner is equal.
+ * Callers must close PC sessions before submitting changes and publish a fresh
+ * immutable view only after completion; this API is not authorization itself.
+ */
+struct bkprov_pc_snapshot_s
+{
+  uint64_t revision;
+  uint8_t transaction[16];
+  uint8_t client[16];
+  uint8_t key[32];
+  uint32_t capabilities;
+};
+int bkprov_storage_pc_load(uint64_t config_revision,
+                           const uint8_t owner_key[32]);
+int bkprov_storage_pc_set(uint64_t config_revision, uint64_t expected,
+                          const uint8_t transaction[16],
+                          const uint8_t client[16], const uint8_t key[32],
+                          uint32_t capabilities);
+/* Read-only receipt: positive phase, negative lookup error. A completed
+ * syscall failure may itself be -EAGAIN; it is never the pending phase.
+ * result is zeroed on a lookup error; no key or side effect is exposed. */
+enum bkprov_pc_receipt_e
+{
+  BKPROV_PC_PENDING = 1,
+  BKPROV_PC_SUCCEEDED = 2,
+  BKPROV_PC_FAILED = 3,
+  BKPROV_PC_UNKNOWN = 4
+};
+int bkprov_storage_pc_receipt(uint64_t config_revision,
+                              const uint8_t transaction[16], int *result);
+int bkprov_storage_pc_snapshot(uint64_t config_revision,
+                               struct bkprov_pc_snapshot_s *view);
+
 /* Shutdown only an idle, determinate worker. -EBUSY/-EINPROGRESS leaves it
  * alive; stop/start cannot erase publication uncertainty. No I/O join. */
 int bkprov_storage_stop(void);

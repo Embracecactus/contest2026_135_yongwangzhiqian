@@ -229,12 +229,14 @@ def write_frame(
         raise OSError(f"short serial write: {written}/{len(wire)} bytes")
 
 
-def open_native_port(port_name: str, timeout: float) -> serial.Serial:
+def open_native_port(
+    port_name: str, timeout: float, *, label: str = "USB OTA", output=None
+) -> serial.Serial:
     _require_pyserial()
     assert serial is not None
     deadline = time.monotonic() + timeout
     last_error: Exception | None = None
-    print(f"BK7258 USB OTA: opening port={port_name}", flush=True)
+    print(f"BK7258 {label}: opening port={port_name}", file=output, flush=True)
     while time.monotonic() < deadline:
         try:
             if sys.platform == "win32":
@@ -285,7 +287,7 @@ def open_native_port(port_name: str, timeout: float) -> serial.Serial:
                 port.is_open = True
             else:
                 port = serial.Serial(port_name, 115200, timeout=0.1, write_timeout=5.0)
-            print(f"BK7258 USB OTA: opened port={port_name}", flush=True)
+            print(f"BK7258 {label}: opened port={port_name}", file=output, flush=True)
             return port
         except (OSError, serial.SerialException) as error:
             last_error = error

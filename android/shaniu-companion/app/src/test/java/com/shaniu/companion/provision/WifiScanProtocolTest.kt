@@ -7,6 +7,25 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class WifiScanProtocolTest {
+    @Test fun authenticatedControlScanUsesDeviceResultsAndRejectsMalformedRecords() {
+        val wire = ByteBuffer.allocate(48).put("WFS1".toByteArray())
+            .put(1.toByte()).put(0.toByte()).put(ByteArray(6))
+            .put(record("附近网络")).array()
+        val decoded = WifiScanProtocol.decodeControl(wire)
+        assertEquals("附近网络", decoded.networks.single().ssid)
+        assertEquals(-60, decoded.networks.single().rssi)
+        assertFalse(decoded.truncated)
+        assertThrows(IllegalArgumentException::class.java) {
+            WifiScanProtocol.decodeControl(wire.copyOf(47))
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            WifiScanProtocol.decodeControl(wire.copyOf().also { it[12] = 33 })
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            WifiScanProtocol.decodeControl(wire.copyOf().also { it[6] = 1 })
+        }
+    }
+
     private fun bootstrap() = ProvisionBootstrap.parse(("""{"protocol":"provision-bootstrap-v1","device_id":"scan-device","certificate_sha256":"${"ab".repeat(32)}","possession_secret":"${Base64.getEncoder().encodeToString(ByteArray(32) { 7 })}"}""").toCharArray())
 
     private fun frame(type: Int, sequence: Int, transaction: ByteArray, payload: ByteArray): ByteArray =

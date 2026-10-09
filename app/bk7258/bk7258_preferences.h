@@ -29,12 +29,16 @@ struct bk7258_preferences_s
 };
 
 int bk7258_preferences_get(struct bk7258_preferences_s *preferences);
-/* Last confirmed volume, lazily loaded on first use. External MSC edits are
- * picked up by an explicit preferences_get refresh or after reboot.
+/* Last confirmed volume, lazily loaded on first use. A successful return from
+ * host-writable MSC invalidates the SD-backed cache before the next use.
  */
 int bk7258_preferences_playback_volume(unsigned int *volume_percent);
 int bk7258_preferences_set_volume(unsigned int volume_percent);
 int bk7258_preferences_set_persona(const char *persona);
+/* Delete only the declared Shaniu preference keys and commit them as one
+ * bounded KVDB update. A failure leaves the playback cache invalid so an old
+ * volume cannot be reused as if reset had completed. */
+int bk7258_preferences_reset(void);
 /* Uses the existing device configuration store; when the item is absent the
  * default is fast conversation and the old configuration is not rewritten.
  */
@@ -51,6 +55,11 @@ int bk7258_preferences_with_storage(int (*operation)(void *), void *context);
  * never contain, read, or overwrite CCF1 credentials. */
 int bk7258_preferences_cloud_models_get(struct bkcloud_models_s *models);
 int bk7258_preferences_cloud_models_set(const struct bkcloud_models_s *models);
+/* Only after the reset worker durably removed the user-record trees. Checks
+ * internal filesystem availability and absence before clearing uncertainty.
+ * Reads/new writes cannot clear an uncertain model publication in this boot.
+ */
+int bk7258_preferences_cloud_models_reset_complete(void);
 /* Stable names are shared by the AP store and CP command without linking
  * the CP command to a second KVDB owner.
  */

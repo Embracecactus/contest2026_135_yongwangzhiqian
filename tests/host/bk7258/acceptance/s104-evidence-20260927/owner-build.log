@@ -1,0 +1,3 @@
+make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'
+cc -std=c11 -Wall -Wextra -Werror -I mocks -I /home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/include -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_provision_owner.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_owner.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_control_session.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_scan.c -o build/test_shaniu_owner
+make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'

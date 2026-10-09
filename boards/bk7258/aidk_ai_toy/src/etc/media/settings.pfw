@@ -6,10 +6,17 @@ domain: MicDomain
         ALL
             CaptureLifecycle Is Ready
             ActiveStreams Includes Capture0
+        FFmpegCommand = pcm0c,link,;
+    conf: warm
+        ALL
+            CaptureLifecycle Is Warm
+            ActiveStreams Includes Capture0
         FFmpegCommand = pcm0c,start,;
     conf: off
         ALL
-            CaptureLifecycle Is Ready
+            ANY
+                CaptureLifecycle Is Ready
+                CaptureLifecycle Is Warm
             ActiveStreams Excludes Capture0
         FFmpegCommand = pcm0c,stop,;
 

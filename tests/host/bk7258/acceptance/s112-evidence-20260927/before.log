@@ -1,0 +1,13 @@
+F
+======================================================================
+FAIL: test_upload_128k_plus_one_rejected_before_spool_or_worker (__main__.WebTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_workbench_web.py", line 283, in test_upload_128k_plus_one_rejected_before_spool_or_worker
+    self.assertEqual(self.request("POST", "/api/start", body)[0], 400)
+AssertionError: 202 != 400
+
+----------------------------------------------------------------------
+Ran 1 test in 0.522s
+
+FAILED (failures=1)

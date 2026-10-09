@@ -32,6 +32,7 @@ struct bkhealth_temperature_sample_s
 
 struct bkhealth_source_ops_s
 {
+  int (*power_status)(void *context, uint32_t *state, int32_t *error);
   int (*battery_open)(void *context);
   int (*battery_state)(void *context, uint32_t *state);
   int (*battery_voltage_mv)(void *context, int32_t *voltage_mv);

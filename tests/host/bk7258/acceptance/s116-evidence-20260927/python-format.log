@@ -1,0 +1,7 @@
+reformatted tools/bk7258/_lib/workbench_selection.py
+reformatted tests/host/bk7258/test_pack_trial.py
+reformatted tests/host/bk7258/test_workbench_selection.py
+reformatted tests/host/bk7258/test_shaniu_contracts.py
+
+All done! ✨ 🍰 ✨
+4 files reformatted, 1 file left unchanged.

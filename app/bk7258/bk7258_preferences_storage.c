@@ -8,6 +8,9 @@
 
 #include "bk7258_preferences_storage.h"
 #include "bk7258_media_volume.h"
+#ifdef CONFIG_BK7258_USBMODE
+#  include <arch/chip/bk7258_usbmode.h>
+#endif
 
 #define PREFERENCES_MOUNT "/mnt/sdnand"
 
@@ -88,4 +91,13 @@ int bk7258_preferences_storage_begin(void)
 
   g_preferences_mounted = true;
   return 0;
+}
+
+uint32_t bk7258_preferences_storage_generation(void)
+{
+#ifdef CONFIG_BK7258_USBMODE
+  return bk7258_usbmode_media_generation();
+#else
+  return 0;
+#endif
 }

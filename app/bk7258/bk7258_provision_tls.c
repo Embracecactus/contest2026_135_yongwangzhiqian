@@ -22,6 +22,31 @@ static const int g_suites[] =
   MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0
 };
 
+static uint32_t gatt_generation(void *context)
+{
+  (void)context;
+  return bkprov_gatt_generation();
+}
+
+static ssize_t gatt_read(void *context, uint32_t generation, void *data,
+                         size_t size)
+{
+  (void)context;
+  return bkprov_gatt_read(generation, data, size);
+}
+
+static ssize_t gatt_send(void *context, uint32_t generation, const void *data,
+                         size_t size)
+{
+  (void)context;
+  return bkprov_gatt_send(generation, data, size);
+}
+
+static bool current(const struct bkprov_tls_s *tls)
+{
+  return tls->transport.generation(tls->transport.context) == tls->generation;
+}
+
 void bkprov_tls_close(struct bkprov_tls_s *tls)
 {
   if (tls == NULL || !tls->initialized)
@@ -57,7 +82,7 @@ static int check(struct bkprov_tls_s *tls)
     {
       return -ENOTCONN;
     }
-  if (bkprov_gatt_generation() != tls->generation)
+  if (!current(tls))
     {
       return fail(tls, -ESTALE);
     }
@@ -78,7 +103,7 @@ static int send_cipher(void *context, const unsigned char *data, size_t size)
   /* Never free ssl from its own BIO callback. The outer operation performs
    * teardown after the crypto stack unwinds.
    */
-  if (expired(tls, now))
+  if (!current(tls) || expired(tls, now))
     {
       return MBEDTLS_ERR_NET_SEND_FAILED;
     }
@@ -86,9 +111,15 @@ static int send_cipher(void *context, const unsigned char *data, size_t size)
     {
       return MBEDTLS_ERR_SSL_WANT_WRITE;
     }
-  size = size < 20 ? size : 20;
-  ret = bkprov_gatt_send(tls->generation, data, size);
-  tls->next_send = now + SEND_INTERVAL_MS;
+  size = size < tls->transport.max_send ? size : tls->transport.max_send;
+  ret = tls->transport.send(tls->transport.context, tls->generation, data,
+                            size);
+  tls->next_send = UINT64_MAX - now < tls->transport.send_interval_ms ?
+                  UINT64_MAX : now + tls->transport.send_interval_ms;
+  if (!current(tls) || (ret > 0 && (size_t)ret > size))
+    {
+      return MBEDTLS_ERR_NET_SEND_FAILED;
+    }
   if (ret > 0)
     {
       return (int)ret;
@@ -100,11 +131,16 @@ static int send_cipher(void *context, const unsigned char *data, size_t size)
 static int recv_cipher(void *context, unsigned char *data, size_t size)
 {
   struct bkprov_tls_s *tls = context;
-  if (expired(tls, tls->now_ms(tls->clock_context)))
+  if (!current(tls) || expired(tls, tls->now_ms(tls->clock_context)))
     {
       return MBEDTLS_ERR_NET_RECV_FAILED;
     }
-  ssize_t ret = bkprov_gatt_read(tls->generation, data, size);
+  ssize_t ret = tls->transport.read(tls->transport.context, tls->generation,
+                                    data, size);
+  if (!current(tls) || (ret > 0 && (size_t)ret > size))
+    {
+      return MBEDTLS_ERR_NET_RECV_FAILED;
+    }
   return ret >= 0 ? (int)ret : ret == -EAGAIN ?
          MBEDTLS_ERR_SSL_WANT_READ : MBEDTLS_ERR_NET_RECV_FAILED;
 }
@@ -113,10 +149,26 @@ int bkprov_tls_start(struct bkprov_tls_s *tls, uint32_t generation,
                      mbedtls_x509_crt *certificate, mbedtls_pk_context *key,
                      uint64_t (*now_ms)(void *), void *clock_context)
 {
+  const struct bkprov_tls_transport_s transport =
+    { NULL, gatt_generation, gatt_read, gatt_send, 20, SEND_INTERVAL_MS };
+
+  return bkprov_tls_start_transport(tls, generation, certificate, key, now_ms,
+                                    clock_context, &transport);
+}
+
+int bkprov_tls_start_transport(struct bkprov_tls_s *tls, uint32_t generation,
+                              mbedtls_x509_crt *certificate,
+                              mbedtls_pk_context *key,
+                              uint64_t (*now_ms)(void *), void *clock_context,
+                              const struct bkprov_tls_transport_s *transport)
+{
   static const unsigned char personalization[] = "shaniu-provision-v1";
+  struct bkprov_tls_transport_s selected;
   int ret;
   if (tls == NULL || certificate == NULL || key == NULL || now_ms == NULL ||
-      generation == 0)
+      generation == 0 || transport == NULL || transport->generation == NULL ||
+      transport->read == NULL || transport->send == NULL ||
+      transport->max_send == 0 || transport->max_send > 1024)
     {
       return -EINVAL;
     }
@@ -124,11 +176,14 @@ int bkprov_tls_start(struct bkprov_tls_s *tls, uint32_t generation,
     {
       return -EALREADY;
     }
-  if (generation != bkprov_gatt_generation())
+  if (generation != transport->generation(transport->context))
     {
       return -ESTALE;
     }
+  /* Own a value snapshot; only the backend context remains borrowed. */
+  selected = *transport;
   memset(tls, 0, sizeof(*tls));
+  tls->transport = selected;
   mbedtls_ssl_init(&tls->ssl);
   mbedtls_ssl_config_init(&tls->config);
   mbedtls_ctr_drbg_init(&tls->random);

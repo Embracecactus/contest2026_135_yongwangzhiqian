@@ -1,0 +1,6 @@
+make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'
+python3 /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tools/bk7258/bk7258.py package eye-pack \
+	--source /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/assets/display/shaniu-default-v1.json --output build/shaniu-default-v1.bkep
+bk7258: error: eye pack output already exists: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/build/shaniu-default-v1.bkep
+make: *** [Makefile:311: build/shaniu-default-v1.bkep] Error 1
+make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'

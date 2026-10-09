@@ -1,0 +1,6 @@
+Performing Streamed Install
+Success
+Performing Streamed Install
+Success
+INSTRUMENTATION_RESULT: stream=FAIL: IllegalStateException: Unknown default state enabled 刷新设备默认
+INSTRUMENTATION_CODE: 0

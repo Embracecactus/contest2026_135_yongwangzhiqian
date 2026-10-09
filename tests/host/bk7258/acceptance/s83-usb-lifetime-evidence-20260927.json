@@ -1,0 +1,43 @@
+{
+  "parent": "234cc3736db41462daa94ed22e0f6e9f4225fee9",
+  "red": "Real PTY/TLS terminal clears pair but leaves serial fd open; assertion !serial.opened failed before lifecycle implementation.",
+  "counts": {
+    "PASS": 462,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "new_execution_ids": 0,
+  "expanded_existing": "USB-01.tls-transport: PC native serial ownership, revoke/terminal close, rejected-open cleanup, duplicate-open, idempotent close, real EBADF failure latch",
+  "runner_gates": 13,
+  "mutations": "Original two mutations DETECTED and restored; initial real Red is sensitivity evidence for new terminal-close assertion.",
+  "first_report_interpretation": "Nested TLS wrapper reported FAIL_ASSERTION, but underlying cause was fixture compile SETUP_ERROR: serial macro collided with failed.serial member; corrected without weakening assertion. A subsequent failed correction renamed an include accidentally; corrected and both logs retained. Nested compiler failure classification remains a runner reporting gap.",
+  "resource": {
+    "arm_usb_bytes": 88,
+    "arm_external_pair_bytes": 69016,
+    "tls_dynamic_peak": "NOT_MEASURED"
+  },
+  "build": "AP incremental PASS; CMake regenerated existing tree on source-list change; no clean, signing or flashing",
+  "style": "Pinned nxstyle c/h mapped-path PASS; clang-format 14 unavailable, no claim",
+  "remaining": [
+    "Product startup/reset/power loop binding",
+    "Pair memory and TLS peak budget",
+    "Lower serial open rollback-close failures",
+    "Native driver DMA/IRQ closure and physical USB",
+    "Historical S66/S75/S76 TLS faults OPEN"
+  ],
+  "hardware": "NOT_RUN",
+  "evidence": {
+    "after.log": "53e8169dad825ea723e595f6248b08165bbc42d2aac13e6a8b5e9a133bd8df80",
+    "ap-build.log": "6ef4608dc3d60ef4d3fdf854b003fb3728659d545c076d4abf9d3ad65c13bac9",
+    "ap-compile.log": "b080b4ac4b8a66a314a6b127fd6ee9addcc5baaa118deb8c5cd139b474cdbbcb",
+    "arm-size.log": "22767e8b67889cccd122d41e6cb36aeaac322102438cb6bb5af8d61d5dd716e9",
+    "before.log": "0983c94017d9a813b53181194a27549db0e11a08942a80ef8ca8d8c84884d03e",
+    "faults-corrected.log": "48ba85ee993dd2770ebf004094c66d334a9791b90ee95c142834ce42b4037fc9",
+    "final.log": "df2c3db7aec74bedcd9f07bdb42805a292ce6b02b1b82438c783fe13d11a7676",
+    "full.log": "61f3e8fb15381bbf63b6a131dcb6e4134e5809118bce18a8258751c49574b1f9",
+    "runner-gates.log": "1a3749a3d3fd8b608c60936eba4594f2494db9aa26be9248c6c5f4e9b3ec15a0",
+    "style-bk7258_pc_usb.c.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "style-bk7258_pc_usb.h.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

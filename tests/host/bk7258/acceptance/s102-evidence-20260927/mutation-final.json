@@ -1,0 +1,10 @@
+{
+  "status": "DETECTED",
+  "exit_code": 1,
+  "source_sha256": "6063f05c730d60d908686f0805980f16328efc661b64d034ef9702f33db4691e",
+  "mutant_sha256": "858b2801fb8c15ccf79b2aabb1027d5047d501ad29e704fc599c8fff99f6364c",
+  "fixture_sha256": "07e1d988692d4895081aaededb9597a0f5dc33ec96c89cc50dd0ac921faa5093",
+  "driver_sha256": "a4366bcac8d5e4f6f2ff000e89bd6fa39ab3eedfff20c03cf4346cc6efdfd9c0",
+  "assertion": "wire_apply(record,96)==-ESTALE",
+  "restored_log": "mutation-restored-final.log"
+}

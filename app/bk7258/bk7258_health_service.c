@@ -35,6 +35,8 @@
 
 #include <arch/chip/bk7258_temperature.h>
 
+#include "bk7258_agent_power.h"
+
 #define BKHEALTH_REFRESH_MS 60000u
 
 struct bkhealth_source_context_s
@@ -195,6 +197,9 @@ static int bkhealth_temperature_read(
 
 static const struct bkhealth_source_ops_s g_bkhealth_source_ops =
 {
+#if defined(CONFIG_BK7258_APP_AGENT) && defined(CONFIG_BK7258_PRODUCT_KEYS)
+  .power_status = bk7258_agent_power_status,
+#endif
   .battery_open = bkhealth_battery_open,
   .battery_state = bkhealth_battery_state,
   .battery_voltage_mv = bkhealth_battery_voltage_mv,
@@ -319,7 +324,8 @@ static int bkhealth_worker(int argc, char **argv)
       (void)bkhealth_rpc_handle_request(&request, &response,
                                         &g_bkhealth_source_ops,
                                         &server->source);
-      bkhealth_publish_snapshot(server, &response);
+      if (request.command == BKHEALTH_RPC_STATUS)
+        bkhealth_publish_snapshot(server, &response);
 
       flags = spin_lock_irqsave(&server->request_lock);
       memcpy(&server->last_request, &request, sizeof(request));

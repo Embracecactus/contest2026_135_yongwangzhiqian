@@ -1,0 +1,117 @@
+{
+  "parent": "4fc819f4d3433709bdbd1f2fca027e9c1347d759",
+  "counts": {
+    "selected_host_units": 625,
+    "PASS": 625,
+    "original_including_two_restores": 63,
+    "added": 562,
+    "new_host_ids": 0,
+    "runner_gates": 19,
+    "original_mutations_detected": 2,
+    "new_instrumentation_scenarios": 1,
+    "recreation_rounds": 3,
+    "negative_stimuli_in_scenario": 3,
+    "existing_default_ui_scenarios": 1,
+    "existing_default_ui_navigation_rounds": 20
+  },
+  "implementation": "Bounded local eye package and digest in Activity saved state, revalidated asynchronously via shared existing import path. Keep previous valid selection on bad imports. Never restore server/install transaction or auto-send a device write.",
+  "production_changed": [
+    "android MainActivity local draft/import lifecycle",
+    "APK version46 / 0.7.16-shaniu-eye-draft"
+  ],
+  "firmware_agent_models_unchanged": true,
+  "input_hashes_match": true,
+  "production_unchanged_during_final_run": true,
+  "baseline": {
+    "product_red": "Initial validated selection disappeared on first real Activity recreation",
+    "observer_error": "Earlier observation checked resources overview, not resource detail; retained separately and corrected without production change",
+    "setup_error": "First build shell command used repo-root cwd with Android-relative redirection; Gradle did not run. Corrected cwd before first build."
+  },
+  "oracle": [
+    "visible selected package and revision in actual resource detail page",
+    "cache file bytes and independently computed SHA256",
+    "three actual Activity.recreate transitions",
+    "invalid one-byte and131073-byte inputs preserve previous valid selection",
+    "CRC-valid header alteration with original whole-file digest rejected through actual restore entry",
+    "no local eye server/install record/config flow starts"
+  ],
+  "fixture": {
+    "source": "existing public shaniu-default-v1 generated BKep",
+    "hex_sha256": "ea500b3def13a297bc809aedf3b867efca3cb7ff4b88475eb9c6514da3a1fb94",
+    "decoded_sha256": "1bfa445365f6081d889fd604b0dadd3d1821d87fd7ee7548259acf47fb666395",
+    "decoded_bytes": 10494
+  },
+  "apk": {
+    "versionCode": 46,
+    "versionName": "0.7.16-shaniu-eye-draft",
+    "sha256": "f1401a3ebc38414872c795341f2f3948219372b8b743345a7f780afb6a8b81e3",
+    "test_sha256": "5c16306a8801cc0f087dd51c82a1247e7a94542cbeb7218279e0c2abdadfd115",
+    "signature": "apksigner verified existing debug identity; same signer as actual phone App42",
+    "emulator_installed_bytes_match": true
+  },
+  "physical_preflight": {
+    "emulator_installed_sha256": "f1401a3ebc38414872c795341f2f3948219372b8b743345a7f780afb6a8b81e3",
+    "candidate_sha256": "f1401a3ebc38414872c795341f2f3948219372b8b743345a7f780afb6a8b81e3",
+    "phone_serial": "59d707dc",
+    "phone_installed_version": 42,
+    "candidate_version": 46,
+    "signers_match": true,
+    "signer_sha256": "b2ea591116f967af230d0f06f678cc5fdd99d5884cc429b8d22c6489ba96050b",
+    "phone_action": "read-only APK/version/signature; no install",
+    "serial_enumeration": {
+      "DeviceID": "COM16",
+      "Name": "USB 串行设备 (COM16)"
+    },
+    "serial_identity": "unconfirmed; port unopened",
+    "serial_raw_sha256": "ccc85de19f8aef276cc5b6e6fefbd98f76bdf1a8d8f0409f2a300509996d5ae0",
+    "permission": "APK46 preserved-data install and COM16 identity/availability requested; unanswered when this record was written"
+  },
+  "parent_gaps": {
+    "UI-02": {
+      "interface": "Local selection restored with existing import/parser; no new public device interface",
+      "L1_L2": "625 existing host units retained; new actual emulator import/recreation plus invalid-input branches pass",
+      "L3": "NOT_RUN: real phone continuity, authenticated BLE and device result. OS process-death restore not exercised."
+    },
+    "RES-02": {
+      "interface": "No installed resource directory yet; device default selection still by installed canonical name",
+      "L1_L2": "S106 TLS vertical retained; local draft UI now survives tested recreations",
+      "L3": "NOT_RUN"
+    }
+  },
+  "resources": {
+    "bounded": "One saved payload <=131072 bytes plus32-byte digest; bounded pending restore copies; existing IO executor reused; no additional thread/device owner",
+    "unknown": "Peak heap, CPU p95, blocked document providers and OS process-death behavior not measured"
+  },
+  "limits": [
+    "Cold start after explicitly finishing/discarding task need not restore the temporary draft",
+    "UI state checks are not real BLE zero-write evidence",
+    "625 execution units do not mean all56 requirements passed",
+    "Only emulator APKs installed; phone read-only; no serial opened, no board flash/reset/key action"
+  ],
+  "raw_evidence_sha256": {
+    "s107-evidence-20260927/CFG-01.wifi-clears-cloud.log": "336f4fe70888589c102a93168b380c24438705db194b8998903a1fdf4d0b00d7",
+    "s107-evidence-20260927/MSC-01.early-release.log": "3f932244770ef7700af55fac957079624596c2d2c162571ce3e2971611c9f50b",
+    "s107-evidence-20260927/apk-badging.log": "50b8ca2a6199b455dfd4a724814e19d8cc539b6c206af08c8b0a384809bd32bc",
+    "s107-evidence-20260927/apk-sha256.log": "b309a0a87565a8c4bfa7c6515abaecfe2b556de2ba05e7c2f0218bbbeb93e40e",
+    "s107-evidence-20260927/apk-signature.log": "dc48f589a74a7d42f2c9ead0cba2a5a500d596a2d09b9324570f7ff9c72e3ff4",
+    "s107-evidence-20260927/default-ui-regression.log": "3c961846808cedf79d209ae53a582a81e46a06a60fcd562db2c827bebd14bd21",
+    "s107-evidence-20260927/eye-draft-after.log": "3bb2d523e2dca87273764daf55664ef884dd484cd40cf69a1eac17308b308c64",
+    "s107-evidence-20260927/eye-draft-before.log": "6b56a962f68321f1c6f0812f00b645763321c80004c8a679cfec951650b62035",
+    "s107-evidence-20260927/eye-draft-red.log": "f84e16904bb25bf93e7f260c237a5b3ed9c18c5421aed2ad8d33f10bd09f9f69",
+    "s107-evidence-20260927/final-build.log": "e9b1dca27edba6935ef0ef899ad63c5c000d28e8ee8aff591706cbd01057bb76",
+    "s107-evidence-20260927/fixed-build.log": "bebeddf0dcd07c277e45a12f79f18dcf307b4fba815149f8ef9edc05421cf051",
+    "s107-evidence-20260927/full.log": "744fe16ab3d56ba576af4a0230875ed3423578730e8fc0aec45671f570793656",
+    "s107-evidence-20260927/install-before-test.log": "c4aa470acafcf8576c15b0f0b5ae7e852d1ec5413372d0e6a9272e788e1306d3",
+    "s107-evidence-20260927/install-final-test.log": "c4aa470acafcf8576c15b0f0b5ae7e852d1ec5413372d0e6a9272e788e1306d3",
+    "s107-evidence-20260927/install-final.log": "c4aa470acafcf8576c15b0f0b5ae7e852d1ec5413372d0e6a9272e788e1306d3",
+    "s107-evidence-20260927/install-observer-test.log": "c4aa470acafcf8576c15b0f0b5ae7e852d1ec5413372d0e6a9272e788e1306d3",
+    "s107-evidence-20260927/jvm.log": "4945b3a17a6701166641ddb85aade1cf7691b90a2e6b97b3b25cc6625b441be8",
+    "s107-evidence-20260927/phone-installed-badging.log": "f55c3a7fb43cf7e0e841f4795f41d5da084be2c0193e6dad0b7feba4f112a46a",
+    "s107-evidence-20260927/phone-installed-sha256.log": "442e52a58492a8e877372168b6ca357a886de157da605138eb9e87af4a9ba688",
+    "s107-evidence-20260927/phone-installed-signature.log": "dc48f589a74a7d42f2c9ead0cba2a5a500d596a2d09b9324570f7ff9c72e3ff4",
+    "s107-evidence-20260927/preflight.json": "f08a04eafe462ab483b59a55581ef8d6889991b2095008aed4b8930747520c07",
+    "s107-evidence-20260927/runner-gates.log": "cdf2eabc27eebeabf917446910713185d97df1d9f80df848c7b6d5c6f8c158d2",
+    "s107-evidence-20260927/test-first-build.log": "d78e29a3b95c9ceacba7a726eedaed4589f8204ff0fd5346498f2788e049eb53",
+    "s107-evidence-20260927/test-observer-build.log": "2821a95c4232b669ccc6fc3c1c5abe67257e99a0a63937f730ace5effaa14720"
+  }
+}

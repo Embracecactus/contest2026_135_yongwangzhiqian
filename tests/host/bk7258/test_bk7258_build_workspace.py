@@ -5,6 +5,8 @@
 import os
 import contextlib
 import io
+import json
+import shutil
 import stat
 import subprocess
 import sys
@@ -12,6 +14,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
+from types import SimpleNamespace
 
 
 REPOSITORY = Path(__file__).resolve().parents[3]
@@ -24,6 +27,110 @@ import bk7258 as cli
 
 
 class BuildWorkspaceTest(unittest.TestCase):
+    def test_cp_memory_report_does_not_claim_runtime_budget(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = root / ".config"
+            config.write_text("CONFIG_IDLETHREAD_STACKSIZE=2048\n")
+            elf = root / "nuttx"
+            elf.write_bytes(b"fixture")
+            symbols = {"_sdata": 0x28010000, "_edata": 0x28011000,
+                       "_sbss": 0x28011000, "_ebss": 0x28040000,
+                       "_eheap": 0x2804fffc, "g_intstackalloc": 0x28010000,
+                       "g_intstacktop": 0x28010800}
+            role = SimpleNamespace(role="cp", dotconfig=config, elf=elf,
+                                   binary_root=root, resolved_config_sha256="fixture")
+            with mock.patch.object(trust_domain, "elf_symbol",
+                                   side_effect=lambda elf, nm, name: symbols[name]):
+                build_domain._cp_memory_report(role, SimpleNamespace(binary_dir=root))
+                report = json.loads((root / "cp-memory-report.json").read_text())
+                self.assertEqual(report["initial_heap_gross_bytes"], 63484)
+                self.assertEqual(report["boot_status"], "not-verified")
+                self.assertIn("requires-pre-PSRAM", report["runtime_budget_status"])
+                symbols["_ebss"] = symbols["_eheap"] - 1024
+                with self.assertRaises(build_domain.BuildError):
+                    build_domain._cp_memory_report(role, SimpleNamespace(binary_dir=root))
+
+    def test_cp_memory_report_requires_soft_off_wfi_wrapper_in_copy(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = root / ".config"
+            config.write_text(
+                "CONFIG_IDLETHREAD_STACKSIZE=2048\n"
+                "CONFIG_BK7258_PM_SOFT_OFF=y\n"
+            )
+            elf = root / "nuttx"
+            elf.write_bytes(b"fixture")
+            symbols = {
+                "_sdata": 0x28010000,
+                "_edata": 0x28011000,
+                "_sbss": 0x28011000,
+                "_ebss": 0x28040000,
+                "_eheap": 0x2804FFFC,
+                "g_intstackalloc": 0x28010000,
+                "g_intstacktop": 0x28010800,
+            }
+            copied = (
+                "sys_hal_enter_deep_sleep",
+                "arch_deep_sleep",
+                "sys_set_ana_reg_bit",
+                "sys_ll_set_ana_reg5_en_cb",
+                "sys_ll_set_ana_reg8_valoldosel",
+                "sys_ll_set_ana_reg9_spi_latch1v",
+                "sys_ll_set_ana_reg10_vbspbuflp1v",
+                "sys_ll_set_ana_reg11_aldosel",
+                "sys_ll_set_ana_reg12_dldosel",
+                "sys_hal_enable_spi_latch",
+                "sys_hal_disable_spi_latch",
+                "sys_hal_power_on_and_select_rosc",
+                "sys_hal_disable_hf_clock",
+                "sys_hal_gpio_state_switch",
+                "__wrap_arch_deep_sleep",
+                "bk7258_pm_soft_off_wfi_reset",
+                "bk7258_hardfault_handler",
+            )
+            nm_rows = "\n".join(
+                f"{name} T {0x28010000 + 4 * index:08x} 4"
+                for index, name in enumerate(copied)
+            )
+            role = SimpleNamespace(
+                role="cp",
+                dotconfig=config,
+                elf=elf,
+                binary_root=root,
+                resolved_config_sha256="fixture",
+            )
+            with mock.patch.object(
+                trust_domain,
+                "elf_symbol",
+                side_effect=lambda elf, nm, name: symbols[name],
+            ), mock.patch.object(
+                build_domain.subprocess,
+                "run",
+                return_value=SimpleNamespace(stdout=nm_rows),
+            ):
+                build_domain._cp_memory_report(role, SimpleNamespace(binary_dir=root))
+                report = json.loads((root / "cp-memory-report.json").read_text())
+                self.assertIn("__wrap_arch_deep_sleep", report["symbols"])
+                self.assertIn("bk7258_pm_soft_off_wfi_reset", report["symbols"])
+                self.assertIn("bk7258_hardfault_handler", report["symbols"])
+                for missing in copied[-2:]:
+                    with mock.patch.object(
+                        build_domain.subprocess,
+                        "run",
+                        return_value=SimpleNamespace(
+                            stdout="\n".join(
+                                row for row in nm_rows.splitlines()
+                                if row.split()[0] != missing
+                            )
+                        ),
+                    ):
+                        with self.assertRaisesRegex(build_domain.BuildError,
+                                                    missing):
+                            build_domain._cp_memory_report(
+                                role, SimpleNamespace(binary_dir=root)
+                            )
+
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory(prefix="bk7258-workspace-")
         self.root = Path(self.temporary.name)
@@ -73,6 +180,44 @@ class BuildWorkspaceTest(unittest.TestCase):
                         writer(link, value)
                     link.unlink()
 
+    def test_development_signer_is_reused_and_never_silently_rotated(self) -> None:
+        executable = shutil.which("openssl")
+        if executable is None:
+            self.skipTest("OpenSSL is unavailable")
+        with tempfile.TemporaryDirectory(
+            prefix="bk7258-signing-test-", dir=Path.home()
+        ) as directory:
+            store = Path(directory) / "identity"
+            signer, created = trust_domain.init_development_identity(
+                self.repository, store, Path(executable)
+            )
+            self.assertTrue(created)
+            self.assertEqual(stat.S_IMODE(store.stat().st_mode), 0o700)
+            self.assertEqual(
+                stat.S_IMODE(signer.bl1_private_key.stat().st_mode), 0o600
+            )
+            again, created = trust_domain.init_development_identity(
+                self.repository, store, Path(executable)
+            )
+            self.assertFalse(created)
+            self.assertEqual(again.identity, signer.identity)
+            self.assertEqual(again.bl1_fingerprint, signer.bl1_fingerprint)
+            missing = store / "bl1-key-temporarily-missing"
+            signer.bl1_private_key.rename(missing)
+            try:
+                with self.assertRaisesRegex(trust_domain.TrustError, "incomplete"):
+                    trust_domain.init_development_identity(
+                        self.repository, store, Path(executable)
+                    )
+            finally:
+                missing.rename(signer.bl1_private_key)
+            self.assertEqual(
+                trust_domain.load_development_identity(
+                    self.repository, store, Path(executable)
+                ).identity,
+                signer.identity,
+            )
+
     def test_default_and_explicit_workspace_are_compatible(self) -> None:
         self.assertEqual(
             build_domain._build_workspace(self.repository, None),
@@ -99,11 +244,23 @@ class BuildWorkspaceTest(unittest.TestCase):
             "pair",
             "ap",
         )
+        ap.root.mkdir(parents=True)
+        (ap.root / "defconfig").write_text("", encoding="utf-8")
+        base_manifest = self.repository / "openvela.xml"
+        team_manifest = self.repository / "contest2026_135_yongwangzhiqian.xml"
+        base_manifest.write_text("<manifest/>\n", encoding="utf-8")
+        team_manifest.write_text("<manifest/>\n", encoding="utf-8")
         source = self.repository / "chips/bk7258/input.c"
         source.write_text("int value = 1;\n")
+        lvgl_config = self.repository / "boards/bk7258/common/include/lv_conf.h"
+        lvgl_config.parent.mkdir(parents=True, exist_ok=True)
+        lvgl_config.write_text("#define LV_ATTRIBUTE_FAST_MEM\n", encoding="utf-8")
         subprocess.run(["git", "init", "-q", str(self.repository)], check=True)
         subprocess.run(
-            ["git", "-C", str(self.repository), "add", "chips/bk7258/input.c"],
+            ["git", "-C", str(self.repository), "add", "chips/bk7258/input.c",
+             "boards/bk7258/aidk_ai_toy/configs/openvela_ap/defconfig",
+             "boards/bk7258/common/include/lv_conf.h",
+             "openvela.xml", "contest2026_135_yongwangzhiqian.xml"],
             check=True,
         )
         subprocess.run(
@@ -127,6 +284,10 @@ class BuildWorkspaceTest(unittest.TestCase):
             )
         original = build_domain._source_provenance(self.repository, cp, ap, "shaniu")
         self.assertFalse(original["dirty"])
+        self.assertIn("openvela.xml", original["scope"])
+        self.assertIn("contest2026_135_yongwangzhiqian.xml", original["scope"])
+        self.assertEqual(set(original["dependencies"]), {"nuttx", "apps"})
+        self.assertEqual(build_domain.validate_provenance(original), original)
         copied = self.root / "copied-source"
         copied_source = copied / "chips/bk7258/input.c"
         copied_source.parent.mkdir(parents=True)
@@ -149,6 +310,27 @@ class BuildWorkspaceTest(unittest.TestCase):
         self.assertEqual(
             original["profiles"]["cp"], "boards/bk7258/aidk_ai_toy/configs/app"
         )
+        base_manifest.write_text("<manifest><project/></manifest>\n", encoding="utf-8")
+        changed_manifest = build_domain._source_provenance(
+            self.repository, cp, ap, "shaniu"
+        )
+        self.assertTrue(changed_manifest["dirty"])
+        self.assertNotEqual(
+            original["input_tree_sha256"], changed_manifest["input_tree_sha256"]
+        )
+        base_manifest.write_text("<manifest/>\n", encoding="utf-8")
+        lvgl_config.write_text(
+            "#define LV_ATTRIBUTE_FAST_MEM __attribute__((hot))\n",
+            encoding="utf-8",
+        )
+        changed_lvgl = build_domain._source_provenance(
+            self.repository, cp, ap, "shaniu"
+        )
+        self.assertTrue(changed_lvgl["dirty"])
+        self.assertNotEqual(
+            original["input_tree_sha256"], changed_lvgl["input_tree_sha256"]
+        )
+        lvgl_config.write_text("#define LV_ATTRIBUTE_FAST_MEM\n", encoding="utf-8")
         for path in (
             "chips/bk7258/logs/log.json",
             "chips/bk7258/secrets/key.json",
@@ -169,6 +351,49 @@ class BuildWorkspaceTest(unittest.TestCase):
         )
         self.assertEqual(build_domain.validate_provenance(changed), changed)
 
+        agent = self.workspace / "packages/ai_agent"
+        agent.mkdir(parents=True)
+        agent_source = agent / "agent.c"
+        agent_source.write_text("int agent = 1;\n", encoding="utf-8")
+        subprocess.run(["git", "init", "-q", str(agent)], check=True)
+        subprocess.run(["git", "-C", str(agent), "add", "agent.c"], check=True)
+        subprocess.run(
+            ["git", "-C", str(agent), "-c", "user.name=Fixture",
+             "-c", "user.email=fixture@example.invalid", "commit", "-qm", "agent"],
+            check=True,
+        )
+        self.assertNotIn(
+            "ai_agent",
+            build_domain._source_provenance(
+                self.repository, cp, ap, "shaniu"
+            )["dependencies"],
+        )
+        (ap.root / "defconfig").write_text(
+            "CONFIG_EXAMPLES_AI_AGENT_VELA=y\n", encoding="utf-8"
+        )
+        with_agent = build_domain._source_provenance(
+            self.repository, cp, ap, "shaniu"
+        )
+        agent_state = with_agent["dependencies"]["ai_agent"]
+        self.assertEqual(
+            agent_state["source_commit"],
+            subprocess.check_output(["git", "-C", str(agent), "rev-parse", "HEAD"])
+            .decode().strip(),
+        )
+        self.assertFalse(agent_state["dirty"])
+        self.assertEqual(agent_state["input_count"], 0)
+        self.assertEqual(build_domain.validate_provenance(with_agent), with_agent)
+        agent_source.write_text("int agent = 2;\n", encoding="utf-8")
+        modified = build_domain._source_provenance(
+            self.repository, cp, ap, "shaniu"
+        )["dependencies"]["ai_agent"]
+        self.assertTrue(modified["dirty"])
+        self.assertEqual(modified["input_count"], 1)
+        self.assertNotEqual(agent_state["input_tree_sha256"], modified["input_tree_sha256"])
+        agent.rename(self.root / "absent-agent")
+        with self.assertRaisesRegex(build_domain.BuildError, "AI Agent source"):
+            build_domain._source_provenance(self.repository, cp, ap, "shaniu")
+
     def test_missing_signing_identity_never_starts_a_tool(self) -> None:
         with mock.patch.object(trust_domain, "_run") as runner:
             with self.assertRaises(trust_domain.TrustError):
@@ -177,9 +402,9 @@ class BuildWorkspaceTest(unittest.TestCase):
                 )
             runner.assert_not_called()
         with contextlib.redirect_stderr(io.StringIO()), mock.patch.object(
-            cli, "_release"
-        ) as release:
-            with self.assertRaises(SystemExit) as stopped:
+            trust_domain, "_run"
+        ) as runner:
+            self.assertEqual(
                 cli.main(
                     [
                         "release",
@@ -193,9 +418,10 @@ class BuildWorkspaceTest(unittest.TestCase):
                         "--output-dir",
                         str(self.root / "release"),
                     ]
-                )
-            self.assertEqual(stopped.exception.code, 2)
-            release.assert_not_called()
+                ),
+                1,
+            )
+            runner.assert_not_called()
         self.assertFalse((self.root / "release").exists())
         for mode in ("full", "ota"):
             args = [

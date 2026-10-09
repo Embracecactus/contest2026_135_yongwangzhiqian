@@ -1,0 +1,17 @@
+{
+  "exit_code": 1,
+  "counts": {
+    "PASS": 585,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "collection_errors": [
+    "unexpected: RES-02.selection-recover-success",
+    "unexpected: RES-02.selection-recover-gate",
+    "unexpected: RES-02.selection-recover-failure"
+  ],
+  "original_report_sha256": "749e2cb845a3d5c564643e0113938191a1576ef116176049ad9b6b96d6847f00",
+  "original_report": "out/shaniu-s101/collection-before/results.json",
+  "explanation": "Three new collected units were not registered. Gate failed correctly; ids and added_ids extended, original baseline_ids unchanged."
+}

@@ -46,12 +46,15 @@
 #define SC7A20_REG_WHO_AM_I          0x0f
 #define SC7A20_REG_CTRL1             0x20
 #define SC7A20_REG_CTRL4             0x23
+#define SC7A20_REG_STATUS            0x27
 #define SC7A20_REG_OUT_X_L           0x28
 
 #define SC7A20_WHO_AM_I              0x11
 #define SC7A20_CTRL1_POWER_DOWN      0x08
 #define SC7A20_CTRL1_AXES            0x07
 #define SC7A20_CTRL4_FS2G            0x00
+#define SC7A20_CTRL4_BDU              0x80
+#define SC7A20_STATUS_ZYXDA           0x08
 #define SC7A20_AUTOINCREMENT         0x80
 
 #define SC7A20_DEFAULT_ODR           0x50
@@ -222,6 +225,7 @@ static int sc7a20_fetch(FAR struct sensor_lowerhalf_s *lower,
   int16_t raw_y;
   int16_t raw_z;
   uint8_t raw[6];
+  uint8_t status;
   int ret;
 
   (void)filep;
@@ -241,6 +245,18 @@ static int sc7a20_fetch(FAR struct sensor_lowerhalf_s *lower,
     {
       nxmutex_unlock(&priv->lock);
       return -EAGAIN;
+    }
+
+  /* A read timestamp is not evidence of a new conversion.  Only consume
+   * the output bank after all three axes report new data; never busy-wait
+   * here.  BDU protects each low/high byte pair while the burst is read.
+   */
+
+  ret = sc7a20_read_regs(priv, SC7A20_REG_STATUS, &status, 1);
+  if (ret < 0 || (status & SC7A20_STATUS_ZYXDA) == 0)
+    {
+      nxmutex_unlock(&priv->lock);
+      return ret < 0 ? ret : -EAGAIN;
     }
 
   ret = sc7a20_read_regs(priv,
@@ -324,7 +340,7 @@ int sc7a20_register(int devno, FAR const struct sc7a20_config_s *config)
       if (ret >= 0)
         {
           ret = sc7a20_write_reg(priv, SC7A20_REG_CTRL4,
-                                 SC7A20_CTRL4_FS2G);
+                                 SC7A20_CTRL4_FS2G | SC7A20_CTRL4_BDU);
         }
 
       nxmutex_unlock(&priv->lock);

@@ -1,0 +1,9 @@
+make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'
+cc -std=gnu11 -Wall -Wextra -Werror -O2 test_bk7258_display_pack.c \
+	/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_pack.c \
+	/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_display_store.c \
+	-I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 -o build/test_bk7258_display_pack
+./build/test_bk7258_display_pack build/shaniu-default-v1.bkep
+test_bk7258_display_pack: test_bk7258_display_pack.c:206: main: Assertion `bkdisplay_store_activate(root, BKDISPLAY_STORE_DEFAULT_PACK, &selection) == 0' failed.
+make: *** [Makefile:330: run-display-pack] Aborted (core dumped)
+make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'

@@ -1,0 +1,22 @@
+[
+  {
+    "file": "bk7258_display_store.c",
+    "exit": 1,
+    "added_diagnostic_texts": {}
+  },
+  {
+    "file": "bk7258_display_store.h",
+    "exit": 1,
+    "added_diagnostic_texts": {}
+  },
+  {
+    "file": "bk7258_display_service.c",
+    "exit": 1,
+    "added_diagnostic_texts": {}
+  },
+  {
+    "file": "bk7258_display_service.h",
+    "exit": 1,
+    "added_diagnostic_texts": {}
+  }
+]

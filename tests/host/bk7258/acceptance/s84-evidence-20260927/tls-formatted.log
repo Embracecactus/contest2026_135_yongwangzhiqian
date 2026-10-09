@@ -1,0 +1,26 @@
+TLS sample=0 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=9701b00e5cced0f4b8554a704b948887c114faa6c306f60216ccbf59a7499db9
+PC client interop: independent-principal=PASS owner-rejected=PASS STATUS/INFO=PASS
+TLS sample=1 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=a1c1a6cf87b649e486d52cb1710f6b4549b4f5d92424fb30b096a0cc9e109378
+TLS sample=2 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=c41f0174bb0ac469ada3a287a4b59cfc7d6e6f8bbb6e8d030a78969bc3295caf
+TLS sample=3 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=b7900da6e095bfcd5e56becc2ba3a6a0f57f1d998a1bfcce2f312bd135190c8d
+TLS sample=4 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=22ef6f517aa5a6c110d2522b4c946a0a5b9d39a70566ccf9e822e4681274d1f6
+TLS sample=5 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=4b0f0e084f9664a0514d494301254695dc1903674967366d0207cacc675fda7e
+TLS sample=6 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=57e5250fa7fca80bb3898abbf8691a34d4518ddd66b4cdd012fc09273be5b25d
+TLS sample=7 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=98d83d2ee0e972516ab123fdc14ee9ed86b8d23dbb3d595b0f6ef7067ea7849f
+TLS sample=8 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=c60ea5ed8ec6dc6f2cf55b5226d2491d5f8713ac142dc5423a9c7d69373aff04
+TLS sample=9 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=117063d4e18131eb730008637d73c354fd97ddc9ed4bab98cd0e071092f1feda
+TLS sample=10 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=b433ce1b398f0c627e628c4c876db6ac002c77f91da0391126c605def5609b55
+TLS sample=11 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=8a19992bc50da10b793526d132007200245471e19b148b96d3df9c85dd85c8c0
+TLS sample=12 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=19371326c65f2ad6a3f319f377309d3af9dfbf32acfe95b7d84da62ad727134b
+TLS sample=13 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=12401a2941b8841c127664eeb72b696d7b4def8a8d9a6c3efae1e6fbbc19a933
+TLS sample=14 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=7991ccbecd9702d5a25f1679ee0efb0eb35ab52da2eea130756cfb241d3c044a
+TLS sample=15 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=b1fafef05b29dc6590ae25ed327b402e43f1ebb2ec1799092e1d46363fe02230
+TLS sample=16 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=90a5e283d6099a14146353688955ddb0a8a10579ef933aba0a27efaadaecc625
+TLS sample=17 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=21edc4a33d1d3e9c31d4449e0390c9b60c635465b3785ba52f90fd3ee0c0a5fb
+TLS sample=18 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=22c4f56c3b8bb383a045dddccd254d4a9c3b561ea547b221815afdc18a94ace7
+TLS sample=19 GATT=PASS independent-stream=PASS SDC1-stream=PASS serial-SDC1=PASS PC-store=PASS PC-lease=PASS public_certificate_sha256=326e32a72adbe5896eee7b16f2008f97d8fa965acc659dd6c414f5995fe67486
+.
+----------------------------------------------------------------------
+Ran 1 test in 14.817s
+
+OK

@@ -1,0 +1,2 @@
+app/bk7258/bk7258_display_job_service.h:10:1: warning: #include outside of 'Included Files' section
+app/bk7258/bk7258_display_job_service.h:12:80: error: Long line found

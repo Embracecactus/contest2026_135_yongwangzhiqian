@@ -1,0 +1,2 @@
+["/tmp/shaniu-contract-7a9b67a_/config/test", "wifi-reopen", "/tmp/shaniu-contract-7a9b67a_/CFG-01.wifi-clears-cloud/private", "/tmp/shaniu-contract-7a9b67a_/public-ca.der", "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/resources/shaniu/scp1-wifi.hex"]
+test: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_shaniu_config_contract.c:293: main: Assertion `bkcloud_config_decode(&cloud, actual.cloud, actual.cloud_size) == 0' failed.

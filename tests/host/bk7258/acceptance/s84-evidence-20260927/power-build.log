@@ -1,0 +1,10 @@
+make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'
+cc -std=gnu11 -Wall -Wextra -Werror -O2 -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_shaniu_power_contract.c -o build/test_shaniu_power_contract
+In file included from test_shaniu_power_contract.c:145:
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product_power.inc: In function ‘product_keys_step’:
+/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_agent_product_power.inc:254:42: error: suggest parentheses around ‘&&’ within ‘||’ [-Werror=parentheses]
+  254 |           if (usb < 0 && (usb != -EAGAIN && usb != -EBUSY || error == 0))
+      |                                          ^
+cc1: all warnings being treated as errors
+make: *** [Makefile:1829: build/test_shaniu_power_contract] Error 1
+make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'

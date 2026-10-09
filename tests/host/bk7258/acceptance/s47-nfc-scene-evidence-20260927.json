@@ -1,0 +1,313 @@
+{
+  "slice": "S47",
+  "date": "2026-09-27",
+  "parent": "0c5b543dffcbd35aba8f6cc451282994cd68d0e0",
+  "scope": "Real NFC observation/binding/focus service integration; no worker caller or automatic RF sampling yet",
+  "counts": {
+    "PASS": 233,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 163,
+      "counts": {
+        "PASS": 163,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "existing_mutations": [
+    {
+      "id": "MSC-01.early-release",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.007706261007115245,
+      "source": "app/bk7258/bk7258_media_volume.c",
+      "original_sha256": "58ebb18ae63adccf21262253da18f153bbb7c680cc0b64719ca20e8a6d9681c8",
+      "mutant_sha256": "bf298373a95ac54d5587f93ece34a30a7f661a65a969c69db9e27c6570770c57",
+      "expected_assertion": "!mounted",
+      "evidence": "MSC-01.early-release.log"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.031945396040100604,
+      "source": "app/bk7258/bk7258_provision_config.c",
+      "original_sha256": "98f5100ca49ca44e45fe3e5da4bb2da0add7466f0e357a205ca8b1e307a5818e",
+      "mutant_sha256": "4c0c615b8ffc99247b0fd91bd934d3df0409a1180769cb939b2820f9e6f69427",
+      "expected_assertion": "bkcloud_config_decode",
+      "evidence": "CFG-01.wifi-clears-cloud.log"
+    }
+  ],
+  "added_mutations": [
+    {
+      "id": "unknown-rearms",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "restore": "PASS",
+      "mutant_sha256": "ee2fef7d878b2c79e6e8bedc4ff26da0656414a8ddc5b2b8c078d4620a64d090"
+    },
+    {
+      "id": "old-absence-rearms",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "restore": "PASS",
+      "mutant_sha256": "654d421cb52b8245fc77cf0ccc4fdf0f77cf9dec0aefa51914d228265fa80c54"
+    }
+  ],
+  "direct_cases": [
+    {
+      "id": "NFC-02.scene-dwell",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.016682507004588842
+    },
+    {
+      "id": "NFC-02.scene-unknown",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.015059552970342338
+    },
+    {
+      "id": "NFC-02.scene-stale",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.01696494297357276
+    },
+    {
+      "id": "NFC-02.scene-gate",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.014967277005780488
+    },
+    {
+      "id": "NFC-02.scene-busy",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.01710053998976946
+    },
+    {
+      "id": "NFC-02.scene-binding",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.015791730023920536
+    },
+    {
+      "id": "NFC-02.scene-invalid",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.01617168798111379
+    }
+  ],
+  "prior_runner_counts": {
+    "PASS": 226,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 7,
+    "NOT_RUN": 0
+  },
+  "setup_correction": "Added CONTRACT_PASS only after all assertions; first seven SETUP_ERROR logs kept, no weakened expectations",
+  "sha256": {
+    "app/bk7258/bk7258_nfc_scene.c": "3430e6ac3b6bd6db9744313dd4b92e3df12f3fd4ea39924e67e483ed733ab080",
+    "app/bk7258/bk7258_nfc_scene.h": "3ab4d4ce3d4af534cbc19fd93427e3432f353b5090a6447222d4db5ac256e797",
+    "app/bk7258/CMakeLists.txt": "873e5b0be3ea4bd42975908b64a4411ef34e4c5b9f730fafbdf3ca30f626eb19",
+    "tests/host/bk7258/test_shaniu_nfc_scene.c": "bd204de29d2b97cf5c7227a92180adb937915e413aa312f688c58be16f2550bb",
+    "tests/host/bk7258/Makefile": "4a9127f6b62136d3e8aa1373e57fd7785570072dbb9f1cf2d1532ab51aeb9227",
+    "tests/host/bk7258/test_shaniu_contracts.py": "6b32b30007e81309dfc3bf1bcc62e7d06caefc631e810dac37473d723c905fee",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "5062b170ce85b2de80105beec0dd8021e9382c4572c6a5ac52adf2ac3b1b173d"
+  },
+  "logs": {
+    "build-host.log": {
+      "sha256": "7332faa626a084c7f49a12045567b9e7cb319230882a067122e83f7b63542a2c",
+      "tail": [
+        "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'",
+        "cc -std=gnu11 -Wall -Wextra -Werror -O2 -pthread -I mocks -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 \\",
+        "  -I /home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/include -I /home/lijian/project/open-vela/apps/netutils/cjson/cJSON \\",
+        "  test_shaniu_nfc_scene.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_scene.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_bindings.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_core.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_store.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus.c /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_focus_intent.c /home/lijian/project/open-vela/apps/netutils/cjson/cJSON/cJSON.c build/voice-ota-store-mbedtls/library/libmbedcrypto.a -o build/test_shaniu_nfc_scene",
+        "make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'"
+      ]
+    },
+    "dwell.log": {
+      "sha256": "8a967ff2c9fbc48305a27392d722462801455a449f0826fc9542647e48430a40",
+      "tail": [
+        "PASS NFC scene real binding + focus mailbox"
+      ]
+    },
+    "contracts.log": {
+      "sha256": "87576cafc169e23f69e0701b78c49aed7d8e376cfd81e86ea059e1022ee04dac",
+      "tail": [
+        "unittest.case.FunctionTestCase (run)",
+        "MSC-01.restored ... ok",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 2 tests in 0.066s",
+        "",
+        "OK",
+        "{\"PASS\": 226, \"FAIL_ASSERTION\": 0, \"SETUP_ERROR\": 7, \"NOT_RUN\": 0} production_unchanged= True"
+      ]
+    },
+    "binding.log": {
+      "sha256": "8a967ff2c9fbc48305a27392d722462801455a449f0826fc9542647e48430a40",
+      "tail": [
+        "PASS NFC scene real binding + focus mailbox"
+      ]
+    },
+    "invalid.log": {
+      "sha256": "8a967ff2c9fbc48305a27392d722462801455a449f0826fc9542647e48430a40",
+      "tail": [
+        "PASS NFC scene real binding + focus mailbox"
+      ]
+    },
+    "busy.log": {
+      "sha256": "8a967ff2c9fbc48305a27392d722462801455a449f0826fc9542647e48430a40",
+      "tail": [
+        "PASS NFC scene real binding + focus mailbox"
+      ]
+    },
+    "unknown-rearms-build.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tail": []
+    },
+    "old-absence-rearms-restore.log": {
+      "sha256": "8a967ff2c9fbc48305a27392d722462801455a449f0826fc9542647e48430a40",
+      "tail": [
+        "PASS NFC scene real binding + focus mailbox"
+      ]
+    },
+    "gate.log": {
+      "sha256": "8a967ff2c9fbc48305a27392d722462801455a449f0826fc9542647e48430a40",
+      "tail": [
+        "PASS NFC scene real binding + focus mailbox"
+      ]
+    },
+    "unknown-rearms.log": {
+      "sha256": "ad8a754864ce232e8038c0ad9204adc96b1283ad654adaf8523f658be1ecf383",
+      "tail": [
+        "unknown-rearms: test_shaniu_nfc_scene.c:47: main: Assertion `sample(3,2,true)==-EALREADY && id==0' failed."
+      ]
+    },
+    "interface-missing.log": {
+      "sha256": "948d93932abbcf54d9d939de04bff88735cf4ddd3a9c0a40ea37f03125a408aa",
+      "tail": [
+        "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'",
+        "make: *** No rule to make target '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_nfc_scene.c', needed by 'build/test_shaniu_nfc_scene'.  Stop.",
+        "make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'"
+      ]
+    },
+    "unknown-rearms-restore.log": {
+      "sha256": "8a967ff2c9fbc48305a27392d722462801455a449f0826fc9542647e48430a40",
+      "tail": [
+        "PASS NFC scene real binding + focus mailbox"
+      ]
+    },
+    "target-size.log": {
+      "sha256": "c5e2e5f8dab9af9c6378c67a0d44ea78006dd5721d454c07eb81bc789624feac",
+      "tail": [
+        "   text\t   data\t    bss\t    dec\t    hex\tfilename",
+        "    236\t      0\t      0\t    236\t     ec\t/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/apps/CMakeFiles/apps.dir/system/bk7258/bk7258_nfc_scene.c.o"
+      ]
+    },
+    "contracts-final.log": {
+      "sha256": "d6bd1158ec315779303d7636011a7d29c099d8cb862a62ac4dce584c222b6187",
+      "tail": [
+        "unittest.case.FunctionTestCase (run)",
+        "MSC-01.restored ... ok",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 2 tests in 0.066s",
+        "",
+        "OK",
+        "{\"PASS\": 233, \"FAIL_ASSERTION\": 0, \"SETUP_ERROR\": 0, \"NOT_RUN\": 0} production_unchanged= True"
+      ]
+    },
+    "verify-manifest.log": {
+      "sha256": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac",
+      "tail": [
+        "bk7258 verify build-manifest: PASS boot=mcuboot board=aidk_ai_toy layout=bk7258-510173147382a879 source=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    },
+    "old-absence-rearms.log": {
+      "sha256": "2d78f0bfb8194cd40f5cd3ac2680a7ce59dba9184c3e54a00015cb2be6362142",
+      "tail": [
+        "old-absence-rearms: test_shaniu_nfc_scene.c:52: main: Assertion `bknfc_scene_observe(&scene,&bindings,6,200,1,NULL,true,&id)==-ESTALE' failed."
+      ]
+    },
+    "build-target.log": {
+      "sha256": "3703d1eda1a59d7215a58628c629d5005e02f16dbfb5d5b87f864d1b6917f068",
+      "tail": [
+        "#### build completed successfully (3 seconds) ####",
+        "bk7258 layer gate: PASS sources=528 kconfig=253 legacy-exceptions=2",
+        "bk7258 build: PASS layout=bk7258-510173147382a879",
+        "bl1 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.map",
+        "bl2 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.map copy_size=13632",
+        "cp elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.map identity=bk7258-role-9a0b5b6e466d063f seed=41811cb113e14cd5ce35630f0a6d42f0d32f88a10c512bb971734bce9a28c016 config=dd503376e1b5436c9221274dc5a9ff86bf2e49660dfad4d306292e1113d82bed",
+        "ap elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.map identity=bk7258-role-5a3061a4da19ae9f seed=9507a2073a35e2970300a150395dc4d8c48458a68cb24412497ab54c714a7fec config=4e73b6c67a5176a8136b7c46a43c46329f7ef19e5ec74e626937d64bdeddfcee",
+        "build manifest=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    },
+    "stale.log": {
+      "sha256": "8a967ff2c9fbc48305a27392d722462801455a449f0826fc9542647e48430a40",
+      "tail": [
+        "PASS NFC scene real binding + focus mailbox"
+      ]
+    },
+    "target-symbols.log": {
+      "sha256": "a7fc1b59a3b661c15dd1291776808710644e5097fbbb5593af803b04c1c6d036",
+      "tail": [
+        "         U bkfocus_intent_submit",
+        "         U bknfc_bindings_lookup",
+        "         U bknfc_card_valid",
+        "00000000 T bknfc_scene_init",
+        "00000000 T bknfc_scene_observe",
+        "         U memset"
+      ]
+    },
+    "unknown.log": {
+      "sha256": "8a967ff2c9fbc48305a27392d722462801455a449f0826fc9542647e48430a40",
+      "tail": [
+        "PASS NFC scene real binding + focus mailbox"
+      ]
+    },
+    "old-absence-rearms-build.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tail": []
+    }
+  },
+  "layers": {
+    "L1_L2": "7 new real store/mailbox/timer cases; total233 including original63",
+    "target": "AP object compiled, build and manifest PASS; not evidence of a runtime caller",
+    "interface": "Serial observation contract available, absence cannot be inferred from GET_PICC_UID failure",
+    "L3": "NOT_RUN"
+  },
+  "remaining": [
+    "actual worker caller",
+    "reliable absence vs RF error distinction",
+    "sampling admission and quiesce",
+    "autonomous binding loading",
+    "bounded RF schedule and measured resource budgets",
+    "real card and shared focus vertical acceptance"
+  ],
+  "hardware_actions": []
+}

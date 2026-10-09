@@ -96,7 +96,7 @@ static bool bkvoice_config_der_item(const uint8_t *der, size_t size,
   return true;
 }
 
-static bool bkvoice_config_pkcs8_valid(const uint8_t *der, size_t size)
+static bool bkvoice_config_private_der_valid(const uint8_t *der, size_t size)
 {
   size_t outer_header;
   size_t outer_content;
@@ -116,6 +116,19 @@ static bool bkvoice_config_pkcs8_valid(const uint8_t *der, size_t size)
                                 &item_header, &item_content))
     {
       return false;
+    }
+
+  /* Native P-256 generation uses mbedtls_pk_write_key_der (SEC1).
+   * Historical provisioners use PKCS#8.  Both still undergo full Mbed TLS
+   * parsing and certificate/key pair verification below; no key is replaced.
+   */
+
+  if (item_content == 1 && der[offset + item_header] == 1)
+    {
+      offset += item_header + item_content;
+      return bkvoice_config_der_item(der + offset, size - offset, 0x04,
+                                    &item_header, &item_content) &&
+             item_content == 32;
     }
 
   offset += item_header + item_content;
@@ -286,7 +299,7 @@ static int bkvoice_config_parse(struct bkvoice_config_s *config,
       return -EINVAL;
     }
 
-  if (!bkvoice_config_pkcs8_valid(key, key_length))
+  if (!bkvoice_config_private_der_valid(key, key_length))
     {
       return -EPROTO;
     }

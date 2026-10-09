@@ -6,6 +6,34 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DeviceControlProtocolTest {
+    @Test fun applicationReadbackAcceptsOnlyTwoOptionalKindSevenFragments() {
+        val sent = mutableListOf<ByteArray>()
+        val states = mutableListOf<DeviceControlProtocol.Snapshot>()
+        val protocol = DeviceControlProtocol(ByteArray(32) { 42 }, { sent += it.copyOf() }, { _, s -> states += s })
+        protocol.start(); protocol.receive(response(sent.last()))
+        for (offset in listOf(0x8000, 0x8010)) {
+            assertTrue(protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_READ, be32((7 shl 16) or offset)))
+            protocol.receive(response(sent.last(), flags = 32))
+            assertEquals(32, states.last().configChunk!!.totalLength)
+        }
+        protocol.close()
+    }
+
+    @Test fun authenticatedScanReadAcceptsBoundedRecordsButCannotWriteScanKind() {
+        val sent = mutableListOf<ByteArray>()
+        val states = mutableListOf<DeviceControlProtocol.Snapshot>()
+        val protocol = DeviceControlProtocol(ByteArray(32) { 42 }, { sent += it.copyOf() }, { _, s -> states += s })
+        protocol.start(); protocol.receive(response(sent.last()))
+        assertTrue(protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_READ, be32(8 shl 16)))
+        protocol.receive(response(sent.last(), flags = 876))
+        assertEquals(876, states.last().configChunk!!.totalLength)
+        assertThrows(IllegalArgumentException::class.java) {
+            protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN,
+                ByteBuffer.allocate(8).putInt(8).putInt(12).array())
+        }
+        protocol.close()
+    }
+
     private fun response(request: ByteArray, error: Int = 0, flags: Int = 0,
                          volume: Int = -1, persona: Int = -1, turn: Int = -1,
                          runtimeError: Int = 0) =
@@ -273,5 +301,106 @@ class DeviceControlProtocolTest {
         val failed = DeviceControlProtocol(ByteArray(32) { 1 }, { borrowed = it; error("send failed") }, { _, _ -> })
         assertThrows(IllegalStateException::class.java) { failed.start() }
         assertTrue(failed.closed && borrowed!!.all { it == 0.toByte() })
+    }
+
+    @Test fun eyeApplyAllowsInstallationThenRestoresOrdinaryCommandDeadline() {
+        var now = 0L
+        val sent = mutableListOf<ByteArray>()
+        val protocol = DeviceControlProtocol(ByteArray(32) { 1 },
+            { sent += it.copyOf() }, { _, _ -> }, { now })
+        protocol.start(); protocol.receive(response(sent.last()))
+        protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN,
+            ByteBuffer.allocate(8).putInt(5).putInt(44).array())
+        protocol.receive(response(sent.last()))
+        protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_APPEND, ByteArray(44))
+        protocol.receive(response(sent.last()))
+        protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_APPLY, ByteArray(0))
+        now = 10_000
+        protocol.tick()
+        assertFalse(protocol.closed)
+        assertFalse(protocol.request(DeviceControlProtocol.Command.STATUS))
+        now = 29_999
+        protocol.receive(response(sent.last()))
+        assertFalse(protocol.closed)
+        assertTrue(protocol.request(DeviceControlProtocol.Command.STATUS))
+        now += 10_000
+        assertThrows(DeviceControlProtocol.ControlTimeout::class.java) { protocol.tick() }
+        assertTrue(protocol.closed)
+        assertEquals(5, sent.size) // No replay of the completed installation.
+    }
+
+    @Test fun eyeApplyStillHasAHardDeadlineWithoutReplay() {
+        var now = 0L
+        val sent = mutableListOf<ByteArray>()
+        val protocol = DeviceControlProtocol(ByteArray(32) { 1 },
+            { sent += it.copyOf() }, { _, _ -> }, { now })
+        protocol.start(); protocol.receive(response(sent.last()))
+        protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN,
+            ByteBuffer.allocate(8).putInt(5).putInt(44).array())
+        protocol.receive(response(sent.last()))
+        protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_APPEND, ByteArray(44))
+        protocol.receive(response(sent.last()))
+        protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_APPLY, ByteArray(0))
+        now = 30_000
+        assertThrows(DeviceControlProtocol.ControlTimeout::class.java) { protocol.tick() }
+        assertTrue(protocol.closed)
+        assertEquals(4, sent.size)
+    }
+
+    @Test fun onlyAnAcceptedEyeTransactionExtendsApplyDeadline() {
+        for (scenario in 0..4) {
+            var now = 0L
+            val sent = mutableListOf<ByteArray>()
+            val protocol = DeviceControlProtocol(ByteArray(32) { 1 },
+                { sent += it.copyOf() }, { _, _ -> }, { now })
+            protocol.start(); protocol.receive(response(sent.last()))
+            val kind = if (scenario == 0) 1 else 5
+            protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN,
+                ByteBuffer.allocate(8).putInt(kind).putInt(44).array())
+            protocol.receive(response(sent.last(), error = if (scenario == 1) -16 else 0))
+            if (scenario >= 2) {
+                if (scenario >= 3) {
+                    protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_APPEND, ByteArray(44))
+                    protocol.receive(response(sent.last()))
+                }
+                val command = if (scenario == 2) DeviceControlProtocol.Command.CONFIG_CANCEL
+                    else DeviceControlProtocol.Command.CONFIG_APPLY
+                protocol.requestPayload(command, ByteArray(0))
+                protocol.receive(response(sent.last(), error = if (scenario == 4) -110 else 0))
+            }
+            protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_APPLY, ByteArray(0))
+            now = 10_000
+            assertThrows(DeviceControlProtocol.ControlTimeout::class.java) { protocol.tick() }
+            assertTrue(protocol.closed)
+        }
+    }
+
+    @Test fun incompleteEyeApplyRetainsItsBudgetButAppendDoesNotExtendItsDeadline() {
+        for (apply in listOf(false, true)) {
+            var now = 0L
+            val sent = mutableListOf<ByteArray>()
+            val protocol = DeviceControlProtocol(ByteArray(32) { 1 },
+                { sent += it.copyOf() }, { _, _ -> }, { now })
+            protocol.start(); protocol.receive(response(sent.last()))
+            protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN,
+                ByteBuffer.allocate(8).putInt(5).putInt(44).array())
+            protocol.receive(response(sent.last()))
+            protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_APPLY, ByteArray(0))
+            protocol.receive(response(sent.last(), error = -61))
+            protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_APPEND, ByteArray(44))
+            if (apply) {
+                protocol.receive(response(sent.last()))
+                protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_APPLY, ByteArray(0))
+                now = 10_000
+                protocol.tick()
+                assertFalse(protocol.closed)
+                protocol.receive(response(sent.last()))
+                protocol.close()
+            } else {
+                now = 10_000
+                assertThrows(DeviceControlProtocol.ControlTimeout::class.java) { protocol.tick() }
+                assertTrue(protocol.closed)
+            }
+        }
     }
 }

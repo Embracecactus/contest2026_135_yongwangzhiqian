@@ -57,6 +57,14 @@ int bkvoice_media_source_apply_active(void)
                                  MEDIA_POLICY_APPLY);
 }
 
+int bkvoice_media_source_prepare_warm(const char *source)
+{
+  int ret = bkvoice_media_source_stage_active(source);
+  if (ret < 0) return ret;
+  return media_policy_set_string(BKVOICE_MEDIA_CAPTURE_LIFECYCLE, "Warm",
+                                 MEDIA_POLICY_APPLY);
+}
+
 int bkvoice_media_source_set_active(const char *source, bool active)
 {
   char name[96];

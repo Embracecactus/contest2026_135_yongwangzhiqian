@@ -1,0 +1,5 @@
+make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'
+make: 'build/test_display_upload' is up to date.
+./build/test_bk7258_display_pack build/shaniu-default-v1.bkep
+BKDISPLAY_PACK_HOST_PASS
+make: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'

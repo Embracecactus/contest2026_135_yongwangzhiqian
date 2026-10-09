@@ -1,0 +1,8 @@
+{
+  "mutation": "remove expected-revision guard",
+  "status": "DETECTED",
+  "exit": -6,
+  "restored_exit": 0,
+  "source_sha256": "0ab8e1792a007e04decb32c57f519fedf8800cd6a76623ff2c4d11393336f00b",
+  "mutant_sha256": "ea3de96c870cdd4e28aebf0ecc8696d1cb1cf05ed422ed220d50d78d25a22412"
+}

@@ -1,0 +1,23 @@
+[0/2] Re-checking globbed directories...
+[1/21] Generating bin output directories
+[2/21] cd /home/lijian/project/open-vela/nuttx && /home/lijian/project/open-vela/prebuilts/tools/cmake/bin/cmake -DKCONFIG_CONFIG=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/configs/mcuboot/ap/defconfig -DNUTTX_DIR=/home/lijian/project/open-vela/nuttx -DCMAKE_BINARY_DIR=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake -P /home/lijian/project/open-vela/nuttx/cmake/nuttx_generate_dts.cmake
+[3/21] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_display_trial_control.c.o
+[4/21] cd /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/apps && cmake --build /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/bin_host --target incdir
+[100%] Built target incdir
+[5/21] cd /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/apps && cmake --build /home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/bin_host --target mkdeps
+Built target mkdeps
+[6/21] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_display_job.c.o
+[7/21] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_display_store.c.o
+[8/21] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_display_job_service.c.o
+[9/21] Performing build step for 'ffmpeg_out_tree'
+[10/21] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_display_rpc_core.c.o
+[11/21] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_display_job_control.c.o
+[12/21] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_display_service.c.o
+[13/21] Performing install step for 'ffmpeg_out_tree'
+[14/21] Completed 'ffmpeg_out_tree'
+[15/21] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_provision_bootstrap.c.o
+[16/21] Building C object apps/CMakeFiles/apps.dir/system/bk7258/bk7258_vision_service.c.o
+[17/21] Linking CXX static library apps/libapps.a
+[18/21] Linking CXX executable nuttx
+[19/21] Generating nuttx.bin
+[20/21] Generating System.map

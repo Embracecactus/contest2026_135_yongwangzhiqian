@@ -1,0 +1,13 @@
+test_cancel_is_intent_not_remote_completion (__main__.WebTest) ... ok
+test_http_authority_rejects_before_operation (__main__.WebTest) ... ok
+test_http_upload_reaches_tls_and_native_installer (__main__.WebTest) ... {"fixture": "synthetic-workbench-tls", "certificate_sha256": "b409b87c677f5dacea9650b055ee83da8ce73220edb7016a3f3ee629438ae529", "alternate_certificate_sha256": "9aded3ead7a56b197ed79cf7c0d7213784d46379e10aa86df6581b8033fe0430", "openssl": "OpenSSL 3.0.2 15 Mar 2022"}
+ok
+test_invalid_upload_does_not_open_device (__main__.WebTest) ... ok
+test_large_counters_preserve_exact_value (__main__.WebTest) ... ok
+test_page_headers_and_no_credential_paths (__main__.WebTest) ... ok
+test_polling_is_local_and_duplicate_is_not_replayed (__main__.WebTest) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 3.830s
+
+OK

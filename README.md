@@ -1,5 +1,9 @@
 # BK7258 × openvela：三核平台适配与傻妞 AI 伴侣
 
+> **当前交付入口：** 下方“独立开发构建”使用新生成的开发发布身份，和设备首启
+> TLS 身份、Android 安装签名、云 API 凭据彼此独立。后续赛事期旧流程是历史记录，
+> 不能用其手工供给或旧实机结果代替当前候选验收。
+
 [English](README_EN.md) · [参赛技术报告](docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md) · [板级配置](boards/bk7258/CONFIGS.md) · [实际验收与待办](docs/platforms/bk7258/shaniu-master-plan.md)
 
 一套 BK7258 芯片适配，三块开发板，两个独立 NuttX 镜像：CPU0 运行 CP，
@@ -10,6 +14,52 @@ AIToyBoard 运行可独立语音交互的 AI 伴侣「傻妞」。
 比赛仓库是 [open-vela/contest2026_135_yongwangzhiqian](https://github.com/open-vela/contest2026_135_yongwangzhiqian)；
 开发 fork 不是另一个参赛项目。
 
+## Android 设备应用（0.7.6 / code 36）
+
+主导航为 **设备｜定制｜更新｜设置**。设备页默认打开；认领无需互联网，
+Wi-Fi 与云模型独立编辑。密码和 Key 不回读、不写入界面保存状态。
+定制页集中唤醒模型和眼睛资源；上传、安装、生效仍以设备回读为准。
+
+界面使用 Material 3 View 组件、系统字体、4/8dp 间距和浅/深色语义颜色。
+采用 [Insta360 的设备连接入口](https://onlinemanual.insta360.com/app/en-us/operation-tutorial/camera-connection/connect-the-camera-to-the-insta360-app)
+和 [DJI Mimo 的升级条件与恢复提示](https://repair.dji.com/help/content?customId=en-us03400006836&lang=en&re=US&spaceId=34)
+的交互原则，不复制品牌素材、联网激活限制或商业模块；导航分组参考
+[Apple 导航指南](https://developer.apple.com/design/human-interface-guidelines/navigation-and-search)
+与 [Material 3](https://m3.material.io/components/navigation-bar/overview)。
+
+在 `android/shaniu-companion` 执行本轮已运行的构建入口：
+
+```bash
+./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :app:testDebugUnitTest
+```
+
+Windows Android 模拟器已运行此 APK，并实际操作导航、键盘和表单。
+既有 instrumentation 的 `ui_gallery=1` 场景仅在测试 APK 中注入公开模拟状态，
+截图标明“模拟状态”，不生成 owner、不连接实板，也不出现在正常 App 中。
+`ui_probe=1` 保留 Keystore、TLS 和 OTA 最终版本核对断言。
+模拟器检查不能替代圆屏扫码、真实 BLE、App OTA 安装或实际听音。
+
+设备发现使用 App 前台内的连续卡片，广播候选不代表已认证；新设备仍须扫码，
+已认领设备复用原认证会话。设置表单保留固定保存入口，支持 200% 字体和键盘。
+恢复出厂入口通过已认证控制提交持久撤销，结果不明时保留旧凭据与非秘密事务
+定位符，仅查询回执；设备确认且本机绑定清理成功后才删除定位符。该生产流程
+已接通，主机/模拟器检查不等于实际多介质清理和重新扫码已通过。
+普通 K2 关机不撤销 owner，也没有“K2 五秒恢复出厂”的含义。
+当前仍有软件缺口：TTS 已有有界 PCM 队列，
+有效正文首句流水线尚未实现。不能把这些项目标成“只差现场”，
+也不能把 PCM 预缓冲当成首句延迟已经达标。
+
+649 启动 OOM 的后续修复及 RAM 预算见
+[启动修复候选](docs/verification/bk7258/2026-09-23-cp-startup-repair.md)。
+本轮不无人值守刷板；新候选的启动、K2 睡眠/再开机仍需现场验证，649 仅作诊断。
+
+更新页仅接收普通 OTA `.bkpack`，不能导入工厂全量软件包或 `factory.bin`。
+本地检查证明包格式与内容哈希；签名、布局和防回滚仍由设备正式校验。
+更新时保持 App 前台：BLE 提交来源记录，设备通过局域网 HTTPS 拉取镜像。
+下载结束不代表成功；重连同一设备并核对版本/计数后才显示完成。
+进程中断后先查询结果，不自动重新发起安装。新开发签名的工厂包
+不自动成为旧板可接受的 OTA 包。
+
 ## 先看实机演示
 
 [![三块开发板与傻妞实机演示](docs/contest/assets/demo-cover.jpg)](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-demo.mp4)
@@ -18,6 +68,7 @@ AIToyBoard 运行可独立语音交互的 AI 伴侣「傻妞」。
 · [App 操作补充视频（1 分 26 秒）](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-app-demo.mp4)
 · [视频下载、字幕及哈希](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/tag/shaniu-demo-20260920)
 · [B 站实机演示 BV1pueq6hEzQ](https://www.bilibili.com/video/BV1pueq6hEzQ/)
+· [抖音：猪猪猪序员｜终于，把属于我的「傻妞」做出来了](https://v.douyin.com/KPDrc4IEQYw/)
 
 同一支实机演示的 B 站入口：<https://www.bilibili.com/video/BV1pueq6hEzQ/>。
 GitHub 渲染 README 时会剥离 `<iframe>`，所以仓库页以上面的链接观看；需要内嵌播放器的
@@ -77,9 +128,113 @@ tag 指向合并提交 `6a8a3e55`），fork 与官方仓两份资产 SHA256 一�
 `payloads/persistent_data.bin`（设备 TLS 身份私钥、本机配网凭据、云服务凭据），
 公开发布等于泄露这些凭据；需要可烧录整包的评委请按下一节用自己板子的整片读回物化。
 
-## 评审快速开始：从源码到首次完整运行
+## 独立开发构建（当前主入口）
 
-本节是**唯一主操作入口**；每项输入的来源、消费者、安装位置与成功判据见
+首次在自己的 Linux/openvela 工作区取得公开工程，使用仓库 manifest 锁定的
+依赖。准备 Python 3.10；以下命令不读取作者私钥、历史整片 base 或设备数据，需要网络下载公开的
+依赖、工具链和 SDK。首次选择 `identity init --development` 会在用户数据目录
+建立一对长期开发签名密钥（BL1 与 MCUboot 各一把，私钥不进入源码、构建目录或
+交付包）。再次执行会校验并复用，损坏时拒绝静默换根。这个身份不兼容已锁定
+在其他发布根上的板子；生产发行必须另用明确授权的长期身份。
+
+```bash
+repo init -u https://github.com/Embracecactus/contest2026_135_yongwangzhiqian.git \
+  -b dev-ai-contest-2026 -m contest2026_135_yongwangzhiqian.xml -g default,bk7258-sdk,platform-linux
+repo sync -j4 \
+  apps apps/audioutils/speexdsp/speexdsp \
+  apps/boot/mcuboot/mcuboot apps/crypto/mbedtls/mbedtls \
+  apps/graphics/lvgl/lvgl apps/math/gemmlowp/gemmlowp \
+  apps/math/kissfft/kissfft apps/math/ruy/ruy \
+  apps/mlearning/cmsis-nn/cmsis-nn \
+  apps/mlearning/tflite-micro/tflite-micro \
+  apps/netutils/cjson/cJSON apps/netutils/mqttc/MQTT-C \
+  apps/system/flatbuffers/flatbuffers build external \
+  external/ffmpeg/ffmpeg external/unqlite/unqlite \
+  contest2026_135_yongwangzhiqian \
+  frameworks frameworks/connectivity \
+  frameworks/connectivity/bluetooth frameworks/multimedia \
+  frameworks/multimedia/media frameworks/multimedia/media/pfw \
+  frameworks/system frameworks/system/topics \
+  frameworks/system/utils frameworks/system/vibrator \
+  nuttx nuttx/fs/fatfs/fatfs \
+  nuttx/fs/littlefs/littlefs nuttx/openamp/libmetal \
+  nuttx/openamp/open-amp packages packages/ai_agent \
+  prebuilts/build-tools/linux-x86_64 prebuilts/cmake/linux-x86_64 \
+  prebuilts/tools vendor vendor/beken vendor/beken/bk_avdk_smp
+cd contest2026_135_yongwangzhiqian
+python3 -m venv ../out/shaniu-python
+. ../out/shaniu-python/bin/activate
+python3 -m pip install --disable-pip-version-check --index-url https://pypi.org/simple \
+  -r tools/bk7258/sdk-python-requirements.txt
+python3 tools/bk7258/bk7258.py toolchain install
+python3 tools/bk7258/bk7258.py toolchain verify
+python3 tools/bk7258/bk7258.py sdk rebuild --profile cp-aidk --source ../vendor/beken/bk_avdk_smp --jobs 4
+python3 tools/bk7258/bk7258.py sdk rebuild --profile ap-aidk --source ../vendor/beken/bk_avdk_smp --jobs 4
+python3 tools/bk7258/bk7258.py sdk verify --profile cp-aidk
+python3 tools/bk7258/bk7258.py sdk verify --profile ap-aidk
+python3 tools/bk7258/bk7258.py identity init --development
+python3 tools/bk7258/bk7258.py build --board aidk_ai_toy --boot mcuboot \
+  --development-identity --rollback-floor 1 --jobs 4
+build_manifest=$(find ../out/bk7258/aidk_ai_toy -path '*/releases/mcuboot/build-manifest.json' -type f -print -quit)
+test -n "$build_manifest"
+python3 tools/bk7258/bk7258.py release full --build-manifest "$build_manifest" \
+  --development-identity --version 0.6.0+1 --product shaniu \
+  --artifact-id review-first-build --factory-init \
+  --output-dir ../out/shaniu-factory-software
+firmware_package=$(find ../out/shaniu-factory-software/package -name '*.bkpack' -type f -print -quit)
+python3 tools/bk7258/bk7258.py verify package --package "$firmware_package"
+python3 tools/bk7258/bk7258.py verify trust --package "$firmware_package" --openssl /usr/bin/openssl
+cd android/shaniu-companion
+./gradlew :app:assembleDebug :app:testDebugUnitTest
+```
+
+`release.json`、`.bkpack` 和 APK 是独立构建结果；无板卡时 `release.json` 明确写
+`same-device-hardware-data-required`，**没有可直接刷入任意板的 8 MiB BIN**。
+针对具体板的完整 BIN 还须在安全下载条件下取得/核验该板独有数据，并按正式
+工厂事务物化；不能使用作者旧 base、跨板复制校准值或填充未知区域。工厂部署
+后正常使用顺序是设备自主首启、屏幕显示认领码、App 离线扫码认领，再由已认证
+BLE 填写 Wi-Fi 和云配置；串口供给仅为旧版维修路径。旧 APK 已安装时先核对
+Android 签名，不能默认卸载或清掉 Keystore。K2 单独按住至少 3 秒并松手请求
+软关机，现场再按 K2 开机；无现场恢复手段不得远程尝试关机。
+
+云端冷构建由本仓库 `Shaniu cold delivery` 工作流执行：GitHub 托管的干净
+workspace 创建临时开发身份，完整编译并在独立 job 下载、校验公开交付物；
+不上传临时私钥或本板整片 BIN。普通第三方 fork 可自行启用 Actions。
+在自己的 fork 和本分支中，可用以下命令定位**本次提交、本次触发**的运行，
+而不是采用列表里不相关的最新结果（需先用 `gh auth status` 确认权限）：
+
+```bash
+target_sha=$(git rev-parse HEAD)
+started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+gh workflow run shaniu-source-checks.yml \
+  --repo Embracecactus/contest2026_135_yongwangzhiqian \
+  --ref dev-ai-contest-2026
+for attempt in $(seq 1 24); do
+  run_id=$(gh run list --repo Embracecactus/contest2026_135_yongwangzhiqian \
+    --workflow shaniu-source-checks.yml --limit 30 \
+    --json databaseId,headSha,event,createdAt |
+    jq -r --arg sha "$target_sha" --arg started "$started" \
+      '[.[] | select(.headSha == $sha and .event == "workflow_dispatch" and
+                     .createdAt >= $started)] | sort_by(.createdAt) | last |
+       .databaseId // empty')
+  test -n "$run_id" && break
+  sleep 5
+done
+test -n "$run_id"
+gh run watch "$run_id" --repo Embracecactus/contest2026_135_yongwangzhiqian --exit-status
+gh run view "$run_id" --repo Embracecactus/contest2026_135_yongwangzhiqian
+delivery_dir=$(mktemp -d)
+gh run download "$run_id" --repo Embracecactus/contest2026_135_yongwangzhiqian \
+  --name "shaniu-cold-delivery-$target_sha" --dir "$delivery_dir"
+(cd "$delivery_dir" && sha256sum -c SHA256SUMS.txt)
+```
+
+第三方 fork 运行时，把命令中的仓库名换成自己的 fork；临时 CI 签名只用于
+本次开发验证，后续维护须复用自己的持久开发身份或正式长期身份。
+
+## 历史赛事版评审流程（非当前候选操作入口）
+
+本节保留赛事期操作记录，**不是当前候选的操作入口**；当时每项输入的来源、消费者、安装位置与成功判据见
 [首次部署输入清单](docs/platforms/bk7258/first-deployment-inputs.md)（下称“输入清单”）。
 命令以 openvela 工作区为根目录执行，团队仓目录为 `contest2026_135_yongwangzhiqian/`。
 例子与已完成证据分开标注：**已实测**的步骤引用具体版本与哈希，**未实测**的步骤明确写出。
@@ -449,7 +604,7 @@ Wi-Fi / BT / Flash / OTA       官方 Agent / Session / Voice / Media
 不要把 T5AI-EVB 当作 T5-Board V1.0.2。**编译不需要连接或购买开发板**。
 三板历史实测各有边界，不能把 AIToyBoard 的产品演示推广到其他板。
 
-## 评审构建指南
+## 历史赛事评审构建指南（非当前候选操作入口）
 
 ### 发布状态与依赖身份
 
@@ -565,7 +720,7 @@ T5-Board 小海豚录音并保存 WAV 到 SD 卡**已获用户实板确认**，�
 ### 4. Android、模型与显示资源
 
 - [Android 工程与构建](android/shaniu-companion/README.md)：JDK 17、Android SDK 35，
-  当前源码版本 `0.5.23-shaniu-rebind` / code 28，Android 10+。
+  当前源码版本 `0.7.0-shaniu-companion` / code 30，Android 10+。
 - [模型训练与工具入口](tools/bk7258/README.md)：`voice kws audit/train/evaluate`；
   [内置模型元数据](app/bk7258/models/nihao_openvela.metadata.json)随仓库提供。
   TensorFlow 训练环境不是普通固件编译依赖。

@@ -1,0 +1,430 @@
+{
+  "slice": "S52",
+  "date": "2026-09-27",
+  "parent": "6e064f416bac57d88ee3de167342b70bf58c3565",
+  "counts": {
+    "PASS": 280,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "execution_groups": {
+    "original_63_including_restores": {
+      "collected": 63,
+      "counts": {
+        "PASS": 63,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "added": {
+      "collected": 217,
+      "counts": {
+        "PASS": 217,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    },
+    "restores_also_in_original_63": {
+      "collected": 2,
+      "counts": {
+        "PASS": 2,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      }
+    }
+  },
+  "new_cases": [
+    {
+      "id": "MOT-01.sensor-register",
+      "parent": "MOT-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.26429616601672024,
+      "evidence": "MOT-01.sensor-register.log",
+      "evidence_sha256": "b5d7a4ae6cf8cefc10ec507785d4e73bccbb831babe3133c948b1317b2d14b76"
+    },
+    {
+      "id": "MOT-01.sensor-inactive",
+      "parent": "MOT-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.2642709880019538,
+      "evidence": "MOT-01.sensor-inactive.log",
+      "evidence_sha256": "c55ba7344ffecd9f505f599dd2e044f15543bd9e562a9ee2da1c14dd5186f584"
+    },
+    {
+      "id": "MOT-01.sensor-invalid",
+      "parent": "MOT-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.26446794101502746,
+      "evidence": "MOT-01.sensor-invalid.log",
+      "evidence_sha256": "69e64adf126bb0b34093779bdb6aae16848815e0b772e40e412bb2f085932ae8"
+    },
+    {
+      "id": "MOT-01.sensor-not_ready",
+      "parent": "MOT-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.26432105497224256,
+      "evidence": "MOT-01.sensor-not_ready.log",
+      "evidence_sha256": "0b093b5fc6698d40cc9ca8a734fd00c02c61fa59e839abe2116092ad547765d7"
+    },
+    {
+      "id": "MOT-01.sensor-partial",
+      "parent": "MOT-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.26437800202984363,
+      "evidence": "MOT-01.sensor-partial.log",
+      "evidence_sha256": "b06dd218f2e41da3ea07829ac8c9c3ed2d21ef406208f5b3c3c81b77aa5ba532"
+    },
+    {
+      "id": "MOT-01.sensor-status_error",
+      "parent": "MOT-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.26443197700427845,
+      "evidence": "MOT-01.sensor-status_error.log",
+      "evidence_sha256": "1aaddc402dfd0e91034dd6d8d8771dad14bf9db86261cd49252bbc0f10bfe907"
+    },
+    {
+      "id": "MOT-01.sensor-data_error",
+      "parent": "MOT-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.2644619519705884,
+      "evidence": "MOT-01.sensor-data_error.log",
+      "evidence_sha256": "12d59872e866a56fc2e6fa72bf304ae5b894f1176ff89e51f716ebc2d768f15a"
+    },
+    {
+      "id": "MOT-01.sensor-fresh",
+      "parent": "MOT-01",
+      "layer": "L1",
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.2644172469736077,
+      "evidence": "MOT-01.sensor-fresh.log",
+      "evidence_sha256": "ecf4540d907c1d23908d5a8836dc7b433092cc51c0b3a9b50d6ee6198a40f41a"
+    }
+  ],
+  "baseline": {
+    "PASS": 2,
+    "FAIL_ASSERTION": 6,
+    "SETUP_ERROR": 0,
+    "note": "C assert abort surfaced as unittest CalledProcessError; compiled and executed production driver, not missing API/setup failure"
+  },
+  "runner_gate": {
+    "tests": 13,
+    "status": "PASS"
+  },
+  "mutations": [
+    {
+      "id": "ignore-ready",
+      "status": "DETECTED",
+      "restored": "PASS",
+      "mutant_sha256": "84fe588bdc385de7f74606b86fe9ad49814f71bff049fe8a43235eade0d4b297",
+      "original_sha256": "5c965dff3fb5d1749d8cbf6d026486692cccfb2fca398c15a1440952b235ba74"
+    },
+    {
+      "id": "disable-bdu",
+      "status": "DETECTED",
+      "restored": "PASS",
+      "mutant_sha256": "a8993cca683a6ef5f37d70ca62ec3a40bd77bb88effc668d25273b5d65299bfa",
+      "original_sha256": "5c965dff3fb5d1749d8cbf6d026486692cccfb2fca398c15a1440952b235ba74"
+    }
+  ],
+  "existing_mutations": [
+    {
+      "id": "MSC-01.early-release",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.007738404965493828,
+      "source": "app/bk7258/bk7258_media_volume.c",
+      "original_sha256": "58ebb18ae63adccf21262253da18f153bbb7c680cc0b64719ca20e8a6d9681c8",
+      "mutant_sha256": "bf298373a95ac54d5587f93ece34a30a7f661a65a969c69db9e27c6570770c57",
+      "expected_assertion": "!mounted",
+      "evidence": "MSC-01.early-release.log"
+    },
+    {
+      "id": "CFG-01.wifi-clears-cloud",
+      "status": "DETECTED",
+      "exit_code": -6,
+      "seconds": 0.11411604098975658,
+      "source": "app/bk7258/bk7258_provision_config.c",
+      "original_sha256": "98f5100ca49ca44e45fe3e5da4bb2da0add7466f0e357a205ca8b1e307a5818e",
+      "mutant_sha256": "4c0c615b8ffc99247b0fd91bd934d3df0409a1180769cb939b2820f9e6f69427",
+      "expected_assertion": "bkcloud_config_decode",
+      "evidence": "CFG-01.wifi-clears-cloud.log"
+    }
+  ],
+  "inputs": {
+    "nuttx/drivers/sensors/sc7a20.c": "5c965dff3fb5d1749d8cbf6d026486692cccfb2fca398c15a1440952b235ba74",
+    "nuttx/include/nuttx/sensors/sc7a20.h": "918e8294102f689c2032c11d1a2f249105fa61719db07f6bb7e51e5277a11f69",
+    "tests/host/bk7258/test_sc7a20_sampling.py": "7a42946899465e936f513b0383bec48e32769e55092d43f86d558e58dae16384",
+    "tests/host/bk7258/test_shaniu_contracts.py": "e52c134fda2b3e8ad59469922781d2c2b02ee3522e04a1297c3a3e0ba5913a88",
+    "tests/host/bk7258/acceptance/required-units.v1.json": "8fb80f067abc374c0c9deeb04839d5211c7afdf38076b09a71eadf8c86a25175",
+    "contest2026_135_yongwangzhiqian.xml": "652f48eeaecb8bae58490a26b6a5bfc08bbb08a0084caf4c6fb4b8a0fd06bb48"
+  },
+  "logs": {
+    "black-after.log": {
+      "sha256": "1a56c7cd8457fd05d978cfbd139d7bfd86e86acaa9b57668e718ef8bccc0cf48",
+      "tail": [
+        "All done! ✨ 🍰 ✨",
+        "1 file would be left unchanged."
+      ]
+    },
+    "black-before.log": {
+      "sha256": "f45c410c8afc9fa0bdb0c3a775f2754d2f85017c6217973fde6dc619159035a0",
+      "tail": [
+        "would reformat tests/host/bk7258/test_sc7a20_sampling.py",
+        "",
+        "Oh no! 💥 💔 💥",
+        "1 file would be reformatted."
+      ]
+    },
+    "build-target.log": {
+      "sha256": "8e96312ff29fc57e8904178e06246090f7943f03e9d74beaa0485da5ac33e5da",
+      "tail": [
+        "[10/13] Linking CXX executable nuttx",
+        "[11/13] Generating nuttx.bin",
+        "[12/13] Generating System.map",
+        "",
+        "#### build completed successfully (1 seconds) ####",
+        "bk7258 layer gate: PASS sources=528 kconfig=253 legacy-exceptions=2",
+        "bk7258 build: PASS layout=bk7258-510173147382a879",
+        "bl1 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl1/bl.map",
+        "bl2 elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.elf bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/bl2/bl2.map copy_size=13632",
+        "cp elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.map identity=bk7258-role-9a0b5b6e466d063f seed=41811cb113e14cd5ce35630f0a6d42f0d32f88a10c512bb971734bce9a28c016 config=dd503376e1b5436c9221274dc5a9ff86bf2e49660dfad4d306292e1113d82bed",
+        "ap elf=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx bin=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.bin map=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/roles/mcuboot/ap/bk7258-role-5a3061a4da19ae9f/cmake/nuttx.map identity=bk7258-role-5a3061a4da19ae9f seed=9507a2073a35e2970300a150395dc4d8c48458a68cb24412497ab54c714a7fec config=4e73b6c67a5176a8136b7c46a43c46329f7ef19e5ec74e626937d64bdeddfcee",
+        "build manifest=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    },
+    "contracts-final.log": {
+      "sha256": "7018d0f6a25b5bfe0974b737c753e93d13d6bcca4880d7f1e1918eb6812c2284",
+      "tail": [
+        "",
+        "OK",
+        "unittest.case.FunctionTestCase (run)",
+        "CFG-01.restored ... ok",
+        "unittest.case.FunctionTestCase (run)",
+        "MSC-01.restored ... ok",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 2 tests in 0.116s",
+        "",
+        "OK",
+        "{\"PASS\": 280, \"FAIL_ASSERTION\": 0, \"SETUP_ERROR\": 0, \"NOT_RUN\": 0} production_unchanged= True"
+      ]
+    },
+    "contracts.log": {
+      "sha256": "ed8b772359bbd240cad1351a5d7e2cc2c4c2f3111cd0a508221a012693446d3e",
+      "tail": [
+        "",
+        "OK",
+        "unittest.case.FunctionTestCase (run)",
+        "CFG-01.restored ... ok",
+        "unittest.case.FunctionTestCase (run)",
+        "MSC-01.restored ... ok",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 2 tests in 0.066s",
+        "",
+        "OK",
+        "{\"PASS\": 280, \"FAIL_ASSERTION\": 0, \"SETUP_ERROR\": 0, \"NOT_RUN\": 0} production_unchanged= True"
+      ]
+    },
+    "datasheet-fetch.log": {
+      "sha256": "bf098e8d46a9c868ce062579c665f59f7f581f3f4d2a522ee31dbadebe7f3c46",
+      "tail": [
+        "  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current",
+        "                                 Dload  Upload   Total   Spent    Left  Speed",
+        "",
+        "  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0",
+        "  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0",
+        "  0  633k    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0",
+        "100  633k  100  633k    0     0   322k      0  0:00:01  0:00:01 --:--:--  322k"
+      ]
+    },
+    "disable-bdu-restored.log": {
+      "sha256": "e068f015c508e2285b05169e5873e77f1b0760c88c03c9a0cc4d2563e18857d3",
+      "tail": [
+        "CONTRACT_PASS",
+        ".",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.161s",
+        "",
+        "OK"
+      ]
+    },
+    "disable-bdu.log": {
+      "sha256": "31d479479db7cd8042e32c7fc5f47e8d8cbfda0bc34ec91b7364484e51b8a209",
+      "tail": [
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_sc7a20_sampling.py\", line 128, in <lambda>",
+        "    setattr(SamplingTest, \"test_\" + case, lambda self, name=case: self.run_case(name))",
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_sc7a20_sampling.py\", line 124, in run_case",
+        "    subprocess.run([str(self.binary), name], check=True)",
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/shaniu-accel-i88saidj/test', 'register']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.178s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "driver-after.log": {
+      "sha256": "441e99c55745f7ce67486b281478b5deb6263ba41f711893e27ac3230ba9bca0",
+      "tail": [
+        ".CONTRACT_PASS",
+        ".CONTRACT_PASS",
+        ".CONTRACT_PASS",
+        ".CONTRACT_PASS",
+        ".CONTRACT_PASS",
+        ".CONTRACT_PASS",
+        ".CONTRACT_PASS",
+        ".",
+        "----------------------------------------------------------------------",
+        "Ran 8 tests in 0.207s",
+        "",
+        "OK"
+      ]
+    },
+    "driver-before.log": {
+      "sha256": "cd1497210d93e7cc97dc93305ca2113e40d8861afd330a8ff70f0d8cc88c5225",
+      "tail": [
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_sc7a20_sampling.py\", line 128, in <lambda>",
+        "    setattr(SamplingTest, \"test_\" + case, lambda self, name=case: self.run_case(name))",
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_sc7a20_sampling.py\", line 124, in run_case",
+        "    subprocess.run([str(self.binary), name], check=True)",
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/shaniu-accel-mq8v_rkz/test', 'status_error']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 8 tests in 0.305s",
+        "",
+        "FAILED (errors=6)"
+      ]
+    },
+    "ignore-ready-restored.log": {
+      "sha256": "a2ea648d025edb3c68cd0bd577817d47dbb09f6ce9b9eb5b720089bbd514a324",
+      "tail": [
+        "CONTRACT_PASS",
+        ".",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.159s",
+        "",
+        "OK"
+      ]
+    },
+    "ignore-ready.log": {
+      "sha256": "6de65c717d990b8ddb126f8bb723faf0189208e916871d80db61acc52d03d0ec",
+      "tail": [
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_sc7a20_sampling.py\", line 128, in <lambda>",
+        "    setattr(SamplingTest, \"test_\" + case, lambda self, name=case: self.run_case(name))",
+        "  File \"/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_sc7a20_sampling.py\", line 124, in run_case",
+        "    subprocess.run([str(self.binary), name], check=True)",
+        "  File \"/usr/lib/python3.10/subprocess.py\", line 526, in run",
+        "    raise CalledProcessError(retcode, process.args,",
+        "subprocess.CalledProcessError: Command '['/tmp/shaniu-accel-8wzhie8k/test', 'not_ready']' died with <Signals.SIGABRT: 6>.",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 1 test in 0.174s",
+        "",
+        "FAILED (errors=1)"
+      ]
+    },
+    "nxstyle-local.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tail": []
+    },
+    "nxstyle.log": {
+      "sha256": "927fbf43412dec63595e9ab4e7445a36095e771833cd1aadb8003c5158cc8828",
+      "tail": [
+        "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/nuttx/drivers/sensors/sc7a20.c:2:1: error: Path relative to repository other than \"nuttx\" must begin with the root directory"
+      ]
+    },
+    "runner-gate.log": {
+      "sha256": "5bf704d6a53aa11c1f6f50fb3fc51ff163320afad0127d3e61ca37f2c382b6f0",
+      "tail": [
+        ".............",
+        "----------------------------------------------------------------------",
+        "Ran 13 tests in 0.030s",
+        "",
+        "OK"
+      ]
+    },
+    "verify-manifest.log": {
+      "sha256": "0051f3a88d30d047025f1192d1c2136f3ad60cfb75589577a3b73429084912ac",
+      "tail": [
+        "bk7258 verify build-manifest: PASS boot=mcuboot board=aidk_ai_toy layout=bk7258-510173147382a879 source=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json"
+      ]
+    }
+  },
+  "source_reference": {
+    "author": "Silan Microelectronics",
+    "title": "SC7A20 manual",
+    "version": "1.3",
+    "sections": [
+      "12.4",
+      "12.7"
+    ],
+    "url": "https://www.unikeyic.com/media/datasheet/0d/29/07e1/0d2907e1144f1d3e98f0a7bde9391acf.pdf",
+    "sha256": "31aaf020b25a3c1ab69f6f34519d1a9b0d933e14757f67dbd5191ac16eba9cb1",
+    "redistributed": false
+  },
+  "layers": {
+    "L1": "Entire production driver and public config header, includes replaced with OS/bus/clock boundary fixtures; all production functions/state/ops retained",
+    "L2": "Existing motion service tests retained; real uORB upper-half plus driver not host-integrated in these new tests",
+    "target": "AP linked sc7a20_fetch/sc7a20_register; canonical team source via SDK symlink; manifest verified",
+    "L3": "NOT_RUN"
+  },
+  "budget": {
+    "additional_resident_state": 0,
+    "additional_stack_value": "one uint8 status; actual stack high water unmeasured",
+    "new_threads": 0,
+    "new_queue": 0,
+    "new_heap": 0,
+    "new_dma": 0,
+    "extra_bus_access": "one one-byte STATUS_REG read per active valid fetch",
+    "unmeasured": [
+      "CPU/p95",
+      "bus/lock blocking",
+      "stack high water",
+      "physical conversion and activation timing"
+    ]
+  },
+  "style": {
+    "nxstyle_source_commit": "76354c637858ecb0aa4601629327acb6f44a26bb",
+    "nxstyle": "PASS after rebuilding pinned source with team mirror TOPDIR; original tool path failure retained",
+    "black": "24.10.0 PASS after formatting new Python test",
+    "diff_check": "PASS",
+    "clang_format": "not available on PATH; not claimed"
+  },
+  "rejected_hypotheses": [
+    "Do not retain fd after failing NuttX close; descriptor already consumed",
+    "sensor_accel.status is calibration status, not errno"
+  ],
+  "remaining": [
+    "autonomous sampling and candidate action recognition",
+    "physical start/ODR stale output behavior",
+    "sensor upper-half ignores deactivate result; shutdown confirmation unresolved",
+    "BDU is byte-pair coherence, not simultaneous three-axis conversion",
+    "host fetch timestamp is not exact conversion time",
+    "gesture thresholds, display restoration and hardware resource budgets"
+  ],
+  "physical_actions": []
+}

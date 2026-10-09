@@ -42,6 +42,11 @@ PARTITION_HEADER := $(PARTITION_DIR)/bk7258_partitions.h
 TARGET  := $(BUILD)/test_bk7258_rptun_mbox
 POLICY_TARGET := $(BUILD)/test_boot_bl1_policy
 PM_ACTIVITY_TARGET := $(BUILD)/test_bk7258_pm_activity
+PM_REPLAY_DIR := $(BUILD)/pm-replay
+PM_REPLAY_INC := $(PM_REPLAY_DIR)/include
+PM_REPLAY_TARGET := $(BUILD)/test_bk7258_pm_replay
+PM_REPLAY_AP_OBJ := $(PM_REPLAY_DIR)/bk7258_pm_client.o
+PM_REPLAY_CP_OBJ := $(PM_REPLAY_DIR)/bk7258_pm_server.o
 RPTUN_CORE_CP_TARGET := $(BUILD)/test_bk7258_rptun_core_cp
 RPTUN_CORE_AP_TARGET := $(BUILD)/test_bk7258_rptun_core_ap
 STAGE_RUNNER_TARGET := $(BUILD)/test_bk7258_stage_runner
@@ -57,6 +62,7 @@ CP_PLATFORM_OTA_POLICY_FAIL_TARGET := $(BUILD)/test_bk7258_cp_platform_ota_polic
 CP_PLATFORM_LEGACY_LEAVES_TARGET := $(BUILD)/test_bk7258_cp_platform_legacy_leaves
 CP_PLATFORM_OPTIONAL_POLICY_TARGET := $(BUILD)/test_bk7258_cp_platform_optional_policy
 CP_PLATFORM_RADIO_FAIL_TARGET := $(BUILD)/test_bk7258_cp_platform_radio_fail
+CP_PLATFORM_HEAP_ORDER_TARGET := $(BUILD)/test_bk7258_cp_platform_heap_order
 OTA_CONFIRM_NO_SUPERVISOR_TARGET := $(BUILD)/test_bk7258_ota_confirmation_no_supervisor
 OTA_CONFIRM_SUPERVISOR_TARGET := $(BUILD)/test_bk7258_ota_confirmation_supervisor
 OTA_CONFIRMATION_TARGETS := $(OTA_CONFIRM_NO_SUPERVISOR_TARGET) \
@@ -114,6 +120,26 @@ RESET_MARKER_TEST_SRCS := test_bk7258_reset_marker.c \
 POLICY_CFLAGS := -std=c11 -Wall -Wextra -Werror -O1 -g \
 	-fsanitize=address,undefined -fno-omit-frame-pointer
 PM_ACTIVITY_CFLAGS := -std=c11 -Wall -Wextra -Werror -O2
+PM_REPLAY_CFLAGS := -std=gnu11 -Wall -Wextra -Werror -O2 -pthread \
+	-ffunction-sections -fdata-sections -DCONFIG_BK7258_PM_CLOCK \
+	-DCONFIG_BK7258_PM_SOFT_OFF -DBK7258_PWR_MNG_ADDR=0 \
+	-DBK7258_PWR_AP_SLEEP_VOTE_OFFSET=0 \
+	-DBK7258_PWR_AP_CLOCK_VOTE_OFFSET=8 -DFAR= \
+	-include $(MOCKS)/nuttx/spinlock.h
+PM_REPLAY_INC_FLAGS := -I $(PM_REPLAY_INC) -I $(MOCKS)/pm_replay \
+	-I $(MOCKS) -I $(CHIP_ROOT)/common
+PM_REPLAY_AP_RENAMES := -Dbk7258_pm_initialize=ap_pm_initialize \
+	-Dbk7258_pm_soft_off_request=ap_pm_soft_off_request \
+	-Dbk7258_pm_soft_off_status=ap_pm_soft_off_status \
+	-Dbk7258_pm_clock_get=ap_pm_clock_get \
+	-Dbk7258_pm_clock_put=ap_pm_clock_put \
+	-Dbk7258_pm_frequency_vote=ap_pm_frequency_vote \
+	-Dbk7258_pm_frequency_get_status=ap_pm_frequency_get_status
+PM_REPLAY_CP_RENAMES := -Dbk7258_pm_initialize=cp_pm_initialize \
+	-Dbk7258_pm_soft_off_request=cp_pm_soft_off_request \
+	-Dbk7258_pm_soft_off_status=cp_pm_soft_off_status \
+	-Dbk7258_pm_frequency_vote=cp_pm_frequency_vote \
+	-Dbk7258_pm_frequency_get_status=cp_pm_frequency_get_status
 RPTUN_CORE_CFLAGS := -std=c11 -Wall -Wextra -Werror -O2 \
 	-DTEST_BK7258_RPTUN_CORE
 STAGE_RUNNER_CFLAGS := -std=c11 -Wall -Wextra -Werror -O2 -pthread
@@ -242,7 +268,7 @@ MEDIA_INCLUDE := $(OPENVELA_ROOT)/apps/frameworks/multimedia/media/include
 			run-voice-media-recorder \
 		ota-confirmation run-provision
 
-.PHONY: run-media-audio-session run-wifi-native-lease
+.PHONY: run-media-audio-session run-wifi-native-lease run-pm-replay
 .PHONY: run-motion-rpc run-nfc-rpc
 
 check:
@@ -272,7 +298,7 @@ check-package-tools:
 	@python3 ./test_bk7258_display_assets.py
 	@python3 ./test_bk7258_aidk_hil_contract.py
 
-all: $(TARGET) $(POLICY_TARGET) $(PM_ACTIVITY_TARGET) \
+all: $(TARGET) $(POLICY_TARGET) $(PM_ACTIVITY_TARGET) $(PM_REPLAY_TARGET) \
 	$(RPTUN_CORE_CP_TARGET) $(RPTUN_CORE_AP_TARGET) \
 	$(STAGE_RUNNER_TARGET) $(SDK_RUNTIME_TARGET) \
 	$(CP_PLATFORM_SUCCESS_TARGET) \
@@ -299,7 +325,7 @@ all: $(TARGET) $(POLICY_TARGET) $(PM_ACTIVITY_TARGET) \
 	$(VOICE_MEDIA_RECORDER_TARGET) \
 	bl1 bl2 ap
 
-run: run-motion-rpc run-nfc-rpc run-wifi-native-lease run-camera-storage run-vision-record run-media-volume run-headers run-core run-platform run-flash run-ota-confirmation run-ota-manager run-active-image \
+run: run-motion-rpc run-nfc-rpc run-wifi-native-lease run-camera-storage run-vision-record run-media-volume run-headers run-core run-platform run-flash run-ota-confirmation run-ota-transport run-ota-manager run-active-image \
 	run-bl1 run-bl2 run-ap run-display-pack run-display-rpc \
 	run-health-core run-motion-core run-nfc-core run-vision-core run-vision-feedback \
 	run-usbmode-lease run-product-keys \
@@ -307,8 +333,10 @@ run: run-motion-rpc run-nfc-rpc run-wifi-native-lease run-camera-storage run-vis
 
 $(DISPLAY_PACK_FIXTURE): $(DISPLAY_PACK_SOURCE) \
 	$(TOOLS_ROOT)/bk7258.py $(TOOLS_ROOT)/_lib/display_assets.py | $(BUILD)
+	rm -f $@.tmp
 	python3 $(TOOLS_ROOT)/bk7258.py package eye-pack \
-		--source $(DISPLAY_PACK_SOURCE) --output $@
+		--source $(DISPLAY_PACK_SOURCE) --output $@.tmp
+	mv $@.tmp $@
 
 $(DISPLAY_PACK_TARGET): test_bk7258_display_pack.c \
 	$(VOICE_PACK_ROOT)/bk7258_display_pack.c \
@@ -325,6 +353,61 @@ display-pack: $(DISPLAY_PACK_TARGET)
 
 run-display-pack: display-pack
 	./$(DISPLAY_PACK_TARGET) $(DISPLAY_PACK_FIXTURE)
+
+$(BUILD)/upload-second.bkep: $(DISPLAY_PACK_SOURCE) $(TOOLS_ROOT)/_lib/display_assets.py | $(BUILD)
+	python3 -c 'import json; from pathlib import Path; d=json.loads(Path("$(DISPLAY_PACK_SOURCE)").read_text()); d["pack_id"]="shaniu-upload-v1"; Path("$(BUILD)/upload-second.json").write_text(json.dumps(d))'
+	rm -f $@.tmp
+	python3 $(TOOLS_ROOT)/bk7258.py package eye-pack --source $(abspath $(BUILD)/upload-second.json) --output $@.tmp
+	mv $@.tmp $@
+
+$(BUILD)/test_display_upload: test_display_upload.c \
+	$(VOICE_PACK_ROOT)/bk7258_display_store.c $(VOICE_PACK_ROOT)/bk7258_display_store.h \
+	$(VOICE_PACK_ROOT)/bk7258_display_pack.c $(VOICE_PACK_ROOT)/bk7258_display_pack.h \
+	$(DISPLAY_PACK_FIXTURE) $(BUILD)/upload-second.bkep | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) test_display_upload.c \
+		$(VOICE_PACK_ROOT)/bk7258_display_pack.c $(VOICE_PACK_ROOT)/bk7258_display_store.c \
+		-I $(VOICE_PACK_ROOT) -Wl,--wrap=write,--wrap=fsync,--wrap=close -o $@
+
+$(BUILD)/test_display_selection: test_display_selection.c \
+	$(VOICE_PACK_ROOT)/bk7258_display_store.c $(VOICE_PACK_ROOT)/bk7258_display_store.h \
+	$(VOICE_PACK_ROOT)/bk7258_display_pack.c $(DISPLAY_PACK_FIXTURE) | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) $< $(VOICE_PACK_ROOT)/bk7258_display_pack.c \
+		$(VOICE_PACK_ROOT)/bk7258_display_store.c -I $(VOICE_PACK_ROOT) \
+		-Wl,--wrap=write,--wrap=fsync -o $@
+
+$(BUILD)/test_display_job: test_display_job.c $(VOICE_PACK_ROOT)/bk7258_display_job.c \
+	$(VOICE_PACK_ROOT)/bk7258_display_job.h $(VOICE_PACK_ROOT)/bk7258_display_store.c \
+	$(VOICE_PACK_ROOT)/bk7258_display_store.h $(VOICE_PACK_ROOT)/bk7258_display_pack.c \
+	$(DISPLAY_PACK_FIXTURE) | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread test_display_job.c \
+		$(VOICE_PACK_ROOT)/bk7258_display_job.c $(VOICE_PACK_ROOT)/bk7258_display_store.c \
+		$(VOICE_PACK_ROOT)/bk7258_display_pack.c -I $(VOICE_PACK_ROOT) \
+		-Wl,--wrap=write,--wrap=unlink,--wrap=fsync -o $@
+
+$(BUILD)/test_display_job_service: test_display_job_service.c \
+	$(VOICE_PACK_ROOT)/bk7258_display_job_service.c $(VOICE_PACK_ROOT)/bk7258_display_job_service.h \
+	$(VOICE_PACK_ROOT)/bk7258_display_job.c $(VOICE_PACK_ROOT)/bk7258_display_job.h \
+	$(VOICE_PACK_ROOT)/bk7258_display_store.c $(VOICE_PACK_ROOT)/bk7258_display_store.h \
+	$(VOICE_PACK_ROOT)/bk7258_display_pack.c $(VOICE_PACK_ROOT)/bk7258_media_volume.c \
+	$(VOICE_PACK_ROOT)/bk7258_media_volume.h $(DISPLAY_PACK_FIXTURE) | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread test_display_job_service.c \
+		$(VOICE_PACK_ROOT)/bk7258_display_job.c $(VOICE_PACK_ROOT)/bk7258_display_store.c \
+		$(VOICE_PACK_ROOT)/bk7258_display_pack.c $(VOICE_PACK_ROOT)/bk7258_media_volume.c \
+		-I $(MOCKS) -I $(VOICE_PACK_ROOT) -o $@
+
+$(BUILD)/test_display_job_control: test_display_job_service.c \
+	$(VOICE_PACK_ROOT)/bk7258_control_session.c $(VOICE_PACK_ROOT)/bk7258_control_session.h \
+	$(VOICE_PACK_ROOT)/bk7258_display_job_control.c $(VOICE_PACK_ROOT)/bk7258_display_job_control.h \
+	$(BUILD)/test_display_job_service | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread -ffunction-sections -fdata-sections -Wl,--gc-sections -DTEST_PACK_CONTROL test_display_job_service.c \
+		$(VOICE_PACK_ROOT)/bk7258_display_job_control.c $(VOICE_PACK_ROOT)/bk7258_control_session.c \
+		$(VOICE_PACK_ROOT)/bk7258_display_job.c $(VOICE_PACK_ROOT)/bk7258_display_store.c \
+		$(VOICE_PACK_ROOT)/bk7258_display_pack.c $(VOICE_PACK_ROOT)/bk7258_media_volume.c \
+		$(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/library/sha256.c \
+		$(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/library/platform_util.c \
+		$(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/library/constant_time.c \
+		-I $(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/include \
+		-I $(MOCKS) -I $(VOICE_PACK_ROOT) -o $@
 
 $(DISPLAY_RPC_TARGET): test_bk7258_display_rpc.c \
 	$(VOICE_PACK_ROOT)/bk7258_display_rpc_core.c \
@@ -381,11 +464,16 @@ run-nfc-core: nfc-core
 
 # These tests include the real client, service and core. The explicit empty
 # headers isolate their deterministic RPC/VFS mocks from a target .config.
-$(SENSOR_RPC_SHIM)/.ready: | $(BUILD)
+$(SENSOR_RPC_SHIM)/.ready: Makefile \
+	$(REPOSITORY_ROOT)/../nuttx/include/nuttx/contactless/ioctl.h | $(BUILD)
 	mkdir -p $(sort $(dir $(addprefix $(SENSOR_RPC_SHIM)/,$(SENSOR_RPC_HEADERS))))
 	@for header in $(SENSOR_RPC_HEADERS); do \
 		touch "$(SENSOR_RPC_SHIM)/$$header"; \
 	done
+	mkdir -p $(SENSOR_RPC_SHIM)/nuttx/contactless $(SENSOR_RPC_SHIM)/nuttx/fs
+	ln -sf $(REPOSITORY_ROOT)/../nuttx/include/nuttx/contactless/ioctl.h $(SENSOR_RPC_SHIM)/nuttx/contactless/ioctl.h
+	rm -f $(SENSOR_RPC_SHIM)/nuttx/fs/ioctl.h
+	printf '#define _CLIOC(nr) (0x2400 | (nr))\n' > $(SENSOR_RPC_SHIM)/nuttx/fs/ioctl.h
 	touch $@
 
 $(SENSOR_RPC_TARGETS): $(BUILD)/test_bk7258_%_rpc: test_bk7258_%_rpc.c \
@@ -468,10 +556,12 @@ run-product-keys: product-keys
 # Keep them outside all/check/run until their CMake/OpenSSL requirements are
 # intentionally added to those broader host-test contracts.
 provision: test_provision_gatt.py \
+	test_provision_pair_query.py \
 	test_provision_tls.py
 
 run-provision: provision
 	python3 test_provision_gatt.py
+	python3 test_provision_pair_query.py
 	python3 test_provision_tls.py
 
 $(BUILD)/test_bk7258_voice_tls_concurrency: test_bk7258_voice_tls_concurrency.c \
@@ -498,6 +588,20 @@ voice-media-recorder: $(VOICE_MEDIA_RECORDER_TARGET)
 run-voice-media-recorder: voice-media-recorder
 	./$(VOICE_MEDIA_RECORDER_TARGET)
 
+$(BUILD)/test_bk7258_agent_capture: test_bk7258_agent_media_recorder.c \
+	$(OPENVELA_ROOT)/packages/ai_agent/src/voice/audio_capture.c \
+	$(OPENVELA_ROOT)/packages/ai_agent/include/voice/audio_capture.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread -DTEST_AGENT_CAPTURE $< \
+		-I $(MOCKS) -I $(OPENVELA_ROOT)/packages/ai_agent/include \
+		-I $(OPENVELA_ROOT)/packages/ai_agent/src -o $@
+
+run-agent-capture: run-agent-capture-lifecycle $(BUILD)/test_bk7258_agent_capture
+	./$(BUILD)/test_bk7258_agent_capture
+
+.PHONY: run-agent-capture-lifecycle
+run-agent-capture-lifecycle:
+	python3 test_agent_capture_lifecycle.py
+
 $(BUILD)/test_bk7258_agent_media_player: test_bk7258_agent_media_player.c \
 	$(VOICE_PACK_ROOT)/bk7258_agent_media_player.c \
 	$(MOCKS)/nuttx/audio/audio.h $(MOCKS)/nuttx/mutex.h | $(BUILD)
@@ -507,6 +611,64 @@ $(BUILD)/test_bk7258_agent_media_player: test_bk7258_agent_media_player.c \
 .PHONY: run-voice-media-player
 run-voice-media-player: $(BUILD)/test_bk7258_agent_media_player
 	./$(BUILD)/test_bk7258_agent_media_player
+
+$(BUILD)/test_agent_tts_queue: test_bk7258_agent_media_player.c \
+	$(OPENVELA_ROOT)/packages/ai_agent/src/voice/voice_channel.c \
+	$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_stream.c \
+	$(OPENVELA_ROOT)/packages/ai_agent/src/core/message_bus.c | $(BUILD)
+	$(CC) $(CFLAGS) -DTEST_AGENT_TTS_QUEUE -DOK=0 -DERROR=-1 \
+		-ffunction-sections -fdata-sections -Wl,--gc-sections \
+		-I $(MOCKS) -I $(OPENVELA_ROOT)/packages/ai_agent/include \
+		-I $(OPENVELA_ROOT)/packages/ai_agent/src \
+		-I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON $< \
+		$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_stream.c \
+		$(OPENVELA_ROOT)/packages/ai_agent/src/core/message_bus.c \
+		$(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c -o $@
+
+.PHONY: run-agent-tts-queue
+run-agent-tts-queue: $(BUILD)/test_agent_tts_queue
+	./$(BUILD)/test_agent_tts_queue
+
+$(BUILD)/test_agent_volc_tts_progress: test_agent_volc_tts_progress.c \
+	$(OPENVELA_ROOT)/packages/ai_agent/src/voice/volc_tts_ws.c \
+	$(OPENVELA_ROOT)/packages/ai_agent/src/voice/volc_tts.c \
+	$(OPENVELA_ROOT)/packages/ai_agent/src/voice/voice_tts.c | $(BUILD)
+	$(CC) $(CFLAGS) -DOK=0 -DERROR=-1 -ffunction-sections -fdata-sections \
+		-Wl,--gc-sections -I $(OPENVELA_ROOT)/packages/ai_agent/include \
+		-I $(OPENVELA_ROOT)/packages/ai_agent/src \
+		-I $(MOCKS) \
+		-I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON \
+		-I $(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/include $< \
+		$(OPENVELA_ROOT)/packages/ai_agent/src/voice/volc_tts.c \
+		$(OPENVELA_ROOT)/packages/ai_agent/src/voice/voice_tts.c \
+		$(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c -o $@
+
+.PHONY: run-agent-volc-tts-progress
+run-agent-volc-tts-progress: $(BUILD)/test_agent_volc_tts_progress
+	./$(BUILD)/test_agent_volc_tts_progress heartbeat-deadline
+	./$(BUILD)/test_agent_volc_tts_progress first-pcm-deadline
+	./$(BUILD)/test_agent_volc_tts_progress pcm-progress
+	./$(BUILD)/test_agent_volc_tts_progress truncated-close
+	./$(BUILD)/test_agent_volc_tts_progress ws-close-before-terminal
+	./$(BUILD)/test_agent_volc_tts_progress cancel-blocked-next
+
+$(BUILD)/test_agent_funasr: test_bk7258_agent_media_player.c \
+	$(OPENVELA_ROOT)/packages/ai_agent/src/voice/funasr_asr.c | $(BUILD)
+	$(CC) $(CFLAGS) -DTEST_AGENT_FUNASR \
+		-I $(MOCKS) \
+		-I $(OPENVELA_ROOT)/packages/ai_agent/include \
+		-I $(OPENVELA_ROOT)/packages/ai_agent/src \
+		-I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON \
+		-I $(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/include \
+		$< $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c \
+		-lssl -lcrypto -o $@
+
+.PHONY: run-agent-funasr
+run-agent-funasr: $(BUILD)/test_agent_funasr
+	./$(BUILD)/test_agent_funasr
+
+# Optional real loopback probe after building: build/test_agent_funasr
+# --live localhost PORT /asr CA_PEM PCM_S16LE_16K_MONO
 
 $(VISION_RECORD_TARGET): test_bk7258_vision_record.c \
 	$(VOICE_PACK_ROOT)/bk7258_vision_record.c \
@@ -862,6 +1024,41 @@ $(PM_ACTIVITY_TARGET): test_bk7258_pm_activity.c \
 	  -I $(CHIP_ROOT)/common \
 	  -o $@
 
+$(PM_REPLAY_INC)/arch/chip/bk7258_pm.h: $(CHIP_ROOT)/include/bk7258_pm.h
+	mkdir -p $(dir $@)
+	cp $< $@
+
+$(PM_REPLAY_DIR)/bk7258_pm_client.c: $(CHIP_ROOT)/ap/bk7258_pm_client.c | $(BUILD)
+	mkdir -p $(dir $@)
+	sed 's/__asm volatile ("dmb sy" ::: "memory");/__asm__ volatile ("" ::: "memory");/g' $< > $@
+
+$(PM_REPLAY_DIR)/bk7258_pm_server.c: $(CHIP_ROOT)/cp/bk7258_pm_server.c | $(BUILD)
+	mkdir -p $(dir $@)
+	sed 's/__asm volatile ("dmb sy" ::: "memory");/__asm__ volatile ("" ::: "memory");/g' $< > $@
+
+$(PM_REPLAY_AP_OBJ): $(PM_REPLAY_DIR)/bk7258_pm_client.c \
+	$(PM_REPLAY_INC)/arch/chip/bk7258_pm.h \
+	$(MOCKS)/pm_replay/arm_internal.h \
+	$(MOCKS)/pm_replay/nuttx/rpmsg/rpmsg.h
+	$(CC) $(PM_REPLAY_CFLAGS) $(PM_REPLAY_AP_RENAMES) \
+		-DCONFIG_BK7258_AP_CORE $(PM_REPLAY_INC_FLAGS) -c $< -o $@
+
+$(PM_REPLAY_CP_OBJ): $(PM_REPLAY_DIR)/bk7258_pm_server.c \
+	$(PM_REPLAY_INC)/arch/chip/bk7258_pm.h \
+	$(MOCKS)/pm_replay/nuttx/rpmsg/rpmsg.h
+	$(CC) $(PM_REPLAY_CFLAGS) $(PM_REPLAY_CP_RENAMES) \
+		$(PM_REPLAY_INC_FLAGS) -c $< -o $@
+
+$(PM_REPLAY_TARGET): test_bk7258_pm_replay.c \
+	$(MOCKS)/pm_replay/arm_internal.h $(PM_REPLAY_AP_OBJ) \
+	$(PM_REPLAY_CP_OBJ)
+	$(CC) $(PM_REPLAY_CFLAGS) $(PM_REPLAY_INC_FLAGS) \
+		test_bk7258_pm_replay.c $(PM_REPLAY_AP_OBJ) $(PM_REPLAY_CP_OBJ) \
+		-Wl,--gc-sections -o $@
+
+run-pm-replay: $(PM_REPLAY_TARGET)
+	./$(PM_REPLAY_TARGET)
+
 $(RPTUN_CORE_CP_TARGET): $(BUILD)/bk7258_rptun.c \
                          test_bk7258_rptun_core.c
 	$(CC) $(RPTUN_CORE_CFLAGS) \
@@ -901,6 +1098,15 @@ $(CP_PLATFORM_SUCCESS_TARGET): $(CP_PLATFORM_TEST_SRCS) | $(BUILD)
 	$(CC) $(CP_PLATFORM_CFLAGS) -DTEST_CP_SCENARIO=1 \
 	  $(CP_PLATFORM_TEST_SRCS) \
 	  $(PLATFORM_TEST_INC) -o $@
+
+$(CP_PLATFORM_HEAP_ORDER_TARGET): $(CP_PLATFORM_TEST_SRCS) | $(BUILD)
+	mkdir -p $(BUILD)/platform-include/arch/chip
+	ln -sf $(abspath $(CHIP_ROOT)/include/bk7258_wifi.h) \
+	  $(BUILD)/platform-include/arch/chip/bk7258_wifi.h
+	$(CC) $(CP_PLATFORM_CFLAGS) -DTEST_CP_SCENARIO=12 \
+	  -DCONFIG_BK7258_WIFI_VNET -DCONFIG_BK7258_BT_IPC \
+	  $(CP_PLATFORM_TEST_SRCS) $(PLATFORM_TEST_INC) \
+	  -I $(BUILD)/platform-include -o $@
 
 $(CP_PLATFORM_SDK_FAIL_TARGET): $(CP_PLATFORM_TEST_SRCS) | $(BUILD)
 	$(CC) $(CP_PLATFORM_CFLAGS) -DTEST_CP_SCENARIO=2 \
@@ -1173,6 +1379,10 @@ run-ota-contract: run-storage-contract $(BOOT_SLOT_TARGET)
 
 ota-confirmation: $(OTA_CONFIRMATION_TARGETS)
 
+.PHONY: run-ota-transport
+run-ota-transport:
+	python3 test_bk7258_ota_transport.py
+
 run-ota-confirmation: ota-confirmation
 	./$(OTA_CONFIRM_NO_SUPERVISOR_TARGET)
 	./$(OTA_CONFIRM_SUPERVISOR_TARGET)
@@ -1202,7 +1412,7 @@ run-reset-marker: reset-marker
 	./$(RESET_CAUSE_TARGET)
 	./$(SYSTEM_RESET_TARGET)
 
-run-platform: platform
+run-platform: platform $(CP_PLATFORM_HEAP_ORDER_TARGET)
 	./$(STAGE_RUNNER_TARGET)
 	./$(SDK_RUNTIME_TARGET)
 	./$(CP_PLATFORM_SUCCESS_TARGET)
@@ -1216,18 +1426,20 @@ run-platform: platform
 	./$(CP_PLATFORM_LEGACY_LEAVES_TARGET)
 	./$(CP_PLATFORM_OPTIONAL_POLICY_TARGET)
 	./$(CP_PLATFORM_RADIO_FAIL_TARGET)
+	./$(CP_PLATFORM_HEAP_ORDER_TARGET)
 	./$(AP_PLATFORM_SUCCESS_TARGET)
 	./$(AP_PLATFORM_SDK_FAIL_TARGET)
 	./$(AP_PLATFORM_PSRAM_FAIL_TARGET)
 	./$(AP_PLATFORM_PM_FAIL_TARGET)
 	./$(AP_ENTRY_TARGET)
 
-run-core: $(TARGET) $(POLICY_TARGET) $(PM_ACTIVITY_TARGET) \
+run-core: $(TARGET) $(POLICY_TARGET) $(PM_ACTIVITY_TARGET) $(PM_REPLAY_TARGET) \
 	$(RPTUN_CORE_CP_TARGET) $(RPTUN_CORE_AP_TARGET) $(OTA_CONTRACT_TARGETS) \
 	$(RESET_MARKER_TARGETS)
 	./$(TARGET)
 	./$(POLICY_TARGET)
 	./$(PM_ACTIVITY_TARGET)
+	./$(PM_REPLAY_TARGET)
 	./$(RPTUN_CORE_CP_TARGET)
 	./$(RPTUN_CORE_AP_TARGET)
 	./$(STORAGE_UNCONFIGURED_TARGET)
@@ -1524,6 +1736,69 @@ run-voice-kws: $(VOICE_KWS_TARGET)
 	./$(VOICE_KWS_TARGET)
 	python3 -m pytest -q test_bk7258_voice_kws.py test_bk7258_voice_kws_frontend.py
 
+# Native upstream TFLM probe; isolated from the board's AP/CP build outputs.
+# Generate probe.tflite/features.f32/scores.f32 with the existing Python KWS
+# test and BKVOICE_STREAM_PROBE_DIR before running this target.
+VOICE_STREAM_BUILD ?= $(OPENVELA_ROOT)/out/streaming-kws-host
+VOICE_STREAM_KERNELS := conv conv_common depthwise_conv depthwise_conv_common \
+	pooling pooling_common fully_connected fully_connected_common reshape \
+	reshape_common softmax softmax_common concatenation strided_slice \
+	strided_slice_common quantize quantize_common kernel_util
+VOICE_STREAM_DIRS := tensorflow/lite/c tensorflow/lite/core/c tensorflow/lite/schema \
+	tensorflow/lite/core/api tensorflow/lite/kernels \
+	tensorflow/lite/kernels/internal tensorflow/lite/kernels/internal/reference \
+	tensorflow/lite/kernels/internal/optimized tensorflow/lite/micro \
+	tensorflow/lite/micro/arena_allocator tensorflow/lite/micro/memory_planner \
+	tensorflow/lite/micro/tflite_bridge
+VOICE_STREAM_SOURCES := $(foreach d,$(VOICE_STREAM_DIRS),$(wildcard $(TFLM_ROOT)/$(d)/*.cc))
+VOICE_STREAM_SOURCES := $(filter-out %test.cc %test_common.cc %test_helpers.cc \
+	%test_helper_custom_ops.cc %mock_micro_graph.cc %fake_micro_context.cc,$(VOICE_STREAM_SOURCES))
+VOICE_STREAM_SOURCES += $(addprefix $(TFLM_ROOT)/tensorflow/lite/micro/kernels/,$(addsuffix .cc,$(VOICE_STREAM_KERNELS)))
+VOICE_STREAM_OBJECTS := $(patsubst $(TFLM_ROOT)/%.cc,$(VOICE_STREAM_BUILD)/obj/%.o,$(VOICE_STREAM_SOURCES))
+VOICE_STREAM_FLAGS := -std=c++17 -O2 -fno-exceptions -fno-rtti -DTF_LITE_STATIC_MEMORY \
+	-DTF_LITE_DISABLE_X86_NEON -DTFLITE_WITH_STABLE_ABI=0 \
+	-DTFLITE_USE_OPAQUE_DELEGATE=0 -DTFLITE_SINGLE_ROUNDING=0 \
+	-I$(VOICE_PACK_ROOT) -I$(TFLM_ROOT) \
+	-I$(OPENVELA_ROOT)/apps/math/gemmlowp/gemmlowp \
+	-I$(OPENVELA_ROOT)/apps/math/ruy/ruy \
+	-I$(OPENVELA_ROOT)/apps/system/flatbuffers/flatbuffers/include
+VOICE_STREAM_PACKAGE_FLAGS := -I$(MOCKS) -I$(VOICE_PACK_ROOT) -I$(TFLM_ROOT) \
+	-I$(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/include \
+	-DBKVOICE_WAKE_PACKAGE_ROOT='"/proc/self/cwd/wake-models"' \
+	-DCONFIG_BK7258_VOICE_KWS_ARENA_BYTES=524288
+VOICE_STREAM_PACKAGE_OBJECTS := $(addprefix $(VOICE_STREAM_BUILD)/, \
+	wake_package.o provision_store.o sha256.o platform_util.o constant_time.o)
+
+$(VOICE_STREAM_BUILD)/wake_package.o: $(VOICE_PACK_ROOT)/bk7258_voice_wake_package.c \
+	$(VOICE_PACK_ROOT)/bk7258_voice_wake_package.h
+	@mkdir -p $(dir $@)
+	$(CC) -std=c11 -O2 -pthread $(VOICE_STREAM_PACKAGE_FLAGS) -c $< -o $@
+
+$(VOICE_STREAM_BUILD)/provision_store.o: $(VOICE_PACK_ROOT)/bk7258_provision_store.c
+	@mkdir -p $(dir $@)
+	$(CC) -std=c11 -O2 $(VOICE_STREAM_PACKAGE_FLAGS) -c $< -o $@
+
+$(VOICE_STREAM_BUILD)/%.o: $(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/library/%.c
+	@mkdir -p $(dir $@)
+	$(CC) -std=c11 -O2 -ffunction-sections -fdata-sections $(VOICE_STREAM_PACKAGE_FLAGS) -c $< -o $@
+
+$(VOICE_STREAM_BUILD)/obj/%.o: $(TFLM_ROOT)/%.cc
+	@mkdir -p $(dir $@)
+	$(CXX) $(VOICE_STREAM_FLAGS) -c $< -o $@
+
+$(VOICE_STREAM_BUILD)/test_model: test_bk7258_voice_kws_model.cc \
+	$(VOICE_PACK_ROOT)/bk7258_voice_kws_model.cc \
+	$(VOICE_PACK_ROOT)/bk7258_voice_kws_model.h $(VOICE_STREAM_OBJECTS) \
+	$(VOICE_STREAM_PACKAGE_OBJECTS)
+	$(CXX) $(VOICE_STREAM_FLAGS) $(VOICE_STREAM_PACKAGE_FLAGS) $< \
+	    $(VOICE_PACK_ROOT)/bk7258_voice_kws_model.cc \
+	    $(VOICE_STREAM_OBJECTS) $(VOICE_STREAM_PACKAGE_OBJECTS) -Wl,--gc-sections -pthread -lm -o $@
+
+.PHONY: run-voice-kws-stream-model
+run-voice-kws-stream-model: $(VOICE_STREAM_BUILD)/test_model
+	$< $(VOICE_STREAM_BUILD)/probe.tflite $(VOICE_STREAM_BUILD)/features.f32 \
+	    $(VOICE_STREAM_BUILD)/scores.f32
+
 .PHONY: run-preferences
 $(BUILD)/test_bk7258_preferences_storage: test_bk7258_preferences_storage.c \
 	$(VOICE_PACK_ROOT)/bk7258_preferences_storage.c \
@@ -1539,12 +1814,15 @@ $(BUILD)/test_bk7258_preferences: test_bk7258_preferences.c \
 	$(VOICE_PACK_ROOT)/bk7258_preferences_storage.h \
 	$(VOICE_PACK_ROOT)/bk7258_preferences.h mocks/kvdb.h | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -pthread $< \
-	    $(VOICE_PACK_ROOT)/bk7258_preferences.c -o $@
+	    -I $(MOCKS) -I $(OPENVELA_ROOT)/external/unqlite/unqlite \
+	    -I $(VOICE_PACK_ROOT) $(VOICE_PACK_ROOT)/bk7258_preferences.c -o $@
 
 $(BUILD)/test_bk7258_preferences_voice_volume: test_bk7258_preferences_voice_volume.c \
 	$(VOICE_PACK_ROOT)/bk7258_preferences.c | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -pthread \
-	    -DCONFIG_BK7258_VOICE_VOLUME_PERSISTENCE=1 $^ -o $@
+	    -DCONFIG_BK7258_VOICE_VOLUME_PERSISTENCE=1 \
+	    -I $(MOCKS) -I $(OPENVELA_ROOT)/external/unqlite/unqlite \
+	    -I $(VOICE_PACK_ROOT) $^ -o $@
 
 run-preferences: $(BUILD)/test_bk7258_preferences \
 	$(BUILD)/test_bk7258_preferences_voice_volume \
@@ -1606,6 +1884,39 @@ run-cloud-config: $(BUILD)/test_bk7258_cloud_config
 run-cloud-request:
 	python3 test_bk7258_cloud_request.py
 
+$(BUILD)/test_agent_final_stream: test_bk7258_cloud_request.c \
+	$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_stream.c \
+	$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_proxy.c \
+	$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_vision.c \
+	$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_parse.c \
+	$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_stream.h | $(BUILD)
+	$(CC) $(CFLAGS) -Werror -Wno-error=stringop-truncation \
+		-DTEST_AGENT_FINAL_STREAM -DOK=0 -DERROR=-1 \
+		-ffunction-sections -fdata-sections -Wl,--gc-sections \
+		-I $(MOCKS) -I $(OPENVELA_ROOT)/packages/ai_agent/include \
+		-I $(OPENVELA_ROOT)/packages/ai_agent/src \
+		-I $(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/include \
+		-I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON $< \
+		$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_stream.c \
+		$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_proxy.c \
+		$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_vision.c \
+		$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_parse.c \
+		$(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c -o $@
+
+$(BUILD)/test_agent_endpoint: test_bk7258_cloud_request.c \
+	$(OPENVELA_ROOT)/packages/ai_agent/src/voice/voice_endpoint.c \
+	$(OPENVELA_ROOT)/packages/ai_agent/include/voice/voice_endpoint.h | $(BUILD)
+	$(CC) $(CFLAGS) -Werror -DTEST_AGENT_ENDPOINT \
+		-I $(OPENVELA_ROOT)/packages/ai_agent/include $< \
+		$(OPENVELA_ROOT)/packages/ai_agent/src/voice/voice_endpoint.c -o $@
+
+.PHONY: run-agent-final-stream run-agent-endpoint
+run-agent-final-stream: $(BUILD)/test_agent_final_stream
+	./$(BUILD)/test_agent_final_stream
+
+run-agent-endpoint: $(BUILD)/test_agent_endpoint
+	./$(BUILD)/test_agent_endpoint
+
 .PHONY: run-cloud-http
 run-cloud-http:
 	python3 test_bk7258_cloud_http.py
@@ -1642,3 +1953,280 @@ $(BUILD)/test_control_pair: $(REPOSITORY_ROOT)/app/bk7258/bk7258_control_session
                            $(REPOSITORY_ROOT)/app/bk7258/bk7258_provision_tls.h
 	@mkdir -p $(BUILD)
 	$(CC) $(CFLAGS) -Werror -I$(REPOSITORY_ROOT)/app/bk7258 -I$(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/include $(filter %.c,$^) -o $@
+
+# Requirement-level host contracts; each case is a separate process so an
+# assertion cannot silently prevent later cases from being collected.
+$(BUILD)/test_shaniu_key_contract: test_shaniu_key_contract.c $(VOICE_PACK_ROOT)/bk7258_product_keys.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) $< -I $(VOICE_PACK_ROOT) -o $@
+
+$(BUILD)/test_shaniu_keys_transport: test_shaniu_keys_transport.c \
+	$(VOICE_PACK_ROOT)/bk7258_agent_keys.c \
+	$(VOICE_PACK_ROOT)/bk7258_product_keys.h \
+	$(VOICE_PACK_ROOT)/bk7258_voice_button.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread \
+		-DCONFIG_BK7258_PRODUCT_KEYS -DCONFIG_BK7258_AP_CORE \
+		-DCONFIG_BK7258_ENGINEERING_TEST=1 \
+		-I $(MOCKS) -I $(VOICE_PACK_ROOT) \
+		-I $(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/include \
+		$< mocks/mock_nuttx_ap.c -o $@
+
+$(BUILD)/test_bk7258_engineering_test: test_bk7258_engineering_test.c \
+	$(VOICE_PACK_ROOT)/bk7258_engineering_test.c \
+	$(VOICE_PACK_ROOT)/bk7258_engineering_test.h \
+	$(VOICE_PACK_ROOT)/bk7258_product_keys.h \
+	$(VOICE_PACK_ROOT)/bk7258_control_session.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -DCONFIG_BK7258_ENGINEERING_TEST=1 \
+		-I $(VOICE_PACK_ROOT) $(filter %.c,$^) -o $@
+
+$(BUILD)/test_bk7258_engineering_audio: test_bk7258_engineering_audio.c \
+	$(VOICE_PACK_ROOT)/bk7258_engineering_test.c \
+	$(VOICE_PACK_ROOT)/bk7258_engineering_test.h \
+	$(VOICE_PACK_ROOT)/bk7258_control_session.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -DCONFIG_BK7258_ENGINEERING_TEST=1 \
+		-I $(VOICE_PACK_ROOT) $(filter %.c,$^) -o $@
+
+$(BUILD)/test_factory_diagnostics: test_factory_diagnostics.c \
+	$(VOICE_PACK_ROOT)/bk7258_factory_diagnostics.c \
+	$(VOICE_PACK_ROOT)/bk7258_factory_diagnostics.h \
+	$(VOICE_PACK_ROOT)/bk7258_provision_storage.h \
+	$(VOICE_PACK_ROOT)/bk7258_pc_grants.h \
+	$(MOCKS)/mock_nuttx_ap.c $(VOICE_OTA_MBEDCRYPTO) | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(MOCKS) \
+		-I $(VOICE_PACK_ROOT) -I $(VOICE_OTA_MBEDTLS_SOURCE)/include \
+		$(filter %.c,$^) -Wl,--wrap=clock_gettime \
+		$(VOICE_OTA_MBEDCRYPTO) -o $@
+
+$(BUILD)/test_shaniu_volume_contract: test_shaniu_volume_contract.c $(VOICE_PACK_ROOT)/bk7258_media_volume.c $(CHIP_ROOT)/ap/bk7258_usbmode.c | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread -DCONFIG_BK7258_USBMODE -DCONFIG_BK7258_AP_CORE \
+		-DCONFIG_BK7258_USBCDC -DCONFIG_BK7258_USBMSC -DCONFIG_BK7258_OTA_SOURCE_FILE \
+		-DCONFIG_BK7258_USBMODE_BLOCKDEV=\"/dev/mmcsd0\" -DCONFIG_BK7258_USBMODE_REENUM_DELAY_MS=1 \
+		-I $(MOCKS) -I $(CHIP_ROOT)/include -I $(VOICE_PACK_ROOT) \
+		$^ mocks/mock_nuttx_ap.c -o $@
+
+$(BUILD)/test_shaniu_preferences_msc_epoch: test_shaniu_preferences_msc_epoch.c \
+	$(VOICE_PACK_ROOT)/bk7258_preferences.c \
+	$(VOICE_PACK_ROOT)/bk7258_preferences_storage.c \
+	$(VOICE_PACK_ROOT)/bk7258_media_volume.c \
+	$(CHIP_ROOT)/ap/bk7258_usbmode.c | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread -DCONFIG_BK7258_USBMODE -DCONFIG_BK7258_AP_CORE \
+		-DCONFIG_BK7258_USBCDC -DCONFIG_BK7258_USBMSC \
+		-DCONFIG_BK7258_USBMODE_BLOCKDEV=\"/dev/mmcsd0\" \
+		-DCONFIG_BK7258_PREFERENCES_BLOCKDEV=\"/dev/mmcsd0\" \
+		-DCONFIG_BK7258_USBMODE_REENUM_DELAY_MS=1 \
+		-I $(MOCKS) -I $(OPENVELA_ROOT)/external/unqlite/unqlite \
+		-I $(CHIP_ROOT)/include -I $(VOICE_PACK_ROOT) \
+		$^ mocks/mock_nuttx_ap.c -o $@
+
+.PHONY: run-shaniu-contracts
+run-shaniu-contracts:
+	python3 test_shaniu_contracts.py
+
+$(BUILD)/test_shaniu_volume_transition: test_shaniu_volume_transition.c \
+    $(VOICE_PACK_ROOT)/bk7258_media_volume.c $(VOICE_PACK_ROOT)/bk7258_media_volume.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -DCONFIG_BK7258_USBMODE \
+	    -I $(MOCKS) -I $(CHIP_ROOT)/include -I $(VOICE_PACK_ROOT) \
+	    -include $(CHIP_ROOT)/include/bk7258_usbmode.h \
+	    -include $(MOCKS)/bk7258_usbmode_lease.h \
+	    $< $(VOICE_PACK_ROOT)/bk7258_media_volume.c -o $@
+
+$(BUILD)/test_shaniu_power_contract: test_shaniu_power_contract.c \
+    $(VOICE_PACK_ROOT)/bk7258_agent_product_power.inc $(VOICE_PACK_ROOT)/bk7258_health_core.c \
+    $(VOICE_PACK_ROOT)/bk7258_agent_power.h $(VOICE_PACK_ROOT)/bk7258_health_core.h \
+    $(VOICE_PACK_ROOT)/bk7258_health_protocol.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) $< $(VOICE_PACK_ROOT)/bk7258_health_core.c -o $@
+
+$(BUILD)/test_shaniu_power_prepare: test_shaniu_power_contract.c \
+    $(VOICE_PACK_ROOT)/bk7258_agent_product_power.inc $(VOICE_PACK_ROOT)/bk7258_health_core.c \
+    $(VOICE_PACK_ROOT)/bk7258_agent_power.h $(VOICE_PACK_ROOT)/bk7258_health_core.h \
+    $(VOICE_PACK_ROOT)/bk7258_health_protocol.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -DCONFIG_BK7258_POWER_PREPARE_VALIDATION=1 \
+	    -I $(VOICE_PACK_ROOT) $< $(VOICE_PACK_ROOT)/bk7258_health_core.c -o $@
+
+$(BUILD)/test_shaniu_control_quiesce: test_shaniu_control_quiesce.c \
+    $(VOICE_PACK_ROOT)/bk7258_control_session.c $(VOICE_PACK_ROOT)/bk7258_control_session.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) $< \
+	    $(VOICE_PACK_ROOT)/bk7258_control_session.c -o $@
+
+OWNER_CONTRACT_FLAGS := -std=c11 -Wall -Wextra -Werror \
+    -I $(MOCKS) -I $(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/include -I $(VOICE_PACK_ROOT)
+OWNER_CONTRACT_SOURCES := $(VOICE_PACK_ROOT)/bk7258_provision_owner.c \
+    $(VOICE_PACK_ROOT)/bk7258_control_session.c $(VOICE_PACK_ROOT)/bk7258_provision_scan.c
+OWNER_CONTRACT_HEADERS := $(VOICE_PACK_ROOT)/bk7258_provision_owner.h \
+    $(VOICE_PACK_ROOT)/bk7258_control_session.h
+$(BUILD)/test_shaniu_owner: test_provision_owner.c $(OWNER_CONTRACT_SOURCES) $(OWNER_CONTRACT_HEADERS) | $(BUILD)
+	$(CC) $(OWNER_CONTRACT_FLAGS) $< $(OWNER_CONTRACT_SOURCES) -o $@
+$(BUILD)/shaniu_owner_peer.o: test_provision_owner.c $(OWNER_CONTRACT_HEADERS) | $(BUILD)
+	$(CC) $(OWNER_CONTRACT_FLAGS) -DTEST_OWNER_LIBRARY -c $< -o $@
+$(BUILD)/test_shaniu_power_owner: test_shaniu_power_contract.c $(BUILD)/shaniu_owner_peer.o \
+    $(OWNER_CONTRACT_SOURCES) $(OWNER_CONTRACT_HEADERS) $(VOICE_PACK_ROOT)/bk7258_agent_product_power.inc $(VOICE_PACK_ROOT)/bk7258_health_core.c \
+    $(VOICE_PACK_ROOT)/bk7258_agent_power.h $(VOICE_PACK_ROOT)/bk7258_health_core.h \
+    $(VOICE_PACK_ROOT)/bk7258_health_protocol.h | $(BUILD)
+	$(CC) $(OWNER_CONTRACT_FLAGS) -DTEST_REAL_OWNER $< $(BUILD)/shaniu_owner_peer.o \
+	    $(OWNER_CONTRACT_SOURCES) $(VOICE_PACK_ROOT)/bk7258_health_core.c -o $@
+
+$(BUILD)/test_shaniu_power_pixels: test_shaniu_power_pixels.c \
+    $(VOICE_PACK_ROOT)/bk7258_display_power_pixels.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) $< -o $@
+
+$(BUILD)/test_shaniu_msc_stop: test_shaniu_msc_stop.c $(CHIP_ROOT)/ap/bk7258_usbmsc_start.inc $(CHIP_ROOT)/ap/bk7258_usbmsc_stop.inc | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -I $(CHIP_ROOT)/ap $< -o $@
+
+$(BUILD)/test_shaniu_usb_cleanup: test_shaniu_usb_cleanup.c $(CHIP_ROOT)/ap/bk7258_usbmode.c | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread -DCONFIG_BK7258_USBMODE -DCONFIG_BK7258_AP_CORE \
+		-DCONFIG_BK7258_USBCDC -DCONFIG_BK7258_USBMSC -DCONFIG_BK7258_OTA_SOURCE_FILE \
+		-DCONFIG_BK7258_USBMODE_BLOCKDEV=\"/dev/mmcsd0\" -DCONFIG_BK7258_USBMODE_REENUM_DELAY_MS=1 \
+		-I $(MOCKS) -I $(CHIP_ROOT)/include -I $(VOICE_PACK_ROOT) \
+		$^ mocks/mock_nuttx_ap.c -o $@
+
+$(BUILD)/test_shaniu_focus: test_shaniu_focus.c $(VOICE_PACK_ROOT)/bk7258_focus.c $(VOICE_PACK_ROOT)/bk7258_focus.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) $(filter %.c,$^) -o $@
+
+$(BUILD)/test_shaniu_focus_wire: test_shaniu_focus_wire.c $(VOICE_PACK_ROOT)/bk7258_focus.c $(VOICE_PACK_ROOT)/bk7258_control_session.c $(VOICE_PACK_ROOT)/bk7258_focus.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) $(filter %.c,$^) -o $@
+
+$(BUILD)/test_shaniu_focus_pixels: test_shaniu_focus_pixels.c $(VOICE_PACK_ROOT)/bk7258_focus_pixels.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) $< -o $@
+
+$(BUILD)/test_shaniu_focus_render: test_shaniu_focus_render.c $(VOICE_PACK_ROOT)/bk7258_focus_pixels.h $(VOICE_PACK_ROOT)/bk7258_display_focus.inc | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) $< -o $@
+
+$(BUILD)/test_shaniu_display_snapshot: test_shaniu_display_snapshot.c $(VOICE_PACK_ROOT)/bk7258_display_snapshot.inc $(VOICE_PACK_ROOT)/bk7258_display_service.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(MOCKS) -I $(VOICE_PACK_ROOT) $< -o $@
+
+$(BUILD)/test_shaniu_display_intent: test_shaniu_display_intent.c $(VOICE_PACK_ROOT)/bk7258_display_intent.inc $(VOICE_PACK_ROOT)/bk7258_display_selection_request.inc $(VOICE_PACK_ROOT)/bk7258_display_service.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(MOCKS) -I $(VOICE_PACK_ROOT) $< -o $@
+
+$(BUILD)/test_shaniu_expression_cancel: test_shaniu_expression_cancel.c $(VOICE_PACK_ROOT)/bk7258_display_intent.inc $(VOICE_PACK_ROOT)/bk7258_display_selection_request.inc $(VOICE_PACK_ROOT)/bk7258_agent_display_control.inc $(VOICE_PACK_ROOT)/bk7258_display_service.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(MOCKS) -I $(VOICE_PACK_ROOT) $< -o $@
+
+$(BUILD)/test_shaniu_models_durability: test_shaniu_models_durability.c $(VOICE_PACK_ROOT)/bk7258_preferences.c $(VOICE_PACK_ROOT)/bk7258_cloud_config.c $(VOICE_PACK_ROOT)/bk7258_provision_store.c $(VOICE_OTA_MBEDCRYPTO) | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread -ffunction-sections -fdata-sections -DCONFIG_BK7258_PROVISION_GATT \
+	    -I $(MOCKS) -I $(VOICE_PACK_ROOT) -I $(OPENVELA_ROOT)/external/unqlite/unqlite \
+	    -I $(VOICE_OTA_MBEDTLS_SOURCE)/include $< $(VOICE_PACK_ROOT)/bk7258_preferences.c \
+	    $(VOICE_PACK_ROOT)/bk7258_cloud_config.c $(VOICE_PACK_ROOT)/bk7258_provision_store.c \
+	    -Wl,--gc-sections -Wl,--wrap=mkdir -Wl,--wrap=bkprov_store_open -Wl,--wrap=fsync \
+	    -Wl,--wrap=lstat -Wl,--wrap=bkprov_store_check_filesystem $(VOICE_OTA_MBEDCRYPTO) -o $@
+
+# Extract exact production command bodies; never maintain a test copy of their
+# state/replace logic. Rendering and NuttX synchronization stay at the boundary.
+$(BUILD)/test_shaniu_expression_ownership: test_shaniu_expression_ownership.c $(VOICE_PACK_ROOT)/bk7258_display_render_identity.inc $(VOICE_PACK_ROOT)/bk7258_display_service.c $(VOICE_PACK_ROOT)/bk7258_display_intent.inc $(VOICE_PACK_ROOT)/bk7258_display_selection_request.inc $(VOICE_PACK_ROOT)/bk7258_vision_feedback.c | $(BUILD)
+	python3 -c 'from pathlib import Path; s=Path("$(VOICE_PACK_ROOT)/bk7258_display_service.c").read_text(); a=s.index("int bk7258_display_set_expression("); b=s.index("int bk7258_display_show_mapping_test(",a); Path("$(BUILD)/display-commands.inc").write_text(s[a:b])'
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(MOCKS) -I $(VOICE_PACK_ROOT) -I $(BUILD) $< $(VOICE_PACK_ROOT)/bk7258_vision_feedback.c -o $@
+
+.PHONY: run-expression-ownership
+run-expression-ownership: $(BUILD)/test_shaniu_expression_ownership
+	./$(BUILD)/test_shaniu_expression_ownership
+
+$(BUILD)/test_shaniu_expression_trial: test_shaniu_expression_trial.c $(VOICE_PACK_ROOT)/bk7258_display_intent.inc $(VOICE_PACK_ROOT)/bk7258_display_selection_request.inc $(VOICE_PACK_ROOT)/bk7258_display_render_identity.inc $(VOICE_PACK_ROOT)/bk7258_display_service.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(MOCKS) -I $(VOICE_PACK_ROOT) $< -o $@
+.PHONY: run-expression-trial
+run-expression-trial: $(BUILD)/test_shaniu_expression_trial
+	./$(BUILD)/test_shaniu_expression_trial
+
+$(BUILD)/test_shaniu_trial_wire: test_shaniu_trial_wire.c $(VOICE_PACK_ROOT)/bk7258_display_trial_control.c $(VOICE_PACK_ROOT)/bk7258_control_session.c $(VOICE_PACK_ROOT)/bk7258_display_intent.inc $(VOICE_PACK_ROOT)/bk7258_display_selection_request.inc $(VOICE_PACK_ROOT)/bk7258_display_render_identity.inc | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(MOCKS) -I $(VOICE_PACK_ROOT) $< $(VOICE_PACK_ROOT)/bk7258_display_trial_control.c $(VOICE_PACK_ROOT)/bk7258_control_session.c -o $@
+.PHONY: run-trial-wire
+run-trial-wire: $(BUILD)/test_shaniu_trial_wire
+	./$(BUILD)/test_shaniu_trial_wire
+
+$(BUILD)/test_shaniu_focus_shared: test_shaniu_focus_shared.c $(VOICE_PACK_ROOT)/bk7258_focus.c $(VOICE_PACK_ROOT)/bk7258_focus.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) $< $(VOICE_PACK_ROOT)/bk7258_focus.c -o $@
+
+$(BUILD)/test_shaniu_focus_intent: test_shaniu_focus_intent.c $(VOICE_PACK_ROOT)/bk7258_focus.c $(VOICE_PACK_ROOT)/bk7258_focus_intent.c $(VOICE_PACK_ROOT)/bk7258_focus_intent.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(MOCKS) -I $(VOICE_PACK_ROOT) \
+		-I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON $(filter %.c,$^) \
+		$(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c -o $@
+
+$(BUILD)/test_shaniu_nfc_bindings: test_shaniu_nfc_bindings.c $(VOICE_PACK_ROOT)/bk7258_nfc_bindings.c $(VOICE_PACK_ROOT)/bk7258_nfc_core.c $(VOICE_PACK_ROOT)/bk7258_provision_store.c $(VOICE_OTA_MBEDCRYPTO) | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) -I $(VOICE_OTA_MBEDTLS_SOURCE)/include \
+	  $< $(VOICE_PACK_ROOT)/bk7258_nfc_bindings.c $(VOICE_PACK_ROOT)/bk7258_nfc_core.c \
+	  $(VOICE_PACK_ROOT)/bk7258_provision_store.c -Wl,--wrap=fsync $(VOICE_OTA_MBEDCRYPTO) -o $@
+
+$(BUILD)/test_shaniu_nfc_quiesce: test_shaniu_nfc_quiesce.c test_bk7258_nfc_rpc.c bk7258_sensor_rpc_test.h $(BUILD)/test_bk7258_nfc_rpc $(VOICE_PACK_ROOT)/bk7258_nfc_service.c | $(BUILD)
+	$(CC) -std=c11 -Wall -Wextra -Werror -Wno-unused-function \
+	  -fsanitize=undefined -fno-sanitize-recover=all -I $(BUILD)/sensor-rpc-include \
+	  -I $(VOICE_PACK_ROOT) -I $(REPOSITORY_ROOT)/nuttx/include $< -o $@
+
+$(BUILD)/test_shaniu_nfc_jobs: test_shaniu_nfc_jobs.c $(VOICE_PACK_ROOT)/bk7258_nfc_jobs.inc test_bk7258_nfc_rpc.c bk7258_sensor_rpc_test.h $(BUILD)/test_bk7258_nfc_rpc $(VOICE_PACK_ROOT)/bk7258_nfc_service.c $(VOICE_PACK_ROOT)/bk7258_nfc_bindings.c $(VOICE_OTA_MBEDCRYPTO)
+	$(CC) -std=gnu11 -Wall -Wextra -Werror -Wno-unused-function -I $(BUILD)/sensor-rpc-include \
+	  -I $(VOICE_PACK_ROOT) -I $(REPOSITORY_ROOT)/nuttx/include -I $(VOICE_OTA_MBEDTLS_SOURCE)/include \
+	  $< $(VOICE_PACK_ROOT)/bk7258_nfc_bindings.c $(VOICE_PACK_ROOT)/bk7258_provision_store.c -Wl,--wrap=fsync $(VOICE_OTA_MBEDCRYPTO) -o $@
+
+$(BUILD)/test_shaniu_nfc_control: test_shaniu_nfc_control.c test_shaniu_nfc_jobs.c $(BUILD)/test_shaniu_nfc_jobs $(VOICE_PACK_ROOT)/bk7258_nfc_control.c $(VOICE_PACK_ROOT)/bk7258_control_session.c
+	$(CC) -std=gnu11 -Wall -Wextra -Werror -Wno-unused-function -DCONFIG_BK7258_PROVISION_GATT=1 -I $(BUILD)/sensor-rpc-include \
+	  -I $(VOICE_PACK_ROOT) -I $(REPOSITORY_ROOT)/nuttx/include -I $(VOICE_OTA_MBEDTLS_SOURCE)/include \
+	  $< $(VOICE_PACK_ROOT)/bk7258_nfc_control.c $(VOICE_PACK_ROOT)/bk7258_control_session.c \
+	  $(VOICE_PACK_ROOT)/bk7258_nfc_bindings.c $(VOICE_PACK_ROOT)/bk7258_provision_store.c -Wl,--wrap=fsync $(VOICE_OTA_MBEDCRYPTO) -o $@
+
+$(BUILD)/test_shaniu_nfc_scene: test_shaniu_nfc_scene.c $(VOICE_PACK_ROOT)/bk7258_nfc_scene.c $(VOICE_PACK_ROOT)/bk7258_nfc_bindings.c $(VOICE_PACK_ROOT)/bk7258_nfc_core.c $(VOICE_PACK_ROOT)/bk7258_provision_store.c $(VOICE_PACK_ROOT)/bk7258_focus.c $(VOICE_PACK_ROOT)/bk7258_focus_intent.c $(VOICE_OTA_MBEDCRYPTO) | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(MOCKS) -I $(VOICE_PACK_ROOT) \
+	  -I $(VOICE_OTA_MBEDTLS_SOURCE)/include -I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON \
+	  $(filter %.c,$^) $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c $(VOICE_OTA_MBEDCRYPTO) -o $@
+
+$(BUILD)/test_shaniu_nfc_worker_scene: test_shaniu_nfc_worker_scene.c $(VOICE_PACK_ROOT)/bk7258_nfc_control.c test_shaniu_nfc_jobs.c $(VOICE_PACK_ROOT)/bk7258_nfc_jobs.inc test_bk7258_nfc_rpc.c bk7258_sensor_rpc_test.h $(BUILD)/test_bk7258_nfc_rpc $(VOICE_PACK_ROOT)/bk7258_nfc_service.c $(VOICE_PACK_ROOT)/bk7258_nfc_scene.c $(VOICE_PACK_ROOT)/bk7258_nfc_worker_scene.inc $(VOICE_OTA_MBEDCRYPTO) $(BUILD)/shaniu-focus-intent.o
+	$(CC) -std=gnu11 -Wall -Wextra -Werror -Wno-unused-function -pthread \
+	  -I $(BUILD)/sensor-rpc-include -I $(MOCKS) -I $(VOICE_PACK_ROOT) -I $(REPOSITORY_ROOT)/nuttx/include \
+	  -I $(VOICE_OTA_MBEDTLS_SOURCE)/include -I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON \
+	  $< $(VOICE_PACK_ROOT)/bk7258_nfc_bindings.c $(VOICE_PACK_ROOT)/bk7258_provision_store.c \
+	  $(VOICE_PACK_ROOT)/bk7258_nfc_scene.c $(VOICE_PACK_ROOT)/bk7258_focus.c $(BUILD)/shaniu-focus-intent.o \
+	  $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c -Wl,--wrap=fsync -Wl,--wrap=read $(VOICE_OTA_MBEDCRYPTO) -lm -o $@
+
+$(BUILD)/shaniu-focus-intent.o: $(VOICE_PACK_ROOT)/bk7258_focus_intent.c $(VOICE_PACK_ROOT)/bk7258_focus_intent.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(MOCKS) -I $(VOICE_PACK_ROOT) \
+	  -I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON -c $< -o $@
+
+$(BUILD)/test_shaniu_motion_quiesce: test_shaniu_motion_quiesce.c test_bk7258_motion_rpc.c bk7258_sensor_rpc_test.h $(wildcard $(VOICE_PACK_ROOT)/bk7258_motion_*.c) $(wildcard $(VOICE_PACK_ROOT)/bk7258_motion_*.h) $(SENSOR_RPC_SHIM)/.ready
+	$(CC) -std=c11 -Wall -Wextra -Werror -Wno-unused-function -fsanitize=undefined -fno-sanitize-recover=all -I $(SENSOR_RPC_SHIM) -I $(VOICE_PACK_ROOT) $< -o $@
+
+$(BUILD)/test_shaniu_motion_actions: test_shaniu_motion_actions.c $(VOICE_PACK_ROOT)/bk7258_motion_core.c $(VOICE_PACK_ROOT)/bk7258_motion_core.h | $(BUILD)
+	$(CC) -std=c11 -Wall -Wextra -Werror -fsanitize=undefined -fno-sanitize-recover=all -I $(VOICE_PACK_ROOT) $< $(VOICE_PACK_ROOT)/bk7258_motion_core.c -o $@
+
+# Native CDC byte adapter; only the device node is redirected to a host PTY.
+$(BUILD)/test_control_serial: $(REPOSITORY_ROOT)/app/bk7258/bk7258_control_serial.c \
+                              $(TEST_ROOT)/test_control_serial.c \
+                              $(REPOSITORY_ROOT)/app/bk7258/bk7258_control_serial.h \
+                              $(REPOSITORY_ROOT)/app/bk7258/bk7258_provision_tls.h
+	@mkdir -p $(BUILD)
+	$(CC) $(CFLAGS) -Werror -I$(REPOSITORY_ROOT)/app/bk7258 -I$(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/include $(filter %.c,$^) -Wl,--wrap=open,--wrap=close,--wrap=tcgetattr,--wrap=tcsetattr -o $@
+
+$(BUILD)/test_pc_grants: test_pc_grants.c $(VOICE_PACK_ROOT)/bk7258_pc_grants.c $(VOICE_PACK_ROOT)/bk7258_pc_grants.h $(VOICE_PACK_ROOT)/bk7258_provision_store.c $(VOICE_OTA_MBEDCRYPTO) | $(BUILD)
+	$(CC) $(CFLAGS) -Werror -I$(VOICE_PACK_ROOT) -I$(VOICE_OTA_MBEDTLS_SOURCE)/include $(filter %.c,$^) -Wl,--wrap=fsync $(VOICE_OTA_MBEDCRYPTO) -o $@
+
+$(BUILD)/test_pc_reset: test_pc_reset.c $(VOICE_PACK_ROOT)/bk7258_pc_grants.c $(VOICE_PACK_ROOT)/bk7258_provision_storage.c $(VOICE_PACK_ROOT)/bk7258_provision_store.c $(VOICE_OTA_MBEDCRYPTO) | $(BUILD)
+	$(CC) $(CFLAGS) -Werror -pthread -I$(VOICE_PACK_ROOT) -I$(VOICE_OTA_MBEDTLS_SOURCE)/include $(filter %.c,$^) -Wl,--wrap=fsync,--wrap=unlink $(VOICE_OTA_MBEDCRYPTO) -o $@
+
+$(BUILD)/test_pc_storage: test_pc_storage.c $(VOICE_PACK_ROOT)/bk7258_pc_grants.c $(VOICE_PACK_ROOT)/bk7258_provision_storage.c $(VOICE_PACK_ROOT)/bk7258_provision_store.c $(VOICE_PACK_ROOT)/bk7258_provision_storage.h $(VOICE_PACK_ROOT)/bk7258_pc_grants.h $(VOICE_OTA_MBEDCRYPTO) | $(BUILD)
+	$(CC) $(CFLAGS) -Werror -pthread -I$(VOICE_PACK_ROOT) -I$(VOICE_OTA_MBEDTLS_SOURCE)/include $(filter %.c,$^) -Wl,--wrap=fsync $(VOICE_OTA_MBEDCRYPTO) -o $@
+
+$(BUILD)/test_pc_authorization: test_pc_authorization.c $(VOICE_PACK_ROOT)/bk7258_pc_authorization.h $(VOICE_PACK_ROOT)/bk7258_provision_storage.h $(VOICE_PACK_ROOT)/bk7258_pc_authorization.c $(VOICE_PACK_ROOT)/bk7258_control_session.c $(VOICE_PACK_ROOT)/bk7258_pc_grants.c $(VOICE_PACK_ROOT)/bk7258_provision_storage.c $(VOICE_PACK_ROOT)/bk7258_provision_store.c $(VOICE_OTA_MBEDCRYPTO) | $(BUILD)
+	$(CC) $(CFLAGS) -Werror -pthread -I$(VOICE_PACK_ROOT) -I$(VOICE_OTA_MBEDTLS_SOURCE)/include $(filter-out test_pc_storage.c,$(filter %.c,$^)) -Wl,--wrap=fsync $(VOICE_OTA_MBEDCRYPTO) -o $@
+
+$(BUILD)/test_pc_authorization: test_pc_storage.c
+
+$(BUILD)/test_pc_owner_binding: test_pc_owner_binding.c $(VOICE_PACK_ROOT)/bk7258_pc_authorization_owner.c $(VOICE_PACK_ROOT)/bk7258_pc_authorization.c $(VOICE_PACK_ROOT)/bk7258_provision_owner.c $(VOICE_PACK_ROOT)/bk7258_provision_settings.c $(VOICE_PACK_ROOT)/bk7258_cloud_config.c $(VOICE_PACK_ROOT)/bk7258_voice_config.c $(VOICE_PACK_ROOT)/bk7258_pc_grants.c $(VOICE_PACK_ROOT)/bk7258_provision_storage.c $(VOICE_PACK_ROOT)/bk7258_provision_store.c $(VOICE_OTA_MBEDCRYPTO) | $(BUILD)
+	$(CC) $(CFLAGS) -Werror -pthread -ffunction-sections -fdata-sections -I$(VOICE_PACK_ROOT) -I$(VOICE_OTA_MBEDTLS_SOURCE)/include $(filter-out test_pc_storage.c,$(filter %.c,$^)) -Wl,--gc-sections,--wrap=fsync $(VOICE_OTA_MBEDCRYPTO) -o $@
+
+$(BUILD)/test_pc_owner_binding: test_pc_storage.c $(VOICE_PACK_ROOT)/bk7258_pc_authorization_owner.h $(VOICE_PACK_ROOT)/bk7258_provision_owner.h
+
+$(BUILD)/test_pc_tasks: test_pc_tasks.c $(VOICE_PACK_ROOT)/bk7258_pc_tasks.c $(VOICE_PACK_ROOT)/bk7258_pc_tasks.h \
+	$(VOICE_PACK_ROOT)/bk7258_focus.c $(VOICE_PACK_ROOT)/bk7258_focus_pixels.h | $(BUILD)
+	$(CC) $(CFLAGS) -Werror -I$(VOICE_PACK_ROOT) $(filter %.c,$^) -o $@
+
+$(BUILD)/test_display_catalog: test_display_catalog.c \
+	$(VOICE_PACK_ROOT)/bk7258_display_store.c $(VOICE_PACK_ROOT)/bk7258_display_store.h \
+	$(VOICE_PACK_ROOT)/bk7258_display_pack.c $(VOICE_PACK_ROOT)/bk7258_display_pack.h \
+	$(DISPLAY_PACK_FIXTURE) | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -fstack-usage test_display_catalog.c \
+		$(VOICE_PACK_ROOT)/bk7258_display_pack.c $(VOICE_PACK_ROOT)/bk7258_display_store.c \
+		-I $(VOICE_PACK_ROOT) -Wl,--wrap=opendir,--wrap=readdir,--wrap=closedir,--wrap=close,--wrap=write -o $@
+
+# Full-Media product profiles use the Agent adapter, not the no-CONFIG_MEDIA
+# BK7258 bridge above. Keep both paths explicit and their evidence separate.
+$(BUILD)/test_agent_audio_playback: test_agent_audio_playback.c \
+    $(REPOSITORY_ROOT)/app/bk7258/bk7258_agent_audio_validation.inc \
+    $(OPENVELA_ROOT)/packages/ai_agent/src/voice/audio_playback.c \
+    $(OPENVELA_ROOT)/packages/ai_agent/include/voice/audio_playback.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -D_GNU_SOURCE -pthread \
+	    -I $(OPENVELA_ROOT)/packages/ai_agent/include -I $(MEDIA_INCLUDE) -I $(MOCKS) \
+	    $< $(OPENVELA_ROOT)/packages/ai_agent/src/voice/audio_playback.c \
+	    -Wl,--wrap=write,--wrap=fcntl,--wrap=clock_gettime,--wrap=usleep,--wrap=sem_clockwait -o $@

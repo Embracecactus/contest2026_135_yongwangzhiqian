@@ -29,23 +29,70 @@ static struct
   uint64_t last_sample;
   uint32_t epoch;
   uint32_t sequence;
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  uint32_t engineering_session;
+  uint32_t engineering_sequence;
+#endif
   int volume_steps;
   bool power_requested;
   bool connected;
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  bool engineering_active;
+#endif
 } g_keys =
 {
   .endpoint_lock = NXMUTEX_INITIALIZER,
   .lock = SP_UNLOCKED
 };
 
+static bool keys_apply_locked(uint32_t pressed, uint64_t now,
+                              bool discontinuity, bool *power_accepted)
+{
+  uint32_t action;
+  bool power;
+  bool was_armed = g_keys.policy.armed;
+
+  if (discontinuity)
+    {
+      bkvoice_product_keys_reset(&g_keys.policy, g_keys.epoch);
+    }
+
+  action = bkvoice_product_keys_step(&g_keys.policy, g_keys.epoch,
+                                     pressed, now, &power);
+  /* Combined keys produce no volume action; what accumulates is the press
+   * edge, not every heartbeat.
+   */
+  if (pressed == BKVOICE_PRODUCT_KEY_VOLUME_DOWN &&
+      (action & BKVOICE_PRODUCT_KEY_VOLUME_DOWN) && g_keys.volume_steps > -15)
+    {
+      g_keys.volume_steps--;
+    }
+
+  if (pressed == BKVOICE_PRODUCT_KEY_VOLUME_UP &&
+      (action & BKVOICE_PRODUCT_KEY_VOLUME_UP) && g_keys.volume_steps < 15)
+    {
+      g_keys.volume_steps++;
+    }
+
+  g_keys.power_requested |= power;
+  if (power_accepted != NULL)
+    {
+      *power_accepted = power;
+    }
+
+  return !was_armed && g_keys.policy.armed;
+}
+
 static int keys_receive(struct rpmsg_endpoint *endpoint, void *data,
                         size_t size, uint32_t source, void *priv)
 {
   struct bkvoice_button_event_s event;
   uint64_t now = bkvoice_config_now_ms(NULL);
-  uint32_t action;
-  bool power;
-  bool was_armed;
+  bool discontinuity;
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  bool engineering_active;
+#endif
+  bool ready;
   irqstate_t flags;
 
   (void)endpoint; (void)source; (void)priv;
@@ -57,34 +104,32 @@ static int keys_receive(struct rpmsg_endpoint *endpoint, void *data,
       event.reserved[0] || event.reserved[1]) return -EPROTO;
 
   flags = spin_lock_irqsave(&g_keys.lock);
-  if (!g_keys.connected || event.sequence <= g_keys.sequence)
+  if (!g_keys.connected || event.sequence <= g_keys.sequence
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+      || g_keys.engineering_active
+#endif
+     )
     {
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+      engineering_active = g_keys.engineering_active;
+#endif
       spin_unlock_irqrestore(&g_keys.lock, flags);
-      return -ESTALE;
+      return
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+        engineering_active ? -EBUSY :
+#endif
+        -ESTALE;
     }
   /* A dropped sample, a broken link or a clock regression must not compose a
    * continuous long press; a fully released mask must be observed again.
    */
-  if ((g_keys.sequence && event.sequence != g_keys.sequence + 1u) ||
-      now < g_keys.last_sample ||
-      now - g_keys.last_sample > BKVOICE_BUTTON_LEASE_MS)
-    bkvoice_product_keys_reset(&g_keys.policy, g_keys.epoch);
+  discontinuity = (g_keys.sequence &&
+                   event.sequence != g_keys.sequence + 1u) ||
+                  now < g_keys.last_sample ||
+                  now - g_keys.last_sample > BKVOICE_BUTTON_LEASE_MS;
   g_keys.sequence = event.sequence;
   g_keys.last_sample = now;
-  was_armed = g_keys.policy.armed;
-  action = bkvoice_product_keys_step(&g_keys.policy, g_keys.epoch,
-                                      event.pressed, now, &power);
-  /* Combined keys produce no volume action; what accumulates is the press
-   * edge, not every heartbeat.
-   */
-  if (event.pressed == BKVOICE_PRODUCT_KEY_VOLUME_DOWN &&
-      (action & BKVOICE_PRODUCT_KEY_VOLUME_DOWN) && g_keys.volume_steps > -15)
-    g_keys.volume_steps--;
-  if (event.pressed == BKVOICE_PRODUCT_KEY_VOLUME_UP &&
-      (action & BKVOICE_PRODUCT_KEY_VOLUME_UP) && g_keys.volume_steps < 15)
-    g_keys.volume_steps++;
-  g_keys.power_requested |= power;
-  bool ready = !was_armed && g_keys.policy.armed;
+  ready = keys_apply_locked(event.pressed, now, discontinuity, NULL);
   spin_unlock_irqrestore(&g_keys.lock, flags);
   if (ready) syslog(LOG_INFO, "BKKEYS input ready=1 mask=0\n");
   if (g_keys.notify) g_keys.notify();
@@ -98,10 +143,19 @@ static void keys_disconnect(void)
   flags = spin_lock_irqsave(&g_keys.lock);
   g_keys.connected = false;
   g_keys.sequence = 0;
-  g_keys.last_sample = 0;
-  g_keys.volume_steps = 0;
-  g_keys.power_requested = false;
-  bkvoice_product_keys_reset(&g_keys.policy, ++g_keys.epoch);
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  if (!g_keys.engineering_active)
+#endif
+    {
+      g_keys.last_sample = 0;
+      g_keys.volume_steps = 0;
+      /* A release-qualified power request already belongs to the product
+       * coordinator. A transport epoch change revokes only the unfinished
+       * hold; bkvoice_keys_take() remains the sole consumer of the accepted
+       * intent.
+       */
+      bkvoice_product_keys_reset(&g_keys.policy, ++g_keys.epoch);
+    }
   spin_unlock_irqrestore(&g_keys.lock, flags);
   if (g_keys.endpoint.rdev) rpmsg_destroy_ept(&g_keys.endpoint);
   memset(&g_keys.endpoint, 0, sizeof(g_keys.endpoint));
@@ -133,7 +187,12 @@ static void keys_bind(struct rpmsg_device *device, void *priv,
     {
       flags = spin_lock_irqsave(&g_keys.lock);
       g_keys.connected = true;
-      bkvoice_product_keys_reset(&g_keys.policy, ++g_keys.epoch);
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+      if (!g_keys.engineering_active)
+#endif
+        {
+          bkvoice_product_keys_reset(&g_keys.policy, ++g_keys.epoch);
+        }
       spin_unlock_irqrestore(&g_keys.lock, flags);
       ret = rpmsg_create_ept(&g_keys.endpoint, device, name, RPMSG_ADDR_ANY,
                               destination, keys_receive, keys_unbind);
@@ -162,15 +221,130 @@ int bkvoice_keys_listen(void (*notify)(void))
                                   keys_match, keys_bind);
 }
 
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+int bkvoice_keys_engineering_begin(uint32_t session, uint64_t now)
+{
+  bool ready;
+  irqstate_t flags;
+
+  if (session == 0)
+    {
+      return -EINVAL;
+    }
+
+  flags = spin_lock_irqsave(&g_keys.lock);
+  if (g_keys.engineering_active || g_keys.power_requested)
+    {
+      spin_unlock_irqrestore(&g_keys.lock, flags);
+      return -EBUSY;
+    }
+
+  g_keys.engineering_active = true;
+  g_keys.engineering_session = session;
+  g_keys.engineering_sequence = 0;
+  g_keys.last_sample = now;
+  bkvoice_product_keys_reset(&g_keys.policy, ++g_keys.epoch);
+  ready = keys_apply_locked(0, now, false, NULL);
+  spin_unlock_irqrestore(&g_keys.lock, flags);
+  if (ready)
+    {
+      syslog(LOG_INFO, "BKKEYS input ready=1 source=engineering\n");
+    }
+
+  if (g_keys.notify)
+    {
+      g_keys.notify();
+    }
+
+  return 0;
+}
+
+int bkvoice_keys_engineering_event(uint32_t session, uint32_t sequence,
+                                   uint32_t pressed, uint64_t now,
+                                   bool *power_accepted)
+{
+  bool ready;
+  irqstate_t flags;
+
+  if (session == 0 || sequence == 0 || power_accepted == NULL ||
+      (pressed & ~BKVOICE_PRODUCT_KEY_VALID))
+    {
+      return -EINVAL;
+    }
+
+  flags = spin_lock_irqsave(&g_keys.lock);
+  if (!g_keys.engineering_active || session != g_keys.engineering_session ||
+      sequence != g_keys.engineering_sequence + 1u ||
+      now < g_keys.last_sample)
+    {
+      spin_unlock_irqrestore(&g_keys.lock, flags);
+      return -ESTALE;
+    }
+
+  g_keys.engineering_sequence = sequence;
+  g_keys.last_sample = now;
+  ready = keys_apply_locked(pressed, now, false, power_accepted);
+  spin_unlock_irqrestore(&g_keys.lock, flags);
+  if (ready)
+    {
+      syslog(LOG_INFO, "BKKEYS input ready=1 source=engineering\n");
+    }
+
+  if (g_keys.notify)
+    {
+      g_keys.notify();
+    }
+
+  return 0;
+}
+
+int bkvoice_keys_engineering_end(uint32_t session)
+{
+  irqstate_t flags;
+
+  if (session == 0)
+    {
+      return -EINVAL;
+    }
+
+  flags = spin_lock_irqsave(&g_keys.lock);
+  if (!g_keys.engineering_active || session != g_keys.engineering_session)
+    {
+      spin_unlock_irqrestore(&g_keys.lock, flags);
+      return -ESTALE;
+    }
+
+  g_keys.engineering_active = false;
+  g_keys.engineering_session = 0;
+  g_keys.engineering_sequence = 0;
+  g_keys.last_sample = 0;
+  bkvoice_product_keys_reset(&g_keys.policy, ++g_keys.epoch);
+  spin_unlock_irqrestore(&g_keys.lock, flags);
+  if (g_keys.notify)
+    {
+      g_keys.notify();
+    }
+
+  return 0;
+}
+#endif
+
 void bkvoice_keys_take(int *volume_steps, bool *power_requested)
 {
   uint64_t now = bkvoice_config_now_ms(NULL);
   irqstate_t flags = spin_lock_irqsave(&g_keys.lock);
-  if (!g_keys.connected || now < g_keys.last_sample ||
+  if (
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+      !g_keys.engineering_active &&
+#endif
+      (!g_keys.connected || now < g_keys.last_sample ||
       now - g_keys.last_sample > BKVOICE_BUTTON_LEASE_MS)
+     )
     {
       g_keys.volume_steps = 0;
-      g_keys.power_requested = false;
+      /* A validated release edge is an accepted product intent. Losing a
+       * later heartbeat invalidates only an unfinished hold, not this intent.
+       */
       bkvoice_product_keys_reset(&g_keys.policy, g_keys.epoch);
     }
   *volume_steps = g_keys.volume_steps;
@@ -178,4 +352,20 @@ void bkvoice_keys_take(int *volume_steps, bool *power_requested)
   g_keys.volume_steps = 0;
   g_keys.power_requested = false;
   spin_unlock_irqrestore(&g_keys.lock, flags);
+}
+
+bool bkvoice_keys_power_held(void)
+{
+  uint64_t now = bkvoice_config_now_ms(NULL);
+  irqstate_t flags = spin_lock_irqsave(&g_keys.lock);
+  bool held =
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+              (g_keys.engineering_active &&
+               g_keys.policy.power_request_latched) ||
+#endif
+              (g_keys.connected && now >= g_keys.last_sample &&
+              now - g_keys.last_sample <= BKVOICE_BUTTON_LEASE_MS &&
+              g_keys.policy.power_request_latched);
+  spin_unlock_irqrestore(&g_keys.lock, flags);
+  return held;
 }

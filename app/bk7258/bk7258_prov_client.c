@@ -578,4 +578,106 @@ int bkprov_rpc_status(size_t *size)
   return answer.status;
 }
 
+#ifdef CONFIG_BK7258_FACTORY_DIAGNOSTICS
+int bkprov_rpc_diagnostics_enable(const uint8_t record[52], uint32_t *flags,
+                                  uint32_t *remaining_ms)
+{
+  struct bkprov_rpc_frame_s frame;
+  struct bkprov_rpc_answer_s answer;
+  int ret;
+
+  if (record == NULL || flags == NULL || remaining_ms == NULL)
+    {
+      return -EINVAL;
+    }
+
+  memset(&frame, 0, sizeof(frame));
+  frame.command = BKPROV_RPC_DIAGNOSTICS_ENABLE;
+  frame.total = BKPROV_RPC_DIAGNOSTICS_RECORD_SIZE;
+  frame.length = BKPROV_RPC_DIAGNOSTICS_RECORD_SIZE;
+  memcpy(frame.data, record, BKPROV_RPC_DIAGNOSTICS_RECORD_SIZE);
+  ret = bkprov_rpc_exchange(&frame, &answer, BKPROV_RPC_REPLY_WAIT_MS);
+  memset(frame.data, 0, sizeof(frame.data));
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (answer.status == 0)
+    {
+      *flags = answer.accepted;
+      *remaining_ms = answer.detail;
+    }
+
+  return answer.status;
+}
+
+int bkprov_rpc_diagnostics_revoke(void)
+{
+  struct bkprov_rpc_frame_s frame;
+  struct bkprov_rpc_answer_s answer;
+  int ret;
+
+  memset(&frame, 0, sizeof(frame));
+  frame.command = BKPROV_RPC_DIAGNOSTICS_REVOKE;
+  ret = bkprov_rpc_exchange(&frame, &answer, BKPROV_RPC_REPLY_WAIT_MS);
+  return ret < 0 ? ret : answer.status;
+}
+
+int bkprov_rpc_diagnostics_status(uint32_t *flags, uint32_t *remaining_ms)
+{
+  struct bkprov_rpc_frame_s frame;
+  struct bkprov_rpc_answer_s answer;
+  int ret;
+
+  if (flags == NULL || remaining_ms == NULL)
+    {
+      return -EINVAL;
+    }
+
+  memset(&frame, 0, sizeof(frame));
+  frame.command = BKPROV_RPC_DIAGNOSTICS_STATUS;
+  ret = bkprov_rpc_exchange(&frame, &answer, BKPROV_RPC_REPLY_WAIT_MS);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  *flags = answer.accepted;
+  *remaining_ms = answer.detail;
+  return answer.status;
+}
+
+int bkprov_rpc_diagnostics_certificate(uint32_t offset, uint32_t *word)
+{
+  struct bkprov_rpc_frame_s frame;
+  struct bkprov_rpc_answer_s answer;
+  int ret;
+
+  if (word == NULL || (offset & 3u) != 0 ||
+      offset >= BKPROV_RPC_DIAGNOSTICS_CERT_SIZE)
+    {
+      return -EINVAL;
+    }
+
+  memset(&frame, 0, sizeof(frame));
+  frame.command = BKPROV_RPC_DIAGNOSTICS_CERTIFICATE;
+  frame.offset = offset;
+  frame.total = BKPROV_RPC_DIAGNOSTICS_CERT_SIZE;
+  ret = bkprov_rpc_exchange(&frame, &answer, BKPROV_RPC_REPLY_WAIT_MS);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (answer.status == 0)
+    {
+      *word = answer.accepted;
+    }
+
+  return answer.status;
+}
+
+#endif
+
 #endif /* CONFIG_BK7258_APP_PROV */

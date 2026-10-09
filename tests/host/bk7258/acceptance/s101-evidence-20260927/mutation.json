@@ -1,0 +1,8 @@
+{
+  "status": "DETECTED",
+  "exit_code": 1,
+  "source_sha256": "8ed0e8671db82cf2bd90c9d1b6ce2032fdbadd94ae5c655db9841dd75b3cbb8c",
+  "mutant_sha256": "7b5f9aa2cc1d5c4f9e7a5f887da6b3c7d3216e75fa8c6f384c0125e96a8784a7",
+  "assertion": "after.release_error==-EIO",
+  "restored_log": "mutation-restored-final.log"
+}

@@ -1,0 +1,2 @@
+PC_RESPONSE_ERROR command=15 sequence=28 actual=0 expected=-13
+test: /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_provision_tls.c:620: pc_exchange: Assertion `actual == (uint32_t)expected' failed.

@@ -1,0 +1,4 @@
+Performing Streamed Install
+Success
+INSTRUMENTATION_RESULT: stream=FAIL: IllegalStateException: Closing default sheet retained controller
+INSTRUMENTATION_CODE: 0

@@ -1,0 +1,11 @@
+/tmp/pc-route-khit_3_5/case.c: In function ‘product_config’:
+/tmp/pc-route-khit_3_5/case.c:77:45: error: ‘BKPC_CAP_TASKS’ undeclared (first use in this function)
+   77 |                        (view.capabilities & BKPC_CAP_TASKS) == 0))
+      |                                             ^~~~~~~~~~~~~~
+/tmp/pc-route-khit_3_5/case.c:77:45: note: each undeclared identifier is reported only once for each function it appears in
+Traceback (most recent call last):
+  File "/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258/test_pc_product_route.py", line 111, in <module>
+    subprocess.run(args, cwd=ROOT / "tests/host/bk7258", check=True)
+  File "/usr/lib/python3.10/subprocess.py", line 526, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['cc', '-std=gnu11', '-pthread', '-Wall', '-Wextra', '-O2', '-Werror', '-pthread', '-ffunction-sections', '-fdata-sections', '-I/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258', '-I/home/lijian/project/open-vela/apps/crypto/mbedtls/mbedtls/include', '/tmp/pc-route-khit_3_5/case.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_pc_authorization_owner.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_pc_authorization.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_owner.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_settings.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_cloud_config.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_voice_config.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_pc_grants.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_storage.c', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258/bk7258_provision_store.c', '-Wl,--gc-sections,--wrap=fsync', 'build/voice-ota-store-mbedtls/library/libmbedcrypto.a', '-o', '/tmp/pc-route-khit_3_5/test', '-I', '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258', '-Wno-unused-parameter', '-Wno-unused-value']' returned non-zero exit status 1.

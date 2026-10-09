@@ -1,0 +1,7 @@
+bk7258 package eye-pack: PASS output=/tmp/pack-trial-build-1od8m0ft/green.bkep id=shaniu-upload-v1 revision=1 entries=11 size=10494 sha256=c0136ca3b702c15f41d15aed1e0a5e8714b851332024347c2bf13b1b7fea8e47
+PACK_TRIAL_INPUT_SHA256=c0136ca3b702c15f41d15aed1e0a5e8714b851332024347c2bf13b1b7fea8e47
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.057s
+
+OK

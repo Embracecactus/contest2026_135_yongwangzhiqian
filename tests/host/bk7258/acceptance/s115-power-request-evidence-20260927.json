@@ -1,0 +1,107 @@
+{
+  "parent": "c0389df73b049d6bec620c7cb5ee56f8110a1054",
+  "counts": {
+    "full": 677,
+    "PASS": 677,
+    "original_including_two_restores": 63,
+    "previous_ids_preserved": 673,
+    "new_L2": 4,
+    "runner_gates": 19,
+    "original_mutations_detected": 2,
+    "extra_mutation_detected": 1,
+    "extra_restore_PASS": 1
+  },
+  "new_ids": [
+    "LIFE-01.power-request-catalog-running",
+    "LIFE-01.power-request-clear",
+    "LIFE-01.power-request-coalesce",
+    "LIFE-01.power-request-held-lock"
+  ],
+  "problem": "Power coordinator called bk7258_display_power synchronously; it acquired the display render mutex and could wait behind SD/decode/catalog work before progressing shutdown.",
+  "red": "Real existing power function with unavailable render-lock boundary returned EBUSY, failing independent accepted-request assertion. The fixture prohibits synchronous acquisition of that mutex; no timing or physical shutdown measurement claimed.",
+  "fix": "Power entry uses metadata lock only, latest phase and pending bit. Nonzero immediately closes/cancels ordinary admission. Existing worker copies phase before frame choice. Clearing hint stays gated until worker applies it; stale readiness cannot override pending/nonzero phase. New storage acquisition also respects this gate. Return0 is admission, not rendered or physical power off.",
+  "oracles": [
+    "No render-mutex acquisition, mounts, writes or frames during request",
+    "Latest2->1->3 produces exactly two red-X frames; invalid7 cannot replace3",
+    "Explicit clear does not reopen until worker apply; canceled catalog remains canceled; new job requires new ID",
+    "Power submitted from directory-read boundary cancels real catalog and releases volume, no successful page",
+    "Real built-in renderer output tested at independently chosen center/stem/off-X-axis coordinates; repeated same phase does not dirty another frame"
+  ],
+  "fidelity": "Actual public power function, shared intent/selection implementation, real store and built-in pixel renderer. External mutex/mount/FB and deterministic worker scheduling are fixture boundaries. No real scheduler/IRQ/SD/DMA or end-to-end power coordinator hardware claim.",
+  "setup_errors": [
+    "Initial extractor supported static functions only and failed to locate existing public power function; corrected exact source slicing before baseline Red",
+    "New real built-in renderer compilation exposed signed/unsigned canvas-bound warnings under host Werror. Explicit signed160px bounds and unused-fallback annotation preserve geometry. No warning suppression in final fixture."
+  ],
+  "mutation": "Isolated copy removes pending/nonzero power condition from readiness gate. It compiles, then ordinary expression admission wrongly succeeds and independent EBUSY assertion fails. Unmodified production restore passes.",
+  "resources": {
+    "new_state_bytes": 5,
+    "fields": "uint32-sized requested phase and bool pending, as target nm reports; alignment overhead not included",
+    "new_threads": 0,
+    "new_queues": 0,
+    "target_power_entry_static_stack": 16,
+    "worker_static_frame": 72,
+    "selection_static_frame": 192,
+    "limits": "Static toolchain figures only, not board high-water or worst lock/interrupt latency; existing6144 worker stack unchanged"
+  },
+  "parent_gaps": {
+    "LIFE-01": {
+      "interface": "Public power hint now metadata-only; canceled catalog gate and shared worker binding implemented",
+      "L1_L2": "4 new real service/renderer paths plus full677; no attempt to interrupt an already executing OS I/O call",
+      "L3": "NOT_RUN real shutdown, DMA/callback exit and timing"
+    },
+    "PWR-01": {
+      "interface": "No change to K2 thresholds, reset gesture, CP power backend or recovery strategy",
+      "L1_L2": "Display-request obstruction removed; not a root-cause closure for658/HardFault/deep sleep",
+      "L3": "NOT_RUN physical K2/USB/battery"
+    },
+    "RES-02": {
+      "interface": "Catalog store/job present; authenticated wire and native App/browser catalog still BLOCKED_INTERFACE. Onboarding path still uses render mutex and is not claimed nonblocking",
+      "L1_L2": "Full existing catalog/selection/trial paths retained; next bind protocol with independent snapshot identity",
+      "L3": "NOT_RUN real resource/USB/SD workflows"
+    }
+  },
+  "build": "AP incremental build and verify layers PASS; no signed/deployed claim",
+  "artifacts": {
+    "nuttx": "b342acc61285914e872c26694591f61740c99be01b5d786be4bcc7dff2cf3726",
+    "nuttx.bin": "7705bb0b9b6e107c9b8e29c4441dc79f8da8d27dd5b38259e3d1d99f425d21a5"
+  },
+  "inputs": {
+    "app/bk7258/bk7258_display_intent.inc": "6b42044c354d28cfb389d65f0bd2067d575face76980bc2ed243a61352fb0037",
+    "app/bk7258/bk7258_display_selection_request.inc": "d247d1e0fd593c59db46b39dd92c28bc90c3e15674c08bf1b9547b5da70df1bf",
+    "app/bk7258/bk7258_display_service.c": "35d25361c0856dc8842d975033b26155d8f4a995d1cbfd6e6b337372d13f7d09",
+    "app/bk7258/bk7258_display_service.h": "cbfded3d890dd346eb6c2f4b0cbd0b2c050f2bede3e63419e5d36a53b2b40b17",
+    "tests/host/bk7258/power_request_cases.inc": "6296f3455de6ef249b35fc8d5121eb6a73f5ed2bc7ffeb960b5a4f66206262e0",
+    "tests/host/bk7258/test_pack_trial.c": "8d654e96a7993749875fecb6dc4e13919c235fbeb5c62450ee90fa82c7b7bccf",
+    "tests/host/bk7258/test_pack_trial.py": "9ab214f365b63a5d11d46a7be5082eb78b6ba6c36bf4a2ee59712ded5d14eb78"
+  },
+  "limits": [
+    "Original wake model, response, native UI, dependencies and role configuration unchanged",
+    "No serial opened, flash, phone install, erase, reset or physical action",
+    "677 host units are not56 completed product requirements"
+  ],
+  "raw_evidence_sha256": {
+    "s115-evidence-20260927/CFG-01.wifi-clears-cloud.log": "4095bee9b39bac3173784811bfdceadd8849bf960ec77e8d3ec38c446b78551e",
+    "s115-evidence-20260927/LIFE-01.power-request-catalog-running.log": "ef861d770c2f7474d68ebbdd788f85983b58a9dd395817d98ed08d3e991b8dec",
+    "s115-evidence-20260927/LIFE-01.power-request-clear.log": "299bed9ba069f68a33d5b50c808fc44855061759caeb761243065b354a58e4a8",
+    "s115-evidence-20260927/LIFE-01.power-request-coalesce.log": "5ef2f2696730a06354a6119ec3c37625b09b04e5d375546f23debed1a364b37d",
+    "s115-evidence-20260927/LIFE-01.power-request-held-lock.log": "950838a1c7b23fdd7e86118caeeeca34ef9a64df400c23f8547244f9b70b1510",
+    "s115-evidence-20260927/MSC-01.early-release.log": "a4db0024d0de1cb520d0988a8847f2e4c57fc739b521e1a00cc5299b6efd6c84",
+    "s115-evidence-20260927/after.log": "33baa632f760c20ae2f11041c29d2836e8b3afd27e7e36e9755529510262942f",
+    "s115-evidence-20260927/ap.log": "53368d01edee81b1a915ff114e7eafd94bda4500b2b03a3216ae89eaaf727c48",
+    "s115-evidence-20260927/before-setup.log": "f4ec1be0c17a7eb9b3497cc9291561c8aaad28f8ef4c6f3476ada659c5283cf3",
+    "s115-evidence-20260927/before.log": "fc8154dbb3c498252547e48c79d2c2035e7b152fc92290e3c796f55b4e0c8bea",
+    "s115-evidence-20260927/build-runner.py": "06258484fc01dbc373c717d98036ccf2fc6b1f0f37474c143f9a922ca6ebae20",
+    "s115-evidence-20260927/builtin-compile-before.log": "b0e1a7d34a57fbed3b14b63f77e98375ccdbbaba0d84e3e31f28677ad73c9fe8",
+    "s115-evidence-20260927/full.log": "c81c1144fb45fa6fd66a81f1d76299cfe941f7842238db228241236faf3a79ca",
+    "s115-evidence-20260927/layers.log": "027609397eae350c61a6eb847a6c4ab94f0c926dfa48f65914118948fd3b6c40",
+    "s115-evidence-20260927/mutation-runner.py": "efe41481d8ec6f73d28bbfa5e40109a6ee3d777004b3d1d34eab4aa3c7562aca",
+    "s115-evidence-20260927/mutation.json": "59d4409c48992e8a77602e936cedd70c420f7c3fe80dc3ea416d5632c5758236",
+    "s115-evidence-20260927/mutation.log": "7f29f4ea01cc3d0ccf0917f4ff6dd26139933c5e4cc61ca91962d28a16aed997",
+    "s115-evidence-20260927/power-symbols.txt": "1076e25ae9a665593881ee2238fb8e4be04938da2d9506b1e20b0cfa86847971",
+    "s115-evidence-20260927/restored.log": "df6963971823ce15530db80830c4c6fa24a827b505e5959a179b8f3f33ec0231",
+    "s115-evidence-20260927/runner-gates.log": "5e479c7d73e7decf0c96635c1b9bbc510c1232f52bf7c314ad2e9f477406b954",
+    "s115-evidence-20260927/stack-runner.py": "cca36b627d59e4cba7263052317b4a102cd0dc8adaaf9819bac2f9836d3555f3",
+    "s115-evidence-20260927/target-display-stack.txt": "6664bb809544faf0a3ab9b02a406b426256d213f9ddd8896238c417b04aa52f5",
+    "s115-evidence-20260927/targeted.json": "8a8f02a0a891cf1cca2f90f045d74740eb9a58650ee9bb86a29425ad02280bb6"
+  }
+}

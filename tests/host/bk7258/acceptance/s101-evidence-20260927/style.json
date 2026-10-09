@@ -1,0 +1,10 @@
+{
+  "bk7258_display_service.c": {
+    "added_diagnostic_types": [],
+    "legacy_diagnostics_remain": true
+  },
+  "bk7258_display_service.h": {
+    "added_diagnostic_types": [],
+    "legacy_diagnostics_remain": true
+  }
+}

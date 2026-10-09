@@ -1,0 +1,101 @@
+{
+  "scope": "S22 bounded expression intent and Agent eyes tool routing",
+  "parent": "3ae15bc33d9078b03834dc3e2737d4500f34a43b",
+  "initial_state": "BLOCKED_INTERFACE, not a business Red; test written before API exists",
+  "source_hashes": {
+    "app/bk7258/bk7258_display_intent.inc": "e4f8eb82984f7bb6a7b530aa2e08f5ad0685f13316874001fab94d47a2c68b8d",
+    "app/bk7258/bk7258_display_service.c": "3d64defcf9ee802f9257f5c62ba7447143417fc50d3d00a7ed8cf865272cdc94",
+    "app/bk7258/bk7258_display_service.h": "65957d3e2ebcbb01f1b58f683619229fb1facfcfcc514c16c141f9b8582261eb",
+    "app/bk7258/bk7258_agent_product.c": "e1b320147c2e0ba1c19629ff3b928fb01f79a145a93a4a35d0da341f1c34dfed",
+    "tests/host/bk7258/test_shaniu_display_intent.c": "fd15b187ba5e93b393dbcb4371b546ac0a93dfc0a222d4f468242b0f749eabe2"
+  },
+  "counts": {
+    "PASS": 122,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "extra_mutation": {
+    "id": "DISP-01.accepted-as-completed",
+    "status": "DETECTED",
+    "compile_exit": 0,
+    "exit": -6,
+    "assertion": "mutant-intent: tests/host/bk7258/test_shaniu_display_intent.c:33: main: Assertion `renders == 0 && bkdisplay_intent_pending()' failed.\n",
+    "restored_exit": 0,
+    "production_modified": false,
+    "source_sha256": "e4f8eb82984f7bb6a7b530aa2e08f5ad0685f13316874001fab94d47a2c68b8d",
+    "mutant_sha256": "233d63af79f4218d658293dc238d408911bfe5d95b1c145637246614c651f7fb"
+  },
+  "target_build": {
+    "exit": 0,
+    "source_dirty": true,
+    "tree_sha256": "20c098200f110a7892a64b641b7170e337788c0fa4d064e3b16125bca6c8834b",
+    "inputs": {
+      "ap": {
+        "kind": "raw-build",
+        "path": "roles/mcuboot/ap/bk7258-role-c3282628a929d75f/cmake/nuttx.bin",
+        "sha256": "5fe78dbae83fa1f891aeff3915e85e897e3fd2f54a64320e94f52f9ea22bfd4f",
+        "size": 1685296
+      },
+      "bl2": {
+        "kind": "raw-build",
+        "path": "releases/mcuboot/bl2/bl2.bin",
+        "sha256": "ffb36cdb89174bec06d12c817d2e97165f7d53e22d59b4e45ef63b66ed29e901",
+        "size": 13620
+      },
+      "boot": {
+        "kind": "raw-build",
+        "path": "releases/mcuboot/bl1/bl.bin",
+        "sha256": "d6d6789436a3c760f4a985d094129e2cfd789bdd9d2f2f3e2d577c20d7810443",
+        "size": 65376
+      },
+      "cp": {
+        "kind": "raw-build",
+        "path": "roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.bin",
+        "sha256": "ea3ae3010d527baa5a14fa97d58cd9f081b64b783d65408187b3bd1161041bc9",
+        "size": 1115240
+      }
+    },
+    "trust": {
+      "bl1_public_fingerprint": "93709b494c3ba758ee144bd9ed5d12ca97726a13dc88e336d4c19e9329c44364",
+      "mcuboot_public_fingerprint": "7163228f3221da6e81fcf5e9c6f13ae6c4afbd1e3b91b7669783a37d2f12fbc0"
+    },
+    "rollback_floor": 661,
+    "manifest_sha256": "04189f87b0f262ffbd1175fc408c6ba5b90d9e359c95a92da43a9eb7cca4127f",
+    "verification": "bk7258 verify build-manifest: PASS boot=mcuboot board=aidk_ai_toy layout=bk7258-510173147382a879 source=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json\n"
+  },
+  "target_symbols": [
+    "02163dd8 0000004c T bk7258_display_expression_status",
+    "02163e24 000000b8 T bk7258_display_request_expression",
+    "02163084 00000054 t bkdisplay_intent_gate",
+    "02163814 000000cc t bkdisplay_intent_step.constprop.0",
+    "280699d4 0000000c b g_bkdisplay_intent",
+    "280699e0 00000001 b g_bkdisplay_intent_allowed",
+    "280699e1 00000016 b g_bkdisplay_intent_expression",
+    "28000460 00000004 b g_bkdisplay_intent_lock"
+  ],
+  "resource_budget": {
+    "named_static_bytes_excluding_alignment": 39,
+    "max_outstanding": 1,
+    "new_threads": 0,
+    "new_heap_allocations": 0,
+    "additional_tool_stack_array_bytes": 144,
+    "worker_local_expression_bytes": 22,
+    "CPU_IRQ_duration_stack_peak": "NOT_MEASURED"
+  },
+  "limitations": [
+    "Actual intent state machine tested; rendering is an external callback substitute",
+    "Actual worker/tool callers compile and link; full Agent request/response and worker scheduling not host-executed",
+    "Only latest result retained, boot-scoped IDs; not a general installation job service",
+    "No request expiry or voice-turn cancellation binding implemented; power/claim and later explicit expression cancel pending intents",
+    "Legacy vision/RPC synchronous render APIs remain",
+    "No measured end-to-end latency or physical framebuffer confirmation; completed means render function/driver submission succeeded",
+    "No board deployment or signed release package"
+  ],
+  "logs": {
+    "interface-missing.log": "d7f3c5a3176226aaadf5a8142a289dd10fcebd5844980ecf366364706fb19f03",
+    "contracts-freeze.log": "c08a0fdc6e3e68acf22736b52f9e2ea6f86975e03cbf7034d4f7008fa3631ace",
+    "build-freeze.log": "f0ecfe6f9e2c5588783717a171cbd1b8c1179f53babb28249c6d550b8b2f36dc",
+    "runner-gate.log": "cdbfa131bcea388381d783713677acb1540463705844051d5979a9dc7f0c1c3d"
+  }
+}

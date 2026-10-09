@@ -1,0 +1,100 @@
+{
+  "scope": "S23 exact-ID expression cancellation and tool enqueue guard",
+  "parent": "8001d483aef1b6995d0982b2ade72db0e2d381a4",
+  "initial_state": "BLOCKED_INTERFACE; new cancellation seam did not exist, not a prior business assertion Red",
+  "source_hashes": {
+    "app/bk7258/bk7258_agent_display_control.inc": "52fcaac9550811df397642b7870dd74dd31abed53085b59b7421ffe4f4861cac",
+    "app/bk7258/bk7258_display_intent.inc": "560dce25979b848317ef242dd12cd3400656843a7425f1a83d7559c6a0da8a2b",
+    "app/bk7258/bk7258_display_service.h": "6ab102a42a5e85290e844ce75260b47e2df0bc9cabbf6d3b5653ca20f32788b5",
+    "app/bk7258/bk7258_agent_product.c": "a1bd3721046af0d47bca6e51349babba4d1286c6ea305277fa3b23e635a678bb",
+    "tests/host/bk7258/test_shaniu_expression_cancel.c": "3caca9a1263db50dd2d01ba14fe2ea4ed0e96abbee9ab81b5ca1b5ec93f6f0f1"
+  },
+  "counts": {
+    "PASS": 123,
+    "FAIL_ASSERTION": 0,
+    "SETUP_ERROR": 0,
+    "NOT_RUN": 0
+  },
+  "extra_mutations": {
+    "source_sha256": "52fcaac9550811df397642b7870dd74dd31abed53085b59b7421ffe4f4861cac",
+    "mutations": [
+      {
+        "id": "late-latest-cancel",
+        "status": "DETECTED",
+        "compile_exit": 0,
+        "exit": -6,
+        "assertion": "test: tests/host/bk7258/test_shaniu_expression_cancel.c:65: main: Assertion `bk7258_display_expression_status(&state) == 0 && state.id == newer && state.state == BKDISPLAY_EXPRESSION_PENDING' failed.\n",
+        "mutant_sha256": "db185b6b72bde3122224c8f7876577fa8f946d3ebfb41b7b036c0b9356d9246d"
+      },
+      {
+        "id": "lost-post-enqueue-guard",
+        "status": "DETECTED",
+        "compile_exit": 0,
+        "exit": -6,
+        "assertion": "test: tests/host/bk7258/test_shaniu_expression_cancel.c:51: main: Assertion `product_expression_request(\"happy\", &old, guard, NULL) == -ECANCELED' failed.\n",
+        "mutant_sha256": "66945e7e7c4b67ef86d4bcb369d3ec682346586eb99eb6a89425e2da2695072f"
+      }
+    ],
+    "restored_exit": 0,
+    "production_modified": false
+  },
+  "target_build": {
+    "exit": 0,
+    "dirty": true,
+    "tree_sha256": "1c51a827bfdb3526605f555cc632ef02d6d35d9becd5bd3fd55608ad13255962",
+    "inputs": {
+      "ap": {
+        "kind": "raw-build",
+        "path": "roles/mcuboot/ap/bk7258-role-c3282628a929d75f/cmake/nuttx.bin",
+        "sha256": "dd56f6ac95d91d069eba3b9de35707e75d77e91bafd9ba99ca037c092e237da2",
+        "size": 1685520
+      },
+      "bl2": {
+        "kind": "raw-build",
+        "path": "releases/mcuboot/bl2/bl2.bin",
+        "sha256": "ffb36cdb89174bec06d12c817d2e97165f7d53e22d59b4e45ef63b66ed29e901",
+        "size": 13620
+      },
+      "boot": {
+        "kind": "raw-build",
+        "path": "releases/mcuboot/bl1/bl.bin",
+        "sha256": "d6d6789436a3c760f4a985d094129e2cfd789bdd9d2f2f3e2d577c20d7810443",
+        "size": 65376
+      },
+      "cp": {
+        "kind": "raw-build",
+        "path": "roles/mcuboot/cp/bk7258-role-9a0b5b6e466d063f/cmake/nuttx.bin",
+        "sha256": "ea3ae3010d527baa5a14fa97d58cd9f081b64b783d65408187b3bd1161041bc9",
+        "size": 1115240
+      }
+    },
+    "trust": {
+      "bl1_public_fingerprint": "93709b494c3ba758ee144bd9ed5d12ca97726a13dc88e336d4c19e9329c44364",
+      "mcuboot_public_fingerprint": "7163228f3221da6e81fcf5e9c6f13ae6c4afbd1e3b91b7669783a37d2f12fbc0"
+    },
+    "rollback_floor": 661,
+    "manifest_sha256": "f3848a84a4db88fa994823f98bfbba8ec4b95f1a0c9ab00f2aaa251e07bd9a98",
+    "verify": "bk7258 verify build-manifest: PASS boot=mcuboot board=aidk_ai_toy layout=bk7258-510173147382a879 source=/home/lijian/project/open-vela/out/bk7258/aidk_ai_toy/app__openvela_ap/bk7258-510173147382a879/releases/mcuboot/build-manifest.json\n"
+  },
+  "fixture_setup_error": "Initial narrow harness did not reference included pending helper and failed -Werror=unused-function. Added the pending-state assertion; did not relax compiler warnings. build.log retained.",
+  "resource_budget": {
+    "new_threads": 0,
+    "new_heap_allocations": 0,
+    "new_persistent_state_bytes": 0,
+    "runtime_CPU_IRQ_stack": "NOT_MEASURED"
+  },
+  "limitations": [
+    "Production cancellation/request adapter and intent state machine are compiled; external voice cancellation and renderer callbacks are substitutes",
+    "Full authenticated transport -> Agent -> framebuffer cancellation not executed on hardware",
+    "Explicit BKCONTROL_CANCEL handles the captured expression ID; a successful voice cancellation acknowledgment is not proof of renderer exit",
+    "No cancellation by untagged asynchronous TURN_COMPLETE event; request expiry and other internal cancellation entrypoints remain separate work",
+    "No hardware, signing, phone install or device data change"
+  ],
+  "logs": {
+    "interface-missing.log": "ca49eec34faeef3a21f2c21c96ef27f63e7fb7acfdb4a6726ec698e7d8baec36",
+    "build.log": "b9707b6c18730740a307674ad9db2d864febdf0fad6c3a31e47a25f83aa5cf9e",
+    "contracts.log": "a49f077b027590d5311535b456e8ebc4430a1377f4b528fd7a31611ebd5dfbb3",
+    "build-target.log": "30a5fdfc8b85809b3be95731b1c52e09e895fd06b073a1466f92e18f2b490084",
+    "runner-gate.log": "c0cb98a70693b463069afba413d352f8fdc8540f469b9f3860e3385ec8c426dd"
+  }
+}

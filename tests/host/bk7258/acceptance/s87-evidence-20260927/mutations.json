@@ -1,0 +1,14 @@
+[
+  {
+    "mutation": "implicit-default",
+    "case": "preserve",
+    "exit_code": -6,
+    "status": "DETECTED"
+  },
+  {
+    "mutation": "truncate-other-job",
+    "case": "collision",
+    "exit_code": -6,
+    "status": "DETECTED"
+  }
+]

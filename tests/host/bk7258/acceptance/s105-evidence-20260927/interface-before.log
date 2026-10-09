@@ -1,0 +1,162 @@
+WARNING: platform-tools package is not installed.
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:generateDebugBuildConfig UP-TO-DATE
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
+> Task :app:compileDebugKotlin UP-TO-DATE
+> Task :app:javaPreCompileDebug UP-TO-DATE
+> Task :app:compileDebugJavaWithJavac UP-TO-DATE
+> Task :app:bundleDebugClassesToRuntimeJar UP-TO-DATE
+> Task :app:bundleDebugClassesToCompileJar UP-TO-DATE
+> Task :app:preDebugUnitTestBuild UP-TO-DATE
+> Task :app:javaPreCompileDebugUnitTest UP-TO-DATE
+> Task :app:processDebugJavaRes UP-TO-DATE
+
+> Task :app:compileDebugUnitTestKotlin FAILED
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:23:25 Unresolved reference 'DefaultSelectionController'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:38:26 Unresolved reference 'DefaultSelectionController'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:57:20 Unresolved reference 'DefaultSelectionController'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:60:44 Overload resolution ambiguity between candidates:
+fun <T> Array<out T>.all(predicate: (T) -> Boolean): Boolean
+fun BooleanArray.all(predicate: (Boolean) -> Boolean): Boolean
+fun ByteArray.all(predicate: (Byte) -> Boolean): Boolean
+fun CharArray.all(predicate: (Char) -> Boolean): Boolean
+fun DoubleArray.all(predicate: (Double) -> Boolean): Boolean
+fun FloatArray.all(predicate: (Float) -> Boolean): Boolean
+fun IntArray.all(predicate: (Int) -> Boolean): Boolean
+fun LongArray.all(predicate: (Long) -> Boolean): Boolean
+fun ShortArray.all(predicate: (Short) -> Boolean): Boolean
+fun <T> Iterable<T>.all(predicate: (T) -> Boolean): Boolean
+fun <K, V> Map<out K, V>.all(predicate: (Map.Entry<K, V>) -> Boolean): Boolean
+fun UByteArray.all(predicate: (UByte) -> Boolean): Boolean
+fun UIntArray.all(predicate: (UInt) -> Boolean): Boolean
+fun ULongArray.all(predicate: (ULong) -> Boolean): Boolean
+fun UShortArray.all(predicate: (UShort) -> Boolean): Boolean
+fun <T> Sequence<T>.all(predicate: (T) -> Boolean): Boolean
+fun CharSequence.all(predicate: (Char) -> Boolean): Boolean
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:60:50 Unresolved reference 'it'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:61:44 Overload resolution ambiguity between candidates:
+fun <T> Array<out T>.all(predicate: (T) -> Boolean): Boolean
+fun BooleanArray.all(predicate: (Boolean) -> Boolean): Boolean
+fun ByteArray.all(predicate: (Byte) -> Boolean): Boolean
+fun CharArray.all(predicate: (Char) -> Boolean): Boolean
+fun DoubleArray.all(predicate: (Double) -> Boolean): Boolean
+fun FloatArray.all(predicate: (Float) -> Boolean): Boolean
+fun IntArray.all(predicate: (Int) -> Boolean): Boolean
+fun LongArray.all(predicate: (Long) -> Boolean): Boolean
+fun ShortArray.all(predicate: (Short) -> Boolean): Boolean
+fun <T> Iterable<T>.all(predicate: (T) -> Boolean): Boolean
+fun <K, V> Map<out K, V>.all(predicate: (Map.Entry<K, V>) -> Boolean): Boolean
+fun UByteArray.all(predicate: (UByte) -> Boolean): Boolean
+fun UIntArray.all(predicate: (UInt) -> Boolean): Boolean
+fun ULongArray.all(predicate: (ULong) -> Boolean): Boolean
+fun UShortArray.all(predicate: (UShort) -> Boolean): Boolean
+fun <T> Sequence<T>.all(predicate: (T) -> Boolean): Boolean
+fun CharSequence.all(predicate: (Char) -> Boolean): Boolean
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:61:50 Unresolved reference 'it'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:62:44 Overload resolution ambiguity between candidates:
+fun <T> Array<out T>.all(predicate: (T) -> Boolean): Boolean
+fun BooleanArray.all(predicate: (Boolean) -> Boolean): Boolean
+fun ByteArray.all(predicate: (Byte) -> Boolean): Boolean
+fun CharArray.all(predicate: (Char) -> Boolean): Boolean
+fun DoubleArray.all(predicate: (Double) -> Boolean): Boolean
+fun FloatArray.all(predicate: (Float) -> Boolean): Boolean
+fun IntArray.all(predicate: (Int) -> Boolean): Boolean
+fun LongArray.all(predicate: (Long) -> Boolean): Boolean
+fun ShortArray.all(predicate: (Short) -> Boolean): Boolean
+fun <T> Iterable<T>.all(predicate: (T) -> Boolean): Boolean
+fun <K, V> Map<out K, V>.all(predicate: (Map.Entry<K, V>) -> Boolean): Boolean
+fun UByteArray.all(predicate: (UByte) -> Boolean): Boolean
+fun UIntArray.all(predicate: (UInt) -> Boolean): Boolean
+fun ULongArray.all(predicate: (ULong) -> Boolean): Boolean
+fun UShortArray.all(predicate: (UShort) -> Boolean): Boolean
+fun <T> Sequence<T>.all(predicate: (T) -> Boolean): Boolean
+fun CharSequence.all(predicate: (Char) -> Boolean): Boolean
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:62:50 Unresolved reference 'it'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:64:44 Overload resolution ambiguity between candidates:
+fun <T> Array<out T>.all(predicate: (T) -> Boolean): Boolean
+fun BooleanArray.all(predicate: (Boolean) -> Boolean): Boolean
+fun ByteArray.all(predicate: (Byte) -> Boolean): Boolean
+fun CharArray.all(predicate: (Char) -> Boolean): Boolean
+fun DoubleArray.all(predicate: (Double) -> Boolean): Boolean
+fun FloatArray.all(predicate: (Float) -> Boolean): Boolean
+fun IntArray.all(predicate: (Int) -> Boolean): Boolean
+fun LongArray.all(predicate: (Long) -> Boolean): Boolean
+fun ShortArray.all(predicate: (Short) -> Boolean): Boolean
+fun <T> Iterable<T>.all(predicate: (T) -> Boolean): Boolean
+fun <K, V> Map<out K, V>.all(predicate: (Map.Entry<K, V>) -> Boolean): Boolean
+fun UByteArray.all(predicate: (UByte) -> Boolean): Boolean
+fun UIntArray.all(predicate: (UInt) -> Boolean): Boolean
+fun ULongArray.all(predicate: (ULong) -> Boolean): Boolean
+fun UShortArray.all(predicate: (UShort) -> Boolean): Boolean
+fun <T> Sequence<T>.all(predicate: (T) -> Boolean): Boolean
+fun CharSequence.all(predicate: (Char) -> Boolean): Boolean
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:64:50 Unresolved reference 'it'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:66:66 Unresolved reference 'DefaultSelectionController'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:70:39 Unresolved reference 'DefaultSelectionController'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:72:66 Unresolved reference 'DefaultSelectionController'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:75:62 Unresolved reference 'DefaultSelectionController'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:78:52 Unresolved reference 'refresh'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:79:34 Unresolved reference 'act'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:80:33 Unresolved reference 'act'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:81:33 Unresolved reference 'act'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:85:33 Unresolved reference 'current'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:85:74 Unresolved reference 'current'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:86:62 Unresolved reference 'current'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:86:83 Unresolved reference 'saved'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:87:33 Unresolved reference 'current'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:90:39 Unresolved reference 'refresh'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:91:33 Unresolved reference 'act'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:92:33 Unresolved reference 'current'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:93:22 Unresolved reference 'refresh'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:94:33 Unresolved reference 'current'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:95:33 Unresolved reference 'act'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:96:33 Unresolved reference 'current'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:97:34 Unresolved reference 'act'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:100:39 Unresolved reference 'refresh'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:103:33 Unresolved reference 'current'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:104:22 Unresolved reference 'refresh'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:104:64 Unresolved reference 'act'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:106:33 Unresolved reference 'current'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:109:38 Unresolved reference 'refresh'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:109:80 Unresolved reference 'act'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:112:65 Unresolved reference 'current'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:113:34 Unresolved reference 'act'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:114:46 Unresolved reference 'refresh'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:116:38 Unresolved reference 'act'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:116:63 Unresolved reference 'close'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:120:38 Unresolved reference 'refresh'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:121:33 Unresolved reference 'current'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:121:93 Unresolved reference 'act'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:122:22 Unresolved reference 'refresh'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:123:33 Unresolved reference 'current'.
+e: file:///home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/android/shaniu-companion/app/src/test/java/com/shaniu/companion/provision/DefaultSelectionControllerTest.kt:123:78 Unresolved reference 'act'.
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileDebugUnitTestKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 1s
+22 actionable tasks: 1 executed, 21 up-to-date

@@ -4,11 +4,11 @@ if(CONFIG_BK7258_PROVISION_GATT)
   target_include_directories(apps PRIVATE ${NUTTX_DIR}/wireless/bluetooth)
   target_sources(apps PRIVATE bk7258_provision_gatt.c bk7258_provision_tls.c
                               bk7258_provision_claim.c bk7258_provision_store.c
-                              bk7258_provision_pair.c bk7258_provision_scan.c bk7258_provision_settings.c
+                              bk7258_provision_pair.c bk7258_provision_scan.c bk7258_provision_settings.c bk7258_provision_config.c
                               bk7258_provision_storage.c bk7258_provision_owner.c
                               bk7258_provision_identity.c bk7258_provision_network.c
                               bk7258_provision_time.c bk7258_control_session.c
-                              bk7258_control_pair.c bk7258_control_ota_request.c
+                              bk7258_control_pair.c bk7258_control_serial.c bk7258_pc_grants.c bk7258_pc_control.c bk7258_pc_usb.c bk7258_pc_tasks.c bk7258_pc_authorization.c bk7258_pc_authorization_owner.c bk7258_control_ota_request.c
                               bk7258_prov_service.c)
 endif()
 
@@ -30,13 +30,22 @@ endif()
 if(CONFIG_BK7258_APP_AGENT)
   target_include_directories(apps PRIVATE ${NUTTX_APPS_DIR}/netutils/cjson/cJSON)
   include(${NUTTX_DIR}/../vendor/beken/frameworks/cmake/agent_framework.cmake)
-  target_sources(apps PRIVATE bk7258_agent_product.c)
+  target_sources(apps PRIVATE bk7258_agent_product.c bk7258_focus.c
+      bk7258_focus_intent.c)
   if(CONFIG_BK7258_VISION_SERVICE)
     target_sources(apps PRIVATE bk7258_agent_vision.c)
   endif()
   if(CONFIG_MEDIA)
     target_sources(apps PRIVATE bk7258_voice_media.c)
   endif()
+endif()
+
+if(CONFIG_BK7258_ENGINEERING_TEST)
+  target_sources(apps PRIVATE bk7258_engineering_test.c)
+endif()
+
+if(CONFIG_BK7258_FACTORY_DIAGNOSTICS AND CONFIG_BK7258_AP_CORE)
+  target_sources(apps PRIVATE bk7258_factory_diagnostics.c)
 endif()
 
 if(CONFIG_BK7258_APP_AGENT AND CONFIG_BK7258_VOICE_TLS)
@@ -60,6 +69,9 @@ if(CONFIG_BK7258_APP_AGENT AND CONFIG_BK7258_VOICE_TLS)
                               bk7258_cloud_config.c bk7258_cloud_request.c
                               bk7258_cloud_http.c bk7258_cloud_tts.c
                               bk7258_cloud_audio.c bk7258_agent_cloud.c)
+  if(CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION)
+    target_sources(apps PRIVATE bk7258_cloud_fixture.c)
+  endif()
 endif()
 
 if(CONFIG_BK7258_APP_AGENT)
@@ -89,10 +101,8 @@ if(CONFIG_BK7258_APP_AGENT)
     target_sources(apps PRIVATE bk7258_voice_kws_frontend.c
                                 bk7258_voice_kws_model.cc
                                 ${BKVOICE_FRONTEND_SOURCES})
-    if(CONFIG_MEDIA_TRIGGER)
-      target_sources(apps PRIVATE bk7258_voice_kws.c bk7258_agent_trigger.c
-                                  bk7258_voice_wake_package.c)
-    endif()
+    target_sources(apps PRIVATE bk7258_voice_kws.c bk7258_agent_trigger.c
+                                bk7258_voice_wake_package.c)
     target_include_directories(apps PRIVATE ${BKVOICE_TFLM}
         ${NUTTX_APPS_DIR}/math/kissfft/kissfft)
     # TfLiteTensor layout and kernel selection must match the runtime library.
@@ -104,11 +114,19 @@ if(CONFIG_BK7258_APP_AGENT)
 endif()
 
 if(CONFIG_BK7258_DISPLAY_SERVICE)
-  target_sources(apps PRIVATE bk7258_display_service.c
+  target_sources(apps PRIVATE bk7258_display_service.c bk7258_display_trial_control.c
                               bk7258_display_store.c
+                              bk7258_display_job.c
+                              bk7258_display_job_service.c
                               bk7258_display_pack.c
                               bk7258_display_rpc.c
                               bk7258_display_rpc_core.c)
+  if(CONFIG_BK7258_VOICE_TLS AND CONFIG_BK7258_USBCDC)
+    target_sources(apps PRIVATE bk7258_display_job_control.c)
+  endif()
+  if(CONFIG_BK7258_VOICE_TLS)
+    target_sources(apps PRIVATE bk7258_display_selection_control.c)
+  endif()
 endif()
 
 if(CONFIG_BK7258_HEALTH_SERVICE)
@@ -134,6 +152,12 @@ if(CONFIG_BK7258_APP_HAPTIC)
 endif()
 
 if(CONFIG_BK7258_NFC_SERVICE)
+  if(CONFIG_BK7258_PROVISION_GATT)
+    target_sources(apps PRIVATE bk7258_nfc_bindings.c bk7258_nfc_control.c)
+    if(CONFIG_BK7258_APP_AGENT)
+      target_sources(apps PRIVATE bk7258_nfc_scene.c)
+    endif()
+  endif()
   target_include_directories(apps PRIVATE
       ${NUTTX_DIR}/../vendor/beken/nuttx/include)
   target_sources(apps PRIVATE bk7258_nfc_service.c bk7258_nfc_core.c)
@@ -338,4 +362,30 @@ if(CONFIG_BK7258_APP_DATA)
     SRCS bk7258_data_main.c
     STACKSIZE ${CONFIG_BK7258_APP_DATA_STACKSIZE}
     PRIORITY ${CONFIG_BK7258_APP_DATA_PRIORITY})
+endif()
+
+if(CONFIG_BK7258_APP_FACTORY)
+  nuttx_add_application(NAME bkfactory SRCS bk7258_factory_main.c
+                        STACKSIZE 4096 PRIORITY 100)
+endif()
+
+if(CONFIG_BK7258_PROVISION_NATIVE)
+  target_sources(apps PRIVATE bk7258_provision_generate.c bk7258_provision_bootstrap.c)
+  set(BKPROV_QR_ROOT ${NUTTX_APPS_DIR}/graphics/lvgl/lvgl)
+  target_include_directories(apps PRIVATE ${BKPROV_QR_ROOT}/src/libs/qrcode)
+  # Consume the manifest-pinned MIT Nayuki implementation already in LVGL.
+  # AIDK has no LVGL runtime: compile only the pure encoder and assertion handler.
+  if(CONFIG_GRAPHICS_LVGL)
+    if(NOT CONFIG_LV_USE_QRCODE)
+      message(FATAL_ERROR "Native onboarding with LVGL requires LV_USE_QRCODE")
+    endif()
+  else()
+    target_sources(apps PRIVATE ${BKPROV_QR_ROOT}/src/libs/qrcode/qrcodegen.c
+                                ${BKPROV_QR_ROOT}/src/misc/lv_assert.c)
+    set_property(SOURCE ${BKPROV_QR_ROOT}/src/libs/qrcode/qrcodegen.c
+                        ${BKPROV_QR_ROOT}/src/misc/lv_assert.c
+      TARGET_DIRECTORY apps APPEND PROPERTY COMPILE_DEFINITIONS
+      LV_CONF_SKIP LV_KCONFIG_IGNORE LV_USE_LOG=0
+      "LV_ASSERT_HANDLER_INCLUDE=<stdlib.h>" "LV_ASSERT_HANDLER=abort()\;")
+  endif()
 endif()

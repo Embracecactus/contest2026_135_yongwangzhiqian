@@ -43,6 +43,7 @@ struct bkhealth_client_s
   uint32_t sequence;
   uint32_t waiting_session;
   uint32_t waiting_sequence;
+  uint16_t waiting_command;
   struct bkhealth_rpc_response_s reply;
 };
 
@@ -217,7 +218,8 @@ static int bkhealth_client_cb(struct rpmsg_endpoint *endpoint, void *data,
   flags = spin_lock_irqsave(&client->reply_lock);
   matched = client->waiting_session != 0 &&
             response->session == client->waiting_session &&
-            response->sequence == client->waiting_sequence;
+            response->sequence == client->waiting_sequence &&
+            response->command == client->waiting_command;
   if (matched)
     {
       memcpy(&client->reply, response, sizeof(client->reply));
@@ -404,6 +406,8 @@ int bkhealth_rpc_exchange(struct bkhealth_rpc_request_s *request,
   flags = spin_lock_irqsave(&client->reply_lock);
   client->waiting_session = request->session;
   client->waiting_sequence = request->sequence;
+  client->waiting_command = request->command == BKHEALTH_RPC_POWER_STATUS ?
+                            BKHEALTH_RPC_POWER_RESPONSE : BKHEALTH_RPC_RESPONSE;
   client->reply_valid = false;
   spin_unlock_irqrestore(&client->reply_lock, flags);
 

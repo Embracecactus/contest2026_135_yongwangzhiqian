@@ -1,0 +1,53 @@
+{
+  "scope": "S9 host power failure indication; no device actions",
+  "red": "exit=-6\ntest_shaniu_power_contract: test_shaniu_power_contract.c:153: main: Assertion `display_phase == 3 && cp_calls == 0' failed.\n",
+  "discarded_run": {
+    "status": "SOURCE_CHANGED_DURING_RUN",
+    "exit_code": 1,
+    "counts": {
+      "PASS": 97,
+      "FAIL_ASSERTION": 0,
+      "SETUP_ERROR": 0,
+      "NOT_RUN": 0
+    }
+  },
+  "logs": {
+    "red.log": {
+      "sha256": "f0b25791980667476283763530b703c14e599a9e1ae2bc32b85c44570d38d231",
+      "text": "exit=-6\ntest_shaniu_power_contract: test_shaniu_power_contract.c:153: main: Assertion `display_phase == 3 && cp_calls == 0' failed.\n"
+    },
+    "red-build.log": {
+      "sha256": "50ecc248f89c389c959ad2811e90f36e142a097b8e8f3be35227b945dff3161d",
+      "text": "make: Entering directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\ncc -std=gnu11 -Wall -Wextra -Werror -O2 -I /home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/app/bk7258 test_shaniu_power_contract.c -o build/test_shaniu_power_contract\nmake: Leaving directory '/home/lijian/project/open-vela/contest2026_135_yongwangzhiqian/tests/host/bk7258'\n"
+    },
+    "runner.log": {
+      "sha256": "e6200ac859357c16c8cb8510b71eb578ea5a2b0b26026ee7cafd60dc78513c0c",
+      "text": "............\n----------------------------------------------------------------------\nRan 12 tests in 0.024s\n\nOK\n"
+    },
+    "bk7258_agent_product.c.log": {
+      "sha256": "f366c2cee13af6e3c305e8dbf188a9c6b709bf3a76d1f6b4806821e28d1504dc",
+      "text": "\u001b[01m\u001b[K/home/lijian/project/open-vela/apps/system/bk7258/bk7258_agent_product.c:\u001b[m\u001b[K In function '\u001b[01m\u001b[Kinstall_product_skills\u001b[m\u001b[K':\n\u001b[01m\u001b[K/home/lijian/project/open-vela/apps/system/bk7258/bk7258_agent_product.c:2626:5:\u001b[m\u001b[K \u001b[01;35m\u001b[Kwarning: \u001b[m\u001b[Kmissing braces around initializer [\u001b[01;35m\u001b[K-Wmissing-braces\u001b[m\u001b[K]\n 2626 |     \u001b[01;35m\u001b[K{\u001b[m\u001b[K\n      |     \u001b[01;35m\u001b[K^\u001b[m\u001b[K\n 2627 |       \"device-assistant.md\", g_product_skill_device_assistant\n      |       \u001b[32m\u001b[K{\u001b[m\u001b[K\n 2628 |     };\n      |     \u001b[32m\u001b[K}\u001b[m\u001b[K\n"
+    },
+    "bk7258_display_service.c.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    }
+  },
+  "source_hashes": {
+    "app/bk7258/bk7258_display_power_pixels.h": "f9dc3ca472f3d99d766d473281b4f7e2ea2981a8bbf29b87a73a4011d6413641",
+    "app/bk7258/bk7258_display_service.c": "be197e2993c26e4c385e38dbc417a260f7157ba18f37b09d12345bcb305892bc"
+  },
+  "read_only_device_snapshot": {
+    "windows_serial_port_count": 0,
+    "adb_devices": [
+      "emulator-5554"
+    ],
+    "historical_COM13_verified_online": false,
+    "historical_Mi10_59d707dc_listed": false
+  },
+  "limits": [
+    "No framebuffer driver or physical rendering acceptance",
+    "No firmware link, signing, flash, APK installation or data erasure",
+    "Error glyph queues display intent; it does not prove panel visibility"
+  ]
+}

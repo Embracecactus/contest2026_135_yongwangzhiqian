@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "slice": "S76",
+  "parent_commit": "5e74b93a74e43840280924e85c5ea2290c8bf38e",
+  "scope": "test observation only; production unchanged",
+  "results": [
+    {
+      "id": "USB-01.tls-transport.before-python-observer",
+      "status": "FAIL_ASSERTION",
+      "detail": "PC negative peer exit 0 rather than expected 4; client rejected, error domain unknown"
+    },
+    {
+      "id": "USB-01.tls-transport.after-observers",
+      "status": "PASS",
+      "detail": "one target with 20 certificates, three transport modes; does not replace S75 full collection failure"
+    },
+    {
+      "id": "TLS-observer.wrong-hostname",
+      "status": "PASS",
+      "detail": "isolated negative input records ret/verify and preserves nonzero assertion exit; not S66 reproduction"
+    }
+  ],
+  "s66_status": "OPEN",
+  "production_fix": false,
+  "physical_device_operations": 0,
+  "source_sha256": {
+    "tests/host/bk7258/test_provision_tls.c": "65f4377187918a97a8eb72dd8c626cd697db754afa7d5075ec5c0bf155c15f16",
+    "tests/host/bk7258/test_provision_tls.py": "0aab8f3bb9e38f88d754faa07af453d3d97838ff6b077f6c9ba7f2257d2944e1",
+    "tests/host/bk7258/test_workbench_client.py": "f5639f591767208ef2cd7ebb3ebbd76a4293e8d4cb59476d53093c87edf6970a"
+  },
+  "logs": [
+    {
+      "path": "out/shaniu-s76/tls-first-error.log",
+      "sha256": "8090dbaf811d1ed87fe999fa7c6ef0a80cc4bb4c81cbcfcb84b26c10710480a8"
+    },
+    {
+      "path": "out/shaniu-s76/tls-boundary.log",
+      "sha256": "797390d8adb2cc93cd04314a105ece290d74369a21e8b0a47fcd06a9b489163b"
+    },
+    {
+      "path": "out/shaniu-s76/negative-observer.log",
+      "sha256": "a54e9f2ee0136ae62942c507159e7d58d2ca8db60b4e468764100d9a598fe0a0"
+    },
+    {
+      "path": "out/shaniu-s76/negative-observer.json",
+      "sha256": "d7d278de806beb6c87234ea5b8b77c293b23cebf7a4dcc229324ed76adf55ae2"
+    }
+  ]
+}

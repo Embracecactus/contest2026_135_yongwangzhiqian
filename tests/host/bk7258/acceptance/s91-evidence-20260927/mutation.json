@@ -1,0 +1,10 @@
+{
+  "mutation": "report-installed-after-removing-file",
+  "case": "RES-03.native-tls-upload",
+  "detected": true,
+  "mutant_exit": 1,
+  "restored_exit": 0,
+  "source_sha256": "e495fe1ad99be891fc1838e854fb96c256c68cc08c8a260d0a95ba2fe7926111",
+  "mutant_sha256": "e1016d4b13792a38ee28e08d93f6b0bc7006b29885245765ffc552459e179cf5",
+  "oracle": "Independent actual installed-file comparison in native fixture; no client snapshot-only oracle."
+}

@@ -54,6 +54,14 @@ enum bkcontrol_command_e
  * the staging operation with unknown snapshot fields; they do not read the
  * product's devices. Bit 16384 advertises
  * support. Kind 1 is MCP1 ASR/chat/TTS names only, never credentials.
+ * Kind 9 is the factory-reset transaction. BEGIN/APPEND/APPLY carry SRT1:
+ * magic, reserved BE32 zero, expected revision BE64, and a nonzero 16-byte
+ * transaction. APPLY returns zero only after SRV1 is durable; -EAGAIN means
+ * the client must retry that exact SRT1 transaction. READ normally carries
+ * four bytes, but RESET_TRANSFER READ carries those four bytes followed by
+ * the 16-byte transaction and returns SRS1 (state/reserved/transaction).
+ * It is authenticated and read-only: PENDING is not completion and no query
+ * can request or resume an erase.
  * The staging buffer is shared with OTA, so transfers cannot interleave.
  * APPLY acknowledges a worker request; READ must confirm its actual result.
  */
@@ -70,8 +78,38 @@ enum bkcontrol_command_e
 #define BKCONTROL_CONFIG_EYE_PACK 5u
 /* KWT1 + BE32 score threshold percent (50..90) + BE32 reserved = 0. */
 #define BKCONTROL_CONFIG_WAKE_THRESHOLD 6u
+/* SCP1 save-first settings patch; SCS1 public operation/revision readback. */
+#define BKCONTROL_CONFIG_SETTINGS 7u
+/* Read-only WFS1: 12-byte header, then SSID length/RSSI/channel/security
+ * and 32 SSID bytes per result. Reuses the device's single scan worker. */
+#define BKCONTROL_CONFIG_WIFI_SCAN 8u
+/* SRT1 request / SRS1 public receipt; no user configuration is returned. */
+#define BKCONTROL_CONFIG_RESET_TRANSFER 9u
+/* FOC1/FOS1 volatile focus timer; see bk7258_focus.h. */
+#define BKCONTROL_CONFIG_FOCUS 10u
+/* ETC1/ETS1 volatile expression trial; no default-selection write. */
+#define BKCONTROL_CONFIG_EXPRESSION_TRIAL 11u
+/* NCF1/NCS1 asynchronous authenticated NFC binding jobs. */
+#define BKCONTROL_CONFIG_NFC_BINDINGS 12u
+/* NCA1: read-only16-byte scene capability/current-admission snapshot. */
+#define BKCONTROL_CONFIG_NFC_SCENE 13u
+#define BKCONTROL_CONFIG_PC_AUTHORIZATION 14u
+/* PTE1/PTS1 volatile task events; see bk7258_pc_tasks.h. */
+#define BKCONTROL_CONFIG_PC_TASK 15u
+/* RJI1/RJS1 authenticated asynchronous resource installation. */
+#define BKCONTROL_CONFIG_RESOURCE_JOB 16u
+/* ESC1/ESS1 versioned default selection, refresh and release recovery. */
+#define BKCONTROL_CONFIG_DEFAULT_SELECTION 17u
+/* ECC1/ECL1 explicit asynchronous installed-catalog pages. */
+#define BKCONTROL_CONFIG_RESOURCE_CATALOG 18u
+/* BKT1/BKS1 authenticated development-build input; production leaves this
+ * kind unbound even when a PC principal has diagnostics permission.
+ */
+#define BKCONTROL_CONFIG_ENGINEERING_TEST 19u
+/* BKA1/BAS1 fixed engineering audio lifecycle; no caller-provided media. */
+#define BKCONTROL_CONFIG_ENGINEERING_AUDIO 20u
 #define BKCONTROL_CONFIG_CAPABILITIES 0x7fffu
-#define BKCONTROL_CONFIG_RECORD_MAX (136u + 65536u)
+#define BKCONTROL_CONFIG_RECORD_MAX (140u + 65536u) /* WKM2 显式前端字段 */
 struct bkcontrol_device_info_s
 {
   uint32_t major;
@@ -133,6 +171,7 @@ struct bkcontrol_session_s
   uint32_t record_kind;
   bool open;
   bool authenticated;
+  bool quiescing;
 };
 /* Zero initialize before first use. TLS lifetime/timeout belongs to transport.
  * Negative packet return is terminal: close transport, never continue parsing.
@@ -145,5 +184,11 @@ int bkcontrol_session_set_ota_handler(struct bkcontrol_session_s *, bkcontrol_ot
 int bkcontrol_session_set_config_handler(struct bkcontrol_session_s *, bkcontrol_config_t);
 int bkcontrol_session_packet(struct bkcontrol_session_s *, const uint8_t *,
                              size_t, uint8_t[BKCONTROL_RESPONSE_SIZE]);
+/* Serialized with packet processing. Authenticated, one-way admission gate:
+ * keep STATUS/INFO, explicit cancellation and bounded settings/reset receipt
+ * reads; reject new mutations with EBUSY. Authentication and frame validation
+ * remain mandatory. A fresh session is required to resume ordinary writes.
+ */
+int bkcontrol_session_quiesce(struct bkcontrol_session_s *);
 void bkcontrol_session_close(struct bkcontrol_session_s *);
 #endif

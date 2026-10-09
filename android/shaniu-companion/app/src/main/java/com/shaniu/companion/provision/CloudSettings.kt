@@ -14,7 +14,7 @@ object CloudSettings {
 
     /** Validates cloud fields locally, without resolving or contacting the endpoint. */
     fun inputError(baseUrl: String, key: CharArray, asrModel: String,
-                   chatModel: String, ttsModel: String): String? {
+                   chatModel: String, ttsModel: String, allowMissingKey: Boolean = false): String? {
         val uri = try { URI(baseUrl) } catch (_: Exception) {
             return "语音服务 HTTPS 地址无效。"
         }
@@ -30,7 +30,7 @@ object CloudSettings {
         if (path.length !in 1..127 || !path.startsWith('/') ||
             !Regex("[a-zA-Z0-9/_.-]+").matches(path) || path.contains(".."))
             return "语音服务路径无效。"
-        if (key.size !in 1..4096 || key.any { it.code !in 33..126 })
+        if ((key.isEmpty() && !allowMissingKey) || key.size > 4096 || key.any { it.code !in 33..126 })
             return "语音服务 Key 应为 1 至 4096 个可打印 ASCII 字符。"
         val models = listOf("语音识别模型" to asrModel, "对话模型" to chatModel, "语音合成模型" to ttsModel)
         models.firstOrNull { (_, model) -> model.length !in 1..127 ||
@@ -41,8 +41,8 @@ object CloudSettings {
     }
 
     fun encode(baseUrl: String, key: CharArray, dialect: Dialect,
-               asrModel: String, chatModel: String, ttsModel: String): ByteArray {
-        inputError(baseUrl, key, asrModel, chatModel, ttsModel)?.let { require(false) { it } }
+               asrModel: String, chatModel: String, ttsModel: String, allowMissingKey: Boolean = false): ByteArray {
+        inputError(baseUrl, key, asrModel, chatModel, ttsModel, allowMissingKey)?.let { require(false) { it } }
         val uri = URI(baseUrl)
         val host = checkNotNull(uri.host)
         val port = if (uri.port == -1) 443 else uri.port

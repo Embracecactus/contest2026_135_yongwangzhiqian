@@ -81,8 +81,9 @@ struct bt_gatt_ccc_cfg_s {int unused;};
 #define BT_GATT_CHARACTERISTIC(h,c) {h,c,NULL,NULL}
 #define BT_GATT_DESCRIPTOR(h,u,p,r,w,d) {h,u,r,w}
 #define BT_GATT_CCC(h,v,c,f) {h,c,NULL,f}
-static int registrations, notify_result=1;
+static int registrations, notifications;
 static struct bt_conn_s *notified;
+static void bt_gatt_notify(uint16_t h,const void *v,size_t n);
 static int bt_gatt_attr_read(struct bt_conn_s *c,const struct bt_gatt_attr_s *a,
  void *out,uint8_t n,uint16_t off,const void *in,uint8_t size) {
  (void)c;(void)a; if(off>size)return -EINVAL; n=n<size-off?n:size-off;
@@ -93,11 +94,13 @@ static void bt_conn_release(struct bt_conn_s *c) { assert(c->refs>1);c->refs--; 
 static void bt_gatt_register(const struct bt_gatt_attr_s *a,size_t n) {
  assert(n==11 && a[0].handle==1 && a[10].handle==0x15);registrations++;
 }
-static int bt_gatt_notify_peer(struct bt_conn_s *c,uint16_t h,const void *v,size_t n) {
- assert(h==0x14 && v && n<=20);notified=c;return c->live?notify_result:-ENOTCONN;
-}
 """
 TEST = r"""
+/* The manifest-pinned NuttX interface is CCC-routed and returns void. */
+static void bt_gatt_notify(uint16_t h,const void *v,size_t n) {
+ assert(h==0x14 && v && n<=20 && g_peer && g_peer->live);
+ notified=g_peer;notifications++;
+}
 int main(void) {
  struct bt_conn_s a={1,true}, b={1,true};
  uint8_t data[64], out[4096]; memset(data,42,sizeof(data));
@@ -125,8 +128,8 @@ int main(void) {
  for(int i=0;i<2160;i++)assert(out[i]==42);
  assert(bkprov_gatt_read(first,out,1)==-EAGAIN);
  assert(write_tls(&b,NULL,data,1,0)==-EACCES);
- assert(bkprov_gatt_send(first,data,20)==20 && notified==&a && a.refs==3);
- notify_result=-ENOMEM;assert(bkprov_gatt_send(first,data,20)==-ENOMEM && a.refs==3);
+ assert(bkprov_gatt_send(first,data,20)==20 && notified==&a && a.refs==3 && notifications==1);
+ assert(bkprov_gatt_send(first,data,20)==20 && a.refs==3 && notifications==2);
  ccc_changed(0);assert(a.refs==2 && bkprov_gatt_generation()==0);
  callbacks->disconnected(&a,NULL);
  assert(a.refs==1 && bkprov_gatt_generation()==0);
@@ -135,7 +138,7 @@ int main(void) {
  ccc_changed(1);uint32_t second=bkprov_gatt_generation();assert(second>first);
  assert(write_tls(&b,NULL,data,1,0)==1);
  assert(bkprov_gatt_send(first,data,1)==-ESTALE);
- notify_result=1;assert(bkprov_gatt_send(second,data,1)==1 && notified==&b);
+ assert(bkprov_gatt_send(second,data,1)==1 && notified==&b && notifications==3);
  assert(bkprov_gatt_window(false)==0 && b.refs==2 && disconnects==1);
  callbacks->disconnected(&b,NULL);assert(b.refs==1);
  assert(bkprov_gatt_read(second,out,1)==-ESTALE);

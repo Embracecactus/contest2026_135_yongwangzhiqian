@@ -12,6 +12,7 @@ import shutil
 import stat
 import subprocess
 import tempfile
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
@@ -50,6 +51,39 @@ REQUIRED_BOARD_FIELDS = frozenset(
 )
 BOARD_ROOT = Path("boards/bk7258")
 CHIP_ROOT = Path("chips/bk7258")
+MCUBOOT_PATH = Path("apps/boot/mcuboot/mcuboot")
+
+
+def mcuboot_source(repository: Path) -> Path:
+    """Accept only the manifest-pinned official MCUboot checkout."""
+
+    manifest = repository / f"{repository.name}.xml"
+    try:
+        projects = [
+            row for row in ET.parse(manifest).getroot().iter("project")
+            if row.get("path") == MCUBOOT_PATH.as_posix()
+        ]
+    except (OSError, ET.ParseError) as error:
+        raise BuildError("cannot read MCUboot manifest pin") from error
+    if len(projects) != 1:
+        raise BuildError("manifest must select exactly one MCUboot source")
+    expected = projects[0].get("revision", "")
+    if re.fullmatch(r"[0-9a-f]{40}", expected) is None:
+        raise BuildError("MCUboot manifest pin is not an immutable commit")
+    root = _directory(repository.parent / MCUBOOT_PATH, "pinned MCUboot source")
+    result = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "HEAD"],
+        capture_output=True, text=True, check=False,
+    )
+    if result.returncode or result.stdout.strip() != expected:
+        raise BuildError("MCUboot checkout does not match the manifest commit")
+    changed = subprocess.run(
+        ["git", "-C", str(root), "status", "--porcelain"],
+        capture_output=True, text=True, check=False,
+    )
+    if changed.returncode or changed.stdout.strip():
+        raise BuildError("MCUboot checkout has unreviewed local modifications")
+    return root
 
 
 @dataclass(frozen=True)
@@ -996,6 +1030,62 @@ def _role_build(
     )
 
 
+def _cp_memory_report(role: RoleBuild, toolchain: Toolchain) -> None:
+    """Check copied sleep helpers and report static, not runtime, headroom."""
+
+    if role.role != "cp":
+        return
+    config = role.dotconfig.read_text(encoding="utf-8")
+    nm = toolchain.binary_dir / "arm-none-eabi-nm"
+    names = ("_sdata", "_edata", "_sbss", "_ebss", "_eheap",
+             "g_intstackalloc", "g_intstacktop")
+    symbols = {name: trust_domain.elf_symbol(role.elf, nm, name)
+               for name in names}
+    idle = re.search(r"^CONFIG_IDLETHREAD_STACKSIZE=(\d+)$", config, re.M)
+    if idle is None:
+        raise BuildError("CP memory report requires the resolved idle stack size")
+    initial = symbols["_eheap"] - symbols["_ebss"] - int(idle[1])
+    if initial <= 0:
+        raise BuildError("CP has no initial heap after its startup stack")
+    if "CONFIG_BK7258_PM_SOFT_OFF=y\n" in config:
+        table = subprocess.run([str(nm), "-P", str(role.elf)],
+                               capture_output=True, text=True, check=True)
+        for name in (
+            "sys_hal_enter_deep_sleep", "arch_deep_sleep",
+            "sys_set_ana_reg_bit", "sys_ll_set_ana_reg5_en_cb",
+            "sys_ll_set_ana_reg8_valoldosel",
+            "sys_ll_set_ana_reg9_spi_latch1v",
+            "sys_ll_set_ana_reg10_vbspbuflp1v",
+            "sys_ll_set_ana_reg11_aldosel", "sys_ll_set_ana_reg12_dldosel",
+            "sys_hal_enable_spi_latch", "sys_hal_disable_spi_latch",
+            "sys_hal_power_on_and_select_rosc", "sys_hal_disable_hf_clock",
+            "sys_hal_gpio_state_switch", "__wrap_arch_deep_sleep",
+            "bk7258_pm_soft_off_wfi_reset", "bk7258_hardfault_handler",
+        ):
+            # Static SDK register helpers have same-named copies in other
+            # objects. Require exactly one copied implementation, not a
+            # globally unique local symbol name.
+            addresses = [int(row[2], 16) for line in table.stdout.splitlines()
+                         if len(row := line.split()) >= 3 and row[0] == name
+                         and symbols["_sdata"] <= int(row[2], 16) < symbols["_edata"]]
+            if len(addresses) != 1:
+                raise BuildError(f"CP sleep helper is outside startup copy: {name}")
+            symbols[name] = addresses[0]
+    _atomic_text(role.binary_root / "cp-memory-report.json", json.dumps({
+        "format": "bk7258.cp-memory-report/1",
+        "elf_sha256": _sha256_file(role.elf),
+        "config_sha256": role.resolved_config_sha256,
+        "symbols": symbols,
+        "copied_data_bytes": symbols["_edata"] - symbols["_sdata"],
+        "bss_bytes": symbols["_ebss"] - symbols["_sbss"],
+        "interrupt_stack_bytes": symbols["g_intstacktop"] - symbols["g_intstackalloc"],
+        "startup_stack_bytes": int(idle[1]),
+        "initial_heap_gross_bytes": initial,
+        "runtime_budget_status": "requires-pre-PSRAM-allocation-and-boot-evidence",
+        "boot_status": "not-verified",
+    }, indent=2, sort_keys=True) + "\n")
+
+
 def _release_root(
     workspace: Path,
     cp: RoleBuild,
@@ -1041,9 +1131,7 @@ def _build_bl2(
         repository / CHIP_ROOT / "bootloader/bl2/Makefile",
         "project BL2 Makefile",
     )
-    mcuboot_root = _directory(
-        workspace / "apps/boot/mcuboot/mcuboot", "pinned MCUboot source"
-    )
+    mcuboot_root = mcuboot_source(repository)
     environment = _build_environment(toolchain)
     command = [
         str(toolchain.make),
@@ -1248,6 +1336,8 @@ def _source_provenance(
     if product is not None and re.fullmatch(r"[a-z][a-z0-9_-]{0,47}", product) is None:
         raise BuildError("product must be a stable lowercase identifier")
     scopes = [
+        "contest2026_135_yongwangzhiqian.xml",
+        "openvela.xml",
         "chips/bk7258",
         "boards/bk7258/common",
         f"boards/bk7258/{cp.board}",
@@ -1272,6 +1362,11 @@ def _source_provenance(
         )
         dependencies[name] = _source_tree_state(
             actual, ["."], changed_only=True, git_repository=reference
+        )
+    if _enabled(_dotconfig(ap.root / "defconfig"), "CONFIG_EXAMPLES_AI_AGENT_VELA"):
+        agent = _directory(workspace / "packages/ai_agent", "AI Agent source")
+        dependencies["ai_agent"] = _source_tree_state(
+            agent, ["."], changed_only=True
         )
     return {
         **state,
@@ -1359,6 +1454,7 @@ def _source_tree_state(
         ".csv",
         ".conf",
         ".json",
+        ".xml",
         ".patch",
         ".pfw",
         ".txt",
@@ -1443,8 +1539,11 @@ def validate_provenance(value: object) -> dict[str, object]:
     profiles = _manifest_mapping(row["profiles"], {"cp", "ap"}, "profiles")
     for path in [*row["scope"], *profiles.values()]:
         _manifest_relative_path(path, "provenance path")
+    dependency_names = {"nuttx", "apps"}
+    if isinstance(row["dependencies"], dict) and "ai_agent" in row["dependencies"]:
+        dependency_names.add("ai_agent")
     dependencies = _manifest_mapping(
-        row["dependencies"], {"nuttx", "apps"}, "source dependencies"
+        row["dependencies"], dependency_names, "source dependencies"
     )
     for name, value in dependencies.items():
         dependency = _manifest_mapping(
@@ -2007,6 +2106,7 @@ def build(
         kernel_compat_domain.verify_role_config("cp", cp_result.dotconfig)
     except kernel_compat_domain.KernelCompatError as error:
         raise BuildError(str(error)) from error
+    _cp_memory_report(cp_result, toolchain)
     ap_result = _role_build(
         repository,
         workspace,

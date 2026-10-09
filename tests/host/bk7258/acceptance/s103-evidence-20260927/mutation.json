@@ -1,0 +1,9 @@
+{
+  "status": "DETECTED",
+  "exit_code": 1,
+  "source_sha256": "301aca37dbd1f6b19545a7b643e393b07b66dfc0ec1800032de194a8f452f6c1",
+  "mutant_sha256": "3b110ac0aa9d242e0b1fbadbd9341880f2f811dd494d527e586007581ed676b5",
+  "fixture_sha256": "adb64166f7e255dd8e1d547512d4c96bb485a6b5791ce428eb414f81bf439b75",
+  "assertion": "pending must not report saved",
+  "restore": "mutation-restored.log"
+}

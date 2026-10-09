@@ -8,7 +8,8 @@ enum bk7258_media_volume_owner_e
   BK7258_MEDIA_VOLUME_VISION,
   BK7258_MEDIA_VOLUME_PREFERENCES,
   BK7258_MEDIA_VOLUME_OTA,
-  BK7258_MEDIA_VOLUME_POWER
+  BK7258_MEDIA_VOLUME_POWER,
+  BK7258_MEDIA_VOLUME_INSTALL
 };
 
 /* Exclusive AP mount ownership, plus the USB MSC exclusion lease. Release
