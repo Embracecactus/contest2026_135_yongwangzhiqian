@@ -11,6 +11,7 @@ static int product_capture_validation(void)
 
   for (unsigned int session = 0; session < 2; session++)
     {
+      syslog(LOG_NOTICE, "BKCAPTURE session=%u phase=open-enter\n", session);
       audio_capture_t *cap = audio_capture_open_local(NULL, 16000, 1, 16);
       if (cap == NULL)
         {
@@ -42,8 +43,15 @@ static int product_capture_validation(void)
 
       /* The startup owner is exclusive until core readiness is published. */
 
+      syslog(LOG_NOTICE,
+             "BKCAPTURE session=%u phase=abort-enter bytes=%d result=%d\n",
+             session, bytes, result);
       int stopped = audio_capture_abort(cap);
+      syslog(LOG_NOTICE, "BKCAPTURE session=%u phase=abort-return result=%d\n",
+             session, stopped);
       int closed = audio_capture_close(cap);
+      syslog(LOG_NOTICE, "BKCAPTURE session=%u phase=close-return result=%d\n",
+             session, closed);
       int cleanup = audio_capture_cleanup(2000);
       syslog(LOG_NOTICE,
              "BKCAPTURE session=%u bytes=%d result=%d abort=%d "
@@ -80,6 +88,7 @@ static int product_audio_validation_report(struct bkengaudio_report_s *report)
 
   for (unsigned int stage = 0; stage < 3; stage++)
     {
+      syslog(LOG_NOTICE, "BKAUDIO stage=%u phase=open-enter\n", stage);
       audio_playback_t *player = audio_playback_open(NULL, 16000, 1, 16);
       if (!player)
         {
@@ -104,6 +113,7 @@ static int product_audio_validation_report(struct bkengaudio_report_s *report)
 
       if (!result && stage == 1)
         {
+          syslog(LOG_NOTICE, "BKAUDIO stage=%u phase=cancel-enter\n", stage);
           audio_playback_stop(player);
           int written = audio_playback_write(player, pcm, sizeof(pcm));
           int drained = audio_playback_drain(player, 2000);
@@ -119,9 +129,13 @@ static int product_audio_validation_report(struct bkengaudio_report_s *report)
         }
       else if (!result)
         {
+          syslog(LOG_NOTICE, "BKAUDIO stage=%u phase=drain-enter\n", stage);
           result = audio_playback_drain(player, 2000);
+          syslog(LOG_NOTICE, "BKAUDIO stage=%u phase=drain-return result=%d\n",
+                 stage, result);
         }
 
+      syslog(LOG_NOTICE, "BKAUDIO stage=%u phase=close-enter\n", stage);
       int closed = audio_playback_close(player);
       if (stage == 0)
         {
