@@ -371,6 +371,7 @@ static int product_focus_validation(void)
   static const unsigned int expected[] = {1, 1, 2, 1, 4, 1};
   bkfocus_intent_status(&status);
   if (status.timer.state == 1 || status.timer.state == 2) return -EBUSY;
+  const struct bkfocus_intent_status_s before = status;
   int result = 0;
   for (unsigned int i = 0; i < sizeof(expected) / sizeof(expected[0]); i++)
     {
@@ -388,6 +389,32 @@ static int product_focus_validation(void)
       struct bkcloud_fixture_report_s peer;
       bkcloud_fixture_report(&peer);
       bkfocus_intent_status(&status);
+      if (!before.ready)
+        {
+          /* An unbound device must reject this command. Validate that
+           * boundary without granting owner access or failing core startup.
+           * Positive timer execution remains explicitly unverified here.
+           */
+          bool rejected = result == -ESHUTDOWN &&
+            atomic_load(&g_pipeline_complete) &&
+            atomic_load(&g_pipeline_result) == -ESHUTDOWN &&
+            voice_channel_is_idle() && !status.ready &&
+            status.id == before.id && status.phase == before.phase &&
+            status.timer.state == before.timer.state &&
+            status.timer.revision == before.timer.revision &&
+            status.timer.remaining_ms == before.timer.remaining_ms &&
+            status.timer.duration_ms == before.timer.duration_ms &&
+            peer.asr_requests == 1 && !peer.plan_requests &&
+            !peer.final_requests && !peer.tts_requests;
+          if (rejected) result = 0;
+          else if (!result) result = -EPROTO;
+          syslog(LOG_NOTICE,
+            "BKFOCUS execution=blocked-admission rejection_check=%d "
+            "result=%d asr=%u plan=%u final=%u tts=%u idle=%d\n",
+            rejected, result, peer.asr_requests, peer.plan_requests,
+            peer.final_requests, peer.tts_requests, voice_channel_is_idle());
+          break;
+        }
       if (!result && (!atomic_load(&g_pipeline_complete) ||
           atomic_load(&g_pipeline_result) || !voice_channel_is_idle() ||
           status.timer.state != expected[i] || peer.asr_requests != 1 ||
@@ -407,7 +434,7 @@ static int product_focus_validation(void)
         voice_channel_is_idle());
       if (result) break;
     }
-  if (!result)
+  if (!result && before.ready)
     {
       /* The last one-second timer completes on the existing owner. */
       nxsig_usleep(1200000);
