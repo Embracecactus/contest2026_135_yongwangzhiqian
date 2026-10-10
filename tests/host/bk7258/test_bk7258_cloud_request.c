@@ -82,6 +82,7 @@ static void test_vision_cancel(void)
 }
 
 static const char *plan_finish, *plan_calls;
+static const char *plan_content = "A complete answer.";
 static int plan_transport(const char *request, char *response, size_t capacity,
     size_t *length, int *status, void *context,
     int (*check)(void *), void *request_context)
@@ -91,7 +92,7 @@ static int plan_transport(const char *request, char *response, size_t capacity,
   if (check && check(request_context)) return -ECANCELED;
   int n = snprintf(response, capacity,
       "{\"choices\":[{\"finish_reason\":\"%s\",\"message\":{"
-      "\"content\":\"A complete answer.\"%s}}]}", plan_finish, plan_calls);
+      "\"content\":\"%s\"%s}}]}", plan_finish, plan_content, plan_calls);
   assert(n > 0 && (size_t)n < capacity);
   *length = (size_t)n; *status = 200;
   return 0;
@@ -157,6 +158,29 @@ static void test_plan_phase(void)
       NULL, NULL) == 0);
   assert(!strcmp(response.text, "A complete answer."));
   llm_response_free(&response);
+  plan_finish = "stop";
+  plan_calls = "";
+  plan_content = "{\\\"voice_phase\\\":\\\"final\\\"}";
+  assert(llm_chat_plan_checked("system", messages, "[]", &response,
+      NULL, NULL) == 0);
+  assert(response.tool_phase_complete && !response.text && !response.tool_use);
+  llm_response_free(&response);
+  const char *bad_decisions[] = {
+      "{\\\"voice_phase\\\":\\\"final\\\"",
+      "{\\\"nested\\\":{\\\"voice_phase\\\":\\\"final\\\"}}",
+      "{\\\"voice_phase\\\":\\\"tools\\\"}",
+      "{\\\"voice_phase\\\":1}",
+      "{\\\"voice_phase\\\":\\\"final\\\",\\\"draft\\\":\\\"no\\\"}",
+      "{\\\"voice_phase\\\":\\\"final\\\",\\\"voice_phase\\\":\\\"final\\\"}",
+  };
+  for (size_t i = 0; i < sizeof(bad_decisions) / sizeof(bad_decisions[0]); i++) {
+    plan_content = bad_decisions[i];
+    assert(llm_chat_plan_checked("system", messages, "[]", &response,
+        NULL, NULL) == -EPROTO);
+    assert(!response.text && !response.tool_use);
+    llm_response_free(&response);
+  }
+  plan_content = "A complete answer.";
   plan_finish = "end_turn"; /* Legacy synchronous provider compatibility. */
   assert(llm_chat_tools_checked("system", messages, NULL, &response,
       NULL, NULL) == 0);

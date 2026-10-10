@@ -37,8 +37,8 @@ static int pcm_sink(void *unused, const void *data, size_t size)
 static void plan_once(struct bkcloud_fixture_ctx_s *ctx, char *text, size_t size)
 {
   assert(bkcloud_fixture_tls_ops()->open_verified(ctx, "fixture.invalid", 443, 1) == 0);
-  send_all(ctx, "POST / HTTP/1.1\r\n\r\n{\"stream\":false,\"tool_choice\":\"required\"}");
-  memset(text, 0, size); read_until(ctx, text, size, "agent_finalize");
+  send_all(ctx, "POST / HTTP/1.1\r\n\r\n{\"stream\":false,\"response_format\":{\"type\":\"json_object\"}}");
+  memset(text, 0, size); read_until(ctx, text, size, "voice_phase");
   assert(!strstr(text, "data:")); close_ctx(ctx);
 }
 
