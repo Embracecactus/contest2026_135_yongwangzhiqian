@@ -63,7 +63,7 @@ internal class PcPairingDelivery private constructor(
                 val client = ByteArray(16).also { b.get(it) }; val tx = ByteArray(16).also { b.get(it) }
                 val pin = ByteArray(32).also { b.get(it) }; val size = b.int
                 require(created >= 0 && created <= Long.MAX_VALUE - PcPairingExchange.TTL_MS &&
-                    expires == created + PcPairingExchange.TTL_MS && revision > 0u && caps in 1..15 &&
+                    expires == created + PcPairingExchange.TTL_MS && revision > 0u && caps in 1..31 &&
                     client.any { it != 0.toByte() } && tx.any { it != 0.toByte() } && size == b.remaining())
                 val response = ByteArray(size).also { b.get(it) }; val wire = ByteBuffer.wrap(response)
                 require(wire.int == 0x53505231)

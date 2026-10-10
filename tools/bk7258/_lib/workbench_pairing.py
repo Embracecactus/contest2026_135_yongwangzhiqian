@@ -39,7 +39,7 @@ def _request(data, now):
     )
     if (
         magic != b"SPQ1"
-        or not 1 <= caps <= 15
+        or not 1 <= caps <= 31
         or expires - created != TTL_MS
         or not created <= now < expires
         or not any(client)
@@ -68,7 +68,7 @@ def start(request_path, pending_path, capabilities, *, now_ms=None):
     plain = bytearray()
     try:
         now = _now(now_ms)
-        if type(capabilities) is not int or not 1 <= capabilities <= 15:
+        if type(capabilities) is not int or not 1 <= capabilities <= 31:
             raise ValueError()
         request_path, pending_path = Path(request_path), Path(pending_path)
         if (
@@ -228,7 +228,7 @@ def run(args):
             or len(set(args.allow)) != len(args.allow)
         ):
             raise PairingError("Invalid pairing request arguments")
-        bits = {"resources": 1, "scenes": 2, "tasks": 4, "diagnostics": 8}
+        bits = {"resources": 1, "scenes": 2, "tasks": 4, "diagnostics": 8, "camera": 16}
         return start(args.request, args.pending, sum(bits[x] for x in args.allow))
     if (
         args.pending is None

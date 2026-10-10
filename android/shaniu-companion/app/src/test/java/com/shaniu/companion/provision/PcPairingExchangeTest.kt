@@ -56,7 +56,7 @@ class PcPairingExchangeTest {
         assertEquals(fingerprint, parsed.fingerprint); assertEquals(3, parsed.capabilities)
     }
     @Test fun malformedExpiredAndUnauthorizedRequestsAreRejected() {
-        for (raw in listOf(byteArrayOf(), request() + byteArrayOf(0), request(0), request(16), request(expires = NOW + 600001)))
+        for (raw in listOf(byteArrayOf(), request() + byteArrayOf(0), request(0), request(32), request(expires = NOW + 600001)))
             assertThrows(IllegalArgumentException::class.java) { PcPairingExchange.parse(raw, NOW) }
         for (now in listOf(NOW - 1, NOW + 600000))
             assertThrows(IllegalArgumentException::class.java) { PcPairingExchange.parse(request(), now) }

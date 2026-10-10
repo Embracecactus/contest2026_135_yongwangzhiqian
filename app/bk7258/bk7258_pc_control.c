@@ -90,6 +90,10 @@ static int config(void *context, enum bkcontrol_command_e command,
               kind == BKCONTROL_CONFIG_RESOURCE_CATALOG);
   allowed |= (state->capabilities & BKPC_CAP_TASKS) != 0 &&
              kind == BKCONTROL_CONFIG_PC_TASK;
+  allowed |= (state->capabilities & BKPC_CAP_CAMERA) != 0 &&
+             (kind == BKCONTROL_CONFIG_CAMERA ||
+              (kind == BKCONTROL_CONFIG_CAMERA_FRAME &&
+               command == BKCONTROL_CONFIG_READ));
 #ifdef CONFIG_BK7258_ENGINEERING_TEST
   allowed |= (state->capabilities & BKPC_CAP_DIAGNOSTICS) != 0 &&
              (kind == BKCONTROL_CONFIG_ENGINEERING_TEST ||
