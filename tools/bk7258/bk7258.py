@@ -1258,7 +1258,16 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "voice":
             print(json.dumps(voice_domain.run(args), indent=2))
         elif args.command == "workbench":
-            print(json.dumps(workbench_domain.run(args), indent=2))
+            result = workbench_domain.run(args)
+            print(json.dumps(result, indent=2))
+            if args.operation == "task-run":
+                if result["process_state"] == "canceled":
+                    return 130
+                if result["process_state"] == "failure":
+                    code = result["process_returncode"]
+                    return code if isinstance(code, int) and 0 < code < 126 else 1
+                if result["device_result"] != "confirmed":
+                    return 3
         elif args.command == "hil-test":
             command = ["bk7258.py", "hil-test", args.operation]
             print(json.dumps(hil_test_domain.run(args, command), indent=2))

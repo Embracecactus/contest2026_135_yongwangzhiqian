@@ -439,7 +439,7 @@ class WorkbenchClientTest(unittest.TestCase):
 
 def pc_interop(executable, certificate, private_key):
     class PcPeerTest(unittest.TestCase):
-        def exercise(self, key, accepted):
+        def exercise(self, key, accepted, run_task=False):
             with tempfile.TemporaryDirectory(prefix="pc-grant-peer-") as directory:
                 process = subprocess.Popen(
                     [executable, "--pc-peer", certificate, private_key, directory],
@@ -483,7 +483,36 @@ def pc_interop(executable, certificate, private_key):
 
                 client = ObservedClient(PipeChannel(), pem, pin)
                 try:
-                    if accepted:
+                    if accepted and run_task:
+                        from _lib import workbench_task_runner as runner
+
+                        client.start(key)
+                        for exit_code in (0, 7):
+                            plan = runner.Plan(
+                                (
+                                    sys.executable,
+                                    "-c",
+                                    f"raise SystemExit({exit_code})",
+                                ),
+                                10,
+                                None,
+                            )
+                            outcome = runner.perform(client, plan)
+                            self.assertEqual(outcome["process_returncode"], exit_code)
+                            self.assertEqual(outcome["device_result"], "confirmed")
+                            self.assertEqual(
+                                client.task_status()["state"],
+                                "failure" if exit_code else "success",
+                            )
+                        plan = runner.Plan(
+                            (sys.executable, "-c", "import time; time.sleep(20)"),
+                            0.2,
+                            None,
+                        )
+                        outcome = runner.perform(client, plan)
+                        self.assertEqual(outcome["process_state"], "canceled")
+                        self.assertEqual(client.task_status()["state"], "canceled")
+                    elif accepted:
                         client.start(key)
                         self.assertTrue(client.status()["ready"])
                         self.assertIsNone(client.status()["volume"])
@@ -530,6 +559,9 @@ def pc_interop(executable, certificate, private_key):
 
         def test_status_real_pc_principal(self):
             self.exercise(PC_KEY, True)
+
+        def test_real_process_task_results(self):
+            self.exercise(PC_KEY, True, run_task=True)
 
         def test_phone_owner_key_rejected(self):
             self.exercise(bytes([42]) + bytes(31), False)

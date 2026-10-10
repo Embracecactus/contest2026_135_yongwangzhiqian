@@ -605,6 +605,62 @@ of active/2 markers and board acceptance remain pending.
 
 ### Resource transfer integration for a local workbench
 
+### Run one real computer task
+
+`task-run` uses the existing independently authorized native USB PC task service.
+Select the currently enumerated native CDC port and a profile granted `tasks`;
+CH340 is a download/console port and is rejected. No port open, DTR change or
+browser selection grants ownership or resets the board. Close other USB clients
+before running a task. Pairing/profile preparation is documented above.
+
+From this repository, this example builds the existing motion test target:
+
+```sh
+python3 tools/bk7258/bk7258.py workbench task-run \
+  --port NATIVE_CDC_PORT --profile pc.profile --run-timeout 300 \
+  --exec make -C tests/host/bk7258 build/test_bk7258_motion_core
+```
+
+Put `--exec PROGRAM ARG...` last. It is an explicit argv (`shell=False`), not
+model-generated shell text. On Windows choose a Windows executable or explicitly
+use `wsl.exe` with the intended distribution/directory. No program is launched
+until the device accepts a new task. Existing active tasks are not replaced.
+Only the process exit code decides success/failure. Ctrl+C or the finite deadline
+terminates the owned process (POSIX process group); Windows programs should own
+and clean up their children. No stdout, stderr, command or path is sent to the
+device. Output stays on the terminal, while the final JSON separates
+`process_state` / `process_returncode` from `device_result` and never claims
+visual or haptic acceptance.
+
+Running events are at most one per 5 s, with 15 s receiver TTL. Percent stays
+unknown unless the user explicitly supplies `--progress-file FILE` before
+`--exec`. The selected program receives `SHANIU_TASK_ID` and
+`SHANIU_TASK_PROGRESS`; it may atomically replace that file with at most 256 B:
+`{"task_id":"<SHANIU_TASK_ID>","progress":37}`. Only matching task IDs and
+integer 0..100 values are accepted; stale, malformed, decreasing or symlink
+inputs cannot overwrite current progress. The tool scans no directories.
+
+Terminal notifications have 60 s TTL and require exact identity/sequence/state
+readback to report `device_result=confirmed`. After a transport error, the
+process continues and the device result stays unknown; there is no automatic
+reconnect, queue or replay. Stop/kill of the sender leaves the device task to
+expire. Reconnect manually with `task-status`; start a new task only after the
+old task is terminal/expired. The CLI returns the child failure code when
+1..125, 1 for other failures, 130 for cancellation and 3 for a successful local
+process whose device result is unknown. Visual/audio/claim priority remains on
+the device; task completion never grants microphone access.
+
+The existing `workbench serve` resource UI below provides device state, import,
+trial and explicit default-save/readback. It now also reads task results and
+distinguishes unavailable connection, authorization, unsupported operation,
+device rejection and unknown results. Browser polling reads local cached job
+state and never scans storage or starts a program. Upload 100% is still not an
+installation/activation receipt. No added device thread, timer, framebuffer or
+SD write is needed for this host-only slice; the sender has one child, one
+connection and no event queue. Runtime defaults to 1 h and is capped at 24 h.
+
+### Resource transfer hooks
+
 The shared Python `workbench.run(args, observe=..., cancel_requested=...)`
 entry now forwards optional local hooks to resource operations. `observe`
 receives a detached public device snapshot; `cancel_requested` reads a local

@@ -26,6 +26,30 @@ class ControlError(ValueError):
     pass
 
 
+class ConnectionUnavailable(ControlError):
+    kind = "disconnected"
+
+    def __init__(self):
+        super().__init__("Native USB port is unavailable; no command was sent")
+
+
+class DeviceRejected(ControlError):
+    def __init__(self, code):
+        self.kind = (
+            "unauthorized"
+            if code in (-1, -13)
+            else "unsupported" if code in (-38, -95) else "failed"
+        )
+        super().__init__(f"Device rejected the operation ({code})")
+
+
+class AuthorizationUnavailable(ControlError):
+    kind = "unauthorized"
+
+    def __init__(self):
+        super().__init__("Independent PC authorization is unavailable")
+
+
 NATIVE_REOPEN_SETTLE_SECONDS = 1.1
 
 
@@ -41,7 +65,14 @@ class CertificateProbeError(ControlError):
         "tls_established",
         "pin_mismatch",
     }
-    _REASONS = {"invalid", "transport", "transport_closed", "timeout", "tls", "mismatch"}
+    _REASONS = {
+        "invalid",
+        "transport",
+        "transport_closed",
+        "timeout",
+        "tls",
+        "mismatch",
+    }
 
     def __init__(self, stage, reason):
         if stage not in self._STAGES or reason not in self._REASONS:
@@ -57,7 +88,8 @@ class CertificateProbeError(ControlError):
 class AuthenticationError(ControlError):
     _STAGES = {"parameters", "tls_handshake", "pin_check", "auth_exchange"}
 
-    def __init__(self, stage):
+    def __init__(self, stage, kind="unconfirmed"):
+        self.kind = "unauthorized" if kind == "unauthorized" else "unconfirmed"
         if stage not in self._STAGES:
             stage = "parameters"
         self.stage = stage
@@ -315,9 +347,9 @@ class ControlClient:
             if fields != (0, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0):
                 raise ControlError("Invalid authentication response")
             self.authenticated = True
-        except Exception:
+        except Exception as failure:
             self.close()
-            raise AuthenticationError(stage) from None
+            raise AuthenticationError(stage, getattr(failure, "kind", "unconfirmed")) from None
 
     def _exchange(self, command, payload, deadline):
         if self._sequence >= 0x7FFFFFFF:
@@ -353,7 +385,7 @@ class ControlClient:
                 raise ControlError("Invalid SDC1 response")
             self._sequence += 1
             if error:
-                raise ControlError(f"Device rejected the operation ({error})")
+                raise DeviceRejected(error)
             return tuple(fields)
         finally:
             frame[:] = b"\x00" * len(frame)
@@ -464,8 +496,7 @@ class ControlClient:
                 return struct.pack(">4I", *words)
 
             data = b"".join(
-                chunk(offset)
-                for offset in range(0, hil_test.AUDIO_STATUS_SIZE, 16)
+                chunk(offset) for offset in range(0, hil_test.AUDIO_STATUS_SIZE, 16)
             )
             if chunk(0) != data[:16]:
                 raise ControlError("Engineering audio snapshot changed during read")
@@ -829,11 +860,7 @@ class ControlClient:
                     self._flush(deadline)
                     notified = True
                 settle = getattr(self.channel, "reopen_settle_seconds", 0)
-                if (
-                    notified
-                    and type(settle) in (int, float)
-                    and 0 < settle <= 2.0
-                ):
+                if notified and type(settle) in (int, float) and 0 < settle <= 2.0:
                     self._sleep(settle)
             except Exception:
                 # Closing never turns an already completed command into a
@@ -861,12 +888,15 @@ class SerialChannel:
             deploy_usb.NATIVE_VID,
             deploy_usb.NATIVE_PID,
         ):
-            raise ControlError("Select the native USB port, not the UART debug port")
+            raise ConnectionUnavailable()
         # Reuse the existing bounded Windows native handle path; no SetCommState,
         # mode toggle, console fallback, scan, reset or provisioning command.
-        self.port = deploy_usb.open_native_port(
-            port, timeout, label="USB control", output=sys.stderr
-        )
+        try:
+            self.port = deploy_usb.open_native_port(
+                port, timeout, label="USB control", output=sys.stderr
+            )
+        except Exception:
+            raise ConnectionUnavailable() from None
 
     def write(self, data):
         return self.port.write(data)
@@ -899,6 +929,7 @@ def add_arguments(parser):
             "pair-finish",
             "task-event",
             "task-status",
+            "task-run",
             "trial-start",
             "trial-status",
             "trial-cancel",
@@ -919,6 +950,23 @@ def add_arguments(parser):
     )
     parser.add_argument(
         "--task-id", help="32 hex digits; never reuse within an authorization binding"
+    )
+    parser.add_argument(
+        "--run-timeout",
+        type=float,
+        default=3600,
+        help="task-run deadline in seconds, at most 86400",
+    )
+    parser.add_argument(
+        "--progress-file",
+        type=Path,
+        help="task-run only: explicit <=256 B JSON progress file",
+    )
+    parser.add_argument(
+        "--exec",
+        dest="task_command",
+        nargs="...",
+        help="task-run only: explicit program and argv; put last",
     )
     parser.add_argument(
         "--event-sequence",
@@ -1023,10 +1071,7 @@ def _credentials(args):
 
     profile_path = getattr(args, "profile", None)
     legacy = (args.certificate, args.certificate_sha256, args.pc_key_file)
-    if (
-        profile_path is not None
-        and getattr(args, "operation", None) != "save-profile"
-    ):
+    if profile_path is not None and getattr(args, "operation", None) != "save-profile":
         if any(value is not None for value in legacy):
             raise ControlError(
                 "A profile cannot be combined with plaintext credentials"
@@ -1035,7 +1080,7 @@ def _credentials(args):
             yield material
         return
     if not all(value is not None for value in legacy):
-        raise ControlError("A profile or complete credential inputs are required")
+        raise AuthorizationUnavailable()
     key = _read_file(args.pc_key_file, 32)
     try:
         certificate = _read_file(args.certificate, 16384).decode("ascii")
@@ -1073,6 +1118,13 @@ def authorized_client(args):
 
 
 def run(args, *, observe=None, cancel_requested=None):
+    task_plan = None
+    if args.operation == "task-run":
+        from . import workbench_task_runner
+
+        task_plan = workbench_task_runner.prepare(args)
+    elif getattr(args, "task_command", None) or getattr(args, "progress_file", None):
+        raise ControlError("Process arguments require task-run")
     if args.operation == "serve":
         from . import workbench_web
 
@@ -1119,6 +1171,10 @@ def run(args, *, observe=None, cancel_requested=None):
                 workbench_profile.create(args.profile, certificate, pin, key)
                 return dict(profile_saved=True, device_authorization_verified=False)
         with authorized_client(args) as client:
+            if task_plan is not None:
+                return workbench_task_runner.perform(
+                    client, task_plan, cancel_requested=cancel_requested
+                )
             if args.operation.startswith("catalog-"):
                 return workbench_catalog.perform(client, args)
             if args.operation.startswith("default-"):
@@ -1157,6 +1213,10 @@ def run(args, *, observe=None, cancel_requested=None):
             if args.operation == "info":
                 return client.info()
             raise ControlError("Unknown workbench operation")
+    except (DeviceRejected, ConnectionUnavailable, AuthorizationUnavailable, AuthenticationError):
+        raise
+    except workbench_profile.ProfileError:
+        raise AuthorizationUnavailable() from None
     except Exception:
         raise ControlError(
             "Workbench operation failed; no credential fallback or command replay"
