@@ -96,7 +96,7 @@ def status(client):
 
     def chunk(offset):
         total, *words = client._exchange(
-            15, struct.pack(">I", 21 << 16 | offset), deadline
+            15, struct.pack(">I", 23 << 16 | offset), deadline
         )
         if total != 80:
             raise ControlError("Unsupported camera snapshot")
@@ -113,7 +113,7 @@ def request(client, action, identity, nonce):
     record = encode(action, identity, nonce)
     _guard(client)
     deadline = client._now() + client._timeout
-    client._exchange(16, struct.pack(">II", 21, 32), deadline)
+    client._exchange(16, struct.pack(">II", 23, 32), deadline)
     client._exchange(17, record, deadline)
     client._exchange(18, b"", deadline)
 
