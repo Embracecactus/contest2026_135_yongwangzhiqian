@@ -31,7 +31,7 @@ internal class PcAuthorizationController(
     private var verifyOutcome = false
     data class Target(val client: String, val capabilities: Int, val revision: ULong)
     private var target = resumeTarget?.takeIf {
-        transaction != null && it.revision > 0u && it.capabilities in 0..15 &&
+        transaction != null && it.revision > 0u && it.capabilities in 0..31 &&
             it.client.matches(Regex("[0-9a-f]{32}")) &&
             (it.capabilities != 0) == it.client.any { c -> c != '0' }
     }
@@ -77,7 +77,7 @@ internal class PcAuthorizationController(
     fun grant(expected: Snapshot, client: ByteArray, key: ByteArray, capabilities: Int, pairingTransaction: ByteArray? = null): Boolean {
         if (client.size != 16 || client.all { it == 0.toByte() } ||
             key.size != 32 || key.all { it == 0.toByte() } ||
-            capabilities !in 1..15) return false
+            capabilities !in 1..31) return false
         return submit(expected, client, key, capabilities, pairingTransaction)
     }
     private fun submit(expected: Snapshot, client: ByteArray, key: ByteArray, capabilities: Int, pairingTransaction: ByteArray? = null): Boolean {
@@ -180,7 +180,7 @@ internal class PcAuthorizationController(
         val b = ByteBuffer.wrap(data); val magic = b.int; val enabled = b.int
         val config = b.long.toULong(); val revision = b.long.toULong(); val caps = b.int; val reserved = b.int
         val client = data.copyOfRange(32, 48); val tx = data.copyOfRange(48, 64)
-        if (magic != 0x50435331 || enabled !in 0..1 || caps and 15 != caps || reserved != 0 ||
+        if (magic != 0x50435331 || enabled !in 0..1 || caps and 31 != caps || reserved != 0 ||
             (enabled == 1) != (caps != 0) || (enabled == 1) != client.any { it != 0.toByte() }) {
             fail("设备授权状态无效"); return
         }

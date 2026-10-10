@@ -49,13 +49,22 @@ int main(int argc, char **argv)
   assert(mkdtemp(root));
   assert(bkpc_grants_open(&state, root, owner) == 0);
   denied(&state, 0, -EACCES);
-  if (!strcmp(argv[1], "invalid"))
+  if (!strcmp(argv[1], "camera"))
+    {
+      assert(bkpc_grants_set(&state, 0, tx, client, key, BKPC_CAP_CAMERA) == 0);
+      assert(bkpc_grants_open(&reopened, root, owner) == 0);
+      assert(bkpc_grants_key(&reopened, 1, actual, &caps) == 0);
+      assert(caps == 16 && !(caps & (BKPC_CAP_RESOURCES | BKPC_CAP_DIAGNOSTICS)));
+      assert(bkpc_grants_set(&state, 1, revoke, NULL, NULL, 0) == 0);
+      denied(&state, 2, -EACCES);
+    }
+  else if (!strcmp(argv[1], "invalid"))
     {
       uint8_t zero[32] = {0};
       assert(bkpc_grants_set(&state, 0, zero, client, key, 1) == -EINVAL);
       assert(bkpc_grants_set(&state, 0, tx, zero, key, 1) == -EINVAL);
       assert(bkpc_grants_set(&state, 0, tx, client, zero, 1) == -EINVAL);
-      assert(bkpc_grants_set(&state, 0, tx, client, key, 16) == -EINVAL);
+      assert(bkpc_grants_set(&state, 0, tx, client, key, 32) == -EINVAL);
       assert(bkpc_grants_set(&state, 0, tx, client, owner, 1) == -EACCES);
       assert(bkpc_grants_set(&state, 0, tx, client, key, 0) == -EINVAL);
       assert(access(state.store.active, F_OK) < 0 && errno == ENOENT);
@@ -149,7 +158,7 @@ int main(int argc, char **argv)
       else if (!strcmp(argv[1], "corrupt"))
         {
           uint8_t record[88] = {'P','C','G','1'};
-          record[7] = 16; /* Independent invalid capability golden vector. */
+          record[7] = 32; /* Independent invalid capability golden vector. */
           record[8] = 1; record[40] = 1; record[56] = 1;
           assert(bkprov_store_commit(&state.store, 1, revoke, record, sizeof(record)) == 0);
           assert(bkpc_grants_open(&reopened, root, owner) == -EPROTO);

@@ -15,6 +15,10 @@
 #include "bk7258_vision_protocol.h"
 #include "bk7258_vision_service.h"
 #include "bk7258_vision_record.h"
+#if defined(CONFIG_BK7258_APP_AGENT) && defined(CONFIG_BK7258_PROVISION_NATIVE)
+#include "bk7258_pc_camera.h"
+#define BKVISION_PC_CAMERA 1
+#endif
 #include "bk7258_media_volume.h"
 
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
@@ -113,6 +117,13 @@ static bool g_bkvision_quiesced;
 
 int bk7258_vision_quiesce(bool quiesce)
 {
+#ifdef BKVISION_PC_CAMERA
+  if (quiesce)
+    {
+      bkcamera_close();
+      if (bkcamera_busy()) return -EAGAIN;
+    }
+#endif
   int ret = nxmutex_trylock(&g_bkvision_capture_lock);
   if (ret < 0) return ret;
   g_bkvision_quiesced = quiesce;
@@ -146,7 +157,8 @@ static void bkvision_operation_failed(
   response->reserved[1] = 0;
 }
 
-static int bkvision_wait_frame(int fd, FAR struct v4l2_buffer *buffer)
+static int bkvision_wait_frame(int fd, FAR struct v4l2_buffer *buffer,
+                               bool (*canceled)(void))
 {
   clock_t start = clock_systime_ticks();
   clock_t limit = MSEC2TICK(CONFIG_BK7258_VISION_CAPTURE_TIMEOUT_MS);
@@ -154,6 +166,7 @@ static int bkvision_wait_frame(int fd, FAR struct v4l2_buffer *buffer)
 
   for (;;)
     {
+      if (canceled != NULL && canceled()) return -ECANCELED;
       ret = bkvision_ioctl(fd, VIDIOC_DQBUF, buffer);
       if (ret >= 0)
         {
@@ -321,7 +334,7 @@ static int bkvision_capture(
   FAR const struct bkvision_rpc_request_s *request,
   FAR struct bkvision_rpc_response_s *response,
   FAR uint8_t *destination, size_t destination_capacity,
-  FAR size_t *destination_size)
+  FAR size_t *destination_size, bool (*canceled)(void))
 {
   struct v4l2_requestbuffers request_buffers;
   enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -396,6 +409,7 @@ static int bkvision_capture(
       created = true;
     }
 
+  if (canceled != NULL && canceled()) { result = -ECANCELED; goto out; }
   fd = open(CONFIG_BK7258_VISION_DEVPATH, O_RDWR | O_NONBLOCK);
   if (fd < 0)
     {
@@ -503,6 +517,7 @@ static int bkvision_capture(
           goto out;
         }
     }
+  if (canceled != NULL && canceled()) { result = -ECANCELED; goto out; }
   result = bkvision_ioctl(fd, VIDIOC_STREAMON, &type);
   if (result < 0)
     {
@@ -516,7 +531,7 @@ static int bkvision_capture(
       memset(&buffer, 0, sizeof(buffer));
       buffer.type = type;
       buffer.memory = V4L2_MEMORY_MMAP;
-      result = bkvision_wait_frame(fd, &buffer);
+      result = bkvision_wait_frame(fd, &buffer, canceled);
       if (result < 0)
         {
           goto out;
@@ -678,8 +693,26 @@ int bk7258_vision_capture_jpeg(uint8_t *destination,
    * worker while a happy expression is displayed.  Standalone snapshot
    * commands keep their feedback in bkvision_worker(). */
   return bkvision_capture(&request, &response, destination,
-                           destination_capacity, destination_size);
+                           destination_capacity, destination_size, NULL);
 }
+
+#ifdef BKVISION_PC_CAMERA
+int bk7258_vision_pc_wake(void)
+{
+  if (!g_bkvision_server.initialized) return -ESHUTDOWN;
+  return nxsem_post(&g_bkvision_server.request_sem);
+}
+
+int bk7258_vision_pc_capture(uint8_t *destination, size_t capacity,
+  struct bkvision_rpc_response_s *metadata, bool (*canceled)(void))
+{
+  struct bkvision_rpc_request_s request = {0};
+  size_t size = 0;
+  request.command = BKVISION_RPC_SNAPSHOT;
+  return bkvision_capture(&request, metadata, destination, capacity, &size,
+                          canceled);
+}
+#endif
 
 static int bkvision_send(
   FAR struct bkvision_server_s *server,
@@ -728,7 +761,15 @@ static int bkvision_worker(int argc, FAR char **argv)
           continue;
         }
 
+#ifdef BKVISION_PC_CAMERA
+      if (bkcamera_work()) continue;
+#endif
       flags = spin_lock_irqsave(&server->request_lock);
+      if (!server->active)
+        {
+          spin_unlock_irqrestore(&server->request_lock, flags);
+          continue;
+        }
       memcpy(&request, &server->active_request, sizeof(request));
       spin_unlock_irqrestore(&server->request_lock, flags);
 
@@ -748,7 +789,7 @@ static int bkvision_worker(int argc, FAR char **argv)
         }
       else
         {
-          (void)bkvision_capture(&request, &response, NULL, 0, NULL);
+          (void)bkvision_capture(&request, &response, NULL, 0, NULL, NULL);
         }
 
       flags = spin_lock_irqsave(&server->request_lock);

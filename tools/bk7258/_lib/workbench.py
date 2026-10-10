@@ -349,7 +349,9 @@ class ControlClient:
             self.authenticated = True
         except Exception as failure:
             self.close()
-            raise AuthenticationError(stage, getattr(failure, "kind", "unconfirmed")) from None
+            raise AuthenticationError(
+                stage, getattr(failure, "kind", "unconfirmed")
+            ) from None
 
     def _exchange(self, command, payload, deadline):
         if self._sequence >= 0x7FFFFFFF:
@@ -975,6 +977,9 @@ def add_arguments(parser):
             "task-event",
             "task-status",
             "task-run",
+            "camera-status",
+            "camera-capture",
+            "camera-cancel",
             "trial-start",
             "trial-status",
             "trial-cancel",
@@ -1095,7 +1100,9 @@ def add_arguments(parser):
     parser.add_argument("--response", type=Path)
     parser.add_argument("--confirm-device-sha256")
     parser.add_argument(
-        "--allow", nargs="+", choices=("resources", "scenes", "tasks", "diagnostics")
+        "--allow",
+        nargs="+",
+        choices=("resources", "scenes", "tasks", "diagnostics", "camera"),
     )
 
 
@@ -1216,6 +1223,18 @@ def run(args, *, observe=None, cancel_requested=None):
                 workbench_profile.create(args.profile, certificate, pin, key)
                 return dict(profile_saved=True, device_authorization_verified=False)
         with authorized_client(args) as client:
+            if args.operation.startswith("camera-"):
+                from . import workbench_camera
+
+                if args.operation == "camera-status":
+                    return workbench_camera.status(client)
+                if args.operation == "camera-cancel":
+                    return workbench_camera.cancel(client)
+                return workbench_camera.capture(
+                    client,
+                    preview=getattr(args, "camera_preview", False),
+                    cancel_requested=cancel_requested,
+                )
             if task_plan is not None:
                 return workbench_task_runner.perform(
                     client, task_plan, cancel_requested=cancel_requested
@@ -1258,7 +1277,12 @@ def run(args, *, observe=None, cancel_requested=None):
             if args.operation == "info":
                 return client.info()
             raise ControlError("Unknown workbench operation")
-    except (DeviceRejected, ConnectionUnavailable, AuthorizationUnavailable, AuthenticationError):
+    except (
+        DeviceRejected,
+        ConnectionUnavailable,
+        AuthorizationUnavailable,
+        AuthenticationError,
+    ):
         raise
     except workbench_profile.ProfileError:
         raise AuthorizationUnavailable() from None

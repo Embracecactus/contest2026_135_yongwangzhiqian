@@ -53,7 +53,7 @@ internal object PcPairingExchange {
             val bytes = input.copyOf(); val b = ByteBuffer.wrap(bytes)
             require(b.int == 0x53505131)
             val caps = b.int; val created = b.long; val expires = b.long
-            require(caps in 1..15 && created >= 0 && created <= Long.MAX_VALUE - TTL_MS && expires == created + TTL_MS)
+            require(caps in 1..31 && created >= 0 && created <= Long.MAX_VALUE - TTL_MS && expires == created + TTL_MS)
             require(nowMs >= created && nowMs < expires)
             require(bytes.copyOfRange(24, 40).any { it != 0.toByte() } && bytes.copyOfRange(40, 56).any { it != 0.toByte() })
             require(b.getInt(56) == bytes.size - 60)
