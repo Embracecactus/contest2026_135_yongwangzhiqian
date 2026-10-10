@@ -34,6 +34,7 @@ struct bkpc_tasks_s
   uint64_t grant;
   uint64_t observed;
   uint64_t deadline;
+  uint64_t feedback_sequence;
   uint8_t last[40];
   bool admitted;
   bool expired;
@@ -49,6 +50,11 @@ int bkpc_tasks_apply(struct bkpc_tasks_s *state, const void *record,
                      size_t size, uint64_t now);
 void bkpc_tasks_step(struct bkpc_tasks_s *state, uint64_t now,
                      bool admitted);
+/* Single product consumer. Consume a terminal once even if feedback is
+ * suppressed; never replay it after voice/power admission reopens.
+ */
+
+bool bkpc_tasks_take_completion(struct bkpc_tasks_s *state, uint64_t now);
 /* Existing display owner uses states 4/5/6 for task result shapes.
  * Voice availability gates all visuals; an active/paused timer keeps priority.
  * Completed focus feedback yields to a nonexpired terminal task notification.

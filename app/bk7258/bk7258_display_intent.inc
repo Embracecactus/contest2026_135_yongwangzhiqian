@@ -6,6 +6,7 @@ static spinlock_t g_bkdisplay_intent_lock = SP_UNLOCKED;
 static struct bkdisplay_expression_request_s g_bkdisplay_intent;
 static char g_bkdisplay_intent_expression[BKDISPLAY_EXPRESSION_SIZE];
 static bool g_bkdisplay_intent_allowed;
+static unsigned g_companion_visual;
 static unsigned int g_bkdisplay_power_requested;
 static bool g_bkdisplay_power_pending;
 static bool g_bkdisplay_onboarding_clear_pending;
@@ -68,6 +69,7 @@ static void bkdisplay_intent_gate_locked(bool allowed)
             !g_bkdisplay_power_pending &&
             !g_bkdisplay_onboarding_clear_pending;
   g_bkdisplay_intent_allowed = allowed;
+  if (!allowed) g_companion_visual = 0;
   if (!allowed) bkdisplay_trial_supersede();
   if (!allowed) bkdisplay_selection_cancel_locked();
   if (!allowed && g_bkdisplay_intent.state == BKDISPLAY_EXPRESSION_PENDING)
@@ -100,6 +102,7 @@ static bool bkdisplay_intent_pending(void)
 static void bkdisplay_intent_supersede(void)
 {
   irqstate_t flags = spin_lock_irqsave(&g_bkdisplay_intent_lock);
+  g_companion_visual = 0;
   bkdisplay_trial_supersede();
   if (g_bkdisplay_intent.state == BKDISPLAY_EXPRESSION_PENDING)
     {
@@ -174,6 +177,7 @@ static int bkdisplay_request(const char *expression, uint32_t *id,
   else
     {
       g_bkdisplay_intent.id++;
+      g_companion_visual = 0;
       g_bkdisplay_intent.state = BKDISPLAY_EXPRESSION_PENDING;
       g_bkdisplay_intent.error = 0;
       strcpy(g_bkdisplay_intent_expression, expression);

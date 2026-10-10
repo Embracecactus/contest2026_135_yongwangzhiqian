@@ -20,15 +20,17 @@ int main(int argc, char **argv)
   struct bkmotion_rpc_response_s response;
   int ret;
 
-  if (argc != 2 || strcmp(argv[1], "sample") != 0)
+  if (argc != 2 || (strcmp(argv[1], "sample") != 0 &&
+                   strcmp(argv[1], "status") != 0))
     {
-      fprintf(stderr, "usage: bkmotion sample\n");
+      fprintf(stderr, "usage: bkmotion sample|status\n");
       return EXIT_FAILURE;
     }
 
   memset(&request, 0, sizeof(request));
   memset(&response, 0, sizeof(response));
-  request.command = BKMOTION_RPC_SAMPLE;
+  request.command = strcmp(argv[1], "status") == 0 ? BKMOTION_RPC_STATUS :
+                                                    BKMOTION_RPC_SAMPLE;
   ret = bkmotion_rpc_exchange(&request, &response, BKMOTION_RPC_REPLY_WAIT_MS);
   if (ret < 0)
     {
@@ -46,9 +48,12 @@ int main(int argc, char **argv)
     }
 
   printf("BKMOTION SAMPLE PASS timestamp_us=%llu x_mms2=%ld y_mms2=%ld "
-         "z_mms2=%ld status=%ld unit=mm_s2 privacy=telemetry-only\n",
+         "z_mms2=%ld status=%ld source=%s unit=mm_s2 "
+         "privacy=telemetry-only\n",
          (unsigned long long)response.timestamp_us,
          (long)response.x_mms2, (long)response.y_mms2,
-         (long)response.z_mms2, (long)response.sensor_status);
+         (long)response.z_mms2, (long)response.sensor_status,
+         request.command == BKMOTION_RPC_STATUS ?
+         "periodic-cache" : "sample");
   return EXIT_SUCCESS;
 }

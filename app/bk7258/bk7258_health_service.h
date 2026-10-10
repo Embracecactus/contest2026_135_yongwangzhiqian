@@ -22,6 +22,7 @@ struct bk7258_health_service_snapshot_s
   uint32_t flags;
   uint32_t battery_state;
   int32_t battery_voltage_mv;
+  uint64_t sampled_ms;
 };
 
 int bk7258_health_service_prepare(void);

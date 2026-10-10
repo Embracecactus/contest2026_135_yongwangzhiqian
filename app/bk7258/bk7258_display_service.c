@@ -76,10 +76,15 @@ struct bkdisplay_service_s
   unsigned int power_overlay;
   bool overlay_dirty;
   unsigned focus_painted;
+  unsigned companion_painted;
+  uint64_t companion_identity;
 };
 
 static atomic_bool g_speaking;
+static atomic_uint g_activity;
 static atomic_uint g_focus_visual;
+static uint64_t g_companion_started;
+static uint64_t g_companion_deadline;
 void bk7258_display_focus(unsigned visual)
 {
   if (!(visual & BKFOCUS_STATUS_VISUAL) && visual && ((visual >> 8) < 1 || (visual >> 8) > 6 || (visual & 255) > 32)) return;
@@ -771,6 +776,8 @@ static uint64_t bkdisplay_now_ms(void)
 
 #include "bk7258_display_selection.inc"
 
+#include "bk7258_display_companion.inc"
+
 static int bkdisplay_worker(int argc, char *argv[])
 {
   struct bkdisplay_service_s *service = &g_bkdisplay_service;
@@ -791,6 +798,7 @@ static int bkdisplay_worker(int argc, char *argv[])
       (void)bkdisplay_selection_recover_step(service);
       if (!service->devices_ready)
         {
+          bkdisplay_companion_preempt(service);
           service->status.state = BKDISPLAY_SERVICE_WAITING_DEVICES;
           (void)bkdisplay_selection_step(service, false);
           (void)bkdisplay_intent_step(service, false);
@@ -798,6 +806,7 @@ static int bkdisplay_worker(int argc, char *argv[])
         }
       else if (service->claim_qr[0] || service->power_overlay || service->overlay_dirty)
         {
+          bkdisplay_companion_preempt(service);
           service->speaking_painted = false;
           service->focus_painted = 0;
           if (service->overlay_dirty)
@@ -810,24 +819,29 @@ static int bkdisplay_worker(int argc, char *argv[])
         }
       else if (bkdisplay_selection_step(service, true))
         {
+          bkdisplay_companion_preempt(service);
           service->focus_painted = 0;
           service->speaking_painted = false;
           next = now;
         }
       else if (bkdisplay_intent_step(service, true))
         {
+          bkdisplay_companion_preempt(service);
           service->focus_painted = 0;
           service->speaking_painted = false;
           next = now;
         }
       else if (bkdisplay_trial_step(service, true))
         {
+          bkdisplay_companion_preempt(service);
           service->focus_painted = 0;
           service->speaking_painted = false;
           next = now;
         }
-      else if (!atomic_load(&g_speaking) && (focus || service->focus_painted))
+      else if (!atomic_load(&g_speaking) && !atomic_load(&g_activity) &&
+               (focus || service->focus_painted))
         {
+          bkdisplay_companion_preempt(service);
           (void)bkdisplay_focus_present_locked(service, focus);
           next = now;
         }
@@ -835,6 +849,7 @@ static int bkdisplay_worker(int argc, char *argv[])
                service->speaking_frame &&
                (atomic_load(&g_speaking) || service->speaking_painted))
         {
+          bkdisplay_companion_preempt(service);
           bool active = atomic_load(&g_speaking);
           service->focus_painted = 0;
           if (active != service->speaking_painted)
@@ -853,6 +868,10 @@ static int bkdisplay_worker(int argc, char *argv[])
                 }
               else service->status.last_error = ret;
             }
+          next = now + 100;
+        }
+      else if (bkdisplay_companion_step(service, now))
+        {
           next = now + 100;
         }
       else if (now >= next)

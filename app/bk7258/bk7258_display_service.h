@@ -54,6 +54,18 @@ int bk7258_display_power(unsigned int phase);
 void bk7258_display_speaking(bool active);
 /* Atomic visual intent only; the existing display worker owns all I/O. */
 void bk7258_display_focus(unsigned visual);
+/* Low priority, finite cached-frame intent: 1 moved, 2 settled/completed,
+ * 3 tilted, 4 charging, 5 low battery; zero cancels. No SD I/O or default
+ * change. EALREADY means an
+ * existing terminal focus/task visual already owns the feedback display.
+ */
+
+int bk7258_display_companion(unsigned visual, unsigned duration_ms);
+/* Actual voice lifecycle only: 0 idle/unknown, 1 listening, 2 processing.
+ * Atomic metadata publication; the existing worker reuses cached frames.
+ */
+
+void bk7258_display_activity(unsigned state);
 int bk7258_display_service_prepare(void);
 int bk7258_display_service_start(void);
 
