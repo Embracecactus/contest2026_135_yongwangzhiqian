@@ -8,7 +8,9 @@ internal class NfcBindingController(
     private val changed: (State) -> Unit,
 ) : AutoCloseable {
     data class Snapshot(val phase: Int, val error: Int, val operation: Long,
-        val revision: Long, val floor: Long, val durations: List<Long>)
+        val revision: Long, val floor: Long, val durations: List<Long>,
+        val actions: List<Int> = durations.map { if (it > 0) 1 else 0 },
+        val extended: Boolean = false)
     data class Scene(val capabilities: Int, val flags: Int, val error: Int)
     data class State(val snapshot: Snapshot?, val busy: Boolean, val message: String,
         val scene: Scene?, val sceneMessage: String)
@@ -18,8 +20,13 @@ internal class NfcBindingController(
     private var scene: Scene? = null
     private var sceneMessage = "自动专注能力未确认，请读取设备状态"
     private var message = "尚未读取设备卡片设置"
-    private var bytes = ByteArray(112)
+    private var bytes = ByteArray(176)
+    private var total = 112
     private var offset = 0
+    private val sceneBytes = ByteArray(48)
+    private var sceneOffset = 0
+    private var sceneTotal = 0
+    private var sceneVerify = false
     private var request: ByteArray? = null
     private var sentBytes = 0
     private var awaitingOperation: Long? = null
@@ -45,11 +52,17 @@ internal class NfcBindingController(
         phase = Phase.READ; message = "正在读取设备卡片状态"; publish()
         return read()
     }
-    fun act(action: Int, slot: Int = 0, durationMs: Long = 0): Boolean {
+    fun act(action: Int, slot: Int = 0, durationMs: Long = 0,
+        sceneAction: Int = if (action == 2) 1 else 0): Boolean {
         val value = snapshot ?: return false
         if (!active || phase != Phase.IDLE || !session.current().authenticated ||
             generation != session.current().generation || action !in 1..4 || slot !in 0..7 ||
-            (action == 2 && durationMs <= 0) || (action != 2 && durationMs != 0L) ||
+            (action == 2 && (sceneAction !in 1..6 ||
+                (sceneAction == 1 && durationMs <= 0) ||
+                (sceneAction == 5 && durationMs != 1L) ||
+                (sceneAction in listOf(2,3,4,6) && durationMs != 0L) ||
+                (!value.extended && sceneAction != 1))) ||
+            (action != 2 && (durationMs != 0L || sceneAction != 0)) ||
             (action in listOf(1,4) && slot != 0)) return false
         if (action == 4) {
             if (value.phase !in 1..2 || value.operation == 0L) return false
@@ -57,8 +70,9 @@ internal class NfcBindingController(
             (action != 1 && value.phase == 0) || value.floor == Long.MAX_VALUE) return false
         val id = if (action == 4) value.operation else value.floor + 1
         awaitingOperation = id
-        request = ByteBuffer.allocate(40).put("NCF1".toByteArray(Charsets.US_ASCII))
-            .putInt(action).putInt(slot).putInt(0)
+        val extended = sceneAction > 1
+        request = ByteBuffer.allocate(40).put((if (extended) "NCF2" else "NCF1").toByteArray(Charsets.US_ASCII))
+            .putInt(action).putInt(slot).putInt(if (extended) sceneAction else 0)
             .putLong(if (action in listOf(1,4)) 0 else value.revision)
             .putLong(id).putLong(durationMs).array()
         scene = null; sceneMessage = "设备正在处理，自动专注当前状态未确认"
@@ -115,13 +129,15 @@ internal class NfcBindingController(
             }
             Phase.READ, Phase.VERIFY -> {
                 val chunk = reply.configChunk
-                if (chunk == null || chunk.totalLength != 112 || chunk.bytes.size != 16) {
+                if (chunk == null || chunk.totalLength !in listOf(112,176) || chunk.bytes.size != 16) {
                     fail("设备卡片状态格式无效"); return
                 }
+                if (phase == Phase.READ && offset == 0) total = chunk.totalLength
+                if (chunk.totalLength != total) { fail("卡片状态格式已变化，请重新读取"); return }
                 if (phase == Phase.READ) {
                     chunk.bytes.copyInto(bytes, offset)
                     offset += 16
-                    if (offset == 112) { offset = 0; phase = Phase.VERIFY }
+                    if (offset == total) { offset = 0; phase = Phase.VERIFY }
                     read()
                 } else {
                     if (!bytes.copyOfRange(offset, offset + 16).contentEquals(chunk.bytes)) {
@@ -143,12 +159,27 @@ internal class NfcBindingController(
     }
     private fun finishRead() {
         val buffer = ByteBuffer.wrap(bytes)
-        if (String(bytes, 0, 4, Charsets.US_ASCII) != "NCS1") { fail("设备卡片状态格式无效"); return }
+        val extended = total == 176
+        if (String(bytes, 0, 4, Charsets.US_ASCII) != if (extended) "NCS2" else "NCS1") { fail("设备卡片状态格式无效"); return }
         buffer.position(4)
         val state = buffer.int; val error = buffer.int; val reserved = buffer.int
         val operation = buffer.long; val revision = buffer.long; val floor = buffer.long
         val reservedTail = buffer.long
-        val durations = List(8) { buffer.long }
+        val actions = mutableListOf<Int>()
+        val durations = List(8) {
+            if (extended) {
+                actions += buffer.int
+                if (buffer.int != 0) { fail("卡片保留字段无效"); return }
+            }
+            val argument = buffer.long
+            if (!extended) actions += if (argument > 0) 1 else 0
+            argument
+        }
+        if (actions.indices.any { i ->
+            val a = actions[i]; val arg = durations[i]
+            a !in 0..6 || (a == 1 && arg <= 0) || (a == 5 && arg != 1L) ||
+                (a in listOf(0,2,3,4,6) && arg != 0L)
+        }) { fail("不支持的卡片场景，不能提交操作"); return }
         if (state !in 0..7 || error > 0 || reserved != 0 || reservedTail != 0L ||
             operation < 0 || revision < 0 || floor < 0 || floor < operation ||
             durations.any { it < 0 } || (state in 0..4 && error != 0)) {
@@ -158,7 +189,7 @@ internal class NfcBindingController(
             fail("设备当前作业已被替换，本次结果未确认；请重新读取"); return
         }
         awaitingOperation = null
-        snapshot = Snapshot(state,error,operation,revision,floor,durations)
+        snapshot = Snapshot(state,error,operation,revision,floor,durations,actions,extended)
         phase = Phase.IDLE; bytes.fill(0)
         message = when (state) {
             0 -> "状态已读取；请加载已保存的卡片设置"
@@ -171,6 +202,7 @@ internal class NfcBindingController(
             else -> "保存结果未知，不能继续写入；请重新读取或恢复设备后再试"
         }
         phase = Phase.CAPABILITY
+        sceneOffset = 0; sceneTotal = 0; sceneVerify = false; sceneBytes.fill(0)
         publish()
         send(DeviceControlProtocol.Command.CONFIG_READ,
             ByteBuffer.allocate(4).putInt(13 shl 16).array())
@@ -181,11 +213,32 @@ internal class NfcBindingController(
     }
     private fun receiveCapability(reply: DeviceControlProtocol.Snapshot) {
         val chunk = reply.configChunk
-        if (reply.error != 0 || chunk?.totalLength != 16 || chunk.bytes.size != 16) {
+        if (reply.error != 0 || chunk == null || chunk.totalLength !in listOf(16,48) || chunk.bytes.size != 16) {
             finishCapability(null, "自动专注能力未确认；此固件可能未提供该信息"); return
         }
-        val data = ByteBuffer.wrap(chunk.bytes)
-        if (data.int != 0x4e434131) { finishCapability(null, "自动专注能力格式未知"); return }
+        if (sceneOffset == 0) sceneTotal = chunk.totalLength
+        if (chunk.totalLength != sceneTotal) { finishCapability(null, "场景结果已变化，请重新读取"); return }
+        if (sceneVerify) {
+            if (!sceneBytes.copyOfRange(16,32).contentEquals(chunk.bytes)) {
+                finishCapability(null, "场景结果已变化，请重新读取"); return
+            }
+        } else {
+            chunk.bytes.copyInto(sceneBytes, sceneOffset)
+            sceneOffset += 16
+            if (sceneOffset < sceneTotal) {
+                send(DeviceControlProtocol.Command.CONFIG_READ,
+                    ByteBuffer.allocate(4).putInt((13 shl 16) or sceneOffset).array())
+                return
+            }
+            if (sceneTotal == 48) {
+                sceneVerify = true; sceneOffset = 16
+                send(DeviceControlProtocol.Command.CONFIG_READ,
+                    ByteBuffer.allocate(4).putInt((13 shl 16) or 16).array())
+                return
+            }
+        }
+        val data = ByteBuffer.wrap(sceneBytes)
+        if (data.int != if (sceneTotal == 48) 0x4e434132 else 0x4e434131) { finishCapability(null, "自动专注能力格式未知"); return }
         val caps = data.int; val flags = data.int; val error = data.int
         if (caps !in 0..1 || flags and 31 != flags || error > 0 ||
             (caps == 0 && (flags != 0 || error != 0)) ||
@@ -206,7 +259,24 @@ internal class NfcBindingController(
             error == -16 -> "支持刷卡自动专注；设备暂忙，请稍后移开再刷"
             else -> "支持刷卡自动专注；登记后移开，再刷卡启动"
         }
-        finishCapability(Scene(caps,flags,error), summary)
+        var receipt = ""
+        if (sceneTotal == 48) {
+            val event = data.long; val action = data.int; val intent = data.int
+            val phase = data.int; val result = data.int; val reserved = data.long
+            if (event < 0 || action !in 0..6 || intent < 0 || phase !in 0..5 || result > 0 || reserved != 0L ||
+                (phase == 2 && result != 0)) {
+                finishCapability(null, "场景回执格式未知，请重新读取"); return
+            }
+            receipt = when (phase) {
+                0 -> "尚无本轮刷卡结果"
+                1 -> "场景已受理，尚未确认完成"
+                2 -> if (action == 5) "本地内容播放已结束" else "卡片操作已执行"
+                3 -> "卡片操作失败（$result）"
+                4 -> "卡片操作已取消"
+                else -> "卡片结果未知，请重新读取"
+            }
+        }
+        finishCapability(Scene(caps,flags,error), summary + if (receipt.isEmpty()) "" else "\n$receipt")
     }
     override fun close() {
         active = false; results.cancel(); connection.cancel()

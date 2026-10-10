@@ -92,6 +92,7 @@
 #endif
 #include "bk7258_pc_grants.h"
 #include "bk7258_focus_intent.h"
+#include "bk7258_local_content.h"
 #ifdef CONFIG_BK7258_NFC_SERVICE
 #include "bk7258_nfc_service.h"
 #ifdef CONFIG_BK7258_PROVISION_GATT
@@ -2520,6 +2521,7 @@ static int product_reset_step(void)
   if (g_reset_phase != PRODUCT_RESET_FINISHING)
     {
       g_reset_phase = PRODUCT_RESET_QUIESCING;
+      int content = bkcontent_quiesce();
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
       int pack = bk7258_display_job_quiesce(true);
 #endif
@@ -2535,6 +2537,7 @@ static int product_reset_step(void)
 #endif
       ret = bkprov_owner_quiesce(true);
       if (ret < 0) return ret;
+      if (content < 0) return content;
 #ifdef CONFIG_BK7258_MOTION_SERVICE
       if (motion < 0) return motion;
 #endif
@@ -2878,6 +2881,7 @@ out:
 }
 
 #include "bk7258_agent_companion.inc"
+#include "bk7258_agent_local_content.inc"
 
 static int bk7258_agent_config_task(int argc, FAR char *argv[])
 {
@@ -2939,6 +2943,7 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
           int error = errno;
           product_companion_step(bkvoice_config_now_ms(NULL), false,
                                   false, false);
+          (void)bkcontent_quiesce();
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
           (void)bk7258_display_job_quiesce(true);
 #endif
@@ -2959,6 +2964,7 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
       if (reset)
         {
           product_companion_step(now, false, false, false);
+          bkcontent_step(false);
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
           (void)bk7258_display_job_quiesce(true);
 #endif
@@ -3004,6 +3010,7 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
       if (product_keys_step(now))
         {
           product_companion_step(now, false, false, false);
+          bkcontent_step(false);
           product_nfc_scene_gate(false);
           product_pc_task_step(now, false);
           bkfocus_cancel();
@@ -3022,6 +3029,12 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
 #endif
       product_pc_task_step(now, g_control_bound && !bkagent_ota_busy());
       bool focus_completed = bkfocus_step(now) > 0;
+      bool content_completed;
+      bool content_busy = product_content_step(now, g_control_bound &&
+        !voice_interaction_active &&
+        !bkagent_ota_busy() && atomic_load(&g_agent_core_ready) &&
+        (!atomic_load(&g_voice_initialized) || voice_channel_is_idle()),
+        &content_completed);
       product_nfc_scene_gate(g_control_bound && !bkagent_ota_busy() &&
         (!atomic_load(&g_voice_initialized) || voice_channel_is_idle()));
       bkfocus_intent_step(now, g_control_bound && !bkagent_ota_busy());
@@ -3031,9 +3044,9 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
         bkfocus_visual(now)));
 #endif
       bool task_completed = bkpc_tasks_take_completion(&g_pc_tasks, now);
-      product_companion_step(now, !bkagent_ota_busy(),
+      product_companion_step(now, !bkagent_ota_busy() && !content_busy,
         !atomic_load(&g_voice_initialized) || voice_channel_is_idle(),
-        focus_completed || task_completed);
+        focus_completed || task_completed || content_completed);
       if (now >= voice_cleanup_at)
         {
           int cleanup = voice_channel_recover();
@@ -3063,7 +3076,8 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
           voice_action_at = now;
         }
 
-      if (voice_action != VOICE_ACTION_NONE && now >= voice_action_at)
+      if (!content_busy && voice_action != VOICE_ACTION_NONE &&
+          now >= voice_action_at)
         {
           enum voice_action_e attempted = voice_action;
           int action;
@@ -3296,7 +3310,7 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
 #ifdef CONFIG_BK7258_USBCDC
       product_pc_usb_step();
 #endif
-      if (!atomic_load(&g_agent_core_ready) ||
+      if (content_busy || !atomic_load(&g_agent_core_ready) ||
           !atomic_load(&g_voice_initialized) || !g_identity_bound ||
           bkagent_ota_busy())
         {
@@ -3692,6 +3706,7 @@ int ai_agent_main(int argc, FAR char *argv[])
   while (!agent_shutdown_requested())
     {
       agent_msg_t message;
+      bkcontent_work();
       ret = message_bus_pop_outbound(&message, 1000);
       if (ret != OK)
         {
@@ -3733,6 +3748,7 @@ int ai_agent_main(int argc, FAR char *argv[])
       message_bus_msg_free(&message);
     }
 
+  (void)bkcontent_quiesce();
   message_bus_wakeup();
   return OK;
 }

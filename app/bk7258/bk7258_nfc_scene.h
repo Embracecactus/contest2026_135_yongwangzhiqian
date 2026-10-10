@@ -18,6 +18,7 @@ struct bknfc_scene_s
   uint64_t generation;
   uint64_t sequence;
   bool armed;
+  unsigned int action;
 };
 /* 仅首次建立生命周期时调用，不能用重置此对象绕过驻留去重。 */
 int bknfc_scene_init(struct bknfc_scene_s *state, uint64_t generation);

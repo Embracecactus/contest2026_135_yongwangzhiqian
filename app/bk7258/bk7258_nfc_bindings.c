@@ -29,12 +29,13 @@ static bool zero(const uint8_t *p, size_t size)
 static void encode(const struct bknfc_binding_s *entries, uint8_t *record)
 {
   memset(record, 0, BKNFC_BINDING_RECORD_SIZE);
-  memcpy(record, "NCB1", 4);
+  memcpy(record, "NCB2", 4);
   for (unsigned int i = 0; i < BKNFC_BINDING_SLOTS; i++)
     {
       uint8_t *p = record + 8 + i * 24;
       memcpy(p, &entries[i].card, 12);
       put64(p + 12, entries[i].duration_ms);
+      p[20] = entries[i].action;
     }
 }
 int bknfc_bindings_decode(struct bknfc_bindings_s *state,
@@ -42,21 +43,27 @@ int bknfc_bindings_decode(struct bknfc_bindings_s *state,
 {
   struct bknfc_binding_s entries[BKNFC_BINDING_SLOTS] = {0};
   if (!state || !record || size != BKNFC_BINDING_RECORD_SIZE ||
-      memcmp(record, "NCB1", 4) || !zero(record + 4, 4)) return -EPROTO;
+      (memcmp(record, "NCB1", 4) && memcmp(record, "NCB2", 4)) ||
+      !zero(record + 4, 4)) return -EPROTO;
   for (unsigned int i = 0; i < BKNFC_BINDING_SLOTS; i++)
     {
       const uint8_t *p = record + 8 + i * 24;
-      if (!zero(p + 20, 4)) return -EPROTO;
+      bool legacy = !memcmp(record, "NCB1", 4);
+      if (!zero(p + (legacy ? 20 : 21), legacy ? 4 : 3))
+        return -EPROTO;
       memcpy(&entries[i].card, p, 12);
       entries[i].duration_ms = get64(p + 12);
-      if (!entries[i].duration_ms)
+      entries[i].action = legacy ? (entries[i].duration_ms ? 1 : 0) : p[20];
+      if (!entries[i].action)
         {
-          if (!zero(p, 12)) return -EPROTO;
+          if (!zero(p, 20)) return -EPROTO;
           continue;
         }
-      if (!bknfc_card_valid(&entries[i].card)) return -EPROTO;
+      if (!bknfc_card_valid(&entries[i].card) ||
+          !bknfc_binding_action_valid(entries[i].action,
+                                      entries[i].duration_ms)) return -EPROTO;
       for (unsigned int j = 0; j < i; j++)
-        if (entries[j].duration_ms && same_card(&entries[i].card, &entries[j].card))
+        if (entries[j].action && same_card(&entries[i].card, &entries[j].card))
           return -EPROTO;
     }
   memcpy(state->entries, entries, sizeof(entries));
@@ -93,9 +100,25 @@ int bknfc_bindings_open(struct bknfc_bindings_s *state, const char *root)
   if (!ret) state->ready = true;
   return ret;
 }
+bool bknfc_binding_action_valid(unsigned int action, uint64_t argument)
+{
+  if (action == 1) return argument > 0;
+  if (action == 5) return argument == 1;
+  return (action >= 2 && action <= 6) && argument == 0;
+}
+
 int bknfc_bindings_set(struct bknfc_bindings_s *state, uint64_t expected,
                        uint64_t operation, unsigned int slot,
                        const struct bknfc_card_s *card, uint64_t duration)
+{
+  return bknfc_bindings_set_action(state, expected, operation, slot, card,
+                                  card ? 1 : 0, duration);
+}
+
+int bknfc_bindings_set_action(struct bknfc_bindings_s *state, uint64_t expected,
+                       uint64_t operation, unsigned int slot,
+                       const struct bknfc_card_s *card, unsigned int action,
+                       uint64_t duration)
 {
   struct bknfc_binding_s candidate[BKNFC_BINDING_SLOTS];
   struct bknfc_card_s empty = {0};
@@ -103,7 +126,8 @@ int bknfc_bindings_set(struct bknfc_bindings_s *state, uint64_t expected,
   uint8_t transaction[16] = {'N', 'C', 'B', '1'};
   int ret;
   if (!state || !operation || slot >= BKNFC_BINDING_SLOTS ||
-      (card && (!duration || !bknfc_card_valid(card))) || (!card && duration))
+      (card && (!bknfc_binding_action_valid(action, duration) ||
+                !bknfc_card_valid(card))) || (!card && (action || duration)))
     return -EINVAL;
   if (state->uncertain) return -EINPROGRESS;
   if (!state->ready) return -ENODEV;
@@ -114,17 +138,19 @@ int bknfc_bindings_set(struct bknfc_bindings_s *state, uint64_t expected,
     {
       if (memcmp(transaction, state->transaction, 16) ||
           memcmp(&state->entries[slot].card, card ? card : &empty, 12) ||
-          state->entries[slot].duration_ms != duration) return -EEXIST;
+          state->entries[slot].duration_ms != duration ||
+          state->entries[slot].action != action) return -EEXIST;
       return expected != UINT64_MAX && state->revision == expected + 1 ? 0 : -ESTALE;
     }
   if (expected != state->revision) return -ESTALE;
   if (expected == UINT64_MAX) return -EOVERFLOW;
   for (unsigned int i = 0; card && i < BKNFC_BINDING_SLOTS; i++)
-    if (i != slot && state->entries[i].duration_ms &&
+    if (i != slot && state->entries[i].action &&
         same_card(card, &state->entries[i].card)) return -EEXIST;
   memcpy(candidate, state->entries, sizeof(candidate));
   candidate[slot].card = card ? *card : empty;
   candidate[slot].duration_ms = duration;
+  candidate[slot].action = action;
   encode(candidate, record);
   ret = bkprov_store_commit(&state->store, expected, transaction, record, sizeof(record));
   if (ret == -EINPROGRESS) state->uncertain = true;
@@ -141,16 +167,34 @@ int bknfc_bindings_set(struct bknfc_bindings_s *state, uint64_t expected,
 int bknfc_bindings_lookup(const struct bknfc_bindings_s *state,
                           const struct bknfc_card_s *card, uint64_t *duration)
 {
-  if (duration) *duration = 0;
-  if (!state || !duration || !bknfc_card_valid(card)) return -EINVAL;
+  unsigned int action;
+  int ret = bknfc_bindings_lookup_action(state, card, &action, duration);
+  if (!ret && action != 1)
+    {
+      *duration = 0;
+      return -ENOTSUP;
+    }
+
+  return ret;
+}
+
+int bknfc_bindings_lookup_action(const struct bknfc_bindings_s *state,
+                                const struct bknfc_card_s *card,
+                                unsigned int *action, uint64_t *argument)
+{
+  if (argument) *argument = 0;
+  if (action) *action = 0;
+  if (!state || !argument || !action || !bknfc_card_valid(card)) return -EINVAL;
   if (state->uncertain) return -EINPROGRESS;
   if (!state->ready) return -ENODEV;
   for (unsigned int i = 0; i < BKNFC_BINDING_SLOTS; i++)
-    if (state->entries[i].duration_ms && same_card(card, &state->entries[i].card))
+    if (state->entries[i].action && same_card(card, &state->entries[i].card))
       {
-        *duration = state->entries[i].duration_ms;
+        *argument = state->entries[i].duration_ms;
+        *action = state->entries[i].action;
         return 0;
       }
+
   return -ENOENT;
 }
 

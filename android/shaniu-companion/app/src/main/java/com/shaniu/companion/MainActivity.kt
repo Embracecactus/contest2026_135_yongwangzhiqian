@@ -228,6 +228,7 @@ class MainActivity : Activity() {
     private var trialEditor: com.shaniu.companion.provision.ExpressionTrialController? = null
     private var nfcMinutesDraft = "25"
     private var nfcSlotDraft = 0
+    private var nfcActionDraft = 0
     private var nfcDraftCapture: (() -> Unit)? = null
     private var pcEditor: com.shaniu.companion.provision.PcAuthorizationController? = null
     private var pcConfirmation: android.app.AlertDialog? = null
@@ -306,6 +307,7 @@ class MainActivity : Activity() {
         }
         nfcMinutesDraft = savedInstanceState?.getString("nfc_minutes_draft") ?: "25"
         nfcSlotDraft = (savedInstanceState?.getInt("nfc_slot_draft", 0) ?: 0).coerceIn(0, 7)
+        nfcActionDraft = (savedInstanceState?.getInt("nfc_action_draft", 0) ?: 0).coerceIn(0, 5)
         expressionPreview = savedInstanceState?.getInt("expression_preview", 0) ?: 0
         updateResources = savedInstanceState?.getBoolean("update_resources", false) ?: false
         resourcesBackTab = savedInstanceState?.getInt("resources_back_tab", TAB_PERSONALITY) ?: TAB_PERSONALITY
@@ -2282,7 +2284,7 @@ class MainActivity : Activity() {
         page.settingsRow("默认表情", "刷新设备默认，或将已安装素材设为默认", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "eye") { showDefaultSelection() }
         page.sectionTitle("专注与陪伴")
         page.settingsRow("专注计时", "由设备计时，手机可随时回读", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "spark") { showFocusTimer() }
-        page.settingsRow("专注卡片", "登记卡片与专注时长", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "spark") { showNfcBindings() }
+        page.settingsRow("场景卡片", "专注操作与本地节律内容", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "spark") { showNfcBindings() }
         page.settingsRow("电脑授权", "配对、查看或撤销电脑的访问权限", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "settings") { showPcAuthorization() }
         page.sectionTitle("声音与唤醒")
         val currentWake = wakeStatus.takeIf { wakeStatusGeneration == directSession.current().generation && directSession.current().authenticated }
@@ -2767,7 +2769,7 @@ class MainActivity : Activity() {
 
     private fun showNfcBindings() {
         if (!configAvailable() || settingsEditor != null || factoryReset != null) return
-        showCompanionSheet("专注卡片", "把卡片和想专注的时间放在一起。", done = false, onClosed = {
+        showCompanionSheet("场景卡片", "为兼容卡片选择一个明确操作。", done = false, onClosed = {
             nfcDraftCapture?.invoke(); nfcDraftCapture = null
             nfcEditor?.close(); nfcEditor = null
         }) { body, dialog ->
@@ -2804,7 +2806,22 @@ class MainActivity : Activity() {
                 })
             }
             body.addView(minutes, LinearLayout.LayoutParams(-1, -2))
-            nfcDraftCapture = { nfcMinutesDraft = minutes.text.toString(); nfcSlotDraft = slots.selectedItemPosition.coerceIn(0, 7) }
+            val sceneLabels = listOf("开始专注", "暂停专注", "继续专注", "取消专注", "播放四拍节律（4 秒）", "取消本地内容")
+            val actions = android.widget.Spinner(this).apply {
+                contentDescription = "卡片场景操作"
+                adapter = android.widget.ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, sceneLabels)
+                setSelection(nfcActionDraft)
+                onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+                    override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                        nfcActionDraft = position
+                        minutes.visibility = if (position == 0) View.VISIBLE else View.GONE
+                    }
+                    override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
+                }
+                minimumHeight = dp(48)
+            }
+            body.addView(actions, LinearLayout.LayoutParams(-1, -2))
+            nfcDraftCapture = { nfcMinutesDraft = minutes.text.toString(); nfcSlotDraft = slots.selectedItemPosition.coerceIn(0, 7); nfcActionDraft = actions.selectedItemPosition.coerceIn(0, 5) }
             val saved = TextView(this).apply { textSize = 14f; setTextColor(design.ink); setPadding(0, dp(12), 0, dp(8)) }
             body.addView(saved)
             val sceneStatus = TextView(this).apply {
@@ -2812,7 +2829,7 @@ class MainActivity : Activity() {
                 accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
             }
             body.addView(sceneStatus)
-            page.notice("将兼容卡片贴近傻妞，再点登记；一次只放一张。自动专注能力以本次设备回读为准。关闭页面不会取消设备已受理的作业。")
+            page.notice("将兼容卡片贴近傻妞，再点登记；一次只放一张；驻留不重复触发，移开后才可再次触发。首次登记不自动执行。关闭页面不会取消设备已受理的作业。")
             fun button(label: String, primary: Boolean = false, action: () -> Unit): com.google.android.material.button.MaterialButton {
                 page.primaryButton(label, false, action)
                 return (body.getChildAt(body.childCount - 1) as com.google.android.material.button.MaterialButton).apply {
@@ -2822,10 +2839,15 @@ class MainActivity : Activity() {
             val reload = button("读取设备状态") { nfcEditor?.refresh() }
             val load = button("加载已保存卡片") { nfcEditor?.act(1) }
             val enroll = button("登记当前卡片", true) {
+                val sceneAction = actions.selectedItemPosition + 1
                 val count = minutes.text.toString().toLongOrNull()
-                if (count == null || count <= 0 || count > Long.MAX_VALUE / 60000) {
+                if (sceneAction == 1 && (count == null || count <= 0 || count > Long.MAX_VALUE / 60000)) {
                     minutes.error = "请输入有效分钟数"; minutes.requestFocus()
-                } else { minutes.error = null; nfcEditor?.act(2, slots.selectedItemPosition, count * 60000) }
+                } else {
+                    minutes.error = null
+                    val argument = when (sceneAction) { 1 -> count!! * 60000; 5 -> 1L; else -> 0L }
+                    nfcEditor?.act(2, slots.selectedItemPosition, argument, sceneAction)
+                }
             }
             val remove = button("删除此卡绑定") {
                 val slot = slots.selectedItemPosition
@@ -2839,7 +2861,7 @@ class MainActivity : Activity() {
                 val state = nfcEditor?.current()
                 val value = state?.snapshot
                 remove.isEnabled = state?.busy == false && directSession.current().authenticated &&
-                    value?.phase == 4 && value.durations[slots.selectedItemPosition] > 0
+                    value?.phase == 4 && value.actions[slots.selectedItemPosition] > 0
                 remove.alpha = if (remove.isEnabled) 1f else 0.45f
             }
             val cancel = button("取消设备作业") { nfcEditor?.act(4) }
@@ -2849,15 +2871,21 @@ class MainActivity : Activity() {
                 status.text = state.message
                 sceneStatus.text = state.sceneMessage
                 saved.text = if (value?.phase == 4) value.durations.mapIndexed { index, duration ->
-                    "卡片 ${index + 1}：" + if (duration == 0L) "未登记" else "${duration / 1000} 秒"
+                    "卡片 ${index + 1}：" + when (val action = value.actions[index]) {
+                        0 -> "未登记"
+                        1 -> "开始专注 ${duration / 1000} 秒"
+                        else -> sceneLabels[action - 1]
+                    }
                 }.joinToString("\n") else "已保存卡片：尚未确认，请加载并回读"
                 val ready = !state.busy && directSession.current().authenticated
                 val terminal = value != null && value.phase in listOf(0, 4, 5, 6)
                 fun enable(view: View, enabled: Boolean) { view.isEnabled = enabled; view.alpha = if (enabled) 1f else 0.45f }
                 enable(reload, ready)
                 enable(load, ready && terminal)
+                enable(actions, ready && value?.extended == true)
+                if (value?.extended == false) actions.setSelection(0)
                 enable(enroll, ready && terminal && value?.phase != 0)
-                enable(remove, ready && value?.phase == 4 && value.durations[slots.selectedItemPosition] > 0)
+                enable(remove, ready && value?.phase == 4 && value.actions[slots.selectedItemPosition] > 0)
                 enable(cancel, ready && value?.phase in 1..2)
                 enroll.backgroundTintList = android.content.res.ColorStateList.valueOf(design.accent)
             }
@@ -4618,6 +4646,7 @@ class MainActivity : Activity() {
         }
         outState.putString("nfc_minutes_draft", nfcMinutesDraft)
         outState.putInt("nfc_slot_draft", nfcSlotDraft)
+        outState.putInt("nfc_action_draft", nfcActionDraft)
         outState.putInt("navigation", currentTab)
         outState.putInt("expression_preview", expressionPreview)
         outState.putBoolean("update_resources", updateResources)

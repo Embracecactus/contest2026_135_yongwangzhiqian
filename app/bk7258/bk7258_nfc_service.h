@@ -23,6 +23,7 @@ struct bknfc_job_request_s
   uint64_t duration_ms;
   unsigned int action;
   unsigned int slot;
+  unsigned int scene_action; /* 0 keeps legacy enroll-as-focus-start. */
 };
 struct bknfc_job_status_s
 {
@@ -30,6 +31,7 @@ struct bknfc_job_status_s
   uint64_t revision;
   uint64_t operation_floor;
   uint64_t durations[8];
+  unsigned int actions[8];
   unsigned int phase;
   int error;
 };
@@ -49,6 +51,15 @@ struct bknfc_scene_status_s
 };
 /* 单个锁内复制，无RF/存储动作；支持能力不等于本轮意图已经应用。 */
 void bk7258_nfc_scene_status(struct bknfc_scene_status_s *status);
+struct bknfc_scene_receipt_s
+{
+  uint64_t event;
+  uint32_t action;
+  uint32_t intent;
+  uint32_t phase; /* 0 none, 1 pending, 2 applied, 3 failed, 4 canceled, 5 unknown */
+  int result;
+};
+void bk7258_nfc_scene_receipt(struct bknfc_scene_receipt_s *receipt);
 #endif
 /* 已授权重置工作者：NFC退出后独占清理并使缓存失效，不恢复准入。 */
 int bk7258_nfc_bindings_reset(void);

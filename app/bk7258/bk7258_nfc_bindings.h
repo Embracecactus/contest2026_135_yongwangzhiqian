@@ -15,6 +15,7 @@ struct bknfc_binding_s
 {
   struct bknfc_card_s card;
   uint64_t duration_ms;
+  unsigned int action;
 };
 /* 单一文件工作者持有；初始化必须全零。读缓存无I/O，不授予身份权限。 */
 struct bknfc_bindings_s
@@ -35,6 +36,19 @@ int bknfc_bindings_set(struct bknfc_bindings_s *state, uint64_t expected,
                        const struct bknfc_card_s *card, uint64_t duration);
 int bknfc_bindings_lookup(const struct bknfc_bindings_s *state,
                           const struct bknfc_card_s *card, uint64_t *duration);
+/* Explicit scene: focus start/pause/resume/cancel (1..4), local content
+ * play/cancel (5..6). Only content ID 1 is currently supported. No paths,
+ * credentials or owner changes can be represented by this record.
+ */
+bool bknfc_binding_action_valid(unsigned int action, uint64_t argument);
+int bknfc_bindings_set_action(struct bknfc_bindings_s *state,
+                             uint64_t expected, uint64_t operation,
+                             unsigned int slot,
+                             const struct bknfc_card_s *card,
+                             unsigned int action, uint64_t argument);
+int bknfc_bindings_lookup_action(const struct bknfc_bindings_s *state,
+                                const struct bknfc_card_s *card,
+                                unsigned int *action, uint64_t *argument);
 /* 仅授权重置工作者在NFC退出后调用；仅删除本组件两个文件，不递归。 */
 int bknfc_bindings_reset(const char *root);
 #endif

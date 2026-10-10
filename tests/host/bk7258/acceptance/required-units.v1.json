@@ -908,7 +908,15 @@
     "MOT-02.haptic_product.capture-quiet",
     "MOT-02.haptic_product.stop-error",
     "MOT-02.product-feedback",
-    "MOT-02.task-feedback"
+    "MOT-02.task-feedback",
+    "NFC-02.explicit-actions",
+    "NFC-02.local-content",
+    "NFC-02.focus-actions",
+    "provision.NfcBindingControllerTest.explicitLocalContentMappingIsReadBackAndEncoded",
+    "provision.NfcBindingControllerTest.legacyFirmwareCannotAcceptNewSceneActions",
+    "provision.NfcBindingControllerTest.localContentReceiptRequiresActualCompletionAndStableIdentity",
+    "LIFE-02.power-content-busy",
+    "BOOT-01.local-content-busy"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1820,6 +1828,14 @@
     "MOT-02.haptic_product.capture-quiet",
     "MOT-02.haptic_product.stop-error",
     "MOT-02.product-feedback",
-    "MOT-02.task-feedback"
+    "MOT-02.task-feedback",
+    "NFC-02.explicit-actions",
+    "NFC-02.local-content",
+    "NFC-02.focus-actions",
+    "provision.NfcBindingControllerTest.explicitLocalContentMappingIsReadBackAndEncoded",
+    "provision.NfcBindingControllerTest.legacyFirmwareCannotAcceptNewSceneActions",
+    "provision.NfcBindingControllerTest.localContentReceiptRequiresActualCompletionAndStableIdentity",
+    "LIFE-02.power-content-busy",
+    "BOOT-01.local-content-busy"
   ]
 }
