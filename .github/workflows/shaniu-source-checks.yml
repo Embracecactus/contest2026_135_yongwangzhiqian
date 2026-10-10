@@ -171,7 +171,8 @@ jobs:
           cd "$RUNNER_TEMP/shaniu-cold/contest2026_135_yongwangzhiqian"
           python3 -m pip install --disable-pip-version-check \
             --index-url https://pypi.org/simple \
-            -r gateway/shaniu/requirements.txt
+            -r gateway/shaniu/requirements.txt \
+            -r tests/host/bk7258/python-requirements.txt
           python3 tests/host/bk7258/test_bk7258_build_workspace.py
           python3 tests/host/bk7258/test_bk7258_package_delivery.py
           python3 tests/host/bk7258/test_wifi_async.py
