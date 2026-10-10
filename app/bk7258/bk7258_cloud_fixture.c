@@ -23,7 +23,7 @@ static void scan(struct bkcloud_fixture_ctx_s *ctx, const uint8_t *data, size_t 
              ctx->scan[sizeof(ctx->scan) - 2] = data[i]; }
       ctx->scan[ctx->scan_size] = 0;
       if (strstr(ctx->scan, "\"stream\":true")) ctx->stream = true;
-      if (strstr(ctx->scan, "\"tool_choice\":\"required\""))
+      if (strstr(ctx->scan, "\"type\":\"json_object\""))
         ctx->decision_only = true;
     }
 }
@@ -63,6 +63,8 @@ static int make_reply(struct bkcloud_fixture_ctx_s *ctx)
       memmove(ctx->reply + h, ctx->reply, at); memcpy(ctx->reply, header, (size_t)h);
       ctx->reply_size = at + (size_t)h; goto counted;
     }
+  else if (!ctx->stream && ctx->decision_only)
+    body = "{\"choices\":[{\"index\":0,\"finish_reason\":\"stop\",\"message\":{\"content\":\"{\\\"voice_phase\\\":\\\"final\\\"}\",\"tool_calls\":[]}}]}";
   else if (!ctx->stream)
     body = "{\"choices\":[{\"index\":0,\"finish_reason\":\"tool_calls\",\"message\":{\"content\":\"\",\"tool_calls\":[{\"id\":\"fixture-final\",\"type\":\"function\",\"function\":{\"name\":\"agent_finalize\",\"arguments\":\"{}\"}}]}}]}";
   else

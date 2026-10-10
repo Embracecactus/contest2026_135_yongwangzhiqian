@@ -495,15 +495,15 @@ static int unused_transport(const char *request, char *response,
     planning_requests++;
     cJSON *body = cJSON_Parse(request);
     assert(body);
-    cJSON *choice = cJSON_GetObjectItemCaseSensitive(body, "tool_choice");
-    int decision_only = cJSON_IsString(choice) && !strcmp(choice->valuestring, "required");
+    cJSON *format = cJSON_GetObjectItemCaseSensitive(body, "response_format");
+    cJSON *choice = cJSON_GetObjectItemCaseSensitive(format, "type");
+    int decision_only = cJSON_IsString(choice) && !strcmp(choice->valuestring, "json_object");
     cJSON_Delete(body);
     int n;
     if (decision_only) {
         n = snprintf(response, capacity,
-            "{\"choices\":[{\"finish_reason\":\"tool_calls\",\"message\":{\"content\":null,"
-            "\"tool_calls\":[{\"id\":\"answer\",\"type\":\"function\",\"function\":{"
-            "\"name\":\"agent_finalize\",\"arguments\":\"{}\"}}]}}]}");
+            "{\"choices\":[{\"finish_reason\":\"stop\",\"message\":{"
+            "\"content\":\"{\\\"voice_phase\\\":\\\"final\\\"}\",\"tool_calls\":[]}}]}");
     } else {
         /* Same answer, but a non-streaming ordinary answer cannot finish
          * until the provider generates the tail. This is the old path. */
