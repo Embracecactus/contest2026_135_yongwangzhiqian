@@ -1362,7 +1362,22 @@ static void test_focus_text_dispatch(void)
     bkfocus_intent_step(bkvoice_config_now_ms(NULL), true);
     assert(voice_channel_set_local_text_handler(product_focus_text) == 0);
 
+    /* An unbound product owner rejects local text without creating a timer or
+     * forwarding it to Agent; restoring admission permits the next turn. */
+    bkfocus_snapshot(&before, bkvoice_config_now_ms(NULL));
+    bkfocus_intent_step(bkvoice_config_now_ms(NULL), false);
     uint64_t id = test_reply_prepare(5);
+    assert(voice_dispatch_text(id, "开始专注1秒") == -ESHUTDOWN);
+    assert(message_bus_pop_inbound(&delivered, 0) == ERROR);
+    bkfocus_snapshot(&after, bkvoice_config_now_ms(NULL));
+    assert(after.state == before.state && after.revision == before.revision &&
+           after.remaining_ms == before.remaining_ms &&
+           after.duration_ms == before.duration_ms);
+    voice_request_complete(id, -ESHUTDOWN);
+    assert(voice_channel_is_idle());
+    bkfocus_intent_step(bkvoice_config_now_ms(NULL), true);
+
+    id = test_reply_prepare(5);
     assert(voice_dispatch_text(id, "开始专注1秒") == 1);
     assert(message_bus_pop_inbound(&delivered, 0) == ERROR);
     bkfocus_snapshot(&before, bkvoice_config_now_ms(NULL));
