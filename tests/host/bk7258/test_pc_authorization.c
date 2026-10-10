@@ -70,7 +70,7 @@ int main(int argc,char **argv)
   { connect(false);assert(begin()<0);connect(true);sequence--;assert(begin()<0);connect(true); }
  if(!strcmp(argv[1],"invalid"))
   {
-   uint8_t bad[88];memcpy(bad,grant,88);bad[87]=16;
+   uint8_t bad[88];memcpy(bad,grant,88);bad[87]=32; /* First unknown bit after explicit camera=16. */
    assert(apply(bad)==-EINVAL);memcpy(bad,grant,88);bad[11]=2;
    assert(apply(bad)==-ESTALE);memcpy(bad,grant,88);bad[20]=0;
    assert(apply(bad)==-EINVAL);assert(query(tx)==-ENODATA);
