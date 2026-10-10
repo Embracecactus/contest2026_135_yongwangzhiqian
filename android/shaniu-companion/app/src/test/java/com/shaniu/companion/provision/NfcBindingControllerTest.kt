@@ -27,22 +27,56 @@ class NfcBindingControllerTest {
             events.result(DeviceControlProtocol.Command.STATUS, ok)
             controller = NfcBindingController(session) {}
         }
-        fun reply(error: Int = 0, bytes: ByteArray? = null) {
+        fun reply(error: Int = 0, bytes: ByteArray? = null, total: Int = 112) {
             val cmd = sent.last().first
-            events.result(cmd, ok.copy(error = error, configChunk = bytes?.let { DeviceControlProtocol.ConfigChunk(112, it) }))
+            events.result(cmd, ok.copy(error = error, configChunk = bytes?.let { DeviceControlProtocol.ConfigChunk(total, it) }))
         }
         fun wire(phase: Int = 4, operation: Long = 3, revision: Long = 1, floor: Long = 8): ByteArray =
             ByteBuffer.allocate(112).put("NCS1".toByteArray()).putInt(phase).putInt(0).putInt(0)
                 .putLong(operation).putLong(revision).putLong(floor).putLong(0).putLong(60000).array()
         fun read(bytes: ByteArray = wire(), capabilityDone: Boolean = true) {
-            for (offset in 0..96 step 16) reply(bytes = bytes.copyOfRange(offset, offset + 16))
-            for (offset in 0..32 step 16) reply(bytes = bytes.copyOfRange(offset, offset + 16))
+            for (offset in bytes.indices step 16) reply(bytes = bytes.copyOfRange(offset, offset + 16), total = bytes.size)
+            for (offset in 0..32 step 16) reply(bytes = bytes.copyOfRange(offset, offset + 16), total = bytes.size)
             if (capabilityDone && sent.last().second.size == 4 && ByteBuffer.wrap(sent.last().second).int == (13 shl 16)) reply(-95)
         }
         fun scene(caps: Int = 1, flags: Int = 7, error: Int = 0) {
             val data = ByteBuffer.allocate(16).put("NCA1".toByteArray()).putInt(caps).putInt(flags).putInt(error).array()
             events.result(DeviceControlProtocol.Command.CONFIG_READ, ok.copy(configChunk=DeviceControlProtocol.ConfigChunk(16,data)))
         }
+    }
+    @Test fun explicitLocalContentMappingIsReadBackAndEncoded() {
+        val f = Fixture(); assertTrue(f.controller.refresh())
+        val wire = ByteBuffer.allocate(176).put("NCS2".toByteArray())
+            .putInt(4).putInt(0).putInt(0).putLong(3).putLong(1).putLong(8).putLong(0)
+            .putInt(5).putInt(0).putLong(1).array()
+        f.read(wire)
+        val state = f.controller.current().snapshot!!
+        assertTrue(state.extended); assertEquals(5, state.actions[0])
+        assertEquals(1L, state.durations[0])
+        assertFalse(f.controller.act(2, 0, 2, 5))
+        assertTrue(f.controller.act(2, 1, 0, 2))
+        f.reply(); val first = f.sent.last().second
+        f.reply(); val record = first + f.sent.last().second
+        assertEquals("NCF2", String(record.copyOfRange(0, 4)))
+        assertEquals(2, ByteBuffer.wrap(record, 12, 4).int)
+        assertEquals(0L, ByteBuffer.wrap(record, 32, 8).long)
+    }
+    @Test fun legacyFirmwareCannotAcceptNewSceneActions() {
+        val f = Fixture(); f.controller.refresh(); f.read()
+        assertFalse(f.controller.act(2, 0, 1, 5))
+        assertFalse(f.controller.act(2, 0, 0, 2))
+        assertTrue(f.controller.act(2, 0, 60000))
+    }
+    @Test fun localContentReceiptRequiresActualCompletionAndStableIdentity() {
+        val f = Fixture(); f.controller.refresh(); f.read(capabilityDone = false)
+        val bytes = ByteBuffer.allocate(48).put("NCA2".toByteArray())
+            .putInt(1).putInt(7).putInt(0).putLong(9).putInt(5).putInt(2)
+            .putInt(2).putInt(0).putLong(0).array()
+        for (offset in 0..32 step 16) f.reply(bytes = bytes.copyOfRange(offset,offset+16), total = 48)
+        assertTrue(f.controller.current().busy)
+        f.reply(bytes = bytes.copyOfRange(16,32), total = 48)
+        assertFalse(f.controller.current().busy)
+        assertTrue(f.controller.current().sceneMessage.contains("本地内容播放已结束"))
     }
     @Test fun acceptedEnrollmentRemainsPendingUntilDeviceConfirms() {
         val f = Fixture(); assertTrue(f.controller.refresh()); f.read()

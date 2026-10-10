@@ -523,3 +523,15 @@ not a claim of atomic simultaneous three-axis conversion or physical calibration
 生成于临时目录并已删除，没有提交私钥。该文件不属于任何设备身份、签名信任链或
 发布资源，只用于 Session 元数据与有界DER解析测试；真实TLS测试另生成各自短期
 合成身份并执行握手。新增生产导出/生命周期适配为本项目原创，没有复制第三方代码。
+
+
+### Local desktop rhythm asset
+
+`app/bk7258/assets/local_rhythm.pcm` is an original, procedurally authored
+four-beat cue for the local content entry, licensed under Apache-2.0 with this
+project. It contains no sampled speech, music, personal recording or external
+service output. PCM16 little-endian, mono, 16000 Hz, exactly 64000 samples;
+SHA-256 `c1340ef72dfbe56d6f17b58b3e4ba0f26f63d26ad3978f18285dfcfd96fa2bc4`.
+Each one-second beat uses frequencies 440, 523.25, 587.33 and 659.25 Hz,
+peak scale 2600, with a 25 ms attack and a squared decay ending at 550 ms.
+The content entry does not replace the existing wake reply asset.

@@ -2153,6 +2153,18 @@ $(BUILD)/test_shaniu_focus_intent: test_shaniu_focus_intent.c $(VOICE_PACK_ROOT)
 		-I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON $(filter %.c,$^) \
 		$(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c -o $@
 
+$(BUILD)/test_local_content: test_local_content.c $(VOICE_PACK_ROOT)/bk7258_agent_local_content.inc $(VOICE_PACK_ROOT)/bk7258_local_content.c $(VOICE_PACK_ROOT)/bk7258_local_content.h $(VOICE_PACK_ROOT)/bk7258_nfc_scene.c $(VOICE_PACK_ROOT)/bk7258_nfc_bindings.c $(VOICE_PACK_ROOT)/bk7258_nfc_core.c $(VOICE_PACK_ROOT)/bk7258_provision_store.c $(VOICE_PACK_ROOT)/bk7258_focus.c $(VOICE_PACK_ROOT)/bk7258_focus_intent.c $(VOICE_OTA_MBEDCRYPTO) | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -D_DEFAULT_SOURCE -pthread -I $(MOCKS) \
+	  -I $(VOICE_PACK_ROOT) -I $(OPENVELA_ROOT)/packages/ai_agent/include \
+	  -I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON \
+	  -I $(VOICE_OTA_MBEDTLS_SOURCE)/include \
+	  -DBKCONTENT_PATH='"$(abspath $(BUILD))/local-content.pcm"' \
+	  $(filter %.c,$^) $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c $(VOICE_OTA_MBEDCRYPTO) -o $@
+
+$(BUILD)/test_nfc_scene_actions: test_nfc_scene_actions.c $(VOICE_PACK_ROOT)/bk7258_nfc_bindings.c $(VOICE_PACK_ROOT)/bk7258_nfc_core.c $(VOICE_PACK_ROOT)/bk7258_provision_store.c $(VOICE_OTA_MBEDCRYPTO) | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) -I $(VOICE_OTA_MBEDTLS_SOURCE)/include \
+	  $(filter %.c,$^) $(VOICE_OTA_MBEDCRYPTO) -o $@
+
 $(BUILD)/test_shaniu_nfc_bindings: test_shaniu_nfc_bindings.c $(VOICE_PACK_ROOT)/bk7258_nfc_bindings.c $(VOICE_PACK_ROOT)/bk7258_nfc_core.c $(VOICE_PACK_ROOT)/bk7258_provision_store.c $(VOICE_OTA_MBEDCRYPTO) | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) -I $(VOICE_OTA_MBEDTLS_SOURCE)/include \
 	  $< $(VOICE_PACK_ROOT)/bk7258_nfc_bindings.c $(VOICE_PACK_ROOT)/bk7258_nfc_core.c \

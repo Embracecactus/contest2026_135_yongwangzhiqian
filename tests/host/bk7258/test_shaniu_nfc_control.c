@@ -66,8 +66,9 @@ int main(int argc,char **argv)
    }
  start(true);assert(packet(BKCONTROL_CONFIG_READ,readarg,4)==0);
  assert(!opens && (!strcmp(argv[1],"floor") || access(job_root,F_OK)<0));
- assert(value32(response+20)==112);
- const uint8_t empty_header[16]={'N','C','S','1'};
+ assert(value32(response+20)==176);
+ assert(!memcmp(response+24,"NCS2",4));
+ const uint8_t empty_header[16]={'N','C','S','2'};
  assert(!memcmp(response+24,empty_header,16));
  if(!strcmp(argv[1],"sequence"))
    {
@@ -115,7 +116,7 @@ int main(int argc,char **argv)
     uint8_t expected[16]={0};expected[7]=2;expected[15]=1;
     wire32(readarg,(BKCONTROL_CONFIG_NFC_BINDINGS<<16)|16);
     assert(packet(BKCONTROL_CONFIG_READ,readarg,4)==0 && !memcmp(response+24,expected,16));
-    memset(expected,0,16);expected[6]=0xea;expected[7]=0x60;
+    memset(expected,0,16);expected[3]=1;expected[14]=0xea;expected[15]=0x60;
     wire32(readarg,(BKCONTROL_CONFIG_NFC_BINDINGS<<16)|48);
     assert(packet(BKCONTROL_CONFIG_READ,readarg,4)==0 && !memcmp(response+24,expected,16));
     wire32(readarg,BKCONTROL_CONFIG_NFC_BINDINGS<<16);

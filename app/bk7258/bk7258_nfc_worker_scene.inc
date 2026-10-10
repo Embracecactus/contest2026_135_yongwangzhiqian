@@ -5,7 +5,11 @@ static void bknfc_scene_stop_locked(struct bknfc_server_s *s)
   s->scene_admitted = false;
   s->scene_epoch++;
   s->scene.armed = false;
-  if (s->scene_intent) (void)bkfocus_intent_cancel(s->scene_intent);
+  if (s->scene_intent)
+    {
+      if (s->scene.action >= 5) (void)bkcontent_cancel(s->scene_intent);
+      else (void)bkfocus_intent_cancel(s->scene_intent);
+    }
 }
 void bk7258_nfc_scene_admit(bool admitted)
 {
@@ -34,6 +38,39 @@ void bk7258_nfc_scene_status(struct bknfc_scene_status_s *status)
     (s->io_active ? 8u : 0u) | (released ? 16u : 0u);
   status->error = released ? released : s->scene_error;
   spin_unlock_irqrestore(&s->request_lock, flags);
+}
+
+void bk7258_nfc_scene_receipt(struct bknfc_scene_receipt_s *receipt)
+{
+  struct bknfc_server_s *s = &g_bknfc_server;
+  irqstate_t flags = spin_lock_irqsave(&s->request_lock);
+  *receipt = s->scene_receipt;
+  spin_unlock_irqrestore(&s->request_lock, flags);
+  if (!receipt->intent) return;
+  if (receipt->action >= 5)
+    {
+      struct bkcontent_status_s content;
+      bkcontent_status(&content);
+      if (content.id != receipt->intent)
+        {
+          receipt->phase = 5;
+          receipt->result = -ESTALE;
+        }
+      else
+        {
+          receipt->phase = content.phase == BKCONTENT_DONE ? 2 :
+            content.phase == BKCONTENT_FAILED ? 3 :
+            content.phase == BKCONTENT_CANCELED ? 4 : 1;
+          receipt->result = content.error;
+        }
+    }
+  else
+    {
+      struct bkfocus_intent_status_s focus;
+      bkfocus_intent_status(&focus);
+      receipt->phase = focus.id == receipt->intent ? focus.phase : 5;
+      receipt->result = focus.id == receipt->intent ? focus.error : -ESTALE;
+    }
 }
 static void bknfc_scene_work(struct bknfc_server_s *s)
 {
@@ -110,6 +147,15 @@ static void bknfc_scene_work(struct bknfc_server_s *s)
                           ret == 0, &intent);
       if (!ret) s->scene_error = submitted;
       if (intent) s->scene_intent = intent;
+      if (intent || (kind == BKNFC_SCENE_PRESENT && submitted < 0 &&
+                     submitted != -EALREADY))
+        {
+          s->scene_receipt.event = s->scene.sequence;
+          s->scene_receipt.action = intent ? s->scene.action : 0;
+          s->scene_receipt.intent = intent;
+          s->scene_receipt.phase = submitted ? 3 : 1;
+          s->scene_receipt.result = submitted;
+        }
     }
   s->io_active = false;
   spin_unlock_irqrestore(&s->request_lock, flags);
