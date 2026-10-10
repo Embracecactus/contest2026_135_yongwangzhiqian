@@ -94,6 +94,63 @@ int main(int argc, char **argv)
       assert(bkfocus_intent_cancel(status.id) == -EALREADY);
       assert(bkfocus_intent_cancel(status.id - 1) == -ESTALE);
     }
+  else if (strcmp(argv[1], "text") == 0)
+    {
+      unsigned int action;
+      uint64_t duration;
+      uint32_t tool_id;
+      const char *miss[] = {
+        "开始专注", "不要开始专注25分钟", "如果开始专注25分钟",
+        "\"开始专注25分钟\"", "开始专注25分钟然后暂停",
+        "开始专注0分钟", "开始专注1.5分钟", "开始专注99999999分钟",
+        "开始专注25分钟吗", "讨论开始专注25分钟", "暂停专注？",
+        "开始专注5分钟?"
+      };
+      for (unsigned int i = 0; i < sizeof(miss) / sizeof(miss[0]); i++)
+        {
+          assert(bkfocus_intent_text(miss[i], 7, 1000, &status) == 0);
+          assert(status.id == 0 && status.phase == 0);
+        }
+      assert(bkfocus_text_parse("开始25分钟专注", &action, &duration) == 1);
+      assert(action == 1 && duration == 1500000);
+      assert(bkfocus_text_parse("开始专注25分钟然后暂停", &action,
+                                &duration) == 0);
+      assert(bkfocus_intent_text(" 开始专注25分钟。 ", 7, 1000,
+                                 &status) == 1);
+      assert(status.id != 0 && status.phase == 1 && status.ready);
+      id = status.id;
+      assert(bkfocus_intent_submit(2, 0, &tool_id) == -EBUSY);
+      assert(bkfocus_intent_text("开始专注25分钟", 7, 1000,
+                                 &status) == 1 && status.id == id);
+      assert(bkfocus_intent_text("开始专注24分钟", 7, 1000,
+                                 &status) == -ESTALE);
+      assert(bkfocus_intent_text("开始专注25分钟", 6, 1000,
+                                 &status) == -ESTALE);
+      bkfocus_intent_step(1010, true);
+      assert(bkfocus_intent_text("专注还剩多久？", 8, 1010,
+                                 &status) == 1 && status.phase == 2);
+      assert(bkfocus_intent_text("暂停专注", 9, 1010, &status) == 1);
+      bkfocus_intent_step(1020, true);
+      timer(2, 1499990, 1020);
+      assert(bkfocus_intent_text("继续专注", 10, 1020, &status) == 1);
+      bkfocus_intent_step(1030, true);
+      assert(bkfocus_intent_text("取消当前专注计时", 11, 1030,
+                                 &status) == 1);
+      bkfocus_intent_step(1040, true);
+      timer(4, 0, 1040);
+      assert(bkfocus_intent_text("开始25分钟专注", 12, 1301,
+                                 &status) == -ESTALE);
+      bkfocus_intent_step(1301, false);
+      assert(bkfocus_intent_text("开始专注25秒", 12, 1301,
+                                 &status) == -ESHUTDOWN);
+      bkfocus_intent_step(1302, true);
+      assert(bkfocus_intent_text("开始专注25秒", 0, 1302,
+                                 &status) == -EINVAL);
+      assert(bkfocus_intent_submit(2, 0, &id) == 0);
+      bkfocus_intent_step(1303, true);
+      assert(bkfocus_intent_text("取消当前专注计时", 11, 1303,
+                                 &status) == -ESTALE);
+    }
   else
     {
       assert(strcmp(argv[1], "invalid") == 0);

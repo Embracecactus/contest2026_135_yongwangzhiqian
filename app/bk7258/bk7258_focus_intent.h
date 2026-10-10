@@ -28,6 +28,7 @@ struct bkfocus_intent_status_s
   int error;
   bool ready;
   uint64_t observed_ms;
+  unsigned int visual; /* Published by the same timer owner. */
   struct bkfocus_snapshot_s timer;
 };
 /****************************************************************************
@@ -38,6 +39,14 @@ int bkfocus_intent_submit(unsigned int action, uint64_t duration,
                           uint32_t *id);
 int bkfocus_intent_cancel(uint32_t id);
 void bkfocus_intent_status(struct bkfocus_intent_status_s *status);
+int bkfocus_text_parse(const char *text, unsigned int *action,
+                       uint64_t *duration);
+/* Parses only a finite, full ASR utterance.  A zero return means that the
+ * text did not select a local Focus action and remains available to Agent.
+ * A positive return means status is the accepted/read-back local result.
+ */
+int bkfocus_intent_text(const char *text, uint64_t request_id, uint64_t now,
+                        struct bkfocus_intent_status_s *status);
 
 /* Called only by product owner, after power/reset gates, before wire work. */
 

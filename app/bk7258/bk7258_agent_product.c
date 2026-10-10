@@ -93,6 +93,7 @@
 #endif
 #include "bk7258_pc_grants.h"
 #include "bk7258_focus_intent.h"
+#include "bk7258_focus_pixels.h"
 #ifdef CONFIG_BK7258_NFC_SERVICE
 #include "bk7258_nfc_service.h"
 #ifdef CONFIG_BK7258_PROVISION_GATT
@@ -218,6 +219,9 @@ void bk7258_agent_product_wake(void)
   atomic_fetch_or(&g_product_events, 4);
   sem_post(&g_product_wake);
 }
+
+
+#include "bk7258_agent_focus.inc"
 
 static void bk7258_agent_voice_event(int event, int result)
 {
@@ -3110,9 +3114,10 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
         (!atomic_load(&g_voice_initialized) || voice_channel_is_idle()));
       bkfocus_intent_step(now, g_control_bound && !bkagent_ota_busy());
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
-      bk7258_display_focus(bkpc_tasks_visual(&g_pc_tasks, now,
-        !atomic_load(&g_voice_initialized) || voice_channel_is_idle(),
-        bkfocus_visual(now)));
+      bool focus_idle = !atomic_load(&g_voice_initialized) ||
+                        voice_channel_is_idle();
+      bk7258_display_focus(product_focus_visual(now, focus_idle,
+        bkpc_tasks_visual(&g_pc_tasks, now, focus_idle, bkfocus_visual(now))));
 #endif
       if (now >= voice_cleanup_at)
         {
@@ -3134,7 +3139,8 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
            * cancel outcome exits.
            */
 
-          voice_action = voice_interaction_active &&
+          bool local_done = atomic_exchange(&g_focus_local_done, false);
+          voice_action = voice_interaction_active && !local_done &&
                          !product_voice_result_exits_interaction(
                            voice_turn_result) ?
                          VOICE_ACTION_CONTINUE : VOICE_ACTION_REARM;
@@ -3737,6 +3743,10 @@ int ai_agent_main(int argc, FAR char *argv[])
     {
       ret = voice_channel_init();
     }
+
+#ifdef CONFIG_BK7258_VOICE_TLS
+  if (!ret) ret = voice_channel_set_local_text_handler(product_focus_text);
+#endif
 
 #ifdef CONFIG_BK7258_AUDIO_PLAYBACK_VALIDATION
 #ifdef CONFIG_BK7258_AUDIO_CAPTURE_VALIDATION

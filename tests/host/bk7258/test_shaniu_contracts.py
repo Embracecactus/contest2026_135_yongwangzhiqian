@@ -1343,7 +1343,7 @@ def main():
         add(suite, "MOT-01.sensor-" + variant, "MOT-01", "L1",
             [sys.executable, HERE / "test_sc7a20_sampling.py",
              "SamplingTest.test_" + variant], marker=False)
-    for variant in ("voice", "gate", "revision", "cancel", "invalid"):
+    for variant in ("voice", "gate", "revision", "cancel", "invalid", "text"):
         add(
             suite,
             "TIMER-01.intent-" + variant,
@@ -1561,6 +1561,9 @@ def main():
             [HERE / "build/test_shaniu_preferences_msc_epoch", variant],
             binaries["test_shaniu_preferences_msc_epoch"],
         )
+    add(suite, "TIMER-01.voice-text", "TIMER-01", "L2",
+        [HERE / "build/test_agent_tts_queue", "focus-text"],
+        binaries["test_agent_tts_queue"])
     for variant in (
         "pcm-1",
         "pcm-20260924",
