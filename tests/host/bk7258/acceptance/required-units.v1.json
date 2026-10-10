@@ -1845,6 +1845,15 @@
     "provision.NfcBindingControllerTest.legacyFirmwareCannotAcceptNewSceneActions",
     "provision.NfcBindingControllerTest.localContentReceiptRequiresActualCompletionAndStableIdentity",
     "LIFE-02.power-content-busy",
-    "BOOT-01.local-content-busy"
+    "BOOT-01.local-content-busy",
+    "USB-02.camera-production",
+    "NET-03.pc-grant-camera",
+    "provision.PcAuthorizationControllerTest.cameraGrantRequiresExplicitBitAndDurableReadback",
+    "USB-02.camera-client-status_golden_and_invalid",
+    "USB-02.camera-client-request_requires_identity",
+    "USB-02.camera-client-no_capture_without_auth_or_invalid_input",
+    "USB-02.camera-service-cancel",
+    "USB-02.browser-camera_preview_stays_in_latest_memory_result",
+    "USB-02.browser-camera_cancel_uses_existing_cooperative_owner"
   ]
 }
