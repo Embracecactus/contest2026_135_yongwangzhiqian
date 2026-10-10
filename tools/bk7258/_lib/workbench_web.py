@@ -214,9 +214,18 @@ class Service:
                 args, observe=observe, cancel_requested=self.cancel.is_set
             )
             phase, error = "returned", None
-        except Exception:
-            result, phase = None, "unconfirmed"
-            error = "操作未确认。保留回执，读取设备结果后再决定是否重试。"
+        except Exception as failure:
+            phase = getattr(failure, "kind", "unconfirmed")
+            messages = {
+                "disconnected": "未连接到原生 USB。检查连接和端口后手动读取状态。",
+                "unauthorized": "电脑未获授权或授权已失效。请通过现有 App 授权入口办理。",
+                "unsupported": "设备不支持此操作。请核对固件能力。",
+                "failed": "设备拒绝本次操作。读取当前状态后再决定下一步。",
+                "unconfirmed": "结果未知。保留回执，读取设备结果后再决定是否重试。",
+            }
+            if phase not in messages:
+                phase = "unconfirmed"
+            result, error = None, messages[phase]
         with self.lock:
             self.records[request_id]["public"].update(
                 result=public(result), phase=phase, error=error

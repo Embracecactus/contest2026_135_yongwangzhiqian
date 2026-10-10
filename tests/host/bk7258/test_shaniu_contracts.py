@@ -1211,7 +1211,7 @@ def main():
         add(suite, "USB-01.pc-client-" + variant, "USB-01", "L2",
             [sys.executable, HERE / "test_workbench_client.py",
              "WorkbenchClientTest.test_" + variant], marker=False)
-    for variant in ('http_authority_rejects_before_operation', 'polling_is_local_and_duplicate_is_not_replayed', 'cancel_is_intent_not_remote_completion', 'page_headers_and_no_credential_paths', 'invalid_upload_does_not_open_device', 'http_upload_reaches_tls_and_native_installer', 'large_counters_preserve_exact_value', 'upload_exact_128k_boundary', 'upload_128k_plus_one_rejected_before_spool_or_worker'):
+    for variant in ('classified_failure_does_not_report_completion', 'http_authority_rejects_before_operation', 'polling_is_local_and_duplicate_is_not_replayed', 'cancel_is_intent_not_remote_completion', 'page_headers_and_no_credential_paths', 'invalid_upload_does_not_open_device', 'http_upload_reaches_tls_and_native_installer', 'large_counters_preserve_exact_value', 'upload_exact_128k_boundary', 'upload_128k_plus_one_rejected_before_spool_or_worker'):
         add(suite, "USB-02.browser-" + variant, "USB-02", "L2",
             [sys.executable, HERE / "test_workbench_web.py", "WebTest.test_" + variant], marker=False)
     for variant in ('trial_expiry', 'trial_cancel', 'missing_pack', 'default_supersedes_trial', 'release_recovery_stays_unknown'):
@@ -1230,6 +1230,10 @@ def main():
         add(suite, "RES-03.flow-" + variant, "RES-03", "L2",
             [sys.executable, HERE / "test_workbench_resource_flow.py",
              "ResourceFlow.test_" + variant], marker=False)
+    for variant in ('real_success_and_failure', 'disconnect_does_not_replay_or_lose_local_result', 'start_failure_never_launches_child', 'timeout_cancels_real_process', 'explicit_cancel_and_spawn_error', 'progress_is_opt_in_bounded_and_task_scoped', 'busy_or_invalid_never_borrows_credentials', 'readback_conflict_is_unknown', 'real_progress_and_disconnect'):
+        add(suite, "PC-01.process-" + variant, "PC-01", "L2",
+            [sys.executable, HERE / "test_workbench_task_runner.py",
+             "RunnerTest.test_" + variant], marker=False)
     for variant in ("golden", "invalid", "staging", "readback", "failure", "cli"):
         add(suite, "PC-01.sender-" + variant, "PC-01", "L1",
             [sys.executable, HERE / "test_workbench_tasks.py",
@@ -2001,6 +2005,8 @@ def main():
         ROOT / "tools/bk7258/bk7258.py",
         HERE / "test_workbench_client.py",
         HERE / "test_workbench_tasks.py",
+        HERE / "test_workbench_task_runner.py",
+        ROOT / "tools/bk7258/_lib/workbench_task_runner.py",
         HERE / "test_workbench_web.py",
         HERE / "test_workbench_web_display.py",
         ROOT / "tools/bk7258/_lib/workbench_web.py",

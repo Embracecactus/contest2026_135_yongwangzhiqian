@@ -103,6 +103,26 @@ class WebTest(unittest.TestCase):
             )
             run.assert_not_called()
 
+    def test_classified_failure_does_not_report_completion(self):
+        w = self.m.workbench
+        for index, (error, phase) in enumerate(
+            (
+                (w.DeviceRejected(-13), "unauthorized"),
+                (w.DeviceRejected(-38), "unsupported"),
+                (w.ConnectionUnavailable(), "disconnected"),
+                (w.DeviceRejected(-16), "failed"),
+                (w.ControlError("private /path/key"), "unconfirmed"),
+            ),
+            100,
+        ):
+            with self.subTest(phase=phase), patch.object(w, "run", side_effect=error):
+                body = {"id": f"{index:032x}", "operation": "status", "params": {}}
+                self.assertEqual(self.request("POST", "/api/start", body)[0], 202)
+                result = self.wait_result()
+                self.assertEqual(result["phase"], phase)
+                self.assertIsNone(result["result"])
+                self.assertNotIn("private", json.dumps(result))
+
     def test_polling_is_local_and_duplicate_is_not_replayed(self):
         entered, release = threading.Event(), threading.Event()
 
