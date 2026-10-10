@@ -253,15 +253,29 @@ static void bk7258_agent_voice_event(int event, int result)
     }
 #endif
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
+  if (event == VOICE_CHANNEL_EVENT_CAPTURE_QUIESCENT && result == 0)
+    {
+      bk7258_display_activity(2);
+    }
+
+  if (event == VOICE_CHANNEL_EVENT_TURN_COMPLETE)
+    {
+      bk7258_display_activity(0);
+    }
+
   if (event == VOICE_CHANNEL_EVENT_OUTPUT_STARTED ||
       event == VOICE_CHANNEL_EVENT_OUTPUT_FINISHED)
     {
+      bk7258_display_activity(0);
       bk7258_display_speaking(event == VOICE_CHANNEL_EVENT_OUTPUT_STARTED);
       return;
     }
 #endif
   if (event == VOICE_CHANNEL_EVENT_WAKE_ACK_REQUEST)
     {
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+      bk7258_display_activity(1);
+#endif
       /* The Agent reader is paused; its producer still drains and erases
        * microphone PCM until this synchronous playback has drained. */
       voice_channel_wake_ack_result(bk7258_agent_trigger_reply());
@@ -2971,6 +2985,8 @@ out:
   return ret;
 }
 
+#include "bk7258_agent_companion.inc"
+
 static int bk7258_agent_config_task(int argc, FAR char *argv[])
 {
   enum voice_action_e
@@ -3029,6 +3045,8 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
       if (waited < 0 && errno != ETIMEDOUT)
         {
           int error = errno;
+          product_companion_step(bkvoice_config_now_ms(NULL), false,
+                                  false, false);
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
           (void)bk7258_display_job_quiesce(true);
 #endif
@@ -3048,6 +3066,7 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
 #endif
       if (reset)
         {
+          product_companion_step(now, false, false, false);
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
           (void)bk7258_display_job_quiesce(true);
 #endif
@@ -3092,6 +3111,7 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
 #endif
       if (product_keys_step(now))
         {
+          product_companion_step(now, false, false, false);
           product_nfc_scene_gate(false);
           product_pc_task_step(now, false);
           bkfocus_cancel();
@@ -3109,7 +3129,7 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
 
 #endif
       product_pc_task_step(now, g_control_bound && !bkagent_ota_busy());
-      (void)bkfocus_step(now);
+      bool focus_completed = bkfocus_step(now) > 0;
       product_nfc_scene_gate(g_control_bound && !bkagent_ota_busy() &&
         (!atomic_load(&g_voice_initialized) || voice_channel_is_idle()));
       bkfocus_intent_step(now, g_control_bound && !bkagent_ota_busy());
@@ -3119,6 +3139,10 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
       bk7258_display_focus(product_focus_visual(now, focus_idle,
         bkpc_tasks_visual(&g_pc_tasks, now, focus_idle, bkfocus_visual(now))));
 #endif
+      bool task_completed = bkpc_tasks_take_completion(&g_pc_tasks, now);
+      product_companion_step(now, !bkagent_ota_busy(),
+        !atomic_load(&g_voice_initialized) || voice_channel_is_idle(),
+        focus_completed || task_completed);
       if (now >= voice_cleanup_at)
         {
           int cleanup = voice_channel_recover();

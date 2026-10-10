@@ -49,6 +49,7 @@ N15/N17 文档恢复旧地址、旧脚本或旧信任设计。
   Agent 既有扩展已发布并由 manifest 固定到 fork `add0db19`；干净复现结果与
   fork 发布、官方合入及实板验收分别报告，见来源记录与 Master Plan。
 
+- [桌面伙伴行为合同](shaniu-desktop-companion.md)：动作候选、缓存表情、有限触觉及资源预算；
 - [傻妞 AIDK AI Toy 全项目 Master Plan](shaniu-master-plan.md)：统一产品目标、官方框架/
   设备适配、控制 App、模型资产、实际里程碑与验收结果；
 - [BKVoice 历史方案](bkvoice-authorized-voice-app.md)：已退出当前主线的 Gateway/音色探索
