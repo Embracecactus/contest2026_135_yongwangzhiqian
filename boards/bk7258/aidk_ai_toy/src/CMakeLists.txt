@@ -38,6 +38,16 @@ if(CONFIG_MEDIA AND CONFIG_MEDIA_SERVER)
     configure_file("${wake_model}" "${wake_model_staged}" COPYONLY)
   endif()
   set(wake_reply_staged "${CMAKE_CURRENT_BINARY_DIR}/etc/media/wake_reply.pcm")
+  if(CONFIG_BK7258_APP_AGENT)
+    set(local_rhythm "${NUTTX_APPS_DIR}/system/bk7258/assets/local_rhythm.pcm")
+    file(SHA256 "${local_rhythm}" local_rhythm_sha256)
+    if(NOT local_rhythm_sha256 STREQUAL
+       "c1340ef72dfbe56d6f17b58b3e4ba0f26f63d26ad3978f18285dfcfd96fa2bc4")
+      message(FATAL_ERROR "Local rhythm asset failed its reviewed hash")
+    endif()
+    configure_file("${local_rhythm}"
+      "${CMAKE_CURRENT_BINARY_DIR}/etc/media/local_rhythm.pcm" COPYONLY)
+  endif()
   set(wake_reply "")
   if(CONFIG_BK7258_AIDK_WAKE_REPLY_PCM)
     if(CONFIG_BK7258_AIDK_PRIVATE_WAKE_REPLY_PCM)
@@ -86,7 +96,7 @@ if(CONFIG_MEDIA AND CONFIG_MEDIA_SERVER)
     NONCONST
     RCRAWS
     ${media_assets}
-    DEPENDS ${wake_model} ${wake_model_staged} ${wake_reply}
+    DEPENDS ${wake_model} ${wake_model_staged} ${wake_reply} ${local_rhythm}
     PATH
     ${CMAKE_CURRENT_BINARY_DIR}/etc/media)
   target_link_libraries(board PRIVATE romfs_media)

@@ -14,7 +14,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-CASES = ("online", "offline", "network-pending", "offline-event",
+CASES = ("content-busy", "online", "offline", "network-pending", "offline-event",
          "core-unavailable", "identity-unavailable", "threshold-busy", "model-failure", "cloud-retry", "offline-admission", "online-admission")
 
 def main():
@@ -24,7 +24,7 @@ def main():
     if case.endswith("-admission"):
         return admission(case)
     source = (ROOT / "app/bk7258/bk7258_agent_product.c").read_text()
-    start = source.index("      if (!atomic_load(&g_agent_core_ready)")
+    start = source.index("      if (content_busy || !atomic_load(&g_agent_core_ready)")
     end = source.index("\n    }\n}\n#endif", start)
     body = source[start:end]
     prefix = r"""
@@ -41,6 +41,7 @@ def main():
 #define CONFIG_BK7258_PREFERENCES 1
 #define syslog(...) ((void)0)
 static bool g_configured, g_identity_bound=true, g_trigger_started;
+static bool content_busy;
 static atomic_bool g_agent_core_ready=true, g_voice_initialized=true;
 static atomic_bool g_trigger_prepare_pending=true;
 static atomic_int g_active_persona;
@@ -92,6 +93,10 @@ static void step(void) { do {
     suffix = "\n} while(0); }\n" + clear + r"""
 int main(int argc,char **argv) {
  assert(argc==2);
+ if(!strcmp(argv[1],"content-busy")) {
+  content_busy=true;step();assert(!prepares && !starts && !processes);
+  puts("CONTRACT_PASS");return 0;
+ }
  g_configured=!strcmp(argv[1],"online") || !strcmp(argv[1],"identity-unavailable") || !strcmp(argv[1],"threshold-busy") || !strcmp(argv[1],"model-failure");
  if(!strcmp(argv[1],"network-pending")){pending=true;network_busy=true;}
  if(!strcmp(argv[1],"offline-event")){g_trigger_started=true;g_trigger_prepare_pending=false;events=4;threshold_ready=true;}

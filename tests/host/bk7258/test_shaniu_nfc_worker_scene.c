@@ -5,6 +5,11 @@
 #include "test_shaniu_nfc_jobs.c"
 #include "bk7258_focus_intent.h"
 #include "bk7258_nfc_control.c"
+int bkcontent_submit(unsigned int action, uint64_t content, uint32_t *result)
+{ (void)action; (void)content; *result = 0; return -ENOTSUP; }
+int bkcontent_cancel(uint32_t id) { (void)id; return -ESTALE; }
+void bkcontent_status(struct bkcontent_status_s *status)
+{ memset(status,0,sizeof(*status)); }
 static void inspect_capability(void)
 {
  struct bknfc_scene_status_s scene;struct bknfc_job_status_s job;
@@ -50,11 +55,12 @@ int main(int argc,char **argv)
   {
    struct bkcontrol_status_s status={0};int before=opens;
    assert(bknfc_scene_control(BKCONTROL_CONFIG_READ,0,&status)==0);
-   const uint8_t expected[16]={'N','C','A','1',0,0,0,1,0,0,0,7,0,0,0,0};
-   assert(status.config_total==16 && !memcmp(status.config_chunk,expected,16));
+   const uint8_t expected[16]={'N','C','A','2',0,0,0,1,0,0,0,7,0,0,0,0};
+   assert(status.config_total==48 && !memcmp(status.config_chunk,expected,16));
    bk7258_nfc_scene_admit(false);
    assert(bknfc_scene_control(BKCONTROL_CONFIG_READ,0,&status)==0 && status.config_chunk[11]==5);
-   assert(bknfc_scene_control(BKCONTROL_CONFIG_READ,16,&status)==-ERANGE);
+   assert(bknfc_scene_control(BKCONTROL_CONFIG_READ,16,&status)==0);
+   assert(bknfc_scene_control(BKCONTROL_CONFIG_READ,48,&status)==-ERANGE);
    assert(bknfc_scene_control(BKCONTROL_CONFIG_APPLY,0,&status)==-EPERM);
    assert(opens==before);goto cleanup;
   }

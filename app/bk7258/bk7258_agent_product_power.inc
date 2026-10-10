@@ -336,6 +336,7 @@ static bool product_keys_step_impl(uint64_t now)
        * is closed. A successful cancel is not a completed shutdown.
        */
       int admission = bkprov_owner_prepare_stop(now);
+      int content = bkcontent_quiesce();
       int nfc = 0;
       int motion = 0;
       int usb = 0;
@@ -370,7 +371,7 @@ static bool product_keys_step_impl(uint64_t now)
 
       int voice = product_power_drain();
       if (admission < 0 || trigger < 0 || nfc < 0 || motion < 0 ||
-          usb < 0 || pack < 0 || voice < 0)
+          usb < 0 || pack < 0 || voice < 0 || content < 0)
         {
           int error = admission < 0 ? admission : trigger < 0 ? trigger : nfc < 0 ? nfc : motion;
           /* Quiescing is a handshake: EAGAIN/EBUSY is incomplete, not a
@@ -388,6 +389,8 @@ static bool product_keys_step_impl(uint64_t now)
             error = pack;
           if (voice < 0 && ((voice != -EAGAIN && voice != -EBUSY) || error == 0))
             error = voice;
+          if (content < 0 && ((content != -EAGAIN && content != -EBUSY) || error == 0))
+            error = content;
           if (error == -EAGAIN || error == -EBUSY)
             {
               if (now >= g_shutdown_deadline)

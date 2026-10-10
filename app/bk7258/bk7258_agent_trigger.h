@@ -32,6 +32,10 @@
 int bk7258_agent_trigger_prepare(void);
 int bk7258_agent_trigger_start(void);
 int bk7258_agent_trigger_stop(void);
+/* Product owner only: keep the model while yielding the sole recorder for
+ * an explicit local content operation; rearm resumes the same configuration.
+ */
+int bk7258_agent_trigger_pause_local(void);
 /* Consume a local match; false rejects the cloud turn and rearms locally. */
 int bk7258_agent_trigger_process(bool admitted);
 /* Called synchronously while Agent's reader is paused and Media input is

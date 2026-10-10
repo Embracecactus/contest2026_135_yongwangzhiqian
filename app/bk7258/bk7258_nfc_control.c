@@ -30,7 +30,7 @@ int bknfc_control(enum bkcontrol_command_e command, uint32_t offset,
   if (!status) return -EINVAL;
   if (command == BKCONTROL_CONFIG_READ)
     {
-      uint8_t data[112] = {'N', 'C', 'S', '1'};
+      uint8_t data[176] = {'N', 'C', 'S', '2'};
       struct bknfc_job_status_s job;
       if (offset % 16 || offset >= sizeof(data)) return -ERANGE;
       bk7258_nfc_job_status(&job);
@@ -39,22 +39,29 @@ int bknfc_control(enum bkcontrol_command_e command, uint32_t offset,
       nfc_put64(data + 16, job.operation);
       nfc_put64(data + 24, job.revision);
       nfc_put64(data + 32, job.operation_floor);
-      for (unsigned int i = 0; i < 8; i++) nfc_put64(data + 48 + i * 8, job.durations[i]);
+      for (unsigned int i = 0; i < 8; i++)
+        {
+          nfc_put32(data + 48 + i * 16, job.actions[i]);
+          nfc_put64(data + 56 + i * 16, job.durations[i]);
+        }
       status->config_total = sizeof(data);
       memcpy(status->config_chunk, data + offset, sizeof(status->config_chunk));
       return 0;
     }
   if (command == BKCONTROL_CONFIG_BEGIN) return size == 40 ? 0 : -EMSGSIZE;
   if (command != BKCONTROL_CONFIG_APPLY || offset || !record || size != 40 ||
-      memcmp(record, "NCF1", 4) || nfc_get32(record + 12)) return -EINVAL;
+      (memcmp(record, "NCF1", 4) && memcmp(record, "NCF2", 4)) ||
+      (!memcmp(record, "NCF1", 4) && nfc_get32(record + 12))) return -EINVAL;
   struct bknfc_job_request_s request = {
     .action = nfc_get32(record + 4), .slot = nfc_get32(record + 8),
     .revision = nfc_get64(record + 16), .operation = nfc_get64(record + 24),
-    .duration_ms = nfc_get64(record + 32)
+    .duration_ms = nfc_get64(record + 32),
+    .scene_action = nfc_get32(record + 12)
   };
   if (request.action == 4)
     {
-      if (request.slot || request.revision || request.duration_ms) return -EINVAL;
+      if (request.slot || request.revision || request.duration_ms ||
+          request.scene_action) return -EINVAL;
       return bk7258_nfc_job_cancel(request.operation);
     }
   return bk7258_nfc_job_submit(&request);
@@ -65,16 +72,26 @@ int bknfc_scene_control(enum bkcontrol_command_e command, uint32_t offset,
 {
   if (!status) return -EINVAL;
   if (command != BKCONTROL_CONFIG_READ) return -EPERM;
-  if (offset) return -ERANGE;
-  uint8_t data[16] = {'N','C','A','1'};
 #if defined(CONFIG_BK7258_APP_AGENT) && defined(CONFIG_CL_MFRC522_RF)
+  uint8_t data[48] = {'N','C','A','2'};
   struct bknfc_scene_status_s scene;
+  struct bknfc_scene_receipt_s receipt;
+  if (offset % 16 || offset >= sizeof(data)) return -ERANGE;
   bk7258_nfc_scene_status(&scene);
+  bk7258_nfc_scene_receipt(&receipt);
   nfc_put32(data + 4, scene.capabilities);
   nfc_put32(data + 8, scene.flags);
   nfc_put32(data + 12, (uint32_t)scene.error);
+  nfc_put64(data + 16, receipt.event);
+  nfc_put32(data + 24, receipt.action);
+  nfc_put32(data + 28, receipt.intent);
+  nfc_put32(data + 32, receipt.phase);
+  nfc_put32(data + 36, (uint32_t)receipt.result);
+#else
+  uint8_t data[16] = {'N','C','A','1'};
+  if (offset) return -ERANGE;
 #endif
   status->config_total = sizeof(data);
-  memcpy(status->config_chunk, data, sizeof(data));
+  memcpy(status->config_chunk, data + offset, sizeof(status->config_chunk));
   return 0;
 }

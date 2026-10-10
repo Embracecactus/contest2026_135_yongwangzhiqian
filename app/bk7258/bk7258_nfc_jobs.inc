@@ -19,7 +19,7 @@ static bool bknfc_job_same(const struct bknfc_job_request_s *a,
 {
   return a->operation == b->operation && a->revision == b->revision &&
          a->duration_ms == b->duration_ms && a->action == b->action &&
-         a->slot == b->slot;
+         a->slot == b->slot && a->scene_action == b->scene_action;
 }
 int bk7258_nfc_job_submit(const struct bknfc_job_request_s *request)
 {
@@ -29,7 +29,11 @@ int bk7258_nfc_job_submit(const struct bknfc_job_request_s *request)
       request->action > BKNFC_JOB_REMOVE || request->slot >= BKNFC_BINDING_SLOTS ||
       (request->action == BKNFC_JOB_LOAD &&
        (request->slot || request->revision || request->duration_ms)) ||
-      (request->action == BKNFC_JOB_ENROLL ? !request->duration_ms : request->duration_ms))
+      (request->action == BKNFC_JOB_ENROLL ?
+       !bknfc_binding_action_valid(request->scene_action ?
+                                   request->scene_action : 1,
+                                   request->duration_ms) :
+       (request->duration_ms || request->scene_action)))
     return -EINVAL;
   irqstate_t flags = spin_lock_irqsave(&s->request_lock);
   if (s->quiescing) ret = -ESHUTDOWN;
@@ -116,7 +120,12 @@ static void bknfc_job_publish_bindings(struct bknfc_server_s *s)
   if (durable_operation > s->job_status.operation_floor)
     s->job_status.operation_floor = durable_operation;
   for (unsigned int i = 0; i < BKNFC_BINDING_SLOTS; i++)
-    s->job_status.durations[i] = s->bindings.uncertain ? 0 : s->bindings.entries[i].duration_ms;
+    {
+      s->job_status.durations[i] = s->bindings.uncertain ? 0 :
+                                  s->bindings.entries[i].duration_ms;
+      s->job_status.actions[i] = s->bindings.uncertain ? 0 :
+                                s->bindings.entries[i].action;
+    }
 }
 static bool bknfc_job_work(struct bknfc_server_s *s)
 {
@@ -151,9 +160,11 @@ static bool bknfc_job_work(struct bknfc_server_s *s)
   if (!ret && job.action != BKNFC_JOB_LOAD) s->job_status.phase = BKNFC_JOB_COMMITTING;
   spin_unlock_irqrestore(&s->request_lock, flags);
   if (!ret && job.action != BKNFC_JOB_LOAD)
-    ret = bknfc_bindings_set(&s->bindings, job.revision, job.operation, job.slot,
-                            job.action == BKNFC_JOB_ENROLL ? &card : NULL,
-                            job.duration_ms);
+    ret = bknfc_bindings_set_action(&s->bindings, job.revision,
+             job.operation, job.slot,
+             job.action == BKNFC_JOB_ENROLL ? &card : NULL,
+             job.action == BKNFC_JOB_ENROLL ?
+             (job.scene_action ? job.scene_action : 1) : 0, job.duration_ms);
   memset(&card, 0, sizeof(card));
   flags = spin_lock_irqsave(&s->request_lock);
   if (s->job_status.phase != BKNFC_JOB_COMMITTING &&
@@ -193,6 +204,7 @@ int bk7258_nfc_bindings_reset(void)
   s->bindings.uncertain = ret != 0;
   s->job_status.revision = 0;
   memset(s->job_status.durations, 0, sizeof(s->job_status.durations));
+  memset(s->job_status.actions, 0, sizeof(s->job_status.actions));
   s->job_status.error = ret ? ret : -ECANCELED;
   s->job_status.phase = ret ? BKNFC_JOB_UNKNOWN : BKNFC_JOB_CANCELED;
   s->io_active = false;

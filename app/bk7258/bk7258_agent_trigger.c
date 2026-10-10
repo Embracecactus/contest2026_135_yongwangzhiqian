@@ -1234,6 +1234,14 @@ int bk7258_agent_trigger_rearm(void)
   return ret;
 }
 
+int bk7258_agent_trigger_pause_local(void)
+{
+  pthread_mutex_lock(&g_trigger_lock);
+  int ret = trigger_pause();
+  pthread_mutex_unlock(&g_trigger_lock);
+  return ret;
+}
+
 bool bk7258_agent_trigger_armed(void)
 {
   pthread_mutex_lock(&g_trigger_lock);

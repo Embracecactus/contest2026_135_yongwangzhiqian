@@ -26,6 +26,8 @@ int test_owner_reply(void);
 #endif
 #define CONFIG_BK7258_USBCDC 1
 static int usb_error, usb_stops;
+static int content_error;
+int bkcontent_quiesce(void) { return content_error; }
 static bool usb_closed;
 static int product_pc_usb_stop(void)
 { usb_stops++; usb_closed=!usb_error; return usb_error; }
@@ -272,6 +274,19 @@ int main(int argc, char **argv)
       assert(product_keys_step(now));
       assert(display_phase == 3 && cp_calls == 1 && reopens == 0);
       assert(storage_closed && trigger_closed && transport_closed);
+      puts("CONTRACT_PASS");
+      return 0;
+    }
+  if (!strcmp(argv[1], "content-busy"))
+    {
+      content_error = -EAGAIN;
+      g_shutdown_requested = true;
+      g_shutdown_deadline = 30000;
+      assert(product_keys_step(1000));
+      assert(!g_power_pending && !g_shutdown_failed);
+      content_error = 0;
+      assert(product_keys_step(1100));
+      assert(g_power_pending);
       puts("CONTRACT_PASS");
       return 0;
     }
