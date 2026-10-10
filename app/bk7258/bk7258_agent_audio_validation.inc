@@ -316,13 +316,61 @@ static int product_audio_validation(void)
 #endif
 
 #ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
+/* Finite startup validation of the public preference, before normal Agent
+ * admission. This exercises the production config/store/application path;
+ * it is not proof of phone authentication or an additional USB permission.
+ * Restore the original value even when a controlled voice turn fails. */
+static int product_pipeline_response_length(unsigned int mode)
+{
+  struct bk7258_response_length_s before;
+  struct bkcontrol_status_s status;
+  uint8_t record[32] = {'R', 'L', 'P', '1'};
+  int ret = bk7258_preferences_response_length_get(&before);
+  if (ret) return ret;
+  product_put32(record + 4, mode);
+  product_put64(record + 8, before.revision);
+  memcpy(record + 16, "PIPE-RLP", 8);
+  product_put64(record + 24, before.revision);
+  ret = product_config(NULL, BKCONTROL_CONFIG_BEGIN,
+                       BKCONTROL_CONFIG_RESPONSE_LENGTH, 0, NULL,
+                       sizeof(record), &status);
+  if (!ret)
+    ret = product_config(NULL, BKCONTROL_CONFIG_APPLY,
+                         BKCONTROL_CONFIG_RESPONSE_LENGTH, 0, record,
+                         sizeof(record), &status);
+  if (!ret)
+    ret = product_config(NULL, BKCONTROL_CONFIG_READ,
+                         BKCONTROL_CONFIG_RESPONSE_LENGTH, 0, NULL, 0,
+                         &status);
+  if (!ret && (status.config_total != 24 ||
+      memcmp(status.config_chunk, "RLS1", 4) ||
+      status.config_chunk[7] != mode ||
+      product_be64(status.config_chunk + 8) != before.revision + 1u))
+    ret = -EPROTO;
+  if (!ret)
+    ret = product_config(NULL, BKCONTROL_CONFIG_READ,
+                         BKCONTROL_CONFIG_RESPONSE_LENGTH, 16, NULL, 0,
+                         &status);
+  if (!ret && (status.config_chunk[0] || status.config_chunk[1] ||
+      status.config_chunk[2] || status.config_chunk[3] != mode))
+    ret = -EPROTO;
+  syslog(LOG_NOTICE,
+         "BKRLP mode=%u expected_revision=%llu ret=%d source=startup-fixture\n",
+         mode, (unsigned long long)before.revision, ret);
+  return ret;
+}
+
 /* This calls the real manual voice owner and Agent service worker. Only the
  * external services are fixed memory responses. Mic samples are erased by the
  * capture owner; the ASR adapter substitutes deterministic PCM before encode. */
 static int product_pipeline_validation(void)
 {
-  if (atomic_load(&g_agent_core_ready) || !voice_channel_is_idle()) return -EBUSY;
-  int result = bkagent_cloud_validation_begin();
+  if (atomic_load(&g_agent_core_ready) || !voice_channel_is_idle() ||
+      bkprov_network_busy()) return -EBUSY;
+  struct bk7258_response_length_s original;
+  int result = bk7258_preferences_response_length_get(&original);
+  if (result) return result;
+  result = bkagent_cloud_validation_begin();
   syslog(LOG_NOTICE, "BKPIPE begin=%d peer=memory no-network fixed-ASR-PCM\n", result);
   if (result) return result;
   atomic_store(&g_pipeline_window, true);
@@ -332,7 +380,8 @@ static int product_pipeline_validation(void)
       atomic_store(&g_pipeline_media, false);
       atomic_store(&g_pipeline_complete, false);
       atomic_store(&g_pipeline_result, -EINPROGRESS);
-      result = bkagent_cloud_validation_reset(cancel);
+      result = product_pipeline_response_length((session + 1u) % 3u);
+      if (!result) result = bkagent_cloud_validation_reset(cancel);
       if (!result) result = voice_channel_start();
       if (!result)
         {
@@ -406,8 +455,31 @@ static int product_pipeline_validation(void)
         }
     }
   int restored = bkagent_cloud_validation_end();
+  uint64_t restore_deadline = bkvoice_config_now_ms(NULL) + 3000;
+  int preference_restored;
+  do
+    {
+      preference_restored = product_pipeline_response_length(original.mode);
+      if (preference_restored != -EBUSY ||
+          bkvoice_config_now_ms(NULL) >= restore_deadline) break;
+      nxsig_usleep(50000);
+    }
+  while (true);
+  struct bk7258_response_length_s retained;
+  if (!preference_restored)
+    {
+      preference_restored = bk7258_preferences_response_length_get(&retained);
+      if (!preference_restored && retained.mode != original.mode)
+        preference_restored = -ESTALE;
+    }
+  if (!restored) restored = preference_restored;
+  syslog(preference_restored ? LOG_ERR : LOG_NOTICE,
+         "BKRLP restore=%d original_mode=%u outcome=%s\n",
+         preference_restored, (unsigned int)original.mode,
+         preference_restored ? "preference-restore-failed" : "mode-restored");
   atomic_store(&g_pipeline_window, false);
-  syslog(LOG_NOTICE, "BKPIPE restore=%d idle=%d saved-config-untouched\n",
+  syslog(LOG_NOTICE,
+         "BKPIPE restore=%d idle=%d cloud-config-untouched preference-tested\n",
          restored, voice_channel_is_idle());
   return result ? result : restored;
 }

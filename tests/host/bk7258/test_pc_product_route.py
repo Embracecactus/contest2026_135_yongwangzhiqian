@@ -12,6 +12,7 @@ if __name__ == "__main__":
 
     source = (ROOT / "app/bk7258/bk7258_agent_product.c").read_text()
     body = function(source, "product_config")
+    response_length = function(source, "product_response_length")
     task_step = function(source, "product_pc_task_step")
     visual_start = source.index("      bk7258_display_focus(bkpc_tasks_visual(")
     visual_statement = source[visual_start : source.index(";", visual_start) + 1]
@@ -27,6 +28,8 @@ if __name__ == "__main__":
 #include "bk7258_pc_authorization_owner.h"
 #include "bk7258_pc_tasks.h"
 #include "bk7258_pc_grants.h"
+#include "bk7258_preferences.h"
+#include "bk7258_agent_cloud.h"
 static struct bkpc_tasks_s g_pc_tasks;
 static unsigned painted, focus_visual;
 static bool voice_idle=true;
@@ -52,6 +55,16 @@ bkprov_config_application_publish(uint64_t revision,
  application_state=state;application_result=result;return 0;
 }
 static atomic_bool g_agent_core_ready, g_voice_initialized;
+int bk7258_preferences_response_length_get(
+  struct bk7258_response_length_s *value)
+{ value->mode=BK7258_RESPONSE_LENGTH_STANDARD; value->revision=0; return 0; }
+int bk7258_preferences_response_length_set(
+  enum bk7258_response_length_e mode, uint64_t revision,
+  const uint8_t transaction[16])
+{ (void)mode; (void)revision; (void)transaction; return 0; }
+int bkagent_cloud_get_response_length(unsigned int *mode)
+{ *mode=BK7258_RESPONSE_LENGTH_STANDARD; return 0; }
+void bkagent_cloud_set_response_length(unsigned int mode) { (void)mode; }
 static struct { mbedtls_x509_crt certificate; mbedtls_pk_context key; uint8_t secret[32]; } g_identity;
 #define bkprov_network_busy() false
 #define bkprov_identity_load(...) (-ENOTSUP)
@@ -97,6 +110,8 @@ static int product_test_pc_snapshot(void *context, uint64_t *binding,
             prefix
             + visual_step
             + task_step
+            + "\n"
+            + response_length
             + "\n"
             + body
             + "\n"

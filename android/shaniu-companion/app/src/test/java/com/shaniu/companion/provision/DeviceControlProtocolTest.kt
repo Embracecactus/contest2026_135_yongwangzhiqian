@@ -6,6 +6,52 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DeviceControlProtocolTest {
+    @Test fun responseLengthReadbackRejectsTornOrUnappliedConfirmation() {
+        for (mode in 0..2) {
+            val wire = ByteBuffer.allocate(24).putInt(0x524c5331).putInt(mode)
+                .putLong(7).putInt(mode).putInt(0).array()
+            val header = wire.copyOfRange(0, 16)
+            val value = ResponseLengthPreference.decode(wire, header)
+            assertEquals(mode, value.mode)
+            assertEquals(7L, value.revision)
+            assertEquals("回答长度已保存并回读确认", value.receipt(mode))
+            assertFalse(value.receipt((mode + 1) % 3).contains("已保存并回读确认"))
+            val changed = header.copyOf().also { it[15] = 8 }
+            assertThrows(IllegalArgumentException::class.java) {
+                ResponseLengthPreference.decode(wire, changed)
+            }
+            ByteBuffer.wrap(wire).putInt(16, -1)
+            assertTrue(ResponseLengthPreference.decode(wire, header).receipt(mode).contains("尚未应用"))
+            val transaction = ByteArray(16) { (it + 1).toByte() }
+            val record = ByteBuffer.wrap(ResponseLengthPreference.record(mode, 7, transaction))
+            assertEquals(0x524c5031, record.int); assertEquals(mode, record.int)
+            assertEquals(7L, record.long)
+            assertArrayEquals(transaction, ByteArray(16).also { record.get(it) })
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            ResponseLengthPreference.record(1, 0, ByteArray(16))
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            ResponseLengthPreference.decode(ByteArray(23), ByteArray(16))
+        }
+    }
+
+    @Test fun responseLengthUsesAuthenticatedFixedCasRecordOnly() {
+        val sent = mutableListOf<ByteArray>()
+        val protocol = DeviceControlProtocol(ByteArray(32) { 42 }, { sent += it.copyOf() }, { _, _ -> })
+        protocol.start(); protocol.receive(response(sent.last()))
+        assertTrue(protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_READ, be32(21 shl 16)))
+        protocol.receive(response(sent.last(), flags = 24))
+        assertTrue(protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN,
+            ByteBuffer.allocate(8).putInt(21).putInt(32).array()))
+        protocol.receive(response(sent.last()))
+        assertThrows(IllegalArgumentException::class.java) {
+            protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN,
+                ByteBuffer.allocate(8).putInt(21).putInt(24).array())
+        }
+        protocol.close()
+    }
+
     @Test fun applicationReadbackAcceptsOnlyTwoOptionalKindSevenFragments() {
         val sent = mutableListOf<ByteArray>()
         val states = mutableListOf<DeviceControlProtocol.Snapshot>()

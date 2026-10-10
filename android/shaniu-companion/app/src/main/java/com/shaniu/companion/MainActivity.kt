@@ -27,10 +27,12 @@ import android.widget.TextView
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
+import java.security.SecureRandom
 import com.shaniu.companion.provision.AndroidDeviceControlFactory
 import com.shaniu.companion.provision.DeviceControlSession
 import com.shaniu.companion.provision.DeviceControlPresentation
 import com.shaniu.companion.provision.DeviceControlProtocol
+import com.shaniu.companion.provision.ResponseLengthPreference
 import com.shaniu.companion.provision.DeviceControlScanner
 import com.shaniu.companion.gateway.AndroidKeystoreTokenStore
 import com.shaniu.companion.gateway.ConsoleGatewayClient
@@ -214,13 +216,24 @@ class MainActivity : Activity() {
     private var responseModeExpected: Int? = null
     private var responseModeError: String? = null
     private var responseModeCanceling = false
+    private var responseLength: Int? = null
+    private var responseLengthApplied: Int? = null
+    private var responseLengthRevision: Long? = null
+    private var responseLengthGeneration: Long? = null
+    private var responseLengthExpected: Int? = null
+    private var responseLengthError: String? = null
+    private var responseLengthCanceling = false
+    private var responseLengthWire = ByteArray(0)
+    private var responseLengthOffset = 0
+    private var responseLengthVerifyHeader = false
+    private var responseLengthTransaction: ByteArray? = null
     private var wakeSensitivityPercent: Int? = null
     private var wakeSensitivityGeneration: Long? = null
     private var wakeSensitivityFailedGeneration: Long? = null
     private var wakeSensitivityExpected: Int? = null
     private var wakeSensitivityError: String? = null
     private var wakeSensitivityCanceling = false
-    private enum class ConfigFlow { SETTINGS, NONE, CAPABILITIES, CLOUD, WAKE, RESPONSE, SENSITIVITY, EYES }
+    private enum class ConfigFlow { SETTINGS, NONE, CAPABILITIES, CLOUD, WAKE, RESPONSE, RESPONSE_LENGTH, SENSITIVITY, EYES }
     private var trialSecondsDraft = ""
     private var trialExpressionDraft = 0
     private var trialPackDraft = false
@@ -335,6 +348,9 @@ class MainActivity : Activity() {
                 responseModeGeneration = null; responseModeFailedGeneration = null
                 responseModeExpected = null; responseModeCanceling = false
                 responseModeError = "连接恢复后读取设备实际回答模式；未完成的设置不会重发"
+                responseLengthGeneration = null; responseLengthExpected = null; responseLengthCanceling = false
+                responseLengthWire = ByteArray(0); responseLengthOffset = 0
+                responseLengthError = "连接恢复后读取设备实际回答长度；未完成的设置不会重发"
                 wakeSensitivityGeneration = null; wakeSensitivityFailedGeneration = null
                 wakeSensitivityExpected = null
                 wakeSensitivityCanceling = false
@@ -984,6 +1000,96 @@ class MainActivity : Activity() {
             failResponseMode("设备忙，尚未读取回答模式")
     }
 
+    private fun requestResponseLengthRead() {
+        if (configFlow == ConfigFlow.NONE) { if (!configAvailable()) return; configFlow = ConfigFlow.RESPONSE_LENGTH }
+        if (configFlow != ConfigFlow.RESPONSE_LENGTH || responseLengthCanceling) return
+        responseLengthGeneration = null; responseLengthError = null; responseLengthWire = ByteArray(0); responseLengthOffset = 0; responseLengthVerifyHeader = false
+        requestResponseLengthChunk()
+    }
+
+    private fun requestResponseLengthChunk() {
+        if (!directConfigRequest(DeviceControlProtocol.Command.CONFIG_READ,
+                ByteBuffer.allocate(4).putInt((21 shl 16) or responseLengthOffset).array())) failResponseLength("设备忙，尚未读取回答长度")
+    }
+
+    private fun responseLengthLabel(mode: Int) = when (mode) {
+        1 -> "简洁"; 2 -> "详细"; else -> "标准"
+    }
+
+    private fun failResponseLength(message: String) {
+        responseLengthGeneration = null; responseLengthExpected = null; responseLengthError = message
+        responseLengthTransaction?.fill(0); responseLengthTransaction = null
+        if (!responseLengthCanceling && directSession.cancelConfigTransaction()) { responseLengthCanceling = true; return }
+        responseLengthCanceling = false; configFlow = ConfigFlow.NONE; directMessage = message
+        directSession.finishConfigTransaction(message)
+    }
+
+    private fun editResponseLength() {
+        val old = responseLength ?: return; val generation = directSession.current().generation
+        if (responseLengthGeneration != generation) return
+        var desired = old
+        directDialog = AlertDialog.Builder(this).setTitle("回答长度")
+            .setSingleChoiceItems(arrayOf("标准", "简洁", "详细"), old) { _, which -> desired = which }
+            .setNegativeButton("取消", null).setPositiveButton("保存") { _, _ ->
+                if (generation != directSession.current().generation || responseLengthGeneration != generation ||
+                    !directSession.current().snapshotFresh || !configAvailable() || directSnapshot?.busy == true) {
+                    directMessage = "设备忙或连接状态已变化，请稍后读取再设置"; render(); return@setPositiveButton
+                }
+                configFlow = ConfigFlow.RESPONSE_LENGTH; responseLengthGeneration = null
+                responseLengthExpected = desired; responseLengthError = null
+                responseLengthTransaction?.fill(0)
+                responseLengthTransaction = ByteArray(16).also { SecureRandom().nextBytes(it) }
+                if (!directConfigRequest(DeviceControlProtocol.Command.CONFIG_BEGIN,
+                        ByteBuffer.allocate(8).putInt(21).putInt(32).array())) failResponseLength("设备忙，尚未发送回答长度")
+            }.show()
+    }
+
+    private fun handleResponseLengthResult(command: DeviceControlProtocol.Command, snapshot: DeviceControlProtocol.Snapshot) {
+        if (command == DeviceControlProtocol.Command.CONFIG_CANCEL) { responseLengthCanceling = true; failResponseLength(responseLengthError ?: "回答长度操作未确认，请重新读取"); return }
+        if (responseLengthCanceling) return
+        if (snapshot.error != 0) { failResponseLength(if (snapshot.error == -95 || snapshot.error == -138) "当前固件未提供回答长度设置" else "回答长度操作未确认（${snapshot.error}），请重新读取"); return }
+        when (command) {
+            DeviceControlProtocol.Command.CONFIG_BEGIN -> {
+                val desired = responseLengthExpected ?: run { failResponseLength("回答长度设置已取消"); return }
+                val revision = responseLengthRevision ?: run { failResponseLength("回答长度版本已过期"); return }
+                val transaction = responseLengthTransaction ?: run { failResponseLength("回答长度事务已失效"); return }
+                val record = try {
+                    ResponseLengthPreference.record(desired, revision, transaction)
+                } catch (_: IllegalArgumentException) {
+                    failResponseLength("回答长度事务或版本无效，请重新读取"); return
+                }
+                if (!directConfigRequest(DeviceControlProtocol.Command.CONFIG_APPEND, record)) failResponseLength("设备忙，无法发送回答长度")
+            }
+            DeviceControlProtocol.Command.CONFIG_APPEND -> if (!directConfigRequest(DeviceControlProtocol.Command.CONFIG_APPLY, ByteArray(0))) failResponseLength("设备忙，无法保存回答长度")
+            DeviceControlProtocol.Command.CONFIG_APPLY -> requestResponseLengthRead()
+            DeviceControlProtocol.Command.CONFIG_READ -> {
+                val chunk = snapshot.configChunk
+                if (chunk == null || chunk.totalLength != 24 || responseLengthOffset > 16) { failResponseLength("回答长度响应无效"); return }
+                if (responseLengthVerifyHeader) {
+                    if (!chunk.bytes.copyOf(16).contentEquals(responseLengthWire.copyOf(16))) { failResponseLength("回答长度在读取期间已变化，请重新读取"); return }
+                } else responseLengthWire += chunk.bytes.copyOf(minOf(16, 24 - responseLengthOffset))
+                responseLengthOffset += 16
+                if (responseLengthWire.size < 24) { requestResponseLengthChunk(); return }
+                if (!responseLengthVerifyHeader) { responseLengthVerifyHeader = true; responseLengthOffset = 0; requestResponseLengthChunk(); return }
+                val value = try {
+                    ResponseLengthPreference.decode(responseLengthWire, chunk.bytes)
+                } catch (_: IllegalArgumentException) {
+                    failResponseLength("回答长度响应无效或读取期间已变化，请重新读取"); return
+                }
+                val expected = responseLengthExpected
+                responseLength = value.mode
+                responseLengthRevision = value.revision
+                responseLengthApplied = value.applied
+                responseLengthGeneration = directSession.current().generation
+                responseLengthExpected = null; responseLengthError = null; configFlow = ConfigFlow.NONE
+                directMessage = value.receipt(expected)
+                responseLengthTransaction?.fill(0); responseLengthTransaction = null
+                if (expected != null) directSession.finishConfigTransaction(directMessage)
+            }
+            else -> Unit
+        }
+    }
+
     private fun requestWakeSensitivityRead() {
         if (configFlow == ConfigFlow.NONE) {
             if (!configAvailable()) return
@@ -1609,6 +1715,7 @@ class MainActivity : Activity() {
                 ConfigFlow.WAKE -> handleWakeResult(command, snapshot)
                 ConfigFlow.CLOUD -> handleCloudModelsResult(command, snapshot)
                 ConfigFlow.RESPONSE -> handleResponseModeResult(command, snapshot)
+                ConfigFlow.RESPONSE_LENGTH -> handleResponseLengthResult(command, snapshot)
                 ConfigFlow.SENSITIVITY -> handleWakeSensitivityResult(command, snapshot)
                 ConfigFlow.EYES -> handleEyeResult(command, snapshot)
                 ConfigFlow.SETTINGS, ConfigFlow.NONE -> Unit
@@ -2135,6 +2242,20 @@ class MainActivity : Activity() {
         }
         settingsRow("回答模式", responseText, enabled = configMutationReady) {
             if (responseCurrent) editResponseMode() else { requestResponseModeRead(); render() }
+        }
+        val responseLengthCurrent = responseLengthGeneration == directSession.current().generation
+        val responseLengthText = when {
+            !directSession.current().authenticated -> "连接并验证设备后读取"
+            !directSession.current().snapshotFresh -> "设备状态待刷新，尚未确认"
+            !configSupported -> "当前固件未提供此设置"
+            configFlow == ConfigFlow.RESPONSE_LENGTH -> "正在读取或保存回答长度…"
+            !responseLengthCurrent -> responseLengthError ?: "点击读取设备实际回答长度"
+            responseLengthApplied != responseLength -> "${responseLengthLabel(responseLength ?: 0)}；服务尚未应用，点击重新读取"
+            else -> "${responseLengthLabel(responseLength ?: 0)}；明确的本轮用户要求优先"
+        }
+        settingsRow("回答长度", responseLengthText, enabled = configMutationReady) {
+            if (responseLengthCurrent && responseLengthApplied == responseLength) editResponseLength()
+            else { requestResponseLengthRead(); render() }
         }
         val sensitivityCurrent = wakeSensitivityGeneration == directSession.current().generation
         val sensitivityText = when {

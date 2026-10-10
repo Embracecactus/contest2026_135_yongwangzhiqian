@@ -15,8 +15,8 @@
   <remote name="speexdsp-official" fetch="https://github.com/xiph/"/>
   <extend-project name="packages_ai_agent" path="packages/ai_agent"
                   remote="shaniu-agent"
-                  revision="20890a97b9515cce3de34006ad7a9b1746a109ed"
-                  upstream="refs/heads/dev"/>
+                  revision="403a127feff47460a126cdf8c8f106787824c4f7"
+                  upstream="refs/heads/feat/voice-answer-preference"/>
 
   <project path="vendor/beken/bk_avdk_smp"
            name="Embracecactus/bk_avdk_smp"

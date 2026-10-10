@@ -212,7 +212,8 @@ static int reset_pc_records(const char *root)
 static int reset_user_records(const char *root)
 {
   static const char *const names[] = {
-    "memory-policy", "memory-snapshot", "cloud-models", "voice-volume", "wake-models"
+    "memory-policy", "memory-snapshot", "cloud-models", "response-length",
+    "voice-volume", "wake-models"
   };
   unsigned int budget = 4096;
   for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); i++)

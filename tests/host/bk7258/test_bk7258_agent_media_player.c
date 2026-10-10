@@ -680,8 +680,78 @@ int main(int argc, char** argv)
 /* 同一播放器验收入口，使用真实 Agent 队列及受控 Media 消费端。 */
 #include <assert.h>
 #include <stddef.h>
+#include <pthread.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <string.h>
+#include <syslog.h>
+#include <time.h>
+
+/* Observe production phase logs; the fixture owns only service/Media peers. */
+static pthread_mutex_t test_stage_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t test_stage_changed = PTHREAD_COND_INITIALIZER;
+static struct {
+    unsigned long long request, ms, value;
+    char name[40];
+    int result;
+} test_stages[256];
+static size_t test_stage_count;
+
+static void test_stage_syslog(int priority, const char *format, ...)
+{
+    (void)priority;
+    char line[512];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(line, sizeof(line), format, args);
+    va_end(args);
+    unsigned long long request, ms, value;
+    char name[40];
+    int result;
+    if (sscanf(line, "[voice-stage] request=%llu mono_ms=%llu stage=%39s value=%llu result=%d",
+               &request, &ms, name, &value, &result) != 5) return;
+    pthread_mutex_lock(&test_stage_lock);
+    assert(test_stage_count < sizeof(test_stages) / sizeof(test_stages[0]));
+    size_t n = test_stage_count++;
+    test_stages[n].request = request;
+    test_stages[n].ms = ms;
+    test_stages[n].value = value;
+    test_stages[n].result = result;
+    strcpy(test_stages[n].name, name);
+    pthread_cond_broadcast(&test_stage_changed);
+    pthread_mutex_unlock(&test_stage_lock);
+}
+
+static int test_stage_index(unsigned long long id, const char *name)
+{
+    for (size_t n = 0; n < test_stage_count; n++)
+        if (test_stages[n].request == id && !strcmp(test_stages[n].name, name))
+            return (int)n;
+    return -1;
+}
+
+static int test_wait_stage(unsigned long long id, const char *name)
+{
+    struct timespec until;
+    clock_gettime(CLOCK_REALTIME, &until);
+    until.tv_sec += 2;
+    pthread_mutex_lock(&test_stage_lock);
+    int index;
+    while ((index = test_stage_index(id, name)) < 0) {
+        int ret = pthread_cond_timedwait(&test_stage_changed, &test_stage_lock, &until);
+        if (ret) {
+            fprintf(stderr, "Missing production stage: %s request=%llu\n", name, id);
+            assert(!ret);
+        }
+    }
+    pthread_mutex_unlock(&test_stage_lock);
+    return index;
+}
+
+#define syslog test_stage_syslog
 size_t strlcpy(char *, const char *, size_t);
 #include "voice/voice_channel.c"
+#undef syslog
 
 static atomic_int test_canceled;
 static int test_mode;
@@ -1018,6 +1088,9 @@ int voice_tts_speak_stream_checked(const char* text, voice_tts_chunk_cb cb,
 
 static uint64_t test_reply_prepare(int mode)
 {
+    pthread_mutex_lock(&test_stage_lock);
+    test_stage_count = 0;
+    pthread_mutex_unlock(&test_stage_lock);
     test_mode = mode;
     atomic_store(&test_next_sentence_started, 0);
     test_written = test_opens = 0;
@@ -1218,6 +1291,20 @@ static void test_reply_pipeline(void)
     test_wait_first_pcm();
     assert(test_drains == 0 && test_closes == 0);
     assert(s_voice.turn_active && s_voice.reply_stream_active);
+    int media = test_wait_stage(id, "first_media");
+    pthread_mutex_lock(&test_stage_lock);
+    int body = test_stage_index(id, "final_first");
+    int submit = test_stage_index(id, "tts_submit");
+    int pcm = test_stage_index(id, "first_pcm");
+    assert(body >= 0 && submit > body && pcm > submit && media > pcm);
+    assert(test_stage_index(id, "playback_end") < 0);
+    assert(test_stage_index(id, "channel_idle") < 0);
+    unsigned long long tail_release_ms = voice_now_ms();
+    assert(test_stages[media].ms <= tail_release_ms);
+    printf("VOICE_LEDGER request=%llu final_first=%llu tts_submit=%llu first_pcm=%llu first_media=%llu fixture_tail_release=%llu\n",
+        (unsigned long long)id, test_stages[body].ms, test_stages[submit].ms,
+        test_stages[pcm].ms, test_stages[media].ms, tail_release_ms);
+    pthread_mutex_unlock(&test_stage_lock);
     const char tail[] = "第二句没有标点";
     assert(voice_channel_reply_stream(id, AGENT_REPLY_DELTA,
         tail, sizeof(tail) - 1) == 0);
@@ -1227,7 +1314,23 @@ static void test_reply_pipeline(void)
     assert(test_opens == 1 && test_drains == 1 && test_closes == 1);
     assert(s_voice.turn_active && !s_voice.reply_stream_active);
     voice_request_complete(id, 0);
-    assert(voice_channel_is_idle());
+    assert(voice_channel_is_idle() && voice_channel_request_id() == id);
+    pthread_mutex_lock(&test_stage_lock);
+    int peak = test_stage_index(id, "queue_peak");
+    int end = test_stage_index(id, "playback_end");
+    int idle = test_stage_index(id, "channel_idle");
+    assert(peak >= 0 && test_stages[peak].value > 0 &&
+        test_stages[peak].value <= TTS_QUEUE_BYTES);
+    assert(end > peak && idle > end && !test_stages[end].result);
+    unsigned int requests = 0;
+    for (size_t n = 0; n < test_stage_count; n++)
+        if (test_stages[n].request == id && !strcmp(test_stages[n].name, "tts_submit"))
+            requests++;
+    assert(requests == 2);
+    printf("VOICE_LEDGER request=%llu tts_requests=%u queue_peak=%llu playback_end=%llu channel_idle=%llu cloud=fixture acoustic=unobserved\n",
+        (unsigned long long)id, requests, test_stages[peak].value,
+        test_stages[end].ms, test_stages[idle].ms);
+    pthread_mutex_unlock(&test_stage_lock);
 
     id = test_reply_prepare(6);
     assert(voice_channel_reply_stream(id, AGENT_REPLY_BEGIN, NULL, 0) == 0);
@@ -1304,6 +1407,7 @@ int main(int argc, char **argv)
             voice_request_complete(current, 0);
         } else if (!strncmp(argv[1], "sse-", 4)) {
             test_sse_seed = (unsigned int)strtoul(argv[1] + 4, NULL, 10);
+            if (test_sse_seed == 1) test_reply_pipeline();
             test_sse_pipeline();
         } else return 2;
         puts("CONTRACT_PASS");

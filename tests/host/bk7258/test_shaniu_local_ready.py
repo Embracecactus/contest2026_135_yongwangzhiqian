@@ -36,6 +36,8 @@ def main():
 #include <stdio.h>
 #include <string.h>
 #include <syslog.h>
+#include "bk7258_preferences.h"
+#include "bk7258_agent_cloud.h"
 #define CONFIG_BK7258_PREFERENCES 1
 #define syslog(...) ((void)0)
 static bool g_configured, g_identity_bound=true, g_trigger_started;
@@ -63,7 +65,7 @@ static bool threshold_ready;
 #define bk7258_agent_trigger_model_pending() false
 static int bk7258_agent_trigger_model_step(bool arm) { (void)arm; return 0; }
 static int bk7258_agent_trigger_prepare(void) { prepares++;return 0; }
-static int bk7258_preferences_wake_threshold_get(unsigned *value) {
+int bk7258_preferences_wake_threshold_get(unsigned *value) {
  if(threshold_error)return threshold_error; *value=85;return 0;
 }
 static int bk7258_agent_trigger_threshold_set(unsigned value) {
@@ -72,7 +74,11 @@ static int bk7258_agent_trigger_threshold_set(unsigned value) {
 #define bk7258_agent_trigger_threshold_get() applied_threshold
 #define product_apply_persona(value) 0
 #define bkagent_memory_restore(value) 0
-static int bk7258_preferences_thinking_get(bool *value){*value=false;return 0;}
+int bk7258_preferences_thinking_get(bool *value){*value=false;return 0;}
+int bk7258_preferences_response_length_get(
+  struct bk7258_response_length_s *value)
+{ value->mode=BK7258_RESPONSE_LENGTH_STANDARD; value->revision=0; return 0; }
+void bkagent_cloud_set_response_length(unsigned int mode) { (void)mode; }
 #define bkagent_cloud_set_thinking(value) ((void)(value))
 static int bkvoice_volume_store_get(unsigned *value){*value=40;return 0;}
 static int bkvoice_media_volume(bool write,unsigned value,unsigned *out){(void)write;*out=value;return 0;}
@@ -118,6 +124,7 @@ int main(int argc,char **argv) {
         root=Path(directory); code=root/"probe.c"; binary=root/"probe"
         code.write_text(prefix+body+suffix)
         build=subprocess.run(["cc","-std=c11","-Wall","-Wno-unused-variable",
+                              "-I",str(ROOT / "app/bk7258"),
                               str(code),"-o",str(binary)],capture_output=True,text=True)
         if build.returncode:
             print("SETUP_ERROR",build.stderr);return 2

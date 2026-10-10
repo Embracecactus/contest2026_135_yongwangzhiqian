@@ -203,7 +203,14 @@ int main(void) {
             directory = Path(path)
             source_path = directory / "test.c"
             binary = directory / "test"
-            source_path.write_text(code)
+            source_path.write_text(
+                code.replace(
+                    "#include <syslog.h>",
+                    '#include <syslog.h>\n#include "'
+                    + str(AGENT / "src/core/agent_trace.h")
+                    + '"',
+                )
+            )
             subprocess.run(
                 [
                     "cc",
@@ -374,7 +381,14 @@ int main(void) {
             directory = Path(path)
             source_path = directory / "test.c"
             binary = directory / "test"
-            source_path.write_text(code)
+            source_path.write_text(
+                code.replace(
+                    "#include <syslog.h>",
+                    '#include <syslog.h>\n#include "'
+                    + str(AGENT / "src/core/agent_trace.h")
+                    + '"',
+                )
+            )
             subprocess.run(
                 ["cc", "-std=gnu11", "-Wall", "-Wextra", "-Werror", "-pthread",
                  str(source_path), "-I", str(AGENT / "src"), "-I",
@@ -537,7 +551,14 @@ int main(void) {
             directory = Path(path)
             source_path = directory / "test.c"
             binary = directory / "test"
-            source_path.write_text(code)
+            source_path.write_text(
+                code.replace(
+                    "#include <syslog.h>",
+                    '#include <syslog.h>\n#include "'
+                    + str(AGENT / "src/core/agent_trace.h")
+                    + '"',
+                )
+            )
             subprocess.run(
                 ["cc", "-std=c11", "-Wall", "-Wextra", "-Werror", "-pthread",
                  str(source_path), "-o", str(binary)], check=True
@@ -701,7 +722,14 @@ int main(int argc, char **argv) {
             directory = Path(path)
             source_path = directory / "test.c"
             binary = directory / "test"
-            source_path.write_text(code)
+            source_path.write_text(
+                code.replace(
+                    "#include <syslog.h>",
+                    '#include <syslog.h>\n#include "'
+                    + str(AGENT / "src/core/agent_trace.h")
+                    + '"',
+                )
+            )
             subprocess.run(
                 ["cc", "-std=gnu11", "-Wall", "-Wextra", "-Werror", "-pthread",
                  str(source_path), "-o", str(binary)], check=True

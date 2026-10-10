@@ -19,6 +19,12 @@ int bkagent_cloud_models_get(struct bkcloud_models_s *models);
  */
 void bkagent_cloud_set_thinking(bool enabled);
 int bkagent_cloud_get_thinking(bool *enabled);
+/* 0 standard leaves the application request unchanged; nonzero modes only
+ * express a service-side preference and never truncate a streamed reply.
+ */
+
+void bkagent_cloud_set_response_length(unsigned int mode);
+int bkagent_cloud_get_response_length(unsigned int *mode);
 /* Verify the selected server's TLS identity. This does not claim ASR/LLM/TTS
  * request success. Called before the product enables voice requests. */
 int bkagent_cloud_verify_service(void);

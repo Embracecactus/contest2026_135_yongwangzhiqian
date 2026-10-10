@@ -69,6 +69,7 @@ static struct cloud_backend_s g_stream_asr;
 static struct cloud_backend_s g_tts;
 static struct cloud_backend_s g_llm;
 static atomic_int g_thinking = ATOMIC_VAR_INIT(-1);
+static atomic_int g_response_length = ATOMIC_VAR_INIT(-1);
 
 #ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
 /* Exclusive, pre-core-ready development window. Never used by a network peer
@@ -96,6 +97,58 @@ int bkagent_cloud_get_thinking(bool *enabled)
   if (!ret && mode < 0) ret = -EAGAIN;
   if (!ret) *enabled = mode != 0;
   return ret;
+}
+
+void bkagent_cloud_set_response_length(unsigned int mode)
+{
+  atomic_store(&g_response_length, mode <= 2 ? (int)mode : -1);
+}
+
+int bkagent_cloud_get_response_length(unsigned int *mode)
+{
+  if (!mode) return -EINVAL;
+  int value = atomic_load(&g_response_length);
+  if (value < 0) return -EAGAIN;
+  *mode = (unsigned int)value;
+  return 0;
+}
+
+static int llm_apply_response_length(cJSON *root)
+{
+  int mode = atomic_load(&g_response_length);
+  if (mode <= 0)
+    {
+      /* Standard is byte-for-byte the caller request. */
+
+      return 0;
+    }
+  cJSON *messages = cJSON_GetObjectItemCaseSensitive(root, "messages");
+  if (!cJSON_IsArray(messages)) return -EPROTO;
+  cJSON *instruction = cJSON_CreateObject();
+  if (!instruction ||
+      !cJSON_AddStringToObject(instruction, "role", "system") ||
+      !cJSON_AddStringToObject(instruction, "content", mode == 1 ?
+        "Prefer one useful conclusion, then necessary conditions. "
+        "The user's explicit length request takes priority. "
+        "Never omit safety information or tool failures." :
+        "Provide a complete explanation while streaming. "
+        "The user's explicit length request takes priority. "
+        "Never omit safety information or tool failures."))
+    {
+      cJSON_Delete(instruction);
+      return -ENOMEM;
+    }
+
+  /* The application's original user messages follow this preference, so a
+   * request for a longer answer remains authoritative.
+   */
+
+  if (!cJSON_InsertItemInArray(messages, 0, instruction))
+    {
+      cJSON_Delete(instruction);
+      return -ENOMEM;
+    }
+  return 0;
 }
 
 static void settings_release(struct cloud_settings_s *settings)
@@ -563,6 +616,29 @@ static int llm_transport(const char *request, char *response, size_t capacity,
       cJSON_Delete(root);
     }
 
+  if (!ret && atomic_load(&g_response_length) > 0)
+    {
+      cJSON *root = cJSON_Parse(adapted ? adapted : request);
+      if (!cJSON_IsObject(root)) ret = -EPROTO;
+      else if (!(ret = llm_apply_response_length(root)))
+        {
+          char *next = cJSON_PrintUnformatted(root);
+          if (!next) ret = -ENOMEM;
+          else
+            {
+              if (adapted)
+                {
+                  mbedtls_platform_zeroize(adapted, strlen(adapted));
+                  cJSON_free(adapted);
+                }
+              adapted = next;
+              body.data = adapted;
+              body.size = strlen(adapted);
+            }
+        }
+      cJSON_Delete(root);
+    }
+
   if (!ret) ret = bkcloud_http_post(http, &backend->service, "chat/completions",
     &g_transport, backend, bkvoice_config_now_ms(NULL) + 60000u,
     llm_body, &body, body.size, response, capacity);
@@ -625,6 +701,7 @@ static int llm_stream_transport(const char *request,
                                             thinking ? "enabled" : "disabled"))
         ret = -ENOMEM;
     }
+  if (!ret) ret = llm_apply_response_length(root);
   if (!ret)
     {
       adapted = cJSON_PrintUnformatted(root);

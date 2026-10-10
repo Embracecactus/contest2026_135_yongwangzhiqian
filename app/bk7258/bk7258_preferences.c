@@ -27,6 +27,7 @@
 #define BK7258_PREFERENCES_WAKE_THRESHOLD_KEY "persist.shaniu.wake_threshold"
 #define BK7258_PREFERENCES_DEFAULT_VOLUME 50u
 #define BK7258_CLOUD_MODELS_ROOT "/cpdata/shaniu/cloud-models"
+#define BK7258_RESPONSE_LENGTH_ROOT "/cpdata/shaniu/response-length"
 
 /* One owner serializes disk operations and publication of the last confirmed
  * volume. Playback can use this value while the shared medium is unavailable.
@@ -34,6 +35,180 @@
 static mutex_t g_preferences_lock = NXMUTEX_INITIALIZER;
 static int g_playback_volume = -1;
 static uint32_t g_playback_volume_generation;
+
+#ifdef CONFIG_BK7258_PROVISION_GATT
+static bool g_response_length_uncertain;
+
+static int
+bk7258_preferences_response_length_open(struct bkprov_store_s *store,
+                                        bool create)
+{
+  if (create && mkdir(BK7258_RESPONSE_LENGTH_ROOT, 0700) < 0 &&
+      errno != EEXIST)
+    {
+      return -errno;
+    }
+
+  return bkprov_store_open(store, BK7258_RESPONSE_LENGTH_ROOT);
+}
+
+int bk7258_preferences_response_length_get(
+  struct bk7258_response_length_s *value)
+{
+  struct bkprov_store_s store;
+  uint8_t record[8];
+  size_t size;
+  uint64_t revision;
+  int ret;
+  if (!value) return -EINVAL;
+  value->mode = BK7258_RESPONSE_LENGTH_STANDARD;
+  value->revision = 0;
+  ret = nxmutex_lock(&g_preferences_lock);
+  if (ret < 0) return ret;
+  if (g_response_length_uncertain) ret = -EINPROGRESS;
+  else if (!(ret = bkprov_store_check_filesystem("/cpdata/shaniu")))
+    {
+      ret = bk7258_preferences_response_length_open(&store, false);
+      if (!ret)
+        ret = bkprov_store_load(&store, record, sizeof(record), &size,
+                               &revision, NULL);
+      if (ret == -ENOENT)
+        {
+          ret = 0;
+        }
+      else if (!ret && (size != sizeof(record) ||
+                       memcmp(record, "RLP1", 4) || record[4] ||
+                       record[5] || record[6] ||
+                       record[7] > BK7258_RESPONSE_LENGTH_DETAILED))
+        {
+          ret = -EBADMSG;
+        }
+      else if (!ret)
+        {
+          value->mode = (enum bk7258_response_length_e)record[7];
+          value->revision = revision;
+        }
+    }
+  memset(record, 0, sizeof(record));
+  nxmutex_unlock(&g_preferences_lock);
+  return ret;
+}
+
+int
+bk7258_preferences_response_length_set(enum bk7258_response_length_e mode,
+                                       uint64_t expected_revision,
+                                       const uint8_t transaction[16])
+{
+  struct bkprov_store_s store;
+  uint8_t record[8] =
+  {
+    'R', 'L', 'P', '1', 0, 0, 0, 0
+  };
+  uint8_t retained[16] =
+  {
+    0
+  };
+  size_t size;
+  uint64_t revision;
+  bool replay = false;
+  int ret;
+  if ((int)mode < 0 || mode > BK7258_RESPONSE_LENGTH_DETAILED ||
+      expected_revision == UINT64_MAX || !transaction) return -EINVAL;
+  uint8_t nonzero = 0;
+  for (unsigned int i = 0; i < 16; i++) nonzero |= transaction[i];
+  if (!nonzero) return -EINVAL;
+  ret = nxmutex_lock(&g_preferences_lock);
+  if (ret < 0) return ret;
+  if (g_response_length_uncertain) ret = -EINPROGRESS;
+  else if (!(ret = bk7258_preferences_response_length_open(&store, true)))
+    {
+      ret = bkprov_store_load(&store, record, sizeof(record), &size,
+                              &revision, retained);
+      if (ret == -ENOENT)
+        {
+          revision = 0;
+          memset(retained, 0, sizeof(retained));
+          ret = 0;
+        }
+      else if (!ret && (size != sizeof(record) ||
+                       memcmp(record, "RLP1", 4) || record[4] ||
+                       record[5] || record[6] ||
+                       record[7] > BK7258_RESPONSE_LENGTH_DETAILED))
+        {
+          ret = -EBADMSG;
+        }
+      if (!ret && revision != expected_revision)
+        {
+          /* Retrying the exact accepted transaction is safe even when its
+           * acknowledgement was lost; another writer remains stale.
+           */
+
+          if (revision == expected_revision + 1u &&
+              !memcmp(retained, transaction, sizeof(retained)) &&
+              record[7] == (uint8_t)mode)
+            {
+              replay = true;
+            }
+          else
+            {
+              ret = -ESTALE;
+            }
+        }
+      if (!ret && !replay)
+        {
+          memset(record, 0, sizeof(record));
+          memcpy(record, "RLP1", 4);
+          record[7] = (uint8_t)mode;
+          ret = bkprov_store_commit(&store, revision, transaction, record,
+                                    sizeof(record));
+          if (ret == -EINPROGRESS) g_response_length_uncertain = true;
+        }
+    }
+  memset(record, 0, sizeof(record));
+  memset(retained, 0, sizeof(retained));
+  nxmutex_unlock(&g_preferences_lock);
+  return ret;
+}
+
+int bk7258_preferences_response_length_reset_complete(void)
+{
+  struct stat info;
+  int ret = nxmutex_lock(&g_preferences_lock);
+  if (ret < 0) return ret;
+  ret = bkprov_store_check_filesystem("/cpdata/shaniu");
+  if (!ret)
+    {
+      if (lstat(BK7258_RESPONSE_LENGTH_ROOT, &info) == 0) ret = -EBUSY;
+      else if (errno != ENOENT) ret = -errno;
+      else g_response_length_uncertain = false;
+    }
+  nxmutex_unlock(&g_preferences_lock);
+  return ret;
+}
+#else
+int bk7258_preferences_response_length_get(
+  struct bk7258_response_length_s *value)
+{
+  (void)value;
+  return -ENOTSUP;
+}
+
+int
+bk7258_preferences_response_length_set(enum bk7258_response_length_e mode,
+                                       uint64_t revision,
+                                       const uint8_t transaction[16])
+{
+  (void)mode;
+  (void)revision;
+  (void)transaction;
+  return -ENOTSUP;
+}
+
+int bk7258_preferences_response_length_reset_complete(void)
+{
+  return 0;
+}
+#endif
 
 int bk7258_preferences_with_storage(int (*operation)(void *), void *context)
 {

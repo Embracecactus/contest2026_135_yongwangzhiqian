@@ -442,6 +442,8 @@ def run_jvm():
                 "peerIdentityRejectsMalformedAndOversizedCertificates": "USB-01",
                 "transportRejectedStatusMarksSnapshotStaleAndRetriesWithoutDisconnecting": "UI-01",
                 "staleStatusDropsQueuedOtaBeginButKeepsAdmittedRecoveryCommands": "UI-01",
+                "responseLengthReadbackRejectsTornOrUnappliedConfirmation": "CFG-03",
+                "responseLengthUsesAuthenticatedFixedCasRecordOnly": "CFG-03",
             }
             parent = (
                 "TIMER-01"
@@ -532,6 +534,7 @@ def main():
         "test_pc_grants",
         "test_pc_tasks",
         "test_agent_final_stream",
+        "test_shaniu_response_length_store",
         "test_pc_reset",
         "test_pc_storage",
         "test_pc_authorization",
@@ -1024,19 +1027,28 @@ def main():
     for variant in ("reuse", "empty", "finalize", "cancel", "sink-cancel"):
         add(suite, "AGENT-01.final-body-" + variant, "AGENT-01", "L1",
             [sys.executable, HERE / "test_shaniu_final_body.py", variant])
-    for variant in ("mixed", "mixed-tts", "missing-id", "duplicate-id"):
+    add(suite, "AGENT-01.no-tool-final", "AGENT-01", "L2",
+        [sys.executable, HERE / "test_shaniu_mixed_tools.py", "no-tool-final"])
+    for variant in ("mixed", "mixed-tts", "unknown-tool", "missing-id", "duplicate-id"):
         add(suite, "AGENT-02." + variant, "AGENT-02", "L2",
             [sys.executable, HERE / "test_shaniu_mixed_tools.py", variant])
     add(suite, "AGENT-04.cloud-fixture", "AGENT-04", "L2",
         [sys.executable, HERE / "test_bk7258_cloud_fixture.py"], marker=False)
     add(suite, "AGENT-04.cloud-fixture-http", "AGENT-04", "L2",
         [sys.executable, HERE / "test_bk7258_cloud_fixture_http.py"])
+    add(suite, "AGENT-03.vision-success", "AGENT-03", "L2",
+        [sys.executable, HERE / "test_shaniu_mixed_tools.py", "vision-success"])
     add(suite, "AGENT-03.vision-cancel", "AGENT-03", "L2",
         [sys.executable, HERE / "test_shaniu_mixed_tools.py", "vision-cancel"])
     add(suite, "AGENT-03.tool-vision-cancel", "AGENT-03", "L2",
         [sys.executable, HERE / "test_shaniu_tool_vision_cancel.py"])
     add(suite, "AGENT-03.tool-provider-cancel", "AGENT-03", "L2",
         [sys.executable, HERE / "test_shaniu_tool_vision_cancel.py", "provider"])
+    add(suite, "CFG-03.response-length-store", "CFG-03", "L1",
+        [HERE / "build/test_shaniu_response_length_store"],
+        binaries["test_shaniu_response_length_store"])
+    add(suite, "CFG-03.response-length-route", "CFG-03", "L2",
+        [sys.executable, HERE / "test_shaniu_response_length_route.py"])
     for variant in ("stale-success", "stale-failure", "current-success",
                     "current-failure", "desired-unknown"):
         add(suite, "CFG-02.activation-" + variant, "CFG-02", "L1",

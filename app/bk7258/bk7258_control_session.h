@@ -108,6 +108,8 @@ enum bkcontrol_command_e
 #define BKCONTROL_CONFIG_ENGINEERING_TEST 19u
 /* BKA1/BAS1 fixed engineering audio lifecycle; no caller-provided media. */
 #define BKCONTROL_CONFIG_ENGINEERING_AUDIO 20u
+/* RLP1 CAS request / RLS1 durable preference readback (32 / 24 bytes). */
+#define BKCONTROL_CONFIG_RESPONSE_LENGTH 21u
 #define BKCONTROL_CONFIG_CAPABILITIES 0x7fffu
 #define BKCONTROL_CONFIG_RECORD_MAX (140u + 65536u) /* WKM2 显式前端字段 */
 struct bkcontrol_device_info_s

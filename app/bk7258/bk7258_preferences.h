@@ -28,6 +28,19 @@ struct bk7258_preferences_s
   bool persona_is_default;
 };
 
+enum bk7258_response_length_e
+{
+  BK7258_RESPONSE_LENGTH_STANDARD = 0,
+  BK7258_RESPONSE_LENGTH_CONCISE = 1,
+  BK7258_RESPONSE_LENGTH_DETAILED = 2
+};
+
+struct bk7258_response_length_s
+{
+  enum bk7258_response_length_e mode;
+  uint64_t revision;
+};
+
 int bk7258_preferences_get(struct bk7258_preferences_s *preferences);
 /* Last confirmed volume, lazily loaded on first use. A successful return from
  * host-writable MSC invalidates the SD-backed cache before the next use.
@@ -60,6 +73,16 @@ int bk7258_preferences_cloud_models_set(const struct bkcloud_models_s *models);
  * Reads/new writes cannot clear an uncertain model publication in this boot.
  */
 int bk7258_preferences_cloud_models_reset_complete(void);
+/* A small, revisioned public preference.  An absent record is standard at
+ * revision zero and is deliberately not materialized by a read.
+ */
+
+int bk7258_preferences_response_length_get(
+  struct bk7258_response_length_s *value);
+int bk7258_preferences_response_length_set(
+  enum bk7258_response_length_e mode, uint64_t expected_revision,
+  const uint8_t transaction[16]);
+int bk7258_preferences_response_length_reset_complete(void);
 /* Stable names are shared by the AP store and CP command without linking
  * the CP command to a second KVDB owner.
  */

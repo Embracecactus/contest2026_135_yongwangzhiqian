@@ -27,6 +27,7 @@ def main():
 #include "'''+str(ROOT/'tests/host/bk7258/test_bk7258_cloud_request.c')+'''"
 #undef main
 #include "core/message_bus.h"
+#include "core/agent_trace.h"
 #define FINAL_PHASE_TOOL "agent_finalize"
 static unsigned final_requests, begins, deltas;
 static int canceled, reject_sink;

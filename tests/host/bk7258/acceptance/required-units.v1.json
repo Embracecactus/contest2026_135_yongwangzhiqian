@@ -733,13 +733,16 @@
     "AGENT-01.final-body-finalize",
     "AGENT-01.final-body-cancel",
     "AGENT-01.final-body-sink-cancel",
+    "AGENT-01.no-tool-final",
     "AGENT-02.mixed",
     "AGENT-02.mixed-tts",
+    "AGENT-02.unknown-tool",
     "AGENT-02.missing-id",
     "AGENT-02.duplicate-id",
     "AGENT-04.cloud-fixture",
     "AGENT-04.cloud-fixture-http",
     "AGENT-03.vision-cancel",
+    "AGENT-03.vision-success",
     "AGENT-03.tool-vision-cancel",
     "AGENT-03.tool-provider-cancel",
     "LIFE-02.power-cp-query",
@@ -888,7 +891,11 @@
     "RST-01.receipt-query.test_tls_failure_closes_query_before_receipt",
     "RST-01.receipt-query.test_receipt_is_not_repeated_when_output_is_busy",
     "OTA-01.transport.test_http_timeout",
-    "OTA-01.transport.test_reboot_prepare_commit"
+    "OTA-01.transport.test_reboot_prepare_commit",
+    "CFG-03.response-length-store",
+    "CFG-03.response-length-route",
+    "provision.DeviceControlProtocolTest.responseLengthReadbackRejectsTornOrUnappliedConfirmation",
+    "provision.DeviceControlProtocolTest.responseLengthUsesAuthenticatedFixedCasRecordOnly"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1625,13 +1632,16 @@
     "AGENT-01.final-body-finalize",
     "AGENT-01.final-body-cancel",
     "AGENT-01.final-body-sink-cancel",
+    "AGENT-01.no-tool-final",
     "AGENT-02.mixed",
     "AGENT-02.mixed-tts",
+    "AGENT-02.unknown-tool",
     "AGENT-02.missing-id",
     "AGENT-02.duplicate-id",
     "AGENT-04.cloud-fixture",
     "AGENT-04.cloud-fixture-http",
     "AGENT-03.vision-cancel",
+    "AGENT-03.vision-success",
     "AGENT-03.tool-vision-cancel",
     "AGENT-03.tool-provider-cancel",
     "LIFE-02.power-cp-query",
@@ -1780,6 +1790,10 @@
     "RST-01.receipt-query.test_tls_failure_closes_query_before_receipt",
     "RST-01.receipt-query.test_receipt_is_not_repeated_when_output_is_busy",
     "OTA-01.transport.test_http_timeout",
-    "OTA-01.transport.test_reboot_prepare_commit"
+    "OTA-01.transport.test_reboot_prepare_commit",
+    "CFG-03.response-length-store",
+    "CFG-03.response-length-route",
+    "provision.DeviceControlProtocolTest.responseLengthReadbackRejectsTornOrUnappliedConfirmation",
+    "provision.DeviceControlProtocolTest.responseLengthUsesAuthenticatedFixedCasRecordOnly"
   ]
 }

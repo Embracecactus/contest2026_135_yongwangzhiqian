@@ -19,7 +19,7 @@ from pathlib import Path
 from test_nfc_rf_lifecycle import ROOT
 
 
-CASES = ("mixed", "mixed-tts", "missing-id", "duplicate-id", "vision-cancel")
+CASES = ("mixed", "mixed-tts", "no-tool-final", "unknown-tool", "missing-id", "duplicate-id", "vision-cancel", "vision-success")
 MUTATION = "mutant-executes-finalize"
 
 
@@ -76,7 +76,31 @@ int fixture_llm_chat_plan_checked(const char *, cJSON *, const char *,
 int fixture_llm_chat_tools_checked(const char *, cJSON *, const char *,
     llm_response_t *, int (*)(void *), void *);
 #endif
+#include <stdarg.h>
+struct stage_event { uint64_t request, mono_ms, value; int result; char stage[32]; };
+static struct stage_event stage_events[16];
+static unsigned stage_count;
+static void test_syslog(int priority, const char *format, ...)
+{
+    (void)priority;
+    char line[192];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(line, sizeof(line), format, args);
+    va_end(args);
+    if (strncmp(line, "[voice-stage] ", 14)) return;
+    assert(stage_count < sizeof(stage_events) / sizeof(stage_events[0]));
+    struct stage_event *event = &stage_events[stage_count++];
+    unsigned long long request, mono_ms, value;
+    assert(sscanf(line, "[voice-stage] request=%llu mono_ms=%llu stage=%31s value=%llu result=%d",
+        &request, &mono_ms, event->stage, &value, &event->result) == 5);
+    event->request = request;
+    event->mono_ms = mono_ms;
+    event->value = value;
+}
+#define syslog test_syslog
 #include "agent_loop_under_test.c"
+#undef syslog
 #ifdef TEST_MIXED_TTS
 #undef TAG
 #endif
@@ -94,6 +118,45 @@ static int request_canceled;
 static char spoken[128];
 static size_t spoken_size;
 #endif
+
+static void assert_stages(const char *const *expected, size_t count)
+{
+#ifdef TEST_MIXED_TTS
+    /* media_player includes voice_channel (and agent_trace.h) first, so the
+     * static helper binds to its existing syslog observer. Filter its real
+     * voice stages and assert the Agent subset without assuming a separate
+     * header instantiation. */
+    size_t found = 0;
+    uint64_t request = 0, previous_ms = 0;
+    pthread_mutex_lock(&test_stage_lock);
+    for (size_t n = 0; n < test_stage_count; n++) {
+        size_t expected_index = count;
+        for (size_t i = 0; i < count; i++)
+            if (!strcmp(test_stages[n].name, expected[i])) {
+                expected_index = i;
+                break;
+            }
+        if (expected_index == count) continue;
+        assert(found < count && expected_index == found);
+        assert(test_stages[n].request != 0);
+        if (found) assert(test_stages[n].request == request);
+        else request = test_stages[n].request;
+        if (found) assert(test_stages[n].ms >= previous_ms);
+        previous_ms = test_stages[n].ms;
+        found++;
+    }
+    pthread_mutex_unlock(&test_stage_lock);
+    assert(found == count);
+#else
+    assert(stage_count == count);
+    for (size_t i = 0; i < count; i++) {
+        assert(stage_events[i].request != 0);
+        if (i) assert(stage_events[i].request == stage_events[0].request);
+        assert(!strcmp(stage_events[i].stage, expected[i]));
+        if (i) assert(stage_events[i].mono_ms >= stage_events[i - 1].mono_ms);
+    }
+#endif
+}
 
 int llm_chat_vision(const char *prompt, const char *image_b64,
                     const char *mime_type, char *response_buf,
@@ -120,6 +183,10 @@ int llm_chat_vision_checked(const char *prompt, const char *image_b64,
     assert(response_buf != NULL && buf_size >= TOOL_OUTPUT_SIZE_MIN);
     assert(check != NULL && check(request_context) == 0);
     checked_vision_calls++;
+    if (!strcmp(scenario, "vision-success")) {
+        snprintf(response_buf, buf_size, "A complete visual answer.");
+        return 0;
+    }
     request_canceled = 1;
     assert(check(request_context) == -ECANCELED);
     return -ECANCELED;
@@ -153,6 +220,10 @@ int llm_chat_plan_checked(const char *system, cJSON *messages,
                           int (*check)(void *), void *request)
 {
     assert(system != NULL && strstr(system, "first use any necessary tools"));
+    if (!strcmp(scenario, "no-tool-final")) {
+        assert(strstr(system, "If no tools are needed and you can answer completely, "
+                             "return the complete final answer directly."));
+    }
     assert(tools != NULL && strstr(tools, "agent_finalize"));
     assert(check != NULL && check(request) == 0);
     memset(response, 0, sizeof(*response));
@@ -167,6 +238,19 @@ int llm_chat_plan_checked(const char *system, cJSON *messages,
 #endif
 
     if (planning_requests == 1) {
+        if (!strcmp(scenario, "no-tool-final")) {
+            response->tool_phase_complete = true;
+            response->text = strdup("Complete no-tool answer.");
+            assert(response->text != NULL);
+            response->text_len = strlen(response->text);
+            return 0;
+        }
+        if (!strcmp(scenario, "unknown-tool")) {
+            response->tool_use = true;
+            response->call_count = 1;
+            set_call(response, 0, "unknown-1", "not_registered");
+            return 0;
+        }
         response->tool_use = true;
         response->tool_phase_complete = true;
         response->call_count = 2;
@@ -183,6 +267,17 @@ int llm_chat_plan_checked(const char *system, cJSON *messages,
         return 0;
     }
 
+    if (!strcmp(scenario, "unknown-tool")) {
+        assert(planning_requests == 2 && cJSON_GetArraySize(messages) == 2);
+        assert_tool_result(cJSON_GetArrayItem(messages, 1), "unknown-1",
+                           "unknown tool");
+        assert(registry_calls == 1 && final_requests == 0);
+        response->tool_phase_complete = true;
+        response->text = strdup("Unknown-tool result retained.");
+        assert(response->text != NULL);
+        response->text_len = strlen(response->text);
+        return 0;
+    }
     assert(!strcmp(scenario, "mixed") || !strcmp(scenario, "mixed-tts"));
     assert(planning_requests == 2);
 #ifdef TEST_MIXED_TTS
@@ -262,6 +357,14 @@ int tool_registry_execute_checked(const char *name, const char *input,
                                   char *output, size_t output_size,
                                   int (*check)(void *), void *request)
 {
+    if (!strcmp(name, "not_registered")) {
+        assert(!strcmp(input, "{}"));
+        assert(check != NULL && check(request) == 0);
+        registry_calls++;
+        int length = snprintf(output, output_size, "{\"error\":\"unknown tool\"}");
+        assert(length > 0 && (size_t)length < output_size);
+        return -ENOENT;
+    }
     assert(!strcmp(name, "get_weather"));
     assert(!strcmp(input, "{}"));
     assert(check != NULL && check(request) == 0);
@@ -424,6 +527,20 @@ int main(void)
         puts("CONTRACT_PASS");
         return 0;
     }
+    if (!strcmp(scenario, "vision-success")) {
+        message.content = "describe image";
+        message.image_b64 = strdup("aW1hZ2U=");
+        assert(message.image_b64 != NULL);
+        char *text = handle_vision_message(&message);
+        assert(text != NULL && !strcmp(text, "A complete visual answer."));
+        assert(message.image_b64 == NULL);
+        assert(checked_vision_calls == 1 && legacy_vision_calls == 0);
+        assert(planning_requests == 0 && final_requests == 0 && registry_calls == 0);
+        free(text);
+        cJSON_Delete(messages);
+        puts("CONTRACT_PASS");
+        return 0;
+    }
 
     char *text = run_react_loop(
         "system", messages,
@@ -431,7 +548,36 @@ int main(void)
         "\"input_schema\":{\"type\":\"object\",\"properties\":{}}}]",
         tool_output, sizeof(tool_output), &message, &failure);
 
-    if (!strcmp(scenario, "mixed") || !strcmp(scenario, "mixed-tts")) {
+    if (!strcmp(scenario, "no-tool-final")) {
+#ifdef TEST_MIXED_TTS
+        assert(failure == 0 && text != NULL &&
+               !strcmp(text, "Complete no-tool answer."));
+        assert(planning_requests == 1 && registry_calls == 0 && final_requests == 0);
+        test_history_count = test_cancel_at_history = 0;
+        assert(message_bus_reply_with_history(&message, text, 0, test_history) == 0);
+        text = NULL;
+        assert(test_history_count == 1 && s_voice.reply_committed);
+        assert(test_synth_calls == 1 &&
+               !strcmp(test_spoken[0], "Complete no-tool answer."));
+        assert(test_opens == 1 && test_drains == 1 && test_closes == 1);
+        assert(voice_channel_is_idle());
+        assert(llm_clear_transport() == 0);
+        const char *const expected[] = {"plan_request", "plan_response"};
+        assert_stages(expected, 2);
+#else
+        abort();
+#endif
+    } else if (!strcmp(scenario, "unknown-tool")) {
+        assert(failure == 0 && text != NULL &&
+               !strcmp(text, "Unknown-tool result retained."));
+        assert(planning_requests == 2 && registry_calls == 1 && final_requests == 0);
+#ifdef TEST_MIXED_TTS
+        abort();
+#else
+        assert(begin_events == 1 && delta_events == 1 && !strcmp(spoken, text));
+#endif
+        assert(cJSON_GetArraySize(messages) == 2);
+    } else if (!strcmp(scenario, "mixed") || !strcmp(scenario, "mixed-tts")) {
 #ifdef TEST_MIXED_TTS
         assert(failure == 0 && text != NULL &&
                !strcmp(text, "你好，这是第一句。这是尾句"));
@@ -450,6 +596,11 @@ int main(void)
         assert(failure == 0 && text != NULL && !strcmp(text, "Mixed final."));
         assert(planning_requests == 2 && registry_calls == 1 && final_requests == 1);
         assert(begin_events == 1 && delta_events == 1 && !strcmp(spoken, text));
+        const char *const expected[] = {
+            "plan_request", "plan_response", "tool_start", "tool_result",
+            "plan_request", "plan_response", "final_request", "final_response",
+        };
+        assert_stages(expected, sizeof(expected) / sizeof(expected[0]));
 #endif
 #ifdef TEST_MIXED_TTS
         assert(cJSON_GetArraySize(messages) == 6);
@@ -509,7 +660,7 @@ def build_and_run(case: str) -> tuple[bool, subprocess.CompletedProcess[str]]:
             "-o",
             str(temp / "probe"),
         ]
-        if case == "mixed-tts":
+        if case in ("mixed-tts", "no-tool-final"):
             command.extend([
                 str(agent / "src/llm/llm_proxy.c"),
                 str(agent / "src/llm/llm_parse.c"),
