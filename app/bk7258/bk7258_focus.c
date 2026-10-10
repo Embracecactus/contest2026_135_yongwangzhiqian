@@ -25,6 +25,9 @@ static uint64_t remaining(uint64_t now)
 unsigned bkfocus_visual(uint64_t now)
 {
   if (g_focus.state < 1 || g_focus.state > 3) return 0;
+  /* Completion remains queryable, but its visual must expire. */
+  if (g_focus.state == 3 && now >= g_focus.deadline &&
+      now - g_focus.deadline >= 5000) return 0;
   return (g_focus.state << 8) | bkfocus_segments(g_focus.duration, remaining(now));
 }
 int bkfocus_step(uint64_t now)

@@ -29,8 +29,21 @@ static void scan(struct bkcloud_fixture_ctx_s *ctx, const uint8_t *data, size_t 
 static int make_reply(struct bkcloud_fixture_ctx_s *ctx)
 {
   const char *body;
+  char recognized[256];
   if (ctx->role == BKCLOUD_FIXTURE_ASR)
-    body = "{\"choices\":[{\"index\":0,\"finish_reason\":\"stop\",\"message\":{\"content\":\"固定识别文本\",\"tool_calls\":[]}}]}";
+    {
+      static const char *const focus[] =
+        {"开始专注60秒", "专注还剩多久？", "暂停专注", "继续专注",
+         "取消当前专注计时", "开始专注1秒"};
+      const char *text = ctx->mode >= BKCLOUD_FIXTURE_FOCUS_START &&
+                         ctx->mode <= BKCLOUD_FIXTURE_FOCUS_FINISH ?
+                         focus[ctx->mode - BKCLOUD_FIXTURE_FOCUS_START] :
+                         "固定识别文本";
+      snprintf(recognized, sizeof(recognized),
+        "{\"choices\":[{\"index\":0,\"finish_reason\":\"stop\","
+        "\"message\":{\"content\":\"%s\",\"tool_calls\":[]}}]}", text);
+      body = recognized;
+    }
   else if (ctx->role == BKCLOUD_FIXTURE_TTS)
     {
       const char *quad = (g_report.tts_requests & 1u) ? "AgAC" : "AQAB";
@@ -150,7 +163,7 @@ int bkcloud_fixture_cancel(struct bkcloud_fixture_ctx_s *ctx)
 int bkcloud_fixture_end(struct bkcloud_fixture_ctx_s *ctx)
 { return ctx ? (ctx->opened ? -EBUSY : 0) : -EINVAL; }
 int bkcloud_fixture_reset(enum bkcloud_fixture_mode_e mode)
-{ if (mode > BKCLOUD_FIXTURE_CANCEL_TAIL) return -EINVAL;
+{ if (mode > BKCLOUD_FIXTURE_FOCUS_FINISH) return -EINVAL;
   pthread_mutex_lock(&g_lock); if (g_active) { pthread_mutex_unlock(&g_lock); return -EBUSY; }
   memset(&g_report, 0, sizeof(g_report)); g_media_started = false; g_mode = mode;
   pthread_mutex_unlock(&g_lock); return 0; }

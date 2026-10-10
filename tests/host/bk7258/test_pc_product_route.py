@@ -14,10 +14,28 @@ if __name__ == "__main__":
     body = function(source, "product_config")
     response_length = function(source, "product_response_length")
     task_step = function(source, "product_pc_task_step")
-    visual_start = source.index("      bk7258_display_focus(bkpc_tasks_visual(")
+    focus_source = (ROOT / "app/bk7258/bk7258_agent_focus.inc").read_text()
+    focus_start = focus_source.index("static unsigned int product_focus_visual(")
+    focus_open = focus_source.index("{", focus_start)
+    focus_depth = 0
+    for focus_end in range(focus_open, len(focus_source)):
+        if focus_source[focus_end] == "{":
+            focus_depth += 1
+        elif focus_source[focus_end] == "}":
+            focus_depth -= 1
+            if focus_depth == 0:
+                focus_end += 1
+                break
+    else:
+        raise RuntimeError("product_focus_visual body changed")
+    focus_visual = focus_source[focus_start:focus_end]
+    visual_start = source.index("      bk7258_display_focus(product_focus_visual(")
     visual_statement = source[visual_start : source.index(";", visual_start) + 1]
     visual_step = (
-        "static void product_visual_test(uint64_t now) {" + visual_statement + "}"
+        "static void product_visual_test(uint64_t now) {"
+        "bool focus_idle = !atomic_load(&g_voice_initialized) || "
+        "voice_channel_is_idle();"
+        + visual_statement + "}"
     )
 
     start = source.index("struct agent_config_workspace_s\n")
@@ -30,11 +48,18 @@ if __name__ == "__main__":
 #include "bk7258_pc_grants.h"
 #include "bk7258_preferences.h"
 #include "bk7258_agent_cloud.h"
+#include "bk7258_focus_intent.h"
+#include "bk7258_focus_pixels.h"
+#include <pthread.h>
 static struct bkpc_tasks_s g_pc_tasks;
 static unsigned painted, focus_visual;
 static bool voice_idle=true;
 #define voice_channel_is_idle() voice_idle
 #define bkfocus_visual(now) focus_visual
+static pthread_mutex_t g_focus_feedback_lock = PTHREAD_MUTEX_INITIALIZER;
+static struct bkfocus_intent_status_s g_focus_feedback;
+static uint64_t g_focus_feedback_until;
+static unsigned int g_focus_feedback_state;
 #define bk7258_display_focus(value) (painted=(value))
 #include <mbedtls/platform_util.h>
 static bool g_identity_bound=true, g_control_bound, g_save_first, g_configured;
@@ -108,6 +133,7 @@ static int product_test_pc_snapshot(void *context, uint64_t *binding,
         code = code.replace(
             "int main(int argc,char **argv)",
             prefix
+            + focus_visual
             + visual_step
             + task_step
             + "\n"

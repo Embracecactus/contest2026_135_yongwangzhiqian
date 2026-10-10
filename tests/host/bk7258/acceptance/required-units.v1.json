@@ -895,7 +895,9 @@
     "CFG-03.response-length-store",
     "CFG-03.response-length-route",
     "provision.DeviceControlProtocolTest.responseLengthReadbackRejectsTornOrUnappliedConfirmation",
-    "provision.DeviceControlProtocolTest.responseLengthUsesAuthenticatedFixedCasRecordOnly"
+    "provision.DeviceControlProtocolTest.responseLengthUsesAuthenticatedFixedCasRecordOnly",
+    "TIMER-01.intent-text",
+    "TIMER-01.voice-text"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1794,6 +1796,8 @@
     "CFG-03.response-length-store",
     "CFG-03.response-length-route",
     "provision.DeviceControlProtocolTest.responseLengthReadbackRejectsTornOrUnappliedConfirmation",
-    "provision.DeviceControlProtocolTest.responseLengthUsesAuthenticatedFixedCasRecordOnly"
+    "provision.DeviceControlProtocolTest.responseLengthUsesAuthenticatedFixedCasRecordOnly",
+    "TIMER-01.intent-text",
+    "TIMER-01.voice-text"
   ]
 }

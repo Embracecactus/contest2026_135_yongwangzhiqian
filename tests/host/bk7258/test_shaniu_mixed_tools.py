@@ -654,6 +654,8 @@ def build_and_run(case: str) -> tuple[bool, subprocess.CompletedProcess[str]]:
             "-I",
             str(agent / "src"),
             "-I",
+            str(ROOT / "app/bk7258"),
+            "-I",
             str(cjson),
             str(temp / "probe.c"),
             str(cjson / "cJSON.c"),
@@ -666,6 +668,8 @@ def build_and_run(case: str) -> tuple[bool, subprocess.CompletedProcess[str]]:
                 str(agent / "src/llm/llm_parse.c"),
                 str(agent / "src/llm/llm_stream.c"),
                 str(agent / "src/core/message_bus.c"),
+                str(ROOT / "app/bk7258/bk7258_focus.c"),
+                str(ROOT / "app/bk7258/bk7258_focus_intent.c"),
             ])
             command.remove("-o")
             command.remove(str(temp / "probe"))

@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <stdio.h>
+#include <string.h>
+#include <syslog.h>
 #define BKDISPLAY_CANVAS_WIDTH 160
 #define BKDISPLAY_CANVAS_HEIGHT 160
 #define BKDISPLAY_CANVAS_PIXELS (160*160)
@@ -17,8 +19,9 @@ struct bkdisplay_service_s {
   uint16_t *frames[1]; unsigned focus_painted; bool speaking_painted;
 };
 static int writes, fail_right, fallback;
+static uint16_t observed[160*160];
 static int bkdisplay_framebuffer_write(const char *path, const uint16_t *pixels)
-{ assert(pixels); writes++; return path[0]=='r' && fail_right ? -EIO : 0; }
+{ assert(pixels); memcpy(observed, pixels, sizeof(observed)); writes++; return path[0]=='r' && fail_right ? -EIO : 0; }
 static int bkdisplay_builtin_locked(struct bkdisplay_service_s *s, bool b)
 { (void)s; assert(b); fallback++; return 0; }
 #include "bk7258_display_focus.inc"
@@ -49,5 +52,9 @@ int main(void)
       assert(bkdisplay_focus_present_locked(&service,state<<8)==0);
       assert(writes==before+2);
     }
+  /* A current 65-second snapshot displays 1:05, through both framebuffers. */
+  assert(bkdisplay_focus_present_locked(&service,0x81000041u)==0);
+  assert(observed[(80-5)*160+80-16]==0x07e0);
+  assert(bkdisplay_focus_present_locked(&service,0)==0);
   puts("CONTRACT_PASS");return 0;
 }

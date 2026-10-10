@@ -363,6 +363,84 @@ static int product_pipeline_response_length(unsigned int mode)
 /* This calls the real manual voice owner and Agent service worker. Only the
  * external services are fixed memory responses. Mic samples are erased by the
  * capture owner; the ASR adapter substitutes deterministic PCM before encode. */
+/* Reuses the existing controlled ASR peer; recognized text traverses the
+ * actual voice dispatch, product guard, intent queue and owner timer. */
+static int product_focus_validation(void)
+{
+  struct bkfocus_intent_status_s status;
+  static const unsigned int expected[] = {1, 1, 2, 1, 4, 1};
+  bkfocus_intent_status(&status);
+  if (status.timer.state == 1 || status.timer.state == 2) return -EBUSY;
+  int result = 0;
+  for (unsigned int i = 0; i < sizeof(expected) / sizeof(expected[0]); i++)
+    {
+      atomic_store(&g_pipeline_complete, false);
+      atomic_store(&g_pipeline_result, -EINPROGRESS);
+      result = bkagent_cloud_validation_reset(0);
+      if (!result) result = bkcloud_fixture_reset(
+        BKCLOUD_FIXTURE_FOCUS_START + i);
+      if (!result) result = voice_channel_start();
+      if (!result)
+        {
+          nxsig_usleep(250000);
+          result = voice_channel_stop();
+        }
+      struct bkcloud_fixture_report_s peer;
+      bkcloud_fixture_report(&peer);
+      bkfocus_intent_status(&status);
+      if (!result && (!atomic_load(&g_pipeline_complete) ||
+          atomic_load(&g_pipeline_result) || !voice_channel_is_idle() ||
+          status.timer.state != expected[i] || peer.asr_requests != 1 ||
+          peer.plan_requests || peer.final_requests || peer.tts_requests))
+        result = -EPROTO;
+      unsigned visual = product_focus_visual(bkvoice_config_now_ms(NULL),
+                                             true, 0);
+      syslog(LOG_NOTICE,
+        "BKFOCUS validation=%u result=%d state=%u phase=%u revision=%llu "
+        "remaining_ms=%llu observed_ms=%llu visual=%08x "
+        "asr=%u plan=%u final=%u tts=%u idle=%d\n", i, result,
+        status.timer.state, status.phase,
+        (unsigned long long)status.timer.revision,
+        (unsigned long long)status.timer.remaining_ms,
+        (unsigned long long)status.observed_ms, visual, peer.asr_requests,
+        peer.plan_requests, peer.final_requests, peer.tts_requests,
+        voice_channel_is_idle());
+      if (result) break;
+    }
+  if (!result)
+    {
+      /* The last one-second timer completes on the existing owner. */
+      nxsig_usleep(1200000);
+      bkfocus_intent_status(&status);
+      if (status.timer.state != 3) result = -EPROTO;
+      syslog(LOG_NOTICE, "BKFOCUS completed result=%d state=%u\n", result,
+             status.timer.state);
+      nxsig_usleep(5100000);
+      bkfocus_intent_status(&status);
+      unsigned visual = product_focus_visual(bkvoice_config_now_ms(NULL),
+                                             true, status.visual);
+      if (visual) result = -EPROTO;
+      syslog(LOG_NOTICE, "BKFOCUS expired result=%d visual=%08x\n", result,
+             visual);
+    }
+  /* Do not leave a validation-created pending/running timer after failure.
+   * The normal owner applies this cleanup; never erase user configuration. */
+  if (result)
+    {
+      (void)voice_channel_cancel();
+      bkfocus_intent_status(&status);
+      if (status.phase == 1) (void)bkfocus_intent_cancel(status.id);
+      if (status.timer.state == 1 || status.timer.state == 2)
+        {
+          uint32_t cleanup;
+          (void)bkfocus_intent_submit(4, 0, &cleanup);
+          sem_post(&g_product_wake);
+        }
+    }
+  atomic_store(&g_focus_local_done, false);
+  return result;
+}
+
 static int product_pipeline_validation(void)
 {
   if (atomic_load(&g_agent_core_ready) || !voice_channel_is_idle() ||
@@ -454,6 +532,7 @@ static int product_pipeline_validation(void)
                  voice_channel_is_idle());
         }
     }
+  if (!result) result = product_focus_validation();
   int restored = bkagent_cloud_validation_end();
   uint64_t restore_deadline = bkvoice_config_now_ms(NULL) + 3000;
   int preference_restored;
