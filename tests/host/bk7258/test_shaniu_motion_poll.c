@@ -23,6 +23,14 @@ int main(int argc, char **argv)
   worker_timeouts = 1;
   drain_worker();
   assert(opens == 1 && closes == 1 && !fd_live);
+  struct bkmotion_metrics_s timing;
+  assert(bk7258_motion_service_metrics(NULL) == -EINVAL);
+  assert(bk7258_motion_service_metrics(&timing) == 0);
+  assert(timing.collections == 1 && timing.open_us == 12000);
+  assert(timing.read_us == 0 && timing.close_us == 0);
+  assert(timing.total_us == 12000);
+  assert(opens == 1 && reads == 1 && closes == 1);
+
   if (!strcmp(argv[1], "late"))
     assert(bk7258_motion_service_snapshot(&sample) == -ENODATA);
   else
