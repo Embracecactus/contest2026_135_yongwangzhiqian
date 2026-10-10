@@ -946,7 +946,11 @@
     "provision.DeviceControlProtocolTest.responseLengthReadbackRejectsTornOrUnappliedConfirmation",
     "provision.DeviceControlProtocolTest.responseLengthUsesAuthenticatedFixedCasRecordOnly",
     "TIMER-01.intent-text",
-    "TIMER-01.voice-text"
+    "TIMER-01.voice-text",
+    "USB-01.ota-write-classification",
+    "MOT-02.motion_poll.reuse",
+    "MOT-02.motion_poll.reuse-quiesce",
+    "MOT-02.motion_poll.reuse-close-error"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1896,6 +1900,10 @@
     "provision.DeviceControlProtocolTest.responseLengthReadbackRejectsTornOrUnappliedConfirmation",
     "provision.DeviceControlProtocolTest.responseLengthUsesAuthenticatedFixedCasRecordOnly",
     "TIMER-01.intent-text",
-    "TIMER-01.voice-text"
+    "TIMER-01.voice-text",
+    "USB-01.ota-write-classification",
+    "MOT-02.motion_poll.reuse",
+    "MOT-02.motion_poll.reuse-quiesce",
+    "MOT-02.motion_poll.reuse-close-error"
   ]
 }
