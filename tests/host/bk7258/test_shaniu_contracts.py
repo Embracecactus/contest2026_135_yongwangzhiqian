@@ -1016,7 +1016,8 @@ def main():
             [HERE / "build/test_shaniu_motion_actions", variant],
             binaries["test_shaniu_motion_actions"])
     for target, variants in (
-        ("motion_poll", ("sample", "late", "read-error", "quiesce")),
+        ("motion_poll", ("sample", "late", "read-error", "quiesce",
+                         "reuse", "reuse-quiesce", "reuse-close-error")),
         ("companion_display", ("gate", "expire", "cancel", "preempt",
                                "new-default", "rollback", "failure", "activity")),
         ("haptic_product", ("limit", "pulse", "cancel-pending", "cancel-active",
