@@ -111,7 +111,7 @@ enum bkcontrol_command_e
 /* RLP1 CAS request / RLS1 durable preference readback (32 / 24 bytes). */
 #define BKCONTROL_CONFIG_RESPONSE_LENGTH 21u
 /* CCQ1/CCS1 one explicitly authorized on-demand camera frame. */
-#define BKCONTROL_CONFIG_CAMERA 21u
+#define BKCONTROL_CONFIG_CAMERA 23u
 #define BKCONTROL_CONFIG_CAMERA_FRAME 22u
 #define BKCONTROL_CONFIG_CAPABILITIES 0x7fffu
 #define BKCONTROL_CONFIG_RECORD_MAX (140u + 65536u) /* WKM2 显式前端字段 */

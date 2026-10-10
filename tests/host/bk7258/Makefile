@@ -2270,5 +2270,5 @@ $(BUILD)/test_agent_audio_playback: test_agent_audio_playback.c \
 	    $< $(OPENVELA_ROOT)/packages/ai_agent/src/voice/audio_playback.c \
 	    -Wl,--wrap=write,--wrap=fcntl,--wrap=clock_gettime,--wrap=usleep,--wrap=sem_clockwait -o $@
 
-$(BUILD)/test_pc_camera: test_pc_camera.c $(VOICE_PACK_ROOT)/bk7258_pc_camera.c $(VOICE_PACK_ROOT)/bk7258_pc_camera.h | $(BUILD)
+$(BUILD)/test_pc_camera: test_pc_camera.c $(VOICE_PACK_ROOT)/bk7258_pc_camera.c $(VOICE_PACK_ROOT)/bk7258_pc_camera.h $(VOICE_PACK_ROOT)/bk7258_control_session.h | $(BUILD)
 	$(CC) $(CFLAGS) -Werror -pthread -D_POSIX_C_SOURCE=200809L -DCONFIG_BK7258_VISION_FPS=30 -Dclock_gettime=fixture_clock_gettime -I$(MOCKS) -I$(VOICE_PACK_ROOT) $(filter %.c,$^) -o $@

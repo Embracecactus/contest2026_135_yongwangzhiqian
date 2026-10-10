@@ -64,6 +64,12 @@ static void snapshot(uint8_t *out)
 int main(void)
 {
   uint8_t view[80], selector[16] = {0}; struct bkcontrol_status_s status;
+  /* Kind 21 is the already published phone response-length CAS contract.
+   * Camera transport must not overload that global CONFIG namespace.
+   */
+  assert(BKCONTROL_CONFIG_CAMERA != 21u);
+  assert(BKCONTROL_CONFIG_CAMERA_FRAME != 21u);
+  assert(BKCONTROL_CONFIG_CAMERA != BKCONTROL_CONFIG_CAMERA_FRAME);
   assert(request(1, 0) == -EBUSY); assert(captures == 0);
   bkcamera_step(now, true); assert(request(1, 0) == 0); assert(wakes == 1);
   assert(request(1, 0) == -ESTALE); snapshot(view); assert(get(view + 4, 4) == 1);
