@@ -39,8 +39,13 @@ enum bkhealth_rpc_command_e
    * All health fields remain empty. STATUS wire semantics are unchanged.
    */
   BKHEALTH_RPC_POWER_STATUS = 2,
+  /* Read-only heap snapshot; reserved[] carries allocated/free bytes.
+   * The existing worker logs bounded resource statistics, with no device I/O.
+   */
+  BKHEALTH_RPC_RESOURCES = 3,
   BKHEALTH_RPC_RESPONSE = 0x8000,
   BKHEALTH_RPC_POWER_RESPONSE = 0x8001,
+  BKHEALTH_RPC_RESOURCES_RESPONSE = 0x8002,
 };
 
 /* These values intentionally mirror the stable NuttX battery_status_e ABI.

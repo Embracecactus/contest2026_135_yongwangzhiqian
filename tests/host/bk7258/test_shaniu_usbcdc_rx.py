@@ -119,6 +119,9 @@ class CdcRxTest(unittest.TestCase):
             )
         ]
         code = PREFIX + constants + "\n" + structs
+        header = (ROOT / "chips/bk7258/include/bk7258_usbcdc.h").read_text()
+        start = header.index("struct bk7258_usbcdc_snapshot_s\n")
+        code += header[start : header.index("};", start) + 2] + "\n"
         code += "\nstatic struct bk7258_usbcdc_priv_s g_bk7258_usbcdc;\n"
         for name in [
             "ring_used",
@@ -134,6 +137,7 @@ class CdcRxTest(unittest.TestCase):
         ]:
             code += definition(source, "bk7258_usbcdc_" + name) + "\n"
         code += definition(SERIAL.read_text(), "uart_recvchars")
+        code += definition(source, "bk7258_usbcdc_snapshot")
         binding = "\n".join(
             re.findall(
                 r"^\s*priv->uartdev\.recv\.(?:size|buffer)\s*=[^;]+;", source, re.M
@@ -141,7 +145,18 @@ class CdcRxTest(unittest.TestCase):
         )
         assert binding.count(";") == 2
         code += SUFFIX.replace("/* REAL_RX_BINDING */", binding)
-        code += "\nint main(void){" + body + "\nassert(!irq_depth);return 0;}\n"
+        code += "\nint main(void){" + body + r"""
+        struct bk7258_usbcdc_snapshot_s snapshot;
+        int before = arms;
+        uint16_t head = g_bk7258_usbcdc.rx.head, tail = g_bk7258_usbcdc.rx.tail;
+        assert(bk7258_usbcdc_snapshot(NULL) == -EINVAL);
+        assert(bk7258_usbcdc_snapshot(&snapshot) == 0);
+        assert(snapshot.rx_queued == (uint16_t)(head - tail));
+        assert(snapshot.rx_bytes == g_bk7258_usbcdc.rx_bytes);
+        assert(arms == before && head == g_bk7258_usbcdc.rx.head &&
+               tail == g_bk7258_usbcdc.rx.tail);
+        assert(!irq_depth);return 0;}
+        """
         with tempfile.TemporaryDirectory(prefix="cdc-rx-") as td:
             path = Path(td)
             (path / "case.c").write_text(code)

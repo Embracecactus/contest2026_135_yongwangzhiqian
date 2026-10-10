@@ -13,6 +13,8 @@
 struct bkdisplay_service_s {
   pthread_mutex_t lock;
   struct bkdisplay_service_status_s status;
+  unsigned int power_overlay;
+  char claim_qr[108];
 };
 static struct bkdisplay_service_s g_bkdisplay_service = {
   .lock = PTHREAD_MUTEX_INITIALIZER
@@ -62,6 +64,19 @@ int main(void)
   bkdisplay_unlock(service);
   assert(bk7258_display_get_status(&observed) == 0);
   assert(observed.render_sequence == 8 && !strcmp(observed.pack_id, "unfinished-pack"));
+  pthread_mutex_lock(&service->lock);
+  service->claim_qr[0] = 'S';
+  bkdisplay_unlock(service);
+  assert(bk7258_display_get_status(&observed) == 0 && observed.overlay == 1);
+  pthread_mutex_lock(&service->lock);
+  service->power_overlay = 1;
+  bkdisplay_unlock(service);
+  assert(bk7258_display_get_status(&observed) == 0 && observed.overlay == 2);
+  pthread_mutex_lock(&service->lock);
+  service->power_overlay = 0;
+  service->claim_qr[0] = 0;
+  bkdisplay_unlock(service);
+  assert(bk7258_display_get_status(&observed) == 0 && observed.overlay == 0);
   close(result_pipe[0]); close(result_pipe[1]);
   puts("CONTRACT_PASS");
   return 0;

@@ -9,6 +9,8 @@ static struct bkdisplay_service_status_s g_bkdisplay_snapshot;
 
 static void bkdisplay_unlock(struct bkdisplay_service_s *service)
 {
+  service->status.overlay = service->power_overlay ? 2 :
+                            (service->claim_qr[0] ? 1 : 0);
   irqstate_t flags = spin_lock_irqsave(&g_bkdisplay_snapshot_lock);
   g_bkdisplay_snapshot = service->status;
   spin_unlock_irqrestore(&g_bkdisplay_snapshot_lock, flags);

@@ -380,6 +380,21 @@ static void test_response_validation_rejects_malformed_wire(void)
 
 int main(void)
 {
+  {
+    struct bkhealth_rpc_request_s request = make_request();
+    struct bkhealth_rpc_response_s response;
+    struct bkhealth_fixture_s fixture = {0};
+
+    /* Read-only resource query must not acquire ADC or resample peripherals. */
+    request.command = 3;
+    assert(bkhealth_rpc_handle_request(&request, &response,
+                                      &g_source_ops, &fixture) == 0);
+    assert(fixture.open_calls == 0 && fixture.temperature_calls == 0);
+    assert(response.command == 0x8002);
+    assert(bkhealth_rpc_response_valid(&response));
+    response.flags = BKHEALTH_FLAG_BATTERY_STATE_VALID;
+    assert(!bkhealth_rpc_response_valid(&response));
+  }
   test_request_validation();
   test_complete_snapshot();
   test_partial_snapshot_keeps_raw_only();
