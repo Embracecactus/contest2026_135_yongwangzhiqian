@@ -18,7 +18,7 @@
 
 static void bkhealth_usage(void)
 {
-  fprintf(stderr, "usage: bkhealth status|power\n");
+  fprintf(stderr, "usage: bkhealth status|power|resources\n");
 }
 
 static const char *bkhealth_battery_state_name(uint32_t state)
@@ -158,7 +158,24 @@ int main(int argc, char **argv)
 {
   int ret;
 
-  if (argc == 2 && strcmp(argv[1], "status") == 0)
+  if (argc == 2 && strcmp(argv[1], "resources") == 0)
+    {
+      struct bkhealth_rpc_request_s request =
+        { .command = BKHEALTH_RPC_RESOURCES };
+      struct bkhealth_rpc_response_s response;
+
+      ret = bkhealth_rpc_exchange(&request, &response,
+                                  BKHEALTH_RPC_REPLY_WAIT_MS);
+      if (ret == 0) ret = response.rpc_status;
+      if (ret == 0) ret = response.operation_status;
+      if (ret == 0)
+        printf("BKHEALTH RESOURCES AP used=%lu free=%lu\n",
+               (unsigned long)response.reserved[0],
+               (unsigned long)response.reserved[1]);
+      else
+        fprintf(stderr, "BKHEALTH RESOURCES unavailable=%d\n", ret);
+    }
+  else if (argc == 2 && strcmp(argv[1], "status") == 0)
     {
       ret = bkhealth_status();
     }

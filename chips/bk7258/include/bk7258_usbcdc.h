@@ -73,6 +73,20 @@ int bk7258_usbcdc_initialize_with_config(
   FAR const struct bk7258_usbcdc_config_s *config);
 int bk7258_usbcdc_uninitialize(void);
 
+/* Metadata only: no endpoint submission, descriptor open or queue drain. */
+
+struct bk7258_usbcdc_snapshot_s
+{
+  uint32_t flags; /* configured, opened, quarantined, RX pending, TX pending */
+  uint32_t rx_bytes;
+  uint32_t tx_bytes;
+  uint32_t rx_queued;
+  uint32_t tx_queued;
+  int32_t rx_error;
+};
+
+int bk7258_usbcdc_snapshot(FAR struct bk7258_usbcdc_snapshot_s *snapshot);
+
 #endif /* CONFIG_BK7258_USBCDC && CONFIG_BK7258_AP_CORE */
 
 #ifdef __cplusplus

@@ -116,6 +116,9 @@ struct bk7258_usbcdc_priv_s
   bool serial_registered;
   bool opened;
   bool quarantined;
+  uint32_t rx_bytes;
+  uint32_t tx_bytes;
+  int rx_error;
   struct bk7258_usbcdc_config_s config;
 };
 
@@ -304,6 +307,7 @@ static void bk7258_usbcdc_arm_rx(void)
   priv->rx_pending = true;
   ret = usbd_ep_start_read(priv->config.ep_bulk_out, priv->rxbuf,
                           sizeof(priv->rxbuf));
+  priv->rx_error = ret;
   if (ret < 0)
     {
       priv->rx_pending = false;
@@ -436,6 +440,7 @@ static void bk7258_usbcdc_ep_out_cb(uint8_t ep, uint32_t nbytes)
     {
       (void)bk7258_usbcdc_ring_push(&priv->rx, priv->rxbuf[i]);
     }
+  priv->rx_bytes += nbytes;
 
   if (priv->rx_enabled)
     {
@@ -461,6 +466,8 @@ static void bk7258_usbcdc_ep_in_cb(uint8_t ep, uint32_t nbytes)
     }
 
   priv->tx_pending = false;
+
+  priv->tx_bytes += nbytes;
 
   /* Upper-half TX interrupts may already be disabled because its queue was
    * drained into our FIFO. That must not strand the accepted lower bytes.
@@ -707,6 +714,31 @@ int bk7258_usbcdc_initialize(void)
 {
   return bk7258_usbcdc_initialize_with_config(
     &g_bk7258_usbcdc_default_config);
+}
+
+int bk7258_usbcdc_snapshot(FAR struct bk7258_usbcdc_snapshot_s *snapshot)
+{
+  FAR struct bk7258_usbcdc_priv_s *priv = &g_bk7258_usbcdc;
+  irqstate_t flags;
+
+  if (snapshot == NULL)
+    {
+      return -EINVAL;
+    }
+
+  flags = enter_critical_section();
+  snapshot->flags = (priv->configured ? 1u : 0u) |
+                    (priv->opened ? 2u : 0u) |
+                    (priv->quarantined ? 4u : 0u) |
+                    (priv->rx_pending ? 8u : 0u) |
+                    (priv->tx_pending ? 16u : 0u);
+  snapshot->rx_bytes = priv->rx_bytes;
+  snapshot->tx_bytes = priv->tx_bytes;
+  snapshot->rx_queued = bk7258_usbcdc_ring_used(&priv->rx);
+  snapshot->tx_queued = bk7258_usbcdc_ring_used(&priv->tx);
+  snapshot->rx_error = priv->rx_error;
+  leave_critical_section(flags);
+  return 0;
 }
 
 int bk7258_usbcdc_initialize_with_config(

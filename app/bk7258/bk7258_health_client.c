@@ -408,6 +408,8 @@ int bkhealth_rpc_exchange(struct bkhealth_rpc_request_s *request,
   client->waiting_sequence = request->sequence;
   client->waiting_command = request->command == BKHEALTH_RPC_POWER_STATUS ?
                             BKHEALTH_RPC_POWER_RESPONSE : BKHEALTH_RPC_RESPONSE;
+  if (request->command == BKHEALTH_RPC_RESOURCES)
+    client->waiting_command = BKHEALTH_RPC_RESOURCES_RESPONSE;
   client->reply_valid = false;
   spin_unlock_irqrestore(&client->reply_lock, flags);
 

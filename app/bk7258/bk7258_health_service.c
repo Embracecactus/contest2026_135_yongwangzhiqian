@@ -40,6 +40,8 @@
 
 #define BKHEALTH_REFRESH_MS 60000u
 
+#include "bk7258_health_resources.inc"
+
 struct bkhealth_source_context_s
 {
   int battery_fd;
@@ -331,6 +333,9 @@ static int bkhealth_worker(int argc, char **argv)
                                         &server->source);
       if (request.command == BKHEALTH_RPC_STATUS)
         bkhealth_publish_snapshot(server, &response);
+      else if (request.command == BKHEALTH_RPC_RESOURCES &&
+               response.rpc_status == 0 && response.operation_status == 0)
+        bkhealth_resources(&response);
 
       flags = spin_lock_irqsave(&server->request_lock);
       memcpy(&server->last_request, &request, sizeof(request));

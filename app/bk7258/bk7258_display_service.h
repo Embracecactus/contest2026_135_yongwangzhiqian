@@ -26,6 +26,7 @@ enum bkdisplay_service_state_e
 
 struct bkdisplay_service_status_s
 {
+  uint8_t overlay; /* 0 none, 1 claim, 2 power; no QR or identity bytes. */
   enum bkdisplay_service_state_e state;
   int last_error;
   bool physical_mapping_verified;
