@@ -614,6 +614,7 @@ static audio_capture_t capture;
 static pthread_mutex_t peer_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t peer_changed = PTHREAD_COND_INITIALIZER;
 static int read_entered, release_read, peer_result, aborts, closes, recognizes;
+static size_t endpoint_samples, endpoint_sent;
 static struct {
  pthread_mutex_t lock;
  int state, turn_active, preconnect_active, canceled, wake_ack_pending;
@@ -642,9 +643,21 @@ static int wake_ack_gate(audio_capture_t *c, uint64_t id,
  unsigned char **r, size_t *n) { (void)c; (void)id; (void)r; (void)n; return 0; }
 static int process_audio_chunk(voice_asr_stream_t **s, const unsigned char *p,
  size_t n, int *fallback, size_t *sent)
-{ (void)s; (void)p; (void)n; (void)fallback; (void)sent; return 0; }
+{ (void)s; (void)p; (void)fallback; (void)sent; endpoint_sent += n; return 0; }
 static int audio_capture_read(audio_capture_t *cap, void *buf, size_t n) {
- (void)cap; (void)buf; (void)n;
+ (void)cap;
+ if (s_voice.auto_endpoint) {
+  assert(n == 640 && endpoint_samples < 48000);
+  int16_t *pcm = buf;
+  for (size_t i = 0; i < n / 2; i++) {
+   size_t at = endpoint_samples + i;
+   /* Slow speech, a 600 ms internal pause, then a spoken continuation. */
+   int speech = (at >= 3200 && at < 12800) || (at >= 22400 && at < 27200);
+   pcm[i] = (i & 1 ? 1 : -1) * (speech ? 200 : 8);
+  }
+  endpoint_samples += n / 2;
+  return (int)n;
+ }
  pthread_mutex_lock(&peer_lock); read_entered = 1; pthread_cond_broadcast(&peer_changed);
  while (!release_read) pthread_cond_wait(&peer_changed, &peer_lock);
  pthread_mutex_unlock(&peer_lock); return peer_result;
@@ -667,6 +680,11 @@ static int voice_asr_recognize_checked(const void *p, size_t l, char *t,
  size_t n, int (*check)(void *), void *r)
 { (void)p; (void)l; (void)check; (void)r; recognizes++; assert(n > 2); strcpy(t, "ok"); return 0; }
 """
+        for setting in ("SILENCE_MS", "MIN_SPEECH_MS", "WAIT_MS", "MEAN_ABS", "MAX_MS"):
+            name = "AUTO_ENDPOINT_" + setting
+            definition = re.search(r"^#define " + name + r" ([^\n]+)", source, re.M)
+            self.assertIsNotNone(definition)
+            code = re.sub(r"^#define " + name + r" [^\n]+", definition.group(0), code, flags=re.M)
         for name in (
             "voice_request_status", "voice_request_check", "voice_request_complete",
             "voice_channel_cancel", "voice_channel_recover", "voice_channel_stop_with_text",
@@ -690,6 +708,19 @@ static void release_recording_pipe(void) {
 int main(int argc, char **argv) {
  assert(argc == 2);
  char text[16];
+ if (!strcmp(argv[1], "endpoint-pause")) {
+  s_voice.state = VOICE_RECORDING; s_voice.turn_active = 1;
+  s_voice.request_id = 9; s_voice.cap = &capture; s_voice.auto_endpoint = 1;
+  sem_init(&s_voice.rec_ready, 0, 0); sem_init(&s_voice.rec_done, 0, 0);
+  assert(!pthread_create(&s_voice.rec_thread, NULL, recording_thread, NULL));
+  assert(!pthread_join(s_voice.rec_thread, NULL));
+  assert(!s_voice.capture_error);
+  /* Known PCM ends speech at sample 27200; production retains 900 ms tail. */
+  assert(endpoint_samples == 41600 && endpoint_sent == 83200);
+  free(s_voice.pcm_buf);
+  puts("VOICE_ENDPOINT_PAUSE_PASS last_speech_sample=27200 endpoint_sample=41600 rate=16000 tail_ms=900");
+  return 0;
+ }
  reset();
  if (!strcmp(argv[1], "stop") || !strcmp(argv[1], "stop-eof") ||
      !strcmp(argv[1], "stop-ecanceled")) {
@@ -734,7 +765,7 @@ int main(int argc, char **argv) {
                 ["cc", "-std=gnu11", "-Wall", "-Wextra", "-Werror", "-pthread",
                  str(source_path), "-o", str(binary)], check=True
             )
-            for mode in ("recording-pipe", "cancel", "stop", "stop-eof",
+            for mode in ("endpoint-pause", "recording-pipe", "cancel", "stop", "stop-eof",
                          "stop-ecanceled", "stop-eio", "existing-error"):
                 subprocess.run([str(binary), mode], check=True, timeout=5)
 

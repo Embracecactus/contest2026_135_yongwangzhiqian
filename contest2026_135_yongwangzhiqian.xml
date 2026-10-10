@@ -15,7 +15,7 @@
   <remote name="speexdsp-official" fetch="https://github.com/xiph/"/>
   <extend-project name="packages_ai_agent" path="packages/ai_agent"
                   remote="shaniu-agent"
-                  revision="5cdef0551284355392a75ca75d110f90d4e0c1f3"
+                  revision="f164977d84485dacf8f49857bae49392a67e1fbb"
                   upstream="refs/heads/feat/local-focus-shortcuts"/>
 
   <project path="vendor/beken/bk_avdk_smp"

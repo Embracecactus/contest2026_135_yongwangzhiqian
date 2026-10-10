@@ -23,6 +23,8 @@ static void scan(struct bkcloud_fixture_ctx_s *ctx, const uint8_t *data, size_t 
              ctx->scan[sizeof(ctx->scan) - 2] = data[i]; }
       ctx->scan[ctx->scan_size] = 0;
       if (strstr(ctx->scan, "\"stream\":true")) ctx->stream = true;
+      if (strstr(ctx->scan, "\"tool_choice\":\"required\""))
+        ctx->decision_only = true;
     }
 }
 
@@ -80,7 +82,11 @@ counted:
   if (ctx->role == BKCLOUD_FIXTURE_ASR) g_report.asr_requests++;
   else if (ctx->role == BKCLOUD_FIXTURE_TTS) g_report.tts_requests++;
   else if (ctx->stream) g_report.final_requests++;
-  else g_report.plan_requests++;
+  else
+    {
+      g_report.plan_requests++;
+      if (ctx->decision_only) g_report.decision_requests++;
+    }
   g_report.source_bytes += ctx->sent;
   g_report.source_hash ^= ctx->source_hash;
   pthread_mutex_unlock(&g_lock);
@@ -94,6 +100,7 @@ static int open_peer(void *arg, const char *host, uint16_t port, uint64_t due)
   if (!ctx || ctx->opened) return -EINVAL;
   ctx->offset = ctx->sent = ctx->scan_size = 0; ctx->reply_ready = false;
   ctx->stream = false; ctx->source_hash = 2166136261u;
+  ctx->decision_only = false;
   pthread_mutex_lock(&g_lock); ctx->mode = g_mode; pthread_mutex_unlock(&g_lock);
   atomic_store(&ctx->canceled, false);
   ctx->opened = true; pthread_mutex_lock(&g_lock); g_active++;
