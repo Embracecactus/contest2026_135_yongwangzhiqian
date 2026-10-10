@@ -208,7 +208,13 @@ each forbidden dependency and verifies that the gate fails closed.
 
 `deploy` streams a signed CP/AP OTA package through the native USB CDC port,
 then uses the CH340 CP console to reboot and confirm the accepted generation.
-It is the host peer of the chip-level `BK7258_OTA_SOURCE_USB` source.
+It is the host peer of the chip-level `BK7258_OTA_SOURCE_USB` source. The running firmware
+must enable that source. Standard desktop companion firmware instead assigns
+CDC to the authenticated PC/TLS owner; use `workbench` for its product protocol.
+A CDC port being present does not select OTA mode. Sending OTA HELLO frames to
+that product endpoint can fill its unread queue and time out before TLS or PC
+authorization. `--inspect-only` validates a package offline and proves no USB
+transport. CH340 Loader recovery remains a separate deployment path.
 
 ```sh
 python3 tools/bk7258/bk7258.py deploy --inspect-only --package FILE \

@@ -28,7 +28,8 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--package", type=Path)
     parser.add_argument(
         "--ota-port",
-        help="native USB CDC port; auto-select VID 1209:0001 when omitted",
+        help=("native CDC OTA port; requires running CONFIG_BK7258_OTA_SOURCE_USB, "
+              "not standard PC/TLS workbench mode; auto-select VID 1209:0001"),
     )
     parser.add_argument(
         "--control-port",
