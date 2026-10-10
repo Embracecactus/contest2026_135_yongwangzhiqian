@@ -2,6 +2,12 @@
 #ifndef BK7258_FOCUS_PIXELS_H
 #define BK7258_FOCUS_PIXELS_H
 #include <stdint.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <string.h>
+
+/* A volatile, observed timer reply; low 23 bits are remaining seconds. */
+#define BKFOCUS_STATUS_VISUAL 0x80000000u
 /* Exact 32-step progress without floating point or overflowing uint64_t. */
 static inline unsigned bkfocus_segments(uint64_t duration, uint64_t remaining)
 {
@@ -51,5 +57,59 @@ static inline uint16_t bkfocus_pixel(unsigned state, unsigned segments, int x, i
   if (state==2 && y>=30 && y<=40 &&
       ((x>=-10 && x<=-5)||(x>=5 && x<=10))) return 0xffe0;
   return rr<22*22 && rr>9*9 ? 0x07ff : 0;
+}
+static inline uint16_t bkfocus_status_pixel(unsigned visual, int x, int y)
+{
+  static const uint8_t masks[10] =
+    {0x3f,0x06,0x5b,0x4f,0x66,0x6d,0x7d,0x07,0x7f,0x6f};
+  unsigned state = (visual >> 24) & 7;
+  unsigned seconds = visual & 0x7fffff;
+  char digits[16];
+  if (state == 4) return bkfocus_pixel(6, 0, x, y);
+  if (state == 5) return bkfocus_pixel(5, 0, x, y);
+  if (state == 6)
+    {
+      /* Unknown result: amber question mark, never a success check. */
+      return ((y >= -15 && y <= -12 && x >= -9 && x <= 9) ||
+              (x >= 6 && x <= 9 && y >= -12 && y <= -3) ||
+              (y >= -3 && y <= 0 && x >= 0 && x <= 9) ||
+              (x >= 0 && x <= 3 && y >= 0 && y <= 7) ||
+              (x >= 0 && x <= 3 && y >= 12 && y <= 15)) ? 0xffe0 : 0;
+    }
+
+  if (seconds >= 3600)
+    snprintf(digits, sizeof(digits), "%u:%02u:%02u", seconds / 3600,
+             seconds / 60 % 60, seconds % 60);
+  else
+    snprintf(digits, sizeof(digits), "%u:%02u", seconds / 60, seconds % 60);
+  int count = strlen(digits);
+  int local = x + (count * 12 - 2) / 2;
+  int row = y + 8;
+  if (local >= 0 && local < count * 12 && row >= 0 && row < 14)
+    {
+      int column = local % 12;
+      char ch = digits[local / 12];
+      bool lit;
+      if (ch == ':')
+        lit = column >= 3 && column <= 4 &&
+              ((row >= 3 && row <= 4) || (row >= 9 && row <= 10));
+      else
+        {
+          unsigned mask = masks[ch - '0'];
+          lit = ((mask & 1) && row < 2 && column < 8) ||
+                ((mask & 2) && column >= 6 && column < 8 && row < 7) ||
+                ((mask & 4) && column >= 6 && column < 8 && row >= 7) ||
+                ((mask & 8) && row >= 12 && column < 8) ||
+                ((mask & 16) && column < 2 && row >= 7) ||
+                ((mask & 32) && column < 2 && row < 7) ||
+                ((mask & 64) && row >= 6 && row < 8 && column < 8);
+        }
+
+      if (lit) return state == 1 ? 0x07e0 : 0xffe0;
+    }
+
+  if ((state == 0 || state == 2) && y >= 20 && y <= 23 &&
+      x >= -12 && x <= 12) return 0xffe0;
+  return 0;
 }
 #endif

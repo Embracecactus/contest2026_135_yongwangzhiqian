@@ -45,7 +45,9 @@ int main(int argc,char **argv)
   assert(bkfocus_step(66000)==1);
   assert(bkfocus_step(66000)==0 && bkfocus_step(99000)==0);
   assert(snapshot(3,0,99000)==4);
-  assert(bkfocus_visual(99000)==((3u<<8)|32));
+  assert(bkfocus_visual(70999)==((3u<<8)|32));
+  assert(bkfocus_visual(71000)==0);
+  assert(bkfocus_visual(99000)==0);
  }
  else if(!strcmp(argv[1],"replay"))
  {
