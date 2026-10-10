@@ -3,7 +3,7 @@ const $ = id => document.getElementById(id);
 const token = location.hash.slice(1) || sessionStorage.getItem('shaniu-local-token') || '';
 if (location.hash) { sessionStorage.setItem('shaniu-local-token', token); history.replaceState(null, '', '/'); }
 let busy = false, trial = null, selection = null, lastSeen = null, latest = null, catalog = null, catalogReceipt = null;
-const labels = {running:'正在执行',returned:'设备已返回结果',unconfirmed:'结果未确认'};
+const labels = {running:'正在执行',returned:'设备已返回结果',unconfirmed:'结果未知',disconnected:'未连接',unauthorized:'未授权',unsupported:'不支持',failed:'失败'};
 async function api(path, body) {
   const response = await fetch(path,{method:body?'POST':'GET',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
   const data = await response.json();
@@ -46,15 +46,17 @@ function show(job) {
   if (job.phase==='running' || lastSeen===job.id) return;
   lastSeen=job.id;
   const value=job.result;
-  if (!value) { if(job.operation?.startsWith('catalog-')) {catalog=null;catalogReceipt=null;selection=null;renderCatalog();gates();} return; }
+  if (!value) { if(['disconnected','unauthorized','unsupported'].includes(job.phase)) $('connection').textContent=job.error; if(job.operation?.startsWith('catalog-')) {catalog=null;catalogReceipt=null;selection=null;renderCatalog();gates();} return; }
   if (job.operation==='status') $('connection').textContent=value.ready?'设备报告本地就绪'+(value.busy?'，正在忙碌。':'。'):'设备尚未报告就绪。';
   if (job.operation==='info') $('connection').textContent=`设备版本 ${value.major}.${value.minor}.${value.revision}，构建 ${value.build}`;
+  if (job.operation==='task-status') $('task-state').textContent='设备任务：'+({none:'无任务',start:'已开始',progress:'运行中',success:'成功',failure:'失败',canceled:'已取消'}[value.state]||'未知')+(value.expired?' · 已过期，不再提醒':'')+(value.progress===null?'':` · ${value.progress}%`);
   if (job.operation==='trial-status') {trial=value; $('trial-state').textContent='设备试用状态：'+value.state;}
   if (job.operation==='default-status') {catalog=null;catalogReceipt=null;renderCatalog();selection=value; $('default-state').textContent=value.version_known?`设备默认：${value.filename} · 版本 ${value.revision} · 状态 ${value.state}`:'默认配置尚未读入，可提交刷新后再次读取。';}
   if (job.operation==='catalog-status') {catalog=value;selection=null;renderCatalog();}
   if (job.operation?.startsWith('catalog-') && value.accepted) {catalog=null;selection=null;catalogReceipt={selection_epoch:value.epoch,selection_nonce:value.operation_nonce};renderCatalog();}
   if (value.installed) { catalog=null;catalogReceipt=null;renderCatalog(); $('filename').value=value.filename; $('message').textContent='设备确认安装完成；尚未设为默认。'; }
   if (value.accepted) $('message').textContent='设备已受理。请读取相应状态，确认实际结果。';
+  if (['failed','canceled','unknown'].includes(value.state)) $('message').textContent=({failed:'设备报告失败',canceled:'设备确认取消',unknown:'结果未知，请先读取状态'}[value.state]);
   gates();
 }
 async function submit(operation, params={}) {
