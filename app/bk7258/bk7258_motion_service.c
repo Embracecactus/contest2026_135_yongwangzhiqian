@@ -18,6 +18,7 @@
 #include <fcntl.h>
 #include <stdbool.h>
 #include <string.h>
+#include <time.h>
 #include <sys/ioctl.h>
 #include <syslog.h>
 #include <unistd.h>
@@ -39,6 +40,7 @@ struct bkmotion_source_s
 {
   int fd;
   int release_error;
+  struct bkmotion_metrics_s timing;
 };
 
 struct bkmotion_server_s
@@ -69,6 +71,7 @@ struct bkmotion_server_s
   uint32_t poll_epoch;
   clock_t poll_at;
   struct bkmotion_rpc_response_s snapshot;
+  struct bkmotion_metrics_s metrics;
 };
 
 static struct bkmotion_server_s g_bkmotion_server =
@@ -168,11 +171,45 @@ static int bkmotion_close(void *context)
   return ret;
 }
 
+static uint64_t bkmotion_now_us(void)
+{
+  struct timespec now;
+  clock_gettime(CLOCK_MONOTONIC, &now);
+  return (uint64_t)now.tv_sec * 1000000 + now.tv_nsec / 1000;
+}
+
+static int bkmotion_timed_open(void *context)
+{
+  struct bkmotion_source_s *source = context;
+  uint64_t start = bkmotion_now_us();
+  int ret = bkmotion_open(context);
+  source->timing.open_us = bkmotion_now_us() - start;
+  return ret;
+}
+
+static int bkmotion_timed_read(void *context, struct bkmotion_sample_s *sample)
+{
+  struct bkmotion_source_s *source = context;
+  uint64_t start = bkmotion_now_us();
+  int ret = bkmotion_read(context, sample);
+  source->timing.read_us = bkmotion_now_us() - start;
+  return ret;
+}
+
+static int bkmotion_timed_close(void *context)
+{
+  struct bkmotion_source_s *source = context;
+  uint64_t start = bkmotion_now_us();
+  int ret = bkmotion_close(context);
+  source->timing.close_us = bkmotion_now_us() - start;
+  return ret;
+}
+
 static const struct bkmotion_source_ops_s g_bkmotion_ops =
 {
-  .open = bkmotion_open,
-  .read = bkmotion_read,
-  .close = bkmotion_close,
+  .open = bkmotion_timed_open,
+  .read = bkmotion_timed_read,
+  .close = bkmotion_timed_close,
 };
 
 int bk7258_motion_service_quiesce(bool stop)
@@ -237,9 +274,16 @@ static int bkmotion_collect(const struct bkmotion_rpc_request_s *request,
   spin_unlock_irqrestore(&server->request_lock, flags);
   if (ret == 0)
     {
+      uint64_t start = bkmotion_now_us();
+      memset(&server->source.timing, 0, sizeof(server->source.timing));
       ret = bkmotion_rpc_handle_request(request, response, &g_bkmotion_ops,
                                        &server->source);
+      server->source.timing.total_us = bkmotion_now_us() - start;
       flags = spin_lock_irqsave(&server->request_lock);
+      uint32_t collections = server->metrics.collections;
+      server->metrics = server->source.timing;
+      server->metrics.collections = collections == UINT32_MAX ?
+        UINT32_MAX : collections + 1;
       server->io_active = false;
       /* Stop revokes publication, not the descriptor's cleanup obligation. */
       if (server->quiescing && ret == 0)
@@ -434,6 +478,16 @@ int bk7258_motion_service_poll(bool active)
   spin_unlock_irqrestore(&server->request_lock, flags);
   if (changed) (void)nxsem_post(&server->request_sem);
   return ret;
+}
+
+int bk7258_motion_service_metrics(struct bkmotion_metrics_s *metrics)
+{
+  struct bkmotion_server_s *server = &g_bkmotion_server;
+  if (metrics == NULL) return -EINVAL;
+  irqstate_t flags = spin_lock_irqsave(&server->request_lock);
+  *metrics = server->metrics;
+  spin_unlock_irqrestore(&server->request_lock, flags);
+  return 0;
 }
 
 int bk7258_motion_service_snapshot(struct bkmotion_rpc_response_s *sample)
