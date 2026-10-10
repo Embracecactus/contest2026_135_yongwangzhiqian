@@ -103,6 +103,69 @@ class WebTest(unittest.TestCase):
             )
             run.assert_not_called()
 
+    def test_camera_preview_stays_in_latest_memory_result(self):
+        def run(args, **hooks):
+            if args.operation == "camera-capture":
+                self.assertTrue(args.camera_preview)
+                return {
+                    "state": "ready",
+                    "image_base64": "synthetic-fixture",
+                    "valid": True,
+                }
+            return {"state": "canceled"}
+
+        with patch.object(self.m.workbench, "run", side_effect=run):
+            self.assertEqual(
+                self.request(
+                    "POST",
+                    "/api/start",
+                    {"id": "c1" * 16, "operation": "camera-capture", "params": {}},
+                )[0],
+                202,
+            )
+            self.assertEqual(
+                self.wait_result()["result"]["image_base64"], "synthetic-fixture"
+            )
+            self.assertEqual(list(self.service.directory.iterdir()), [])
+            self.assertEqual(
+                self.request(
+                    "POST",
+                    "/api/start",
+                    {"id": "c2" * 16, "operation": "camera-status", "params": {}},
+                )[0],
+                202,
+            )
+            self.wait_result()
+            self.assertNotIn(
+                "image_base64", self.service.records["c1" * 16]["public"]["result"]
+            )
+
+    def test_camera_cancel_uses_existing_cooperative_owner(self):
+        entered = threading.Event()
+
+        def run(args, **hooks):
+            entered.set()
+            deadline = time.monotonic() + 2
+            while not hooks["cancel_requested"]() and time.monotonic() < deadline:
+                time.sleep(0.01)
+            self.assertTrue(hooks["cancel_requested"]())
+            return {"state": "canceled", "release_confirmed": True}
+
+        with patch.object(self.m.workbench, "run", side_effect=run):
+            self.assertEqual(
+                self.request(
+                    "POST",
+                    "/api/start",
+                    {"id": "c3" * 16, "operation": "camera-capture", "params": {}},
+                )[0],
+                202,
+            )
+            self.assertTrue(entered.wait(1))
+            self.assertEqual(
+                self.request("POST", "/api/cancel", {"id": "c3" * 16})[0], 202
+            )
+            self.assertTrue(self.wait_result()["result"]["release_confirmed"])
+
     def test_polling_is_local_and_duplicate_is_not_replayed(self):
         entered, release = threading.Event(), threading.Event()
 

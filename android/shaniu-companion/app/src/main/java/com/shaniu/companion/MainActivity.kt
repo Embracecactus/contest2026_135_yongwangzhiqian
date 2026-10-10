@@ -2668,7 +2668,7 @@ class MainActivity : Activity() {
                         if (pcEditor !== controller || provisionedDeviceId != device || directSession.current().generation != generation) return@post
                         val value = request.getOrNull()
                         if (value == null) { status.text = "配对请求无效或已过期，设备未变更"; return@post }
-                        val permissions = listOf(1 to "资源管理", 2 to "场景", 4 to "任务提醒", 8 to "有限诊断")
+                        val permissions = listOf(1 to "资源管理", 2 to "场景", 4 to "任务提醒", 8 to "有限诊断", 16 to "按需相机（可传回一帧画面）")
                             .filter { value.capabilities and it.first != 0 }.joinToString("、") { it.second }
                         pcConfirmation?.dismiss()
                         pcConfirmation = android.app.AlertDialog.Builder(this)
@@ -2749,7 +2749,7 @@ class MainActivity : Activity() {
                     details.text = when {
                         value == null -> "当前授权：尚未确认"
                         !value.active -> "当前没有有效电脑授权"
-                        else -> "电脑标识：${value.client}\n允许：" + listOf(1 to "资源管理", 2 to "场景", 4 to "任务提醒", 8 to "有限诊断")
+                        else -> "电脑标识：${value.client}\n允许：" + listOf(1 to "资源管理", 2 to "场景", 4 to "任务提醒", 8 to "有限诊断", 16 to "按需相机（可传回一帧画面）")
                             .filter { value.capabilities and it.first != 0 }.joinToString("、") { it.second }
                     }
                     val ready = !state.busy && directSession.current().authenticated

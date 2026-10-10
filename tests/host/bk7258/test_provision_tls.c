@@ -256,12 +256,21 @@ static int pc_execute(void *context, enum bkcontrol_command_e command,
   return 0;
 }
 #include "bk7258_pc_tasks.h"
+#include "bk7258_pc_camera.h"
+static bool camera_peer;
 static struct bkpc_tasks_s pc_tasks;
 static int pc_config(void *context, enum bkcontrol_command_e command,
                       uint32_t kind, uint32_t offset, const uint8_t *record,
                       size_t size, struct bkcontrol_status_s *status)
 {
   assert(context == &pc_reads);
+  if (kind == BKCONTROL_CONFIG_CAMERA || kind == BKCONTROL_CONFIG_CAMERA_FRAME)
+    {
+      bkcamera_step(now, true);
+      int ret = bkcamera_control(command, kind, offset, record, size, status);
+      if (ret == 0 && command == BKCONTROL_CONFIG_APPLY) bkcamera_work();
+      return ret;
+    }
 #ifdef CONFIG_BK7258_ENGINEERING_TEST
   if (kind == BKCONTROL_CONFIG_ENGINEERING_TEST)
     {
@@ -756,7 +765,7 @@ static void pc_guard_tests(mbedtls_ssl_context *client,
   const uint8_t focus[4] = {0,10,0,0}, eye[4] = {0,5,0,0};
   const uint8_t engineering[4] = {0,19,0,0};
   const uint8_t begin[8] = {0,0,0,10,0,0,0,4};
-  const uint8_t denied_kinds[] = {1,2,3,4,6,7,8,9,12,13,14,15};
+  const uint8_t denied_kinds[] = {1,2,3,4,6,7,8,9,12,13,14,15,21,22};
   pc_owner_lifecycle_tests(cert,key);
   pc_guarded = true;
   control_handshake_on(&control, client, cert, key, true);
@@ -986,7 +995,7 @@ static int control_pipe_peer(const char *certificate, const char *private_key,
       if(connection==0)
         {
           assert(bkpc_grants_open(&pc_grants, pc_root, owner) == 0);
-          assert(bkpc_grants_set(&pc_grants, 0, transaction, client, pc, 7) == 0);
+          assert(bkpc_grants_set(&pc_grants, 0, transaction, client, pc, camera_peer ? BKPC_CAP_CAMERA : 7) == 0);
         }
       bkpc_tasks_bind(&pc_tasks, pc_binding, 1);
       pc_guarded = true;
@@ -1042,6 +1051,8 @@ int main(int argc, char **argv)
 {
   if (argc == 4 && !strcmp(argv[1], "--control-peer"))
     return control_pipe_peer(argv[2], argv[3], NULL, NULL, 1);
+  if (argc == 5 && !strcmp(argv[1], "--camera-peer"))
+    { camera_peer = true; return control_pipe_peer(argv[2], argv[3], argv[4], NULL, 1); }
   if (argc == 5 && !strcmp(argv[1], "--pc-peer"))
     return control_pipe_peer(argv[2], argv[3], argv[4], NULL, 1);
   if(argc==7 && !strcmp(argv[1],"--pc-resource-peer"))

@@ -899,6 +899,9 @@ def add_arguments(parser):
             "pair-finish",
             "task-event",
             "task-status",
+            "camera-status",
+            "camera-capture",
+            "camera-cancel",
             "trial-start",
             "trial-status",
             "trial-cancel",
@@ -1002,7 +1005,9 @@ def add_arguments(parser):
     parser.add_argument("--response", type=Path)
     parser.add_argument("--confirm-device-sha256")
     parser.add_argument(
-        "--allow", nargs="+", choices=("resources", "scenes", "tasks", "diagnostics")
+        "--allow",
+        nargs="+",
+        choices=("resources", "scenes", "tasks", "diagnostics", "camera"),
     )
 
 
@@ -1119,6 +1124,18 @@ def run(args, *, observe=None, cancel_requested=None):
                 workbench_profile.create(args.profile, certificate, pin, key)
                 return dict(profile_saved=True, device_authorization_verified=False)
         with authorized_client(args) as client:
+            if args.operation.startswith("camera-"):
+                from . import workbench_camera
+
+                if args.operation == "camera-status":
+                    return workbench_camera.status(client)
+                if args.operation == "camera-cancel":
+                    return workbench_camera.cancel(client)
+                return workbench_camera.capture(
+                    client,
+                    preview=getattr(args, "camera_preview", False),
+                    cancel_requested=cancel_requested,
+                )
             if args.operation.startswith("catalog-"):
                 return workbench_catalog.perform(client, args)
             if args.operation.startswith("default-"):

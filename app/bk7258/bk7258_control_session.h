@@ -108,6 +108,9 @@ enum bkcontrol_command_e
 #define BKCONTROL_CONFIG_ENGINEERING_TEST 19u
 /* BKA1/BAS1 fixed engineering audio lifecycle; no caller-provided media. */
 #define BKCONTROL_CONFIG_ENGINEERING_AUDIO 20u
+/* CCQ1/CCS1 one explicitly authorized on-demand camera frame. */
+#define BKCONTROL_CONFIG_CAMERA 21u
+#define BKCONTROL_CONFIG_CAMERA_FRAME 22u
 #define BKCONTROL_CONFIG_CAPABILITIES 0x7fffu
 #define BKCONTROL_CONFIG_RECORD_MAX (140u + 65536u) /* WKM2 显式前端字段 */
 struct bkcontrol_device_info_s

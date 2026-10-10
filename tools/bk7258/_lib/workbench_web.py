@@ -31,9 +31,12 @@ READS = {
     "default-status",
     "catalog-status",
     "task-status",
+    "camera-status",
 }
 FIELDS = {
     **{name: set() for name in READS},
+    "camera-capture": set(),
+    "camera-cancel": set(),
     "resource-upload": {"data", "ttl_ms"},
     "resource-resume": {"receipt_id", "data"},
     "resource-cancel": {"receipt_id"},
@@ -164,6 +167,7 @@ class Service:
             args.file = self.directory / (request_id + ".bkep")
             with args.file.open("xb") as stream:
                 stream.write(data)
+        args.camera_preview = operation == "camera-capture"
         return args
 
     def submit(self, body):
@@ -185,6 +189,12 @@ class Service:
             ):
                 raise Conflict("A job is active or this session is full")
             args = self._arguments(body["operation"], body["params"], request_id)
+            # Retain only the latest explicitly requested preview, in memory.
+            if args.operation.startswith("camera-"):
+                for old in self.records.values():
+                    result = old["public"].get("result")
+                    if isinstance(result, dict):
+                        result.pop("image_base64", None)
             self.cancel.clear()
             self.current = request_id
             self.records[request_id] = {
@@ -234,6 +244,7 @@ class Service:
                 "resource-upload",
                 "resource-resume",
                 "resource-cancel",
+                "camera-capture",
             ):
                 raise Conflict("No cancelable transfer running")
             self.cancel.set()
