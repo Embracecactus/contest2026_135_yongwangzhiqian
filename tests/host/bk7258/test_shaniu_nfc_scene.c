@@ -12,6 +12,9 @@ static struct bknfc_scene_s scene;
 static struct bknfc_bindings_s bindings;
 static const struct bknfc_card_s card = {.size=4,.uid={1,2,3,4}};
 static uint32_t id;
+/* Content playback is a separate owner; these cases exercise focus only. */
+int bkcontent_submit(unsigned int action, uint64_t content, uint32_t *result)
+{ (void)action; (void)content; *result = 0; return -ENOTSUP; }
 static int sample(uint64_t seq, unsigned kind, bool enabled)
 { return bknfc_scene_observe(&scene,&bindings,7,seq,kind,kind==2?&card:NULL,enabled,&id); }
 static void timer(unsigned state, uint64_t remaining, uint64_t now)
@@ -27,7 +30,24 @@ int main(int argc,char **argv)
   assert(bknfc_bindings_set(&bindings,0,1,0,&card,60000)==0);
   assert(bknfc_scene_init(&scene,7)==0);
   bkfocus_intent_step(1000,true);
-  if(!strcmp(argv[1],"dwell"))
+  if(!strcmp(argv[1],"pause-resume-cancel"))
+    {
+      assert(sample(1,2,true)==0);
+      bkfocus_intent_step(1000,true);timer(1,60000,1000);
+      for (unsigned action=2; action<=4; action++)
+        {
+          assert(bknfc_bindings_set_action(&bindings,action-1,action,
+                                           0,&card,action,0)==0);
+          assert(sample(action*2,1,true)==0);
+          assert(sample(action*2+1,2,true)==0);
+          bkfocus_intent_step(action*1000,true);
+          struct bkfocus_intent_status_s status;
+          bkfocus_intent_status(&status);
+          assert(status.phase==2 && status.error==0);
+          timer(action==2?2:action==3?1:4,action==4?0:59000,action*1000);
+        }
+    }
+  else if(!strcmp(argv[1],"dwell"))
     {
       assert(sample(1,2,true)==0 && id!=0);timer(0,0,1000);
       bkfocus_intent_step(2000,true);timer(1,60000,2000);

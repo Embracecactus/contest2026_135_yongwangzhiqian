@@ -19,6 +19,7 @@
 #define BKNFC_HAS_SCENE 1
 #include "bk7258_nfc_scene.h"
 #include "bk7258_focus_intent.h"
+#include "bk7258_local_content.h"
 #endif
 #include <sys/stat.h>
 #endif
@@ -78,6 +79,7 @@ struct bknfc_server_s
   struct bknfc_scene_s scene;
   uint32_t scene_epoch;
   uint32_t scene_intent;
+  struct bknfc_scene_receipt_s scene_receipt;
   int scene_error;
   bool scene_admitted;
   bool scene_load_attempted;

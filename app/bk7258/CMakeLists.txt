@@ -31,7 +31,7 @@ if(CONFIG_BK7258_APP_AGENT)
   target_include_directories(apps PRIVATE ${NUTTX_APPS_DIR}/netutils/cjson/cJSON)
   include(${NUTTX_DIR}/../vendor/beken/frameworks/cmake/agent_framework.cmake)
   target_sources(apps PRIVATE bk7258_agent_product.c bk7258_focus.c
-      bk7258_focus_intent.c)
+      bk7258_focus_intent.c bk7258_local_content.c)
   if(CONFIG_BK7258_VISION_SERVICE)
     target_sources(apps PRIVATE bk7258_agent_vision.c)
   endif()
@@ -61,7 +61,8 @@ if(CONFIG_BK7258_APP_AGENT AND CONFIG_BK7258_VOICE_TLS)
       "-Werror=implicit-function-declaration")
   endif()
   foreach(source bk7258_agent_product.c bk7258_agent_cloud.c bk7258_provision_identity.c
-                 bk7258_agent_memory.c bk7258_agent_memory_codec.c)
+                 bk7258_agent_memory.c bk7258_agent_memory_codec.c
+                 bk7258_local_content.c)
     set_property(SOURCE "${CMAKE_CURRENT_LIST_DIR}/${source}"
       TARGET_DIRECTORY apps APPEND PROPERTY COMPILE_OPTIONS "-fstack-usage")
   endforeach()

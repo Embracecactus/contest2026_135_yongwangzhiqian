@@ -21,6 +21,8 @@ int bk7258_display_job_quiesce(bool stop)
 {assert(stop);pack_stops++;return pack_error;}
 #define CONFIG_BK7258_USBCDC 1
 static int usb_error, usb_stops;
+static int content_error;
+static int bkcontent_quiesce(void) { return content_error; }
 static bool usb_closed;
 static int product_pc_usb_stop(void) { usb_stops++;usb_closed=!usb_error;return usb_error; }
 #define CONFIG_BK7258_NFC_SERVICE 1
