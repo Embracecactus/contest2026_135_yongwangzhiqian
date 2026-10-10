@@ -1191,7 +1191,7 @@ def main():
         add(suite, "PC-01.process-" + variant, "PC-01", "L2",
             [sys.executable, HERE / "test_workbench_task_runner.py",
              "RunnerTest.test_" + variant], marker=False)
-    for variant in ("golden", "invalid", "staging", "readback", "failure", "cli"):
+    for variant in ("golden", "invalid", "staging", "readback", "failure", "cli", "rejection_classification_survives_client_cleanup"):
         add(suite, "PC-01.sender-" + variant, "PC-01", "L1",
             [sys.executable, HERE / "test_workbench_tasks.py",
              "TasksTest.test_" + variant], marker=False)
