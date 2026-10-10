@@ -137,6 +137,18 @@ static int nxsem_tickwait_uninterruptible(sem_t *s, clock_t timeout)
   return -ETIMEDOUT;
 }
 static clock_t clock_systime_ticks(void) { return ticks; }
+#ifndef CLOCK_MONOTONIC
+#  define CLOCK_MONOTONIC 1
+#endif
+static int sensor_clock_gettime(int clock_id, struct timespec *now)
+{
+  assert(clock_id == CLOCK_MONOTONIC);
+  now->tv_sec = ticks / 1000;
+  now->tv_nsec = (ticks % 1000) * 1000000;
+  return 0;
+}
+#define clock_gettime sensor_clock_gettime
+
 static int nxsig_usleep(unsigned int us)
 { ticks += (us + 999) / 1000; run_hook(&sleep_hook); return 0; }
 static int task_create(const char *name, int pri, int stack,
