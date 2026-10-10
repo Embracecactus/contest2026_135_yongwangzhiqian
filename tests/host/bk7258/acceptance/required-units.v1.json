@@ -926,7 +926,17 @@
     "provision.NfcBindingControllerTest.legacyFirmwareCannotAcceptNewSceneActions",
     "provision.NfcBindingControllerTest.localContentReceiptRequiresActualCompletionAndStableIdentity",
     "LIFE-02.power-content-busy",
-    "BOOT-01.local-content-busy"
+    "BOOT-01.local-content-busy",
+    "PC-01.process-real_success_and_failure",
+    "PC-01.process-disconnect_does_not_replay_or_lose_local_result",
+    "PC-01.process-start_failure_never_launches_child",
+    "PC-01.process-timeout_cancels_real_process",
+    "PC-01.process-explicit_cancel_and_spawn_error",
+    "PC-01.process-progress_is_opt_in_bounded_and_task_scoped",
+    "PC-01.process-busy_or_invalid_never_borrows_credentials",
+    "PC-01.process-readback_conflict_is_unknown",
+    "PC-01.process-real_progress_and_disconnect",
+    "USB-02.browser-classified_failure_does_not_report_completion"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
