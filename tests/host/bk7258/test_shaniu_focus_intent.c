@@ -108,8 +108,12 @@ int main(int argc, char **argv)
       };
       for (unsigned int i = 0; i < sizeof(miss) / sizeof(miss[0]); i++)
         {
+          memset(&status, 0xa5, sizeof(status));
           assert(bkfocus_intent_text(miss[i], 7, 1000, &status) == 0);
+          /* A miss leaves the result untouched; inspect the actual owner. */
+          bkfocus_intent_status(&status);
           assert(status.id == 0 && status.phase == 0);
+          timer(0, 0, 1000);
         }
       assert(bkfocus_text_parse("开始25分钟专注", &action, &duration) == 1);
       assert(action == 1 && duration == 1500000);
