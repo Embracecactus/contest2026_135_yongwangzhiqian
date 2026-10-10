@@ -16,6 +16,9 @@ capture owner。此能力不是 UVC，也没有声称 USB 取景帧率等于传�
 bytes/width/height/format 各4、error4、flags4、fps/sequence/elapsed/remaining
 各4。phase：0空闲、1待采、2采集中、3有效帧、4失败、5取消、6过期。
 flags：admitted=1、valid=2。时间是设备 monotonic ms，无墙钟或识别语义。
+相机控制/状态使用 CONFIG kind **23**，帧读取继续使用 **22**；kind 21 保留给
+已经发布的回答长度偏好。712 的早期相机客户端使用 kind 21，不能与本候选混用；
+须使用匹配工具，读取不支持时明确失败，不回退重放到回答偏好接口。
 `camera-frame` 读取携带 id8、offset4、expected-size4；错身份、过期、取消、
 越界一律拒绝。TLS 和最终元数据身份复核防止拼接不同请求。
 
