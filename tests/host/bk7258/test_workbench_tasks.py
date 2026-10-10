@@ -159,6 +159,19 @@ class TasksTest(unittest.TestCase):
             channel.assert_not_called()
             creds.assert_not_called()
 
+    def test_rejection_classification_survives_client_cleanup(self):
+        for name in ("task_status", "resource_status", "trial_status", "selection_status", "catalog_status"):
+            for code in (-13, -38):
+                with self.subTest(method=name, code=code):
+                    client, calls = self.client()
+                    def rejected(*args):
+                        raise w.DeviceRejected(code)
+                    client._exchange = rejected
+                    with self.assertRaises(w.DeviceRejected) as caught:
+                        getattr(client, name)()
+                    self.assertEqual(caught.exception.kind, "unauthorized" if code == -13 else "unsupported")
+                    self.assertTrue(client.closed)
+
 
 if __name__ == "__main__":
     unittest.main()
