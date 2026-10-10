@@ -33,18 +33,16 @@ those rules.
 - CH340 Type-C (CH340E → UART0 TX/RX): BK Loader recovery and CP console.
   RTS/CTS are not connected to CEN; never use COMx RTS/DTR as reset, and the
   host COM number is fixture state, not a board identity.
-- Native Type-C (BK7258 USB0 DP/DM) carries three roles that must not be
-  conflated: the CDC endpoint that `deploy` streams a signed CP/AP package
-  through (the reboot and generation check then use the CH340 console); the
-  signed CP/AP OTA transport itself (chip-level
-  `BK7258_OTA_SOURCE_USB` beside the file and HTTP sources; AP stages, CP is
-  the only on-chip writer, BL2 owns trial/revert, the CP Supervisor confirms);
-  and USB MSC, which exposes the soldered SD NAND (`/dev/mmcsd0`) as a
-  mass-storage device only after the local filesystem owner releases its mount
-  and block-device lease; the local side re-acquires both after MSC exits.
-  Native
-  USB is not raw DFU and can never write the internal Flash layout by itself;
-  this board only selects the source and supplies port wiring.
+- Native Type-C (BK7258 USB0 DP/DM) has distinct protocols. Standard desktop
+  firmware uses the authenticated PC/TLS owner for tasks, resources and camera.
+  `deploy` instead speaks raw signed CP/AP OTA framing and requires the running
+  chip-level `CONFIG_BK7258_OTA_SOURCE_USB`; enumeration alone does not enable
+  it. AP stages, CP is the only on-chip writer, BL2 owns trial/revert and the
+  CP Supervisor confirms. Do not send OTA frames to the PC/TLS owner.
+  USB MSC exposes the soldered SD NAND (`/dev/mmcsd0`) only after the local
+  filesystem owner releases its mount and block-device lease; the local side
+  re-acquires both after MSC exits. Native USB is not raw DFU and cannot write
+  the internal Flash layout by itself.
 - Before a BK Loader download, leave native USB MSC safely (eject the exposed
   SD NAND volume or switch back to CDC), then use the atomic software-reset
   handoff, replacing the port by the actual fixture port (discover it; do not
@@ -63,8 +61,9 @@ those rules.
   do not drive CEN from RS-232-level control signals.
 
 - If native USB does not enumerate, confirm the cable is on USB0 rather than
-  the CH340 connector.  The expected AP log is
-  `AIDK USB OTA: ready ep=02/82 protocol=1 max-payload=128`.
+  the CH340 connector. Check the running configuration and product owner;
+  `AIDK USB OTA: ready ep=02/82 protocol=1 max-payload=128` applies only to
+  the OTA-source configuration, not the standard PC/TLS product endpoint.
 - Device-unique state stays target-bound even when only CP or AP changes;
   reprovisioning, key operations and configuration rollback follow the root
   trust rules.  The device's runtime Skill mechanism (`/data/agent/skills/`)

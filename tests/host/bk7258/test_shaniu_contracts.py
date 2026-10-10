@@ -1163,6 +1163,8 @@ def main():
         add(suite, "NET-03.pc-grant-" + variant, "NET-03", "L2",
             [HERE / "build/test_pc_grants", variant],
             binaries["test_pc_grants"])
+    add(suite, "USB-01.ota-write-classification", "USB-01", "L2",
+        [sys.executable, HERE / "test_deploy_usb_errors.py"], marker=False)
     for variant in ("binary", "backpressure", "disconnect", "invalid", "failed-open",
                     "cleanup-get", "cleanup-set", "close-get", "close-set", "close-hangup", "close-lost"):
         add(suite, "USB-02.serial-" + variant, "USB-02", "L2",
@@ -1972,6 +1974,7 @@ def main():
         ROOT / "tools/bk7258/_lib/deploy_usb.py",
         ROOT / "tools/bk7258/bk7258.py",
         HERE / "test_workbench_client.py",
+        HERE / "test_deploy_usb_errors.py",
         HERE / "test_workbench_tasks.py",
         HERE / "test_workbench_web.py",
         HERE / "test_workbench_web_display.py",
