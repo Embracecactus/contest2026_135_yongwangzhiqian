@@ -395,6 +395,9 @@ class ControlClient:
             raise ControlError("PC authentication is required")
         try:
             return self._exchange(command, b"", self._now() + self._timeout)
+        except (DeviceRejected, ConnectionUnavailable, AuthorizationUnavailable):
+            self.close()
+            raise
         except Exception:
             self.close()
             raise ControlError("Control read failed; result is unconfirmed") from None
@@ -457,6 +460,9 @@ class ControlClient:
             if chunk(0) != data[:16]:
                 raise ControlError("Engineering snapshot changed during read")
             return hil_test.decode_status(data)
+        except (DeviceRejected, ConnectionUnavailable, AuthorizationUnavailable):
+            self.close()
+            raise
         except Exception:
             self.close()
             raise ControlError(
@@ -475,6 +481,9 @@ class ControlClient:
             self._exchange(17, record, deadline)
             self._exchange(18, b"", deadline)
             return dict(accepted=True, completion_verified=False)
+        except (DeviceRejected, ConnectionUnavailable, AuthorizationUnavailable):
+            self.close()
+            raise
         except Exception:
             self.close()
             raise CommandUnconfirmed() from None
@@ -501,6 +510,9 @@ class ControlClient:
             if chunk(0) != data[:16]:
                 raise ControlError("Engineering audio snapshot changed during read")
             return hil_test.decode_audio_status(data)
+        except (DeviceRejected, ConnectionUnavailable, AuthorizationUnavailable):
+            self.close()
+            raise
         except Exception:
             self.close()
             raise ControlError(
@@ -519,6 +531,9 @@ class ControlClient:
             self._exchange(17, record, deadline)
             self._exchange(18, b"", deadline)
             return dict(accepted=True, completion_verified=False)
+        except (DeviceRejected, ConnectionUnavailable, AuthorizationUnavailable):
+            self.close()
+            raise
         except Exception:
             self.close()
             raise ControlError(
@@ -538,6 +553,9 @@ class ControlClient:
                 self._exchange(17, record[offset : offset + 32], deadline)
             self._exchange(18, b"", deadline)
             return dict(accepted=True, event_sequence=sequence, feedback_verified=False)
+        except (DeviceRejected, ConnectionUnavailable, AuthorizationUnavailable):
+            self.close()
+            raise
         except Exception:
             self.close()
             raise ControlError(
@@ -565,6 +583,9 @@ class ControlClient:
             if chunk(0) + chunk(16) != data[:32]:
                 raise ControlError("Task changed during read; no coherent snapshot")
             return workbench_tasks.decode(data)
+        except (DeviceRejected, ConnectionUnavailable, AuthorizationUnavailable):
+            self.close()
+            raise
         except Exception:
             self.close()
             raise ControlError("Task read failed; result is unconfirmed") from None
@@ -600,6 +621,9 @@ class ControlClient:
             return dict(
                 accepted=True, operation_id=operation_id, completion_verified=False
             )
+        except (DeviceRejected, ConnectionUnavailable, AuthorizationUnavailable):
+            self.close()
+            raise
         except Exception:
             self.close()
             raise ControlError(
@@ -627,6 +651,9 @@ class ControlClient:
             if chunk(0) != header:
                 raise ControlError("Trial changed during snapshot read")
             return workbench_trial.decode(data)
+        except (DeviceRejected, ConnectionUnavailable, AuthorizationUnavailable):
+            self.close()
+            raise
         except Exception:
             self.close()
             raise ControlError("Trial read unconfirmed; no request replayed") from None
@@ -655,6 +682,9 @@ class ControlClient:
                 expected_job_id=expected_id,
                 completion_verified=False,
             )
+        except (DeviceRejected, ConnectionUnavailable, AuthorizationUnavailable):
+            self.close()
+            raise
         except Exception:
             self.close()
             raise ControlError(
@@ -698,6 +728,9 @@ class ControlClient:
                     "Selection receipt is stale or belongs to another operation"
                 )
             return result
+        except (DeviceRejected, ConnectionUnavailable, AuthorizationUnavailable):
+            self.close()
+            raise
         except Exception:
             self.close()
             raise ControlError(
@@ -724,6 +757,9 @@ class ControlClient:
                 operation_nonce=nonce,
                 expected_job_id=expected_id,
             )
+        except (DeviceRejected, ConnectionUnavailable, AuthorizationUnavailable):
+            self.close()
+            raise
         except Exception:
             self.close()
             raise ControlError(
@@ -767,6 +803,9 @@ class ControlClient:
                     "Catalog receipt is stale or belongs to another operation"
                 )
             return result
+        except (DeviceRejected, ConnectionUnavailable, AuthorizationUnavailable):
+            self.close()
+            raise
         except Exception:
             self.close()
             raise ControlError(
@@ -805,6 +844,9 @@ class ControlClient:
                     raise ControlError("Invalid resource snapshot size")
                 data.extend(struct.pack(">4I", *words))
             return workbench_resources.decode(data)
+        except (DeviceRejected, ConnectionUnavailable, AuthorizationUnavailable):
+            self.close()
+            raise
         except Exception:
             self.close()
             raise ControlError(
@@ -837,6 +879,9 @@ class ControlClient:
                 self._exchange(17, record[offset : offset + 32], deadline)
             self._exchange(18, b"", deadline)
             return dict(accepted=True, completion_verified=False)
+        except (DeviceRejected, ConnectionUnavailable, AuthorizationUnavailable):
+            self.close()
+            raise
         except Exception:
             self.close()
             raise ControlError(

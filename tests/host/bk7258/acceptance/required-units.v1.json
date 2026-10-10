@@ -936,7 +936,8 @@
     "PC-01.process-busy_or_invalid_never_borrows_credentials",
     "PC-01.process-readback_conflict_is_unknown",
     "PC-01.process-real_progress_and_disconnect",
-    "USB-02.browser-classified_failure_does_not_report_completion"
+    "USB-02.browser-classified_failure_does_not_report_completion",
+    "PC-01.sender-rejection_classification_survives_client_cleanup"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
