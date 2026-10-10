@@ -224,9 +224,23 @@ def write_frame(
     padding = (-len(wire)) % USB_PACKET_SIZE
     if padding:
         wire += bytes(padding)
-    written = port.write(wire)
+    phase = {HELLO: "hello", START: "start", DATA: "data",
+             CANCEL: "cancel"}.get(kind, "frame")
+    context = (
+        f"native USB OTA write failed phase={phase} requested={len(wire)} "
+    )
+    mode = (
+        "; requires CONFIG_BK7258_OTA_SOURCE_USB on the running firmware; "
+        "standard PC/TLS control uses workbench, not the OTA wire protocol"
+    )
+    try:
+        written = port.write(wire)
+    except OSError as error:
+        # A timed-out host write may already have reached the endpoint in
+        # part. Do not claim zero bytes, replay it, or print the payload.
+        raise OSError(context + "completed=unknown" + mode) from error
     if written != len(wire):
-        raise OSError(f"short serial write: {written}/{len(wire)} bytes")
+        raise OSError(context + f"completed={written}" + mode)
 
 
 def open_native_port(
