@@ -11,6 +11,7 @@ It invokes the ReAct core directly, not the Agent service worker or ASR.
 """
 
 import resource
+import os
 import subprocess
 import sys
 import tempfile
@@ -19,7 +20,7 @@ from pathlib import Path
 from test_nfc_rf_lifecycle import ROOT
 
 
-CASES = ("mixed", "mixed-tts", "no-tool-final", "unknown-tool", "missing-id", "duplicate-id", "vision-cancel", "vision-success")
+CASES = ("first-answer", "mixed", "mixed-tts", "no-tool-final", "unknown-tool", "missing-id", "duplicate-id", "vision-cancel", "vision-success")
 MUTATION = "mutant-executes-finalize"
 
 
@@ -48,6 +49,27 @@ def probe_code(case: str) -> str:
 #include <string.h>
 
 #include "llm/llm_proxy.h"
+
+#ifdef TEST_PLAN_LATENCY
+#include "infra/http_proxy.h"
+#include "infra/vela_tls.h"
+/* Only the controlled transport is legal in this host test. */
+bool http_proxy_is_enabled(void) { abort(); }
+proxy_conn_t *proxy_conn_open(const char *h, int p, int t)
+{ (void)h; (void)p; (void)t; abort(); }
+int proxy_conn_write(proxy_conn_t *c, const char *p, int n)
+{ (void)c; (void)p; (void)n; abort(); }
+int proxy_conn_read(proxy_conn_t *c, char *p, int n, int t)
+{ (void)c; (void)p; (void)n; (void)t; abort(); }
+void proxy_conn_close(proxy_conn_t *c) { (void)c; abort(); }
+int vela_https_post_json(const char *h, const char *p, const char *path,
+    const vela_header_t *headers, const char *body, char *out, size_t cap)
+{ (void)h; (void)p; (void)path; (void)headers; (void)body;
+  (void)out; (void)cap; abort(); }
+int vela_http_post_json(const char *h, const char *p, const char *path,
+    const vela_header_t *headers, const char *body, char *out, size_t cap)
+{ return vela_https_post_json(h, p, path, headers, body, out, cap); }
+#endif
 int llm_chat_vision_checked(const char *prompt, const char *image_b64,
                             const char *mime_type, char *response_buf,
                             size_t buf_size, int (*check)(void *),
@@ -69,12 +91,14 @@ int tts_fixture_llm_cancel_request(void);
 #define TAG agent_loop_fixture_tag
 /* Planning remains the existing controlled ReAct peer; the final request is
  * the real proxy/stream implementation linked below. */
+#ifndef TEST_PLAN_LATENCY
 #define llm_chat_plan_checked fixture_llm_chat_plan_checked
 #define llm_chat_tools_checked fixture_llm_chat_tools_checked
 int fixture_llm_chat_plan_checked(const char *, cJSON *, const char *,
     llm_response_t *, int (*)(void *), void *);
 int fixture_llm_chat_tools_checked(const char *, cJSON *, const char *,
     llm_response_t *, int (*)(void *), void *);
+#endif
 #endif
 #include <stdarg.h>
 struct stage_event { uint64_t request, mono_ms, value; int result; char stage[32]; };
@@ -192,6 +216,7 @@ int llm_chat_vision_checked(const char *prompt, const char *image_b64,
     return -ECANCELED;
 }
 
+#ifndef TEST_PLAN_LATENCY
 static void set_call(llm_response_t *response, int index, const char *id,
                      const char *name)
 {
@@ -220,10 +245,8 @@ int llm_chat_plan_checked(const char *system, cJSON *messages,
                           int (*check)(void *), void *request)
 {
     assert(system != NULL && strstr(system, "first use any necessary tools"));
-    if (!strcmp(scenario, "no-tool-final")) {
-        assert(strstr(system, "If no tools are needed and you can answer completely, "
-                             "return the complete final answer directly."));
-    }
+    /* A provider returning a complete validated body despite the decision
+     * request remains a supported compatibility response, without reasking. */
     assert(tools != NULL && strstr(tools, "agent_finalize"));
     assert(check != NULL && check(request) == 0);
     memset(response, 0, sizeof(*response));
@@ -313,6 +336,8 @@ int llm_chat_tools_checked(const char *system, cJSON *messages,
     (void)request;
     abort();
 }
+
+#endif
 
 #ifndef TEST_MIXED_TTS
 int llm_chat_final_stream_checked(const char *system, cJSON *messages,
@@ -449,13 +474,50 @@ static int reply_sink(uint64_t request_id, int event,
 }
 
 #ifdef TEST_MIXED_TTS
+#ifdef TEST_PLAN_LATENCY
+static unsigned tail_delay_ms;
+static uint64_t answer_started, tail_released;
+static const char first_answer[] = "Water boils when its vapour pressure reaches ambient pressure.";
+static const char *answer_tail = " Lower pressure lowers the boiling point.";
+static void release_answer_tail(void)
+{
+    while (voice_now_ms() - answer_started < tail_delay_ms) usleep(1000);
+    tail_released = voice_now_ms();
+}
+#endif
 static int unused_transport(const char *request, char *response,
     size_t capacity, size_t *length, int *status, void *context,
     int (*check)(void *), void *request_context)
 {
     (void)request; (void)response; (void)capacity; (void)length;
     (void)status; (void)context; (void)check; (void)request_context;
+#ifdef TEST_PLAN_LATENCY
+    planning_requests++;
+    cJSON *body = cJSON_Parse(request);
+    assert(body);
+    cJSON *choice = cJSON_GetObjectItemCaseSensitive(body, "tool_choice");
+    int decision_only = cJSON_IsString(choice) && !strcmp(choice->valuestring, "required");
+    cJSON_Delete(body);
+    int n;
+    if (decision_only) {
+        n = snprintf(response, capacity,
+            "{\"choices\":[{\"finish_reason\":\"tool_calls\",\"message\":{\"content\":null,"
+            "\"tool_calls\":[{\"id\":\"answer\",\"type\":\"function\",\"function\":{"
+            "\"name\":\"agent_finalize\",\"arguments\":\"{}\"}}]}}]}");
+    } else {
+        /* Same answer, but a non-streaming ordinary answer cannot finish
+         * until the provider generates the tail. This is the old path. */
+        release_answer_tail();
+        n = snprintf(response, capacity,
+            "{\"choices\":[{\"finish_reason\":\"stop\",\"message\":{\"content\":\"%s%s\"}}]}",
+            first_answer, answer_tail);
+    }
+    assert(n > 0 && (size_t)n < capacity);
+    *length = (size_t)n; *status = 200;
+    return 0;
+#else
     abort();
+#endif
 }
 
 static int controlled_final_transport(const char *request,
@@ -468,6 +530,21 @@ static int controlled_final_transport(const char *request,
     assert(check && check(request_context) == 0);
     assert(++final_requests == 1);
     *status = 200;
+#ifdef TEST_PLAN_LATENCY
+    assert(!strstr(request, "\"tools\"") && planning_requests == 1);
+    char first[256];
+    snprintf(first, sizeof(first),
+        "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"%s\"}}]}\n\n", first_answer);
+    assert(receive(receive_context, first, strlen(first)) == 0);
+    test_wait_first_pcm();
+    test_wait_stage(voice_channel_request_id(), "first_media");
+    release_answer_tail();
+    char tail[256];
+    snprintf(tail, sizeof(tail),
+        "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"%s\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n", answer_tail);
+    assert(receive(receive_context, tail, strlen(tail)) == 1);
+    return 0;
+#else
     const char first[] = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"你好，这是第一句。\"}}]}\n\n";
     assert(receive(receive_context, first, sizeof(first) - 1) == 0);
     test_wait_first_pcm();
@@ -476,6 +553,7 @@ static int controlled_final_transport(const char *request,
     int done = receive(receive_context, tail, sizeof(tail) - 1);
     assert(done == 1);
     return 0;
+#endif
 }
 #endif
 
@@ -542,12 +620,45 @@ int main(void)
         return 0;
     }
 
+#ifdef TEST_PLAN_LATENCY
+    const char *delay = getenv("FIRST_ANSWER_TAIL_MS");
+    tail_delay_ms = delay ? (unsigned)strtoul(delay, NULL, 10) : 600;
+    assert(tail_delay_ms >= 100 && tail_delay_ms <= 2000);
+    if (getenv("FIRST_ANSWER_LONG_TAIL"))
+        answer_tail = " Lower pressure lowers the boiling point, so altitude matters for cooking and safe food preparation.";
+    answer_started = voice_now_ms();
+#endif
     char *text = run_react_loop(
         "system", messages,
         "[{\"name\":\"get_weather\",\"description\":\"Weather\","
         "\"input_schema\":{\"type\":\"object\",\"properties\":{}}}]",
         tool_output, sizeof(tool_output), &message, &failure);
 
+#ifdef TEST_PLAN_LATENCY
+    char expected[256];
+    snprintf(expected, sizeof(expected), "%s%s", first_answer, answer_tail);
+    assert(!failure && text && !strcmp(text, expected));
+    test_history_count = test_cancel_at_history = 0;
+    assert(!message_bus_reply_with_history(&message, text, 0, test_history));
+    text = NULL;
+    assert(test_history_count == 1 && test_synth_calls == 2 && test_written == 16384);
+    assert(!strcmp(test_spoken[0], first_answer));
+    assert(!strcmp(test_spoken[1], answer_tail));
+    assert(test_opens == 1 && test_drains == 1 && test_closes == 1 && voice_channel_is_idle());
+    int media = test_wait_stage(message.request_id, "first_media");
+    uint64_t first_ms = test_stages[media].ms;
+    printf("FIRST_ANSWER tail_wait_ms=%u first_media_ms=%llu tail_release_ms=%llu plans=%u finals=%u text_bytes=%zu pcm_bytes=%zu\n",
+        tail_delay_ms, (unsigned long long)(first_ms - answer_started),
+        (unsigned long long)(tail_released - answer_started), planning_requests,
+        final_requests, strlen(expected), test_written);
+    fflush(stdout);
+    assert(first_ms < tail_released);
+    assert(planning_requests == 1 && final_requests == 1 && !registry_calls);
+    assert(!llm_clear_transport());
+    cJSON_Delete(messages);
+    puts("CONTRACT_PASS");
+    return 0;
+#endif
     if (!strcmp(scenario, "no-tool-final")) {
 #ifdef TEST_MIXED_TTS
         assert(failure == 0 && text != NULL &&
@@ -662,7 +773,7 @@ def build_and_run(case: str) -> tuple[bool, subprocess.CompletedProcess[str]]:
             "-o",
             str(temp / "probe"),
         ]
-        if case in ("mixed-tts", "no-tool-final"):
+        if case in ("mixed-tts", "no-tool-final", "first-answer"):
             command.extend([
                 str(agent / "src/llm/llm_proxy.c"),
                 str(agent / "src/llm/llm_parse.c"),
@@ -675,13 +786,24 @@ def build_and_run(case: str) -> tuple[bool, subprocess.CompletedProcess[str]]:
             command.remove(str(temp / "probe"))
             command.extend(["-o", str(temp / "probe")])
             command.insert(1, "-DTEST_MIXED_TTS=1")
+        if case == "first-answer":
+            command.insert(1, "-DTEST_PLAN_LATENCY=1")
         built = subprocess.run(command, capture_output=True, text=True)
         if built.returncode:
             print("SETUP_ERROR", built.stderr, end="")
             return False, built
-        return True, subprocess.run(
+        result = subprocess.run(
             [str(temp / "probe")], capture_output=True, text=True, timeout=15
         )
+        if case == "first-answer" and result.returncode == 0:
+            longer = subprocess.run(
+                [str(temp / "probe")], capture_output=True, text=True, timeout=15,
+                env=dict(os.environ, FIRST_ANSWER_TAIL_MS="1500", FIRST_ANSWER_LONG_TAIL="1"),
+            )
+            longer.stdout = result.stdout + longer.stdout
+            longer.stderr = result.stderr + longer.stderr
+            return True, longer
+        return True, result
 
 
 def main() -> int:

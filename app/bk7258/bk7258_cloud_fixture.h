@@ -23,6 +23,7 @@ struct bkcloud_fixture_ctx_s
   bool opened;
   atomic_bool canceled;
   bool stream;
+  bool decision_only;
   bool reply_ready;
   size_t sent;
   size_t offset;
@@ -37,6 +38,7 @@ struct bkcloud_fixture_ctx_s
 struct bkcloud_fixture_report_s
 {
   unsigned int asr_requests, plan_requests, final_requests, tts_requests;
+  unsigned int decision_requests;
   bool tail_released_after_media;
   size_t source_bytes;
   uint32_t source_hash;

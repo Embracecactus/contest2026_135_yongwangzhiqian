@@ -1027,6 +1027,8 @@ def main():
     for variant in ("reuse", "empty", "finalize", "cancel", "sink-cancel"):
         add(suite, "AGENT-01.final-body-" + variant, "AGENT-01", "L1",
             [sys.executable, HERE / "test_shaniu_final_body.py", variant])
+    add(suite, "AGENT-01.first-answer", "AGENT-01", "L2",
+        [sys.executable, HERE / "test_shaniu_mixed_tools.py", "first-answer"])
     add(suite, "AGENT-01.no-tool-final", "AGENT-01", "L2",
         [sys.executable, HERE / "test_shaniu_mixed_tools.py", "no-tool-final"])
     for variant in ("mixed", "mixed-tts", "unknown-tool", "missing-id", "duplicate-id"):

@@ -37,7 +37,7 @@ static int pcm_sink(void *unused, const void *data, size_t size)
 static void plan_once(struct bkcloud_fixture_ctx_s *ctx, char *text, size_t size)
 {
   assert(bkcloud_fixture_tls_ops()->open_verified(ctx, "fixture.invalid", 443, 1) == 0);
-  send_all(ctx, "POST / HTTP/1.1\r\n\r\n{\"stream\":false}");
+  send_all(ctx, "POST / HTTP/1.1\r\n\r\n{\"stream\":false,\"tool_choice\":\"required\"}");
   memset(text, 0, size); read_until(ctx, text, size, "agent_finalize");
   assert(!strstr(text, "data:")); close_ctx(ctx);
 }
@@ -106,6 +106,7 @@ int main(void)
   assert(bkcloud_fixture_report(&report) == 0);
   assert(report.asr_requests == 1 && report.final_requests == 1 && report.tts_requests == 2);
   assert(report.tail_released_after_media && report.source_bytes > 0);
+  assert(report.plan_requests == 1 && report.decision_requests == 1);
   /* A canceled request never releases the held tail as a successful stream. */
   assert(bkcloud_fixture_reset(BKCLOUD_FIXTURE_CANCEL_TAIL) == 0);
   plan_once(&final, text, sizeof(text));

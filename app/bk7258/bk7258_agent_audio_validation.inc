@@ -539,6 +539,7 @@ static int product_pipeline_validation(void)
       if (!result && (!idle || !samples || !texts ||
           !atomic_load(&g_pipeline_media) ||
           peer.asr_requests != 1 || peer.plan_requests != 1 ||
+          peer.decision_requests != 1 ||
           peer.final_requests != 1 || (cancel &&
           (peer.tail_released_after_media || peer.tts_requests != 1 ||
            pcm.bytes[1] != 0)) || (!cancel &&
@@ -546,11 +547,11 @@ static int product_pipeline_validation(void)
         result = -EPROTO;
       syslog(LOG_NOTICE,
         "BKPIPE session=%u ret=%d complete=%d idle=%d media=%d cancel=%d "
-        "asr=%u plan=%u final=%u tts=%u tail_after_media=%d samples=%d texts=%d "
+        "asr=%u plan=%u final=%u tts=%u decision=%u tail_after_media=%d samples=%d texts=%d "
         "pcm0=%zu/%08lx pcm1=%zu/%08lx\n", session, result, complete, idle,
         atomic_load(&g_pipeline_media), canceled, peer.asr_requests,
         peer.plan_requests, peer.final_requests, peer.tts_requests,
-        peer.tail_released_after_media, samples, texts, pcm.bytes[0],
+        peer.decision_requests, peer.tail_released_after_media, samples, texts, pcm.bytes[0],
         (unsigned long)pcm.hash[0], pcm.bytes[1], (unsigned long)pcm.hash[1]);
       if (!idle)
         {
