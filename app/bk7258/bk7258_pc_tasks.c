@@ -67,6 +67,15 @@ void bkpc_tasks_step(struct bkpc_tasks_s *state, uint64_t now, bool admitted)
     }
 }
 
+bool bkpc_tasks_take_completion(struct bkpc_tasks_s *state, uint64_t now)
+{
+  uint64_t sequence = read_be(state->last + 24, 8);
+  if (sequence == state->feedback_sequence) return false;
+  state->feedback_sequence = sequence;
+  return state->admitted && !state->expired && state->last[7] >= 3 &&
+         now >= state->observed && now < state->deadline;
+}
+
 int bkpc_tasks_apply(struct bkpc_tasks_s *state, const void *record,
                      size_t size, uint64_t now)
 {

@@ -23,6 +23,7 @@
 #include <unistd.h>
 
 #include <nuttx/irq.h>
+#include <nuttx/clock.h>
 #include <nuttx/mutex.h>
 #include <nuttx/rpmsg/rpmsg.h>
 #include <nuttx/semaphore.h>
@@ -63,6 +64,11 @@ struct bkmotion_server_s
   struct bkmotion_rpc_request_s last_request;
   struct bkmotion_rpc_response_s last_response;
   struct bkmotion_source_s source;
+  bool polling;
+  bool snapshot_valid;
+  uint32_t poll_epoch;
+  clock_t poll_at;
+  struct bkmotion_rpc_response_s snapshot;
 };
 
 static struct bkmotion_server_s g_bkmotion_server =
@@ -188,6 +194,8 @@ int bk7258_motion_service_quiesce(bool stop)
 
       server->quiescing = true;
       server->replay_valid = false;
+      server->polling = false;
+      server->snapshot_valid = false;
     }
 
   ret = server->io_active ? -EBUSY :
@@ -318,12 +326,45 @@ static int bkmotion_worker(int argc, char **argv)
       uint32_t epoch;
       uint32_t admission_epoch;
 
-      if (nxsem_wait_uninterruptible(&server->request_sem) < 0)
+      flags = spin_lock_irqsave(&server->request_lock);
+      bool polling = server->polling && !server->quiescing;
+      spin_unlock_irqrestore(&server->request_lock, flags);
+      int waited = polling ? nxsem_tickwait_uninterruptible(
+        &server->request_sem, MSEC2TICK(100)) :
+        nxsem_wait_uninterruptible(&server->request_sem);
+      if (waited < 0 && waited != -ETIMEDOUT)
         {
           continue;
         }
 
       flags = spin_lock_irqsave(&server->request_lock);
+      if (server->polling && !server->quiescing &&
+          clock_systime_ticks() - server->poll_at >= MSEC2TICK(100))
+        {
+          uint32_t poll_epoch = server->poll_epoch;
+          admission_epoch = server->admission_epoch;
+          server->poll_at = clock_systime_ticks();
+          spin_unlock_irqrestore(&server->request_lock, flags);
+          const struct bkmotion_rpc_request_s poll =
+          {
+            .magic = BKMOTION_RPC_MAGIC,
+            .version = BKMOTION_RPC_VERSION,
+            .command = BKMOTION_RPC_SAMPLE,
+            .session = 1,
+            .sequence = 1
+          };
+
+          (void)bkmotion_collect(&poll, &response, admission_epoch);
+          flags = spin_lock_irqsave(&server->request_lock);
+          if (server->polling && !server->quiescing &&
+              server->poll_epoch == poll_epoch &&
+              server->admission_epoch == admission_epoch)
+            {
+              server->snapshot = response;
+              server->snapshot_valid = true;
+            }
+        }
+
       /* A disconnect may leave a semaphore token behind.  Only the pending
        * slot owns work; consuming another token must never execute it twice.
        */
@@ -373,6 +414,40 @@ static int bkmotion_worker(int argc, char **argv)
   return 0;
 }
 
+int bk7258_motion_service_poll(bool active)
+{
+  struct bkmotion_server_s *server = &g_bkmotion_server;
+  irqstate_t flags = spin_lock_irqsave(&server->request_lock);
+  int ret = !server->initialized ? -ENODEV :
+    server->quiescing ? -ESHUTDOWN :
+    server->poll_epoch == UINT32_MAX ? -EOVERFLOW : 0;
+  bool changed = server->polling != (active && ret == 0);
+
+  if (changed)
+    {
+      if (server->poll_epoch < UINT32_MAX) server->poll_epoch++;
+      server->polling = active && ret == 0 &&
+                        server->poll_epoch != UINT32_MAX;
+      server->snapshot_valid = false;
+    }
+
+  spin_unlock_irqrestore(&server->request_lock, flags);
+  if (changed) (void)nxsem_post(&server->request_sem);
+  return ret;
+}
+
+int bk7258_motion_service_snapshot(struct bkmotion_rpc_response_s *sample)
+{
+  struct bkmotion_server_s *server = &g_bkmotion_server;
+  if (sample == NULL) return -EINVAL;
+  irqstate_t flags = spin_lock_irqsave(&server->request_lock);
+  int ret = server->snapshot_valid ? 0 : -ENODATA;
+  if (ret == 0) *sample = server->snapshot;
+  else memset(sample, 0, sizeof(*sample));
+  spin_unlock_irqrestore(&server->request_lock, flags);
+  return ret;
+}
+
 static int bkmotion_server_cb(struct rpmsg_endpoint *endpoint, void *data,
                               size_t len, uint32_t src, void *priv)
 {
@@ -401,6 +476,15 @@ static int bkmotion_server_cb(struct rpmsg_endpoint *endpoint, void *data,
   if (!bkmotion_rpc_request_valid(request))
     {
       bkmotion_rpc_make_response(&response, request, -EINVAL);
+      return bkmotion_send(server, &response, epoch);
+    }
+
+  if (request->command == BKMOTION_RPC_STATUS)
+    {
+      ret = bk7258_motion_service_snapshot(&response);
+      if (ret < 0) bkmotion_rpc_make_response(&response, request, ret);
+      response.session = request->session;
+      response.sequence = request->sequence;
       return bkmotion_send(server, &response, epoch);
     }
 
