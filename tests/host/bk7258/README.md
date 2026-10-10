@@ -3382,3 +3382,8 @@ server，仅替换 RPMsg peer、确定性等待及硬件边界。首个已提交
 正式选择集合 780/780 PASS，运行器自测 27 PASS；隔离关闭 CP 重放缓存的可编译
 变异被一次执行副作用断言检出。证据见
 `acceptance/r1-pm-replay-evidence-20260929.json`。
+
+Camera TLS regression uses Pillow to decode the owned synthetic JPEG. Install
+`python3 -m pip install -r tests/host/bk7258/python-requirements.txt` in the host
+test environment; the cold CI installs this same pinned dependency before
+provisioning regressions. This is a test dependency, not a device requirement.
