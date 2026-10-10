@@ -30,8 +30,10 @@ bool bkmotion_rpc_request_valid(const struct bkmotion_rpc_request_s *request)
 {
   return request != NULL && request->magic == BKMOTION_RPC_MAGIC &&
          request->version == BKMOTION_RPC_VERSION &&
-         request->command == BKMOTION_RPC_SAMPLE && request->session != 0 &&
-         request->sequence != 0 && request->reserved[0] == 0 &&
+         (request->command == BKMOTION_RPC_SAMPLE ||
+          request->command == BKMOTION_RPC_STATUS) &&
+         request->session != 0 && request->sequence != 0 &&
+         request->reserved[0] == 0 &&
          request->reserved[1] == 0;
 }
 
@@ -100,6 +102,12 @@ int bkmotion_rpc_handle_request(const struct bkmotion_rpc_request_s *request,
     {
       bkmotion_rpc_make_response(response, request, -EINVAL);
       return -EINVAL;
+    }
+
+  if (request->command != BKMOTION_RPC_SAMPLE)
+    {
+      bkmotion_rpc_make_response(response, request, -ENOTSUP);
+      return -ENOTSUP;
     }
 
   bkmotion_rpc_make_response(response, request, 0);

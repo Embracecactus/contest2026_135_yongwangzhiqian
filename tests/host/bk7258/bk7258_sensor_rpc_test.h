@@ -81,6 +81,9 @@ static int nfc_selects;
 #ifdef TEST_NFC_SCENE
 static int worker_timeouts, nfc_observations, nfc_present = 1;
 #endif
+#ifdef TEST_MOTION_POLL
+static int worker_timeouts;
+#endif
 static uint8_t nfc_uid_size = 4, nfc_sak;
 static int requests_sent, responses_sent, no_buffers;
 static bool drop_reply;
@@ -118,10 +121,10 @@ static int nxsem_wait_uninterruptible(sem_t *s)
 }
 static int nxsem_tickwait_uninterruptible(sem_t *s, clock_t timeout)
 {
-#ifdef TEST_NFC_RF
+#if defined(TEST_NFC_RF) || defined(TEST_MOTION_POLL)
   if (in_worker)
     {
-#ifdef TEST_NFC_SCENE
+#if defined(TEST_NFC_SCENE) || defined(TEST_MOTION_POLL)
       if (*s == 0 && worker_timeouts > 0)
         { worker_timeouts--; ticks += timeout; return -ETIMEDOUT; }
 #endif

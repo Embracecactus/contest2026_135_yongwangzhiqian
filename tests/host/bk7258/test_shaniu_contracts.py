@@ -547,6 +547,9 @@ def main():
         "test_shaniu_power_prepare",
         "test_shaniu_motion_quiesce",
         "test_shaniu_motion_actions",
+        "test_shaniu_motion_poll",
+        "test_shaniu_companion_display",
+        "test_shaniu_haptic_product",
         "test_shaniu_power_pixels",
         "test_shaniu_msc_stop",
         "test_shaniu_usb_cleanup",
@@ -1012,6 +1015,21 @@ def main():
         add(suite, "MOT-02.candidate-" + variant, "MOT-02", "L1",
             [HERE / "build/test_shaniu_motion_actions", variant],
             binaries["test_shaniu_motion_actions"])
+    for target, variants in (
+        ("motion_poll", ("sample", "late", "read-error", "quiesce")),
+        ("companion_display", ("gate", "expire", "cancel", "preempt",
+                               "new-default", "rollback", "failure", "activity")),
+        ("haptic_product", ("limit", "pulse", "cancel-pending", "cancel-active",
+                            "capture-quiet", "stop-error")),
+    ):
+        for variant in variants:
+            binary = "test_shaniu_" + target
+            add(suite, "MOT-02." + target + "." + variant, "MOT-02", "L2",
+                [HERE / ("build/" + binary), variant], binaries[binary])
+    add(suite, "MOT-02.product-feedback", "MOT-02", "L2",
+        [sys.executable, HERE / "test_shaniu_companion.py"], marker=False)
+    add(suite, "MOT-02.task-feedback", "MOT-02", "L2",
+        [HERE / "build/test_pc_tasks", "feedback"], binaries["test_pc_tasks"])
     for variant in (
         "prestart", "queued", "active", "idle", "close-error", "open-cleanup",
         "late", "queued-cycle", "waiter-cycle", "publication-cycle",

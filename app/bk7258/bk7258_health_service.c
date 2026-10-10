@@ -23,6 +23,7 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <syslog.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <nuttx/irq.h>
@@ -239,6 +240,10 @@ static void bkhealth_publish_snapshot(
   irqstate_t flags;
 
   memset(&snapshot, 0, sizeof(snapshot));
+  struct timespec now;
+  if (clock_gettime(CLOCK_MONOTONIC, &now) < 0) return;
+  snapshot.sampled_ms = (uint64_t)now.tv_sec * 1000 +
+                        now.tv_nsec / 1000000;
   if (response->battery_state_status == 0 &&
       (response->flags & BKHEALTH_FLAG_BATTERY_STATE_VALID) != 0)
     {

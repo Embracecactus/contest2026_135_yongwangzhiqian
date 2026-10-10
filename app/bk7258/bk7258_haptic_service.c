@@ -52,6 +52,7 @@ struct bkhaptic_server_s
   uint32_t local_sequence;
   uint32_t local_completed;
   int local_result;
+  int fault;
   struct bkhaptic_rpc_request_s last_request;
   struct bkhaptic_rpc_response_s last_response;
   struct bkhaptic_rpc_response_s notice;
@@ -85,8 +86,15 @@ static int bkhaptic_close(struct bkhaptic_server_s *s)
 
 static int bkhaptic_stop(struct bkhaptic_server_s *s)
 {
-  (void)s;
-  return bk7258_aidk_motor_set(false);
+  int ret = bk7258_aidk_motor_set(false);
+  if (ret < 0)
+    {
+      irqstate_t flags = spin_lock_irqsave(&s->lock);
+      s->fault = ret;
+      spin_unlock_irqrestore(&s->lock, flags);
+    }
+
+  return ret;
 }
 
 static int bkhaptic_open(struct bkhaptic_server_s *s)
@@ -238,14 +246,35 @@ static int bkhaptic_worker(int argc, char **argv)
               if (ret < 0) syslog(LOG_ERR, "BKHAPTIC local pulse: %d\n", ret);
               if (ret >= 0)
                 {
-                  (void)usleep(duration * 1000);
-                  ret = bkhaptic_stop(s);
+                  for (unsigned int elapsed = 0; elapsed < duration; )
+                    {
+                      unsigned int slice = duration - elapsed;
+                      if (slice > 5) slice = 5;
+                      (void)usleep(slice * 1000);
+                      elapsed += slice;
+                      flags = spin_lock_irqsave(&s->lock);
+                      bool canceled = s->local_stop_pending ||
+                                      s->stop_pending || s->quiesced;
+                      spin_unlock_irqrestore(&s->lock, flags);
+                      if (canceled)
+                        {
+                          ret = -ECANCELED;
+                          break;
+                        }
+                    }
+
+                  int stopped = bkhaptic_stop(s);
+                  if (stopped < 0) ret = stopped;
                 }
               flags = spin_lock_irqsave(&s->lock); s->active = false; s->local_active = false;
               s->local_owned = false;
               s->local_result = ret;
               s->local_completed = sequence;
+              if (ret < 0 && ret != -EBUSY && ret != -EAGAIN &&
+                  ret != -ECANCELED) s->fault = ret;
               spin_unlock_irqrestore(&s->lock, flags);
+              syslog(LOG_INFO, "BKHAPTIC product sequence=%lu result=%d\n",
+                     (unsigned long)sequence, ret);
               continue;
             }
 
@@ -522,9 +551,16 @@ static int bkhaptic_product_queue(unsigned int duration_ms, uint32_t *sequence)
 {
   struct bkhaptic_server_s *s = &g_bkhaptic;
   irqstate_t flags;
-  if (duration_ms == 0 || duration_ms > 32767) return -EINVAL;
+  if (duration_ms == 0 || duration_ms > BK7258_BOARD_MOTOR_MAX_ON_MS)
+    return -EINVAL;
   flags = spin_lock_irqsave(&s->lock);
   if (!s->initialized) { spin_unlock_irqrestore(&s->lock, flags); return -ENODEV; }
+  if (s->fault || s->local_sequence == UINT32_MAX)
+    {
+      int ret = s->fault ? s->fault : -EOVERFLOW;
+      spin_unlock_irqrestore(&s->lock, flags);
+      return ret;
+    }
   if (s->quiesced || s->pending || s->active || s->local_pending || s->local_owned || s->local_stop_pending || s->stop_pending)
     { spin_unlock_irqrestore(&s->lock, flags); return -EBUSY; }
   s->local_duration_ms = duration_ms; s->local_pending = true;
@@ -537,6 +573,22 @@ static int bkhaptic_product_queue(unsigned int duration_ms, uint32_t *sequence)
 int bkhaptic_service_pulse(unsigned int duration_ms)
 {
   return bkhaptic_product_queue(duration_ms, NULL);
+}
+
+int bkhaptic_service_product_status(struct bkhaptic_product_status_s *status)
+{
+  struct bkhaptic_server_s *s = &g_bkhaptic;
+  if (status == NULL) return -EINVAL;
+  irqstate_t flags = spin_lock_irqsave(&s->lock);
+  status->sequence = s->local_sequence;
+  status->completed = s->local_completed;
+  status->result = s->local_result;
+  status->fault = s->fault;
+  status->active = s->local_active || s->local_pending ||
+                   s->local_stop_pending;
+  int ret = s->initialized ? 0 : -ENODEV;
+  spin_unlock_irqrestore(&s->lock, flags);
+  return ret;
 }
 
 int bkhaptic_service_pulse_wait(unsigned int duration_ms)
@@ -571,6 +623,11 @@ int bkhaptic_service_stop_product(void)
   struct bkhaptic_server_s *s = &g_bkhaptic; irqstate_t flags = spin_lock_irqsave(&s->lock);
   if (!s->initialized) { spin_unlock_irqrestore(&s->lock, flags); return -ENODEV; }
   if (!s->local_active && !s->local_pending && !s->local_owned) { spin_unlock_irqrestore(&s->lock, flags); return 0; }
+  if (s->local_pending)
+    {
+      s->local_completed = s->local_sequence;
+      s->local_result = -ECANCELED;
+    }
   s->local_pending = false; s->local_stop_pending = true;
   spin_unlock_irqrestore(&s->lock, flags); return nxsem_post(&s->sem);
 }
@@ -579,7 +636,7 @@ int bkhaptic_service_quiesce(bool quiesce)
 {
   struct bkhaptic_server_s *s = &g_bkhaptic;
   irqstate_t flags = spin_lock_irqsave(&s->lock);
-  int ret = 0;
+  int ret = s->fault;
   if (quiesce && (s->pending || s->active || s->local_pending ||
       s->local_active || s->local_owned || s->local_stop_pending ||
       s->stop_pending)) ret = -EBUSY;

@@ -25,6 +25,7 @@
 enum bkmotion_rpc_command_e
 {
   BKMOTION_RPC_SAMPLE = 1,
+  BKMOTION_RPC_STATUS = 2,
   BKMOTION_RPC_RESPONSE = 0x8000,
 };
 

@@ -22,7 +22,26 @@ int main(int argc,char **argv)
   struct bkpc_tasks_s s={0};
   bkpc_tasks_bind(&s,1,1);
   assert(send(&s,1,1,1000,100)==0);
-  if(!strcmp(argv[1],"focus-completion"))
+  if(!strcmp(argv[1],"feedback"))
+    {
+      assert(!bkpc_tasks_take_completion(&s,100));
+      assert(send(&s,3,2,1000,200)==0);
+      assert(bkpc_tasks_take_completion(&s,200));
+      assert(!bkpc_tasks_take_completion(&s,201));
+      assert(send(&s,3,2,1000,202)==0);
+      assert(!bkpc_tasks_take_completion(&s,202));
+      bkpc_tasks_bind(&s,1,2);
+      assert(send(&s,1,1,1000,300)==0);
+      assert(send(&s,4,2,1000,400)==0);
+      assert(!bkpc_tasks_take_completion(&s,1400));
+      assert(!bkpc_tasks_take_completion(&s,1401));
+      bkpc_tasks_bind(&s,1,3);
+      assert(send(&s,1,1,1000,1500)==0);
+      assert(send(&s,5,2,1000,1600)==0);
+      bkpc_tasks_step(&s,1601,false);
+      assert(!bkpc_tasks_take_completion(&s,1601));
+    }
+  else if(!strcmp(argv[1],"focus-completion"))
     {
       /* The real timer keeps its completed fact, but no longer owns the
        * display ahead of a valid finite task result. Voice always wins.

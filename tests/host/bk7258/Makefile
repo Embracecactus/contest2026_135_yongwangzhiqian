@@ -2181,6 +2181,17 @@ $(BUILD)/test_shaniu_motion_quiesce: test_shaniu_motion_quiesce.c test_bk7258_mo
 $(BUILD)/test_shaniu_motion_actions: test_shaniu_motion_actions.c $(VOICE_PACK_ROOT)/bk7258_motion_core.c $(VOICE_PACK_ROOT)/bk7258_motion_core.h | $(BUILD)
 	$(CC) -std=c11 -Wall -Wextra -Werror -fsanitize=undefined -fno-sanitize-recover=all -I $(VOICE_PACK_ROOT) $< $(VOICE_PACK_ROOT)/bk7258_motion_core.c -o $@
 
+$(BUILD)/test_shaniu_companion_display: test_shaniu_companion_display.c $(VOICE_PACK_ROOT)/bk7258_display_companion.inc $(VOICE_PACK_ROOT)/bk7258_display_service.h | $(BUILD)
+	$(CC) -std=c11 -Wall -Wextra -Werror -fsanitize=undefined -fno-sanitize-recover=all -I $(VOICE_PACK_ROOT) $< -o $@
+
+$(BUILD)/test_shaniu_motion_poll: test_shaniu_motion_poll.c test_bk7258_motion_rpc.c bk7258_sensor_rpc_test.h $(wildcard $(VOICE_PACK_ROOT)/bk7258_motion_*.c) $(wildcard $(VOICE_PACK_ROOT)/bk7258_motion_*.h) $(SENSOR_RPC_SHIM)/.ready
+	$(CC) -std=c11 -Wall -Wextra -Werror -Wno-unused-function -fsanitize=undefined -fno-sanitize-recover=all -I $(SENSOR_RPC_SHIM) -I $(VOICE_PACK_ROOT) $< -o $@
+
+$(BUILD)/test_shaniu_haptic_product: test_shaniu_haptic_product.c bk7258_sensor_rpc_test.h $(VOICE_PACK_ROOT)/bk7258_haptic_service.c $(VOICE_PACK_ROOT)/bk7258_haptic_service.h $(SENSOR_RPC_SHIM)/.ready
+	mkdir -p $(BUILD)/haptic-include/arch/board
+	touch $(BUILD)/haptic-include/arch/board/board.h
+	$(CC) -std=c11 -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-variable -fsanitize=undefined -fno-sanitize-recover=all -I $(BUILD)/haptic-include -I $(SENSOR_RPC_SHIM) -I $(VOICE_PACK_ROOT) $< -o $@
+
 # Native CDC byte adapter; only the device node is redirected to a host PTY.
 $(BUILD)/test_control_serial: $(REPOSITORY_ROOT)/app/bk7258/bk7258_control_serial.c \
                               $(TEST_ROOT)/test_control_serial.c \
