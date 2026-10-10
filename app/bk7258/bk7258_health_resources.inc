@@ -7,6 +7,9 @@
 #include <malloc.h>
 #include <nuttx/arch.h>
 #include <nuttx/sched.h>
+#ifdef CONFIG_BK7258_MOTION_SERVICE
+#  include "bk7258_motion_service.h"
+#endif
 #ifdef CONFIG_BK7258_PSRAM
 #  include <arch/chip/bk7258_psram.h>
 #endif
@@ -56,6 +59,9 @@ static void bkhealth_resources(struct bkhealth_rpc_response_s *response)
 {
   struct mallinfo heap = mallinfo();
   struct bkhealth_stacks_s stacks = { .least_free = SIZE_MAX };
+#ifdef CONFIG_BK7258_MOTION_SERVICE
+  struct bkmotion_metrics_s motion;
+#endif
   struct timespec begin = {0};
   struct timespec end = {0};
 #ifdef CONFIG_BK7258_PSRAM
@@ -108,6 +114,14 @@ static void bkhealth_resources(struct bkhealth_rpc_response_s *response)
            "sequence=%lu revision=%lu\n", display.state, display.overlay,
            display.last_error, (unsigned long)display.render_sequence,
            (unsigned long)display.pack_revision);
+#endif
+#ifdef CONFIG_BK7258_MOTION_SERVICE
+  if (bk7258_motion_service_metrics(&motion) == 0)
+    syslog(LOG_INFO, "BKRESOURCE MOTION collections=%lu open_us=%lu "
+           "read_us=%lu close_us=%lu total_us=%lu\n",
+           (unsigned long)motion.collections, (unsigned long)motion.open_us,
+           (unsigned long)motion.read_us, (unsigned long)motion.close_us,
+           (unsigned long)motion.total_us);
 #endif
 #ifdef CONFIG_BK7258_HAPTIC_SERVICE
   if (bkhaptic_service_product_status(&haptic) == 0)
