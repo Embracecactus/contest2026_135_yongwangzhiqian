@@ -23,6 +23,7 @@ function gates() {
   $('catalog-cancel').disabled=busy || !catalog?.catalog || !['pending','preparing','cancel_pending'].includes(catalog.state);
   $('catalog-recover').disabled=busy || !catalog?.catalog || catalog.state!=='unknown' || !catalog.release_error || catalog.recovery_pending;
   $('export').disabled=!latest;
+  $('camera-stop').disabled=!(busy && latest?.operation==='camera-capture');
 }
 function renderCatalog() {
   $('catalog-items').replaceChildren();
@@ -39,14 +40,20 @@ function renderCatalog() {
 function show(job) {
   latest=job; busy=job?.phase==='running'; gates();
   if (!job) return;
-  $('details').textContent=JSON.stringify(job,null,2);
+  const safeJob={...job,result:job.result?{...job.result}:null};
+  if(safeJob.result) delete safeJob.result.image_base64;
+  $('details').textContent=JSON.stringify(safeJob,null,2);
   const snap=job.snapshot;
   $('progress').value=snap?.total ? snap.written/snap.total : 0;
   $('message').textContent=(labels[job.phase]||job.phase)+(job.cancel_requested?' · 已请求取消，等待设备结果':'')+(job.error?' · '+job.error:'');
   if (job.phase==='running' || lastSeen===job.id) return;
   lastSeen=job.id;
   const value=job.result;
-  if (!value) { if(['disconnected','unauthorized','unsupported'].includes(job.phase)) $('connection').textContent=job.error; if(job.operation?.startsWith('catalog-')) {catalog=null;catalogReceipt=null;selection=null;renderCatalog();gates();} return; }
+  if (!value) { if(job.operation?.startsWith('camera-')) $('camera-state').textContent=job.error||'结果未知，请读取相机状态。'; if(['disconnected','unauthorized','unsupported'].includes(job.phase)) $('connection').textContent=job.error; if(job.operation?.startsWith('catalog-')) {catalog=null;catalogReceipt=null;selection=null;renderCatalog();gates();} return; }
+  if (job.operation?.startsWith('camera-')) {
+    $('camera-state').textContent='相机状态：'+({idle:'空闲',pending:'等待采集',capturing:'正在采集',ready:'有效单帧',failed:'采集失败',canceled:'已取消或释放',expired:'已过期',unknown:'结果未知'}[value.state]||'未知')+(value.size?` · ${value.format} ${value.width}×${value.height} · ${value.size} 字节`:'')+(value.error?` · 错误 ${value.error}`:'');
+    if(value.image_base64 && value.valid && value.release_confirmed) { $('camera-preview').src='data:image/jpeg;base64,'+value.image_base64; $('camera-preview').hidden=false; }
+  }
   if (job.operation==='status') $('connection').textContent=value.ready?'设备报告本地就绪'+(value.busy?'，正在忙碌。':'。'):'设备尚未报告就绪。';
   if (job.operation==='info') $('connection').textContent=`设备版本 ${value.major}.${value.minor}.${value.revision}，构建 ${value.build}`;
   if (job.operation==='task-status') $('task-state').textContent='设备任务：'+({none:'无任务',start:'已开始',progress:'运行中',success:'成功',failure:'失败',canceled:'已取消'}[value.state]||'未知')+(value.expired?' · 已过期，不再提醒':'')+(value.progress===null?'':` · ${value.progress}%`);
@@ -61,6 +68,7 @@ function show(job) {
 }
 async function submit(operation, params={}) {
   const id=crypto.randomUUID().replaceAll('-','');
+  if(operation.startsWith('camera-')) { $('camera-preview').hidden=true; $('camera-preview').removeAttribute('src'); $('camera-state').textContent='正在请求…'; }
   if (operation.startsWith('catalog-') || operation.startsWith('default-')) {catalog=null;selection=null;catalogReceipt=null;renderCatalog();}
   busy=true;gates();$('message').textContent='正在提交…';
   try {
@@ -80,6 +88,8 @@ async function packData() {
   const bytes=new Uint8Array(await file.arrayBuffer());let binary='';bytes.forEach(b=>binary+=String.fromCharCode(b));
   return btoa(binary);
 }
+$('camera-capture').onclick=()=>submit('camera-capture');
+$('camera-stop').onclick=guarded(async()=>{await api('/api/cancel',{id:latest.id});$('camera-state').textContent='已请求取消，等待设备释放确认。';});
 $('upload').onclick=guarded(async()=>submit('resource-upload',{data:await packData(),ttl_ms:milliseconds('ttl')}));
 $('resource-resume').onclick=guarded(async()=>submit('resource-resume',{data:await packData(),receipt_id:$('receipt').value}));
 $('resource-cancel').onclick=()=>submit('resource-cancel',{receipt_id:$('receipt').value});
@@ -94,6 +104,6 @@ $('catalog-refresh').onclick=()=>submit('catalog-page',{selection_epoch:catalog.
 $('catalog-next').onclick=()=>submit('catalog-page',{selection_epoch:catalog.epoch,expected_selection_id:catalog.id,catalog_after:catalog.next_cursor});
 $('catalog-cancel').onclick=()=>submit('catalog-cancel',{selection_epoch:catalog.epoch,expected_selection_id:catalog.id});
 $('catalog-recover').onclick=()=>submit('catalog-recover',{selection_epoch:catalog.epoch,expected_selection_id:catalog.id});
-$('export').onclick=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(latest,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='shaniu-workbench-result.json';a.click();URL.revokeObjectURL(url);};
+$('export').onclick=()=>{const url=URL.createObjectURL(new Blob([$('details').textContent],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='shaniu-workbench-result.json';a.click();URL.revokeObjectURL(url);};
 async function poll(){try{const value=await api('/api/state');show(value.job);if(!value.job)$('message').textContent='工作台已就绪，尚未连接设备。';}catch(e){busy=true;gates();$('message').textContent=e.message;}setTimeout(poll,750);}
 gates();poll();

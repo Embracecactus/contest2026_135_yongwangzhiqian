@@ -56,6 +56,10 @@
 #include "voice/voice_tts.h"
 #ifdef CONFIG_BK7258_VISION_SERVICE
 #include "bk7258_agent_vision.h"
+#ifdef CONFIG_BK7258_PROVISION_NATIVE
+#include "bk7258_pc_camera.h"
+#define BKPRODUCT_PC_CAMERA 1
+#endif
 #endif
 #ifdef CONFIG_BK7258_VOICE_TLS
 #include "cJSON.h"
@@ -1891,6 +1895,20 @@ static int product_pc_config(void *context, enum bkcontrol_command_e command,
   uint32_t kind, uint32_t offset, const uint8_t *record, size_t size,
   struct bkcontrol_status_s *status)
 {
+#ifdef BKPRODUCT_PC_CAMERA
+  if (kind == BKCONTROL_CONFIG_CAMERA || kind == BKCONTROL_CONFIG_CAMERA_FRAME)
+    {
+      const struct bkpc_control_s *lease = &g_pc_usb_owner.usb.lease;
+      if (!lease->open || !(lease->capabilities & BKPC_CAP_CAMERA))
+        return -EACCES;
+      return bkcamera_control(command, kind, offset, record, size, status);
+    }
+  if (kind == BKCONTROL_CONFIG_RESOURCE_JOB && command != BKCONTROL_CONFIG_READ)
+    {
+      bkcamera_close();
+      if (bkcamera_busy()) return -EBUSY;
+    }
+#endif
 #ifdef CONFIG_BK7258_ENGINEERING_TEST
   if (kind == BKCONTROL_CONFIG_ENGINEERING_TEST)
     {
@@ -1982,15 +2000,23 @@ static int product_pc_config(void *context, enum bkcontrol_command_e command,
 
 static int product_pc_usb_stop(void)
 {
+#ifdef BKPRODUCT_PC_CAMERA
+  bkcamera_close();
+#endif
   return bkpc_usb_owner_stop(&g_pc_usb_owner);
 }
 
-#ifdef CONFIG_BK7258_ENGINEERING_TEST
+#if defined(CONFIG_BK7258_ENGINEERING_TEST) || defined(BKPRODUCT_PC_CAMERA)
 static void product_pc_engineering_closed(void *context)
 {
   (void)context;
+#ifdef BKPRODUCT_PC_CAMERA
+  bkcamera_close();
+#endif
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
   (void)bkengtest_disconnect(&g_engineering_test, &g_engineering_test_ops,
                              NULL);
+#endif
 }
 #endif
 
@@ -2066,7 +2092,7 @@ static void product_pc_usb_step(void)
 #endif
     (g_identity_bound && g_control_bound && !bkagent_ota_busy()),
     !atomic_load(&g_voice_initialized) || voice_channel_is_idle());
-#ifdef CONFIG_BK7258_ENGINEERING_TEST
+#if defined(CONFIG_BK7258_ENGINEERING_TEST) || defined(BKPRODUCT_PC_CAMERA)
   if (g_pc_usb_owner.usb.lease.open)
     {
       (void)bkpc_control_set_close_handler(&g_pc_usb_owner.usb.lease,
@@ -3151,6 +3177,21 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
                         voice_channel_is_idle();
       bk7258_display_focus(product_focus_visual(now, focus_idle,
         bkpc_tasks_visual(&g_pc_tasks, now, focus_idle, bkfocus_visual(now))));
+#endif
+#ifdef BKPRODUCT_PC_CAMERA
+      bool camera_storage_idle = true;
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+      struct bkdisplay_job_status_s camera_install;
+      camera_storage_idle = bk7258_display_job_status(&camera_install) == 0 &&
+        !camera_install.resources_held && (camera_install.state == BKDISPLAY_JOB_IDLE ||
+        camera_install.state == BKDISPLAY_JOB_DONE || camera_install.state == BKDISPLAY_JOB_CANCELED ||
+        camera_install.state == BKDISPLAY_JOB_FAILED);
+#endif
+      bkcamera_step(now, g_control_bound && !content_busy && !voice_interaction_active &&
+        !bkagent_ota_busy() && camera_storage_idle &&
+        (!atomic_load(&g_voice_initialized) || voice_channel_is_idle()) &&
+        g_pc_usb_owner.usb.lease.open &&
+        (g_pc_usb_owner.usb.lease.capabilities & BKPC_CAP_CAMERA));
 #endif
       bool task_completed = bkpc_tasks_take_completion(&g_pc_tasks, now);
       product_companion_step(now, !bkagent_ota_busy() && !content_busy,

@@ -739,3 +739,5 @@ python tools/bk7258/bk7258.py workbench catalog-page --port NATIVE_CDC_PORT --pr
 `catalog-status`并带原epoch/nonce回查，错scope或旧请求会报未确认，不自动重放。
 `source_sha256`只是包的源元数据摘要，不是文件哈希。旧固件不支持则报错，
 不假装设备没有资源。手机原生App目录选择尚未随此电脑入口完成。
+
+按需相机的授权、单帧取景与统计入口见[相机合同和使用流程](../../docs/platforms/bk7258/shaniu-pc-camera.md)。

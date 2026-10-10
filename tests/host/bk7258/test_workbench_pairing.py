@@ -116,7 +116,7 @@ class PairingTest(unittest.TestCase):
                     now_ms=now,
                 )
         self.assertFalse(self.dest.exists())
-        for caps in [0, 16, -1]:
+        for caps in [0, 32, -1]:
             with self.assertRaises(pairing.PairingError):
                 pairing.start(
                     self.root / "new.req",

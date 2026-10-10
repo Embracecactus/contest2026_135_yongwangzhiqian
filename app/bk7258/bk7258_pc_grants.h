@@ -14,7 +14,8 @@
 #define BKPC_CAP_SCENES 2u
 #define BKPC_CAP_TASKS 4u
 #define BKPC_CAP_DIAGNOSTICS 8u
-#define BKPC_CAP_ALL 15u
+#define BKPC_CAP_CAMERA 16u
+#define BKPC_CAP_ALL 31u
 #define BKPC_GRANT_RECORD_SIZE 88u
 
 /* First version stores one independent computer principal. A serialized file

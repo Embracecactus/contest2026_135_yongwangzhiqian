@@ -98,6 +98,7 @@ int bkcontrol_session_packet(struct bkcontrol_session_s *s, const uint8_t *p,
               if (payload != 4 && payload != 20) goto fail;
               argument = get32(p + 16);
               if (payload == 20 &&
+                  (argument >> 16) != BKCONTROL_CONFIG_CAMERA_FRAME &&
                   (argument >> 16) != BKCONTROL_CONFIG_RESET_TRANSFER &&
                   (argument >> 16) != BKCONTROL_CONFIG_PC_AUTHORIZATION &&
                   (argument >> 16) != BKCONTROL_CONFIG_RESOURCE_JOB &&

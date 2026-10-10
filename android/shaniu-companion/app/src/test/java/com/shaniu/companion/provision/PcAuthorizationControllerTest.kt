@@ -196,6 +196,18 @@ class PcAuthorizationControllerTest {
         assertEquals(PcAuthorizationController.Outcome.CONFIRMED, f.controller.current().outcome)
         assertTrue(f.controller.current().snapshot!!.active)
     }
+    @Test fun cameraGrantRequiresExplicitBitAndDurableReadback() {
+        val f = Fixture(); f.loaded()
+        assertTrue(f.controller.grant(f.controller.current().snapshot!!,
+            ByteArray(16) { 9 }, ByteArray(32) { 84 }, 16))
+        f.reply(); repeat(3) { f.reply() }; f.reply(); f.receipt(2)
+        assertNotEquals(PcAuthorizationController.Outcome.CONFIRMED, f.controller.current().outcome)
+        val view = f.view(true, 6, f.tx)
+        ByteBuffer.wrap(view).putInt(24, 16)
+        f.read(view)
+        assertEquals(PcAuthorizationController.Outcome.CONFIRMED, f.controller.current().outcome)
+        assertEquals(16, f.controller.current().snapshot!!.capabilities)
+    }
     @Test fun grantRejectsWrongReadbackClientCapabilitiesAndRevision() {
         for (field in listOf(16, 24, 32, 48)) {
             val f = Fixture(); f.loaded()
@@ -210,7 +222,7 @@ class PcAuthorizationControllerTest {
     @Test fun invalidGrantInputsNeverBeginOrChangeBorrowedKey() {
         val f = Fixture(); f.loaded(); val before = f.frames.size
         val key = ByteArray(32) { 84 }; val client = ByteArray(16) { 9 }
-        for (caps in listOf(0, 16, -1)) assertFalse(f.controller.grant(f.controller.current().snapshot!!, client, key, caps))
+        for (caps in listOf(0, 32, -1)) assertFalse(f.controller.grant(f.controller.current().snapshot!!, client, key, caps))
         assertFalse(f.controller.grant(f.controller.current().snapshot!!, ByteArray(16), key, 3))
         assertFalse(f.controller.grant(f.controller.current().snapshot!!, client, ByteArray(32), 3))
         assertFalse(f.controller.grant(f.controller.current().snapshot!!, client, ByteArray(31), 3))

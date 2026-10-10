@@ -533,6 +533,7 @@ def main():
         "test_control_serial",
         "test_pc_grants",
         "test_pc_tasks",
+        "test_pc_camera",
         "test_agent_final_stream",
         "test_shaniu_response_length_store",
         "test_pc_reset",
@@ -1157,6 +1158,13 @@ def main():
             binaries["test_pc_owner_binding"])
         add(suite, "NET-03.pc-product-" + variant, "NET-03", "L2",
             [sys.executable, HERE / "test_pc_product_route.py", variant])
+    add(suite, "USB-02.camera-service-cancel", "USB-02", "L2",
+        [sys.executable, HERE / "test_pc_camera_service.py"], marker=False)
+    add(suite, "USB-02.camera-production", "USB-02", "L2",
+        [HERE / "build/test_pc_camera"], binaries["test_pc_camera"], marker=False)
+    for variant in ("status_golden_and_invalid", "request_requires_identity", "no_capture_without_auth_or_invalid_input"):
+        add(suite, "USB-02.camera-client-" + variant, "USB-02", "L1",
+            [sys.executable, HERE / "test_workbench_camera.py", "CameraTest.test_" + variant], marker=False)
     for variant in ("terminal", "duplicate", "ordering", "expiry", "binding", "readonly", "invalid", "quiesce", "rate", "visual"):
         add(suite, "PC-01.task-" + variant, "PC-01", "L1",
             [HERE / "build/test_pc_tasks", variant], binaries["test_pc_tasks"])
@@ -1183,7 +1191,7 @@ def main():
         add(suite, "RST-01.pc-" + variant, "RST-01", "L2",
             [sys.executable, HERE / "test_pc_reset.py", variant],
             binaries["test_pc_reset"])
-    for variant in ("persist", "owner", "revision", "invalid", "writefail",
+    for variant in ("camera", "persist", "owner", "revision", "invalid", "writefail",
                     "uncertain", "corrupt", "golden", "aliased-key"):
         add(suite, "NET-03.pc-grant-" + variant, "NET-03", "L2",
             [HERE / "build/test_pc_grants", variant],
@@ -1211,7 +1219,7 @@ def main():
         add(suite, "USB-01.pc-client-" + variant, "USB-01", "L2",
             [sys.executable, HERE / "test_workbench_client.py",
              "WorkbenchClientTest.test_" + variant], marker=False)
-    for variant in ('classified_failure_does_not_report_completion', 'http_authority_rejects_before_operation', 'polling_is_local_and_duplicate_is_not_replayed', 'cancel_is_intent_not_remote_completion', 'page_headers_and_no_credential_paths', 'invalid_upload_does_not_open_device', 'http_upload_reaches_tls_and_native_installer', 'large_counters_preserve_exact_value', 'upload_exact_128k_boundary', 'upload_128k_plus_one_rejected_before_spool_or_worker'):
+    for variant in ('classified_failure_does_not_report_completion', 'camera_preview_stays_in_latest_memory_result', 'camera_cancel_uses_existing_cooperative_owner', 'http_authority_rejects_before_operation', 'polling_is_local_and_duplicate_is_not_replayed', 'cancel_is_intent_not_remote_completion', 'page_headers_and_no_credential_paths', 'invalid_upload_does_not_open_device', 'http_upload_reaches_tls_and_native_installer', 'large_counters_preserve_exact_value', 'upload_exact_128k_boundary', 'upload_128k_plus_one_rejected_before_spool_or_worker'):
         add(suite, "USB-02.browser-" + variant, "USB-02", "L2",
             [sys.executable, HERE / "test_workbench_web.py", "WebTest.test_" + variant], marker=False)
     for variant in ('trial_expiry', 'trial_cancel', 'missing_pack', 'default_supersedes_trial', 'release_recovery_stays_unknown'):
@@ -2007,6 +2015,14 @@ def main():
         HERE / "test_workbench_tasks.py",
         HERE / "test_workbench_task_runner.py",
         ROOT / "tools/bk7258/_lib/workbench_task_runner.py",
+        HERE / "test_pc_camera.c",
+        HERE / "test_pc_camera_service.py",
+        HERE / "fixtures/camera-synthetic-jpeg.h",
+        HERE / "test_workbench_camera.py",
+        HERE / "test_workbench_camera_peer.py",
+        ROOT / "app/bk7258/bk7258_pc_camera.c",
+        ROOT / "app/bk7258/bk7258_pc_camera.h",
+        ROOT / "tools/bk7258/_lib/workbench_camera.py",
         HERE / "test_workbench_web.py",
         HERE / "test_workbench_web_display.py",
         ROOT / "tools/bk7258/_lib/workbench_web.py",

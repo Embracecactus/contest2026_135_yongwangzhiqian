@@ -292,6 +292,10 @@ class ProvisionTlsTest(unittest.TestCase):
                         ROOT / "app/bk7258/bk7258_pc_control.c",
                         ROOT / "app/bk7258/bk7258_pc_usb.c",
                         ROOT / "app/bk7258/bk7258_pc_tasks.c",
+                        ROOT / "app/bk7258/bk7258_pc_camera.c",
+                        ROOT / "tests/host/bk7258/test_pc_camera.c",
+                        "-DBKCAMERA_BACKEND_ONLY", "-DCONFIG_BK7258_VISION_FPS=30",
+                        "-I", ROOT / "tests/host/bk7258/mocks",
                         "-Wl,--wrap=open,--wrap=fsync",
                         ROOT / "app/bk7258/bk7258_provision_tls.c",
                         ROOT / "app/bk7258/bk7258_provision_claim.c",
@@ -537,6 +541,9 @@ class ProvisionTlsTest(unittest.TestCase):
                                 temp / "key.pem",
                             ]
                         )
+                        run([sys.executable, ROOT / "tests/host/bk7258/test_workbench_camera_peer.py",
+                             temp / "test", temp / "cert.pem", temp / "key.pem"])
+                        print("Camera TLS/PC/capture/transfer/cancel: PASS synthetic-image-only", flush=True)
                         print(
                             "PC client interop: independent-principal=PASS owner-rejected=PASS STATUS/INFO=PASS",
                             flush=True,
