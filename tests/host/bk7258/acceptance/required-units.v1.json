@@ -908,7 +908,11 @@
     "MOT-02.haptic_product.capture-quiet",
     "MOT-02.haptic_product.stop-error",
     "MOT-02.product-feedback",
-    "MOT-02.task-feedback"
+    "MOT-02.task-feedback",
+    "USB-01.ota-write-classification",
+    "MOT-02.motion_poll.reuse",
+    "MOT-02.motion_poll.reuse-quiesce",
+    "MOT-02.motion_poll.reuse-close-error"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1820,6 +1824,10 @@
     "MOT-02.haptic_product.capture-quiet",
     "MOT-02.haptic_product.stop-error",
     "MOT-02.product-feedback",
-    "MOT-02.task-feedback"
+    "MOT-02.task-feedback",
+    "USB-01.ota-write-classification",
+    "MOT-02.motion_poll.reuse",
+    "MOT-02.motion_poll.reuse-quiesce",
+    "MOT-02.motion_poll.reuse-close-error"
   ]
 }
