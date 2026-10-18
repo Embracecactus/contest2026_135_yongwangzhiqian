@@ -232,6 +232,17 @@ class WebTest(unittest.TestCase):
         self.assertIn(
             "frame-ancestors 'none'", self.response_headers["Content-Security-Policy"]
         )
+        policy = {
+            words[0]: words[1:]
+            for directive in self.response_headers["Content-Security-Policy"].split(";")
+            if (words := directive.split())
+        }
+        # The preview is an in-memory JPEG data URL. Permit that source without
+        # allowing remote images or relaxing scripts and device API requests.
+        self.assertEqual(policy.get("img-src"), ["data:"])
+        self.assertEqual(policy.get("default-src"), ["'none'"])
+        self.assertEqual(policy.get("script-src"), ["'self'"])
+        self.assertEqual(policy.get("connect-src"), ["'self'"])
         self.assertNotIn("Access-Control-Allow-Origin", self.response_headers)
         self.assertNotIn(self.server.token.encode(), page)
         self.assertNotIn(b"fixture.profile", page)
