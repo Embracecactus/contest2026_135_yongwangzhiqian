@@ -8,6 +8,8 @@
 #include <errno.h>
 #include <string.h>
 #include <sys/random.h>
+#include <syslog.h>
+#include <arch/chip/bk7258_bt_ipc.h>
 #include "bt_hcicore.h"
 #include "bt_conn.h"
 #include "bk7258_provision_gatt.h"
@@ -31,7 +33,10 @@ static struct bt_uuid_s g_appearance = { .type = BT_UUID_16, .u.u16 = BT_UUID_GA
 static spinlock_t g_lock = SP_UNLOCKED;
 static struct bt_conn_s *g_peer;
 static struct bt_conn_s *g_connection;
-/* Only the serialized product worker changes advertising state. */
+/* Registration adopts the Host state before the worker starts. After that,
+ * only the serialized product worker changes advertising state.
+ */
+
 static bool g_advertising;
 static bool g_locator_valid;
 static uint8_t g_locator[BKPROV_GATT_LOCATOR_SIZE];
@@ -45,6 +50,73 @@ static bool g_window;
 static bool g_ready;
 static uint16_t g_ccc_value;
 static struct bt_gatt_ccc_cfg_s g_ccc[1];
+
+/* Callback counters are sampled by the product worker. Never perform UART
+ * output or synchronous HCI commands from a Bluetooth callback.
+ */
+
+static uint32_t g_connected_count;
+static uint32_t g_disconnected_count;
+
+static void trace_radio(const char *event, int result, bool force)
+{
+  static bool sampled;
+  static unsigned int previous_state;
+  static uint32_t previous_generation;
+  static uint32_t previous_connected;
+  static uint32_t previous_disconnected;
+  static int previous_error;
+  struct bk7258_bt_hci_stats_s hci;
+  unsigned int state;
+  uint32_t generation;
+  uint32_t connects;
+  uint32_t disconnects;
+  irqstate_t flags;
+  int ret;
+
+  flags = spin_lock_irqsave(&g_lock);
+  state = (g_window ? 1u : 0u) | (g_connection != NULL ? 2u : 0u) |
+          (g_advertising ? 4u : 0u) | (g_ready ? 8u : 0u);
+  generation = g_generation;
+  connects = g_connected_count;
+  disconnects = g_disconnected_count;
+  spin_unlock_irqrestore(&g_lock, flags);
+  if (!force && sampled && state == previous_state &&
+      generation == previous_generation && connects == previous_connected &&
+      disconnects == previous_disconnected &&
+      g_radio_error == previous_error)
+    {
+      return;
+    }
+
+  sampled = true;
+  previous_state = state;
+  previous_generation = generation;
+  previous_connected = connects;
+  previous_disconnected = disconnects;
+  previous_error = g_radio_error;
+  memset(&hci, 0, sizeof(hci));
+  ret = bk7258_bt_hci_get_stats(&hci);
+
+  /* This is a Host snapshot, not RF proof. Last HCI values can precede the
+   * sampled action; omit addresses, locator bytes and all ACL/TLS payloads.
+   */
+
+  syslog(LOG_INFO, "BKPROV RADIO event=%s result=%d window=%u peer=%u "
+         "host_adv=%u ready=%u generation=%lu "
+         "connected=%lu disconnected=%lu "
+         "latched=%d hci=%d command=%08lx complete=%08lx status=%08lx "
+         "hci_connected=%lu hci_disconnected=%lu disconnect=%08lx\n",
+         event, result, state & 1u, (state >> 1) & 1u, (state >> 2) & 1u,
+         (state >> 3) & 1u, (unsigned long)generation,
+         (unsigned long)connects, (unsigned long)disconnects, g_radio_error,
+         ret, (unsigned long)hci.last_command,
+         (unsigned long)hci.last_cmd_complete,
+         (unsigned long)hci.last_cmd_status,
+         (unsigned long)hci.hci_le_connected,
+         (unsigned long)hci.hci_disconnected,
+         (unsigned long)hci.last_disconnection);
+}
 
 static int read_name(struct bt_conn_s *conn, const struct bt_gatt_attr_s *attr,
                      void *buf, uint8_t len, uint16_t offset)
@@ -94,6 +166,7 @@ static void connected(struct bt_conn_s *conn, void *context)
   (void)context;
   if (g_connection == NULL)
     {
+      g_connected_count++;
       g_connection = bt_conn_addref(conn);
       g_locator_valid = false;
       memset(g_locator, 0, sizeof(g_locator));
@@ -114,6 +187,7 @@ static void disconnected(struct bt_conn_s *conn, void *context)
   (void)context;
   if (g_connection == conn)
     {
+      g_disconnected_count++;
       old = g_connection;
       g_connection = NULL;
       g_window = false;
@@ -231,6 +305,15 @@ int bkprov_gatt_register(void)
     }
   bt_gatt_register(g_attributes, sizeof(g_attributes) / sizeof(g_attributes[0]));
   bt_conn_cb_register(&g_callbacks);
+
+  /* The pinned NuttX Host starts its default services advertising during
+   * bt_driver_register(). Adopt that state before the first product poll
+   * so the closed window reconciles it before enabling product advertising.
+   * Register callbacks first to retain and drain an early physical peer.
+   * Keep the existing stop-error latch; -EALREADY remains an idle result.
+   */
+
+  g_advertising = true;
   g_registered = true;
   return 0;
 }
@@ -244,12 +327,14 @@ int bkprov_gatt_poll(void)
   open = g_window;
   spin_unlock_irqrestore(&g_lock, flags);
   int ret = g_radio_error;
+  trace_radio("poll", ret, false);
 
   /* The controller stops advertising on connection; clear the Host flag too,
    * otherwise this Host automatically advertises again on disconnection.
    */
   if (g_advertising && (peer != NULL || !open))
     {
+      trace_radio("stop_begin", 0, true);
       int error = bt_stop_advertising();
       if (error == 0 || error == -EALREADY)
         {
@@ -269,6 +354,7 @@ int bkprov_gatt_poll(void)
           ccc_changed(0);
           open = false;
         }
+      trace_radio("stop_end", error, true);
     }
   if (peer != NULL)
     {
@@ -344,6 +430,7 @@ int bkprov_gatt_window(bool open)
     {
       memcpy(g_scan_response[0].data + 16, locator, sizeof(locator));
     }
+  trace_radio("start_begin", 0, true);
   ret = bt_start_advertising(BT_LE_ADV_IND, g_advertisement, g_scan_response);
   /* Also reconcile a partially failed enable command on the error path. */
   g_advertising = true;
@@ -354,6 +441,7 @@ int bkprov_gatt_window(bool open)
       g_locator_valid = true;
     }
   spin_unlock_irqrestore(&g_lock, flags);
+  trace_radio("start_end", ret, true);
   memset(locator, 0, sizeof(locator));
   if (ret < 0)
     {

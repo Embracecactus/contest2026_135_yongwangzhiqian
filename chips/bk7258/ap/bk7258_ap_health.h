@@ -9,5 +9,6 @@
 #define __ARCH_ARM_SRC_BK7258_AP_BK7258_AP_HEALTH_H
 
 int bk7258_ap_health_initialize(void);
+void bk7258_ap_health_observe(void);
 
 #endif /* __ARCH_ARM_SRC_BK7258_AP_BK7258_AP_HEALTH_H */

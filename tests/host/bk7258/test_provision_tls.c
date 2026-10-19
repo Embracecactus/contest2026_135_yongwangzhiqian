@@ -264,7 +264,8 @@ static int pc_config(void *context, enum bkcontrol_command_e command,
                       size_t size, struct bkcontrol_status_s *status)
 {
   assert(context == &pc_reads);
-  if (kind == BKCONTROL_CONFIG_CAMERA || kind == BKCONTROL_CONFIG_CAMERA_FRAME)
+  if (kind == BKCONTROL_CONFIG_CAMERA || kind == BKCONTROL_CONFIG_CAMERA_FRAME ||
+      kind == BKCONTROL_CONFIG_CAMERA_BLOCK)
     {
       bkcamera_step(now, true);
       int ret = bkcamera_control(command, kind, offset, record, size, status);
@@ -272,7 +273,8 @@ static int pc_config(void *context, enum bkcontrol_command_e command,
       return ret;
     }
 #ifdef CONFIG_BK7258_ENGINEERING_TEST
-  if (kind == BKCONTROL_CONFIG_ENGINEERING_TEST)
+  if (kind == BKCONTROL_CONFIG_ENGINEERING_TEST ||
+      kind == BKCONTROL_CONFIG_ENGINEERING_VOICE)
     {
       assert(command == BKCONTROL_CONFIG_READ);
       assert(offset == 0 && record == NULL && size == 0);
@@ -726,10 +728,23 @@ static void pc_owner_lifecycle_tests(mbedtls_x509_crt *cert, mbedtls_pk_context 
   assert(bkpc_usb_owner_step(&owner,&cfg,true,false)==0);
   assert(!owner.pair && !owner.usb.serial.opened);
   assert(bkpc_usb_owner_step(&owner,&cfg,true,true)==0);
-  assert(owner.pair && owner.pair->tls.initialized && owner.usb.serial.opened);
+  assert(!owner.pair && owner.usb.serial.opened);
   uint32_t epoch=owner.usb.serial.epoch;
+  now += 120001;
   assert(bkpc_usb_owner_step(&owner,&cfg,true,true)==0);
-  assert(owner.usb.serial.epoch==epoch);
+  assert(!owner.pair && owner.usb.serial.epoch==epoch);
+  const uint8_t first_tls_byte = 0x16;
+  assert(test_serial_peer_send(&first_tls_byte,1)==1);
+  assert(bkpc_usb_owner_step(&owner,&cfg,true,true)==0);
+  assert(owner.pair && owner.pair->tls.initialized &&
+         owner.usb.serial.epoch==epoch);
+  assert(bkpc_usb_owner_step(&owner,&cfg,true,true)==0);
+  assert(!owner.pair->tls.established);
+  now += 30000;
+  assert(bkpc_usb_owner_step(&owner,&cfg,true,true)==-ETIMEDOUT);
+  assert(!owner.pair && !owner.usb.serial.opened);
+  assert(bkpc_usb_owner_step(&owner,&cfg,true,true)==-ETIMEDOUT);
+  now += 1000;
   pc_source_error=-EAGAIN;
   assert(bkpc_usb_owner_step(&owner,&cfg,true,true)==-EAGAIN);
   assert(!owner.pair && !owner.usb.serial.opened);
@@ -738,7 +753,8 @@ static void pc_owner_lifecycle_tests(mbedtls_x509_crt *cert, mbedtls_pk_context 
   assert(!owner.pair && owner.usb.serial.epoch==epoch);
   now+=1000;
   assert(bkpc_usb_owner_step(&owner,&cfg,true,true)==0);
-  assert(owner.pair && owner.usb.serial.epoch==epoch+1);
+  assert(!owner.pair && owner.usb.serial.opened &&
+         owner.usb.serial.epoch==epoch+1);
   assert(bkpc_usb_owner_step(&owner,NULL,false,false)==0);
   assert(!owner.pair && !owner.usb.serial.opened);
   assert(bkpc_usb_owner_stop(&owner)==0);
@@ -756,7 +772,7 @@ static void pc_guard_tests(mbedtls_ssl_context *client,
                             mbedtls_x509_crt *cert, mbedtls_pk_context *key)
 {
 #ifdef CONFIG_BK7258_ENGINEERING_TEST
-  const unsigned int engineering_reads = 1;
+  const unsigned int engineering_reads = 2;
 #else
   const unsigned int engineering_reads = 0;
 #endif
@@ -764,8 +780,9 @@ static void pc_guard_tests(mbedtls_ssl_context *client,
   const uint8_t auth[32] = {84}, volume[4] = {0,0,0,73};
   const uint8_t focus[4] = {0,10,0,0}, eye[4] = {0,5,0,0};
   const uint8_t engineering[4] = {0,19,0,0};
+  const uint8_t voice_benchmark[4] = {0,24,0,0};
   const uint8_t begin[8] = {0,0,0,10,0,0,0,4};
-  const uint8_t denied_kinds[] = {1,2,3,4,6,7,8,9,12,13,14,15,21,22};
+  const uint8_t denied_kinds[] = {1,2,3,4,6,7,8,9,12,13,14,15,21,22,25};
   pc_owner_lifecycle_tests(cert,key);
   pc_guarded = true;
   control_handshake_on(&control, client, cert, key, true);
@@ -790,6 +807,7 @@ static void pc_guard_tests(mbedtls_ssl_context *client,
   pc_exchange(&control, client, 15, seq++, eye, 4, 0);
   /* A valid TLS/SDC1 PC principal without diagnostics remains denied. */
   pc_exchange(&control, client, 15, seq++, engineering, 4, -EACCES);
+  pc_exchange(&control, client, 15, seq++, voice_benchmark, 4, -EACCES);
   const uint8_t resource_query[20] = {0,16,0,0,1};
   pc_exchange(&control, client, 15, seq++, resource_query, 20, -ENOTSUP);
   const uint8_t selection_query[20]={0,17,0,0,1};
@@ -825,8 +843,10 @@ static void pc_guard_tests(mbedtls_ssl_context *client,
   pc_exchange(&control,client,16,5,selection_begin,8,-EACCES);
 #ifdef CONFIG_BK7258_ENGINEERING_TEST
   pc_exchange(&control, client, 15, 6, engineering, 4, 0);
+  pc_exchange(&control, client, 15, 7, voice_benchmark, 4, 0);
 #else
   pc_exchange(&control, client, 15, 6, engineering, 4, -EACCES);
+  pc_exchange(&control, client, 15, 7, voice_benchmark, 4, -EACCES);
 #endif
   assert(pc_reads == 4 + engineering_reads && pc_writes == 1);
   pc_change(BKPC_CAP_SCENES); /* Changing scope also invalidates current AUTH. */

@@ -20,7 +20,17 @@ from pathlib import Path
 from test_nfc_rf_lifecycle import ROOT
 
 
-CASES = ("first-answer", "mixed", "mixed-tts", "no-tool-final", "unknown-tool", "missing-id", "duplicate-id", "vision-cancel", "vision-success")
+CASES = (
+    "first-answer",
+    "mixed",
+    "mixed-tts",
+    "no-tool-final",
+    "unknown-tool",
+    "missing-id",
+    "duplicate-id",
+    "vision-cancel",
+    "vision-success",
+)
 MUTATION = "mutant-executes-finalize"
 
 
@@ -41,7 +51,8 @@ def source_for(case: str) -> str:
 def probe_code(case: str) -> str:
     scenario = "mixed" if case == MUTATION else case
     tts_fixture = ROOT / "tests/host/bk7258/test_bk7258_agent_media_player.c"
-    return r'''
+    return (
+        r'''
 #include <assert.h>
 #include <errno.h>
 #include <stdio.h>
@@ -82,7 +93,9 @@ int llm_chat_vision_checked(const char *prompt, const char *image_b64,
 #define llm_cancel_request tts_fixture_llm_cancel_request
 int tts_fixture_llm_cancel_request(void);
 #define main tts_fixture_regression_main
-#include "''' + str(tts_fixture) + r'''"
+#include "'''
+        + str(tts_fixture)
+        + r'''"
 #undef main
 #undef llm_cancel_request
 #endif
@@ -94,6 +107,9 @@ int tts_fixture_llm_cancel_request(void);
 #ifndef TEST_PLAN_LATENCY
 #define llm_chat_plan_checked fixture_llm_chat_plan_checked
 #define llm_chat_tools_checked fixture_llm_chat_tools_checked
+#define llm_chat_voice_stream_checked fixture_llm_chat_voice_stream_checked
+int fixture_llm_chat_voice_stream_checked(const char *, cJSON *, llm_response_t *,
+    llm_text_delta_t, int (*)(void *, bool), void *, int (*)(void *), void *);
 int fixture_llm_chat_plan_checked(const char *, cJSON *, const char *,
     llm_response_t *, int (*)(void *), void *);
 int fixture_llm_chat_tools_checked(const char *, cJSON *, const char *,
@@ -122,15 +138,28 @@ static void test_syslog(int priority, const char *format, ...)
     event->mono_ms = mono_ms;
     event->value = value;
 }
+#include <sys/time.h>
+static long fixture_clock_seconds;
+static int fixture_gettimeofday(struct timeval *tv, void *zone)
+{
+    int ret = gettimeofday(tv, zone);
+    tv->tv_sec += fixture_clock_seconds;
+    return ret;
+}
+#define gettimeofday fixture_gettimeofday
 #define syslog test_syslog
 #include "agent_loop_under_test.c"
 #undef syslog
+#undef gettimeofday
 #ifdef TEST_MIXED_TTS
 #undef TAG
 #endif
 
-static const char *scenario = "''' + scenario + r'''";
+static const char *scenario = "'''
+        + scenario
+        + r"""";
 static unsigned planning_requests;
+static unsigned routing_requests;
 static unsigned final_requests;
 static unsigned registry_calls;
 static unsigned begin_events;
@@ -217,6 +246,19 @@ int llm_chat_vision_checked(const char *prompt, const char *image_b64,
 }
 
 #ifndef TEST_PLAN_LATENCY
+int llm_chat_voice_stream_checked(const char *system, cJSON *messages,
+    llm_response_t *response, llm_text_delta_t emit,
+    int (*phase)(void *, bool), void *ctx, int (*check)(void *), void *request)
+{
+    (void)system; (void)emit; (void)phase; (void)ctx;
+    assert(cJSON_IsArray(messages));
+    assert(check && check(request) == 0);
+    routing_requests++;
+    if (!strcmp(scenario, "mixed")) fixture_clock_seconds += AGENT_LLM_TIMEOUT_SEC / 2 + 1;
+    memset(response, 0, sizeof(*response));
+    return !strcmp(scenario, "mixed") ? -EPROTO : 0;
+}
+
 static void set_call(llm_response_t *response, int index, const char *id,
                      const char *name)
 {
@@ -244,7 +286,9 @@ int llm_chat_plan_checked(const char *system, cJSON *messages,
                           const char *tools, llm_response_t *response,
                           int (*check)(void *), void *request)
 {
+    if (!strcmp(scenario, "mixed")) fixture_clock_seconds += AGENT_LLM_TIMEOUT_SEC / 2 + 1;
     assert(system != NULL && strstr(system, "first use any necessary tools"));
+    assert(strstr(system, "agent_finalize is also an available tool"));
     /* A provider returning a complete validated body despite the decision
      * request remains a supported compatibility response, without reasking. */
     assert(tools != NULL && strstr(tools, "agent_finalize"));
@@ -498,6 +542,12 @@ static int unused_transport(const char *request, char *response,
     cJSON *format = cJSON_GetObjectItemCaseSensitive(body, "response_format");
     cJSON *choice = cJSON_GetObjectItemCaseSensitive(format, "type");
     int decision_only = cJSON_IsString(choice) && !strcmp(choice->valuestring, "json_object");
+    assert(decision_only && !cJSON_GetObjectItemCaseSensitive(body, "tools"));
+    cJSON *messages = cJSON_GetObjectItemCaseSensitive(body, "messages");
+    cJSON *system = cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(messages, 0), "content");
+    if (cJSON_IsString(system) &&
+        strstr(system->valuestring, "agent_finalize is also an available tool") &&
+        strstr(request, "\"agent_finalize\"")) decision_only = 1;
     cJSON_Delete(body);
     int n;
     if (decision_only) {
@@ -531,17 +581,23 @@ static int controlled_final_transport(const char *request,
     assert(++final_requests == 1);
     *status = 200;
 #ifdef TEST_PLAN_LATENCY
-    assert(!strstr(request, "\"tools\"") && planning_requests == 1);
+    assert(!strstr(request, "\"tools\"") && planning_requests == 0);
+    assert(strstr(request, "\"response_format\":{\"type\":\"json_object\"}"));
+    const char header[] = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"{\\\"voice_phase\\\":\\\"final\\\",\\\"answer\\\":\\\"\"}}]}\n\n";
+    assert(receive(receive_context, header, strlen(header)) == 0);
+    assert(test_synth_calls == 0 && test_opens == 0);
     char first[256];
     snprintf(first, sizeof(first),
         "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"%s\"}}]}\n\n", first_answer);
     assert(receive(receive_context, first, strlen(first)) == 0);
     test_wait_first_pcm();
     test_wait_stage(voice_channel_request_id(), "first_media");
+    const char *fail = getenv("FIRST_ANSWER_FAIL");
+    if (fail) return !strcmp(fail, "cancel") ? -ECANCELED : -EPROTO;
     release_answer_tail();
     char tail[256];
     snprintf(tail, sizeof(tail),
-        "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"%s\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n", answer_tail);
+        "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"%s\\\"}\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n", answer_tail);
     assert(receive(receive_context, tail, strlen(tail)) == 1);
     return 0;
 #else
@@ -635,6 +691,16 @@ int main(void)
         tool_output, sizeof(tool_output), &message, &failure);
 
 #ifdef TEST_PLAN_LATENCY
+    const char *fail = getenv("FIRST_ANSWER_FAIL");
+    if (fail) {
+        assert(!text && failure == (!strcmp(fail, "cancel") ? -ECANCELED : -EPROTO));
+        assert(planning_requests == 0 && final_requests == 1 && !registry_calls);
+        assert(message.reply_stream_started);
+        assert(message_bus_reply_with_history(&message, NULL, failure, test_history) < 0);
+        assert(voice_channel_is_idle() && !test_history_count);
+        assert(!llm_clear_transport()); cJSON_Delete(messages);
+        puts("PARTIAL_FAILURE_NO_FALLBACK_PASS"); return 0;
+    }
     char expected[256];
     snprintf(expected, sizeof(expected), "%s%s", first_answer, answer_tail);
     assert(!failure && text && !strcmp(text, expected));
@@ -646,6 +712,14 @@ int main(void)
     assert(!strcmp(test_spoken[1], answer_tail));
     assert(test_opens == 1 && test_drains == 1 && test_closes == 1 && voice_channel_is_idle());
     int media = test_wait_stage(message.request_id, "first_media");
+    int token = test_wait_stage(message.request_id, "llm_first_token");
+    assert(test_stages[token].ms <= test_stages[media].ms);
+    int segment_pcm_events = 0;
+    for (size_t i = 0; i < test_stage_count; i++)
+        if (test_stages[i].request == message.request_id &&
+            !strcmp(test_stages[i].name, "tts_chunk_first_pcm"))
+            segment_pcm_events++;
+    assert(segment_pcm_events == test_synth_calls);
     uint64_t first_ms = test_stages[media].ms;
     printf("FIRST_ANSWER tail_wait_ms=%u first_media_ms=%llu tail_release_ms=%llu plans=%u finals=%u text_bytes=%zu pcm_bytes=%zu\n",
         tail_delay_ms, (unsigned long long)(first_ms - answer_started),
@@ -653,7 +727,7 @@ int main(void)
         final_requests, strlen(expected), test_written);
     fflush(stdout);
     assert(first_ms < tail_released);
-    assert(planning_requests == 1 && final_requests == 1 && !registry_calls);
+    assert(planning_requests == 0 && final_requests == 1 && !registry_calls);
     assert(!llm_clear_transport());
     cJSON_Delete(messages);
     puts("CONTRACT_PASS");
@@ -673,8 +747,11 @@ int main(void)
         assert(test_opens == 1 && test_drains == 1 && test_closes == 1);
         assert(voice_channel_is_idle());
         assert(llm_clear_transport() == 0);
-        const char *const expected[] = {"plan_request", "plan_response"};
-        assert_stages(expected, 2);
+        const char *const expected[] = {
+            "voice_stream_request", "voice_stream_response", "plan_request", "plan_response"
+        };
+        assert(routing_requests == 1);
+        assert_stages(expected, 4);
 #else
         abort();
 #endif
@@ -708,10 +785,12 @@ int main(void)
         assert(planning_requests == 2 && registry_calls == 1 && final_requests == 1);
         assert(begin_events == 1 && delta_events == 1 && !strcmp(spoken, text));
         const char *const expected[] = {
+            "voice_stream_request", "voice_stream_response",
             "plan_request", "plan_response", "tool_start", "tool_result",
-            "plan_request", "plan_response", "final_request", "final_response",
+            "plan_request", "plan_response", "final_request", "llm_first_token", "final_response",
         };
         assert_stages(expected, sizeof(expected) / sizeof(expected[0]));
+        assert(routing_requests == 1);
 #endif
 #ifdef TEST_MIXED_TTS
         assert(cJSON_GetArraySize(messages) == 6);
@@ -729,7 +808,8 @@ int main(void)
     puts("CONTRACT_PASS");
     return 0;
 }
-'''
+"""
+    )
 
 
 def build_and_run(case: str) -> tuple[bool, subprocess.CompletedProcess[str]]:
@@ -753,6 +833,7 @@ def build_and_run(case: str) -> tuple[bool, subprocess.CompletedProcess[str]]:
             "-D_GNU_SOURCE=1",
             "-DOK=0",
             "-DERROR=-1",
+            "-DCONFIG_AI_AGENT_VOICE_ROUTE=1",
             "-ffunction-sections",
             "-fdata-sections",
             "-Wl,--gc-sections",
@@ -774,14 +855,16 @@ def build_and_run(case: str) -> tuple[bool, subprocess.CompletedProcess[str]]:
             str(temp / "probe"),
         ]
         if case in ("mixed-tts", "no-tool-final", "first-answer"):
-            command.extend([
-                str(agent / "src/llm/llm_proxy.c"),
-                str(agent / "src/llm/llm_parse.c"),
-                str(agent / "src/llm/llm_stream.c"),
-                str(agent / "src/core/message_bus.c"),
-                str(ROOT / "app/bk7258/bk7258_focus.c"),
-                str(ROOT / "app/bk7258/bk7258_focus_intent.c"),
-            ])
+            command.extend(
+                [
+                    str(agent / "src/llm/llm_proxy.c"),
+                    str(agent / "src/llm/llm_parse.c"),
+                    str(agent / "src/llm/llm_stream.c"),
+                    str(agent / "src/core/message_bus.c"),
+                    str(ROOT / "app/bk7258/bk7258_focus.c"),
+                    str(ROOT / "app/bk7258/bk7258_focus_intent.c"),
+                ]
+            )
             command.remove("-o")
             command.remove(str(temp / "probe"))
             command.extend(["-o", str(temp / "probe")])
@@ -797,11 +880,31 @@ def build_and_run(case: str) -> tuple[bool, subprocess.CompletedProcess[str]]:
         )
         if case == "first-answer" and result.returncode == 0:
             longer = subprocess.run(
-                [str(temp / "probe")], capture_output=True, text=True, timeout=15,
-                env=dict(os.environ, FIRST_ANSWER_TAIL_MS="1500", FIRST_ANSWER_LONG_TAIL="1"),
+                [str(temp / "probe")],
+                capture_output=True,
+                text=True,
+                timeout=15,
+                env=dict(
+                    os.environ, FIRST_ANSWER_TAIL_MS="1500", FIRST_ANSWER_LONG_TAIL="1"
+                ),
             )
             longer.stdout = result.stdout + longer.stdout
             longer.stderr = result.stderr + longer.stderr
+            if longer.returncode:
+                return True, longer
+            for failure in ("cancel", "protocol"):
+                failed = subprocess.run(
+                    [str(temp / "probe")],
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                    env=dict(os.environ, FIRST_ANSWER_FAIL=failure),
+                )
+                failed.stdout = longer.stdout + failed.stdout
+                failed.stderr = longer.stderr + failed.stderr
+                longer = failed
+                if failed.returncode:
+                    return True, failed
             return True, longer
         return True, result
 

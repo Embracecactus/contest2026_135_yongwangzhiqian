@@ -2,6 +2,9 @@
 #include "bk7258_provision_tls.h"
 #include "bk7258_provision_gatt.h"
 #include <errno.h>
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+#  include <syslog.h>
+#endif
 #include <string.h>
 #include <mbedtls/net_sockets.h>
 #include <mbedtls/platform_util.h>
@@ -89,6 +92,18 @@ static int check(struct bkprov_tls_s *tls)
   now = tls->now_ms(tls->clock_context);
   if (expired(tls, now))
     {
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+      syslog(LOG_WARNING,
+             "BKVOICE diagnostic TLS deadline now=%llu last=%llu "
+             "started=%llu activity=%llu write=%llu pending=%lu "
+             "control=%u established=%u\n",
+             (unsigned long long)now, (unsigned long long)tls->last_now,
+             (unsigned long long)tls->started,
+             (unsigned long long)tls->control_activity,
+             (unsigned long long)tls->write_started,
+             (unsigned long)tls->pending_size,
+             tls->control, tls->established);
+#endif
       return fail(tls, -ETIMEDOUT);
     }
   tls->last_now = now;
@@ -105,6 +120,10 @@ static int send_cipher(void *context, const unsigned char *data, size_t size)
    */
   if (!current(tls) || expired(tls, now))
     {
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+      syslog(LOG_WARNING, "BKVOICE diagnostic TLS send gate now=%llu last=%llu\n",
+             (unsigned long long)now, (unsigned long long)tls->last_now);
+#endif
       return MBEDTLS_ERR_NET_SEND_FAILED;
     }
   if (now < tls->next_send)
@@ -116,6 +135,13 @@ static int send_cipher(void *context, const unsigned char *data, size_t size)
                             size);
   tls->next_send = UINT64_MAX - now < tls->transport.send_interval_ms ?
                   UINT64_MAX : now + tls->transport.send_interval_ms;
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  if (ret <= 0 && ret != -ENOMEM && ret != -EAGAIN)
+    {
+      syslog(LOG_WARNING, "BKVOICE diagnostic TLS transport send=%ld\n",
+             (long)ret);
+    }
+#endif
   if (!current(tls) || (ret > 0 && (size_t)ret > size))
     {
       return MBEDTLS_ERR_NET_SEND_FAILED;
@@ -278,6 +304,10 @@ int bkprov_tls_step(struct bkprov_tls_s *tls)
         }
       if (ret <= 0 || (size_t)ret != tls->pending_size)
         {
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+          syslog(LOG_WARNING, "BKVOICE diagnostic TLS write=%d size=%lu\n",
+                 ret, (unsigned long)tls->pending_size);
+#endif
           return fail(tls, -EIO);
         }
       mbedtls_platform_zeroize(tls->pending, sizeof(tls->pending));
@@ -330,6 +360,9 @@ ssize_t bkprov_tls_read(struct bkprov_tls_s *tls, void *data, size_t size)
     }
   if (ret <= 0)
     {
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+      syslog(LOG_WARNING, "BKVOICE diagnostic TLS read=%d\n", ret);
+#endif
       return fail(tls, -ECONNRESET);
     }
   if (check(tls) < 0)

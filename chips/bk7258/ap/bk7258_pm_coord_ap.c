@@ -209,12 +209,22 @@ static void bk7258_pm_ap_trace_mark(uint32_t cpu, uint32_t stage)
 
 static inline void bk7258_pm_shallow_wfi(void)
 {
-  irqstate_t flags = up_irq_save();
+  uint8_t basepri = getbasepri();
+  uint8_t primask = getprimask();
 
+  /* Keep scheduler IPI delivery pending until after WFI returns.  pm_idle()
+   * retains sched_lock() here, so executing an IPI between IRQ enable and
+   * WFI could consume the edge without switching away from the idle task.
+   */
+
+  setprimask(1);
+  setbasepri(0);
   modifyreg32(NVIC_SYSCON, NVIC_SYSCON_SLEEPDEEP, 0);
-  up_irq_enable();
-  __asm volatile ("dsb sy; wfi; isb sy" ::: "memory");
-  up_irq_restore(flags);
+  __asm volatile ("dsb sy; isb sy; wfi; isb sy" ::: "memory");
+  setprimask(1);
+  setbasepri(basepri);
+  setprimask(primask);
+  __asm volatile ("isb sy" ::: "memory");
 }
 
 static inline void bk7258_pm_ap_deep_sleep(void)

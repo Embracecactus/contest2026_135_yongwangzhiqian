@@ -61,7 +61,7 @@ class OtaSessionContractTest {
             assertTrue(peer.protocol.request(DeviceControlProtocol.Command.STATUS))
             peer.ack()
             assertTrue(session.current().authenticated)
-            upload = OtaControlUpload(ByteArray(44) { 42 }, session::requestOta)
+            upload = OtaControlUpload(ByteArray(44) { 42 }, send = session::requestOta)
             session.observeResults { command, result ->
                 if (command in listOf(DeviceControlProtocol.Command.OTA_BEGIN,
                     DeviceControlProtocol.Command.OTA_APPEND, DeviceControlProtocol.Command.OTA_START,
@@ -71,7 +71,13 @@ class OtaSessionContractTest {
     }
     @Test fun OTA_01_cancelIsPendingUntilProtocolAcknowledges() {
         val f = Fixture()
-        assertTrue(f.upload.start()); f.upload.cancel()
+        assertTrue(f.upload.start())
+        // The old OTA_STATUS may still say CONFIRMED while a new source's
+        // first fragment is pending. The UI must permit its local cancel flag.
+        assertTrue(OtaUpdatePolicy.mayRequestCancellation(
+            f.upload.state == OtaControlUpload.State.WAITING,
+            f.session.current().writePending, 3L, 6L))
+        f.upload.cancel()
         assertEquals(OtaControlUpload.State.WAITING, f.upload.state)
         f.peer.ack()
         assertEquals(14, ByteBuffer.wrap(f.peer.wire.last()).getInt(4))

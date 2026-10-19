@@ -28,6 +28,9 @@ int bkagent_cloud_get_response_length(unsigned int *mode);
 /* Verify the selected server's TLS identity. This does not claim ASR/LLM/TTS
  * request success. Called before the product enables voice requests. */
 int bkagent_cloud_verify_service(void);
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+void bkagent_cloud_trace_waits(void);
+#endif
 
 /* Called by the existing authenticated configuration owner at an idle voice
  * boundary. BVC1 and CCF1 remain secret records in the existing storage path.

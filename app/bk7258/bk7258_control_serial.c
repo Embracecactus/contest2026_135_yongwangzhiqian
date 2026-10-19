@@ -37,6 +37,39 @@ static ssize_t serial_result(struct bkcontrol_serial_s *serial, ssize_t ret)
   return error;
 }
 
+int bkcontrol_serial_ready(struct bkcontrol_serial_s *serial)
+{
+  struct pollfd watch;
+  int ret;
+
+  if (serial == NULL)
+    {
+      return -EINVAL;
+    }
+
+  if (!serial->opened || !serial->live)
+    {
+      return -ENOTCONN;
+    }
+
+  memset(&watch, 0, sizeof(watch));
+  watch.fd = serial->fd;
+  watch.events = POLLIN;
+  ret = poll(&watch, 1, 0);
+  if (ret < 0 && errno == EINTR)
+    {
+      return 0;
+    }
+
+  if (ret < 0 || (watch.revents & (POLLERR | POLLHUP | POLLNVAL)))
+    {
+      serial->live = false;
+      return ret < 0 ? -errno : -ENOTCONN;
+    }
+
+  return (watch.revents & POLLIN) != 0;
+}
+
 static ssize_t serial_read(void *context, uint32_t epoch, void *data,
                             size_t size)
 {

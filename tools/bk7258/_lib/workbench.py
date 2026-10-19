@@ -35,6 +35,7 @@ class ConnectionUnavailable(ControlError):
 
 class DeviceRejected(ControlError):
     def __init__(self, code):
+        self.code = code
         self.kind = (
             "unauthorized"
             if code in (-1, -13)
@@ -48,6 +49,10 @@ class AuthorizationUnavailable(ControlError):
 
     def __init__(self):
         super().__init__("Independent PC authorization is unavailable")
+
+
+class _HandshakeTransportError(ControlError):
+    pass
 
 
 NATIVE_REOPEN_SETTLE_SECONDS = 1.1
@@ -88,20 +93,22 @@ class CertificateProbeError(ControlError):
 class AuthenticationError(ControlError):
     _STAGES = {"parameters", "tls_handshake", "pin_check", "auth_exchange"}
 
-    def __init__(self, stage, kind="unconfirmed"):
+    def __init__(self, stage, kind="unconfirmed", reconnectable=False):
         self.kind = "unauthorized" if kind == "unauthorized" else "unconfirmed"
         if stage not in self._STAGES:
             stage = "parameters"
         self.stage = stage
+        self.reconnectable = bool(reconnectable and stage == "tls_handshake")
         super().__init__(
             f"PC authentication failed stage={stage}; no command was replayed"
         )
 
 
 class CommandUnconfirmed(ControlError):
-    def __init__(self):
+    def __init__(self, phase=None, sequence=None):
         super().__init__(
             "Engineering command unconfirmed; query board state before retry"
+            + (f" (phase={phase}, sequence={sequence})" if phase else "")
         )
 
 
@@ -294,7 +301,12 @@ class ControlClient:
             offset = 0
             while offset < len(data):
                 self._check(deadline)
-                count = self.channel.write(memoryview(data)[offset:])
+                try:
+                    count = self.channel.write(memoryview(data)[offset:])
+                except OSError as error:
+                    raise _HandshakeTransportError(
+                        "Control transport closed"
+                    ) from error
                 if type(count) is not int or not 0 <= count <= len(data) - offset:
                     raise ControlError("Invalid channel write")
                 offset += count
@@ -309,10 +321,17 @@ class ControlClient:
                 result = function()
             except ssl.SSLWantReadError:
                 self._flush(deadline)
-                data = self.channel.read(4096)
+                try:
+                    data = self.channel.read(4096)
+                except OSError as error:
+                    raise _HandshakeTransportError(
+                        "Control transport closed"
+                    ) from error
                 if data is None:
                     self._sleep(0.001)
                     continue
+                if data == b"":
+                    raise _HandshakeTransportError("Control transport closed")
                 if not isinstance(data, bytes) or not 0 < len(data) <= 4096:
                     raise ControlError("Control transport closed or invalid")
                 received += len(data)
@@ -328,14 +347,22 @@ class ControlClient:
             self._check(deadline)
             return result
 
-    def start(self, pc_key):
+    def start(self, pc_key, *, deadline=None):
         if self.closed or self.authenticated:
             raise ControlError("Control client cannot be reopened")
         stage = "parameters"
         try:
             if len(pc_key) != 32 or not any(pc_key):
                 raise ControlError("Invalid independent PC credential")
-            deadline = self._now() + self._timeout
+            now = self._now()
+            if not math.isfinite(now):
+                raise ControlError("Invalid authentication clock")
+            if deadline is None:
+                deadline = now + self._timeout
+            elif not math.isfinite(deadline) or now >= deadline:
+                raise ControlError("Invalid authentication deadline")
+            else:
+                deadline = min(deadline, now + self._timeout)
             stage = "tls_handshake"
             self._call(self._tls.do_handshake, deadline)
             stage = "pin_check"
@@ -349,8 +376,15 @@ class ControlClient:
             self.authenticated = True
         except Exception as failure:
             self.close()
+            reconnectable = stage == "tls_handshake" and (
+                isinstance(failure, _HandshakeTransportError)
+                or (
+                    isinstance(failure, ssl.SSLError)
+                    and not isinstance(failure, ssl.SSLCertVerificationError)
+                )
+            )
             raise AuthenticationError(
-                stage, getattr(failure, "kind", "unconfirmed")
+                stage, getattr(failure, "kind", "unconfirmed"), reconnectable
             ) from None
 
     def _exchange(self, command, payload, deadline):
@@ -391,6 +425,66 @@ class ControlClient:
             return tuple(fields)
         finally:
             frame[:] = b"\x00" * len(frame)
+
+    def _camera_block_exchange(self, selector, deadline):
+        """Read one fixed-size CAMERA_BLOCK reply without changing SDC1 framing."""
+        if not isinstance(selector, bytes) or len(selector) != 20:
+            raise ControlError("Invalid camera block selector")
+        kind, _identity, offset, total = struct.unpack(">IQII", selector)
+        if (
+            kind != 25 << 16
+            or offset % 16
+            or not 0 < total <= 102400
+            or offset >= total
+        ):
+            raise ControlError("Invalid camera block selector")
+        if self._sequence >= 0x7FFFFFFF:
+            raise ControlError("Control sequence exhausted")
+        frame = bytearray(
+            struct.pack(">4I", 0x53444331, 15, self._sequence, len(selector))
+        )
+        frame.extend(selector)
+        response = bytearray()
+        try:
+            sent = 0
+            while sent < len(frame):
+                count = self._call(
+                    lambda: self._tls.write(memoryview(frame)[sent:]), deadline
+                )
+                if not 0 < count <= len(frame) - sent:
+                    raise ControlError("Invalid TLS write")
+                sent += count
+            while len(response) < 536:
+                part = self._call(lambda: self._tls.read(536 - len(response)), deadline)
+                if not part:
+                    raise ControlError("TLS stream ended before the response")
+                response.extend(part)
+            magic, reply, sequence, size = struct.unpack(">4I", response[:16])
+            if (magic, reply, sequence, size) != (
+                0x53444331,
+                15 | 0x80000000,
+                self._sequence,
+                520,
+            ):
+                raise ControlError("Invalid camera block response")
+            error, result_total = struct.unpack(">iI", response[16:24])
+            data = bytes(response[24:])
+            self._sequence += 1
+            if error:
+                if result_total or any(data):
+                    raise ControlError("Invalid camera block error response")
+                if error > 0:
+                    raise ControlError("Invalid camera block error response")
+                raise DeviceRejected(error)
+            if result_total != total:
+                raise ControlError("Invalid camera block length")
+            remaining = total - offset
+            if remaining < 512 and any(data[remaining:]):
+                raise ControlError("Invalid camera block tail padding")
+            return result_total, data
+        finally:
+            frame[:] = b"\x00" * len(frame)
+            response[:] = b"\x00" * len(response)
 
     def _read(self, command):
         if self.closed or not self.authenticated:
@@ -541,6 +635,162 @@ class ControlClient:
             raise ControlError(
                 "Engineering audio command unconfirmed; query before retry"
             ) from None
+
+    def engineering_voice_command(self, record):
+        if self.closed or not self.authenticated:
+            raise ControlError("PC authentication is required")
+        if not isinstance(record, bytes) or not 32 <= len(record) <= 4128:
+            raise ControlError("Invalid voice benchmark packet")
+        phase = "capability"
+        try:
+            deadline = self._now() + self._timeout
+            capacity = self._exchange(15, struct.pack(">I", 0x7FFF0000), deadline)
+            total, magic, version, append_max, reserved = capacity
+            if (total, magic, version, reserved) != (
+                12,
+                0x43415031,
+                1,
+                0,
+            ) or not 32 <= append_max <= 512:
+                raise ControlError("Invalid voice upload capability")
+            phase = "begin"
+            self._exchange(16, struct.pack(">II", 24, len(record)), deadline)
+            # A 4 KiB PCM packet cannot spend one USB round trip per 32 bytes.
+            # Query the existing SDC1 capability before mutating upload state.
+            for offset in range(0, len(record), append_max):
+                phase = f"append:{offset}"
+                self._exchange(17, record[offset : offset + append_max], deadline)
+            phase = "commit"
+            self._exchange(18, b"", deadline)
+            return dict(accepted=True, completion_verified=False)
+        except (DeviceRejected, ConnectionUnavailable, AuthorizationUnavailable):
+            self.close()
+            raise
+        except Exception:
+            self.close()
+            raise CommandUnconfirmed(phase, getattr(self, "_sequence", None)) from None
+
+    def engineering_voice_status(self):
+        from . import hil_test
+
+        if self.closed or not self.authenticated:
+            raise ControlError("PC authentication is required")
+        diagnostic = {"offset": None, "sdc_sequence": self._sequence}
+        self.last_engineering_voice_status = diagnostic
+        try:
+            deadline = self._now() + self._timeout
+            chunks = []
+            # Offset zero freezes this read-only snapshot on the device.
+            for offset in range(0, 64, 16):
+                diagnostic["offset"] = offset
+                diagnostic["sdc_sequence"] = self._sequence
+                total, *words = self._exchange(
+                    15, struct.pack(">I", 24 << 16 | offset), deadline
+                )
+                if total != 64:
+                    raise ControlError("Invalid voice benchmark snapshot size")
+                chunks.append(struct.pack(">4I", *words))
+            return hil_test.decode_voice_status(b"".join(chunks))
+        except Exception:
+            self.close()
+            raise
+
+    def _audio_trace_pages(self, offsets):
+        """Read sealed pages with one acknowledged request outstanding."""
+        if not 1 <= len(offsets) <= 16 or any(not 260 <= o < 65536 for o in offsets):
+            raise ControlError("Invalid audio trace pages")
+        if self._sequence + len(offsets) > 0x7FFFFFFF:
+            raise ControlError("Control sequence exhausted")
+        try:
+            return [
+                self._exchange(
+                    15,
+                    struct.pack(">I", 24 << 16 | offset),
+                    self._now() + self._timeout,
+                )
+                for offset in offsets
+            ]
+        except Exception:
+            self.close()
+            raise
+
+    def engineering_audio_trace(self, request_id, *, header_only=False, progress=None):
+        if self.closed or not self.authenticated:
+            raise ControlError("PC authentication is required")
+        chunks = []
+        total = None
+        # The engineering owner seals PCM observations before publishing a
+        # terminal receipt. The next input is not submitted until readback.
+        for offset in range(0, 64, 16):
+            size, *words = self._exchange(
+                15,
+                struct.pack(">I", 24 << 16 | (256 + offset // 16)),
+                self._now() + self._timeout,
+            )
+            if not 64 <= size <= 64 + 8192 * 24 or (total and size != total):
+                raise ControlError("Invalid audio trace size")
+            total = size
+            chunks.append(struct.pack(">4I", *words))
+        header = struct.unpack(">4s15I", b"".join(chunks))
+        (
+            magic,
+            version,
+            high,
+            low,
+            count,
+            dropped,
+            state,
+            attempts,
+            ms,
+            sealed,
+            *reserved,
+        ) = header
+        if (
+            magic != b"BVA2"
+            or version != 2
+            or (high << 32 | low) != request_id
+            or count > 8192
+            or total != 64 + count * 24
+            or state > 2
+            or sealed != 1
+            or any(reserved)
+        ):
+            raise ControlError("Invalid or unattributed audio trace")
+        result = dict(
+            request_id=request_id,
+            dropped=dropped,
+            rearm_state=state,
+            rearm_attempts=attempts,
+            rearm_ms=ms,
+            sealed=True,
+        )
+        if header_only:
+            return result
+        if progress is not None:
+            progress.update(
+                header=dict(result), expected_records=count, readback_complete=False
+            )
+        pages = list(range(260, 256 + (total + 15) // 16))
+        try:
+            for start in range(0, len(pages), 16):
+                for size, *words in self._audio_trace_pages(pages[start : start + 16]):
+                    if size != total:
+                        self.close()
+                        raise ControlError("Audio trace changed during readback")
+                    chunks.append(struct.pack(">4I", *words))
+        except Exception:
+            if progress is not None:
+                partial = b"".join(chunks)[64:total]
+                partial = partial[: len(partial) // 24 * 24]
+                progress["events"] = [
+                    list(row) for row in struct.iter_unpack(">6I", partial)
+                ]
+            raise
+        wire = b"".join(chunks)[64:total]
+        result["events"] = [list(row) for row in struct.iter_unpack(">6I", wire)]
+        if progress is not None:
+            progress["readback_complete"] = True
+        return result
 
     def task_event(self, task_id, sequence, state, ttl_ms, progress=None):
         from . import workbench_tasks
@@ -946,10 +1196,22 @@ class SerialChannel:
             raise ConnectionUnavailable() from None
 
     def write(self, data):
-        return self.port.write(data)
+        # Native CDC can retain a full-packet tail below its armed OUT size.
+        # Return a real short write so the existing TLS flush sends the final
+        # byte separately, without adding, dropping, or replaying stream data.
+        if data and len(data) % deploy_usb.USB_PACKET_SIZE == 0:
+            data = data[:-1]
+        written = self.port.write(data)
+        if type(written) is not int or not 0 <= written <= len(data):
+            raise ControlError("Invalid native USB write count")
+        return written
 
     def read(self, size):
-        return self.port.read(size) or None
+        # CDC carries a byte stream. Waiting for an entire 4 KiB TLS feed
+        # adds the native handle's timeout to every short control response.
+        # Drain available bytes; when empty, retain a bounded one-byte wait.
+        count = min(size, max(1, self.port.in_waiting))
+        return self.port.read(count) or None
 
     def close(self):
         self.port.close()
@@ -1155,15 +1417,48 @@ def authorized_client(args):
                 or not 0 < args.timeout <= 120
             ):
                 raise ControlError("Invalid port or deadline")
-            client = ControlClient(
-                SerialChannel(args.port, args.timeout),
-                certificate,
-                pin,
-                timeout=args.timeout,
-            )
-            client.start(key)
-            key[:] = bytes(len(key))
-            yield client
+            started = time.monotonic()
+            if not math.isfinite(started):
+                raise ControlError("Invalid authentication clock")
+            deadline = started + args.timeout
+            last_clock = started
+
+            def remaining():
+                nonlocal last_clock
+                now = time.monotonic()
+                if not math.isfinite(now) or now < last_clock:
+                    raise ControlError("Authentication clock changed")
+                last_clock = now
+                return deadline - now
+
+            try:
+                for attempt in range(2):
+                    open_remaining = remaining()
+                    if not math.isfinite(open_remaining) or open_remaining <= 0:
+                        raise ControlError("Authentication deadline elapsed")
+                    client = ControlClient(
+                        SerialChannel(args.port, open_remaining),
+                        certificate,
+                        pin,
+                        timeout=args.timeout,
+                    )
+                    try:
+                        client.start(key, deadline=deadline)
+                        break
+                    except AuthenticationError as failure:
+                        if attempt or not failure.reconnectable:
+                            raise
+                        if remaining() <= NATIVE_REOPEN_SETTLE_SECONDS:
+                            raise
+                        time.sleep(NATIVE_REOPEN_SETTLE_SECONDS)
+                        if remaining() <= 0:
+                            raise ControlError("Authentication deadline elapsed")
+                else:
+                    raise ControlError("Authentication retry exhausted")
+                key[:] = bytes(len(key))
+                yield client
+            finally:
+                key[:] = bytes(len(key))
     finally:
         if client is not None:
             client.close()

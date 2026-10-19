@@ -3,7 +3,7 @@
 [项目与视频](../../README.md) · [技术报告](../../docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md) · [实际验收](../../docs/platforms/bk7258/shaniu-master-plan.md)
 
 原生 Kotlin 工程，包名 `com.shaniu.companion`。当前源码版本
-`0.7.17-shaniu-pack-trial`（versionCode 47），Android 10+（minSdk 29），
+`0.7.26-shaniu-ota-retry`（versionCode 56），Android 10+（minSdk 29），
 compile/target SDK 35。App 只承担配置和控制：设备完成配置后独立运行语音，
 关闭 App 不等于结束设备端交互会话。
 
@@ -167,6 +167,13 @@ BLE 只传已认证的来源描述、CA、完整性参数及控制状态，不�
 - 固件包：`.bkpack`，必须匹配板型、布局、现有签名信任和安全计数。
   `OTA_START` 只表示接受请求；重启后确认设备身份、目标版本/计数和
   trial confirmed，才显示升级成功。
+  来源准备期间若状态读取在途，先等读回并重新核对能力，再发送首个请求；
+  离开前台或连接变化会取消尚未发送的准备，不自动重发升级。
+  设备拒绝取消时继续提供已接受的固件来源，等待设备终态；取消请求不等于
+  取消成功，不能靠停止手机供包中断设备更新。
+  来源记录上传期间允许请求取消，由当前指令回执后串行发送；收到 START 成功
+  回执即记录来源已接受，即使取消与该回执竞争或取消发送失败，也保留来源等待状态确认。
+- [2026-10-18 实机记录](../../docs/verification/bk7258/2026-10-18-stability-and-phone-hil.md)保留了取消拒绝后的供包闭环、APK54回归、APK55/768–769蓝牙诊断，以及APK56解除旧更新等待后实际启动770的结果；770固件已确认，但广播停止超时导致OTA后自动重连失败，底层问题仍未通过实机验收。来源上传期取消也尚未实测。
 - 634 已完成用户发起的实际 App OTA：约 93% 断连，重启回读后 100% 成功。
   635 新增 runtime Skill，App 控制/OTA 行为路径未改，**本轮未在 635 重测**。
 - 635 full 包与 OTA-only 包不同：full 构建 floor 635；OTA-only 不替换 BL1/BL2。

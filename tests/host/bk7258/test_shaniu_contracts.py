@@ -599,6 +599,8 @@ def main():
         "test_bk7258_pm_replay",
         "test_bk7258_engineering_test",
         "test_bk7258_engineering_audio",
+        "test_bk7258_engineering_voice",
+        "test_agent_voice_input",
         "test_factory_diagnostics",
     ):
         binaries[target] = build(["make", "build/" + target], "build-" + target)
@@ -692,6 +694,36 @@ def main():
             [sys.executable, HERE / "test_hil_test.py",
              "HilTestContract." + name], marker=False)
     for name in (
+        "test_voice_report_never_substitutes_media_for_acoustic_onset",
+        "test_voice_report_correlates_origin_and_counts_real_requests",
+        "test_voice_report_rejects_cross_clock_and_unattributed_marks",
+        "test_voice_report_preserves_cancellation_and_isolates_turns",
+        "test_voice_report_rejects_reused_turn_and_malformed_trace",
+        "test_voice_report_text_input_and_queue_gaps_keep_evidence_scope",
+        "test_voice_report_cli_writes_separate_artifacts_without_a_port",
+        "test_voice_report_injected_input_has_explicit_nonacoustic_origin",
+    ):
+        add(suite, "AGENT-01.voice-report." + name, "AGENT-01", "L1",
+            [sys.executable, HERE / "test_hil_test.py",
+             "HilTestContract." + name], marker=False)
+    for name in (
+        "test_voice_benchmark_inputs_preserve_pcm_and_bound_dialogue",
+        "test_voice_benchmark_transport_never_replays_unconfirmed_run",
+        "test_audio_stream_separates_network_queue_and_consumer",
+        "test_audio_stream_missing_is_not_zero_and_sentences_are_distinct",
+        "test_audio_trace_usb_checks_identity_bounds_and_sealed_records",
+        "test_benchmark_status_only_keeps_usb_rearm_without_claiming_trace",
+    ):
+        add(suite, "AGENT-01.voice-benchmark." + name, "AGENT-01", "L1",
+            [sys.executable, HERE / "test_hil_test.py",
+             "HilTestContract." + name], marker=False)
+    add(suite, "AGENT-01.voice-benchmark.control", "AGENT-01", "L2",
+        [HERE / "build/test_bk7258_engineering_voice"],
+        binaries["test_bk7258_engineering_voice"])
+    add(suite, "AGENT-01.voice-benchmark.input", "AGENT-01", "L2",
+        [HERE / "build/test_agent_voice_input", "input"],
+        binaries["test_agent_voice_input"])
+    for name in (
         "test_enroll_orders_physical_secret_pin_probe_and_dpapi_profile",
         "test_pin_probe_failure_revokes_and_never_publishes_profile",
         "test_existing_profile_is_rejected_before_console_secret",
@@ -730,7 +762,8 @@ def main():
         add(suite, "USB-01.pc-client-" + name.removeprefix("test_"),
             "USB-01", "L1", [sys.executable, HERE / "test_workbench_client.py",
             "WorkbenchClientTest." + name], marker=False)
-    for variant in ("enable", "expiry", "revoke", "owner"):
+    for variant in ("enable", "expiry", "revoke", "owner", "concurrent",
+                    "backwards"):
         add(suite, "FACT-01.diagnostics-" + variant, "FACT-01", "L2",
             [HERE / "build/test_factory_diagnostics", variant],
             binaries["test_factory_diagnostics"])
@@ -1327,6 +1360,9 @@ def main():
         ready=binaries["test_display_upload"], setup_exit_code=2)
     add(suite, "LIFE-01.onboarding-power-preempts-open", "LIFE-01", "L2",
         [sys.executable, HERE / "test_pack_trial.py", "onboarding-power-preempts-open"],
+        ready=binaries["test_display_upload"], setup_exit_code=2)
+    add(suite, "NET-02.onboarding-open-busy-retry", "NET-02", "L2",
+        [sys.executable, HERE / "test_pack_trial.py", "onboarding-open-busy-retry"],
         ready=binaries["test_display_upload"], setup_exit_code=2)
     for variant in ("normal", "conflict", "queued-cancel", "gate", "mount-cancel",
                     "scan-cancel", "release", "corrupt"):

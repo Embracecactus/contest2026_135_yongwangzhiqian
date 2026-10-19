@@ -699,6 +699,17 @@ static struct {
     int result;
 } test_stages[256];
 static size_t test_stage_count;
+#include <stdint.h>
+static atomic_uint test_audio_counts[9];
+
+void agent_audio_observe(uint64_t request, uint32_t kind, uint64_t begin,
+    uint64_t end, uint32_t bytes, uint32_t level)
+{
+    (void)request;
+    assert(kind > 0 && kind < 9 && begin <= end);
+    if (kind == 4 || kind == 5) assert(bytes <= 2048 && level <= 65536);
+    atomic_fetch_add(&test_audio_counts[kind], 1);
+}
 
 static void test_stage_syslog(int priority, const char *format, ...)
 {
@@ -751,10 +762,41 @@ static int test_wait_stage(unsigned long long id, const char *name)
     return index;
 }
 
+static atomic_int test_playback_schedule_error;
+static atomic_int test_playback_schedule_calls;
+static int __attribute__((unused)) test_playback_setschedparam(pthread_t thread,
+    int policy, const struct sched_param *param)
+{
+    (void)thread; (void)policy;
+    assert(param && param->sched_priority == 80);
+    atomic_fetch_add(&test_playback_schedule_calls, 1);
+    return atomic_load(&test_playback_schedule_error);
+}
+#define CONFIG_AI_AGENT_VOICE_PLAYBACK_PRIORITY 80
+#define pthread_setschedparam test_playback_setschedparam
 #define syslog test_stage_syslog
 size_t strlcpy(char *, const char *, size_t);
 #include "voice/voice_channel.c"
 #undef syslog
+#undef pthread_setschedparam
+
+static void test_playback_priority_failure(void)
+{
+    tts_output_t output = {0};
+    tts_queue_t *queue = NULL;
+    atomic_store(&test_playback_schedule_error, EPERM);
+    int before = atomic_load(&test_playback_schedule_calls);
+    /* Opening must not expose a queue until consumer setup succeeds: a
+     * producer otherwise races into a cloud request with no PCM callback. */
+    assert(tts_queue_open(&output, &queue) == -EPERM);
+    assert(queue == NULL);
+    assert(atomic_load(&test_playback_schedule_calls) == before + 1);
+    atomic_store(&test_playback_schedule_error, 0);
+    /* A later queue can start and join; failed priority setup leaks no worker. */
+    assert(tts_queue_open(&output, &queue) == 0);
+    assert(tts_queue_close(queue, 0) == 0);
+    assert(atomic_load(&test_playback_schedule_calls) == before + 2);
+}
 
 #include "bk7258_focus_intent.h"
 #include "bk7258_focus_pixels.h"
@@ -1734,8 +1776,120 @@ static void test_reply_pipeline(void)
     assert(voice_channel_is_idle());
 }
 
+#ifdef TEST_AGENT_INPUT
+static int test_input_asr_mode;
+static unsigned int test_input_asr_calls;
+static const unsigned char test_input_pcm[] = {1, 2, 3, 4, 5, 6};
+static int test_input_revoked;
+static int test_input_check(void *context)
+{ assert(context == &test_input_revoked); return test_input_revoked ? -ECANCELED : 0; }
+
+int voice_asr_recognize_checked(const unsigned char *pcm, size_t size,
+    char *text, size_t capacity, int (*check)(void *), void *request)
+{
+    assert(size == sizeof(test_input_pcm));
+    assert(!memcmp(pcm, test_input_pcm, size));
+    assert(check && check(request) == 0);
+    test_input_asr_calls++;
+    if (test_input_asr_mode == 1) {
+        assert(voice_channel_cancel() == 0);
+        /* A late successful provider result must still be discarded. */
+    } else if (test_input_asr_mode == 2) {
+        return -EIO;
+    } else if (test_input_asr_mode == 3) {
+        text[0] = 0;
+        return 0;
+    }
+    assert(capacity > sizeof("fixed input"));
+    strcpy(text, "fixed input");
+    return 0;
+}
+
+static void test_channel_input(void)
+{
+    agent_msg_t msg = {0};
+    assert(message_bus_init() == 0);
+    assert(voice_channel_submit_text("fixed input") == -EBUSY);
+    uint64_t setup = test_reply_prepare(5);
+    voice_request_complete(setup, 0);
+    assert(voice_channel_submit_text(NULL) == -EINVAL);
+    assert(voice_channel_submit_text("") == -EINVAL);
+    assert(voice_channel_submit_text(" \t\n") == -ENODATA);
+    assert(voice_channel_submit_pcm(NULL, 2) == -EINVAL);
+    assert(voice_channel_submit_pcm(test_input_pcm, 3) == -EINVAL);
+    assert(voice_channel_submit_pcm(test_input_pcm, AUTO_PCM_BYTES + 2) == -E2BIG);
+    uint64_t previous = voice_channel_request_id();
+    assert(previous == setup && voice_channel_is_idle());
+    test_input_revoked = 1;
+    assert(voice_channel_submit_text_checked("fixed input", test_input_check,
+        &test_input_revoked) == -ECANCELED);
+    assert(voice_channel_is_idle());
+    test_input_revoked = 0;
+    assert(voice_channel_submit_text_checked("fixed input", test_input_check,
+        &test_input_revoked) == 0);
+    assert(message_bus_pop_inbound(&msg, 0) == 0);
+    test_input_revoked = 1;
+    assert(msg.request_status(msg.request_id) == -ECANCELED);
+    assert(msg.request_commit(msg.request_id) == -ECANCELED);
+    msg.request_complete(msg.request_id, -ECANCELED);
+    message_bus_msg_free(&msg);
+    for (unsigned int turn = 0; turn < 10; turn++) {
+        uint64_t prepared = test_reply_prepare(5);
+        voice_request_complete(prepared, 0);
+        assert(voice_channel_submit_text("fixed input") == 0);
+        uint64_t id = voice_channel_request_id();
+        assert(id > previous && !voice_channel_is_idle());
+        assert(voice_channel_submit_text("second input") == -EBUSY);
+        assert(voice_channel_submit_pcm(test_input_pcm, sizeof(test_input_pcm)) == -EBUSY);
+        assert(message_bus_pop_inbound(&msg, 0) == 0);
+        assert(msg.request_id == id && !strcmp(msg.content, "fixed input"));
+        assert(msg.request_status && msg.request_commit && msg.request_complete && msg.reply_stream);
+        assert(msg.reply_stream(id, AGENT_REPLY_BEGIN, NULL, 0) == 0);
+        const char *body = "这是有效回答。";
+        assert(msg.reply_stream(id, AGENT_REPLY_DELTA, body, strlen(body)) == 0);
+        test_wait_first_pcm();
+        assert(msg.reply_stream(id, AGENT_REPLY_END, NULL, 0) == 0);
+        assert(msg.request_commit(id) == 0);
+        msg.request_complete(id, 0);
+        assert(voice_channel_is_idle() && test_drains == 1 && test_closes == 1);
+        assert(test_wait_stage(id, "input_text") >= 0);
+        assert(test_stage_index(id, "asr_request") == -1);
+        message_bus_msg_free(&msg);
+        assert(message_bus_pop_inbound(&msg, 0) == ERROR);
+        previous = id;
+    }
+    for (test_input_asr_mode = 1; test_input_asr_mode <= 3; test_input_asr_mode++) {
+        int expected = test_input_asr_mode == 1 ? -ECANCELED :
+            test_input_asr_mode == 2 ? -EIO : -ENODATA;
+        assert(voice_channel_submit_pcm(test_input_pcm, sizeof(test_input_pcm)) == expected);
+        assert(voice_channel_is_idle());
+        assert(message_bus_pop_inbound(&msg, 0) == ERROR);
+    }
+    test_input_asr_mode = 0;
+    assert(voice_channel_submit_pcm(test_input_pcm, sizeof(test_input_pcm)) == 0);
+    uint64_t id = voice_channel_request_id();
+    assert(message_bus_pop_inbound(&msg, 0) == 0 && msg.request_id == id);
+    assert(!strcmp(msg.content, "fixed input") && test_input_asr_calls == 4);
+    assert(voice_channel_cancel() == 0);
+    assert(msg.request_status(id) == -ECANCELED);
+    assert(msg.request_commit(id) == -ECANCELED);
+    msg.request_complete(id, -ECANCELED);
+    assert(voice_channel_is_idle());
+    message_bus_msg_free(&msg);
+    message_bus_destroy();
+    puts("VOICE_INPUT_PASS ten-text-turns pcm cancel-late failure empty next-turn same-stream-owner");
+}
+#endif
+
 int main(int argc, char **argv)
 {
+#ifdef TEST_AGENT_INPUT
+    if (argc == 2 && !strcmp(argv[1], "input")) {
+        test_channel_input();
+        puts("CONTRACT_PASS");
+        return 0;
+    }
+#endif
     if (argc == 2) {
         if (!strncmp(argv[1], "pcm-", 4)) {
             test_fragment_seed = (unsigned int)strtoul(argv[1] + 4, NULL, 10);
@@ -1745,6 +1899,11 @@ int main(int argc, char **argv)
             assert(voice_channel_reply_stream(id, AGENT_REPLY_DELTA, "fixture.", 8) == 0);
             assert(voice_channel_reply_stream(id, AGENT_REPLY_END, NULL, 0) == 0);
             assert(test_written == 200000 && test_drains == 1 && test_closes == 1);
+            assert(atomic_load(&test_audio_counts[1]) == 1);
+            assert(atomic_load(&test_audio_counts[4]) > 1);
+            assert(atomic_load(&test_audio_counts[5]) > 1);
+            assert(atomic_load(&test_audio_counts[7]) == 1);
+            assert(atomic_load(&test_audio_counts[8]) == 1);
             voice_request_complete(id, 0);
             assert(voice_channel_is_idle());
         } else if (!strcmp(argv[1], "cancel-late")) {
@@ -1769,6 +1928,8 @@ int main(int argc, char **argv)
             test_sse_seed = (unsigned int)strtoul(argv[1] + 4, NULL, 10);
             if (test_sse_seed == 1) test_reply_pipeline();
             test_sse_pipeline();
+        } else if (!strcmp(argv[1], "playback-priority")) {
+            test_playback_priority_failure();
         } else if (!strcmp(argv[1], "local-text")) {
             test_local_text_dispatch();
         } else if (!strcmp(argv[1], "focus-text")) {
@@ -1778,6 +1939,7 @@ int main(int argc, char **argv)
         return 0;
     }
     assert(argc == 1);
+    test_playback_priority_failure();
     test_wake_gate_case(0, 0);
     test_wake_gate_case(1, 0);
     test_wake_gate_case(0, 1);

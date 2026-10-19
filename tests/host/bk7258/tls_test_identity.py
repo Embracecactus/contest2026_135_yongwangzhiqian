@@ -20,6 +20,7 @@ def issue(
     certificate="cert.pem",
     key="key.pem",
     common_name="localhost",
+    subject_alt_name="DNS:localhost",
     issuer=None,
     is_ca=True,
 ):
@@ -51,7 +52,7 @@ commonName = supplied
 basicConstraints = critical,CA:{'TRUE' if is_ca else 'FALSE'}
 keyUsage = critical,{usage}
 extendedKeyUsage = serverAuth,clientAuth
-subjectAltName = DNS:localhost
+subjectAltName = {subject_alt_name}
 """
         )
         run(

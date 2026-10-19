@@ -169,8 +169,13 @@ internal class DeviceControlSession(
             request.clear()
             return false
         }
-        // Coalesce polling; a write can wait behind the one current read.
-        if (request.read && inFlight != null) { request.clear(); return false }
+        // Coalesce polling; an explicit config read may use the one queued
+        // slot behind the current read so a foreground editor is not blocked
+        // by STATUS. It still cannot create a second queue or pass a write.
+        if (request.read && inFlight != null &&
+            request.command != DeviceControlProtocol.Command.CONFIG_READ) {
+            request.clear(); return false
+        }
         queued = request
         if (!request.read) publish(state.copy(operationMessage = "等待设备执行", error = null))
         pump()

@@ -15,17 +15,19 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 CASES = ("content-busy", "online", "offline", "network-pending", "offline-event",
-         "core-unavailable", "identity-unavailable", "threshold-busy", "model-failure", "cloud-retry", "offline-admission", "online-admission")
+         "core-unavailable", "identity-unavailable", "threshold-busy", "model-failure", "cloud-retry", "offline-admission", "online-admission", "probe-not-wake")
 
 def main():
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
     case = sys.argv[1]
     assert case in CASES
+    if case == "probe-not-wake":
+        return probe_not_wake()
     if case.endswith("-admission"):
         return admission(case)
     source = (ROOT / "app/bk7258/bk7258_agent_product.c").read_text()
     start = source.index("      if (content_busy || !atomic_load(&g_agent_core_ready)")
-    end = source.index("\n    }\n}\n#endif", start)
+    end = source.index("\n      PRODUCT_LOOP_CHECKPOINT(17);", start)
     body = source[start:end]
     prefix = r"""
 #include <assert.h>
@@ -40,6 +42,7 @@ def main():
 #include "bk7258_agent_cloud.h"
 #define CONFIG_BK7258_PREFERENCES 1
 #define syslog(...) ((void)0)
+#define PRODUCT_LOOP_CHECKPOINT(stage) ((void)(stage))
 static bool g_configured, g_identity_bound=true, g_trigger_started;
 static bool content_busy;
 static atomic_bool g_agent_core_ready=true, g_voice_initialized=true;
@@ -59,10 +62,11 @@ static int voice_action;
 static unsigned prepares, starts, processes, applied_threshold;
 static int threshold_error, start_error;
 static bool threshold_ready;
+static bool channel_idle=true;
 #define bkagent_ota_busy() false
 #define bkprov_network_busy() network_busy
 #define bkprov_owner_busy() false
-#define voice_channel_is_idle() true
+#define voice_channel_is_idle() channel_idle
 #define bk7258_agent_trigger_model_pending() false
 static int bk7258_agent_trigger_model_step(bool arm) { (void)arm; return 0; }
 static int bk7258_agent_trigger_prepare(void) { prepares++;return 0; }
@@ -104,6 +108,13 @@ int main(int argc,char **argv) {
  if(!strcmp(argv[1],"identity-unavailable"))g_identity_bound=false;
  if(!strcmp(argv[1],"threshold-busy"))threshold_error=-EBUSY;
  if(!strcmp(argv[1],"model-failure"))start_error=-EBADMSG;
+ if(!strcmp(argv[1],"online")) {
+  /* A submitted turn can own the channel while the listener is stopped.
+   * Start/rearm must wait for channel release, including cancellation. */
+  g_trigger_prepare_pending=false;threshold_ready=true;channel_idle=false;
+  step();assert(starts==0 && !g_trigger_started);
+  channel_idle=true;g_trigger_prepare_pending=true;
+ }
  step();
  if(!strcmp(argv[1],"cloud-retry")) {
   g_trigger_started=true;
@@ -176,6 +187,73 @@ static int audio_capture_cleanup(unsigned ms){(void)ms;return 0;}
         if r.returncode:print("SETUP_ERROR",r.stderr);return 2
         r=subprocess.run([str(root/"probe")],capture_output=True,text=True)
         print(r.stdout+r.stderr,end="");return 0 if r.returncode==0 else 1
+
+
+def probe_not_wake():
+    """Probe completion wakes the loop without creating a KWS event."""
+    from test_agent_capture_lifecycle import function
+
+    source = (ROOT / "app/bk7258/bk7258_agent_product.c").read_text()
+    wake = function(source, "bk7258_agent_product_wake")
+    worker = function(source, "product_probe_worker")
+    code = r"""
+#include <assert.h>
+#include <errno.h>
+#include <stdbool.h>
+#include <semaphore.h>
+#include <stdatomic.h>
+#include <stdio.h>
+static atomic_bool g_probe_running;
+static atomic_int g_probe_worker_result;
+static atomic_uint g_product_events;
+static sem_t g_product_wake;
+static int cloud_result;
+static int bkagent_cloud_verify_service(void) { return cloud_result; }
+""" + wake + worker + r"""
+int main(void) {
+  int result_index;
+  int wake_index;
+  int results[] = {0, -EHOSTUNREACH};
+  for (result_index = 0; result_index < 2; result_index++) {
+    for (wake_index = 0; wake_index < 2; wake_index++) {
+      assert(sem_init(&g_product_wake, 0, 0) == 0);
+      cloud_result = results[result_index];
+      atomic_store(&g_product_events, 0);
+      if (wake_index) {
+        bk7258_agent_product_wake();
+        assert(sem_trywait(&g_product_wake) == 0);
+      }
+      atomic_store(&g_probe_running, true);
+      assert(product_probe_worker(NULL) == NULL);
+      assert(atomic_load(&g_probe_worker_result) == cloud_result);
+      assert(!atomic_load(&g_probe_running));
+      assert(sem_trywait(&g_product_wake) == 0);
+      errno = 0;
+      assert(sem_trywait(&g_product_wake) < 0 && errno == EAGAIN);
+      assert(atomic_load(&g_product_events) == (wake_index ? 4u : 0u));
+      assert(sem_destroy(&g_product_wake) == 0);
+    }
+  }
+  puts("CONTRACT_PASS");
+  return 0;
+}
+"""
+    with tempfile.TemporaryDirectory(prefix="probe-not-wake-") as directory:
+        root = Path(directory)
+        code_path = root / "probe.c"
+        binary = root / "probe"
+        code_path.write_text(code)
+        build = subprocess.run(
+            ["cc", "-std=c11", "-Wall", "-Werror", "-pthread",
+             str(code_path), "-o", str(binary)],
+            capture_output=True, text=True,
+        )
+        if build.returncode:
+            print("SETUP_ERROR", build.stderr)
+            return 2
+        result = subprocess.run([str(binary)], capture_output=True, text=True)
+        print(result.stdout + result.stderr, end="")
+        return 0 if result.returncode == 0 else 1
 
 if __name__=="__main__":
     raise SystemExit(main())

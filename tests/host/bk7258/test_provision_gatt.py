@@ -14,9 +14,28 @@ PREFIX = r"""
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdarg.h>
+#include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
 #define CONFIG_BLUETOOTH_MAX_CONN 1
+#define LOG_INFO 6
+struct bk7258_bt_hci_stats_s {
+ uint32_t last_command, last_cmd_complete, last_cmd_status;
+ uint32_t hci_le_connected, hci_disconnected, last_disconnection;
+};
+static int trace_lines;
+static int bk7258_bt_hci_get_stats(struct bk7258_bt_hci_stats_s *stats) {
+ memset(stats,0,sizeof(*stats));return 0;
+}
+static void syslog(int priority,const char *format,...) {
+ char line[512];va_list args;
+ assert(priority==LOG_INFO);
+ va_start(args,format);int n=vsnprintf(line,sizeof(line),format,args);va_end(args);
+ assert(n>0 && (size_t)n<sizeof(line));
+ assert(!strncmp(line,"BKPROV RADIO ",13));
+ trace_lines++;
+}
 #define SP_UNLOCKED 0
 #define BT_UUID_16 16
 #define BT_UUID_128 128
@@ -67,6 +86,7 @@ static int bt_start_advertising(uint8_t type,const struct bt_eir_s *ad,
  assert(!memcmp(ad[2].data,"Shaniu",6));
  assert(sd[0].len==(random_missing?0:25));
  if(!random_missing)assert(sd[0].data[16]==random_sequence);
+ assert(stops>=1); /* Default Host advertising must be reconciled first. */
  starts++;return start_error;
 }
 static int bt_stop_advertising(void) { stops++;return stop_error; }
@@ -106,6 +126,7 @@ int main(void) {
  uint8_t data[64], out[4096]; memset(data,42,sizeof(data));
  assert(bkprov_gatt_register()==0 && registrations==1);
  assert(bkprov_gatt_register()==-EALREADY);
+ assert(g_advertising && !g_window && starts==0 && stops==0);
  ccc_changed(1);
  assert(bkprov_gatt_generation()==0);
  assert(write_tls(&a,NULL,data,64,0)==-EACCES);
@@ -113,10 +134,15 @@ int main(void) {
  uint8_t connected_hint[8];
  assert(bkprov_gatt_locator(connected_hint)==0);
  assert(bkprov_gatt_window(true)==-EBUSY);
+ int before_callback=trace_lines;
  callbacks->connected(&a,NULL);
+ assert(trace_lines==before_callback);
  assert(bkprov_gatt_locator(connected_hint)==-EAGAIN);
  assert(connected_hint[0]==0 && !g_locator_valid && g_locator[0]==0);
- assert(bkprov_gatt_poll()==0 && stops==1);
+ assert(bkprov_gatt_poll()==0 && stops==2);
+ int stable_lines=trace_lines;
+ for(int i=0;i<100;i++)assert(bkprov_gatt_poll()==0);
+ assert(trace_lines==stable_lines);
  ccc_changed(1);
  uint32_t first=bkprov_gatt_generation();assert(first!=0);
  for(int i=0;i<64;i++)assert(write_tls(&a,NULL,data,64,0)==64);
@@ -131,7 +157,9 @@ int main(void) {
  assert(bkprov_gatt_send(first,data,20)==20 && notified==&a && a.refs==3 && notifications==1);
  assert(bkprov_gatt_send(first,data,20)==20 && a.refs==3 && notifications==2);
  ccc_changed(0);assert(a.refs==2 && bkprov_gatt_generation()==0);
+ before_callback=trace_lines;
  callbacks->disconnected(&a,NULL);
+ assert(trace_lines==before_callback);
  assert(a.refs==1 && bkprov_gatt_generation()==0);
  assert(bkprov_gatt_window(true)==0);
  callbacks->connected(&b,NULL);
@@ -196,11 +224,48 @@ int main(void) {
 
 class ProductGattTest(unittest.TestCase):
     def test_window_queue_and_connection_generation(self):
+        self.run_fixture(TEST)
+
+    def test_startup_advertisement_handoff(self):
+        cases = {
+            "already_idle": r"""
+ stop_error=-EALREADY;
+ assert(bkprov_gatt_register()==0);
+ assert(bkprov_gatt_window(true)==0 && stops==1 && starts==1);
+ assert(g_radio_error==0 && g_window);
+""",
+            "failed_stop_stays_closed": r"""
+ stop_error=-ENOBUFS;
+ assert(bkprov_gatt_register()==0);
+ assert(bkprov_gatt_window(true)==-ENOBUFS);
+ assert(starts==0 && !g_window && g_radio_error==-ENOBUFS);
+ stop_error=-EALREADY;
+ assert(bkprov_gatt_poll()==-ENOBUFS && !g_advertising);
+ assert(bkprov_gatt_window(true)==-ENOBUFS && starts==0);
+""",
+            "early_peer_is_drained": r"""
+ struct bt_conn_s peer={1,true};
+ assert(bkprov_gatt_register()==0);
+ callbacks->connected(&peer,NULL);
+ assert(bkprov_gatt_poll()==0 && stops==1 && disconnects==1);
+ assert(!g_window && !g_advertising && bkprov_gatt_generation()==0);
+ callbacks->disconnected(&peer,NULL);
+ assert(peer.refs==1);
+ assert(bkprov_gatt_window(true)==0 && starts==1);
+""",
+        }
+        notify_stub = TEST[:TEST.index("int main(void)")]
+        for name, body in cases.items():
+            with self.subTest(name=name):
+                self.run_fixture(notify_stub + "int main(void) {\n" + body +
+                                 "return 0;\n}\n")
+
+    def run_fixture(self, test):
         source = (ROOT / "app/bk7258/bk7258_provision_gatt.c").read_text()
         source = re.sub(r"^#include[^\n]*\n", "", source, flags=re.M)
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)
-            (path / "test.c").write_text(PREFIX + source + TEST)
+            (path / "test.c").write_text(PREFIX + source + test)
             subprocess.run(
                 [
                     "cc",

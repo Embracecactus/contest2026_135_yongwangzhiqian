@@ -11,7 +11,11 @@ class PcAuthorizationControllerTest {
         lateinit var events: DeviceControlSession.Events
         lateinit var protocol: DeviceControlProtocol
         val frames = mutableListOf<ByteArray>()
-        val session = DeviceControlSession({ 1000L }, { it() }, { _, _ -> object : DeviceControlSession.Cancel { override fun cancel() {} } })
+        private var scheduled: (() -> Unit)? = null
+        val session = DeviceControlSession({ 1000L }, { it() }, { _, action ->
+            scheduled = action
+            object : DeviceControlSession.Cancel { override fun cancel() { if (scheduled === action) scheduled = null } }
+        })
         val controller: PcAuthorizationController
         val tx = ByteArray(16) { 7 }
         val observed = mutableListOf<PcAuthorizationController.State>()
@@ -57,6 +61,13 @@ class PcAuthorizationControllerTest {
             }
         }
         fun loaded() { assertTrue(controller.refresh()); read() }
+        fun reconnect() {
+            requireNotNull(scheduled).invoke()
+        }
+        fun authenticate() {
+            protocol.start(); reply()
+            protocol.request(DeviceControlProtocol.Command.STATUS); reply()
+        }
         fun apply() {
             val snapshot = controller.current().snapshot!!
             assertTrue(controller.revoke(snapshot)); assertEquals(16, command())
@@ -141,6 +152,18 @@ class PcAuthorizationControllerTest {
         f.controller.close()
         val reopened = Fixture(id); assertTrue(reopened.controller.query()); reopened.receipt(1, -11)
         assertFalse(reopened.frames.any { ByteBuffer.wrap(it).getInt(4) in 16..18 })
+    }
+    @Test fun reconnectAuthenticationRepublishesControlsWithoutReplayingAuthorization() {
+        val f = Fixture()
+        f.events.closed("lost")
+        f.reconnect()
+        val beforeAuthenticated = f.observed.size
+        f.authenticate()
+        assertTrue(f.session.current().authenticated)
+        assertTrue(f.observed.size > beforeAuthenticated)
+        assertEquals(PcAuthorizationController.Outcome.NONE, f.controller.current().outcome)
+        assertNull(f.controller.current().transaction)
+        assertFalse(f.frames.any { ByteBuffer.wrap(it).getInt(4) in 15..18 })
     }
     @Test fun closeBeforeApplyCancelsStagingButAfterApplyDoesNotClaimRemoteCancel() {
         val f = Fixture(); f.loaded(); assertTrue(f.controller.revoke(f.controller.current().snapshot!!))

@@ -160,4 +160,46 @@ int bkengaudio_control(struct bkengaudio_s *state,
                        const uint8_t *record, size_t size,
                        struct bkcontrol_status_s *status);
 
+/* BVB1 is a bounded upload on the existing authenticated BKTEST transport.
+ * Modes: 0 = volatile cloud setup, 1 = UTF-8 text, 2 = PCM16/16k/mono.
+ * The product service remains the only executor. No second voice owner.
+ * take lends bytes until release; finish records actual turn completion.
+ */
+struct bkengvoice_input_s
+{
+  uint32_t session;
+  uint32_t mode;
+  const uint8_t *data;
+  size_t size;
+};
+
+struct bkengvoice_config_s
+{
+  uint64_t utc;
+  const uint8_t *address;
+  const uint8_t *ca;
+  size_t ca_size;
+  const uint8_t *cloud;
+  size_t cloud_size;
+};
+
+int bkengvoice_config_decode(const uint8_t *record, size_t size,
+                             struct bkengvoice_config_s *config);
+
+int bkengvoice_command(const uint8_t *record, size_t size);
+int bkengvoice_read(uint32_t offset, struct bkcontrol_status_s *status);
+bool bkengvoice_trace_poll(void);
+int bkengvoice_take(struct bkengvoice_input_s *input);
+bool bkengvoice_canceled(uint32_t session);
+void bkengvoice_release(uint32_t session);
+void bkengvoice_finish(uint32_t session, uint64_t request, int result);
+void bkengvoice_disconnect(void);
+
+/* Numeric, bounded engineering observations. The product remains the owner
+ * of the turn and rearm; the trace never changes audio buffering or timing.
+ */
+void agent_audio_observe(uint64_t request, uint32_t kind, uint64_t begin,
+                         uint64_t end, uint32_t bytes, uint32_t level);
+void bkengvoice_rearm(uint64_t request, uint32_t state, uint64_t ms);
+
 #endif /* __APP_BK7258_BK7258_ENGINEERING_TEST_H */

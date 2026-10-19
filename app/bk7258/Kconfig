@@ -85,6 +85,15 @@ config BK7258_ENGINEERING_TEST
 		adds no shell, owner bypass, reset/erase primitive or production command.
 		Keep disabled in normal product and release configurations.
 
+config BK7258_TTS_ISOLATION
+	bool "Development-only fixed-input TTS isolation"
+	default n
+	depends on BK7258_ENGINEERING_TEST
+	help
+		Allow authenticated BKTEST mode 3 to speak a frozen input through the
+		existing tracked voice turn, TLS provider, PCM queue and Media output.
+		Bypasses ASR and LLM only. Keep disabled in production configurations.
+
 config BK7258_FACTORY_DIAGNOSTICS
 	bool "Factory-only volatile BKTEST enrollment"
 	default n

@@ -33,16 +33,24 @@ internal class NfcBindingController(
     private var ownsTransaction = false
     private var active = true
     private var generation = session.current().generation
+    private var authenticated = session.current().authenticated
+    private var observedConnection = false
     private val results = session.observeResults(::received)
     private val connection = session.observe {
-        if (!it.authenticated || it.generation != generation) {
+        val changed = !observedConnection || it.generation != generation ||
+            it.authenticated != authenticated
+        if (changed && (!it.authenticated || it.generation != generation)) {
             generation = it.generation
             scene = null; sceneMessage = "连接变化，自动专注能力未确认"
             snapshot = null; phase = Phase.IDLE; ownsTransaction = false
             request = null; awaitingOperation = null; bytes.fill(0)
             message = "连接变化；请重新读取。已受理作业由设备继续，不自动重发"
             publish()
+        } else if (changed && !authenticated) {
+            publish()
         }
+        authenticated = it.authenticated
+        observedConnection = true
     }
     fun current() = State(snapshot, phase != Phase.IDLE, message, scene, sceneMessage)
     private fun publish() { if (active) changed(current()) }
