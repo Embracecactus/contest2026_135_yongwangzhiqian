@@ -25,6 +25,11 @@ struct bkcontrol_serial_s
  */
 int bkcontrol_serial_open(struct bkcontrol_serial_s *serial,
                           struct bkprov_tls_transport_s *transport);
+/* Listener readiness does not consume input. Return 1 for queued bytes,
+ * 0 while idle, or a negative error after invalidating a failed transport.
+ */
+
+int bkcontrol_serial_ready(struct bkcontrol_serial_s *serial);
 /* Invalidates callbacks before closing exactly once. O_NONBLOCK avoids the
  * NuttX serial close drain. Close does not acknowledge remote cancellation or
  * hardware DMA exit. The owner must separately close/wipe its control pair.

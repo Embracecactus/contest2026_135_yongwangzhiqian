@@ -8,6 +8,8 @@ static unsigned calls;
 static int operation_error;
 static int ota_error;
 static unsigned ota_calls;
+static unsigned config_calls;
+static void put(uint8_t *p, uint32_t n);
 static enum bkcontrol_command_e ota_command;
 static const uint8_t *ota_record_pointer;
 static size_t ota_record_size;
@@ -47,6 +49,28 @@ static int execute(void *context, enum bkcontrol_command_e command,
   status->flags = 8;
   status->volume = value;
   return operation_error;
+}
+static int config(void *context, enum bkcontrol_command_e command,
+                  uint32_t kind, uint32_t offset, const uint8_t *record,
+                  size_t size, struct bkcontrol_status_s *status)
+{
+  assert(context == &calls);
+  assert(command == BKCONTROL_CONFIG_READ && kind == BKCONTROL_CONFIG_CAMERA_BLOCK);
+  config_calls++;
+  if (size == 0)
+    {
+      assert(offset == 0 && record == NULL);
+      status->config_total = 16;
+      memcpy(status->config_chunk, "CBR1", 4);
+      put(status->config_chunk + 4, 1);
+      put(status->config_chunk + 8, BKCONTROL_CAMERA_BLOCK_SIZE);
+      return 0;
+    }
+  assert(offset == 0 && size == 16 && record != NULL);
+  status->config_total = 6;
+  memset(status->camera_block, 0, sizeof(status->camera_block));
+  memcpy(status->camera_block, "FRAME!", 6);
+  return 0;
 }
 static void put(uint8_t *p, uint32_t n)
 { p[0] = n>>24; p[1] = n>>16; p[2] = n>>8; p[3] = n; }
@@ -97,6 +121,82 @@ static void append(struct bkcontrol_session_s *s, uint32_t sequence,
   frame(p, BKCONTROL_OTA_APPEND, sequence, size);
   memcpy(p + 16, data, size);
   assert(bkcontrol_session_packet(s, p, 16 + size, response) == 0);
+}
+
+static void test_camera_block_transport(void)
+{
+  struct bkcontrol_session_s s = {0};
+  uint8_t p[48], response[BKCONTROL_RESPONSE_MAX], key[32];
+  size_t response_size;
+  unsigned before;
+
+  memset(key, 42, sizeof(key));
+  assert(bkcontrol_session_open(&s, key, execute, &calls) == 0);
+  assert(bkcontrol_session_set_config_handler(&s, config) == 0);
+  frame(p, BKCONTROL_AUTH, 0, 32); memcpy(p + 16, key, 32);
+  assert(bkcontrol_session_packet(&s, p, 48, response) == 0);
+
+  frame(p, BKCONTROL_CONFIG_READ, 1, 4);
+  put(p + 16, BKCONTROL_CONFIG_CAMERA_BLOCK << 16);
+  assert(bkcontrol_session_packet_sized(&s, p, 20, response, sizeof(response),
+                                        &response_size) == 0);
+  assert(response_size == BKCONTROL_RESPONSE_SIZE && get(response + 12) == 24 &&
+         get(response + 20) == 16 && !memcmp(response + 24, "CBR1", 4) &&
+         get(response + 28) == 1 && get(response + 32) == BKCONTROL_CAMERA_BLOCK_SIZE);
+
+  frame(p, BKCONTROL_CONFIG_READ, 2, 20);
+  put(p + 16, BKCONTROL_CONFIG_CAMERA_BLOCK << 16);
+  put(p + 20, 2); put(p + 32, 6);
+  assert(bkcontrol_session_packet_sized(&s, p, 36, response, sizeof(response),
+                                        &response_size) == 0);
+  assert(response_size == BKCONTROL_RESPONSE_MAX && get(response + 12) == 520 &&
+         get(response + 20) == 6 && !memcmp(response + 24, "FRAME!", 6));
+  for (size_t i = 30; i < sizeof(response); i++) assert(response[i] == 0);
+  bkcontrol_session_close(&s);
+
+  /* The legacy 40-byte entry and undersized sized entry are terminal before
+   * the camera callback can expose any frame data. */
+  assert(bkcontrol_session_open(&s, key, execute, &calls) == 0);
+  assert(bkcontrol_session_set_config_handler(&s, config) == 0);
+  frame(p, BKCONTROL_AUTH, 0, 32); memcpy(p + 16, key, 32);
+  assert(bkcontrol_session_packet(&s, p, 48, response) == 0);
+  frame(p, BKCONTROL_CONFIG_READ, 1, 20);
+  put(p + 16, BKCONTROL_CONFIG_CAMERA_BLOCK << 16);
+  before = config_calls;
+  assert(bkcontrol_session_packet(&s, p, 36, response) == -EMSGSIZE &&
+         config_calls == before && !s.open);
+
+  assert(bkcontrol_session_open(&s, key, execute, &calls) == 0);
+  assert(bkcontrol_session_set_config_handler(&s, config) == 0);
+  frame(p, BKCONTROL_AUTH, 0, 32); memcpy(p + 16, key, 32);
+  assert(bkcontrol_session_packet(&s, p, 48, response) == 0);
+  frame(p, BKCONTROL_CONFIG_READ, 1, 20);
+  put(p + 16, BKCONTROL_CONFIG_CAMERA_BLOCK << 16);
+  before = config_calls;
+  assert(bkcontrol_session_packet_sized(&s, p, 36, response,
+                                        sizeof(response) - 1, &response_size) == -EMSGSIZE &&
+         response_size == 0 && config_calls == before && !s.open);
+
+  assert(bkcontrol_session_open(&s, key, execute, &calls) == 0);
+  assert(bkcontrol_session_set_config_handler(&s, config) == 0);
+  frame(p, BKCONTROL_CONFIG_READ, 0, 20);
+  put(p + 16, BKCONTROL_CONFIG_CAMERA_BLOCK << 16);
+  before = config_calls;
+  assert(bkcontrol_session_packet_sized(&s, p, 36, response, sizeof(response),
+                                        &response_size) < 0 && config_calls == before && !s.open);
+
+  assert(bkcontrol_session_open(&s, key, execute, &calls) == 0);
+  assert(bkcontrol_session_set_config_handler(&s, config) == 0);
+  frame(p, BKCONTROL_AUTH, 0, 32); memcpy(p + 16, key, 32);
+  assert(bkcontrol_session_packet(&s, p, 48, response) == 0);
+  assert(bkcontrol_session_quiesce(&s) == 0);
+  frame(p, BKCONTROL_CONFIG_READ, 1, 20);
+  put(p + 16, BKCONTROL_CONFIG_CAMERA_BLOCK << 16);
+  before = config_calls;
+  assert(bkcontrol_session_packet_sized(&s, p, 36, response, sizeof(response),
+                                        &response_size) == 0 && response_size == BKCONTROL_RESPONSE_MAX &&
+         (int32_t)get(response + 16) == -EBUSY && config_calls == before);
+  bkcontrol_session_close(&s);
 }
 
 static void test_ota_transport(void)
@@ -382,6 +482,7 @@ int main(int argc, char **argv)
       assert(calls == before && !s.open);
     }
   test_ota_transport();
+  test_camera_block_transport();
   /* Only RESET_TRANSFER may add its receipt transaction to authenticated
    * CONFIG_READ; other kinds remain the original four-byte request. */
   authenticate(&s);

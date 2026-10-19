@@ -95,10 +95,11 @@ int bkcontrol_pair_step(struct bkcontrol_pair_s *pair)
   if (ret == 0) return 0;
   if (pair->report)
     {
-      ret = bkprov_tls_queue(&pair->tls, pair->response, sizeof(pair->response));
+      ret = bkprov_tls_queue(&pair->tls, pair->response, pair->response_size);
       if (ret == -EAGAIN) return 0;
       if (ret < 0) goto fail;
       mbedtls_platform_zeroize(pair->response, sizeof(pair->response));
+      pair->response_size = 0;
       pair->report = false;
       return 0;
     }
@@ -144,8 +145,10 @@ int bkcontrol_pair_step(struct bkcontrol_pair_s *pair)
       if (payload != 0) return 0;
     }
   authenticated = pair->session.authenticated;
-  ret = bkcontrol_session_packet(&pair->session, pair->input,
-                                 pair->received, pair->response);
+  ret = bkcontrol_session_packet_sized(&pair->session, pair->input,
+                                       pair->received, pair->response,
+                                       sizeof(pair->response),
+                                       &pair->response_size);
   mbedtls_platform_zeroize(pair->input, sizeof(pair->input));
   pair->received = 0;
   pair->expected = 16;

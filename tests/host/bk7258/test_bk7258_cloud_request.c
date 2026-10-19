@@ -2,6 +2,7 @@
 #ifdef TEST_AGENT_FINAL_STREAM
 #include "llm/llm_stream.h"
 #include "llm/llm_proxy.h"
+#include "agent_config.h"
 #include "infra/http_proxy.h"
 #include "infra/vela_tls.h"
 #include <assert.h>
@@ -83,12 +84,21 @@ static void test_vision_cancel(void)
 
 static const char *plan_finish, *plan_calls;
 static const char *plan_content = "A complete answer.";
+static bool plan_native_tools;
 static int plan_transport(const char *request, char *response, size_t capacity,
     size_t *length, int *status, void *context,
     int (*check)(void *), void *request_context)
 {
   (void)context;
   assert(strstr(request, "\"messages\""));
+  if (plan_native_tools) {
+    cJSON *body = cJSON_Parse(request);
+    cJSON *tools = cJSON_GetObjectItem(body, "tools");
+    assert(cJSON_IsArray(tools) && cJSON_GetArraySize(tools) == 1);
+    assert(strstr(request, "agent_finalize"));
+    assert(!cJSON_GetObjectItem(body, "response_format"));
+    cJSON_Delete(body);
+  }
   if (check && check(request_context)) return -ECANCELED;
   int n = snprintf(response, capacity,
       "{\"choices\":[{\"finish_reason\":\"%s\",\"message\":{"
@@ -161,11 +171,26 @@ static void test_plan_phase(void)
   plan_finish = "stop";
   plan_calls = "";
   plan_content = "{\\\"voice_phase\\\":\\\"final\\\"}";
+  plan_native_tools = true;
+  assert(llm_chat_plan_checked("system", messages,
+      "[{\"name\":\"agent_finalize\",\"description\":\"Finalize planning\","
+      "\"input_schema\":{\"type\":\"object\",\"properties\":{}}}]",
+      &response, NULL, NULL) == 0);
+  assert(response.tool_phase_complete && !response.text && !response.tool_use);
+  llm_response_free(&response);
+  plan_native_tools = false;
   assert(llm_chat_plan_checked("system", messages, "[]", &response,
       NULL, NULL) == 0);
   assert(response.tool_phase_complete && !response.text && !response.tool_use);
   llm_response_free(&response);
   const char *bad_decisions[] = {
+      "{}",
+      "{\\\"tool_calls\\\":[]}",
+      "{\\\"thinking\\\":\\\"draft\\\"}",
+      "{\\\"answer\\\":\\\"unvalidated body\\\"}",
+      "[{\\\"name\\\":\\\"camera\\\",\\\"arguments\\\":{}}]",
+      "  {\\\"draft\\\":",
+      "```json\\\\n{\\\"tools\\\":[]}\\\\n```",
       "{\\\"voice_phase\\\":\\\"final\\\"",
       "{\\\"nested\\\":{\\\"voice_phase\\\":\\\"final\\\"}}",
       "{\\\"voice_phase\\\":\\\"tools\\\"}",
@@ -227,6 +252,138 @@ static int body_delta(void *context, const char *text, size_t length)
   return 0;
 }
 
+/* Phase admission reuses the final SSE decoder, including fragmented frames. */
+extern int llm_chat_voice_stream_checked(const char *, cJSON *, llm_response_t *,
+    llm_text_delta_t, int (*)(void *, bool), void *, int (*)(void *), void *);
+static const char *phase_payload;
+static size_t phase_piece;
+static int phase_seen;
+static int phase_admit(void *ctx, bool final)
+{
+  (void)ctx;
+  phase_seen = final ? 1 : 2;
+  return 0;
+}
+static int phase_count_body(void *ctx, const char *text, size_t length)
+{
+  (void)text;
+  *(size_t *)ctx += length;
+  return 0;
+}
+static int phase_transport(const char *request, int (*receive)(void *, const char *, size_t),
+    void *receive_context, int *status, void *context,
+    int (*check)(void *), void *request_context)
+{
+  (void)context;
+  assert(!strstr(request, "\"tools\"") && strstr(request, "\"stream\":true"));
+  assert(strstr(request, "\"response_format\":{\"type\":\"json_object\"}"));
+  *status = 200;
+  if (check && check(request_context)) return -ECANCELED;
+  for (size_t at = 0; at < strlen(phase_payload); at += phase_piece) {
+    size_t n = strlen(phase_payload) - at;
+    if (n > phase_piece) n = phase_piece;
+    char *part = malloc(n + 1); assert(part);
+    memcpy(part, phase_payload + at, n); part[n] = 0;
+    cJSON *str = cJSON_CreateString(part); free(part);
+    char *encoded = cJSON_PrintUnformatted(str); cJSON_Delete(str);
+    char frame[1024];
+    int len = snprintf(frame, sizeof(frame),
+        "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":%s}}]}\n\n", encoded);
+    free(encoded); assert(len > 0 && (size_t)len < sizeof(frame));
+    for (int i = 0; i < len; i++) {
+      int ret = receive(receive_context, frame + i, 1);
+      if (ret) return ret;
+    }
+  }
+  const char done[] = "data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n";
+  int ret = receive(receive_context, done, strlen(done));
+  return ret > 0 ? 0 : ret;
+}
+static void test_voice_phase_stream(void)
+{
+  assert(!llm_set_transports("fixture", "fixture", plan_transport, phase_transport, NULL, NULL));
+  cJSON *messages = cJSON_CreateArray(); assert(messages);
+  const char *valid[] = {
+    "{\"voice_phase\":\"final\",\"answer\":\"A complete answer. Tail unchanged.\"}",
+    "{\"voice_phase\":\"tools\"}",
+    "{ \"voice_phase\" : \"tools\" }\n \t",
+    " \n{ \"voice_phase\" : \"final\", \"answer\" : \"A complete answer. Tail unchanged.\" }"
+  };
+  llm_response_t response;
+  for (unsigned k = 0; k < sizeof(valid) / sizeof(valid[0]); k++) {
+    phase_payload = valid[k];
+    for (phase_piece = 1; phase_piece <= strlen(phase_payload); phase_piece++) {
+      phase_seen = spoken_size = 0; spoken[0] = 0;
+      assert(!llm_chat_voice_stream_checked("system", messages, &response,
+          body_delta, phase_admit, NULL, NULL, NULL));
+      bool final = k == 0 || k == 3;
+      assert(phase_seen == (final ? 1 : 2));
+      assert(response.tool_phase_complete == final);
+      if (final) {
+        assert(!strcmp(spoken, "A complete answer. Tail unchanged."));
+        assert(response.text && !strcmp(response.text, spoken));
+      } else assert(!spoken_size && !response.text);
+      llm_response_free(&response);
+    }
+  }
+  const char *bad[] = {
+    "draft\nanswer", "{}\nanswer", "```json\nanswer",
+    "{\"voice_phase\":\"final\",\"draft\":\"x\",\"answer\":\"no\"}",
+    "{\"voice_phase\":\"final\",\"voice_phase\":\"final\",\"answer\":\"no\"}",
+    "{\"voice_phase\":\"tools\",\"answer\":\"Do not speak\"}",
+    "{\"nested\":{\"voice_phase\":\"final\"},\"answer\":\"no\"}",
+    "{\"voice_phase\":\"final\"}", "{\"voice_phase\":\"final\",\"answer\":\"\"}",
+    "{\"voice_phase\":\"final\",\"answer\":\"\\u0000\"}",
+    "{\"voice_phase\":\"final\",\"answer\":\"\\uD800\"}",
+    "{\"voice_phase\":\"final\",\"answer\":\"\\uDC00\"}"
+  };
+  for (unsigned k = 0; k < sizeof(bad) / sizeof(bad[0]); k++) {
+    phase_payload = bad[k]; phase_piece = 1;
+    phase_seen = spoken_size = 0; spoken[0] = 0;
+    assert(llm_chat_voice_stream_checked("system", messages, &response,
+        body_delta, phase_admit, NULL, NULL, NULL) < 0);
+    assert(!spoken_size && !response.text);
+    llm_response_free(&response);
+  }
+  phase_payload = "{\"voice_phase\":\"final\",\"answer\":\"Quote \\\" slash \\\\ \\/\\n\\t\\b\\f\\r\\u4f60\\u597d\\uD83D\\uDE00\"}";
+  for (phase_piece = 1; phase_piece <= strlen(phase_payload); phase_piece++) {
+    spoken_size = 0; spoken[0] = 0;
+    assert(!llm_chat_voice_stream_checked("system", messages, &response,
+        body_delta, phase_admit, NULL, NULL, NULL));
+    assert(!strcmp(spoken, "Quote \" slash \\ /\n\t\b\f\r你好😀"));
+    assert(!strcmp(response.text, spoken)); llm_response_free(&response);
+  }
+  /* Tail structure errors after admitted body abort; no success/history. */
+  const char *late_bad[] = {
+    "{\"voice_phase\":\"final\",\"answer\":\"safe\",\"draft\":\"no\"}",
+    "{\"voice_phase\":\"final\",\"answer\":\"safe\"} junk",
+    "{\"voice_phase\":\"final\",\"answer\":\"safe"
+  };
+  for (unsigned k = 0; k < sizeof(late_bad) / sizeof(late_bad[0]); k++) {
+    phase_payload = late_bad[k]; phase_piece = 1; spoken_size = 0;
+    assert(llm_chat_voice_stream_checked("system", messages, &response,
+        body_delta, phase_admit, NULL, NULL, NULL) < 0);
+    assert(spoken_size && !response.text); llm_response_free(&response);
+  }
+  /* Raw JSON stays bounded independently of decoded text. Crossing that
+   * transport cap fails the turn, never returns a shortened success. */
+  size_t wire_size = AGENT_LLM_MAX_RESP_SIZE + 256;
+  char *large = malloc(wire_size + 3); assert(large);
+  size_t at = (size_t)sprintf(large, "{\"voice_phase\":\"final\",\"answer\":\"");
+  while (at + 2 <= wire_size) { large[at++] = '\\'; large[at++] = 'n'; }
+  large[at++] = '"'; large[at++] = '}'; large[at] = 0;
+  size_t counted = 0; phase_payload = large; phase_piece = 128;
+  assert(llm_chat_voice_stream_checked("system", messages, &response,
+      phase_count_body, phase_admit, &counted, NULL, NULL) == -E2BIG);
+  assert(counted && counted < AGENT_LLM_MAX_RESP_SIZE && !response.text);
+  llm_response_free(&response); free(large);
+  phase_payload = valid[0]; reject_delta = 1;
+  assert(llm_chat_voice_stream_checked("system", messages, &response,
+      body_delta, phase_admit, NULL, NULL, NULL) == -ECANCELED);
+  assert(!response.text); llm_response_free(&response); reject_delta = 0;
+  cJSON_Delete(messages); assert(!llm_clear_transport());
+}
+
 static llm_final_stream_t *fresh(size_t limit)
 {
   spoken_size = 0;
@@ -242,6 +399,7 @@ int main(void)
   test_runtime_restore();
   test_vision_cancel();
   test_plan_phase();
+  test_voice_phase_stream();
   /* MiMo's documented SSE shape includes null optional delta fields. */
   const char nullable[] =
     "data: {\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":null,\"reasoning_content\":null}}]}\n\n"

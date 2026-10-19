@@ -30,7 +30,6 @@
 #include <stdint.h>
 #include <string.h>
 #include <syslog.h>
-#include <time.h>
 
 #include <nuttx/irq.h>
 #include <nuttx/mutex.h>
@@ -86,24 +85,6 @@ static void bkprov_send_answer(struct bkprov_server_s *s,
       nxmutex_unlock(&s->endpoint_lock);
     }
 }
-
-#ifdef CONFIG_BK7258_FACTORY_DIAGNOSTICS
-static int bkprov_now_ms(uint64_t *now_ms)
-{
-  struct timespec value;
-
-  if (now_ms == NULL || clock_gettime(CLOCK_MONOTONIC, &value) < 0 ||
-      value.tv_sec < 0 || value.tv_nsec < 0 ||
-      value.tv_nsec >= 1000000000L)
-    {
-      return -EIO;
-    }
-
-  *now_ms = (uint64_t)value.tv_sec * 1000u +
-            (uint64_t)value.tv_nsec / 1000000u;
-  return 0;
-}
-#endif
 
 static int bkprov_handle_frame(struct bkprov_server_s *s,
                                const struct bkprov_rpc_frame_s *frame,
@@ -184,23 +165,16 @@ static int bkprov_handle_frame(struct bkprov_server_s *s,
 #ifdef CONFIG_BK7258_FACTORY_DIAGNOSTICS
       case BKPROV_RPC_DIAGNOSTICS_ENABLE:
         {
-          uint64_t now_ms;
-
           if (s->total != 0)
             {
               return -EBUSY;
             }
 
-          ret = bkprov_now_ms(&now_ms);
-          if (ret == 0)
-            {
-              ret = bkfactory_diagnostics_enable(frame->data,
-                                                  frame->length, now_ms);
-            }
+          ret = bkfactory_diagnostics_enable(frame->data, frame->length);
 
           if (ret == 0)
             {
-              ret = bkfactory_diagnostics_status(now_ms, accepted, detail);
+              ret = bkfactory_diagnostics_status(accepted, detail);
             }
 
           return ret;
@@ -208,29 +182,22 @@ static int bkprov_handle_frame(struct bkprov_server_s *s,
 
       case BKPROV_RPC_DIAGNOSTICS_REVOKE:
         {
-          uint64_t now_ms;
-
           if (s->total != 0)
             {
               return -EBUSY;
             }
 
-          ret = bkprov_now_ms(&now_ms);
-          return ret < 0 ? ret : bkfactory_diagnostics_revoke(now_ms);
+          return bkfactory_diagnostics_revoke();
         }
 
       case BKPROV_RPC_DIAGNOSTICS_STATUS:
         {
-          uint64_t now_ms;
-
           if (s->total != 0)
             {
               return -EBUSY;
             }
 
-          ret = bkprov_now_ms(&now_ms);
-          return ret < 0 ? ret :
-                 bkfactory_diagnostics_status(now_ms, accepted, detail);
+          return bkfactory_diagnostics_status(accepted, detail);
         }
 
       case BKPROV_RPC_DIAGNOSTICS_CERTIFICATE:

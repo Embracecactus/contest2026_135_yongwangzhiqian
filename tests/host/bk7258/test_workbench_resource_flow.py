@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Real client SD C1 -> production session/job/native worker/store, without TLS.
+"""Real SDC1 client -> production session/job/native worker/store.
 
-Only encryption/transport uses stdio. TLS certificate/PC authorization remain
-separate existing gates; no real USB or device is opened here.
+TLS cases use fresh synthetic certificates and bridge plaintext to native stdio.
+Physical USB, production PC grants and filesystem mounts remain separate gates.
 """
 import argparse
+import contextlib
 import importlib
 import json
+import ssl
+import struct
 import subprocess
 import sys
 import tempfile
@@ -15,6 +18,7 @@ import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+import test_workbench_client as tls_fixture
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tools/bk7258"))
@@ -44,6 +48,13 @@ class Pipe:
     def read(self, size):
         return self.process.stdout.read(size)
 
+    def reconnect_session(self):
+        # Test harness boundary, not an SDC1 command or a USB unplug model.
+        marker = b"PEER-RECONNECT!\n"
+        self.write(marker)
+        if self.read(len(marker)) != marker:
+            raise AssertionError("Native peer did not reopen its control session")
+
     def close(self):
         self.process.stdin.close()
         try:
@@ -57,6 +68,68 @@ class Pipe:
         self.process.stderr.close()
         if self.process.returncode:
             raise AssertionError(error)
+
+
+class NativeTlsPeer(tls_fixture.TlsPeer):
+    def __init__(self, certificate, key, native=None, drop_operation=None):
+        super().__init__(certificate, key)
+        self.native = native if native is not None else Pipe()
+        self.owns_native = native is None
+        self.drop_operation = drop_operation
+        self.disconnected = False
+        self.record = bytearray()
+        self.operations = []
+
+    def read(self, size):
+        if self.disconnected:
+            return b""
+        return super().read(size)
+
+    def step(self):
+        if self.disconnected:
+            return
+        if not self.handshaken:
+            try:
+                self.tls.do_handshake()
+                self.handshaken = True
+            except ssl.SSLWantReadError:
+                return
+        try:
+            self.plain.extend(self.tls.read(4096))
+        except ssl.SSLWantReadError:
+            return
+        while len(self.plain) >= 16:
+            _, command, sequence, size = struct.unpack_from(">4I", self.plain)
+            if len(self.plain) < 16 + size:
+                return
+            frame = bytes(self.plain[: 16 + size])
+            del self.plain[: 16 + size]
+            self.requests.append((command, sequence))
+            if command == 16:
+                self.record.clear()
+            elif command == 17:
+                self.record.extend(frame[16:])
+            self.native.write(frame)
+            response = self.native.read(40)
+            if len(response) != 40:
+                raise ValueError("Native session closed")
+            if command == 18 and self.record[:4] == b"RJI1":
+                operation = struct.unpack_from(">I", self.record, 4)[0]
+                self.operations.append(bytes(self.record))
+                if (
+                    operation == self.drop_operation
+                    and struct.unpack_from(">i", response, 16)[0] == 0
+                ):
+                    # Native worker accepted the operation; its TLS response is
+                    # discarded and the client sees EOF, not a synthetic ACK.
+                    self.disconnected = True
+                    return
+            self.tls.write(response)
+
+    def close(self):
+        if not self.closed and self.owns_native:
+            self.native.close()
+        super().close()
 
 
 def client():
@@ -239,55 +312,20 @@ class ResourceFlow(unittest.TestCase):
         self._cli_tls_transfer(True)
 
     def _cli_tls_transfer(self, cancel):
-        import contextlib
-        import ssl
-        import struct
-        from test_workbench_client import TlsPeer, WorkbenchClientTest
-
-        class NativeTlsPeer(TlsPeer):
-            def __init__(self, certificate, key):
-                super().__init__(certificate, key)
-                self.native = Pipe()
-
-            def step(self):
-                if not self.handshaken:
-                    try:
-                        self.tls.do_handshake()
-                        self.handshaken = True
-                    except ssl.SSLWantReadError:
-                        return
-                try:
-                    self.plain.extend(self.tls.read(4096))
-                except ssl.SSLWantReadError:
-                    return
-                while len(self.plain) >= 16:
-                    size = struct.unpack_from(">I", self.plain, 12)[0]
-                    if len(self.plain) < 16 + size:
-                        return
-                    frame = bytes(self.plain[: 16 + size])
-                    del self.plain[: 16 + size]
-                    self.native.write(frame)
-                    response = self.native.read(40)
-                    if len(response) != 40:
-                        raise ValueError("Native session closed")
-                    self.tls.write(response)
-
-            def close(self):
-                if not self.closed:
-                    self.native.close()
-                super().close()
-
-        WorkbenchClientTest.setUpClass()
+        tls_fixture.WorkbenchClientTest.setUpClass()
         try:
             with tempfile.TemporaryDirectory() as directory:
                 a = args("resource-upload", Path(directory))
                 a.port = "fixture-native"
                 a.timeout = 10
-                peer = NativeTlsPeer(WorkbenchClientTest.cert, WorkbenchClientTest.key)
+                peer = NativeTlsPeer(
+                    tls_fixture.WorkbenchClientTest.cert,
+                    tls_fixture.WorkbenchClientTest.key,
+                )
 
                 @contextlib.contextmanager
                 def material(unused):
-                    yield WorkbenchClientTest.pem, WorkbenchClientTest.pin, bytearray(
+                    yield tls_fixture.WorkbenchClientTest.pem, tls_fixture.WorkbenchClientTest.pin, bytearray(
                         b"\x2a" + bytes(31)
                     )
 
@@ -312,47 +350,118 @@ class ResourceFlow(unittest.TestCase):
                 finally:
                     peer.close()
         finally:
-            WorkbenchClientTest.tearDownClass()
+            tls_fixture.WorkbenchClientTest.tearDownClass()
 
     def test_lost_ack_resume(self):
-        with tempfile.TemporaryDirectory() as directory:
-            a = args("resource-upload", Path(directory))
-            prepared = m.prepare(a)
-            c = client()
-            real = c.resource_request
+        # Keep the device worker/file/epoch alive, but replace both TLS and SDC1
+        # sessions. Grant ownership and physical disconnect remain board gates.
+        tls_fixture.WorkbenchClientTest.setUpClass()
+        try:
+            for drop_operation, outcome in (
+                (1, "resume"),
+                (2, "resume"),
+                (3, "done"),
+                (2, "canceled"),
+                (2, "expired"),
+            ):
+                with self.subTest(drop=drop_operation, outcome=outcome):
+                    self._reconnect_after_lost_ack(drop_operation, outcome)
+        finally:
+            tls_fixture.WorkbenchClientTest.tearDownClass()
 
-            def lose(*values, **kwargs):
-                answer = real(*values, **kwargs)
-                if values[0] == "append":
-                    raise w.ControlError("ACK lost after real acceptance")
-                return answer
+    def _reconnect_after_lost_ack(self, drop_operation, outcome):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            native = Pipe()
+            peers = []
+
+            @contextlib.contextmanager
+            def material(unused):
+                yield tls_fixture.WorkbenchClientTest.pem, tls_fixture.WorkbenchClientTest.pin, bytearray(
+                    b"\x2a" + bytes(31)
+                )
+
+            def run(operation, *, drop=None, observe=None):
+                if peers:
+                    native.reconnect_session()
+                peer = NativeTlsPeer(
+                    tls_fixture.WorkbenchClientTest.cert,
+                    tls_fixture.WorkbenchClientTest.key,
+                    native=native,
+                    drop_operation=drop,
+                )
+                peers.append(peer)
+                a = args(operation, root)
+                a.port, a.timeout = "fixture-native", 10
+                with patch.object(w, "SerialChannel", return_value=peer), patch.object(
+                    w, "_credentials", material
+                ):
+                    return w.run(a, observe=observe)
 
             try:
-                with patch.object(
-                    c, "resource_request", side_effect=lose
-                ), self.assertRaises(w.ControlError):
-                    m.perform(c, a, prepared)
-                self.assertTrue(a.receipt.is_file())
-                # This peer retains the real native worker. A new client operation
-                # re-queries authoritative written progress, never re-BEGINs.
-                resume = args("resource-resume", Path(directory))
-                p = m.prepare(resume)
-                seen = []
-
-                def observed(*values, **kwargs):
-                    seen.append(values[0])
-                    return real(*values, **kwargs)
-
-                try:
-                    with patch.object(c, "resource_request", side_effect=observed):
-                        result = m.perform(c, resume, p)
+                with self.assertRaises(w.ControlError):
+                    run("resource-upload", drop=drop_operation)
+                self.assertTrue(peers[0].disconnected)
+                self.assertTrue(peers[0].closed)
+                receipt_bytes = (root / "receipt.json").read_bytes()
+                receipt = m.read_receipt(root / "receipt.json")
+                time.sleep(0.05)
+                before = run("resource-status")
+                self.assertEqual(before["epoch"], receipt["epoch"])
+                self.assertEqual(before["nonce"], receipt["nonce"])
+                self.assertEqual(before["id"], receipt["previous_id"] + 1)
+                self.assertLessEqual(before["remaining_ms"], receipt["ttl_ms"] - 40)
+                self.assertEqual(peers[-1].operations, [])
+                if outcome == "canceled":
+                    terminal = run("resource-cancel")
+                    self.assertEqual(terminal["state"], "canceled")
+                    self.assertFalse(terminal["resources_held"])
+                elif outcome == "expired":
+                    # Let the original device TTL elapse. Reconnect/query do not
+                    # renew it; no test clock replaces the real native worker.
+                    time.sleep(before["remaining_ms"] / 1000 + 0.05)
+                    terminal = run("resource-status")
+                    self.assertEqual(terminal["state"], "canceled")
+                    self.assertEqual(terminal["error"], -110)
+                    self.assertFalse(terminal["resources_held"])
+                observed = []
+                if outcome in ("canceled", "expired"):
+                    with self.assertRaises(ValueError):
+                        run("resource-resume", observe=observed.append)
+                    self.assertEqual(peers[-1].operations, [])
+                else:
+                    result = run("resource-resume", observe=observed.append)
                     self.assertTrue(result["installed"])
-                    self.assertNotIn("begin", seen)
-                finally:
-                    p.close()
+                    self.assertEqual(result["id"], before["id"])
+                    self.assertEqual(result["written"], PACK.stat().st_size)
+                    mutations = peers[-1].operations
+                    self.assertNotIn(
+                        1, [struct.unpack_from(">I", r, 4)[0] for r in mutations]
+                    )
+                    if outcome == "done":
+                        self.assertEqual(mutations, [])
+                    else:
+                        self.assertEqual(observed[0]["state"], "receiving")
+                        self.assertLessEqual(
+                            observed[0]["remaining_ms"], before["remaining_ms"]
+                        )
+                        confirmed = observed[0]["written"]
+                        self.assertEqual(confirmed, 4096 if drop_operation == 2 else 0)
+                        self.assertEqual(
+                            struct.unpack_from(">I", mutations[0], 48)[0], confirmed
+                        )
+                    self.assertFalse(result["resources_held"])
+                for peer in peers[1:]:
+                    for record in peer.operations:
+                        self.assertNotEqual(struct.unpack_from(">I", record, 4)[0], 1)
+                        self.assertEqual(struct.unpack_from(">I", record, 52)[0], 0)
+                self.assertEqual((root / "receipt.json").read_bytes(), receipt_bytes)
+                self.assertTrue(all(p.closed and p.handshaken for p in peers))
+                self.assertTrue(all(p.requests[0] == (1, 0) for p in peers))
             finally:
-                prepared.close()
-                c.close()
+                for peer in peers:
+                    peer.close()
+                native.close()
 
     def test_receipt_precedes_begin(self):
         with tempfile.TemporaryDirectory() as directory:

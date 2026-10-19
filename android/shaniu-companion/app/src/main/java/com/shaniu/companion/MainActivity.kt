@@ -380,7 +380,10 @@ class MainActivity : Activity() {
                 }
             }
             if (state.authenticated) directConnecting = false
-            if (foreground && !destroyed) render()
+            if (foreground && !destroyed) {
+                otaStartGate.resume(state.readPending)
+                render()
+            }
         }
         directSubscriptions += directSession.observeResults(::onDirectResult)
         restoreEyeDraft(savedInstanceState)
@@ -427,6 +430,11 @@ class MainActivity : Activity() {
         firmwareInspectionPending = false
         closeEyeServer()
         if (configFlow == ConfigFlow.EYES) finishEyeInstall("已离开前台；未完成的眼睛安装不会重发")
+        if (otaSource?.accepted == false && otaUpload == null) {
+            otaStartGate.release()
+            setOtaKeepAwake(false)
+            closeOtaServer("已离开前台；未向设备发送升级请求。")
+        }
         directSession.setForeground(false)
         if (otaUpload?.state == OtaControlUpload.State.WAITING) {
             // Do not leave a half-sent source record waiting on an invisible UI.
@@ -1363,11 +1371,15 @@ class MainActivity : Activity() {
             return
         }
 
+        if (command == DeviceControlProtocol.Command.OTA_CANCEL) {
+            android.util.Log.i("ShaniuOta", "cancel generation=$epoch result=${snapshot.error} sourceAccepted=${otaSource?.accepted}")
+        }
         if (command == DeviceControlProtocol.Command.OTA_CANCEL && snapshot.error == -114) {
             otaUpload?.close(); otaUpload = null
             otaVerificationPending = true
-            closeOtaServer()
-            otaMessage = "设备已进入后续升级阶段，取消未被接受；正在保留设备状态供重新核对。"
+            // Refusing cancellation leaves the device's accepted download
+            // active. Keep its source, start lease and foreground wake lock.
+            otaMessage = "设备已进入不可取消阶段，更新将继续；请保持 App 在前台并保持设备供电。"
             render()
             return
         }
@@ -1392,17 +1404,23 @@ class MainActivity : Activity() {
         upload?.response(command, snapshot)
         otaMessage = when {
             upload?.state == OtaControlUpload.State.FAILED -> {
-                val message = "设备拒绝${otaCommandLabel(command)}（${upload.error ?: snapshot.error}）；升级来源未完成。"
-                closeOtaServer()
-                /* The board retains a rejected source record until this GATT
-                 * session closes.  Do not retry BEGIN on the same channel. */
-                closeDirect()
-                "$message 已断开设备连接，请重新连接后重试。"
+                if (otaSource?.accepted == true) {
+                    // START succeeded before a racing CANCEL failed to send or
+                    // was rejected. Its source must outlive this upload object.
+                    val error = upload.error ?: snapshot.error
+                    upload.close(); otaUpload = null
+                    otaVerificationPending = true
+                    "取消请求未获成功确认（$error）；设备已接受更新，请保持 App 在前台及设备供电，等待状态确认。"
+                } else {
+                    val message = "设备拒绝${otaCommandLabel(command)}（${upload.error ?: snapshot.error}）；升级来源未完成。"
+                    closeOtaServer()
+                    /* The board retains a rejected source record until this GATT
+                     * session closes. Do not retry BEGIN on the same channel. */
+                    closeDirect()
+                    "$message 已断开设备连接，请重新连接后重试。"
+                }
             }
             upload?.state == OtaControlUpload.State.ACCEPTED -> {
-                otaSource?.accept()
-                otaStatus = null; otaStatusGeneration = null
-                otaVerificationPending = true
                 "设备已接受升级来源，正在等待设备报告升级状态。"
             }
             upload?.state == OtaControlUpload.State.CANCELED -> {
@@ -1457,7 +1475,7 @@ class MainActivity : Activity() {
         val connection = directConnection
         val info = directFirmwareInfo
         val sessionState = directSession.current()
-        android.util.Log.i("ShaniuOta", "start generation=$directEpoch authenticated=${sessionState.authenticated} fresh=${sessionState.snapshotFresh} supported=${sessionState.snapshot?.otaSupported} writePending=$directPending upload=${otaUpload?.state}")
+        android.util.Log.i("ShaniuOta", "start generation=$directEpoch authenticated=${sessionState.authenticated} fresh=${sessionState.snapshotFresh} supported=${sessionState.snapshot?.otaSupported} readPending=${sessionState.readPending} writePending=$directPending upload=${otaUpload?.state}")
         if (!otaStartStateCurrent()) {
             otaMessage = "设备状态已过期，请刷新后再试；未发送升级请求。"
             render()
@@ -1514,35 +1532,62 @@ class MainActivity : Activity() {
                     render()
                     return@post
                 }
-                if (!otaStartStateCurrent()) {
+                otaMessage = "正在等待设备状态读取完成…"
+                val prepared = otaStartGate.prepare(sourceLease) prepared@ {
+                    if (otaSource !== source || epoch != directEpoch || !foreground || destroyed) {
+                        source.close()
+                        releaseSourceLease()
+                        return@prepared
+                    }
+                    val admission = directSession.current()
+                    android.util.Log.i("ShaniuOta", "begin generation=$epoch readPending=${admission.readPending} writePending=${admission.writePending} authenticated=${admission.authenticated} fresh=${admission.snapshotFresh} supported=${admission.snapshot?.otaSupported}")
+                    if (!otaStartStateCurrent()) {
+                        closeOtaServer()
+                        releaseSourceLease()
+                        otaMessage = "设备状态已过期，请刷新后再试；未发送升级请求。"
+                        render()
+                        return@prepared
+                    }
+                    if (directPending) {
+                        closeOtaServer()
+                        releaseSourceLease()
+                        otaMessage = "设备正在处理其他操作；未发送升级请求。"
+                        render()
+                        return@prepared
+                    }
+                    val metadata = server.metadata
+                    if (metadata == null || metadata.catalogSha256 != pack.catalogSha256 || !persistExpected(metadata)) {
+                        closeOtaServer()
+                        releaseSourceLease()
+                        otaMessage = "无法保存本次升级核验目标，未向设备发送升级请求。"
+                        render()
+                        return@prepared
+                    }
+                    lateinit var upload: OtaControlUpload
+                    upload = OtaControlUpload(server.requestRecord, onStartAccepted = {
+                        source.accept()
+                        otaStatus = null; otaStatusGeneration = null
+                        otaVerificationPending = true
+                    }) { command, payload ->
+                        if (epoch != directEpoch || !foreground || directConnection == null) false
+                        else if (command == DeviceControlProtocol.Command.OTA_START &&
+                            !preferences.edit().putBoolean(KEY_OTA_EXPECTED_PENDING, true).commit()) false
+                        else directOtaRequest(command, payload)
+                    }
+                    otaUpload = upload
+                    if (!upload.start()) {
+                        otaUpload = null; closeOtaServer(); releaseSourceLease()
+                        otaMessage = "设备控制通道不可用，未开始升级。"
+                    } else {
+                        otaMessage = "升级来源已准备，正在请求设备接受升级。"
+                    }
+                    render()
+                }
+                if (!prepared) {
                     closeOtaServer()
                     releaseSourceLease()
-                    otaMessage = "设备状态已过期，请刷新后再试；未发送升级请求。"
-                    render()
-                    return@post
-                }
-                val metadata = server.metadata
-                if (metadata == null || metadata.catalogSha256 != pack.catalogSha256 || !persistExpected(metadata)) {
-                    closeOtaServer()
-                    releaseSourceLease()
-                    otaMessage = "无法保存本次升级核验目标，未向设备发送升级请求。"
-                    render()
-                    return@post
-                }
-                lateinit var upload: OtaControlUpload
-                upload = OtaControlUpload(server.requestRecord) { command, payload ->
-                    if (epoch != directEpoch || !foreground || directConnection == null) false
-                    else if (command == DeviceControlProtocol.Command.OTA_START &&
-                        !preferences.edit().putBoolean(KEY_OTA_EXPECTED_PENDING, true).commit()) false
-                    else directOtaRequest(command, payload)
-                }
-                otaUpload = upload
-                if (!upload.start()) {
-                    otaUpload = null; closeOtaServer(); releaseSourceLease()
-                    otaMessage = "设备控制通道不可用，未开始升级。"
-                } else {
-                    otaMessage = "升级来源已准备，正在请求设备接受升级。"
-                }
+                    otaMessage = "升级准备已失效；未发送升级请求。"
+                } else otaStartGate.resume(directSession.current().readPending)
                 render()
             }
         }
@@ -1578,13 +1623,27 @@ class MainActivity : Activity() {
     }
 
     private fun confirmExpectedOta() {
-        if (!OtaSourceLease.mayApplyVerification(otaSource)) return
         val sessionState = directSession.current()
         if (!sessionState.authenticated || otaStatusGeneration != sessionState.generation ||
             otaStatusReadError != null) return
+        if (!OtaSourceLease.mayApplyVerification(otaSource)) return
         val info = directFirmwareInfo ?: return
         val status = otaStatus ?: return
         val version = "${info.major}.${info.minor}.${info.revision}+${info.build}"
+        val expectedVersion = preferences.getString(KEY_OTA_EXPECTED_VERSION, null)
+        val expectedCounter = preferences.getLong(KEY_OTA_EXPECTED_COUNTER, -1L)
+        val expectedDeviceId = preferences.getString(KEY_OTA_EXPECTED_DEVICE, null)
+        if (preferences.getBoolean(KEY_OTA_EXPECTED_PENDING, false) && otaUpload == null &&
+            expectedVersion != null && expectedDeviceId != null &&
+            OtaUpdatePolicy.mayDiscardTerminalMismatch(otaSource?.accepted == true,
+                expectedDeviceId, provisionedDeviceId, expectedVersion, expectedCounter,
+                version, info.securityCounter, status.state, status.phase, status.result)) {
+            preferences.edit().putBoolean(KEY_OTA_EXPECTED_PENDING, false).commit()
+            otaVerificationPending = false
+            otaStartGate.release(); setOtaKeepAwake(false)
+            otaMessage = "设备已报告完成旧更新，但当前版本不是待核对目标；已结束等待，可重新发起更新。"
+            return
+        }
         val confirmed = expectedOtaConfirmed()
         if (status.state == 3L && (status.phase == 7L || status.phase == 8L || status.result != 0))
             preferences.edit().putBoolean(KEY_OTA_EXPECTED_PENDING, false).commit()
@@ -2177,9 +2236,12 @@ class MainActivity : Activity() {
                 }
                 if (otaUpload?.state == OtaControlUpload.State.WAITING ||
                     otaUpload?.state == OtaControlUpload.State.ACCEPTED || ota?.state in 1L..2L) {
-                    val cancellable = ota?.phase == null || ota.phase in 1L..2L || ota.state == 1L
-                    actionButton("取消升级", !directPending && cancellable) { cancelLocalOta() }
-                    if (!cancellable) addMuted("设备已进入安装提交阶段，请保持供电并等待重连；此时不能立即取消。")
+                    val uploading = otaUpload?.state == OtaControlUpload.State.WAITING
+                    val cancellable = OtaUpdatePolicy.mayRequestCancellation(
+                        uploading, directPending, ota?.state, ota?.phase)
+                    actionButton("取消升级", cancellable) { cancelLocalOta() }
+                    if (!uploading && !cancellable && !directPending)
+                        addMuted("设备已进入安装提交阶段，请保持供电并等待重连；此时不能立即取消。")
                 }
                 addMuted("更新期间请保持 App 在前台。蓝牙发送更新指令，设备通过局域网 HTTPS 拉取镜像；重连并核对版本后才确认完成。")
                 if (!canStart) addMuted(when {

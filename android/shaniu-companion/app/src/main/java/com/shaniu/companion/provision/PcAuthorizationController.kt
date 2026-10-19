@@ -39,8 +39,11 @@ internal class PcAuthorizationController(
     private var submitted = transaction != null
     private var active = true
     private var generation = session.current().generation
+    private var authenticated = session.current().authenticated
     private val results = session.observeResults(::received)
     private val connection = session.observe {
+        val wasAuthenticated = authenticated
+        authenticated = it.authenticated
         if (!it.authenticated || it.generation != generation) {
             generation = it.generation
             snapshot = null; phase = Phase.IDLE; ownsTransaction = false
@@ -48,6 +51,11 @@ internal class PcAuthorizationController(
             if (!submitted) transaction = null
             outcome = if (transaction == null) Outcome.NONE else Outcome.UNKNOWN
             message = "连接变化；请重新读取或查询回执，操作不会重发"
+            publish()
+        } else if (!wasAuthenticated) {
+            // The session can authenticate a re-opened transport without a new
+            // generation. Publish only so the view re-evaluates local controls;
+            // a reconnect must not read, import, or replay an authorization.
             publish()
         }
     }

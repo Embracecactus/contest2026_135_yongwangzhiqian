@@ -1,6 +1,29 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # 源码许可证与来源记录
 
+## 2026-10-19 开发快照依赖边界
+
+本分支提交保存当前开发状态，不构成公开 manifest 的独立复现验收。
+Agent 固定到本地 `35df4b347b17f07c972eb6e7e14a14fee1be78e4`；发布检查时，
+`Embracecactus/packages_ai_agent` 尚无该提交或 `fix/pcm-consumer-priority` 分支。
+NuttX 的本地时钟提交及下述未提交 HCI 修复也尚未完成依赖发布。
+本次仅提交和推送团队仓库，保留这些依赖的当前工作树与历史证据。
+
+## 2026-10-18 本地 HCI 生命周期修复
+
+用户为本次排障明确授权修改本地 NuttX 的
+`wireless/bluetooth/bt_hcicore.c`、`wireless/bluetooth/bt_buf.c`，
+基于 `5ecdd18b230acd2a86068cb4559b9f3f59363857`，保留原 BSD-3-Clause 许可证。
+改动保护同步命令的等待者引用、completion/timeout context 和并发 buffer 引用计数。
+审查补丁 SHA256 为
+`f29efc2f072ea2f4cd136103f3a8f1e78569ee52dfc07f7be4b9aa2d0841e984`；
+实际两文件摘要纳入 `chips/bk7258/kernel_compat.json`，构建同时核对官方工作树和
+冻结构建副本。团队主机回归直接提取源函数，平台 API 由有界 stub 替代。
+该补丁尚未提交/推送到依赖仓，manifest 仍指向未含补丁的基线；不得据此宣称公开
+manifest 已可重现本次修复或整个官方 checkout 无改动。授权不扩展到其他官方文件。
+本次构建与实板结果见
+[当日验证记录](docs/verification/bk7258/2026-10-18-stability-and-phone-hil.md)。
+
 ## 2026-10-09 决赛集成
 
 官方交付入口恢复为团队官方仓；PR 候选在同步前将团队源码固定到事件合并 SHA，

@@ -6,6 +6,8 @@
 #include "bk7258_engineering_test.h"
 
 #include <errno.h>
+#include <pthread.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define BKENGTEST_KEY_MASK 7u
@@ -22,6 +24,347 @@ static void put32(uint8_t *p, uint32_t value)
   p[1] = value >> 16;
   p[2] = value >> 8;
   p[3] = value;
+}
+
+enum { BV_EMPTY, BV_UPLOAD, BV_READY, BV_QUEUED, BV_RUNNING,
+       BV_COMPLETE, BV_FAILED };
+int bkengvoice_config_decode(const uint8_t *p, size_t size,
+                             struct bkengvoice_config_s *config)
+{
+  if (!config) return -EINVAL;
+  memset(config, 0, sizeof(*config));
+  if (!p || size < 32 || memcmp(p, "BVC2", 4) || get32(p + 4) != 1 ||
+      get32(p + 28)) return -EINVAL;
+  uint64_t utc = ((uint64_t)get32(p + 8) << 32) | get32(p + 12);
+  size_t ca = get32(p + 16), cloud = get32(p + 20);
+  if (utc < UINT64_C(1704067200) || utc > UINT64_C(4133980799) ||
+      !ca || ca > 4096 || cloud < 24 || cloud > 8192 ||
+      size != 32 + ca + cloud) return -EINVAL;
+  *config = (struct bkengvoice_config_s)
+    {utc, p + 24, p + 32, ca, p + 32 + ca, cloud};
+  return 0;
+}
+
+static pthread_mutex_t g_voice_lock = PTHREAD_MUTEX_INITIALIZER;
+static struct
+{
+  uint8_t *data;
+  uint8_t snapshot[64];
+  uint32_t state, session, sequence, mode, total, received;
+  uint64_t request;
+  int result;
+  bool canceled, borrowed;
+} g_voice;
+
+#define AUDIO_TRACE_CAPACITY 8192u
+#define AUDIO_TRACE_OFFSET 256u
+#define AUDIO_TRACE_HEADER 64u
+#define AUDIO_TRACE_RECORD 24u
+
+static struct
+{
+  uint32_t (*records)[6];
+  uint64_t request;
+  uint32_t count;
+  uint32_t dropped;
+  uint32_t rearm_state;
+  uint32_t rearm_attempts;
+  uint32_t rearm_ms;
+  unsigned int read_steps;
+  uint8_t snapshot[AUDIO_TRACE_HEADER];
+  bool sealed;
+} g_audio;
+
+void agent_audio_observe(uint64_t request, uint32_t kind, uint64_t begin,
+                         uint64_t end, uint32_t bytes, uint32_t level)
+{
+  pthread_mutex_lock(&g_voice_lock);
+  if (g_voice.state == BV_RUNNING && g_voice.mode && !g_audio.sealed)
+    {
+      if (!g_audio.request) g_audio.request = request;
+      if (!request || request != g_audio.request || !g_audio.records ||
+          begin > end || end > UINT32_MAX ||
+          g_audio.count == AUDIO_TRACE_CAPACITY)
+        {
+          g_audio.dropped++;
+        }
+      else
+        {
+          uint32_t *p = g_audio.records[g_audio.count++];
+          p[0] = g_audio.count;
+          p[1] = kind;
+          p[2] = begin;
+          p[3] = end;
+          p[4] = bytes;
+          p[5] = level;
+        }
+    }
+  pthread_mutex_unlock(&g_voice_lock);
+}
+
+void bkengvoice_rearm(uint64_t request, uint32_t state, uint64_t ms)
+{
+  pthread_mutex_lock(&g_voice_lock);
+  if (request && request == g_voice.request && g_audio.sealed)
+    {
+      g_audio.rearm_state = state;
+      g_audio.rearm_attempts++;
+      g_audio.rearm_ms = ms > UINT32_MAX ? 0 : (uint32_t)ms;
+    }
+  pthread_mutex_unlock(&g_voice_lock);
+}
+
+bool bkengvoice_trace_poll(void)
+{
+  bool pending;
+
+  pthread_mutex_lock(&g_voice_lock);
+  pending = g_audio.sealed && g_audio.read_steps > 0 &&
+            g_voice.state == BV_COMPLETE;
+  if (pending)
+    {
+      g_audio.read_steps--;
+    }
+  else
+    {
+      g_audio.read_steps = 0;
+    }
+
+  pthread_mutex_unlock(&g_voice_lock);
+  return pending;
+}
+
+static int audio_trace_read(uint32_t offset,
+                            struct bkcontrol_status_s *status)
+{
+  uint8_t header[AUDIO_TRACE_HEADER] = {0};
+  uint32_t total = AUDIO_TRACE_HEADER + g_audio.count * AUDIO_TRACE_RECORD;
+  if (!g_audio.sealed) return -EBUSY;
+  if (offset >= total || (offset & 15u)) return -ERANGE;
+  memcpy(header, "BVA2", 4);
+  put32(header + 4, 2);
+  put32(header + 8, g_audio.request >> 32);
+  put32(header + 12, g_audio.request);
+  put32(header + 16, g_audio.count);
+  put32(header + 20, g_audio.dropped);
+  put32(header + 24, g_audio.rearm_state);
+  put32(header + 28, g_audio.rearm_attempts);
+  put32(header + 32, g_audio.rearm_ms);
+  put32(header + 36, g_audio.sealed);
+  if (!offset) memcpy(g_audio.snapshot, header, sizeof(header));
+  status->config_total = total;
+  memset(status->config_chunk, 0, 16);
+  for (uint32_t i = 0; i < 16 && offset + i < total; i += 4)
+    {
+      uint32_t at = offset + i;
+      if (at < AUDIO_TRACE_HEADER)
+        memcpy(status->config_chunk + i, g_audio.snapshot + at, 4);
+      else
+        {
+          at -= AUDIO_TRACE_HEADER;
+          put32(status->config_chunk + i,
+                g_audio.records[at / AUDIO_TRACE_RECORD][at % 24 / 4]);
+        }
+    }
+  /* An SDC1 page needs response queue/flush and next header/payload steps.
+   * Only sealed telemetry grants this bounded faster owner cadence. Live
+   * audio, an absent reader and the next input keep the normal cadence.
+   */
+
+  g_audio.read_steps = 4;
+  return 0;
+}
+
+static void voice_free(void)
+{
+  if (g_voice.data)
+    {
+      volatile uint8_t *p = g_voice.data;
+      for (size_t i = 0; i < g_voice.total + 1u; i++) p[i] = 0;
+      free(g_voice.data);
+      g_voice.data = NULL;
+    }
+}
+
+int bkengvoice_command(const uint8_t *p, size_t size)
+{
+  if (!p || size < 32 || size > 32 + 4096 || memcmp(p, "BVB1", 4) ||
+      get32(p + 4) != 1 || get32(p + 28) != size - 32) return -EINVAL;
+  uint32_t op = get32(p + 8), session = get32(p + 12);
+  uint32_t seq = get32(p + 16), mode = get32(p + 20), value = get32(p + 24);
+  size_t bytes = size - 32;
+  if (!session || !seq) return -EINVAL;
+#ifdef CONFIG_BK7258_TTS_ISOLATION
+  if (mode > 3) return -EINVAL;
+#else
+  if (mode > 2) return -EINVAL;
+#endif
+  int ret = 0;
+  pthread_mutex_lock(&g_voice_lock);
+  if (op == 1)
+    {
+      if (seq != 1 || bytes || !value || (mode == 2 && value % 2))
+        { ret = -EINVAL; goto out; }
+      if (value > (mode == 0 ? 12288u : mode == 2 ? 480000u : 4096u))
+        { ret = -E2BIG; goto out; }
+      if (g_voice.borrowed || (g_voice.state >= BV_UPLOAD &&
+          g_voice.state <= BV_RUNNING)) { ret = -EBUSY; goto out; }
+      if (session <= g_voice.session) { ret = -ESTALE; goto out; }
+      uint8_t *data = calloc(1, value + 1u);
+      if (!data) { ret = -ENOMEM; goto out; }
+      voice_free();
+      g_voice.data = data;
+      g_voice.state = BV_UPLOAD;
+      g_voice.session = session;
+      g_voice.mode = mode;
+      g_voice.total = value;
+      g_voice.received = 0;
+      g_voice.result = -EINPROGRESS;
+      g_voice.request = 0;
+      g_voice.canceled = false;
+    }
+  else
+    {
+      if (session != g_voice.session || mode != g_voice.mode ||
+          g_voice.sequence == UINT32_MAX || seq != g_voice.sequence + 1u)
+        { ret = -ESTALE; goto out; }
+      if (op == 2)
+        {
+          if (g_voice.state != BV_UPLOAD || !bytes)
+            { ret = -EBUSY; goto out; }
+          if (value != g_voice.received || bytes > g_voice.total - value)
+            { ret = -ERANGE; goto out; }
+          memcpy(g_voice.data + value, p + 32, bytes);
+          g_voice.received += bytes;
+          if (g_voice.received == g_voice.total) g_voice.state = BV_READY;
+        }
+      else if (op == 3)
+        {
+          if (bytes || value) { ret = -EINVAL; goto out; }
+          if (g_voice.state != BV_READY) { ret = -ENODATA; goto out; }
+          if ((mode == 1 || mode == 3) &&
+              memchr(g_voice.data, 0, g_voice.total))
+            { ret = -EINVAL; goto out; }
+          g_voice.state = BV_QUEUED;
+        }
+      else if (op == 4)
+        {
+          if (bytes || value) { ret = -EINVAL; goto out; }
+          if (g_voice.state < BV_UPLOAD || g_voice.state > BV_RUNNING)
+            { ret = -EALREADY; goto out; }
+          g_voice.canceled = true;
+          if (g_voice.state != BV_RUNNING)
+            {
+              g_voice.state = BV_FAILED;
+              g_voice.result = -ECANCELED;
+              voice_free();
+            }
+        }
+      else { ret = -ENOTSUP; goto out; }
+    }
+  g_voice.sequence = seq;
+out:
+  pthread_mutex_unlock(&g_voice_lock);
+  return ret;
+}
+
+int bkengvoice_take(struct bkengvoice_input_s *input)
+{
+  if (!input) return -EINVAL;
+  pthread_mutex_lock(&g_voice_lock);
+  int ret = g_voice.state == BV_QUEUED ? 0 : -EAGAIN;
+  if (!ret)
+    {
+      g_voice.state = BV_RUNNING;
+      g_voice.borrowed = true;
+      free(g_audio.records);
+      memset(&g_audio, 0, sizeof(g_audio));
+      if (g_voice.mode)
+        {
+          g_audio.records = calloc(AUDIO_TRACE_CAPACITY, AUDIO_TRACE_RECORD);
+          if (!g_audio.records) g_audio.dropped = 1;
+        }
+      *input = (struct bkengvoice_input_s)
+        {g_voice.session, g_voice.mode, g_voice.data, g_voice.total};
+    }
+  pthread_mutex_unlock(&g_voice_lock);
+  return ret;
+}
+
+bool bkengvoice_canceled(uint32_t session)
+{
+  pthread_mutex_lock(&g_voice_lock);
+  bool result = session != g_voice.session || g_voice.canceled;
+  pthread_mutex_unlock(&g_voice_lock);
+  return result;
+}
+
+void bkengvoice_release(uint32_t session)
+{
+  pthread_mutex_lock(&g_voice_lock);
+  if (session == g_voice.session && g_voice.borrowed)
+    { g_voice.borrowed = false; voice_free(); }
+  pthread_mutex_unlock(&g_voice_lock);
+}
+
+void bkengvoice_finish(uint32_t session, uint64_t request, int result)
+{
+  pthread_mutex_lock(&g_voice_lock);
+  if (session == g_voice.session && g_voice.state == BV_RUNNING)
+    {
+      g_voice.request = request;
+      if (!g_audio.request) g_audio.request = request;
+      g_audio.sealed = true;
+      g_voice.result = g_voice.canceled ? -ECANCELED : result;
+      g_voice.state = g_voice.result ? BV_FAILED : BV_COMPLETE;
+    }
+  pthread_mutex_unlock(&g_voice_lock);
+}
+
+void bkengvoice_disconnect(void)
+{
+  pthread_mutex_lock(&g_voice_lock);
+  if (g_voice.state >= BV_UPLOAD && g_voice.state <= BV_RUNNING)
+    {
+      g_voice.canceled = true;
+      if (g_voice.state != BV_RUNNING)
+        {
+          g_voice.state = BV_FAILED;
+          g_voice.result = -ECANCELED;
+          voice_free();
+        }
+    }
+  pthread_mutex_unlock(&g_voice_lock);
+}
+
+int bkengvoice_read(uint32_t offset, struct bkcontrol_status_s *status)
+{
+  if (offset >= 65536u) return -ERANGE;
+  if (status && offset >= AUDIO_TRACE_OFFSET)
+    {
+      pthread_mutex_lock(&g_voice_lock);
+      int ret = audio_trace_read((offset - AUDIO_TRACE_OFFSET) * 16u, status);
+      pthread_mutex_unlock(&g_voice_lock);
+      return ret;
+    }
+  if (!status || offset >= 64 || (offset & 15u)) return -ERANGE;
+  pthread_mutex_lock(&g_voice_lock);
+  if (!offset)
+    {
+      uint8_t *p = g_voice.snapshot;
+      memset(p, 0, 64);
+      memcpy(p, "BVS1", 4); put32(p + 4, 1);
+      put32(p + 8, g_voice.state); put32(p + 12, g_voice.session);
+      put32(p + 16, g_voice.sequence); put32(p + 20, g_voice.mode);
+      put32(p + 24, g_voice.total); put32(p + 28, g_voice.received);
+      put32(p + 32, g_voice.request >> 32); put32(p + 36, g_voice.request);
+      put32(p + 40, (uint32_t)g_voice.result);
+      put32(p + 44, g_voice.canceled); put32(p + 48, g_voice.borrowed);
+    }
+  status->config_total = 64;
+  memcpy(status->config_chunk, g_voice.snapshot + offset, 16);
+  pthread_mutex_unlock(&g_voice_lock);
+  return 0;
 }
 
 static int valid(const struct bkengtest_ops_s *ops)

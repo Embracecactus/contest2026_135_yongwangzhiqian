@@ -44,6 +44,9 @@ class ProvisionGattSession internal constructor(
         private set
     var failure: String? = null
         private set
+    /** Fixed diagnostic codes only: never retain provider messages or payloads. */
+    var failureDetail: String? = null
+        private set
     val established: Boolean get() = !closed && channel.established
     val peerIdentity: ProvisionPeerIdentity? get() = if (closed) null else channel.peerIdentity
 
@@ -172,6 +175,7 @@ class ProvisionGattSession internal constructor(
         tick()
         check(!closed) { "GATT session closed" }
         try { action() } catch (error: Exception) {
+            failureDetail = classifyFailure(error)
             abort("transport_error")
             throw error
         }
@@ -197,6 +201,35 @@ class ProvisionGattSession internal constructor(
     }
 
     companion object {
+        internal fun classifyFailure(error: Throwable): String {
+            var cause: Throwable? = error
+            var fallback = "operation_failed"
+            repeat(8) {
+                val current = cause ?: return fallback
+                when (current) {
+                    is java.security.cert.CertificateExpiredException -> return "certificate_expired"
+                    is java.security.cert.CertificateNotYetValidException -> return "certificate_not_yet_valid"
+                    is java.security.cert.CertificateException -> {
+                        if (current.message == "Provisioning certificate mismatch") return "certificate_pin_mismatch"
+                        fallback = "certificate_rejected"
+                    }
+                    is javax.net.ssl.SSLException -> {
+                        when (current.message) {
+                            "TLS progress limit" -> return "tls_progress_limit"
+                            "TLS input failed or closed" -> return "tls_input_closed"
+                            "TLS output failed" -> return "tls_output_failed"
+                            "TLS task made no progress" -> return "tls_task_stalled"
+                            "TLS write made no progress" -> return "tls_write_stalled"
+                        }
+                        if (fallback == "operation_failed") fallback = "tls_provider_error"
+                    }
+                    is IOException -> if (fallback == "operation_failed") fallback = "transport_io_error"
+                }
+                cause = current.cause
+            }
+            return fallback
+        }
+
         private val generations = AtomicLong()
         private const val LIMIT = 64 * 1024
         private const val MAX_RX_PACKETS = 256

@@ -509,7 +509,11 @@ remote cancellation; query for CANCELED. A committing job may reject cancellatio
 
 Host coverage includes the actual Python TLS client, SDC1 session, native job
 worker and installer, with test TLS server/mount/scheduling boundaries. Embedded
-TLS/PC-grant guard tests remain separate. Physical USB, a browser workbench,
+TLS/PC-grant guard tests remain separate. Lost-response coverage opens fresh TLS
+and SDC1 sessions while retaining the native worker: it checks confirmed-offset
+resume without another BEGIN or TTL renewal, completed-job readback, and rejection
+after cancellation/expiry. That harness does not model physical USB unplug or
+product grant invalidation. Physical USB, a browser workbench,
 phone default-selection UI, persistent device receipts and production throughput remain
 pending; no board deployment is implied by these host commands/tests.
 
@@ -699,7 +703,12 @@ python tools/bk7258/bk7258.py workbench serve --port NATIVE_CDC_PORT --profile p
 打开终端给出的 `http://127.0.0.1:端口/#本次访问口令`。页面支持设备状态/版本、
 眼睛包导入、按回执查询/续传/取消、已安装包的限时试用与默认选择，以及导出
 本次公开结果。使用原生文件选择器选择 BKep；导入不自动激活，受理也不等于
-完成。设默认前先读取默认状态、提交刷新，再读取到明确版本；保存后再回读。
+完成。设默认前先点“读取当前状态”、提交刷新，再点“核对本次操作”读取到明确
+版本；保存后继续核对本次操作。该查询绑定提交时的设备范围与操作编号，通信
+响应丢失后也不自动重发保存。旧回执或结果未知会禁用保存；“读取当前状态”
+显式放弃本次回执匹配，只查看设备最新作业，再刷新已保存配置。
+待处理/准备中的默认操作可取消，开始保存后不能取消。释放失败时可点“重试
+释放资源”，它只释放占用，不重做保存或画面更新；恢复后原作业仍可能结果未知。
 已安装素材可从目录选择，也可手填或从成功导入结果取得；暂不做文件版本比对。
 先点“读取目录状态”，再点“刷新目录”，受理后再次读取状态。仅选择名称不会
 试用或写默认；每页最多4项，有更多时可翻页。目录不是跨页冻结快照。目录任务
@@ -747,3 +756,76 @@ python tools/bk7258/bk7258.py workbench catalog-page --port NATIVE_CDC_PORT --pr
 不假装设备没有资源。手机原生App目录选择尚未随此电脑入口完成。
 
 按需相机的授权、单帧取景与统计入口见[相机合同和使用流程](../../docs/platforms/bk7258/shaniu-pc-camera.md)。
+
+### 开发语音基准
+
+`bk_test voice benchmark` 复用现有 BKTEST、原生 CDC 授权和 Agent 语音回合。
+开发固件需启用 `CONFIG_BK7258_ENGINEERING_TEST`，先用现有 `hil-test enroll`
+取得本次启动的诊断 profile。诊断窗口为 10 分钟；十轮测试应在授权后直接开始。
+另用已有 UART 采集工具保存同次启动的日志，避免与下载器同时占用控制串口。
+
+```sh
+python tools/bk7258/bk7258.py bk_test voice benchmark \
+  --port NATIVE_CDC_PORT --profile diagnostics.spc \
+  --cloud-config private-cloud.json --wav sample.wav --repeat 10 \
+  --timeout 30 --turn-timeout 180 --git-sha FULL_SOURCE_SHA \
+  --output-dir new-benchmark-directory
+
+python tools/bk7258/bk7258.py hil-test voice-report \
+  --from-log serial.raw --boot-id UNIQUE_BOOT_ID --git-sha FULL_SOURCE_SHA \
+  --output-dir new-report-directory
+```
+
+输入三选一：`--wav` 为不超过 15 秒的 16 kHz、单声道、PCM16 WAV；
+`--text` 为固定文本；`--dialogue` 为 JSON 数组，例如
+`[{"wav":"sample.wav"},{"text":"固定公开测试问题"}]`，WAV 路径相对该 JSON。
+展开重复后最多十轮。`--cancel-after-ms` 可测受理后的取消与释放。
+文本跳过 ASR，WAV 注入完整 PCM，均不经过真实麦克风端点判断。
+
+私有云配置只引用 `key_file`、`ca_der_file`，并指定 `base_url`、`asr_model`、
+`chat_model`、`tts_model` 和 `dialect`（1 为标准音频接口，2 为 MiMo 音频流）。
+凭据文件须按现有工具规则保护；密钥不放入命令行、源码或报告。
+配置只在本次开发 owner 生命周期有效；关闭连接后重新测试需再次提供配置。
+
+`benchmark.json` 保存样本哈希、模型配置、上传耗时、已确认序号、实际请求状态和取消结果。
+每轮还保存状态轮询次数、最长耗时及最近 16 次的相对时间、snapshot 偏移、SDC 序号和
+结果类型；这些诊断不包含控制载荷、问题正文或凭据，失败轮询也保留记录。
+控制命令未确认时停止，不重放；先只读回查板端状态再决定下一次新会话。
+`voice-report` 生成 `voice_latency.json`、`turn_latency.csv` 与哈希清单。
+
+匹配的工程测量固件可给 `bk_test voice benchmark` 增加 `--audio-trace`，
+通过原有认证 USB 接口读回每轮 TLS 接收、PCM 解码与入队、Media 消费时间线和
+rearm 状态，输出 `audio_stream_benchmark.json` 和 `audio_gap_report.json`。
+后者保存最大空档内的 TLS/入队等待重叠区间、逐块 FIFO 消费关联及来源候选；
+TLS 接收等待仍不能区分云端生成和网络传输，不能据此宣称根因已确认。
+`--audio-status` 只回读独立 USB rearm 头部，可用于连续对话检查；它不生成逐块
+完整观测，也不能替代 `--audio-trace`。空队列等待另按随后恢复消费、终止或未知
+区分，只有继续消费前的正时长等待计入 `queue_starvation_count`；原始空等待计数保留。
+每轮使用独立 `turn_uid`，板端 request ID 另行保留。轨迹逐页确认读取；中断时
+`benchmark.json` 保存头部及已确认的完整记录，不把部分导出视为完整观测。
+记录有固定容量和溢出计数；
+丢失记录不会被当作零欠载。`--audio-baseline <旧报告.json>` 对相同输入哈希且
+观测完整的轮次自动计算差值。网络接收等待、队列等待和 DAC 欠载分别记录；
+未观测的 DAC 指标保持 null，跨 TTS 句子的间隔与单次请求内部间隔分开统计。
+路由、原生规划、正文流和 TTS 分别计数；`llm_first_token_ms` 是收到首个有效正文
+content delta 的时间。完整规划正文回退无法提供这个时间，保持未知。
+PCM 间隔包括生产、解码和队列背压，不能当作纯网络抖动。
+
+`--input-marks` 可引用与同次 AP 单调时钟对齐的输入/声学证据；DAC 注释用
+`dac_output_mono_ms` 和 `dac_evidence`，不得由 Media 提交时间推算。
+开发 DAC 日志 `[aud-stage]` 记录 PA/DAC 成功启用、暂停、恢复和关闭，
+不自行宣称属于某个回合，也不等于声学首声。缺失时间保留 `null`。
+`total_ms` 仅用于具备真实输入结束和有效回答声学证据的回合。
+
+Agent 的 `CONFIG_AI_AGENT_VOICE_ROUTE` 默认关闭。实验开启时，同一条 SSE 使用
+API 的 JSON 模式。对象须依次包含 `"voice_phase":"final"`、`"answer":"完整正文"`，
+或仅含 `"voice_phase":"tools"`。严格确认阶段后，逐步解码 answer 字符串并送入既有 TTS；
+字段名、协议符号不进入语音或历史。普通问题只发一次模型请求；工具或无效前缀回到原生规划。
+正文开始后发生错误或取消即终止，禁止再回退执行工具。工具问题会多一次准入请求，
+需要实测收益；`voice_stream` 单独计数，不冒充两次请求。答案长度、语速和缓冲不变；
+增加的 32 token 配额仅覆盖协议对象。解码正文上限不变，原始 JSON 另受现有接收上限
+加 192 字节协议余量约束；大量转义可能先触及原始上限，此时失败，禁止截断后成功。
+
+`CONFIG_AI_AGENT_VOICE_PLAYBACK_PRIORITY` 默认 0（继承）。开发实验可仅调整现有 PCM
+消费者线程，并记录请求/实际优先级。初始化失败会在 producer 取得队列前返回错误。
+它不改变缓冲、调度策略或其他线程；不能仅凭优先级调整宣称网络卡顿已解决。

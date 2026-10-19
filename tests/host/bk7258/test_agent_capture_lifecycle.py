@@ -81,6 +81,8 @@ static struct {
  int capture_error, capture_cleanup_pending, capture_cleanup_result;
  int tts_cleanup_pending, tts_cleanup_result, cleanup_in_progress;
  int reply_stream_active;
+ int (*input_check)(void *);
+ void *input_context;
  audio_capture_t *cap;
  voice_asr_stream_t *asr_stream;
  void *tts_pb;
@@ -287,6 +289,8 @@ static struct {
  int capture_error, capture_cleanup_pending, capture_cleanup_result;
  int tts_cleanup_pending, tts_cleanup_result, cleanup_in_progress;
  int reply_stream_active;
+ int (*input_check)(void *);
+ void *input_context;
  audio_capture_t *cap;
  voice_asr_stream_t *asr_stream;
  void *tts_pb;
@@ -441,6 +445,8 @@ static struct {
  int capture_error, capture_cleanup_pending, capture_cleanup_result;
  int tts_cleanup_pending, tts_cleanup_result, cleanup_in_progress;
  int reply_stream_active;
+ int (*input_check)(void *);
+ void *input_context;
  audio_capture_t *cap;
  voice_asr_stream_t *asr_stream;
  void *tts_pb;
@@ -615,6 +621,8 @@ static pthread_mutex_t peer_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t peer_changed = PTHREAD_COND_INITIALIZER;
 static int read_entered, release_read, peer_result, aborts, closes, recognizes;
 static size_t endpoint_samples, endpoint_sent;
+static size_t speech_spans[4][2];
+static unsigned speech_span_count;
 static struct {
  pthread_mutex_t lock;
  int state, turn_active, preconnect_active, canceled, wake_ack_pending;
@@ -622,6 +630,8 @@ static struct {
  int capture_error, capture_cleanup_pending, capture_cleanup_result;
  int tts_cleanup_pending, tts_cleanup_result, cleanup_in_progress;
  int reply_stream_active;
+ int (*input_check)(void *);
+ void *input_context;
  audio_capture_t *cap;
  voice_asr_stream_t *asr_stream;
  void *tts_pb;
@@ -647,12 +657,15 @@ static int process_audio_chunk(voice_asr_stream_t **s, const unsigned char *p,
 static int audio_capture_read(audio_capture_t *cap, void *buf, size_t n) {
  (void)cap;
  if (s_voice.auto_endpoint) {
-  assert(n == 640 && endpoint_samples < 48000);
+  assert(n == 640 && endpoint_samples < 96000);
   int16_t *pcm = buf;
   for (size_t i = 0; i < n / 2; i++) {
    size_t at = endpoint_samples + i;
-   /* Slow speech, a 600 ms internal pause, then a spoken continuation. */
-   int speech = (at >= 3200 && at < 12800) || (at >= 22400 && at < 27200);
+   /* Deterministic energy envelopes exercise the real recorder endpoint.
+    * They do not model phonetics, room noise or human speaking speed. */
+   int speech = 0;
+   for (unsigned j = 0; j < speech_span_count; j++)
+    speech |= at >= speech_spans[j][0] && at < speech_spans[j][1];
    pcm[i] = (i & 1 ? 1 : -1) * (speech ? 200 : 8);
   }
   endpoint_samples += n / 2;
@@ -708,17 +721,41 @@ static void release_recording_pipe(void) {
 int main(int argc, char **argv) {
  assert(argc == 2);
  char text[16];
- if (!strcmp(argv[1], "endpoint-pause")) {
+ if (!strncmp(argv[1], "endpoint-", 9)) {
+  size_t last_speech = 27200;
+  speech_span_count = 2;
+  speech_spans[0][0] = 3200; speech_spans[0][1] = 12800;
+  speech_spans[1][0] = 22400; speech_spans[1][1] = 27200;
+  if (!strcmp(argv[1], "endpoint-short")) {
+   speech_span_count = 1; speech_spans[0][1] = 8000;
+   last_speech = 8000;
+  } else if (!strcmp(argv[1], "endpoint-long")) {
+   speech_span_count = 3;
+   speech_spans[0][1] = 19200;
+   speech_spans[1][0] = 25600; speech_spans[1][1] = 41600;
+   speech_spans[2][0] = 51200; speech_spans[2][1] = 67200;
+   last_speech = 67200;
+  } else if (!strcmp(argv[1], "endpoint-pause800")) {
+   speech_spans[1][0] = 25600; speech_spans[1][1] = 30400;
+   last_speech = 30400;
+  } else if (!strcmp(argv[1], "endpoint-pause1000")) {
+   /* A pause beyond the current window closes before the next phrase.
+    * Record this boundary rather than calling it safe for all speakers. */
+   speech_spans[1][0] = 28800; speech_spans[1][1] = 33600;
+   last_speech = 12800;
+  } else assert(!strcmp(argv[1], "endpoint-pause"));
+  size_t expected_endpoint = last_speech + AUTO_ENDPOINT_SILENCE_MS * 16u;
   s_voice.state = VOICE_RECORDING; s_voice.turn_active = 1;
   s_voice.request_id = 9; s_voice.cap = &capture; s_voice.auto_endpoint = 1;
   sem_init(&s_voice.rec_ready, 0, 0); sem_init(&s_voice.rec_done, 0, 0);
   assert(!pthread_create(&s_voice.rec_thread, NULL, recording_thread, NULL));
   assert(!pthread_join(s_voice.rec_thread, NULL));
   assert(!s_voice.capture_error);
-  /* Known PCM ends speech at sample 27200; production retains 900 ms tail. */
-  assert(endpoint_samples == 41600 && endpoint_sent == 83200);
+  assert(endpoint_samples == expected_endpoint);
+  assert(endpoint_sent == expected_endpoint * sizeof(int16_t));
   free(s_voice.pcm_buf);
-  puts("VOICE_ENDPOINT_PAUSE_PASS last_speech_sample=27200 endpoint_sample=41600 rate=16000 tail_ms=900");
+  printf("VOICE_ENDPOINT_PASS case=%s last_speech_sample=%zu endpoint_sample=%zu rate=16000 tail_ms=%zu\n",
+   argv[1], last_speech, endpoint_samples, (endpoint_samples-last_speech)/16);
   return 0;
  }
  reset();
@@ -765,7 +802,9 @@ int main(int argc, char **argv) {
                 ["cc", "-std=gnu11", "-Wall", "-Wextra", "-Werror", "-pthread",
                  str(source_path), "-o", str(binary)], check=True
             )
-            for mode in ("endpoint-pause", "recording-pipe", "cancel", "stop", "stop-eof",
+            for mode in ("endpoint-short", "endpoint-long", "endpoint-pause",
+                         "endpoint-pause800", "endpoint-pause1000",
+                         "recording-pipe", "cancel", "stop", "stop-eof",
                          "stop-ecanceled", "stop-eio", "existing-error"):
                 subprocess.run([str(binary), mode], check=True, timeout=5)
 

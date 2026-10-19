@@ -9,6 +9,7 @@ import com.shaniu.companion.provision.DeviceControlProtocol
  */
 internal class OtaControlUpload(
     record: ByteArray,
+    private val onStartAccepted: () -> Unit = {},
     private val send: (DeviceControlProtocol.Command, ByteArray) -> Boolean
 ) : AutoCloseable {
     enum class State {
@@ -116,6 +117,9 @@ internal class OtaControlUpload(
     }
 
     private fun afterStartAck() {
+        // The source is accepted even when a local cancellation raced this ACK.
+        // Notify its owner before sending CANCEL, which the device may refuse.
+        onStartAccepted()
         if (cancelRequested) {
             transmitCancel()
         } else {

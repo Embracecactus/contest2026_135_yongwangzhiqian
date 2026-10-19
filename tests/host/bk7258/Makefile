@@ -577,6 +577,31 @@ $(BUILD)/test_bk7258_voice_tls_concurrency: test_bk7258_voice_tls_concurrency.c 
 run-voice-tls-concurrency: $(BUILD)/test_bk7258_voice_tls_concurrency
 	./$(BUILD)/test_bk7258_voice_tls_concurrency
 
+$(BUILD)/test_bk7258_tts_isolation_tls: test_bk7258_voice_tls_concurrency.c \
+	$(VOICE_PACK_ROOT)/bk7258_voice_tls.c \
+	$(VOICE_PACK_ROOT)/bk7258_voice_tls.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -D_GNU_SOURCE -DFAR= -pthread \
+		-DCONFIG_BK7258_TTS_ISOLATION=1 \
+		-ffunction-sections -fdata-sections -Wl,--gc-sections \
+		-I$(VOICE_PACK_ROOT) \
+		-I$(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/include \
+		test_bk7258_voice_tls_concurrency.c -o $@
+
+$(BUILD)/test_bk7258_tts_isolation_adapter: test_bk7258_engineering_voice.c \
+	$(VOICE_PACK_ROOT)/bk7258_engineering_test.c \
+	$(VOICE_PACK_ROOT)/bk7258_engineering_test.h \
+	$(VOICE_PACK_ROOT)/../testing/bk7258/bk7258_voice_benchmark.inc | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread -DCONFIG_BK7258_TTS_ISOLATION=1 \
+		-I$(VOICE_PACK_ROOT) -I$(VOICE_PACK_ROOT)/../testing/bk7258 \
+		test_bk7258_engineering_voice.c \
+		$(VOICE_PACK_ROOT)/bk7258_engineering_test.c -o $@
+
+.PHONY: run-tts-isolation
+run-tts-isolation: $(BUILD)/test_bk7258_tts_isolation_tls \
+	$(BUILD)/test_bk7258_tts_isolation_adapter
+	./$(BUILD)/test_bk7258_tts_isolation_tls
+	./$(BUILD)/test_bk7258_tts_isolation_adapter
+
 $(VOICE_MEDIA_RECORDER_TARGET): test_bk7258_agent_media_recorder.c \
 	$(VOICE_PACK_ROOT)/bk7258_agent_media_recorder.c \
 	$(MOCKS)/media_recorder.h $(MOCKS)/nuttx/audio/audio.h \
@@ -613,20 +638,40 @@ $(BUILD)/test_bk7258_agent_media_player: test_bk7258_agent_media_player.c \
 run-voice-media-player: $(BUILD)/test_bk7258_agent_media_player
 	./$(BUILD)/test_bk7258_agent_media_player
 
+# Select the same Agent source for queue, input and stream regressions.
+AGENT_SOURCE_ROOT ?= $(OPENVELA_ROOT)/packages/ai_agent
 $(BUILD)/test_agent_tts_queue: test_bk7258_agent_media_player.c \
-	$(OPENVELA_ROOT)/packages/ai_agent/src/voice/voice_channel.c \
-	$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_stream.c \
-	$(OPENVELA_ROOT)/packages/ai_agent/src/core/message_bus.c \
+	$(AGENT_SOURCE_ROOT)/src/voice/voice_channel.c \
+	$(AGENT_SOURCE_ROOT)/src/llm/llm_stream.c \
+	$(AGENT_SOURCE_ROOT)/src/core/message_bus.c \
 	$(REPOSITORY_ROOT)/app/bk7258/bk7258_focus.c \
 	$(REPOSITORY_ROOT)/app/bk7258/bk7258_focus_intent.c | $(BUILD)
 	$(CC) $(CFLAGS) -DTEST_AGENT_TTS_QUEUE -DOK=0 -DERROR=-1 \
 		-ffunction-sections -fdata-sections -Wl,--gc-sections \
-		-I $(MOCKS) -I $(OPENVELA_ROOT)/packages/ai_agent/include \
-		-I $(OPENVELA_ROOT)/packages/ai_agent/src \
+		-I $(MOCKS) -I $(AGENT_SOURCE_ROOT)/include \
+		-I $(AGENT_SOURCE_ROOT)/src \
 		-I $(REPOSITORY_ROOT)/app/bk7258 \
 		-I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON $< \
-		$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_stream.c \
-		$(OPENVELA_ROOT)/packages/ai_agent/src/core/message_bus.c \
+		$(AGENT_SOURCE_ROOT)/src/llm/llm_stream.c \
+		$(AGENT_SOURCE_ROOT)/src/core/message_bus.c \
+		$(REPOSITORY_ROOT)/app/bk7258/bk7258_focus.c \
+		$(REPOSITORY_ROOT)/app/bk7258/bk7258_focus_intent.c \
+		$(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c -o $@
+
+$(BUILD)/test_agent_voice_input: test_bk7258_agent_media_player.c \
+	$(AGENT_SOURCE_ROOT)/src/voice/voice_channel.c \
+	$(AGENT_SOURCE_ROOT)/src/llm/llm_stream.c \
+	$(AGENT_SOURCE_ROOT)/src/core/message_bus.c \
+	$(REPOSITORY_ROOT)/app/bk7258/bk7258_focus.c \
+	$(REPOSITORY_ROOT)/app/bk7258/bk7258_focus_intent.c | $(BUILD)
+	$(CC) $(CFLAGS) -DTEST_AGENT_TTS_QUEUE -DTEST_AGENT_INPUT -DOK=0 -DERROR=-1 \
+		-ffunction-sections -fdata-sections -Wl,--gc-sections \
+		-I $(MOCKS) -I $(AGENT_SOURCE_ROOT)/include \
+		-I $(AGENT_SOURCE_ROOT)/src \
+		-I $(REPOSITORY_ROOT)/app/bk7258 \
+		-I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON $< \
+		$(AGENT_SOURCE_ROOT)/src/llm/llm_stream.c \
+		$(AGENT_SOURCE_ROOT)/src/core/message_bus.c \
 		$(REPOSITORY_ROOT)/app/bk7258/bk7258_focus.c \
 		$(REPOSITORY_ROOT)/app/bk7258/bk7258_focus_intent.c \
 		$(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c -o $@
@@ -1891,22 +1936,22 @@ run-cloud-request:
 	python3 test_bk7258_cloud_request.py
 
 $(BUILD)/test_agent_final_stream: test_bk7258_cloud_request.c \
-	$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_stream.c \
-	$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_proxy.c \
-	$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_vision.c \
-	$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_parse.c \
-	$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_stream.h | $(BUILD)
+	$(AGENT_SOURCE_ROOT)/src/llm/llm_stream.c \
+	$(AGENT_SOURCE_ROOT)/src/llm/llm_proxy.c \
+	$(AGENT_SOURCE_ROOT)/src/llm/llm_vision.c \
+	$(AGENT_SOURCE_ROOT)/src/llm/llm_parse.c \
+	$(AGENT_SOURCE_ROOT)/src/llm/llm_stream.h | $(BUILD)
 	$(CC) $(CFLAGS) -Werror -Wno-error=stringop-truncation \
 		-DTEST_AGENT_FINAL_STREAM -DOK=0 -DERROR=-1 \
 		-ffunction-sections -fdata-sections -Wl,--gc-sections \
-		-I $(MOCKS) -I $(OPENVELA_ROOT)/packages/ai_agent/include \
-		-I $(OPENVELA_ROOT)/packages/ai_agent/src \
+		-I $(MOCKS) -I $(AGENT_SOURCE_ROOT)/include \
+		-I $(AGENT_SOURCE_ROOT)/src \
 		-I $(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/include \
 		-I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON $< \
-		$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_stream.c \
-		$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_proxy.c \
-		$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_vision.c \
-		$(OPENVELA_ROOT)/packages/ai_agent/src/llm/llm_parse.c \
+		$(AGENT_SOURCE_ROOT)/src/llm/llm_stream.c \
+		$(AGENT_SOURCE_ROOT)/src/llm/llm_proxy.c \
+		$(AGENT_SOURCE_ROOT)/src/llm/llm_vision.c \
+		$(AGENT_SOURCE_ROOT)/src/llm/llm_parse.c \
 		$(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c -o $@
 
 $(BUILD)/test_agent_endpoint: test_bk7258_cloud_request.c \
@@ -1991,6 +2036,14 @@ $(BUILD)/test_bk7258_engineering_audio: test_bk7258_engineering_audio.c \
 	$(CC) $(VOICE_PACK_CFLAGS) -DCONFIG_BK7258_ENGINEERING_TEST=1 \
 		-I $(VOICE_PACK_ROOT) $(filter %.c,$^) -o $@
 
+$(BUILD)/test_bk7258_engineering_voice: test_bk7258_engineering_voice.c \
+	$(VOICE_PACK_ROOT)/bk7258_engineering_test.c \
+	$(VOICE_PACK_ROOT)/bk7258_engineering_test.h \
+	$(VOICE_PACK_ROOT)/../testing/bk7258/bk7258_voice_benchmark.inc \
+	$(VOICE_PACK_ROOT)/bk7258_control_session.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(VOICE_PACK_ROOT) \
+		-I $(VOICE_PACK_ROOT)/../testing/bk7258 $(filter %.c,$^) -o $@
+
 $(BUILD)/test_factory_diagnostics: test_factory_diagnostics.c \
 	$(VOICE_PACK_ROOT)/bk7258_factory_diagnostics.c \
 	$(VOICE_PACK_ROOT)/bk7258_factory_diagnostics.h \
@@ -1999,7 +2052,7 @@ $(BUILD)/test_factory_diagnostics: test_factory_diagnostics.c \
 	$(MOCKS)/mock_nuttx_ap.c $(VOICE_OTA_MBEDCRYPTO) | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(MOCKS) \
 		-I $(VOICE_PACK_ROOT) -I $(VOICE_OTA_MBEDTLS_SOURCE)/include \
-		$(filter %.c,$^) -Wl,--wrap=clock_gettime \
+		$(filter %.c,$^) -Wl,--wrap=clock_gettime,--wrap=pthread_mutex_lock \
 		$(VOICE_OTA_MBEDCRYPTO) -o $@
 
 $(BUILD)/test_shaniu_volume_contract: test_shaniu_volume_contract.c $(VOICE_PACK_ROOT)/bk7258_media_volume.c $(CHIP_ROOT)/ap/bk7258_usbmode.c | $(BUILD)

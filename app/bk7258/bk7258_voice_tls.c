@@ -17,6 +17,9 @@
 #  include <sys/ioctl.h>
 #  include <nuttx/clock.h>
 #  include <nuttx/semaphore.h>
+#  ifdef CONFIG_BK7258_ENGINEERING_TEST
+#    include <nuttx/sched.h>
+#  endif
 #endif
 
 #include <mbedtls/net_sockets.h>
@@ -27,6 +30,169 @@
 #endif
 
 #define BKVOICE_TLS_POLL_MS 20u
+
+#ifdef CONFIG_BK7258_TTS_ISOLATION
+#define OBS_NOW(tls) ((tls)->config.observe ? \
+  (tls)->config.now_ms((tls)->config.clock_context) : 0)
+static void tls_observe(struct bkvoice_tls_s *tls, unsigned int kind,
+                         uint64_t begin, uint64_t end, int result)
+{
+  if (tls->config.observe)
+    tls->config.observe(tls->config.observe_context, kind, begin, end, result);
+}
+#define OBS(tls, kind, begin, end, result) \
+  tls_observe(tls, kind, begin, end, result)
+#ifdef __NuttX__
+struct isolation_poll_s
+{
+  sem_t sem; /* poll_default_cb uses pfd.arg as sem_t *. */
+  struct bkvoice_tls_s *tls;
+  uint32_t ready; /* Same bounded boot-ms range as BVA2; lock-free on ARM32. */
+};
+static void isolation_poll_cb(struct pollfd *pfd)
+{
+  struct isolation_poll_s *sample = pfd->arg;
+  uint32_t expected = 0;
+  uint32_t now = (uint32_t)OBS_NOW(sample->tls);
+  (void)__atomic_compare_exchange_n(&sample->ready, &expected, now, false,
+                                     __ATOMIC_RELEASE, __ATOMIC_RELAXED);
+  poll_default_cb(pfd);
+}
+#endif
+#else
+#define OBS_NOW(tls) 0
+#define OBS(tls, kind, begin, end, result) ((void)0)
+#endif
+
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+enum trace_phase_e
+{
+  TRACE_IDLE, TRACE_LOCK, TRACE_SOCKET, TRACE_NONBLOCK, TRACE_CONNECT,
+  TRACE_SO_ERROR, TRACE_SSL, TRACE_POLL_ADD, TRACE_POLL_WAIT, TRACE_POLL_DEL,
+  TRACE_SEND, TRACE_RECV, TRACE_CLOSE, TRACE_FREE, TRACE_SESSION
+};
+
+static uint32_t trace_phase(struct bkvoice_tls_s *tls, unsigned int lane,
+                             unsigned int phase)
+{
+  uint32_t stamp = (uint32_t)(tls->config.now_ms(tls->config.clock_context)
+                              >> 4);
+#ifdef __NuttX__
+  __atomic_store_n(&tls->trace_owner[lane], (uint32_t)gettid(), __ATOMIC_RELEASE);
+#endif
+  return __atomic_exchange_n(&tls->trace[lane], (stamp << 4) | phase,
+                              __ATOMIC_ACQ_REL);
+}
+
+#define TRACE(tls, lane, phase) ((void)trace_phase(tls, lane, phase))
+#define TRACE_SAVE(tls, lane, phase) \
+  uint32_t trace_saved = trace_phase(tls, lane, phase)
+#define TRACE_RESTORE(tls, lane) \
+  __atomic_store_n(&(tls)->trace[lane], trace_saved, __ATOMIC_RELEASE)
+
+#ifdef __NuttX__
+struct trace_task_s
+{
+  pid_t pid;
+  int state;
+  int priority;
+  int lockcount;
+  unsigned int affinity;
+  unsigned int cpu;
+  bool timer_active;
+  uint64_t expires;
+  unsigned int peers;
+  struct
+  {
+    pid_t pid;
+    int state;
+    int priority;
+    int lockcount;
+    unsigned int cpu;
+    unsigned int affinity;
+    char name[17];
+  } ready[16];
+};
+
+static void trace_task(struct tcb_s *tcb, void *context)
+{
+  struct trace_task_s *snapshot = context;
+  if (tcb->task_state >= TSTATE_TASK_PENDING &&
+      tcb->task_state <= TSTATE_TASK_RUNNING && snapshot->peers < 16)
+    {
+      unsigned int i = snapshot->peers++;
+      snapshot->ready[i].pid = tcb->pid;
+      snapshot->ready[i].state = tcb->task_state;
+      snapshot->ready[i].priority = tcb->sched_priority;
+      snapshot->ready[i].lockcount = tcb->lockcount;
+      snapshot->ready[i].cpu = tcb->cpu;
+      snapshot->ready[i].affinity = (unsigned int)tcb->affinity;
+#if CONFIG_TASK_NAME_SIZE > 0
+      size_t n = sizeof(snapshot->ready[i].name) - 1;
+      if (n > CONFIG_TASK_NAME_SIZE) n = CONFIG_TASK_NAME_SIZE;
+      memcpy(snapshot->ready[i].name, tcb->name, n);
+#endif
+    }
+  if (tcb->pid != snapshot->pid) return;
+  /* foreach pins the TCB. Do not dereference waitobj/stack: their lifetime
+   * belongs to the waiting owner and may end during this observation.
+   */
+  snapshot->state = tcb->task_state;
+  snapshot->cpu = tcb->cpu;
+  snapshot->priority = tcb->sched_priority;
+  snapshot->lockcount = tcb->lockcount;
+  snapshot->affinity = (unsigned int)tcb->affinity;
+  snapshot->timer_active = tcb->waitdog.func != NULL;
+  snapshot->expires = (uint64_t)tcb->waitdog.expired;
+}
+#endif
+
+void bkvoice_tls_trace_wait(struct bkvoice_tls_s *tls, const char *backend,
+                            uint32_t now_ms)
+{
+  static const char *const names[] =
+    { "idle", "crypto-lock", "socket", "nonblock", "connect", "so-error",
+      "ssl", "poll-add", "poll-wait", "poll-del", "send", "recv", "close",
+      "ssl-free", "session" };
+  for (unsigned int lane = 0; lane < 3; lane++)
+    {
+      uint32_t word = __atomic_load_n(&tls->trace[lane], __ATOMIC_ACQUIRE);
+      unsigned int phase = word & 15u;
+      uint32_t elapsed = (((now_ms >> 4) - (word >> 4)) & 0x0fffffffu) << 4;
+      if (!phase || phase >= sizeof(names) / sizeof(names[0]) ||
+          elapsed < 5000u || now_ms - tls->trace_reported_ms[lane] < 5000u)
+        continue;
+      tls->trace_reported_ms[lane] = now_ms;
+      syslog(LOG_INFO, "BKVOICE wait backend=%s lane=%u phase=%s age_ms=%lu "
+             "mono_ms=%lu interrupted=%u\n", backend, lane, names[phase],
+             (unsigned long)elapsed, (unsigned long)now_ms,
+             __atomic_load_n(&tls->interrupted, __ATOMIC_ACQUIRE));
+#ifdef __NuttX__
+      struct trace_task_s snapshot =
+        { .pid = (pid_t)__atomic_load_n(&tls->trace_owner[lane], __ATOMIC_ACQUIRE),
+          .state = -1 };
+      uint64_t ticks = (uint64_t)clock();
+      nxsched_foreach(trace_task, &snapshot);
+      syslog(LOG_INFO, "BKVOICE wait-task pid=%ld state=%d cpu=%u timer_active=%u "
+             "ticks=%llu expires=%llu priority=%d lock=%d affinity=%x\n",
+             (long)snapshot.pid, snapshot.state,
+             snapshot.cpu, snapshot.timer_active, (unsigned long long)ticks,
+             (unsigned long long)snapshot.expires, snapshot.priority,
+             snapshot.lockcount, snapshot.affinity);
+      for (unsigned int i = 0; i < snapshot.peers; i++)
+        syslog(LOG_INFO, "BKVOICE ready-task pid=%ld state=%d cpu=%u priority=%d "
+               "lock=%d affinity=%x name=%s\n", (long)snapshot.ready[i].pid,
+               snapshot.ready[i].state, snapshot.ready[i].cpu,
+               snapshot.ready[i].priority, snapshot.ready[i].lockcount,
+               snapshot.ready[i].affinity, snapshot.ready[i].name);
+#endif
+    }
+}
+#else
+#define TRACE(tls, lane, phase) ((void)0)
+#define TRACE_SAVE(tls, lane, phase) ((void)0)
+#define TRACE_RESTORE(tls, lane) ((void)0)
+#endif
 
 static int bkvoice_tls_deadline(struct bkvoice_tls_s *tls,
                                 uint64_t deadline_ms)
@@ -63,8 +229,8 @@ static int bkvoice_tls_lock(struct bkvoice_tls_s *tls,
     }
 }
 
-static int bkvoice_tls_wait(struct bkvoice_tls_s *tls, short events,
-                            uint64_t deadline_ms)
+static int bkvoice_tls_wait_inner(struct bkvoice_tls_s *tls, short events,
+                            uint64_t deadline_ms, uint64_t *ready)
 {
   struct pollfd pfd;
   uint64_t now;
@@ -97,30 +263,53 @@ static int bkvoice_tls_wait(struct bkvoice_tls_s *tls, short events,
        * completes before the stack semaphore leaves this iteration.
        */
 
-      sem_t sem;
-      ret = nxsem_init(&sem, 0, 0);
+      struct
+      {
+        sem_t sem;
+      } ordinary;
+#ifdef CONFIG_BK7258_TTS_ISOLATION
+      struct isolation_poll_s sample = { .tls = tls };
+      sem_t *sem = tls->config.observe && events == POLLIN ?
+                   &sample.sem : &ordinary.sem;
+#else
+      sem_t *sem = &ordinary.sem;
+#endif
+      ret = nxsem_init(sem, 0, 0);
       if (ret < 0) return ret;
       memset(&pfd, 0, sizeof(pfd));
       pfd.fd = -1;
       pfd.events = events;
-      pfd.arg = &sem;
+      pfd.arg = sem;
       pfd.cb = poll_default_cb;
+#ifdef CONFIG_BK7258_TTS_ISOLATION
+      if (sem == &sample.sem) pfd.cb = isolation_poll_cb;
+#endif
+      TRACE(tls, events == POLLOUT ? 1 : 2, TRACE_POLL_ADD);
       ret = psock_poll(&tls->socket, &pfd, true);
       if (ret >= 0)
         {
+          TRACE(tls, events == POLLOUT ? 1 : 2, TRACE_POLL_WAIT);
           if (pfd.revents == 0)
             ret = nxsem_tickwait_uninterruptible(
-                    &sem, MSEC2TICK((unsigned int)remaining));
+                    sem, MSEC2TICK((unsigned int)remaining));
+          TRACE(tls, events == POLLOUT ? 1 : 2, TRACE_POLL_DEL);
           int teardown = psock_poll(&tls->socket, &pfd, false);
           if (teardown < 0) ret = teardown;
         }
-      (void)nxsem_destroy(&sem);
+      (void)nxsem_destroy(sem);
+#ifdef CONFIG_BK7258_TTS_ISOLATION
+      uint32_t notified = __atomic_load_n(&sample.ready, __ATOMIC_ACQUIRE);
+      if (notified) *ready = notified;
+#else
+      (void)ready;
+#endif
       if (ret < 0 && ret != -ETIMEDOUT && ret != -EINTR) return ret;
       if (pfd.revents != 0) return bkvoice_tls_deadline(tls, deadline_ms);
 #else
       pfd.fd = tls->fd;
       pfd.events = events;
       pfd.revents = 0;
+      TRACE(tls, events == POLLOUT ? 1 : 2, TRACE_POLL_WAIT);
       ret = poll(&pfd, 1, (int)remaining);
       if (ret < 0 && errno != EINTR)
         {
@@ -129,6 +318,7 @@ static int bkvoice_tls_wait(struct bkvoice_tls_s *tls, short events,
 
       if (ret > 0)
         {
+          *ready = OBS_NOW(tls);
           /* Let the next nonblocking I/O observe buffered data, EOF or
            * SO_ERROR even when POLLHUP/POLLERR accompany readiness.
            */
@@ -139,14 +329,34 @@ static int bkvoice_tls_wait(struct bkvoice_tls_s *tls, short events,
     }
 }
 
+static int bkvoice_tls_wait(struct bkvoice_tls_s *tls, short events,
+                            uint64_t deadline_ms)
+{
+  TRACE_SAVE(tls, events == POLLOUT ? 1 : 2, TRACE_POLL_WAIT);
+  uint64_t begin = OBS_NOW(tls), ready = 0;
+  int ret = bkvoice_tls_wait_inner(tls, events, deadline_ms, &ready);
+  if (events == POLLIN)
+    {
+      uint64_t end = OBS_NOW(tls);
+      OBS(tls, 10, begin, ready ? ready : end, ret);
+      if (ready) OBS(tls, 11, ready, end, ret);
+      (void)end;
+    }
+  (void)begin;
+  TRACE_RESTORE(tls, events == POLLOUT ? 1 : 2);
+  return ret;
+}
+
 static int bkvoice_tls_socket_send(void *context,
                                    const unsigned char *buffer, size_t bytes)
 {
   struct bkvoice_tls_s *tls = context;
   ssize_t ret;
+  TRACE_SAVE(tls, 1, TRACE_SEND);
 
 #ifdef __NuttX__
   ret = psock_send(&tls->socket, buffer, bytes, 0);
+  TRACE_RESTORE(tls, 1);
   if (ret < 0)
     return ret == -EAGAIN || ret == -EWOULDBLOCK || ret == -EINTR ?
            MBEDTLS_ERR_SSL_WANT_WRITE : MBEDTLS_ERR_NET_SEND_FAILED;
@@ -156,6 +366,7 @@ static int bkvoice_tls_socket_send(void *context,
 #else
   ret = send(tls->fd, buffer, bytes, 0);
 #endif
+  TRACE_RESTORE(tls, 1);
   if (ret < 0)
     {
       return errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR ?
@@ -170,13 +381,21 @@ static int bkvoice_tls_socket_recv(void *context, unsigned char *buffer,
                                    size_t bytes)
 {
   struct bkvoice_tls_s *tls = context;
+  TRACE_SAVE(tls, 2, TRACE_RECV);
+  uint64_t begin = OBS_NOW(tls);
 #ifdef __NuttX__
   ssize_t ret = psock_recv(&tls->socket, buffer, bytes, 0);
+  OBS(tls, 9, begin, OBS_NOW(tls), (int)ret);
+  TRACE_RESTORE(tls, 2);
   if (ret < 0)
     return ret == -EAGAIN || ret == -EWOULDBLOCK || ret == -EINTR ?
            MBEDTLS_ERR_SSL_WANT_READ : MBEDTLS_ERR_NET_RECV_FAILED;
 #else
   ssize_t ret = recv(tls->fd, buffer, bytes, 0);
+  int saved_errno = errno;
+  OBS(tls, 9, begin, OBS_NOW(tls), ret < 0 ? -saved_errno : (int)ret);
+  errno = saved_errno;
+  TRACE_RESTORE(tls, 2);
 
   if (ret < 0)
     {
@@ -185,6 +404,7 @@ static int bkvoice_tls_socket_recv(void *context, unsigned char *buffer,
     }
 
 #endif
+  (void)begin;
   return (int)ret;
 }
 
@@ -203,6 +423,7 @@ static int bkvoice_tls_close(void *context)
 
   if (tls->socket_open)
     {
+      TRACE(tls, 0, TRACE_CLOSE);
 #ifdef __NuttX__
       (void)psock_close(&tls->socket);
 #else
@@ -212,12 +433,14 @@ static int bkvoice_tls_close(void *context)
       tls->socket_open = false;
     }
 
+  TRACE(tls, 0, TRACE_FREE);
   mbedtls_ssl_free(&tls->ssl);
   mbedtls_ssl_config_free(&tls->ssl_config);
   mbedtls_ssl_init(&tls->ssl);
   mbedtls_ssl_config_init(&tls->ssl_config);
   tls->opened = false;
   __atomic_store_n(&tls->faulted, false, __ATOMIC_RELEASE);
+  TRACE(tls, 0, TRACE_IDLE);
   return 0;
 }
 
@@ -300,6 +523,7 @@ static int bkvoice_tls_open(void *context, const char *host, uint16_t port,
 
   if (tls->config.session_load)
     {
+      TRACE(tls, 0, TRACE_SESSION);
       ret = tls->config.session_load(tls->config.session_context, &tls->ssl,
                                       host, port);
       if (ret < 0) goto fail;
@@ -310,13 +534,16 @@ static int bkvoice_tls_open(void *context, const char *host, uint16_t port,
   peer.sin_addr = tls->config.peer_address;
   peer.sin_port = htons(port);
 #ifdef __NuttX__
+  TRACE(tls, 0, TRACE_SOCKET);
   ret = psock_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP, &tls->socket);
   if (ret < 0) goto fail;
   tls->socket_open = true;
   int nonblock = 1;
+  TRACE(tls, 0, TRACE_NONBLOCK);
   ret = psock_ioctl(&tls->socket, FIONBIO,
                     (unsigned long)(uintptr_t)&nonblock);
   if (ret < 0) goto fail;
+  TRACE(tls, 0, TRACE_CONNECT);
   ret = psock_connect(&tls->socket, (struct sockaddr *)&peer, sizeof(peer));
   if (ret < 0 && ret != -EINPROGRESS) goto fail;
 #else
@@ -354,6 +581,7 @@ static int bkvoice_tls_open(void *context, const char *host, uint16_t port,
       socket_error = 0;
       error_size = sizeof(socket_error);
 #ifdef __NuttX__
+      TRACE(tls, 0, TRACE_SO_ERROR);
       ret = psock_getsockopt(&tls->socket, SOL_SOCKET, SO_ERROR,
                              &socket_error, &error_size);
       if (ret < 0) goto fail;
@@ -373,6 +601,7 @@ static int bkvoice_tls_open(void *context, const char *host, uint16_t port,
         }
     }
 
+  TRACE(tls, 0, TRACE_SSL);
   mbedtls_ssl_set_bio(&tls->ssl, tls, bkvoice_tls_socket_send,
                       bkvoice_tls_socket_recv, NULL);
   for (; ; )
@@ -420,11 +649,13 @@ static int bkvoice_tls_open(void *context, const char *host, uint16_t port,
 
   if (tls->config.session_save)
     {
+      TRACE(tls, 0, TRACE_SESSION);
       ret = tls->config.session_save(tls->config.session_context, &tls->ssl,
                                       host, port);
       if (ret < 0) goto fail;
     }
   tls->opened = true;
+  TRACE(tls, 0, TRACE_IDLE);
   return 0;
 
 fail:
@@ -453,7 +684,11 @@ static ssize_t bkvoice_tls_io(struct bkvoice_tls_s *tls, void *buffer,
     {
       if (!locked)
         {
+          TRACE(tls, write ? 1 : 2, TRACE_LOCK);
+          uint64_t lock_begin = OBS_NOW(tls);
           ret = bkvoice_tls_lock(tls, deadline_ms);
+          if (!write) OBS(tls, 12, lock_begin, OBS_NOW(tls), ret);
+          (void)lock_begin;
           if (ret < 0)
             {
               goto fail;
@@ -474,11 +709,16 @@ static ssize_t bkvoice_tls_io(struct bkvoice_tls_s *tls, void *buffer,
           goto fail;
         }
 
+      TRACE(tls, write ? 1 : 2, TRACE_SSL);
+      uint64_t ssl_begin = OBS_NOW(tls);
       ret = write ? mbedtls_ssl_write(&tls->ssl, buffer, bytes) :
                     mbedtls_ssl_read(&tls->ssl, buffer, bytes);
+      if (!write) OBS(tls, 13, ssl_begin, OBS_NOW(tls), ret);
+      (void)ssl_begin;
       if (ret > 0)
         {
           (void)pthread_mutex_unlock(&tls->crypto_lock);
+          TRACE(tls, write ? 1 : 2, TRACE_IDLE);
           return ret;
         }
 
@@ -532,6 +772,7 @@ fail:
       (void)pthread_mutex_unlock(&tls->crypto_lock);
     }
 
+  TRACE(tls, write ? 1 : 2, TRACE_IDLE);
   return ret;
 }
 

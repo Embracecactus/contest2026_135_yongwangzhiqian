@@ -97,7 +97,7 @@ internal class DeviceControlProtocol(
                     (kind == 14 && offset in 0..16 && offset % 16 == 0) ||
                     (kind == 17 && offset in 0..112 && offset % 16 == 0 && payload.drop(4).any { b -> b != 0.toByte() })
                 else if (kind in 10..14) offset % 16 == 0 && offset < when (kind) {
-                    10, 11 -> 32; 12 -> 112; 13 -> 16; else -> 64
+                    10, 11 -> 32; 12 -> 176; 13 -> 48; else -> 64
                 }
                 else ((kind in 1..2 || kind == 5 || kind == 7 || kind == 8) && offset % 16 == 0) ||
                     ((kind == 4 || kind == 6 || kind == 0x7fff) && offset == 0) ||
@@ -191,8 +191,11 @@ internal class DeviceControlProtocol(
                         require(error <= 0)
                         val chunk = if (error == 0) {
                             if (pendingReadKind == 17) require(flags == 128)
-                            if (pendingReadKind in 10..14) require(flags == when (pendingReadKind) {
-                                10, 11 -> 32; 12 -> 112; 13 -> 16; else -> if (pendingReadReceipt) 32 else 64
+                            if (pendingReadKind in 10..14) require(when (pendingReadKind) {
+                                10, 11 -> flags == 32
+                                12 -> flags == 112 || flags == 176
+                                13 -> flags == 16 || flags == 48
+                                else -> flags == if (pendingReadReceipt) 32 else 64
                             })
                             require(flags in 12..(when (pendingReadKind) { 7 -> 824; 8 -> 876; RESET_TRANSFER_KIND -> 28; else -> 393 }))
                             ConfigChunk(flags, input.copyOfRange(24, 40))

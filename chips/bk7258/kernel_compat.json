@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "nuttx": {
-    "commit": "76354c637858ecb0aa4601629327acb6f44a26bb",
-    "provenance": "OpenVela NuttX Git HEAD reviewed for retained BK7258 wrappers"
+    "commit": "5ecdd18b230acd2a86068cb4559b9f3f59363857",
+    "provenance": "OpenVela 76354c637858ecb0aa4601629327acb6f44a26bb plus Apache NuttX 2d16c2777bc002024921a1361c551b14268b6ec5 arch_timer snapshot backport; owner-authorized 2026-10-18 local HCI sync lifetime and atomic buffer reference fix; patch sha256=f29efc2f072ea2f4cd136103f3a8f1e78569ee52dfc07f7be4b9aa2d0841e984; other retained wrapper source hashes unchanged"
   },
   "source_files": [
     {"path": "arch/arm/src/arm_m/arm_exception.S", "sha256": "fddf5ff017002bf342357bf6d21a86c66116a5a75988a1dac074b16fd34f1127"},
@@ -14,7 +14,8 @@
     {"path": "sched/init/nx_start.c", "sha256": "2b7179bf54c3fd0b5a1ecaa0a40a650fe663135da0635485c13cf6ca315fb1b8"},
     {"path": "sched/init/nx_bringup.c", "sha256": "804a514de526369fdeeda95c45527b1902b057ef9bed20568024ed3c3f2b68d1"},
     {"path": "sched/init/nx_smpstart.c", "sha256": "f251ffc0cb9cdf231fcda00a0d31380cd8d734734474918263c472c3eff80e1a"},
-    {"path": "wireless/bluetooth/bt_hcicore.c", "sha256": "8982fb974876dbe0938ca47a22a213c43068d21e10fa5fb94b53d7a038020e1a"},
+    {"path": "wireless/bluetooth/bt_buf.c", "sha256": "8e17e6b128340d3df801a2c39b54f2a09c74c573c82bce1ef3085b6a0dc93cca"},
+    {"path": "wireless/bluetooth/bt_hcicore.c", "sha256": "d02cba25c14c52755077c91d806adfa886f5419fc3c99db78caf9f8efffe18c6"},
     {"path": "wireless/bluetooth/bt_conn.c", "sha256": "7b010cd0f3f9b3fdbebac903f1713cb4033e1fd3937df80442860387346247c8"},
     {"path": "wireless/bluetooth/bt_l2cap.c", "sha256": "9ceb32fcdab4f6eb135dda580b5bacf89a4b4db37ce172b52644f62dbcce3d4b"},
     {"path": "wireless/bluetooth/bt_att.c", "sha256": "bb9cb43390bb22abd92f3622de4ce5d9b00be08793a5cdaa9235ea182fb31aa2"},

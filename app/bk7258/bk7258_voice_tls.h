@@ -64,6 +64,14 @@ struct bkvoice_tls_config_s
   int (*session_save)(void *context, const mbedtls_ssl_context *ssl,
                        const char *host, uint16_t port);
   void *session_context;
+#ifdef CONFIG_BK7258_TTS_ISOLATION
+  /* Bounded development trace only: raw recv(9), readiness wait(10),
+   * notification to poll teardown(11), crypto lock(12), SSL read(13).
+   * Nested spans are not additive. Negative results preserve raw errors. */
+  void (*observe)(void *context, unsigned int kind, uint64_t begin,
+                    uint64_t end, int result);
+  void *observe_context;
+#endif
 };
 
 struct bkvoice_tls_s
@@ -84,6 +92,15 @@ struct bkvoice_tls_s
   volatile bool faulted;
   bool initialized;
   bool opened;
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  /* Three independent owners: connection, sender, receiver. One atomic word
+   * packs a public phase and a 16 ms monotonic timestamp (49 day period).
+   * Diagnostic reads never acquire a transport/crypto lock.
+   */
+  uint32_t trace[3];
+  uint32_t trace_reported_ms[3];
+  uint32_t trace_owner[3];
+#endif
 };
 
 /* As with the byte-stream contract, open/close/uninitialize belong to one owner.
@@ -100,5 +117,9 @@ int bkvoice_tls_initialize(struct bkvoice_tls_s *tls,
                            const struct bkvoice_tls_config_s *config);
 int bkvoice_tls_uninitialize(struct bkvoice_tls_s *tls);
 const struct bkvoice_wss_tls_ops_s *bkvoice_tls_ops(void);
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+void bkvoice_tls_trace_wait(struct bkvoice_tls_s *tls, const char *backend,
+                            uint32_t now_ms);
+#endif
 
 #endif /* __APP_BK7258_BK7258_VOICE_TLS_H */
