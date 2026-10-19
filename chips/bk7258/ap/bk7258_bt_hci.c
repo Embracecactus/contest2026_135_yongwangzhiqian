@@ -1038,6 +1038,17 @@ void __wrap_bt_conn_receive(struct bt_conn_s *conn, struct bt_buf_s *buf,
 {
   __atomic_fetch_add(&g_bk7258_bt_hci.stats.host_conn_rx, 1u,
                      __ATOMIC_RELAXED);
+
+#ifdef CONFIG_BK7258_BT_CONN_RX_REF_COMPAT
+  /* The pinned hci_rx_work() releases its input after hci_acl() returns,
+   * while bt_conn_receive() transfers the buffer to reassembly or L2CAP,
+   * which also releases it.  Give that consumer a separate reference before
+   * it can free and recycle a buffer still owned by the receive worker.
+   */
+
+  bt_buf_addref(buf);
+#endif
+
   __real_bt_conn_receive(conn, buf, flags);
 
 #ifdef CONFIG_BK7258_BT_CONN_RX_REF_COMPAT

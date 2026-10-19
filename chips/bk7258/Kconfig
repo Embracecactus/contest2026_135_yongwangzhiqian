@@ -1122,7 +1122,7 @@ config BK7258_BT_HOST_BUFFER_SIZE_COMPAT
 		opcode or status.
 
 config BK7258_BT_CONN_RX_REF_COMPAT
-	bool "Inbound ACL connection-reference compatibility wrapper"
+	bool "Inbound ACL connection and buffer reference compatibility wrapper"
 	default n
 	depends on BK7258_BT_IPC && BK7258_AP_CORE
 	depends on WIRELESS_BLUETOOTH_HOST
@@ -1132,6 +1132,10 @@ config BK7258_BT_CONN_RX_REF_COMPAT
 		path obtains one reference with bt_conn_lookup_handle for every inbound
 		ACL packet but does not release it, so a completed GATT session leaves
 		the single connection slot permanently occupied.
+
+		Give bt_conn_receive a separate buffer reference: it transfers ownership
+		to reassembly or L2CAP, while hci_rx_work also releases its input.  The
+		consumer must not recycle that input before the worker releases it.
 
 		This chip-owned link wrapper keeps NuttX unmodified.  The public build
 		entry's kernel_compat.json source checks pin the reviewed ownership
