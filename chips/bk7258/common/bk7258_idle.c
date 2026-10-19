@@ -8,6 +8,8 @@
 
 #include <nuttx/config.h>
 
+#include <stdint.h>
+
 #include <nuttx/arch.h>
 #include <nuttx/clock.h>
 
@@ -32,10 +34,10 @@
 
 static inline void bk7258_idle_wfi(void)
 {
-  irqstate_t flags;
+  uint8_t basepri = getbasepri();
+  uint8_t primask = getprimask();
 
-  /* Match the official v3.1.1.9 arch_sleep() primitive exactly at the
-   * Cortex-M level.  SLEEPDEEP may have been left set by an earlier path and
+  /* SLEEPDEEP may have been left set by an earlier path and
    * must be cleared before ordinary WFI.  DSB completes outstanding memory
    * accesses before sleep; ISB refetches after an enabled wake interrupt.
    * No BK7258 clock or power register is changed here.
@@ -43,17 +45,21 @@ static inline void bk7258_idle_wfi(void)
    * NuttX pm_idle() calls the board handler with BASEPRI raised.  STAR does
    * not leave WFI for a SysTick whose priority is masked by that BASEPRI, so
    * the clock timebase and every delayed work item would stop after the first
-   * idle pass.  Preserve the caller's exact mask, briefly admit interrupts
-   * across shallow WFI, then restore the mask for pm_idle() to finish its
-   * state transition.  Calls made outside pm_idle() enter and leave with the
-   * original unmasked state as well.
+   * idle pass.  Do not run an IPI before WFI: pm_idle() still holds the
+   * scheduler lock, so delivery cannot switch away from idle before it
+   * sleeps.  PRIMASK delays ISR execution while
+   * BASEPRI is cleared so the request still wakes WFI; restore both caller
+   * masks before pm_idle() completes its state transition.
    */
 
-  flags = up_irq_save();
+  setprimask(1);
+  setbasepri(0);
   modifyreg32(NVIC_SYSCON, NVIC_SYSCON_SLEEPDEEP, 0);
-  up_irq_enable();
-  __asm volatile ("dsb sy; wfi; isb sy" ::: "memory");
-  up_irq_restore(flags);
+  __asm volatile ("dsb sy; isb sy; wfi; isb sy" ::: "memory");
+  setprimask(1);
+  setbasepri(basepri);
+  setprimask(primask);
+  __asm volatile ("isb sy" ::: "memory");
 }
 
 #if defined(CONFIG_PM) && !defined(CONFIG_BK7258_CONSOLE_RTT)

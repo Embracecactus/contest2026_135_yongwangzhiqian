@@ -44,9 +44,12 @@ class SceneControlProtocolTest {
         }
     }
     @Test fun sceneCapabilityRemainsReadOnly() {
-        val p = Peer(); assertTrue(accepted { p.read(13) }); p.reply(total = 16)
+        val p = Peer()
+        for (offset in 0 until 48 step 16) {
+            assertTrue(accepted { p.read(13, offset) }); p.reply(total = 48)
+        }
         assertThrows(IllegalArgumentException::class.java) { p.begin(13, 16) }
-        assertThrows(IllegalArgumentException::class.java) { p.read(13, 16) }
+        assertThrows(IllegalArgumentException::class.java) { p.read(13, 48) }
         p.protocol.close()
     }
     @Test fun pcSnapshotReceiptAndWriteUseTheirOwnBoundedShapes() {
@@ -63,7 +66,7 @@ class SceneControlProtocolTest {
     }
     @Test fun newKindsRejectWrongLengthsOffsetsAndUnknownKindsBeforeSending() {
         val p = Peer(); val count = p.sent.size
-        for ((kind, total) in listOf(10 to 32, 11 to 32, 12 to 112, 13 to 16, 14 to 64)) {
+        for ((kind, total) in listOf(10 to 32, 11 to 32, 12 to 176, 13 to 48, 14 to 64)) {
             assertThrows(IllegalArgumentException::class.java) { p.read(kind, 1) }
             assertThrows(IllegalArgumentException::class.java) { p.read(kind, total) }
             if (kind != 14) assertThrows(IllegalArgumentException::class.java) { p.read(kind, receipt = true) }

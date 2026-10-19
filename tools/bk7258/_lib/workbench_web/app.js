@@ -2,7 +2,7 @@
 const $ = id => document.getElementById(id);
 const token = location.hash.slice(1) || sessionStorage.getItem('shaniu-local-token') || '';
 if (location.hash) { sessionStorage.setItem('shaniu-local-token', token); history.replaceState(null, '', '/'); }
-let busy = false, trial = null, selection = null, lastSeen = null, latest = null, catalog = null, catalogReceipt = null;
+let busy = false, trial = null, selection = null, selectionReceipt = null, lastSeen = null, latest = null, catalog = null, catalogReceipt = null;
 const labels = {running:'正在执行',returned:'设备已返回结果',unconfirmed:'结果未知',disconnected:'未连接',unauthorized:'未授权',unsupported:'不支持',failed:'失败'};
 async function api(path, body) {
   const response = await fetch(path,{method:body?'POST':'GET',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
@@ -15,8 +15,12 @@ function gates() {
   $('cancel').disabled=!(busy && latest && ['resource-upload','resource-resume','resource-cancel'].includes(latest.operation));
   $('trial-start').disabled=busy || !trial || !['idle','expired','canceled','superseded','failed'].includes(trial.state);
   $('trial-cancel').disabled=busy || !trial || !['pending','active','cancel_pending'].includes(trial.state);
-  $('default-refresh').disabled=busy || !selection;
-  $('default-set').disabled=busy || !selection?.version_known;
+  const selectionIdle=selection && ['idle','done','canceled','failed','unknown'].includes(selection.state) && !selection.release_error && !selection.recovery_pending;
+  $('default-refresh').disabled=busy || !selectionIdle;
+  $('default-set').disabled=busy || !selectionIdle || selection.catalog || !selection.version_known || !(selection.refresh_complete || selection.selection_complete);
+  $('default-check').disabled=busy || !selectionReceipt;
+  $('default-cancel').disabled=busy || !selection || selection.catalog || !selection.id || !['pending','preparing'].includes(selection.state);
+  $('default-recover').disabled=busy || !selection || selection.catalog || !selection.id || selection.state!=='unknown' || !selection.release_error || selection.recovery_pending;
   const terminal=catalog && ['idle','done','canceled','failed','unknown'].includes(catalog.state) && !catalog.release_error;
   $('catalog-refresh').disabled=busy || !terminal;
   $('catalog-next').disabled=busy || !catalog?.page_available || !catalog?.more;
@@ -24,6 +28,19 @@ function gates() {
   $('catalog-recover').disabled=busy || !catalog?.catalog || catalog.state!=='unknown' || !catalog.release_error || catalog.recovery_pending;
   $('export').disabled=!latest;
   $('camera-stop').disabled=!(busy && latest?.operation==='camera-capture');
+}
+function renderSelection() {
+  if (!selection) { $('default-state').textContent=selectionReceipt?'本次操作结果待核对，请点击“核对本次操作”；读取当前状态可查看设备最新作业。':'尚未确认默认配置，请读取当前状态。'; return; }
+  if (selection.catalog) { $('default-state').textContent='设备当前为目录作业，不能据此确认默认素材。目录结束后可刷新已保存配置。'; return; }
+  const states={idle:'尚未读取',pending:'等待处理',preparing:'正在准备',committing:'正在保存，已不能取消',rendering:'正在更新画面，已不能取消',cancel_pending:'正在取消',done:'已完成',canceled:'已取消',failed:'失败',unknown:'结果未知'};
+  const parts=['默认操作：'+(states[selection.state]||'结果未知')];
+  if (selection.version_known) parts.push(`素材 ${selection.filename} · 版本 ${selection.revision}`);
+  if (selection.refresh_complete) parts.push('已读回保存的配置，可选择素材保存');
+  else if (selection.device_reports_saved) parts.push('设备报告已保存',selection.device_reports_rendered?'设备报告画面已更新':'画面更新未确认');
+  if (selection.release_error) parts.push(selection.recovery_pending?'正在重试释放，请核对结果':'资源释放失败，可重试释放；不会重新保存');
+  else if (selection.state==='unknown') parts.push('可刷新已保存配置；原操作仍未确认完成');
+  if (selection.error) parts.push('错误 '+selection.error);
+  $('default-state').textContent=parts.join(' · ')+'。';
 }
 function renderCatalog() {
   $('catalog-items').replaceChildren();
@@ -49,7 +66,7 @@ function show(job) {
   if (job.phase==='running' || lastSeen===job.id) return;
   lastSeen=job.id;
   const value=job.result;
-  if (!value) { if(job.operation?.startsWith('camera-')) $('camera-state').textContent=job.error||'结果未知，请读取相机状态。'; if(['disconnected','unauthorized','unsupported'].includes(job.phase)) $('connection').textContent=job.error; if(job.operation?.startsWith('catalog-')) {catalog=null;catalogReceipt=null;selection=null;renderCatalog();gates();} return; }
+  if (!value) { if(job.operation?.startsWith('camera-')) $('camera-state').textContent=job.error||'结果未知，请读取相机状态。'; if(['disconnected','unauthorized','unsupported'].includes(job.phase)) $('connection').textContent=job.error; if(job.operation?.startsWith('catalog-')) {catalog=null;catalogReceipt=null;selection=null;renderCatalog();} if(job.operation?.startsWith('default-')) {selection=null;renderSelection();} gates();return; }
   if (job.operation?.startsWith('camera-')) {
     $('camera-state').textContent='相机状态：'+({idle:'空闲',pending:'等待采集',capturing:'正在采集',ready:'有效单帧',failed:'采集失败',canceled:'已取消或释放',expired:'已过期',unknown:'结果未知'}[value.state]||'未知')+(value.size?` · ${value.format} ${value.width}×${value.height} · ${value.size} 字节`:'')+(value.error?` · 错误 ${value.error}`:'');
     if(value.image_base64 && value.valid && value.release_confirmed) { $('camera-preview').src='data:image/jpeg;base64,'+value.image_base64; $('camera-preview').hidden=false; }
@@ -58,18 +75,26 @@ function show(job) {
   if (job.operation==='info') $('connection').textContent=`设备版本 ${value.major}.${value.minor}.${value.revision}，构建 ${value.build}`;
   if (job.operation==='task-status') $('task-state').textContent='设备任务：'+({none:'无任务',start:'已开始',progress:'运行中',success:'成功',failure:'失败',canceled:'已取消'}[value.state]||'未知')+(value.expired?' · 已过期，不再提醒':'')+(value.progress===null?'':` · ${value.progress}%`);
   if (job.operation==='trial-status') {trial=value; $('trial-state').textContent='设备试用状态：'+value.state;}
-  if (job.operation==='default-status') {catalog=null;catalogReceipt=null;renderCatalog();selection=value; $('default-state').textContent=value.version_known?`设备默认：${value.filename} · 版本 ${value.revision} · 状态 ${value.state}`:'默认配置尚未读入，可提交刷新后再次读取。';}
-  if (job.operation==='catalog-status') {catalog=value;selection=null;renderCatalog();}
+  if (job.operation==='default-status') {catalog=null;catalogReceipt=null;renderCatalog();selection=value;renderSelection();}
+  if (job.operation?.startsWith('default-') && value.accepted) {selection=null;selectionReceipt={selection_epoch:value.epoch,selection_nonce:value.operation_nonce};renderSelection();}
+  if (job.operation==='catalog-status') {catalog=value;selection=null;selectionReceipt=null;renderCatalog();renderSelection();}
   if (job.operation?.startsWith('catalog-') && value.accepted) {catalog=null;selection=null;catalogReceipt={selection_epoch:value.epoch,selection_nonce:value.operation_nonce};renderCatalog();}
   if (value.installed) { catalog=null;catalogReceipt=null;renderCatalog(); $('filename').value=value.filename; $('message').textContent='设备确认安装完成；尚未设为默认。'; }
-  if (value.accepted) $('message').textContent='设备已受理。请读取相应状态，确认实际结果。';
+  if (value.accepted) $('message').textContent=job.operation.startsWith('default-')?'设备已受理。请点击“核对本次操作”，确认实际结果。':'设备已受理。请读取相应状态，确认实际结果。';
   if (['failed','canceled','unknown'].includes(value.state)) $('message').textContent=({failed:'设备报告失败',canceled:'设备确认取消',unknown:'结果未知，请先读取状态'}[value.state]);
   gates();
 }
 async function submit(operation, params={}) {
   const id=crypto.randomUUID().replaceAll('-','');
   if(operation.startsWith('camera-')) { $('camera-preview').hidden=true; $('camera-preview').removeAttribute('src'); $('camera-state').textContent='正在请求…'; }
-  if (operation.startsWith('catalog-') || operation.startsWith('default-')) {catalog=null;selection=null;catalogReceipt=null;renderCatalog();}
+  if (operation.startsWith('catalog-') || operation.startsWith('default-')) {
+    catalog=null;selection=null;catalogReceipt=null;
+    // Keep the exact public request identity even when its HTTP ACK is lost.
+    if (operation.startsWith('catalog-')) selectionReceipt=null;
+    else if (operation!=='default-status') selectionReceipt={selection_epoch:params.selection_epoch,selection_nonce:id};
+    else if (!params.selection_nonce) selectionReceipt=null;
+    renderCatalog();renderSelection();
+  }
   busy=true;gates();$('message').textContent='正在提交…';
   try {
     await api('/api/start',{id,operation,params});
@@ -97,8 +122,12 @@ $('cancel').onclick=guarded(async()=>{await api('/api/cancel',{id:latest.id});$(
 $('resource-query').onclick=()=>submit('resource-status',$('receipt').value?{receipt_id:$('receipt').value}:{});
 $('trial-start').onclick=guarded(()=>submit('trial-start',{expected_trial_id:trial.id,expression:$('expression').value,ttl_ms:milliseconds('seconds'),...($('filename').value?{pack_filename:$('filename').value}:{})}));
 $('trial-cancel').onclick=()=>submit('trial-cancel',{expected_trial_id:trial.id});
+$('default-query').onclick=()=>submit('default-status');
+$('default-check').onclick=()=>submit('default-status',selectionReceipt);
 $('default-refresh').onclick=()=>submit('default-refresh',{selection_epoch:selection.epoch,expected_selection_id:selection.id});
 $('default-set').onclick=()=>submit('default-set',{selection_epoch:selection.epoch,expected_selection_id:selection.id,expected_default_revision:String(selection.revision),pack_filename:$('filename').value});
+$('default-cancel').onclick=()=>submit('default-cancel',{selection_epoch:selection.epoch,expected_selection_id:selection.id});
+$('default-recover').onclick=()=>submit('default-recover',{selection_epoch:selection.epoch,expected_selection_id:selection.id});
 $('catalog-query').onclick=()=>submit('catalog-status',catalogReceipt||{});
 $('catalog-refresh').onclick=()=>submit('catalog-page',{selection_epoch:catalog.epoch,expected_selection_id:catalog.id});
 $('catalog-next').onclick=()=>submit('catalog-page',{selection_epoch:catalog.epoch,expected_selection_id:catalog.id,catalog_after:catalog.next_cursor});

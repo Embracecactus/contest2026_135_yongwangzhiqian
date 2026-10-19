@@ -39,6 +39,7 @@ class TlsPeer:
         self.tick = 100.0
         self.sent = 0
         self.close_notify = False
+        self.trace_queued_frames = 0
 
     def clock(self):
         return self.tick
@@ -89,6 +90,10 @@ class TlsPeer:
             del self.plain[: 16 + size]
             assert magic == 0x53444331
             self.requests.append((command, sequence, payload))
+            if command == 15:
+                self.trace_queued_frames = max(
+                    self.trace_queued_frames, 1 + len(self.plain) // 20
+                )
             error = -13 if command == 1 and payload != PC_KEY else 0
             flags = 0 if command == 1 else 9
             values = (0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0)
@@ -97,6 +102,8 @@ class TlsPeer:
             if command == 9:
                 flags, values = 0, (7, 14, 123, 661)
             if self.fault == "wrong_sequence" and command == 2:
+                sequence += 1
+            if self.fault == "wrong_audio_sequence" and command == 15:
                 sequence += 1
             if self.fault == "bad_flags" and command == 2:
                 flags |= 0x8000
@@ -350,6 +357,131 @@ class WorkbenchClientTest(unittest.TestCase):
         with self.assertRaises(workbench.ControlError):
             client.start(PC_KEY)
 
+    def test_handshake_cert_failure_is_not_reconnectable(self):
+        client, peer = self.client()
+        client._call = lambda unused, deadline: (_ for _ in ()).throw(
+            ssl.SSLCertVerificationError(1, "fixture")
+        )
+        with self.assertRaises(workbench.AuthenticationError) as rejected:
+            client.start(PC_KEY)
+        self.assertEqual(rejected.exception.stage, "tls_handshake")
+        self.assertFalse(rejected.exception.reconnectable)
+        self.assertTrue(peer.closed)
+
+    def test_eof_after_handshake_is_not_reconnectable(self):
+        client, peer = self.client("eof")
+        with self.assertRaises(workbench.AuthenticationError) as rejected:
+            client.start(PC_KEY)
+        self.assertEqual(rejected.exception.stage, "auth_exchange")
+        self.assertFalse(rejected.exception.reconnectable)
+        self.assertTrue(peer.closed)
+
+    def test_authorized_client_reconnects_only_one_transport_handshake(self):
+        args = SimpleNamespace(port="fixture", timeout=10)
+
+        def exercise(outcomes, after_first=None, rollback_after_sleep=False):
+            key = bytearray(PC_KEY)
+            clock = [0.0]
+            sleeps, clients, opened = [], [], []
+
+            @contextlib.contextmanager
+            def credentials(unused):
+                yield "fixture certificate", "a" * 64, key
+
+            class Client:
+                def __init__(self, channel, certificate, pin, *, timeout):
+                    self.channel, self.timeout, self.closed = channel, timeout, False
+                    clients.append(self)
+
+                def start(self, borrowed, *, deadline):
+                    self.deadline = deadline
+                    self.borrowed = borrowed
+                    if len(clients) == 1 and after_first is not None:
+                        clock[0] = after_first
+                    outcome = outcomes[len(clients) - 1]
+                    if outcome is not None:
+                        self.close()
+                        raise outcome
+
+                def close(self):
+                    self.closed = True
+
+            def channel(port, timeout):
+                opened.append((port, timeout))
+                return object()
+
+            def sleep(seconds):
+                sleeps.append(seconds)
+                if rollback_after_sleep:
+                    clock[0] = -1.0
+                else:
+                    clock[0] += seconds
+
+            with patch.object(workbench, "_credentials", credentials), patch.object(
+                workbench, "ControlClient", Client
+            ), patch.object(
+                workbench, "SerialChannel", side_effect=channel
+            ), patch.object(
+                workbench.time, "monotonic", side_effect=lambda: clock[0]
+            ), patch.object(
+                workbench.time,
+                "sleep",
+                side_effect=sleep,
+            ):
+                yielded, failure = None, None
+                try:
+                    with workbench.authorized_client(args) as yielded:
+                        self.assertEqual(key, bytes(32))
+                except Exception as error:
+                    failure = error
+                return key, sleeps, clients, opened, yielded, failure
+
+        retryable = workbench.AuthenticationError("tls_handshake", reconnectable=True)
+        key, sleeps, clients, opened, yielded, failure = exercise([retryable, None])
+        self.assertIsNone(failure)
+        self.assertIs(yielded, clients[1])
+        self.assertEqual(sleeps, [workbench.NATIVE_REOPEN_SETTLE_SECONDS])
+        self.assertEqual(len(opened), 2)
+        self.assertTrue(all(item.closed for item in clients))
+
+        rejected = workbench.AuthenticationError("auth_exchange")
+        key, sleeps, clients, opened, yielded, failure = exercise([rejected])
+        self.assertIsNone(yielded)
+        self.assertIsInstance(failure, workbench.AuthenticationError)
+        self.assertEqual(sleeps, [])
+        self.assertEqual(len(opened), 1)
+        self.assertEqual(key, bytes(32))
+        self.assertTrue(clients[0].closed)
+
+        key, sleeps, clients, opened, yielded, failure = exercise(
+            [retryable, retryable]
+        )
+        self.assertIsNone(yielded)
+        self.assertIsInstance(failure, workbench.AuthenticationError)
+        self.assertEqual(len(opened), 2)
+        self.assertEqual(sleeps, [workbench.NATIVE_REOPEN_SETTLE_SECONDS])
+        self.assertEqual(key, bytes(32))
+        self.assertTrue(all(item.closed for item in clients))
+
+        key, sleeps, clients, opened, yielded, failure = exercise(
+            [retryable], after_first=9.0
+        )
+        self.assertIsNone(yielded)
+        self.assertIsInstance(failure, workbench.AuthenticationError)
+        self.assertEqual(len(opened), 1)
+        self.assertEqual(sleeps, [])
+        self.assertEqual(key, bytes(32))
+
+        key, sleeps, clients, opened, yielded, failure = exercise(
+            [retryable], rollback_after_sleep=True
+        )
+        self.assertIsNone(yielded)
+        self.assertIsInstance(failure, workbench.ControlError)
+        self.assertEqual(sleeps, [workbench.NATIVE_REOPEN_SETTLE_SECONDS])
+        self.assertEqual(len(opened), 1)
+        self.assertEqual(key, bytes(32))
+        self.assertTrue(clients[0].closed)
+
     def test_cli_uses_real_client_without_printing_credentials(self):
         cli = importlib.import_module("bk7258")
         peer = TlsPeer(self.cert, self.key)
@@ -384,6 +516,7 @@ class WorkbenchClientTest(unittest.TestCase):
 
         port = SimpleNamespace(device="fixture-native", vid=0x1209, pid=0x0001)
         raw = Mock()
+        raw.in_waiting = 0
         raw.read.return_value = b""
         raw.write.return_value = 2
         original = sys.stdout
@@ -398,9 +531,131 @@ class WorkbenchClientTest(unittest.TestCase):
             )
             self.assertIs(sys.stdout, original)
             self.assertIsNone(channel.read(4096))
+            raw.read.assert_called_with(1)
+            # A short TLS record is complete input, not a request to wait
+            # out the native handle's 100 ms timeout for 4096 bytes.
+            raw.in_waiting = 17
+            raw.read.return_value = b"x" * 17
+            self.assertEqual(channel.read(4096), b"x" * 17)
+            raw.read.assert_called_with(17)
+            raw.in_waiting = 5000
+            raw.read.return_value = b"x" * 4096
+            self.assertEqual(len(channel.read(4096)), 4096)
+            raw.read.assert_called_with(4096)
             self.assertEqual(channel.write(b"abcd"), 2)
             channel.close()
             raw.close.assert_called_once()
+
+    def test_native_exact_packet_write_uses_short_packet_and_rejects_bad_count(self):
+        from unittest.mock import Mock
+
+        raw = Mock()
+        raw.in_waiting = 0
+        raw.read.return_value = b""
+        writes = []
+        pending = bytearray()
+        delivered = bytearray()
+
+        def write(data):
+            writes.append(bytes(data))
+            pending.extend(data)
+            # Model the observed native OUT boundary: a short packet or a
+            # completed 256-byte receive publishes bytes to the reader.
+            if len(data) % 64 or len(pending) >= 256:
+                delivered.extend(pending)
+                pending.clear()
+            return len(data)
+
+        raw.write.side_effect = write
+        channel = object.__new__(workbench.SerialChannel)
+        channel.port = raw
+        client = object.__new__(workbench.ControlClient)
+
+        class Outgoing:
+            def __init__(self, data):
+                self.data = data
+
+            @property
+            def pending(self):
+                return len(self.data)
+
+            def read(self, _size):
+                data, self.data = self.data, b""
+                return data
+
+        payload = bytes(range(128))
+        client._outgoing = Outgoing(payload)
+        client.channel = channel
+        client._check = lambda _deadline: None
+        client._sleep = lambda _seconds: None
+        client._flush(1)
+        self.assertEqual(bytes(delivered), payload)
+        self.assertEqual(b"".join(writes), payload)
+        self.assertFalse(pending)
+
+        raw.write.reset_mock()
+        raw.write.side_effect = None
+        raw.write.return_value = 128
+        client._outgoing = Outgoing(payload)
+        with self.assertRaises(workbench.ControlError):
+            client._flush(1)
+        self.assertEqual(raw.write.call_args[0][0], payload[:-1])
+
+    def test_camera_block_reply_framing_and_sequence(self):
+        class Tls:
+            def __init__(self, reply):
+                self.reply = bytearray(reply)
+
+            def write(self, data):
+                return len(data)
+
+            def read(self, size):
+                piece = bytes(self.reply[: min(size, 23)])
+                del self.reply[: len(piece)]
+                return piece
+
+        def client_for(reply):
+            client = object.__new__(workbench.ControlClient)
+            client._sequence = 7
+            client._tls = Tls(reply)
+            client._call = lambda function, unused: function()
+            return client
+
+        selector = struct.pack(">IQII", 25 << 16, 3, 512, 520)
+        data = bytes(range(8)) + bytes(504)
+        reply = struct.pack(">4IiI", 0x53444331, 15 | 0x80000000, 7, 520, 0, 520) + data
+        client = client_for(reply)
+        self.assertEqual(client._camera_block_exchange(selector, 1), (520, data))
+        self.assertEqual(client._sequence, 8)
+
+        bad = struct.pack(">4IiI", 0x53444331, 15 | 0x80000000, 8, 520, 0, 520) + data
+        client = client_for(bad)
+        with self.assertRaises(workbench.ControlError):
+            client._camera_block_exchange(selector, 1)
+        self.assertEqual(client._sequence, 7)
+
+        bad_tail = bytes(range(256)) * 2
+        reply = (
+            struct.pack(">4IiI", 0x53444331, 15 | 0x80000000, 7, 520, 0, 520) + bad_tail
+        )
+        client = client_for(reply)
+        with self.assertRaises(workbench.ControlError):
+            client._camera_block_exchange(selector, 1)
+        self.assertEqual(client._sequence, 8)
+
+        error = struct.pack(">4IiI", 0x53444331, 15 | 0x80000000, 7, 520, 1, 0) + bytes(
+            512
+        )
+        client = client_for(error)
+        with self.assertRaises(workbench.ControlError):
+            client._camera_block_exchange(selector, 1)
+        self.assertEqual(client._sequence, 8)
+
+        bad = struct.pack(">4IiI", 0x53444331, 15 | 0x80000000, 7, 519, 0, 520) + data
+        client = client_for(bad)
+        with self.assertRaises(workbench.ControlError):
+            client._camera_block_exchange(selector, 1)
+        self.assertEqual(client._sequence, 7)
 
     def test_native_port_filter_rejects_uart_without_opening(self):
         port = SimpleNamespace(device="fixture-UART", vid=0x1A86, pid=0x7523)
@@ -428,6 +683,20 @@ class WorkbenchClientTest(unittest.TestCase):
             opened.assert_not_called()
 
     def test_clock_rollback_terminates_without_replay(self):
+        pipelined, peer = self.client()
+        pipelined.start(PC_KEY)
+        rows = pipelined._audio_trace_pages(list(range(260, 276)))
+        self.assertEqual(len(rows), 16)
+        self.assertEqual(pipelined._sequence, 17)
+        self.assertEqual([r[0] for r in peer.requests], [1] + [15] * 16)
+        self.assertEqual(peer.trace_queued_frames, 1)
+        pipelined.close()
+        pipelined, peer = self.client("wrong_audio_sequence")
+        pipelined.start(PC_KEY)
+        with self.assertRaises(workbench.ControlError):
+            pipelined._audio_trace_pages([260, 261])
+        self.assertTrue(peer.closed)
+
         client, peer = self.client()
         client.start(PC_KEY)
         peer.tick = 99
@@ -435,6 +704,31 @@ class WorkbenchClientTest(unittest.TestCase):
             client.status()
         self.assertTrue(peer.closed)
         self.assertEqual([r[0] for r in peer.requests], [1])
+
+        client = SimpleNamespace(
+            closed=False,
+            authenticated=True,
+            _timeout=1,
+            _sequence=37,
+            close=lambda: None,
+        )
+        offsets = []
+
+        def exchange(command, payload, deadline):
+            offsets.append(struct.unpack(">I", payload)[0] & 0xFFFF)
+            if offsets[-1] == 32:
+                raise TimeoutError("fixture timeout")
+            return (64, 0, 0, 0, 0)
+
+        client._now = lambda: 10
+        client._exchange = exchange
+        with self.assertRaises(TimeoutError):
+            workbench.ControlClient.engineering_voice_status(client)
+        self.assertEqual(offsets, [0, 16, 32])
+        self.assertEqual(
+            client.last_engineering_voice_status,
+            {"offset": 32, "sdc_sequence": 37},
+        )
 
 
 def pc_interop(executable, certificate, private_key):

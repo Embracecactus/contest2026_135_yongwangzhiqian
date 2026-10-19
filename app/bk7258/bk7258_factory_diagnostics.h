@@ -20,12 +20,10 @@
  * never stored in PCG1 or returned by a read API.
  */
 int bkfactory_diagnostics_gate(bool eligible,
-                               const uint8_t certificate_sha256[32],
-                               uint64_t now_ms);
-int bkfactory_diagnostics_enable(const uint8_t *record, size_t size,
-                                 uint64_t now_ms);
-int bkfactory_diagnostics_revoke(uint64_t now_ms);
-int bkfactory_diagnostics_status(uint64_t now_ms, uint32_t *flags,
+                               const uint8_t certificate_sha256[32]);
+int bkfactory_diagnostics_enable(const uint8_t *record, size_t size);
+int bkfactory_diagnostics_revoke(void);
+int bkfactory_diagnostics_status(uint32_t *flags,
                                  uint32_t *remaining_ms);
 int bkfactory_diagnostics_certificate(uint32_t offset, uint32_t *word);
 int bkfactory_diagnostics_snapshot(void *context, uint64_t *binding,

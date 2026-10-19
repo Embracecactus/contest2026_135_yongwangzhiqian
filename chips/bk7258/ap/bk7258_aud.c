@@ -35,6 +35,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <syslog.h>
+#include <time.h>
 
 #include <nuttx/audio/audio.h>
 #include <nuttx/clock.h>
@@ -428,6 +429,37 @@ static void bk7258_aud_record_error(struct bk7258_aud_dev_s *priv,
     {
       priv->diag.first_error = error;
     }
+}
+
+/* Engineering observation only. Keep the public diagnostics ABI unchanged.
+ * This is DAC/PA enable time, not acoustic onset or voice-turn attribution.
+ * Worker ownership serializes these snapshots with start/pause/stop. */
+
+static void bk7258_aud_trace(struct bk7258_aud_dev_s *priv,
+                           const char *phase, int result)
+{
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  struct timespec now;
+  if (clock_gettime(CLOCK_MONOTONIC, &now) != 0)
+    {
+      return;
+    }
+
+  syslog(LOG_INFO, "[aud-stage] mono_ms=%" PRIu64 " phase=%s"
+         " starts=%" PRIu32 " underruns=%" PRIu32
+         " submitted=%" PRIu32 " played=%" PRIu32
+         " enabled=%u result=%d\n",
+         (uint64_t)now.tv_sec * 1000u + (uint64_t)now.tv_nsec / 1000000u,
+         phase, priv->diag.dac_start_count, priv->diag.underrun_count,
+         priv->diag.submitted_bytes, priv->diag.played_bytes,
+         (unsigned int)(priv->dma_started && priv->dac_started &&
+                        priv->pa_enabled && !priv->muted && priv->dig_gain),
+         result);
+#else
+  (void)priv;
+  (void)phase;
+  (void)result;
+#endif
 }
 
 static bool bk7258_aud_resources_owned(struct bk7258_aud_dev_s *priv)
@@ -1343,6 +1375,7 @@ static int bk7258_aud_hw_stream_stop(struct bk7258_aud_dev_s *priv)
     }
 
   bk7258_aud_record_error(priv, first);
+  bk7258_aud_trace(priv, "stop", first);
   return first;
 }
 
@@ -1521,6 +1554,7 @@ static int bk7258_aud_hw_start(struct bk7258_aud_dev_s *priv)
     }
 
   priv->diag.resources |= BK7258_AUD_RESOURCE_STREAM;
+  bk7258_aud_trace(priv, "start", OK);
   return OK;
 }
 
@@ -2621,6 +2655,7 @@ static int bk7258_aud_pause(struct audio_lowerhalf_s *dev)
           priv->dac_started = false;
           priv->diag.dac_stop_count++;
           bk7258_aud_set_state(priv, BK7258_AUD_STATE_PAUSED);
+          bk7258_aud_trace(priv, "pause", OK);
         }
       else
         {
@@ -2703,6 +2738,7 @@ static int bk7258_aud_resume(struct audio_lowerhalf_s *dev)
           if (ret == OK)
             {
               bk7258_aud_set_state(priv, BK7258_AUD_STATE_RUNNING);
+              bk7258_aud_trace(priv, "resume", OK);
             }
         }
 

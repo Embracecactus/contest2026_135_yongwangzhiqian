@@ -46,6 +46,11 @@ function Read-Public([int]$Milliseconds, [bool]$Preamble) {
       if ($line.Length -eq 0) { continue }
       $text = $line.ToString(); $line.Clear() | Out-Null
       $plain = [regex]::Replace($text, ([string][char]27 + "\[[0-?]*[ -/]*[@-~]"), '')
+      # Independent complete NuttX log records are not command receipts.
+      # Do not salvage a receipt interleaved with a log: strict matching below
+      # must still reject it, and the original bounded deadline still applies.
+      if ($plain -notmatch 'BKPROV DIAGNOSTICS' -and
+          $plain -match '^\[\d{2}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}\.\d+\] \[CPU\d+\] \[\d+\] \[\s*[A-Z]+\] \[ap\] [^\r\n]+$') { continue }
       if ($Preamble -and ($plain -match '^\s*$' -or
           $plain -match '^nsh>\s*((bkprov diagnostics-(enable|status|revoke))|(bkhealth power))?\s*$' -or
           $plain -match '^(bkprov diagnostics-(enable|status|revoke)|bkhealth power)\s*$')) { continue }

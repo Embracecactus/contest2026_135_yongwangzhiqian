@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.shaniu.companion.provision
 
+import com.shaniu.companion.ota.OtaControlUpload
+import com.shaniu.companion.ota.OtaStartGate
+import com.shaniu.companion.ota.OtaUpdatePolicy
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -24,7 +27,8 @@ class DeviceControlSessionTest {
             now = until
         }
     }
-    private class Sent(val command: DeviceControlProtocol.Command, val value: Int, val accepted: (Boolean) -> Unit)
+    private class Sent(val command: DeviceControlProtocol.Command, val value: Int,
+                       val accepted: (Boolean) -> Unit, val payload: ByteArray? = null)
     private inner class Fixture {
         val clock = Clock()
         val peers = mutableListOf<Peer>()
@@ -45,7 +49,9 @@ class DeviceControlSessionTest {
                 request(command, 0, accepted)
             }
             override fun requestPayload(command: DeviceControlProtocol.Command, payload: ByteArray, accepted: (Boolean) -> Unit) {
-                request(command, 0, accepted)
+                check(!closed)
+                sent += Sent(command, 0, accepted, payload.copyOf())
+                accepted(acceptRequests)
             }
             override fun close() { closed = true }
             fun reply(command: DeviceControlProtocol.Command, snapshot: DeviceControlProtocol.Snapshot) = events.result(command, snapshot)
@@ -91,6 +97,23 @@ class DeviceControlSessionTest {
         assertEquals(67, f.session.current().snapshot?.volume)
         assertFalse(f.session.current().writePending)
         assertEquals("设备已回读确认", f.session.current().operationMessage)
+    }
+    @Test fun configReadQueuesBehindStatusWithoutCreatingAnotherQueueOrWrite() {
+        val f = Fixture(); f.connect(); f.clock.advance(2_000)
+        val first = byteArrayOf(0, 14, 0, 0)
+        assertEquals(listOf(DeviceControlProtocol.Command.STATUS), f.peer.sent.map { it.command })
+        assertTrue(f.session.requestPayload(DeviceControlProtocol.Command.CONFIG_READ, first))
+        assertFalse(f.session.requestPayload(DeviceControlProtocol.Command.CONFIG_READ, byteArrayOf(1)))
+        assertFalse(f.session.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN, byteArrayOf(2)))
+        assertEquals(listOf(DeviceControlProtocol.Command.STATUS), f.peer.sent.map { it.command })
+        f.peer.reply(DeviceControlProtocol.Command.STATUS, status)
+        assertEquals(DeviceControlProtocol.Command.CONFIG_READ, f.peer.sent.last().command)
+        assertArrayEquals(first, f.peer.sent.last().payload)
+
+        val writing = Fixture(); writing.connect()
+        assertTrue(writing.session.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN, byteArrayOf(3)))
+        assertFalse(writing.session.requestPayload(DeviceControlProtocol.Command.CONFIG_READ, byteArrayOf(4)))
+        assertEquals(listOf(DeviceControlProtocol.Command.CONFIG_BEGIN), writing.peer.sent.map { it.command })
     }
     @Test fun temporaryReadFailurePreservesConnectionAndUnconfirmedWrite() {
         val f = Fixture(); f.connect()
@@ -310,6 +333,54 @@ class DeviceControlSessionTest {
         assertTrue(admitted.session.requestOta(DeviceControlProtocol.Command.OTA_STATUS))
         assertEquals(DeviceControlProtocol.Command.OTA_STATUS, admitted.peer.sent.last().command)
     }
+    @Test fun preparedOtaWaitsForReadAndSendsBeginExactlyOnce() {
+        val f = Fixture(); f.connect(status.copy(otaSupported = true))
+        f.clock.advance(2_000)
+        val gate = OtaStartGate()
+        val lease = checkNotNull(gate.acquireLease())
+        val upload = OtaControlUpload(ByteArray(44), send = f.session::requestOta)
+        f.session.observe { gate.resume(it.readPending) }
+        assertTrue(gate.prepare(lease) {
+            val state = f.session.current()
+            assertTrue(OtaUpdatePolicy.mayAdmitStart(state.authenticated,
+                state.snapshotFresh, state.snapshot?.otaSupported == true))
+            assertTrue(upload.start())
+        })
+        gate.resume(f.session.current().readPending)
+        assertFalse(f.peer.sent.any { it.command == DeviceControlProtocol.Command.OTA_BEGIN })
+        f.peer.reply(DeviceControlProtocol.Command.STATUS, status.copy(otaSupported = true))
+        assertEquals(1, f.peer.sent.count { it.command == DeviceControlProtocol.Command.OTA_BEGIN })
+        assertEquals(OtaControlUpload.State.WAITING, upload.state)
+        gate.resume(false)
+        f.peer.reply(DeviceControlProtocol.Command.OTA_BEGIN, status)
+        assertEquals(1, f.peer.sent.count { it.command == DeviceControlProtocol.Command.OTA_BEGIN })
+    }
+
+    @Test fun preparedOtaRechecksFailedOrUnsupportedReadBeforeBegin() {
+        for (reply in listOf(failure, status.copy(otaSupported = false))) {
+            val f = Fixture(); f.connect(status.copy(otaSupported = true))
+            f.clock.advance(2_000)
+            val gate = OtaStartGate()
+            val lease = checkNotNull(gate.acquireLease())
+            val upload = OtaControlUpload(ByteArray(44), send = f.session::requestOta)
+            var declined = false
+            f.session.observe { gate.resume(it.readPending) }
+            assertTrue(gate.prepare(lease) {
+                val state = f.session.current()
+                if (OtaUpdatePolicy.mayAdmitStart(state.authenticated,
+                        state.snapshotFresh, state.snapshot?.otaSupported == true)) upload.start()
+                else { declined = true; gate.release(lease) }
+            })
+            gate.resume(f.session.current().readPending)
+            f.peer.reply(DeviceControlProtocol.Command.STATUS, reply)
+            assertTrue(declined)
+            assertFalse(f.peer.sent.any { it.command == DeviceControlProtocol.Command.OTA_BEGIN })
+            f.clock.advance(2_000)
+            f.peer.reply(DeviceControlProtocol.Command.STATUS, status.copy(otaSupported = true))
+            assertFalse(f.peer.sent.any { it.command == DeviceControlProtocol.Command.OTA_BEGIN })
+        }
+    }
+
     @Test fun reconnectDropsWritesAndOldCallbacksCannotPolluteNewState() {
         val f = Fixture(); f.connect(); f.clock.advance(2000)
         val old = f.peer

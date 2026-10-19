@@ -4,6 +4,11 @@
 > TLS 身份、Android 安装签名、云 API 凭据彼此独立。后续赛事期旧流程是历史记录，
 > 不能用其手工供给或旧实机结果代替当前候选验收。
 
+> **2026-10-19 开发快照：** 本分支保存当前开发进度。固定的 Agent、NuttX
+> 依赖提交及本地 HCI 补丁尚未全部发布，公开 manifest 暂不能独立复现。
+> 依赖与验证边界见 [源码来源记录](SOURCE_PROVENANCE.md)及
+> [稳定性与手机验证记录](docs/verification/bk7258/2026-10-18-stability-and-phone-hil.md)。
+
 [English](README_EN.md) · [参赛技术报告](docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md) · [板级配置](boards/bk7258/CONFIGS.md) · [实际验收与待办](docs/platforms/bk7258/shaniu-master-plan.md)
 
 一套 BK7258 芯片适配，三块开发板，两个独立 NuttX 镜像：CPU0 运行 CP，
@@ -14,7 +19,7 @@ AIToyBoard 运行可独立语音交互的 AI 伴侣「傻妞」。
 比赛仓库是 [open-vela/contest2026_135_yongwangzhiqian](https://github.com/open-vela/contest2026_135_yongwangzhiqian)；
 开发 fork 不是另一个参赛项目。
 
-## Android 设备应用（0.7.6 / code 36）
+## Android 设备应用（0.7.26-shaniu-ota-retry / code 56）
 
 主导航为 **设备｜定制｜更新｜设置**。设备页默认打开；认领无需互联网，
 Wi-Fi 与云模型独立编辑。密码和 Key 不回读、不写入界面保存状态。
@@ -737,7 +742,7 @@ T5-Board 小海豚录音并保存 WAV 到 SD 卡**已获用户实板确认**，�
 ### 4. Android、模型与显示资源
 
 - [Android 工程与构建](android/shaniu-companion/README.md)：JDK 17、Android SDK 35，
-  当前源码版本 `0.7.0-shaniu-companion` / code 30，Android 10+。
+  当前源码版本 `0.7.26-shaniu-ota-retry` / code 56，Android 10+。
 - [模型训练与工具入口](tools/bk7258/README.md)：`voice kws audit/train/evaluate`；
   [内置模型元数据](app/bk7258/models/nihao_openvela.metadata.json)随仓库提供。
   TensorFlow 训练环境不是普通固件编译依赖。

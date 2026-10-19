@@ -460,6 +460,16 @@ int bk7258_ap_ipi_replay_smp(int target_cpu)
   return bk7258_ap_ipi_send_smp_internal(target_cpu, true);
 }
 
+uint32_t bk7258_ap_ipi_smp_pending(unsigned int cpu)
+{
+  if (cpu >= CONFIG_SMP_NCPUS)
+    {
+      return 0;
+    }
+
+  return (uint32_t)atomic_read(&g_bk7258_ap_smp_pending[cpu]);
+}
+
 void bk7258_ap_ipi_mark_scheduler_online(void)
 {
   volatile struct bk7258_ap_smp_state_s *state = bk7258_ap_smp_state();

@@ -26,6 +26,7 @@ FILES = frozenset(
         "sched/init/nx_start.c",
         "sched/init/nx_bringup.c",
         "sched/init/nx_smpstart.c",
+        "wireless/bluetooth/bt_buf.c",
         "wireless/bluetooth/bt_hcicore.c",
         "wireless/bluetooth/bt_conn.c",
         "wireless/bluetooth/bt_l2cap.c",

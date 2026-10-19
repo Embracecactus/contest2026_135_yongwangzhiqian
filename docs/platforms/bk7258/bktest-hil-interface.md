@@ -142,3 +142,146 @@ session.  Each drain has the existing 2000-ms bound.
 per-stage return codes.  It cannot claim acoustic output, DAC/I2S quality,
 absence of xrun/noise, cloud parser behavior, or user-perceived sound.  Those
 remain separate physical/online evidence.
+
+## Voice timing report from an existing capture
+
+The existing HIL CLI can aggregate a single boot's `[voice-stage]` records:
+
+```sh
+python3 tools/bk7258/bk7258.py hil-test voice-report \
+  --from-log serial.raw --boot-id capture-001 \
+  --git-sha "$AGENT_SHA" --output-dir voice-report-001
+```
+
+This offline operation opens no port and issues no cloud request. It writes
+`voice_latency.json`, `turn_latency.csv`, and `SHA256SUMS.txt` into a new directory;
+an existing directory is rejected. The declared source SHA is caller metadata,
+not proof of the firmware currently running. Preserve the firmware identity and
+model/network/sample identities alongside the original capture.
+
+`--input-marks annotations.json` accepts an array with `request_id`, `input_mode`
+(`wav`, `text`, or `acoustic`), `input_end_mono_ms`, `clock_id` (`ap:<boot-id>`),
+`uncertainty_ms`, and `input_evidence`. The input evidence must identify an
+annotated sample end or observed speech end aligned to the AP monotonic clock.
+The uncertainty is the bound on that alignment, in milliseconds. Host receive
+timestamps, the ASR final timestamp, and the detector's silence tail are not
+substitutes for this origin. Text input is labelled `text-submit` and does not
+produce a speech-stop latency.
+
+An independently verified effective-answer onset may additionally supply
+`effective_audio_mono_ms` and `audio_evidence` in the same clock. Only this
+annotation produces `total_ms`; the annotator must distinguish answer content
+from acknowledgement tones, silence, drafts, or unrelated sound. It is not an
+automatic semantic/acoustic acceptance result. `turn_complete_ms` is a separate
+lifecycle observation. Streaming ASR may start before input end, so a negative
+ASR-start offset is valid.
+
+Unknown observations remain `null` (empty CSV cells). The report preserves
+retries, cancellation, per-request events, and queue occupancy on failed turns.
+It rejects malformed traces, reused terminal request identities, duplicate
+annotations, and mismatched clocks. Untagged TTS receive gaps/rebuffer logs are
+not assigned to a turn or promoted to network jitter/DAC underrun counts.
+
+The report command does not execute a turn. Explicit `input_pcm` and
+`input_text` ledger events can supply the aligned origin for injected inputs.
+PCM submission is labelled `injected-pcm-ready`; its `total_ms` stays null
+because capture and endpoint detection were bypassed.
+
+## Live voice benchmark (development image)
+
+The same native USB BKTEST connection now accepts kind 24, BVB1, through the
+existing diagnostics grant. Standard builds reject it. The existing product
+service task consumes the upload and calls the Agent channel's input API;
+the Agent retains cancellation, tools, final-body streaming, TTS and Media.
+Use the matched measurement Agent source with the development firmware.
+
+```bash
+python3 tools/bk7258/bk7258.py bk_test voice benchmark \
+  --port COM16 --profile /private/engineering.spc \
+  --cloud-config /private/voice-benchmark.json \
+  --wav /test/speech.wav --repeat 10 \
+  --git-sha "$SOURCE_SHA" --output-dir "$NEW_RUN_DIR"
+```
+
+Use `--text` or `--dialogue` instead of `--wav`. Dialogue JSON is an array of
+one-key objects: `{"text":"fixed input"}` or `{"wav":"relative.wav"}`.
+Inputs are bounded to ten turns, 4096 UTF-8 text bytes or 15 seconds of PCM16,
+16 kHz mono per turn. No resampling, truncation or speech-speed adjustment is
+performed. `--cancel-after-ms` requests cancellation after RUN acknowledgement;
+it is host scheduling time, not an AP stage timestamp. Lost acknowledgements
+never trigger command replay.
+
+Development cloud JSON contains `base_url`, `dialect` (MiMo: 2), `asr_model`,
+`chat_model`, `tts_model`, `key_file` and `ca_der_file`. JSON and key files must
+be private. The tool sends a bounded BVC2 envelope containing existing CCF1
+configuration and a public CA DER certificate inside pinned TLS. The product
+uses its existing device-owned identity and BVC1 validator. This can configure
+only a device without an installed active cloud/owner selection; no storage
+or identity is changed. Disconnect cancels the input, then clears the volatile
+cloud selection after the official channel releases its resources.
+
+`benchmark.json` records input hashes, firmware readback and terminal receipts.
+Capture UART concurrently with the existing HIL transport and run
+`hil-test voice-report` on the completed raw capture to produce the AP latency
+ledger and CSV. A successful terminal receipt does not prove acoustic onset,
+endpoint timing or DAC continuity. Measurement firmware deployment and actual
+ten-turn execution must be evidenced separately from host tests.
+
+Add `--audio-trace` on a matching engineering image to save
+`audio_stream_benchmark.json` and `audio_gap_report.json`. The latter records
+wait overlap within the maximum PCM gap, FIFO byte-to-Media associations and
+candidate layers. Its 80% wait-coverage label is not a proven root cause;
+the latest prior TLS read is not encoded-byte provenance.
+The existing authenticated kind 24 read path
+returns a sealed per-turn trace after playback; it does not print every PCM
+callback on the timing-critical UART path. `--audio-baseline <report.json>`
+adds numeric differences only for matching input hashes and complete traces.
+Network conditions, generated answer length and model identity still need
+review before interpreting a difference as a firmware improvement.
+
+`--audio-status` reads only the independent sealed USB rearm header after each
+turn. It supports dialogue-state checks without bulk trace traffic and does not
+claim per-chunk coverage. Gap reports separate positive-duration empty waits
+followed by consumption from terminal empty waits; raw counts remain available.
+Byte totals also show whether every observed queued byte was submitted to Media.
+
+The BVS1 status remains 64 bytes. Trace offset `256 + page` selects a 16-byte
+page in BVA2, whose 64-byte big-endian header contains magic, version 2,
+request ID high/low words, record count, dropped count, rearm state
+(0 unobserved, 1 unsuccessful, 2 armed), rearm attempts, rearm monotonic ms,
+sealed flag and six zero words. Offset 256 freezes the header snapshot;
+records are immutable after the terminal receipt and until the next input.
+The client keeps one acknowledged page request outstanding and finishes
+readback before submitting another input. Interrupted exports retain their
+header and completed batches of records with `readback_complete=false`.
+The host adds a unique run/turn UID while preserving the device request ID.
+The shared control owner must keep servicing its existing TLS deadlines while
+display work runs. Claim-window opening retries when the rendering mutex is
+busy; it still succeeds only after the QR reaches both screens. Engineering
+loop-span logs include scheduling delay and must not be called mutex wait time.
+Enrollment ignores complete independent NuttX log lines, while interleaved or
+malformed diagnostic receipts remain failures. Raw UART evidence is retained.
+Trace records
+contain six uint32 words: sequence, kind, begin ms, end ms, bytes/value and
+queue level/error. Kinds 1..8 are TTS submit, TLS receive, decoded PCM callback,
+PCM queue callback, Media write, empty-queue wait, TTS response and queue
+summary. TTS submit/response values are sentence ordinals; summary values are
+maximum ready-consumer gap and peak queued bytes. TLS/decoder/response error
+fields contain positive errno values, not queue levels.
+
+Sealed trace reads after a successful turn permit four additional protocol
+steps for response queue/flush and the next header/payload. The owner executes
+at most eight steps per normal 20-ms scheduling cycle; a new input clears the
+allowance. This bounds export overhead without depending on sub-tick sleeps,
+changing live audio cadence or extending the diagnostic authorization TTL.
+
+Engineering telemetry allocates at most 8192 × 24 bytes (192 KiB) per active
+benchmark, independently of the unchanged 64-KiB PCM ring. It retains the
+completed trace until the next input. Allocation failure, overflow and times
+beyond the uint32 monotonic range increment the dropped count; such a report
+cannot establish a maximum or zero underflow. Queue starvation is counted
+only when a started consumer waits on an empty queue during an unfinished
+TTS request. It is not a DAC underrun counter. TLS receive intervals cannot
+separate server generation from network delay; callback duration can include
+local queue backpressure. Rearm readback adds independent observation, without
+repairing or silently reconstructing damaged historical UART records.

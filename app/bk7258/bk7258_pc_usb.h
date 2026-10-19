@@ -45,6 +45,7 @@ struct bkpc_usb_config_s
 struct bkpc_usb_owner_s
 {
   struct bkpc_usb_s usb;
+  struct bkprov_tls_transport_s transport;
   struct bkcontrol_pair_s *pair;
   uint64_t last;
   uint64_t retry_at;

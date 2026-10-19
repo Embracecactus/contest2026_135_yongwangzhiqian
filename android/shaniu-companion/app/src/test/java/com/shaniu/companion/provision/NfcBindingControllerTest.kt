@@ -5,7 +5,7 @@ import org.junit.Test
 import java.nio.ByteBuffer
 
 class NfcBindingControllerTest {
-    private class Fixture {
+    private class Fixture(authenticate: Boolean = true, private val changed: (NfcBindingController.State) -> Unit = {}) {
         lateinit var events: DeviceControlSession.Events
         val sent = mutableListOf<Pair<DeviceControlProtocol.Command, ByteArray>>()
         val session = DeviceControlSession({ 1000L }, { it() }, { _, _ -> object : DeviceControlSession.Cancel { override fun cancel() {} } })
@@ -24,8 +24,8 @@ class NfcBindingControllerTest {
                     }
                 }
             })
-            events.result(DeviceControlProtocol.Command.STATUS, ok)
-            controller = NfcBindingController(session) {}
+            if (authenticate) events.result(DeviceControlProtocol.Command.STATUS, ok)
+            controller = NfcBindingController(session, changed)
         }
         fun reply(error: Int = 0, bytes: ByteArray? = null, total: Int = 112) {
             val cmd = sent.last().first
@@ -43,6 +43,22 @@ class NfcBindingControllerTest {
             val data = ByteBuffer.allocate(16).put("NCA1".toByteArray()).putInt(caps).putInt(flags).putInt(error).array()
             events.result(DeviceControlProtocol.Command.CONFIG_READ, ok.copy(configChunk=DeviceControlProtocol.ConfigChunk(16,data)))
         }
+    }
+    @Test fun authenticationRecoveryPublishesWithoutReplayingNfcWork() {
+        val states = mutableListOf<NfcBindingController.State>()
+        val f = Fixture(authenticate = false) { states += it }
+        assertEquals(1, states.size)
+        assertNull(states.single().snapshot)
+        assertTrue(f.sent.isEmpty())
+
+        f.events.result(DeviceControlProtocol.Command.STATUS, f.ok)
+
+        assertEquals(2, states.size)
+        assertNull(states.last().snapshot)
+        assertFalse(states.last().busy)
+        assertTrue(f.sent.isEmpty())
+        assertTrue(f.controller.refresh())
+        assertEquals(DeviceControlProtocol.Command.CONFIG_READ, f.sent.single().first)
     }
     @Test fun explicitLocalContentMappingIsReadBackAndEncoded() {
         val f = Fixture(); assertTrue(f.controller.refresh())

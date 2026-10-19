@@ -677,8 +677,12 @@ int bk7258_display_onboarding(const char *qr)
       return 0;
     }
 
-  int ret = nxmutex_lock(&service->lock);
-  if (ret) return ret;
+  /* The claim owner also services USB/BLE deadlines. A renderer may hold
+   * this lock across storage and framebuffer I/O. Let the existing claim
+   * retry reopen later; success still requires the QR on both screens.
+   */
+  int ret = nxmutex_trylock(&service->lock);
+  if (ret) return ret == -EBUSY ? -EAGAIN : ret;
   bool ready = bkdisplay_service_node(BKDISPLAY_FB0, false) &&
                bkdisplay_service_node(BKDISPLAY_FB1, false);
   flags = spin_lock_irqsave(&g_bkdisplay_intent_lock);

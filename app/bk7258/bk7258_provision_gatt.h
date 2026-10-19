@@ -6,9 +6,10 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-/* Register the complete product table only while Host is idle, before product
- * advertising. No advertising or window opens here. The serialized product
- * owner opens a window only after local confirmation and credential readiness.
+/* Register the complete product table after Host startup, before the product
+ * worker starts. The first poll reconciles the Host's default advertising;
+ * no product window opens here. The serialized product owner opens a window
+ * only after local confirmation and credential readiness.
  */
 int bkprov_gatt_register(void);
 /* These two functions are serialized worker calls, never Host callbacks.

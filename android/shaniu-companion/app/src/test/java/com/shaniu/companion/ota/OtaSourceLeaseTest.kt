@@ -22,11 +22,11 @@ class OtaSourceLeaseTest {
         assertTrue(lease.publish(source))
         val snapshot = DeviceControlProtocol.Snapshot(0, false, false, null, null, null, null)
         var sent = DeviceControlProtocol.Command.OTA_BEGIN
-        var upload: OtaControlUpload? = OtaControlUpload(ByteArray(44)) { command, _ -> sent = command; true }
+        var upload: OtaControlUpload? = OtaControlUpload(ByteArray(44), onStartAccepted = lease::accept) { command, _ -> sent = command; true }
         assertTrue(upload!!.start())
         while (upload!!.state == OtaControlUpload.State.WAITING) upload!!.response(sent, snapshot)
         assertEquals(OtaControlUpload.State.ACCEPTED, upload!!.state)
-        lease.accept()
+        assertTrue(lease.accepted)
 
         var events: DeviceControlSession.Events? = null
         val scheduled = mutableListOf<() -> Unit>()
@@ -69,6 +69,88 @@ class OtaSourceLeaseTest {
         lease.close()
         assertFalse(lease.accepted)
         assertEquals(1, source.closes.get())
+    }
+
+    @Test fun startAckAcceptsSourceBeforeRacingCancelCanBeRefused() {
+        for (cancelError in listOf(-114, 0)) {
+            val source = Source()
+            val lease = OtaSourceLease<Source> { it.close() }
+            assertTrue(lease.publish(source))
+            val ack = DeviceControlProtocol.Snapshot(0, false, false, null, null, null, null)
+            var sent = DeviceControlProtocol.Command.OTA_BEGIN
+            var acceptedCalls = 0
+            val upload = OtaControlUpload(ByteArray(44), onStartAccepted = {
+                acceptedCalls++
+                lease.accept()
+            }) { command, _ ->
+                sent = command
+                if (command == DeviceControlProtocol.Command.OTA_CANCEL) {
+                    // This must already be true at the transport boundary.
+                    assertTrue(lease.accepted)
+                    assertTrue(OtaSourceLease.mayApplyVerification(lease))
+                }
+                true
+            }
+            assertTrue(upload.start())
+            while (sent != DeviceControlProtocol.Command.OTA_START) upload.response(sent, ack)
+            assertFalse(lease.accepted)
+            upload.cancel()
+            upload.response(sent, ack)
+            assertEquals(DeviceControlProtocol.Command.OTA_CANCEL, sent)
+            assertEquals(OtaControlUpload.State.WAITING, upload.state)
+            upload.response(sent, ack.copy(error = cancelError))
+            assertEquals(if (cancelError == 0) OtaControlUpload.State.CANCELED
+                else OtaControlUpload.State.FAILED, upload.state)
+            upload.close()
+            assertEquals(1, acceptedCalls)
+            assertTrue(lease.accepted)
+            assertEquals(0, source.closes.get())
+            // The source owner decides when the remote terminal permits release.
+            lease.close()
+            assertEquals(1, source.closes.get())
+        }
+    }
+
+    @Test fun failedCancelSendCannotUndoAnAcceptedStart() {
+        val source = Source()
+        val lease = OtaSourceLease<Source> { it.close() }
+        assertTrue(lease.publish(source))
+        var sent = DeviceControlProtocol.Command.OTA_BEGIN
+        val ack = DeviceControlProtocol.Snapshot(0, false, false, null, null, null, null)
+        val upload = OtaControlUpload(ByteArray(44), onStartAccepted = lease::accept) { command, _ ->
+            sent = command
+            command != DeviceControlProtocol.Command.OTA_CANCEL
+        }
+        assertTrue(upload.start())
+        while (sent != DeviceControlProtocol.Command.OTA_START) upload.response(sent, ack)
+        upload.cancel()
+        upload.response(sent, ack)
+        assertEquals(DeviceControlProtocol.Command.OTA_CANCEL, sent)
+        assertEquals(OtaControlUpload.State.FAILED, upload.state)
+        assertTrue(lease.accepted)
+        upload.close()
+        assertSame(source, lease.current())
+        assertEquals(0, source.closes.get())
+        assertTrue(OtaSourceLease.mayApplyVerification(lease))
+        assertTrue(lease.shouldCloseAfterStatus(3, uploadPresent = false))
+        lease.close()
+        assertEquals(1, source.closes.get())
+    }
+
+    @Test fun rejectedStartDoesNotAcceptSourceWhenCancelIsPending() {
+        var acceptedCalls = 0
+        var sent = DeviceControlProtocol.Command.OTA_BEGIN
+        val ack = DeviceControlProtocol.Snapshot(0, false, false, null, null, null, null)
+        val upload = OtaControlUpload(ByteArray(44), onStartAccepted = { acceptedCalls++ }) { command, _ ->
+            sent = command; true
+        }
+        assertTrue(upload.start())
+        while (sent != DeviceControlProtocol.Command.OTA_START) upload.response(sent, ack)
+        upload.cancel()
+        upload.response(sent, ack.copy(error = -16))
+        assertEquals(OtaControlUpload.State.FAILED, upload.state)
+        assertEquals(0, acceptedCalls)
+        assertEquals(DeviceControlProtocol.Command.OTA_START, sent)
     }
 
     private fun assertPreparingSourceSurvivesStatus(state: Long) {

@@ -7,7 +7,8 @@ capture owner。此能力不是 UVC，也没有声称 USB 取景帧率等于传�
 单请求槽；等待/采集最多 8 s，成功帧最多留存 120 s。缓冲按需分配，上限
 102400 B，另复用驱动的一帧 V4L2 MMAP；驱动/SDK峰值另测。无新增线程或计时器，
 现有 vision worker 执行采集，产品循环负责期限/准入。查询不触发采集、重扫或
-挂载；元数据锁外执行分配、采集和释放。状态读取 80 B，帧分块每次 16 B，
+挂载；元数据锁外执行分配、采集和释放。状态读取 80 B，帧分块协商为每次 512 B，
+旧固件继续每次 16 B；锁内只复制一个有上限的块，
 带请求身份和总长校验；传完或取消必须释放。电脑仅保留当前预览一帧。
 
 `CCQ1` 32 B：magic4、action BE32（1 开始，2 取消/释放）、当前 id BE64、
@@ -21,6 +22,19 @@ flags：admitted=1、valid=2。时间是设备 monotonic ms，无墙钟或识别
 须使用匹配工具，读取不支持时明确失败，不回退重放到回答偏好接口。
 `camera-frame` 读取携带 id8、offset4、expected-size4；错身份、过期、取消、
 越界一律拒绝。TLS 和最终元数据身份复核防止拼接不同请求。
+
+kind **25** 是同一相机 owner 的可选分块读取，没有另建采样槽或线程。
+先发送普通四字节 CONFIG_READ selector（kind25、offset0）；成功时沿用
+40 B 回复，total=16，数据为 `CBR1`、BE32 revision=1、block-size=512、reserved=0。
+仅此只读探测的 EACCES/EINVAL/ERANGE/ENOTSUP 允许回退 kind22；格式错误和
+后续数据读取失败均不降级或重放。手机协议、kind23 状态及 kind22 回复保持原样。
+
+协商后 kind25 的 20 B 请求为 selector4、id8、offset4、expected-size4；
+offset 从零起且 16 B 对齐。每次仍只允许一个请求及确认。回复固定 536 B：
+SDC1 头16、signed error4、total4、图像块512；末块零填充，错误时 total 和数据
+均为零。权限、帧身份、总长、准入和过期检查与 kind22 共用，取消立即失效。
+通用会话负责帧界和回复容量；PC 授权 owner 负责权限；相机 owner 仍唯一拥有
+id、nonce、帧缓存及期限。没有删除旧协议，也没有新增隐式补采路径。
 
 实际格式、宽高、帧序号由成功 V4L2 回执取得；当前配置请求 JPEG 640×480、
 传感器 30 fps，服务校验实际格式/帧间隔。USB 是有界单帧轮询，实际耗时单独
@@ -45,6 +59,11 @@ python3 tools/bk7258/bk7258.py workbench serve --port NATIVE_CDC_PORT \
   --profile pc.profile --workbench-dir new-camera-session
 ```
 
+每次工作台操作先在共享鉴权期限内建立授权会话；仅 TLS 握手阶段的传输中断或非证书
+SSL 错误可在 1.1 s 退避后新建一次 transport/client，至多两次建连。证书身份、PIN、
+授权交换及任何业务命令失败均不重试，已发出的相机状态、采集、读取、取消或释放请求
+也不会重放。
+
 页面“按需单帧取景”提供采一帧、取消采集/传输、读取状态及释放缓存。
 新请求先清除上次预览；有效图像解码显示后只留在本机页面内存。新一次相机
 操作丢弃服务的上一帧，导出诊断不含图像。退出工作台会请求取消并关闭会话。
@@ -54,3 +73,5 @@ CLI `workbench camera-capture` 默认仅返回格式、长度、设备单调时�
 `camera-cancel` 明确释放当前缓存。一次采集/传输始终复用同一个授权连接；
 缺权限、断线、超时或读取身份变化均不会自动补采。合法授权缺席仅暂停实板
 USB 正向验收，主机生产协议/状态机、原生配置入口及 V4L2 后端可分层验证。
+`transfer_seconds` 保留采样请求至最终元数据检查的耗时；
+`frame_transfer_seconds` 仅计块读取区间，`transfer_chunk_bytes` 标明协商结果。

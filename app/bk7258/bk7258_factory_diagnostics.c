@@ -9,6 +9,12 @@
 #include <limits.h>
 #include <string.h>
 #include <time.h>
+#ifdef __NuttX__
+#  include <nuttx/config.h>
+#endif
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+#  include <syslog.h>
+#endif
 
 #include <mbedtls/platform_util.h>
 #include <mbedtls/sha256.h>
@@ -74,6 +80,27 @@ static int monotonic_ms(uint64_t *now_ms)
   return 0;
 }
 
+static int lock_with_time(uint64_t *now_ms)
+{
+  int ret = nxmutex_lock(&g_diagnostics.lock);
+
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  /* Sample under the same lock that orders principal updates. A caller can
+   * wait here after another thread has already advanced the shared time. */
+
+  ret = monotonic_ms(now_ms);
+  if (ret < 0)
+    {
+      nxmutex_unlock(&g_diagnostics.lock);
+    }
+
+  return ret;
+}
+
 static void clear_principal_locked(void)
 {
   mbedtls_platform_zeroize(g_diagnostics.client,
@@ -93,6 +120,11 @@ static int advance_locked(uint64_t now_ms)
     {
       if (g_diagnostics.active)
         {
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+          syslog(LOG_WARNING, "BKVOICE diagnostic principal reason=1 "
+                 "now=%llu last=%llu\n", (unsigned long long)now_ms,
+                 (unsigned long long)g_diagnostics.last_ms);
+#endif
           clear_principal_locked();
           g_diagnostics.used = true;
         }
@@ -104,6 +136,11 @@ static int advance_locked(uint64_t now_ms)
   g_diagnostics.have_time = true;
   if (g_diagnostics.active && now_ms >= g_diagnostics.deadline_ms)
     {
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+      syslog(LOG_WARNING, "BKVOICE diagnostic principal reason=2 "
+             "now=%llu deadline=%llu\n", (unsigned long long)now_ms,
+             (unsigned long long)g_diagnostics.deadline_ms);
+#endif
       clear_principal_locked();
       g_diagnostics.used = true;
       g_diagnostics.expired = true;
@@ -129,9 +166,9 @@ static int make_principal(const uint8_t certificate[32],
 }
 
 int bkfactory_diagnostics_gate(bool eligible,
-                               const uint8_t certificate_sha256[32],
-                               uint64_t now_ms)
+                               const uint8_t certificate_sha256[32])
 {
+  uint64_t now_ms;
   int ret;
   int lockret;
 
@@ -141,7 +178,7 @@ int bkfactory_diagnostics_gate(bool eligible,
       return -EINVAL;
     }
 
-  lockret = nxmutex_lock(&g_diagnostics.lock);
+  lockret = lock_with_time(&now_ms);
   if (lockret < 0)
     {
       return lockret;
@@ -152,6 +189,10 @@ int bkfactory_diagnostics_gate(bool eligible,
     {
       if (g_diagnostics.active)
         {
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+          syslog(LOG_WARNING, "BKVOICE diagnostic principal reason=3 "
+                 "now=%llu\n", (unsigned long long)now_ms);
+#endif
           clear_principal_locked();
           g_diagnostics.used = true;
         }
@@ -173,6 +214,10 @@ int bkfactory_diagnostics_gate(bool eligible,
   if (g_diagnostics.active &&
       memcmp(g_diagnostics.certificate, certificate_sha256, 32) != 0)
     {
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+      syslog(LOG_WARNING, "BKVOICE diagnostic principal reason=4 "
+             "now=%llu\n", (unsigned long long)now_ms);
+#endif
       clear_principal_locked();
       g_diagnostics.used = true;
       g_diagnostics.eligible = false;
@@ -188,10 +233,10 @@ int bkfactory_diagnostics_gate(bool eligible,
   return 0;
 }
 
-int bkfactory_diagnostics_enable(const uint8_t *record, size_t size,
-                                 uint64_t now_ms)
+int bkfactory_diagnostics_enable(const uint8_t *record, size_t size)
 {
   uint8_t digest[32];
+  uint64_t now_ms;
   uint64_t binding = 0;
   int ret;
   int lockret;
@@ -211,7 +256,7 @@ int bkfactory_diagnostics_enable(const uint8_t *record, size_t size,
       return -EINVAL;
     }
 
-  lockret = nxmutex_lock(&g_diagnostics.lock);
+  lockret = lock_with_time(&now_ms);
   if (lockret < 0)
     {
       return lockret;
@@ -281,9 +326,10 @@ out:
   return ret;
 }
 
-int bkfactory_diagnostics_revoke(uint64_t now_ms)
+int bkfactory_diagnostics_revoke(void)
 {
-  int lockret = nxmutex_lock(&g_diagnostics.lock);
+  uint64_t now_ms;
+  int lockret = lock_with_time(&now_ms);
 
   if (lockret < 0)
     {
@@ -302,9 +348,10 @@ int bkfactory_diagnostics_revoke(uint64_t now_ms)
   return 0;
 }
 
-int bkfactory_diagnostics_status(uint64_t now_ms, uint32_t *flags,
+int bkfactory_diagnostics_status(uint32_t *flags,
                                  uint32_t *remaining_ms)
 {
+  uint64_t now_ms;
   uint64_t remaining = 0;
   int ret;
   int lockret;
@@ -314,7 +361,7 @@ int bkfactory_diagnostics_status(uint64_t now_ms, uint32_t *flags,
       return -EINVAL;
     }
 
-  lockret = nxmutex_lock(&g_diagnostics.lock);
+  lockret = lock_with_time(&now_ms);
   if (lockret < 0)
     {
       *flags = 0;
@@ -352,13 +399,7 @@ int bkfactory_diagnostics_certificate(uint32_t offset, uint32_t *word)
     }
 
   *word = 0;
-  ret = monotonic_ms(&now_ms);
-  if (ret < 0)
-    {
-      return ret;
-    }
-
-  lockret = nxmutex_lock(&g_diagnostics.lock);
+  lockret = lock_with_time(&now_ms);
   if (lockret < 0)
     {
       return lockret;
@@ -396,13 +437,7 @@ int bkfactory_diagnostics_snapshot(void *context, uint64_t *binding,
 
   *binding = 0;
   memset(view, 0, sizeof(*view));
-  ret = monotonic_ms(&now_ms);
-  if (ret < 0)
-    {
-      return ret;
-    }
-
-  lockret = nxmutex_lock(&g_diagnostics.lock);
+  lockret = lock_with_time(&now_ms);
   if (lockret < 0)
     {
       return lockret;

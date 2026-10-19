@@ -1007,6 +1007,11 @@ void bk7258_ap_lifecycle_supervise(void)
         }
 #endif
 
+#if defined(CONFIG_BK7258_AP_SUPERVISOR) && defined(CONFIG_SMP) && \
+    defined(CONFIG_BK7258_AP_IPI) && \
+    defined(CONFIG_BK7258_AP_SMP_SCHED_ONLINE)
+      bk7258_ap_health_observe();
+#endif
       state->heartbeat++;
 #if defined(CONFIG_BK7258_AP_SUPERVISOR) && defined(CONFIG_BK7258_RPTUN)
       if (rptun->generation == state->generation)

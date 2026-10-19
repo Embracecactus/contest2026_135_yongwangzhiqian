@@ -65,6 +65,11 @@ FIELDS.update(
     }
 )
 FIELDS["resource-status"] = {"receipt_id"}
+FIELDS["default-status"] = {
+    "selection_epoch",
+    "selection_nonce",
+    "expected_selection_id",
+}
 
 
 class Conflict(ValueError):
@@ -293,7 +298,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header(
             "Content-Security-Policy",
-            "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+            "default-src 'none'; script-src 'self'; style-src 'self'; img-src data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
         )
         self.end_headers()
         self.wfile.write(data)

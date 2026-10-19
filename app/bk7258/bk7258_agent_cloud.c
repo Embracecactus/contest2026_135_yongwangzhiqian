@@ -13,6 +13,11 @@
 #include "agent_config.h"
 #include "infra/config_store.h"
 #include "llm/llm_proxy.h"
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+#include "bk7258_engineering_test.h"
+#include "voice/voice_channel.h"
+#include <mbedtls/sha256.h>
+#endif
 
 #include <errno.h>
 #include <netdb.h>
@@ -57,6 +62,10 @@ struct cloud_backend_s
   bool session_offered;
   bool response_received;
   atomic_bool canceled;
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  uint64_t trace_request;
+  uint32_t trace_segment;
+#endif
 #ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
   struct bkcloud_fixture_ctx_s *fixture;
 #endif
@@ -70,6 +79,56 @@ static struct cloud_backend_s g_tts;
 static struct cloud_backend_s g_llm;
 static atomic_int g_thinking = ATOMIC_VAR_INIT(-1);
 static atomic_int g_response_length = ATOMIC_VAR_INIT(-1);
+
+#ifdef CONFIG_BK7258_TTS_ISOLATION
+static void isolation_tls_observe(void *context, unsigned int kind,
+                                   uint64_t begin, uint64_t end, int result)
+{
+  struct cloud_backend_s *backend = context;
+  if (backend->trace_request)
+    agent_audio_observe(backend->trace_request, kind, begin, end,
+                       result > 0 ? result : 0, result < 0 ? -result : 0);
+}
+#endif
+
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+static void trace_content(uint64_t request, const char *stage,
+                           uint32_t segment, const char *text)
+{
+  static const char hex[] = "0123456789abcdef";
+  unsigned char digest[32];
+  char encoded[65];
+  size_t size = strlen(text);
+
+  if (mbedtls_sha256((const unsigned char *)text, size, digest, 0) != 0)
+    {
+      return;
+    }
+
+  for (size_t i = 0; i < sizeof(digest); i++)
+    {
+      encoded[2 * i] = hex[digest[i] >> 4];
+      encoded[2 * i + 1] = hex[digest[i] & 15];
+    }
+
+  encoded[64] = '\0';
+  /* Compare generated content across identical file inputs without retaining
+   * private recognition or answer text. TTS is serial within this backend. */
+
+  syslog(LOG_INFO, "[voice-content] request=%llu stage=%s segment=%lu "
+         "bytes=%zu sha256=%s\n", (unsigned long long)request, stage,
+         (unsigned long)segment, size, encoded);
+}
+
+void bkagent_cloud_trace_waits(void)
+{
+  uint32_t now = (uint32_t)bkvoice_config_now_ms(NULL);
+  bkvoice_tls_trace_wait(&g_llm.tls, "llm", now);
+  bkvoice_tls_trace_wait(&g_asr.tls, "asr", now);
+  bkvoice_tls_trace_wait(&g_tts.tls, "tts", now);
+  bkvoice_tls_trace_wait(&g_stream_asr.tls, "stream-asr", now);
+}
+#endif
 
 #ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
 /* Exclusive, pre-core-ready development window. Never used by a network peer
@@ -364,6 +423,10 @@ static int backend_prepare(struct cloud_backend_s *backend, uint8_t dialect)
       .session_load = session_load,
       .session_save = session_save,
       .session_context = backend,
+#ifdef CONFIG_BK7258_TTS_ISOLATION
+      .observe = backend == &g_tts ? isolation_tls_observe : NULL,
+      .observe_context = backend,
+#endif
     };
   ret = bkvoice_tls_initialize(&backend->tls, &tls);
   if (ret != 0)
@@ -453,7 +516,15 @@ static ssize_t cloud_recv(void *context, uint8_t *data, size_t size,
       if (idle < deadline) deadline = idle;
     }
 
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  uint64_t begin = bkvoice_config_now_ms(NULL);
+#endif
   ssize_t ret = bkvoice_tls_ops()->recv(&backend->tls, data, size, deadline);
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  if (backend == &g_tts)
+    agent_audio_observe(backend->trace_request, 2, begin,
+      bkvoice_config_now_ms(NULL), ret > 0 ? ret : 0, ret < 0 ? -ret : 0);
+#endif
   if (ret > 0) backend->response_received = true;
   if (ret == -ETIMEDOUT && backend == &g_tts)
     syslog(LOG_WARNING, "AGENT TTS receive timeout phase=%s\n",
@@ -795,6 +866,12 @@ static int recognize(const unsigned char *pcm, size_t size,
     pcm, size, text, capacity);
   if (atomic_load(&g_asr.canceled)) ret = -ECANCELED;
   if (ret != 0 && capacity) text[0] = '\0';
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  if (ret == 0)
+    {
+      trace_content(voice_channel_request_id(), "asr", 0, text);
+    }
+#endif
   mbedtls_platform_zeroize(client, sizeof(*client));
   free(client);
   syslog(LOG_INFO, "AGENT ASR backend=%s mode=batch ret=%d\n",
@@ -804,6 +881,10 @@ static int recognize(const unsigned char *pcm, size_t size,
 
 struct pcm_output_s
 {
+#ifdef CONFIG_BK7258_TTS_ISOLATION
+  mbedtls_sha256_context response_hash;
+  int hash_result;
+#endif
   voice_tts_chunk_cb callback;
   void *context;
   unsigned char *buffer;
@@ -844,6 +925,11 @@ static int pcm_write(struct pcm_output_s *output, const void *data, size_t size)
         g_validation_pcm.hash[slot] =
           (g_validation_pcm.hash[slot] ^ p[i]) * 16777619u;
     }
+#endif
+#ifdef CONFIG_BK7258_TTS_ISOLATION
+  if (!output->hash_result)
+    output->hash_result = mbedtls_sha256_update(&output->response_hash,
+                                                data, size);
 #endif
   output->used += size;
   return atomic_load(&g_tts.canceled) ? -ECANCELED : 0;
@@ -925,6 +1011,10 @@ static int pcm_output(void *context, const void *data, size_t size)
   struct pcm_output_s *output = context;
   const unsigned char *bytes = data;
   int ret;
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  uint64_t begin = bkvoice_config_now_ms(NULL);
+  size_t input_size = size;
+#endif
   if (!bytes && size) return -EPROTO;
   /* HTTP chunks are bytes, not guaranteed sample boundaries. */
   if (output->has_tail && size)
@@ -933,7 +1023,7 @@ static int pcm_output(void *context, const void *data, size_t size)
       output->has_tail = false;
       size--;
       ret = pcm_frames(output, sample, sizeof(sample));
-      if (ret != 0) return ret;
+      if (ret != 0) goto out;
     }
   size_t aligned = size & ~(size_t)1;
   ret = pcm_frames(output, bytes, aligned);
@@ -942,11 +1032,30 @@ static int pcm_output(void *context, const void *data, size_t size)
       output->tail = bytes[aligned];
       output->has_tail = true;
     }
+out:
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  agent_audio_observe(g_tts.trace_request, 3, begin,
+    bkvoice_config_now_ms(NULL), input_size, ret < 0 ? -ret : 0);
+#endif
   return ret;
 }
 
 static int synthesize(struct pcm_output_s *output, const char *text)
 {
+#ifdef CONFIG_BK7258_TTS_ISOLATION
+  mbedtls_sha256_init(&output->response_hash);
+  output->hash_result = mbedtls_sha256_starts(&output->response_hash, 0);
+#endif
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  uint64_t request = voice_channel_request_id();
+  if (request != g_tts.trace_request)
+    {
+      g_tts.trace_segment = 0;
+    }
+
+  g_tts.trace_request = request;
+  trace_content(request, "tts", ++g_tts.trace_segment, text);
+#endif
 #ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
   if (g_validation && g_validation_sentence < 2)
     {
@@ -971,6 +1080,26 @@ static int synthesize(struct pcm_output_s *output, const char *text)
   if (client) mbedtls_platform_zeroize(client, sizeof(*client));
   free(decoder);
   free(client);
+#ifdef CONFIG_BK7258_TTS_ISOLATION
+  unsigned char digest[32];
+  char encoded[65];
+  static const char hex[] = "0123456789abcdef";
+  if (!output->hash_result)
+    output->hash_result = mbedtls_sha256_finish(&output->response_hash, digest);
+  if (!output->hash_result)
+    {
+      for (size_t i = 0; i < sizeof(digest); i++)
+        {
+          encoded[i * 2] = hex[digest[i] >> 4];
+          encoded[i * 2 + 1] = hex[digest[i] & 15];
+        }
+      encoded[64] = 0;
+      syslog(LOG_INFO, "[tts-response] request=%llu bytes=%zu sha256=%s ret=%d\n",
+             (unsigned long long)g_tts.trace_request, output->used, encoded, ret);
+    }
+  else syslog(LOG_WARNING, "[tts-response] hash_error=%d\n", output->hash_result);
+  mbedtls_sha256_free(&output->response_hash);
+#endif
   syslog(LOG_INFO, "AGENT TTS backend=%s mode=%s source_rate=%u "
     "output_rate=%u ret=%d bytes=%zu\n",
     g_tts.settings->service.dialect == 2 ? "mimo" : "openai-audio",

@@ -77,6 +77,121 @@ class CameraTest(unittest.TestCase):
         with self.assertRaises(ControlError):
             m.status(client)
 
+    def test_capture_uses_blocks_and_preserves_partial_tail(self):
+        from _lib.workbench import ControlError, DeviceRejected
+
+        m = self.module()
+        frame = b"\xff\xd8" + bytes(range(256)) * 2 + b"x" * 4 + b"\xff\xd9"
+
+        class Client:
+            closed = False
+            authenticated = True
+            _timeout = 1
+
+            def __init__(self, blocks=True, interrupt=False):
+                self.blocks, self.interrupt = blocks, interrupt
+                self.phase, self.identity = 0, 0
+                self.nonce = bytes(16)
+                self.block_offsets = []
+                self.actions = []
+
+            def _now(self):
+                return 1
+
+            def _sleep(self, unused):
+                pass
+
+            def snapshot(self):
+                flags = 3 if self.phase == 3 else 1
+                size = len(frame) if self.phase == 3 else 0
+                return struct.pack(
+                    ">4sIQ16sQIIIIiIIIII",
+                    b"CCS1",
+                    self.phase,
+                    self.identity,
+                    self.nonce,
+                    1,
+                    size,
+                    2,
+                    2,
+                    0x4745504A if size else 0,
+                    0,
+                    flags,
+                    1,
+                    1,
+                    1,
+                    120000 if self.phase == 3 else 0,
+                )
+
+            def _exchange(self, command, payload, deadline):
+                if command == 15 and payload == struct.pack(">I", 25 << 16):
+                    if not self.blocks:
+                        raise DeviceRejected(-13)
+                    return (
+                        16,
+                        *struct.unpack(">4I", b"CBR1" + struct.pack(">III", 1, 512, 0)),
+                    )
+                if command == 15:
+                    kind = struct.unpack(">I", payload[:4])[0] >> 16
+                    if kind == 23:
+                        offset = struct.unpack(">I", payload[:4])[0] & 0xFFFF
+                        return (
+                            80,
+                            *struct.unpack(
+                                ">4I", self.snapshot()[offset : offset + 16]
+                            ),
+                        )
+                    if kind == 22:
+                        offset = struct.unpack(">IQII", payload)[2]
+                        return (
+                            len(frame),
+                            *struct.unpack(
+                                ">4I", (frame[offset : offset + 16]).ljust(16, b"\0")
+                            ),
+                        )
+                if command == 17:
+                    action, identity = struct.unpack(">IQ", payload[4:16])
+                    self.actions.append(action)
+                    if action == 1:
+                        self.identity, self.nonce, self.phase = (
+                            identity + 1,
+                            payload[16:],
+                            3,
+                        )
+                    else:
+                        self.phase = 5
+                return (0, 0, 0, 0, 0)
+
+            def _camera_block_exchange(self, selector, deadline):
+                _kind, identity, offset, total = struct.unpack(">IQII", selector)
+                self.block_offsets.append(offset)
+                if identity != self.identity or total != len(frame):
+                    raise AssertionError("invalid block selector")
+                if self.interrupt and offset == 512:
+                    raise ControlError("fixture interruption")
+                return len(frame), frame[offset : offset + 512].ljust(512, b"\0")
+
+        client = Client()
+        result = m.capture(client)
+        self.assertEqual(client.block_offsets, [0, 512])
+        self.assertEqual(result["transfer_chunk_bytes"], 512)
+        self.assertEqual(
+            result["sha256"], __import__("hashlib").sha256(frame).hexdigest()
+        )
+        self.assertTrue(result["release_confirmed"])
+
+        legacy = Client(blocks=False)
+        result = m.capture(legacy)
+        self.assertEqual(legacy.block_offsets, [])
+        self.assertEqual(result["transfer_chunk_bytes"], 16)
+        self.assertTrue(result["release_confirmed"])
+
+        interrupted = Client(interrupt=True)
+        with self.assertRaises(ControlError):
+            m.capture(interrupted)
+        self.assertEqual(interrupted.block_offsets, [0, 512])
+        self.assertEqual(interrupted.actions, [1, 2])
+
 
 if __name__ == "__main__":
     unittest.main()

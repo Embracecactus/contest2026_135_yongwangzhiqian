@@ -52,6 +52,9 @@ def _parser() -> argparse.ArgumentParser:
             "hil-test", help="drive authenticated engineering BKTEST input"
         )
     )
+    hil_test_domain.add_benchmark_arguments(
+        commands.add_parser("bk_test", help="unattended BKTEST product benchmarks")
+    )
 
     voice = commands.add_parser("voice", help="configure a BKVoice board session")
     voice_domain.add_arguments(
@@ -1271,6 +1274,8 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "hil-test":
             command = ["bk7258.py", "hil-test", args.operation]
             print(json.dumps(hil_test_domain.run(args, command), indent=2))
+        elif args.command == "bk_test":
+            print(json.dumps(hil_test_domain.run_voice_test(args), indent=2))
         else:
             _verify(args)
     except (

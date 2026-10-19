@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 import importlib
+import base64
 import json
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 import sys
+import subprocess
 import tempfile
 import unittest
 
@@ -24,6 +26,43 @@ class FactoryDiagnosticsToolTest(unittest.TestCase):
 
     def tearDown(self):
         self.temp.cleanup()
+
+    def console_reader(self, lines, count):
+        try:
+            executable = self.module._powershell()
+        except self.module.FactoryDiagnosticsError:
+            self.skipTest("Windows PowerShell reader fixture unavailable")
+        source = self.module._POWERSHELL
+        reader = source[source.index("function Read-Public"):source.index("\ntry {")]
+        data = base64.b64encode(("\r\n".join(lines) + "\r\n").encode()).decode()
+        script = reader + "\n" + r'''
+$ErrorActionPreference = 'Stop'
+$total = [System.Diagnostics.Stopwatch]::StartNew()
+$serial = [pscustomobject]@{ bytes = [Convert]::FromBase64String('DATA'); at = 0 }
+$serial | Add-Member -MemberType ScriptMethod -Name ReadByte -Value {
+  if ($this.at -ge $this.bytes.Length) { throw [System.TimeoutException]::new() }
+  $v = $this.bytes[$this.at]; $this.at++; return $v
+}
+@(1..COUNT | ForEach-Object { Read-Public 1000 $true }) | ConvertTo-Json -Compress
+'''.replace("DATA", data).replace("COUNT", str(count))
+        encoded = base64.b64encode(script.encode("utf-16le")).decode()
+        result = subprocess.run(
+            [str(executable), "-NoProfile", "-EncodedCommand", encoded],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=10,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return json.loads(result.stdout)
+
+    def test_console_reader_keeps_receipts_across_complete_async_logs(self):
+        ready = "BKPROV DIAGNOSTICS READY bytes=52"
+        passed = "BKPROV DIAGNOSTICS PASS flags=7 ttl_ms=600000 certificate_sha256=" + "a" * 64
+        log = "[13/10/26 03:00:00.123456] [CPU0] [57] [  WARN] [ap] BKVOICE diagnostic loop stage=12 begin=1 end=201 elapsed=200"
+        self.assertEqual(self.console_reader([log, ready, log, passed], 2), [ready, passed])
+
+    def test_console_reader_does_not_repair_interleaved_receipts(self):
+        broken = "BKPROV DIAGNOSTICS PA[CPU0] interrupted"
+        self.assertEqual(self.console_reader([broken], 1), broken)
 
     def test_enroll_orders_physical_secret_pin_probe_and_dpapi_profile(self):
         events = []

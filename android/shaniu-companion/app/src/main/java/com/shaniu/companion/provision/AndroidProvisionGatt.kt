@@ -218,7 +218,8 @@ class AndroidProvisionGatt(
                 stopping.set(true)
                 if (reason != "cancelled") {
                     val status = gattStatus?.let { " gatt_status=$it" } ?: ""
-                    Log.w(LOG_TAG, "transport_close reason=$reason stage=${stage.name.lowercase()} elapsed_ms=${elapsedMs()}$status")
+                    val detail = session.failureDetail?.let { " detail=$it" } ?: ""
+                    Log.w(LOG_TAG, "transport_close reason=$reason stage=${stage.name.lowercase()} elapsed_ms=${elapsedMs()}$status$detail")
                 }
             }
         }

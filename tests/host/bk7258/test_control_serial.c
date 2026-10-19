@@ -145,7 +145,21 @@ int main(int argc, char **argv)
       assert(bkcontrol_serial_open(&serial, &transport) == -EBUSY);
       assert(opens == 1);
       for (size_t i = 0; i < sizeof(sent); i++) sent[i] = (unsigned char)i;
-      if (!strcmp(argv[1], "binary"))
+      if (!strcmp(argv[1], "ready"))
+        {
+          const unsigned char first[] = {0x16, 0x03, 0x03};
+          assert(bkcontrol_serial_ready(&serial) == 0);
+          assert(transport.generation(transport.context) == epoch);
+          assert(write(master, first, sizeof(first)) == (ssize_t)sizeof(first));
+          assert(bkcontrol_serial_ready(&serial) == 1);
+          assert(transport.read(transport.context, epoch, received,
+                                sizeof(received)) == (ssize_t)sizeof(first));
+          assert(!memcmp(first, received, sizeof(first)));
+          assert(bkcontrol_serial_ready(&serial) == 0);
+          assert(close(master) == 0); master = -1;
+          assert(bkcontrol_serial_ready(&serial) == -ENOTCONN && !serial.live);
+        }
+      else if (!strcmp(argv[1], "binary"))
         {
           assert(write(master, sent, sizeof(sent)) == sizeof(sent));
           for (int i = 0; i < 10000 && count < sizeof(sent); i++)

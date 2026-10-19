@@ -319,13 +319,17 @@ class DisplayHttpTest(WebTest):
 
     def prepare_default(self):
         value = self.operation("default-status")
-        self.operation(
+        accepted = self.operation(
             "default-refresh",
             selection_epoch=value["epoch"],
             expected_selection_id=value["id"],
         )
         self.peer.external("step")
-        value = self.operation("default-status")
+        value = self.operation(
+            "default-status",
+            selection_epoch=accepted["epoch"],
+            selection_nonce=accepted["operation_nonce"],
+        )
         self.assertTrue(value["refresh_complete"])
         self.assertEqual(value["revision"], 1)
         return value
@@ -334,19 +338,77 @@ class DisplayHttpTest(WebTest):
         self.start_trial()
         value = self.prepare_default()
         before = self.peer.stats()
-        self.operation(
+        accepted = self.operation(
             "default-set",
             selection_epoch=value["epoch"],
             expected_selection_id=value["id"],
             expected_default_revision=str(value["revision"]),
             pack_filename=NAME,
         )
-        pending = self.operation("default-status")
+        pending = self.operation(
+            "default-status",
+            selection_epoch=accepted["epoch"],
+            selection_nonce=accepted["operation_nonce"],
+        )
         self.assertFalse(pending["device_reports_saved"])
         self.assertFalse(pending["device_reports_rendered"])
         self.assertEqual(before, self.peer.stats())
+        canceled = self.operation(
+            "default-cancel",
+            selection_epoch=pending["epoch"],
+            expected_selection_id=pending["id"],
+        )
+        self.assertFalse(canceled["completion_verified"])
         self.peer.external("step")
-        done = self.operation("default-status")
+        result = self.operation(
+            "default-status",
+            selection_epoch=canceled["epoch"],
+            selection_nonce=canceled["operation_nonce"],
+            expected_selection_id=pending["id"],
+        )
+        self.assertTrue(result["cancel_confirmed"])
+        self.assertFalse(result["device_reports_saved"])
+        self.assertFalse(result["device_reports_rendered"])
+        self.assertEqual(before, self.peer.stats())
+        value = self.prepare_default()
+        before = self.peer.stats()
+        accepted = self.operation(
+            "default-set",
+            selection_epoch=value["epoch"],
+            expected_selection_id=value["id"],
+            expected_default_revision=str(value["revision"]),
+            pack_filename=NAME,
+        )
+        pending = self.operation(
+            "default-status",
+            selection_epoch=accepted["epoch"],
+            selection_nonce=accepted["operation_nonce"],
+        )
+        self.peer.external("step")
+        self.next_id += 1
+        code, _ = self.request(
+            "POST",
+            "/api/start",
+            {
+                "id": f"{self.next_id:032x}",
+                "operation": "default-status",
+                "params": {
+                    "selection_epoch": value["epoch"],
+                    "selection_nonce": value["operation_nonce"],
+                    "expected_selection_id": value["id"],
+                },
+            },
+        )
+        self.assertEqual(code, 202)
+        stale = self.wait_result()
+        self.assertEqual(stale["phase"], "unconfirmed")
+        self.assertFalse(stale.get("result"))
+        done = self.operation(
+            "default-status",
+            selection_epoch=pending["epoch"],
+            selection_nonce=pending["operation_nonce"],
+            expected_selection_id=pending["id"],
+        )
         self.assertTrue(done["selection_complete"])
         self.assertEqual(done["revision"], 2)
         after = self.peer.stats()
@@ -360,7 +422,7 @@ class DisplayHttpTest(WebTest):
     def test_release_recovery_stays_unknown(self):
         value = self.prepare_default()
         before = self.peer.stats()
-        self.operation(
+        accepted = self.operation(
             "default-set",
             selection_epoch=value["epoch"],
             expected_selection_id=value["id"],
@@ -369,23 +431,37 @@ class DisplayHttpTest(WebTest):
         )
         self.peer.external("fail-unmount")
         self.peer.external("step")
-        unknown = self.operation("default-status")
+        unknown = self.operation(
+            "default-status",
+            selection_epoch=accepted["epoch"],
+            selection_nonce=accepted["operation_nonce"],
+        )
         self.assertEqual(unknown["state"], "unknown")
         self.assertTrue(unknown["device_reports_saved"])
         self.assertFalse(unknown["device_reports_rendered"])
         self.assertEqual(unknown["release_error"], -5)
-        self.operation(
+        recovery = self.operation(
             "default-recover",
             selection_epoch=unknown["epoch"],
             expected_selection_id=unknown["id"],
         )
+        release_only = self.peer.stats()
         self.peer.external("step")
-        recovered = self.operation("default-status")
+        recovered = self.operation(
+            "default-status",
+            selection_epoch=recovery["epoch"],
+            selection_nonce=recovery["operation_nonce"],
+            expected_selection_id=unknown["id"],
+        )
         self.assertEqual(recovered["state"], "unknown")
         self.assertEqual(recovered["release_error"], 0)
         self.assertFalse(recovered["selection_complete"])
         self.assertFalse(recovered["device_reports_rendered"])
-        self.assertEqual(self.peer.stats()[1], before[1])
+        after = self.peer.stats()
+        self.assertEqual(after[:3], release_only[:3])
+        self.assertEqual(after[3], release_only[3] + 1)
+        self.assertEqual(after[4:], release_only[4:])
+        self.assertEqual(after[1], before[1])
 
 
 if __name__ == "__main__":

@@ -10,6 +10,9 @@
 
 #include "bk7258_pc_usb.h"
 #include <errno.h>
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+#  include <syslog.h>
+#endif
 #include <stdlib.h>
 #include <string.h>
 #include <mbedtls/platform_util.h>
@@ -126,6 +129,7 @@ int bkpc_usb_owner_stop(struct bkpc_usb_owner_s *owner)
   ret = bkpc_usb_close(&owner->usb);
   free(owner->pair);
   owner->pair = NULL;
+  memset(&owner->transport, 0, sizeof(owner->transport));
   owner->result = ret;
   return ret;
 }
@@ -161,6 +165,10 @@ int bkpc_usb_owner_step(struct bkpc_usb_owner_s *owner,
   now = config->now_ms(config->clock_context);
   if (now < owner->last)
     {
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+      syslog(LOG_WARNING, "BKVOICE diagnostic USB clock now=%llu last=%llu\n",
+             (unsigned long long)now, (unsigned long long)owner->last);
+#endif
       ret = bkpc_usb_owner_stop(owner);
       return ret < 0 ? ret : -ETIMEDOUT;
     }
@@ -206,6 +214,32 @@ int bkpc_usb_owner_step(struct bkpc_usb_owner_s *owner,
       goto failed;
     }
 
+  /* CDC has no accepted-client boundary. Keep its listener open, but start
+   * the bounded TLS handshake only when input is queued. Poll leaves every
+   * byte for TLS and avoids expiring a new client against an idle timer.
+   */
+
+  if (!owner->usb.serial.opened)
+    {
+      ret = bkcontrol_serial_open(&owner->usb.serial, &owner->transport);
+      if (ret < 0)
+        {
+          goto failed;
+        }
+    }
+
+  ret = bkcontrol_serial_ready(&owner->usb.serial);
+  if (ret < 0)
+    {
+      goto failed;
+    }
+
+  if (ret == 0)
+    {
+      owner->result = 0;
+      return 0;
+    }
+
   owner->pair = calloc(1, sizeof(*owner->pair));
   if (owner->pair == NULL)
     {
@@ -213,10 +247,12 @@ int bkpc_usb_owner_step(struct bkpc_usb_owner_s *owner,
       goto failed;
     }
 
-  ret = bkpc_usb_open(&owner->usb, owner->pair, config->source,
-                      config->certificate, config->key, config->now_ms,
-                      config->clock_context, config->execute, config->config,
-                      config->context);
+  ret = bkpc_control_start(&owner->usb.lease, owner->pair, config->source,
+                           owner->usb.serial.epoch, config->certificate,
+                           config->key, config->now_ms,
+                           config->clock_context, config->execute,
+                           config->config, config->context,
+                           &owner->transport);
   if (ret == 0)
     {
       owner->result = 0;

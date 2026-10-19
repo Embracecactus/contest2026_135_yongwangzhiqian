@@ -1343,6 +1343,7 @@ def _source_provenance(
         f"boards/bk7258/{cp.board}",
         "nuttx",
         "app/bk7258",
+        "app/testing/bk7258",
         "app/dolphin",
         "frameworks",
         "external",

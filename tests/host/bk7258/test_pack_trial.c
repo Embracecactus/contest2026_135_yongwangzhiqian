@@ -120,8 +120,12 @@ static struct bkdisplay_service_s *power_service;
 #define g_bkdisplay_service (*power_service)
 static unsigned power_lock_calls;
 static unsigned power_unlock_calls;
+static unsigned onboarding_blocking_calls;
 static bool onboarding_lock_granted;
 int nxmutex_lock(mutex_t *lock)
+{ (void)lock; power_lock_calls++; onboarding_blocking_calls++;
+  return onboarding_lock_granted?0:-EBUSY; }
+int nxmutex_trylock(mutex_t *lock)
 { (void)lock; power_lock_calls++; return onboarding_lock_granted?0:-EBUSY; }
 void bkdisplay_unlock(struct bkdisplay_service_s *service)
 { assert(service==power_service && onboarding_lock_granted);power_unlock_calls++; }
@@ -680,6 +684,30 @@ static void onboarding_clear_case(struct bkdisplay_service_s *service)
   assert(bk7258_display_cancel_expression(id)==0);
 }
 
+static void onboarding_open_busy_case(struct bkdisplay_service_s *service)
+{
+  char qr[108]="SN1:";
+  memset(qr+4,'A',103); qr[107]=0;
+  unsigned painted=frames, stored=writes, io=mounts;
+  service->started=true;
+  onboarding_lock_granted=false;
+
+  /* A renderer stalled on external I/O must not stall the shared USB/BLE
+   * owner. Busy admission leaves the existing display state untouched. */
+  assert(bk7258_display_onboarding(qr)==-EAGAIN);
+  assert(!onboarding_blocking_calls && !power_unlock_calls);
+  assert(!service->claim_qr[0] && !service->overlay_dirty);
+  assert(frames==painted && writes==stored && mounts==io);
+
+  /* The original owner retries. Success still requires both screens before
+   * the caller can publish the claim secret or open its GATT window. */
+  onboarding_lock_granted=true;
+  onboarding_render=true;
+  assert(bk7258_display_onboarding(qr)==0);
+  assert(frames==painted+2 && !strcmp(service->claim_qr,qr));
+  assert(!onboarding_blocking_calls && power_unlock_calls==1);
+}
+
 static void onboarding_power_case(struct bkdisplay_service_s *service)
 {
   char qr[108]="SN1:";
@@ -718,6 +746,11 @@ int main(int argc,char **argv)
     {
       power_service=&service;
       onboarding_clear_case(&service);
+    }
+  else if (!strcmp(argv[3], "onboarding-open-busy-retry"))
+    {
+      power_service=&service;
+      onboarding_open_busy_case(&service);
     }
   else if (!strcmp(argv[3], "onboarding-power-preempts-open"))
     {

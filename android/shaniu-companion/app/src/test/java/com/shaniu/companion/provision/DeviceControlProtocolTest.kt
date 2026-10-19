@@ -6,6 +6,50 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DeviceControlProtocolTest {
+    @Test fun nfcConfigReadsAcceptLegacyAndExtendedLengthsWithBoundedOffsets() {
+        val sent = mutableListOf<ByteArray>()
+        val states = mutableListOf<DeviceControlProtocol.Snapshot>()
+        val protocol = DeviceControlProtocol(ByteArray(32) { 42 }, { sent += it.copyOf() },
+            { _, snapshot -> states += snapshot })
+        protocol.start(); protocol.receive(response(sent.last()))
+
+        for ((kind, total) in listOf(12 to 112, 12 to 176, 13 to 16, 13 to 48)) {
+            assertTrue(protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_READ,
+                be32(kind shl 16)))
+            protocol.receive(response(sent.last(), flags = total))
+            assertEquals(total, states.last().configChunk!!.totalLength)
+        }
+        for ((kind, offset, total) in listOf(Triple(12, 112, 176), Triple(12, 160, 176),
+                                              Triple(13, 16, 48), Triple(13, 32, 48))) {
+            assertTrue(protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_READ,
+                be32((kind shl 16) or offset)))
+            protocol.receive(response(sent.last(), flags = total))
+            assertEquals(total, states.last().configChunk!!.totalLength)
+        }
+        for ((kind, offset) in listOf(12 to 176, 13 to 48, 12 to 113, 13 to 17)) {
+            assertThrows(IllegalArgumentException::class.java) {
+                protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_READ,
+                    be32((kind shl 16) or offset))
+            }
+        }
+        protocol.close()
+    }
+
+    @Test fun nfcConfigReadRejectsUnknownLengthsAndCloses() {
+        for ((kind, total) in listOf(12 to 128, 13 to 32)) {
+            val sent = mutableListOf<ByteArray>()
+            val protocol = DeviceControlProtocol(ByteArray(32) { 42 }, { sent += it.copyOf() },
+                { _, _ -> })
+            protocol.start(); protocol.receive(response(sent.last()))
+            assertTrue(protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_READ,
+                be32(kind shl 16)))
+            assertThrows(IllegalStateException::class.java) {
+                protocol.receive(response(sent.last(), flags = total))
+            }
+            assertTrue(protocol.closed)
+        }
+    }
+
     @Test fun responseLengthReadbackRejectsTornOrUnappliedConfirmation() {
         for (mode in 0..2) {
             val wire = ByteBuffer.allocate(24).putInt(0x524c5331).putInt(mode)

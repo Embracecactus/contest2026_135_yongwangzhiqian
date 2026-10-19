@@ -263,6 +263,17 @@ int main(int argc, char **argv)
       assert(bkcontrol_session_set_config_handler(&session,config_route)==0);
       while(fread(frame,1,16,stdin)==16)
         {
+          /* Host harness control, outside SDC1: preserve the native worker,
+           * epoch and file while opening a fresh unauthenticated session.
+           * This does not model physical USB or product grant invalidation. */
+          if(!memcmp(frame,"PEER-RECONNECT!\n",16))
+            {
+              bkcontrol_session_close(&session);
+              assert(bkcontrol_session_open(&session,key,execute_peer,&wire)==0);
+              assert(bkcontrol_session_set_config_handler(&session,config_route)==0);
+              assert(fwrite(frame,1,16,stdout)==16 && fflush(stdout)==0);
+              continue;
+            }
           size_t size=u32(frame+12);
           if(size>BKCONTROL_CONFIG_APPEND_MAX || fread(frame+16,1,size,stdin)!=size)break;
           if(bkcontrol_session_packet(&session,frame,16+size,out)<0)break;
