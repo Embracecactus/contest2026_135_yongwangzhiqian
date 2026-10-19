@@ -38,7 +38,8 @@ KVDB 后端和 RPC 传输在这些测试中为替身，不证明持久化或实�
 
 `run-voice-tls-concurrency` 编译实际 mbedTLS provider，以可控 SSL I/O 替身检查
 WANT_WRITE 重试期间的独占、空闲读允许上行，以及故障/取消后的双向停止。
-`run-provision` 依次运行供应 helper、产品 GATT 窗口、队列和连接代际测试，以及使用实际 mbedTLS 的
+`run-provision` 先提取工作区固定 NuttX 的 ACL 接收路径，检查完整包、分片与池复用的
+引用所有权；缺少源码时明确失败。随后运行供应 helper、产品 GATT 窗口、队列和连接代际测试，以及使用实际 mbedTLS 的
 认领、本地按键 owner、Wi-Fi/Gateway 试连、存储与回执、设置、身份、时间和 TLS 测试。
 它需 CMake、OpenSSL 和工作区 mbedTLS 源码；构建产物、测试证书和私有存储都位于运行后
 自动清理的临时目录。不启动 LAN 服务，也不代表实板验收。
