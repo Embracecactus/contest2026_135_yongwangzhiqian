@@ -3,7 +3,8 @@ const $ = id => document.getElementById(id);
 const token = location.hash.slice(1) || sessionStorage.getItem('shaniu-local-token') || '';
 if (location.hash) { sessionStorage.setItem('shaniu-local-token', token); history.replaceState(null, '', '/'); }
 let busy = false, trial = null, selection = null, lastSeen = null, latest = null, catalog = null, catalogReceipt = null;
-const labels = {running:'正在执行',returned:'设备已返回结果',unconfirmed:'结果未确认'};
+let previewDataUrl = null, previewLoading = false, previewEpoch = 0, stateEpoch = 0;
+const labels = {running:'正在执行',returned:'设备已返回结果',unconfirmed:'结果未知',disconnected:'未连接',unauthorized:'未授权',unsupported:'不支持',failed:'失败'};
 async function api(path, body) {
   const response = await fetch(path,{method:body?'POST':'GET',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
   const data = await response.json();
@@ -24,6 +25,27 @@ function gates() {
   $('catalog-recover').disabled=busy || !catalog?.catalog || catalog.state!=='unknown' || !catalog.release_error || catalog.recovery_pending;
   $('export').disabled=!latest;
   $('camera-stop').disabled=!(busy && latest?.operation==='camera-capture');
+  $('camera-save').disabled=!previewDataUrl;
+  $('camera-clear').disabled=!(previewDataUrl || previewLoading);
+}
+function clearPreview() {
+  previewEpoch++; previewDataUrl=null; previewLoading=false;
+  const image=$('camera-preview'); image.onload=null; image.onerror=null; image.hidden=true; image.removeAttribute('src'); gates();
+}
+function previewError(message) {
+  previewEpoch++; const image=$('camera-preview'); image.onload=null; image.onerror=null; image.hidden=true; image.removeAttribute('src');
+  previewDataUrl=null; previewLoading=false; $('camera-state').textContent=message; $('message').textContent=message; gates();
+}
+async function fetchPreview(job) {
+  const epoch=previewEpoch, image=$('camera-preview'); previewLoading=true; gates();
+  try {
+    const value=await api('/api/camera-preview',{id:job.id});
+    if (epoch!==previewEpoch || latest?.id!==job.id) return;
+    if (value.id!==job.id || !value.image_base64) { previewError('相机图片读取失败，请重新采一帧。'); return; }
+    const dataUrl='data:image/jpeg;base64,'+value.image_base64; image.hidden=true;
+    image.onload=()=>{ if (epoch!==previewEpoch || latest?.id!==job.id) return; if (image.naturalWidth<1 || image.naturalHeight<1) { previewError('相机图片解码失败，请重新采一帧。'); return; } previewDataUrl=dataUrl; previewLoading=false; image.hidden=false; gates(); };
+    image.onerror=()=>{ if (epoch===previewEpoch && latest?.id===job.id) previewError('相机图片解码失败，请重新采一帧。'); }; image.src=dataUrl;
+  } catch (error) { if (epoch===previewEpoch && latest?.id===job.id) previewError('相机图片读取失败：'+error.message+'。'); }
 }
 function renderCatalog() {
   $('catalog-items').replaceChildren();
@@ -37,7 +59,7 @@ function renderCatalog() {
     $('catalog-items').appendChild(button);
   });
 }
-function show(job) {
+async function show(job) {
   latest=job; busy=job?.phase==='running'; gates();
   if (!job) return;
   const safeJob={...job,result:job.result?{...job.result}:null};
@@ -45,14 +67,17 @@ function show(job) {
   $('details').textContent=JSON.stringify(safeJob,null,2);
   const snap=job.snapshot;
   $('progress').value=snap?.total ? snap.written/snap.total : 0;
-  $('message').textContent=(labels[job.phase]||job.phase)+(job.cancel_requested?' · 已请求取消，等待设备结果':'')+(job.error?' · '+job.error:'');
-  if (job.phase==='running' || lastSeen===job.id) return;
+  const jobMessage=(labels[job.phase]||job.phase)+(job.cancel_requested?' · 已请求取消，等待设备结果':'')+(job.error?' · '+job.error:'');
+  if (job.phase==='running') { $('message').textContent=jobMessage; return; }
+  if (lastSeen===job.id) return;
+  $('message').textContent=jobMessage;
   lastSeen=job.id;
   const value=job.result;
-  if (!value) { if(job.operation?.startsWith('camera-')) $('camera-state').textContent=job.error||'结果未知，请读取相机状态。'; if(job.operation?.startsWith('catalog-')) {catalog=null;catalogReceipt=null;selection=null;renderCatalog();gates();} return; }
+  if (!value) { if(job.operation?.startsWith('camera-')) { const message=job.phase==='unauthorized'?'相机未获授权，无法取得图片。':job.phase==='disconnected'?'相机连接已断开，无法确认图片。':job.error||'相机结果未知，请读取相机状态。'; $('camera-state').textContent=message; $('message').textContent=message; } if(['disconnected','unauthorized','unsupported'].includes(job.phase)) $('connection').textContent=job.error; if(job.operation?.startsWith('catalog-')) {catalog=null;catalogReceipt=null;selection=null;renderCatalog();gates();} return; }
   if (job.operation?.startsWith('camera-')) {
     $('camera-state').textContent='相机状态：'+({idle:'空闲',pending:'等待采集',capturing:'正在采集',ready:'有效单帧',failed:'采集失败',canceled:'已取消或释放',expired:'已过期',unknown:'结果未知'}[value.state]||'未知')+(value.size?` · ${value.format} ${value.width}×${value.height} · ${value.size} 字节`:'')+(value.error?` · 错误 ${value.error}`:'');
-    if(value.image_base64 && value.valid && value.release_confirmed) { $('camera-preview').src='data:image/jpeg;base64,'+value.image_base64; $('camera-preview').hidden=false; }
+    if (job.operation==='camera-capture' && job.phase==='returned') { if (value.state==='ready' && value.valid && value.release_confirmed && value.preview_available) await fetchPreview(job); else if (value.state==='ready') { const message='相机图片不可读取，请重新采一帧。'; $('camera-state').textContent=message; $('message').textContent=message; } }
+    if (job.operation==='camera-capture' && ['failed','canceled','expired','unknown'].includes(value.state)) $('message').textContent=({failed:'相机采集失败，请重新采一帧',canceled:'相机采集已取消',expired:'相机图片已过期，请重新采一帧',unknown:'相机结果未知，请读取相机状态'}[value.state]);
   }
   if (job.operation==='status') $('connection').textContent=value.ready?'设备报告本地就绪'+(value.busy?'，正在忙碌。':'。'):'设备尚未报告就绪。';
   if (job.operation==='info') $('connection').textContent=`设备版本 ${value.major}.${value.minor}.${value.revision}，构建 ${value.build}`;
@@ -65,8 +90,9 @@ function show(job) {
   gates();
 }
 async function submit(operation, params={}) {
+  stateEpoch++;
   const id=crypto.randomUUID().replaceAll('-','');
-  if(operation.startsWith('camera-')) { $('camera-preview').hidden=true; $('camera-preview').removeAttribute('src'); $('camera-state').textContent='正在请求…'; }
+  if(operation==='camera-capture') { clearPreview(); $('camera-state').textContent='正在请求…'; }
   if (operation.startsWith('catalog-') || operation.startsWith('default-')) {catalog=null;selection=null;catalogReceipt=null;renderCatalog();}
   busy=true;gates();$('message').textContent='正在提交…';
   try {
@@ -75,8 +101,8 @@ async function submit(operation, params={}) {
     if (operation==='trial-start'||operation==='trial-cancel') trial=null;
     if (operation.startsWith('default-') && operation!=='default-status') {selection=null;catalog=null;catalogReceipt=null;renderCatalog();}
     if (operation.startsWith('catalog-') && operation!=='catalog-status') {catalog=null;selection=null;renderCatalog();}
-    show((await api('/api/state')).job);
-  } catch(e) { $('message').textContent=e.message+' 请先读取本地任务状态，避免重复提交。'; }
+    await show((await api('/api/state')).job);
+  } catch(e) { if(operation==='camera-capture') { const message='相机请求失败，结果未知，请重新读取相机状态。'; $('camera-state').textContent=message; $('message').textContent=message; } else $('message').textContent=e.message+' 请先读取本地任务状态，避免重复提交。'; }
 }
 function milliseconds(id) { const n=Number($(id).value);if(!Number.isInteger(n)||n<1||n>4294967) throw new Error('请输入有效秒数');return n*1000; }
 function guarded(action) { return async()=>{try{await action();}catch(e){$('message').textContent=e.message;}}; }
@@ -88,6 +114,8 @@ async function packData() {
 }
 $('camera-capture').onclick=()=>submit('camera-capture');
 $('camera-stop').onclick=guarded(async()=>{await api('/api/cancel',{id:latest.id});$('camera-state').textContent='已请求取消，等待设备释放确认。';});
+$('camera-save').onclick=()=>{if(!previewDataUrl) return; const a=document.createElement('a');a.href=previewDataUrl;a.download='shaniu-camera.jpg';a.click();};
+$('camera-clear').onclick=()=>clearPreview();
 $('upload').onclick=guarded(async()=>submit('resource-upload',{data:await packData(),ttl_ms:milliseconds('ttl')}));
 $('resource-resume').onclick=guarded(async()=>submit('resource-resume',{data:await packData(),receipt_id:$('receipt').value}));
 $('resource-cancel').onclick=()=>submit('resource-cancel',{receipt_id:$('receipt').value});
@@ -103,5 +131,5 @@ $('catalog-next').onclick=()=>submit('catalog-page',{selection_epoch:catalog.epo
 $('catalog-cancel').onclick=()=>submit('catalog-cancel',{selection_epoch:catalog.epoch,expected_selection_id:catalog.id});
 $('catalog-recover').onclick=()=>submit('catalog-recover',{selection_epoch:catalog.epoch,expected_selection_id:catalog.id});
 $('export').onclick=()=>{const url=URL.createObjectURL(new Blob([$('details').textContent],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='shaniu-workbench-result.json';a.click();URL.revokeObjectURL(url);};
-async function poll(){try{const value=await api('/api/state');show(value.job);if(!value.job)$('message').textContent='工作台已就绪，尚未连接设备。';}catch(e){busy=true;gates();$('message').textContent=e.message;}setTimeout(poll,750);}
+async function poll(){const epoch=stateEpoch, observed=latest?.id||null;try{const value=await api('/api/state');if(epoch===stateEpoch && (latest?.id||null)===observed){await show(value.job);if(!value.job)$('message').textContent='工作台已就绪，尚未连接设备。';}}catch(e){busy=true;gates();$('message').textContent=e.message;}setTimeout(poll,750);}
 gates();poll();

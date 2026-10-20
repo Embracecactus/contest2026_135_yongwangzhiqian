@@ -1151,6 +1151,10 @@ def main():
     for variant in ("status_golden_and_invalid", "request_requires_identity", "no_capture_without_auth_or_invalid_input"):
         add(suite, "USB-02.camera-client-" + variant, "USB-02", "L1",
             [sys.executable, HERE / "test_workbench_camera.py", "CameraTest.test_" + variant], marker=False)
+    add(suite, "USB-02.camera-client-cleanup", "USB-02", "L1",
+        [sys.executable, HERE / "test_workbench_camera_cleanup.py"], marker=False)
+    add(suite, "USB-02.camera-browser-lifecycle", "USB-02", "L2",
+        ["node", HERE / "test_workbench_camera_ui.cjs"], marker=False)
     for variant in ("terminal", "duplicate", "ordering", "expiry", "binding", "readonly", "invalid", "quiesce", "rate", "visual"):
         add(suite, "PC-01.task-" + variant, "PC-01", "L1",
             [HERE / "build/test_pc_tasks", variant], binaries["test_pc_tasks"])
@@ -1205,7 +1209,7 @@ def main():
         add(suite, "USB-01.pc-client-" + variant, "USB-01", "L2",
             [sys.executable, HERE / "test_workbench_client.py",
              "WorkbenchClientTest.test_" + variant], marker=False)
-    for variant in ('camera_preview_stays_in_latest_memory_result', 'camera_cancel_uses_existing_cooperative_owner', 'http_authority_rejects_before_operation', 'polling_is_local_and_duplicate_is_not_replayed', 'cancel_is_intent_not_remote_completion', 'page_headers_and_no_credential_paths', 'invalid_upload_does_not_open_device', 'http_upload_reaches_tls_and_native_installer', 'large_counters_preserve_exact_value', 'upload_exact_128k_boundary', 'upload_128k_plus_one_rejected_before_spool_or_worker'):
+    for variant in ('camera_state_is_metadata_only', 'camera_preview_rejects_bad_or_unauthorized_reads_without_operation', 'camera_preview_is_read_through_and_survives_status_and_cancel', 'camera_preview_ttl_and_close_discard_only_memory_copy', 'camera_preview_unconfirmed_capture_is_unavailable', 'camera_preview_close_discards_memory_copy', 'camera_cancel_uses_existing_cooperative_owner', 'http_authority_rejects_before_operation', 'polling_is_local_and_duplicate_is_not_replayed', 'cancel_is_intent_not_remote_completion', 'page_headers_and_no_credential_paths', 'invalid_upload_does_not_open_device', 'http_upload_reaches_tls_and_native_installer', 'large_counters_preserve_exact_value', 'upload_exact_128k_boundary', 'upload_128k_plus_one_rejected_before_spool_or_worker'):
         add(suite, "USB-02.browser-" + variant, "USB-02", "L2",
             [sys.executable, HERE / "test_workbench_web.py", "WebTest.test_" + variant], marker=False)
     for variant in ('trial_expiry', 'trial_cancel', 'missing_pack', 'default_supersedes_trial', 'release_recovery_stays_unknown'):
@@ -1996,6 +2000,8 @@ def main():
         HERE / "test_pc_camera_service.py",
         HERE / "fixtures/camera-synthetic-jpeg.h",
         HERE / "test_workbench_camera.py",
+        HERE / "test_workbench_camera_cleanup.py",
+        HERE / "test_workbench_camera_ui.cjs",
         HERE / "test_workbench_camera_peer.py",
         ROOT / "app/bk7258/bk7258_pc_camera.c",
         ROOT / "app/bk7258/bk7258_pc_camera.h",

@@ -137,8 +137,8 @@ def capture(client, *, preview=False, cancel_requested=None):
     result = None
     released = False
     started = client._now()
-    request(client, 1, current["id"], nonce)
     try:
+        request(client, 1, current["id"], nonce)
         deadline = started + 8
         while True:
             if cancel_requested is not None and cancel_requested():

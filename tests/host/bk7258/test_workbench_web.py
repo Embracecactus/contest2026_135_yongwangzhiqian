@@ -11,6 +11,7 @@ import threading
 import time
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -103,7 +104,7 @@ class WebTest(unittest.TestCase):
             )
             run.assert_not_called()
 
-    def test_camera_preview_stays_in_latest_memory_result(self):
+    def test_camera_state_is_metadata_only(self):
         def run(args, **hooks):
             if args.operation == "camera-capture":
                 self.assertTrue(args.camera_preview)
@@ -111,6 +112,7 @@ class WebTest(unittest.TestCase):
                     "state": "ready",
                     "image_base64": "synthetic-fixture",
                     "valid": True,
+                    "release_confirmed": True,
                 }
             return {"state": "canceled"}
 
@@ -123,21 +125,192 @@ class WebTest(unittest.TestCase):
                 )[0],
                 202,
             )
-            self.assertEqual(
-                self.wait_result()["result"]["image_base64"], "synthetic-fixture"
-            )
+            for unused in range(3):
+                result = json.loads(self.request("GET", "/api/state")[1])["job"][
+                    "result"
+                ]
+                self.assertNotIn("image_base64", result)
+                self.assertTrue(result["preview_available"])
             self.assertEqual(list(self.service.directory.iterdir()), [])
+
+    def test_camera_preview_rejects_bad_or_unauthorized_reads_without_operation(self):
+        capture_id = "c1" * 16
+        with patch.object(self.m.workbench, "run") as run:
+            for body, expected in (
+                ({}, 400),
+                ({"id": "not-a-capture-id"}, 400),
+                ({"id": capture_id}, 410),
+            ):
+                with self.subTest(body=body):
+                    self.assertEqual(
+                        self.request("POST", "/api/camera-preview", body)[0], expected
+                    )
+            self.assertEqual(
+                self.request(
+                    "POST",
+                    "/api/camera-preview",
+                    {"id": capture_id},
+                    Authorization="",
+                )[0],
+                403,
+            )
+            run.assert_not_called()
+
+    def test_camera_preview_is_read_through_and_survives_status_and_cancel(self):
+        first, second = "c2" * 16, "c3" * 16
+        captures = 0
+
+        def run(args, **hooks):
+            nonlocal captures
+            if args.operation == "camera-capture":
+                captures += 1
+                return {
+                    "state": "ready",
+                    "image_base64": "first" if captures == 1 else "second",
+                    "valid": True,
+                    "release_confirmed": True,
+                }
+            return {"state": "canceled", "release_confirmed": True}
+
+        with patch.object(self.m.workbench, "run", side_effect=run) as operation:
             self.assertEqual(
                 self.request(
                     "POST",
                     "/api/start",
-                    {"id": "c2" * 16, "operation": "camera-status", "params": {}},
+                    {"id": first, "operation": "camera-capture", "params": {}},
                 )[0],
                 202,
             )
             self.wait_result()
-            self.assertNotIn(
-                "image_base64", self.service.records["c1" * 16]["public"]["result"]
+            for unused in range(2):
+                code, raw = self.request("POST", "/api/camera-preview", {"id": first})
+                self.assertEqual(code, 200)
+                self.assertEqual(json.loads(raw)["image_base64"], "first")
+            self.assertEqual(operation.call_count, 1)
+            for operation_name in ("camera-status", "camera-cancel"):
+                self.assertEqual(
+                    self.request(
+                        "POST",
+                        "/api/start",
+                        {
+                            "id": ("d0" if operation_name.endswith("status") else "d1")
+                            * 16,
+                            "operation": operation_name,
+                            "params": {},
+                        },
+                    )[0],
+                    202,
+                )
+                self.wait_result()
+                self.assertEqual(
+                    self.request("POST", "/api/camera-preview", {"id": first})[0], 200
+                )
+            self.assertEqual(
+                self.request(
+                    "POST",
+                    "/api/start",
+                    {"id": second, "operation": "camera-capture", "params": {}},
+                )[0],
+                202,
+            )
+            self.wait_result()
+            self.assertEqual(
+                self.request("POST", "/api/camera-preview", {"id": first})[0], 410
+            )
+            code, raw = self.request("POST", "/api/camera-preview", {"id": second})
+            self.assertEqual(code, 200)
+            self.assertEqual(json.loads(raw)["id"], second)
+
+    def test_camera_preview_ttl_and_close_discard_only_memory_copy(self):
+        now = [1000.0]
+        capture_id = "c4" * 16
+
+        def run(args, **hooks):
+            return {
+                "state": "ready",
+                "image_base64": "fixture",
+                "valid": True,
+                "release_confirmed": True,
+            }
+
+        clock = SimpleNamespace(monotonic=lambda: now[0])
+        with patch.object(self.m, "time", clock, create=True), patch.object(
+            self.m.workbench, "run", side_effect=run
+        ):
+            self.assertEqual(
+                self.request(
+                    "POST",
+                    "/api/start",
+                    {"id": capture_id, "operation": "camera-capture", "params": {}},
+                )[0],
+                202,
+            )
+            self.wait_result()
+            self.assertEqual(
+                self.request("POST", "/api/camera-preview", {"id": capture_id})[0], 200
+            )
+            now[0] += 120.001
+            self.assertEqual(
+                self.request("POST", "/api/camera-preview", {"id": capture_id})[0], 410
+            )
+
+    def test_camera_preview_unconfirmed_capture_is_unavailable(self):
+        capture_id = "c5" * 16
+        with patch.object(
+            self.m.workbench,
+            "run",
+            return_value={
+                "state": "ready",
+                "image_base64": "must-not-publish",
+                "valid": False,
+                "release_confirmed": True,
+            },
+        ):
+            self.assertEqual(
+                self.request(
+                    "POST",
+                    "/api/start",
+                    {"id": capture_id, "operation": "camera-capture", "params": {}},
+                )[0],
+                202,
+            )
+            result = self.wait_result()["result"]
+            self.assertNotIn("image_base64", result)
+            self.assertFalse(result["preview_available"])
+            self.assertEqual(
+                self.request("POST", "/api/camera-preview", {"id": capture_id})[0],
+                410,
+            )
+
+    def test_camera_preview_close_discards_memory_copy(self):
+        capture_id = "c6" * 16
+        with patch.object(
+            self.m.workbench,
+            "run",
+            return_value={
+                "state": "ready",
+                "image_base64": "fixture",
+                "valid": True,
+                "release_confirmed": True,
+            },
+        ):
+            self.assertEqual(
+                self.request(
+                    "POST",
+                    "/api/start",
+                    {"id": capture_id, "operation": "camera-capture", "params": {}},
+                )[0],
+                202,
+            )
+            self.wait_result()
+            self.assertEqual(
+                self.request("POST", "/api/camera-preview", {"id": capture_id})[0],
+                200,
+            )
+            self.service.close()
+            self.assertEqual(
+                self.request("POST", "/api/camera-preview", {"id": capture_id})[0],
+                410,
             )
 
     def test_camera_cancel_uses_existing_cooperative_owner(self):

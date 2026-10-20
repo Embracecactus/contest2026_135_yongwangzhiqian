@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 import secrets
 import threading
+import time
 
 from . import (
     workbench,
@@ -23,6 +24,8 @@ ASSETS = Path(__file__).with_name("workbench_web")
 LIMIT = 190000
 MAX_BROWSER_PACK = 128 * 1024
 MAX_BROWSER_BASE64 = 4 * ((MAX_BROWSER_PACK + 2) // 3)
+MAX_PREVIEW_BASE64 = 4 * ((100 * 1024 + 2) // 3)
+PREVIEW_TTL_SECONDS = 120
 READS = {
     "status",
     "info",
@@ -71,6 +74,10 @@ class Conflict(ValueError):
     pass
 
 
+class PreviewUnavailable(ValueError):
+    pass
+
+
 def identity(value):
     if (
         not isinstance(value, str)
@@ -107,9 +114,32 @@ class Service:
         self.worker = None
         self.cancel = threading.Event()
         self.closing = False
+        self.preview = None
+
+    def _discard_preview(self):
+        # Called under the service lock. Device cache ownership is separate.
+        if self.preview is not None:
+            job = self.records[self.preview["id"]]["public"]
+            job["result"]["preview_available"] = False
+        self.preview = None
+
+    def _expire_preview(self):
+        if self.preview is not None and time.monotonic() >= self.preview["expires"]:
+            self._discard_preview()
+
+    def read_preview(self, body):
+        if not isinstance(body, dict) or set(body) != {"id"}:
+            raise ValueError("Invalid preview request")
+        request_id = identity(body["id"])
+        with self.lock:
+            self._expire_preview()
+            if self.preview is None or self.preview["id"] != request_id:
+                raise PreviewUnavailable("Preview expired or unavailable")
+            return {"id": request_id, "image_base64": self.preview["image_base64"]}
 
     def state(self):
         with self.lock:
+            self._expire_preview()
             job = self.records.get(self.current)
             return json.loads(
                 json.dumps(public({"job": job["public"] if job else None}))
@@ -190,11 +220,8 @@ class Service:
                 raise Conflict("A job is active or this session is full")
             args = self._arguments(body["operation"], body["params"], request_id)
             # Retain only the latest explicitly requested preview, in memory.
-            if args.operation.startswith("camera-"):
-                for old in self.records.values():
-                    result = old["public"].get("result")
-                    if isinstance(result, dict):
-                        result.pop("image_base64", None)
+            if args.operation == "camera-capture":
+                self._discard_preview()
             self.cancel.clear()
             self.current = request_id
             self.records[request_id] = {
@@ -217,6 +244,8 @@ class Service:
     def _execute(self, request_id, args):
         def observe(value):
             with self.lock:
+                if isinstance(value, dict):
+                    value = {k: v for k, v in value.items() if k != "image_base64"}
                 self.records[request_id]["public"]["snapshot"] = public(value)
 
         try:
@@ -228,6 +257,25 @@ class Service:
             result, phase = None, "unconfirmed"
             error = "操作未确认。保留回执，读取设备结果后再决定是否重试。"
         with self.lock:
+            if isinstance(result, dict):
+                result = dict(result)
+                encoded = result.pop("image_base64", None)
+                if args.operation == "camera-capture":
+                    available = (
+                        not self.closing
+                        and result.get("state") == "ready"
+                        and result.get("valid") is True
+                        and result.get("release_confirmed") is True
+                        and isinstance(encoded, str)
+                        and 0 < len(encoded) <= MAX_PREVIEW_BASE64
+                    )
+                    result["preview_available"] = available
+                    if available:
+                        self.preview = {
+                            "id": request_id,
+                            "image_base64": encoded,
+                            "expires": time.monotonic() + PREVIEW_TTL_SECONDS,
+                        }
             self.records[request_id]["public"].update(
                 result=public(result), phase=phase, error=error
             )
@@ -254,6 +302,7 @@ class Service:
     def close(self):
         with self.lock:
             self.closing = True
+            self._discard_preview()
             self.cancel.set()
             worker = self.worker
         if worker:
@@ -349,6 +398,8 @@ class Handler(BaseHTTPRequestHandler):
                 result = self.server.service.submit(body)
             elif self.path == "/api/cancel":
                 result = self.server.service.request_cancel(body)
+            elif self.path == "/api/camera-preview":
+                return self.reply(200, self.server.service.read_preview(body))
             else:
                 return self.reply(404, {"error": "Unknown path"})
             self.reply(202, result)
@@ -356,6 +407,8 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(
                 409, {"error": "当前任务未结束，或请求标识已使用。请读取任务状态。"}
             )
+        except PreviewUnavailable:
+            self.reply(410, {"error": "图片已过期或不可用，请重新采一帧。"})
         except (ValueError, TypeError, OSError):
             self.reply(400, {"error": "输入无效或回执不可用；没有受理新的设备任务。"})
 
