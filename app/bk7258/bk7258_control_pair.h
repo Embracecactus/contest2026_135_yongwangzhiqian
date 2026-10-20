@@ -18,7 +18,8 @@ struct bkcontrol_pair_s
   void *rebind_context;
   struct bkcontrol_session_s session;
   uint8_t input[BKCONTROL_REQUEST_MAX];
-  uint8_t response[BKCONTROL_RESPONSE_SIZE];
+  uint8_t response[BKCONTROL_RESPONSE_MAX];
+  size_t response_size;
   size_t received;
   size_t expected;
   uint64_t authentication_started;

@@ -5,10 +5,12 @@ import hashlib
 import re
 import struct
 import uuid
-from .workbench import ControlError
+from .workbench import ControlError, DeviceRejected
 
 STATES = ("idle", "pending", "capturing", "ready", "failed", "canceled", "expired")
 LIMIT = 102400
+CAMERA_BLOCK_KIND = 25
+CAMERA_BLOCK_BYTES = 512
 
 
 def decode(data):
@@ -118,6 +120,32 @@ def request(client, action, identity, nonce):
     client._exchange(18, b"", deadline)
 
 
+def block_size(client):
+    """Return the negotiated frame-read width, falling back only for old peers."""
+    deadline = client._now() + client._timeout
+    try:
+        total, *words = client._exchange(
+            15, struct.pack(">I", CAMERA_BLOCK_KIND << 16), deadline
+        )
+    except DeviceRejected as error:
+        if error.code in (-13, -22, -34, -95):
+            return 16
+        raise
+    if total != 16:
+        raise ControlError("Invalid camera block capability")
+    magic, revision, maximum, reserved = struct.unpack(
+        ">4sIII", struct.pack(">4I", *words)
+    )
+    if (
+        magic != b"CBR1"
+        or revision != 1
+        or maximum != CAMERA_BLOCK_BYTES
+        or reserved != 0
+    ):
+        raise ControlError("Invalid camera block capability")
+    return CAMERA_BLOCK_BYTES
+
+
 def cancel(client):
     current = status(client)
     request(client, 2, current["id"], uuid.uuid4().hex)
@@ -136,6 +164,7 @@ def capture(client, *, preview=False, cancel_requested=None):
     frame = bytearray()
     result = None
     released = False
+    chunk_bytes = block_size(client)
     started = client._now()
     try:
         request(client, 1, current["id"], nonce)
@@ -159,17 +188,32 @@ def capture(client, *, preview=False, cancel_requested=None):
             client._sleep(0.1)
         if result is None:
             transfer_deadline = client._now() + min(120, current["remaining_ms"] / 1000)
-            for offset in range(0, current["size"], 16):
+            transfer_started = client._now()
+            for offset in range(0, current["size"], chunk_bytes):
                 if cancel_requested is not None and cancel_requested():
                     result = dict(state="canceled", id=identity)
                     break
-                selector = struct.pack(
-                    ">IQII", 22 << 16, identity, offset, current["size"]
-                )
-                total, *words = client._exchange(15, selector, transfer_deadline)
+                if chunk_bytes == CAMERA_BLOCK_BYTES:
+                    selector = struct.pack(
+                        ">IQII",
+                        CAMERA_BLOCK_KIND << 16,
+                        identity,
+                        offset,
+                        current["size"],
+                    )
+                    total, chunk = client._camera_block_exchange(
+                        selector, transfer_deadline
+                    )
+                else:
+                    selector = struct.pack(
+                        ">IQII", 22 << 16, identity, offset, current["size"]
+                    )
+                    total, *words = client._exchange(15, selector, transfer_deadline)
+                    chunk = struct.pack(">4I", *words)
                 if total != current["size"]:
                     raise ControlError("Camera frame length changed")
-                frame.extend(struct.pack(">4I", *words)[: min(16, total - offset)])
+                frame.extend(chunk[: min(chunk_bytes, total - offset)])
+            frame_transfer_seconds = client._now() - transfer_started
             if result is None:
                 final = status(client)
                 if (
@@ -183,6 +227,8 @@ def capture(client, *, preview=False, cancel_requested=None):
                 result = dict(
                     current,
                     transfer_seconds=client._now() - started,
+                    frame_transfer_seconds=frame_transfer_seconds,
+                    transfer_chunk_bytes=chunk_bytes,
                     sha256=hashlib.sha256(frame).hexdigest(),
                 )
                 if preview:

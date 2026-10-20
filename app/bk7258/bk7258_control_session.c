@@ -63,17 +63,23 @@ static void clear_record(struct bkcontrol_session_s *s)
   s->ota_total = s->ota_received = s->record_kind = 0;
 }
 
-int bkcontrol_session_packet(struct bkcontrol_session_s *s, const uint8_t *p,
-                             size_t size, uint8_t response[BKCONTROL_RESPONSE_SIZE])
+int bkcontrol_session_packet_sized(struct bkcontrol_session_s *s,
+                                  const uint8_t *p, size_t size,
+                                  uint8_t *response, size_t capacity,
+                                  size_t *response_size)
 {
   struct bkcontrol_status_s status;
   uint32_t command, payload, argument = 0;
+  size_t reply_size = BKCONTROL_RESPONSE_SIZE;
   int ret = -EPROTO;
   status_unknown(&status);
-  if (response != NULL) memset(response, 0, BKCONTROL_RESPONSE_SIZE);
+  if (response_size != NULL) *response_size = 0;
   if (s == NULL || !s->open) return -ENOTCONN;
-  if (p == NULL || response == NULL || size < 16 || size > BKCONTROL_REQUEST_MAX)
+  if (p == NULL || response == NULL || response_size == NULL ||
+      size < 16 || size > BKCONTROL_REQUEST_MAX)
     goto fail;
+  if (capacity < reply_size) { ret = -EMSGSIZE; goto fail; }
+  memset(response, 0, reply_size);
   command = get32(p+4);
   payload = get32(p+12);
   if (memcmp(p, "SDC1", 4) || get32(p+8) != s->sequence ||
@@ -99,12 +105,21 @@ int bkcontrol_session_packet(struct bkcontrol_session_s *s, const uint8_t *p,
               argument = get32(p + 16);
               if (payload == 20 &&
                   (argument >> 16) != BKCONTROL_CONFIG_CAMERA_FRAME &&
+                  (argument >> 16) != BKCONTROL_CONFIG_CAMERA_BLOCK &&
                   (argument >> 16) != BKCONTROL_CONFIG_RESET_TRANSFER &&
                   (argument >> 16) != BKCONTROL_CONFIG_PC_AUTHORIZATION &&
                   (argument >> 16) != BKCONTROL_CONFIG_RESOURCE_JOB &&
                   (argument >> 16) != BKCONTROL_CONFIG_DEFAULT_SELECTION &&
               (argument >> 16) != BKCONTROL_CONFIG_RESOURCE_CATALOG)
                 goto fail;
+              if (payload == 20 &&
+                  (argument >> 16) == BKCONTROL_CONFIG_CAMERA_BLOCK)
+                {
+                  reply_size = BKCONTROL_RESPONSE_MAX;
+                  if (capacity < reply_size)
+                    { ret = -EMSGSIZE; goto fail; }
+                  memset(response, 0, reply_size);
+                }
             }
           if (s->quiescing && command == BKCONTROL_CONFIG_READ &&
               (argument >> 16) != BKCONTROL_CONFIG_CAPABILITIES &&
@@ -266,12 +281,16 @@ ota_done:  if (ret > 0) ret = -EIO;
   memcpy(response, "SDC1", 4);
   put32(response+4, command | 0x80000000u);
   put32(response+8, s->sequence++);
-  put32(response+12, 24);
+  put32(response+12, reply_size - 16);
   put32(response+16, (uint32_t)ret);
   if (command == BKCONTROL_CONFIG_READ)
     {
       put32(response + 20, ret == 0 ? status.config_total : 0);
-      if (ret == 0) memcpy(response + 24, status.config_chunk, 16);
+      if (ret == 0)
+        memcpy(response + 24,
+               reply_size == BKCONTROL_RESPONSE_MAX ? status.camera_block :
+                                                     status.config_chunk,
+               reply_size - 24);
     }
   else if (command >= BKCONTROL_OTA_BEGIN && command <= BKCONTROL_OTA_CANCEL)
     {
@@ -297,8 +316,21 @@ ota_done:  if (ret > 0) ret = -EIO;
       put32(response+32, status.turn);
       put32(response+36, (uint32_t)status.error);
     }
+  *response_size = reply_size;
+  wipe(&status, sizeof(status));
   return 0;
 fail:
+  wipe(&status, sizeof(status));
   bkcontrol_session_close(s);
   return ret;
+}
+
+int bkcontrol_session_packet(struct bkcontrol_session_s *s, const uint8_t *p,
+                             size_t size,
+                             uint8_t response[BKCONTROL_RESPONSE_SIZE])
+{
+  size_t response_size;
+  return bkcontrol_session_packet_sized(s, p, size, response,
+                                        BKCONTROL_RESPONSE_SIZE,
+                                        &response_size);
 }

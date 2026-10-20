@@ -930,6 +930,8 @@
     "USB-02.browser-camera_preview_ttl_and_close_discard_only_memory_copy",
     "USB-02.browser-camera_preview_unconfirmed_capture_is_unavailable",
     "USB-02.browser-camera_preview_close_discards_memory_copy",
+    "USB-02.camera-client-capture_uses_blocks_and_preserves_partial_tail",
+    "USB-02.camera-block-framing",
     "USB-02.camera-client-cleanup",
     "USB-02.camera-browser-lifecycle",
     "USB-02.browser-camera_cancel_uses_existing_cooperative_owner"

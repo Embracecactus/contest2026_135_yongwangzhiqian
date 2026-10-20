@@ -7,8 +7,8 @@
 #include <stdio.h>
 #include <string.h>
 static uint64_t clock_ms;
-static uint8_t wire[128], output[40];
-static size_t used, offset, fragment = 1;
+static uint8_t wire[128], output[BKCONTROL_RESPONSE_MAX];
+static size_t used, offset, fragment = 1, queued_size;
 static int queue_wait, step_error, start_error;
 static unsigned executions, queued, reads, promotions, touches;
 static uint64_t now(void *p) { (void)p; return clock_ms; }
@@ -42,7 +42,8 @@ int bkprov_tls_step(struct bkprov_tls_s *t)
 int bkprov_tls_queue(struct bkprov_tls_s *t, const void *p, size_t n)
 {
   if (queue_wait) { queue_wait--; return -EAGAIN; }
-  assert(n == 40); memcpy(output, p, n); queued++; t->pending_size = n; return 0;
+  assert(n == BKCONTROL_RESPONSE_SIZE || n == BKCONTROL_RESPONSE_MAX);
+  memcpy(output, p, n); queued_size = n; queued++; t->pending_size = n; return 0;
 }
 ssize_t bkprov_tls_read(struct bkprov_tls_s *t, void *p, size_t n)
 {
@@ -104,7 +105,7 @@ int main(void)
       for (unsigned i = 0;i<3;i++) assert(bkcontrol_pair_step(&pair) == 0);
       assert(reads == before && queued == 0 && executions == 0);
       for (unsigned i = 0; queued<2 && i<120; i++) assert(bkcontrol_pair_step(&pair) == 0);
-      assert(queued == 2 && executions == 1 && promotions == 1 && touches == 1 &&
+      assert(queued == 2 && queued_size == BKCONTROL_RESPONSE_SIZE && executions == 1 && promotions == 1 && touches == 1 &&
              output[7] == 2 && output[11] == 1);
       for (unsigned i = 0;i<5;i++) assert(bkcontrol_pair_step(&pair) == 0);
       assert(executions == 1);

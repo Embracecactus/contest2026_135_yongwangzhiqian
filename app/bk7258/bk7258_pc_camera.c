@@ -197,7 +197,19 @@ int bkcamera_control(enum bkcontrol_command_e command, uint32_t kind,
       ret = 0;
     }
   else if (command == BKCONTROL_CONFIG_READ &&
-           kind == BKCONTROL_CONFIG_CAMERA_FRAME)
+           kind == BKCONTROL_CONFIG_CAMERA_BLOCK && size == 0)
+    {
+      if (record != NULL || offset) goto out;
+      status->config_total = 16;
+      memcpy(status->config_chunk, "CBR1", 4);
+      put(status->config_chunk + 4, 1, 4);
+      put(status->config_chunk + 8, BKCONTROL_CAMERA_BLOCK_SIZE, 4);
+      put(status->config_chunk + 12, 0, 4);
+      ret = 0;
+    }
+  else if (command == BKCONTROL_CONFIG_READ &&
+           (kind == BKCONTROL_CONFIG_CAMERA_FRAME ||
+            kind == BKCONTROL_CONFIG_CAMERA_BLOCK))
     {
       if (record == NULL || size != 16 || offset) goto out;
       uint32_t pos = get(record + 8, 4);
@@ -206,11 +218,15 @@ int bkcamera_control(enum bkcontrol_command_e command, uint32_t kind,
           get(record + 12, 4) != g_meta.bytes_used)
         { ret = -ESTALE; goto out; }
       if (pos % 16 || pos >= g_meta.bytes_used) goto out;
+      size_t limit = kind == BKCONTROL_CONFIG_CAMERA_BLOCK ?
+                     BKCONTROL_CAMERA_BLOCK_SIZE : 16;
+      uint8_t *data = kind == BKCONTROL_CONFIG_CAMERA_BLOCK ?
+                      status->camera_block : status->config_chunk;
       size_t count = g_meta.bytes_used - pos;
-      if (count > 16) count = 16;
+      if (count > limit) count = limit;
       status->config_total = g_meta.bytes_used;
-      memset(status->config_chunk, 0, 16);
-      memcpy(status->config_chunk, g_frame + pos, count);
+      memset(data, 0, limit);
+      memcpy(data, g_frame + pos, count);
       ret = 0;
     }
   else if (kind == BKCONTROL_CONFIG_CAMERA && size == 32)

@@ -1148,9 +1148,12 @@ def main():
         [sys.executable, HERE / "test_pc_camera_service.py"], marker=False)
     add(suite, "USB-02.camera-production", "USB-02", "L2",
         [HERE / "build/test_pc_camera"], binaries["test_pc_camera"], marker=False)
-    for variant in ("status_golden_and_invalid", "request_requires_identity", "no_capture_without_auth_or_invalid_input"):
+    for variant in ("status_golden_and_invalid", "request_requires_identity", "no_capture_without_auth_or_invalid_input", "capture_uses_blocks_and_preserves_partial_tail"):
         add(suite, "USB-02.camera-client-" + variant, "USB-02", "L1",
             [sys.executable, HERE / "test_workbench_camera.py", "CameraTest.test_" + variant], marker=False)
+    add(suite, "USB-02.camera-block-framing", "USB-02", "L1",
+        [sys.executable, HERE / "test_workbench_client.py",
+         "WorkbenchClientTest.test_camera_block_reply_framing_and_sequence"], marker=False)
     add(suite, "USB-02.camera-client-cleanup", "USB-02", "L1",
         [sys.executable, HERE / "test_workbench_camera_cleanup.py"], marker=False)
     add(suite, "USB-02.camera-browser-lifecycle", "USB-02", "L2",

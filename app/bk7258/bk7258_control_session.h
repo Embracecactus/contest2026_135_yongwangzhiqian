@@ -27,6 +27,8 @@
 #define BKCONTROL_CONFIG_APPEND_MAX 512u
 #define BKCONTROL_REQUEST_MAX (16u + BKCONTROL_CONFIG_APPEND_MAX)
 #define BKCONTROL_RESPONSE_SIZE 40u
+#define BKCONTROL_CAMERA_BLOCK_SIZE 512u
+#define BKCONTROL_RESPONSE_MAX (24u + BKCONTROL_CAMERA_BLOCK_SIZE)
 /* Existing SDC1 wire value, independent of the conversational runtime. */
 #define BKCONTROL_TURN_IDLE 0u
 /* Existing OTA response wire values, independent of a voice runtime. */
@@ -111,6 +113,13 @@ enum bkcontrol_command_e
 /* CCQ1/CCS1 one explicitly authorized on-demand camera frame. */
 #define BKCONTROL_CONFIG_CAMERA 23u
 #define BKCONTROL_CONFIG_CAMERA_FRAME 22u
+/* READ with a four-byte selector returns CBR1/revision 1/block size/reserved
+ * zero (16 bytes). READ with the same selector followed by id BE64, offset
+ * BE32 and total BE32 returns error/total/512 frame bytes (520-byte payload).
+ * The final block is zero padded. Errors retain that fixed block layout.
+ * Only the independently authorized PC camera owner binds this kind.
+ */
+#define BKCONTROL_CONFIG_CAMERA_BLOCK 25u
 #define BKCONTROL_CONFIG_CAPABILITIES 0x7fffu
 #define BKCONTROL_CONFIG_RECORD_MAX (140u + 65536u) /* WKM2 显式前端字段 */
 struct bkcontrol_device_info_s
@@ -139,7 +148,11 @@ struct bkcontrol_status_s
   struct bkcontrol_device_info_s device_info;
   struct bkcontrol_ota_status_s ota;
   uint32_t config_total;
-  uint8_t config_chunk[16];
+  union
+  {
+    uint8_t config_chunk[16];
+    uint8_t camera_block[BKCONTROL_CAMERA_BLOCK_SIZE];
+  };
 };
 /* Serialized AP owner callback, never ATT/CCC callback. No implicit retry.
  * Return 0 only for an accepted operation; populate confirmed fields only.
@@ -187,6 +200,13 @@ int bkcontrol_session_set_ota_handler(struct bkcontrol_session_s *, bkcontrol_ot
 int bkcontrol_session_set_config_handler(struct bkcontrol_session_s *, bkcontrol_config_t);
 int bkcontrol_session_packet(struct bkcontrol_session_s *, const uint8_t *,
                              size_t, uint8_t[BKCONTROL_RESPONSE_SIZE]);
+/* Capacity-aware transport entry. Legacy requests still return 40 bytes;
+ * CAMERA_BLOCK data requests require RESPONSE_MAX capacity. A short buffer
+ * is terminal and cannot execute the callback. Queue exactly response_size.
+ */
+int bkcontrol_session_packet_sized(struct bkcontrol_session_s *,
+                                  const uint8_t *, size_t, uint8_t *, size_t,
+                                  size_t *response_size);
 /* Serialized with packet processing. Authenticated, one-way admission gate:
  * keep STATUS/INFO, explicit cancellation and bounded settings/reset receipt
  * reads; reject new mutations with EBUSY. Authentication and frame validation

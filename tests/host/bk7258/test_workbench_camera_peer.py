@@ -59,6 +59,8 @@ def run(executable, certificate, key, peer_mode):
             else:
                 first = camera.capture(client, preview=True)
                 assert first["state"] == "ready" and first["release_confirmed"]
+                assert first["transfer_chunk_bytes"] == 512
+                assert first["frame_transfer_seconds"] >= 0
                 image = base64.b64decode(first["image_base64"], validate=True)
                 assert hashlib.sha256(image).hexdigest() == first["sha256"]
                 from PIL import Image

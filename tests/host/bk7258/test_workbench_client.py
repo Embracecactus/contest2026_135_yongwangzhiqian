@@ -402,6 +402,62 @@ class WorkbenchClientTest(unittest.TestCase):
             channel.close()
             raw.close.assert_called_once()
 
+    def test_camera_block_reply_framing_and_sequence(self):
+        class Tls:
+            def __init__(self, reply):
+                self.reply = bytearray(reply)
+
+            def write(self, data):
+                return len(data)
+
+            def read(self, size):
+                piece = bytes(self.reply[: min(size, 23)])
+                del self.reply[: len(piece)]
+                return piece
+
+        def client_for(reply):
+            client = object.__new__(workbench.ControlClient)
+            client._sequence = 7
+            client._tls = Tls(reply)
+            client._call = lambda function, unused: function()
+            return client
+
+        selector = struct.pack(">IQII", 25 << 16, 3, 512, 520)
+        data = bytes(range(8)) + bytes(504)
+        reply = struct.pack(">4IiI", 0x53444331, 15 | 0x80000000, 7, 520, 0, 520) + data
+        client = client_for(reply)
+        self.assertEqual(client._camera_block_exchange(selector, 1), (520, data))
+        self.assertEqual(client._sequence, 8)
+
+        bad = struct.pack(">4IiI", 0x53444331, 15 | 0x80000000, 8, 520, 0, 520) + data
+        client = client_for(bad)
+        with self.assertRaises(workbench.ControlError):
+            client._camera_block_exchange(selector, 1)
+        self.assertEqual(client._sequence, 7)
+
+        bad_tail = bytes(range(256)) * 2
+        reply = (
+            struct.pack(">4IiI", 0x53444331, 15 | 0x80000000, 7, 520, 0, 520) + bad_tail
+        )
+        client = client_for(reply)
+        with self.assertRaises(workbench.ControlError):
+            client._camera_block_exchange(selector, 1)
+        self.assertEqual(client._sequence, 8)
+
+        error = struct.pack(">4IiI", 0x53444331, 15 | 0x80000000, 7, 520, 1, 0) + bytes(
+            512
+        )
+        client = client_for(error)
+        with self.assertRaises(workbench.ControlError):
+            client._camera_block_exchange(selector, 1)
+        self.assertEqual(client._sequence, 8)
+
+        bad = struct.pack(">4IiI", 0x53444331, 15 | 0x80000000, 7, 519, 0, 520) + data
+        client = client_for(bad)
+        with self.assertRaises(workbench.ControlError):
+            client._camera_block_exchange(selector, 1)
+        self.assertEqual(client._sequence, 7)
+
     def test_native_port_filter_rejects_uart_without_opening(self):
         port = SimpleNamespace(device="fixture-UART", vid=0x1A86, pid=0x7523)
         with patch.object(

@@ -69,6 +69,7 @@ int main(void)
    */
   assert(BKCONTROL_CONFIG_CAMERA != 21u);
   assert(BKCONTROL_CONFIG_CAMERA_FRAME != 21u);
+  assert(BKCONTROL_CONFIG_CAMERA_BLOCK == 25u);
   assert(BKCONTROL_CONFIG_CAMERA != BKCONTROL_CONFIG_CAMERA_FRAME);
   assert(request(1, 0) == -EBUSY); assert(captures == 0);
   bkcamera_step(now, true); assert(request(1, 0) == 0); assert(wakes == 1);
@@ -80,8 +81,20 @@ int main(void)
   put(selector, 2, 8); put(selector + 12, 6, 4);
   assert(bkcamera_control(BKCONTROL_CONFIG_READ, BKCONTROL_CONFIG_CAMERA_FRAME,
     0, selector, 16, &status) == 0); assert(status.config_chunk[0] == 255);
+  assert(bkcamera_control(BKCONTROL_CONFIG_READ, BKCONTROL_CONFIG_CAMERA_BLOCK,
+    0, NULL, 0, &status) == 0);
+  assert(status.config_total == 16 && !memcmp(status.config_chunk, "CBR1", 4) &&
+         get(status.config_chunk + 4, 4) == 1 &&
+         get(status.config_chunk + 8, 4) == 512 && get(status.config_chunk + 12, 4) == 0);
+  assert(bkcamera_control(BKCONTROL_CONFIG_READ, BKCONTROL_CONFIG_CAMERA_BLOCK,
+    0, selector, 16, &status) == 0);
+  assert(status.config_total == 6 && status.camera_block[0] == 255 &&
+         status.camera_block[5] == 217);
+  for (size_t i = 6; i < sizeof(status.camera_block); i++) assert(status.camera_block[i] == 0);
   selector[7] = 1;
   assert(bkcamera_control(BKCONTROL_CONFIG_READ, BKCONTROL_CONFIG_CAMERA_FRAME,
+    0, selector, 16, &status) == -ESTALE);
+  assert(bkcamera_control(BKCONTROL_CONFIG_READ, BKCONTROL_CONFIG_CAMERA_BLOCK,
     0, selector, 16, &status) == -ESTALE);
   assert(request(1, 2) == -EBUSY); now += 120001; bkcamera_step(now, true);
   snapshot(view); assert(get(view + 4, 4) == 6); assert(get(view + 40, 4) == 0);

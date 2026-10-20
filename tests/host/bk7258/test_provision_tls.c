@@ -264,7 +264,8 @@ static int pc_config(void *context, enum bkcontrol_command_e command,
                       size_t size, struct bkcontrol_status_s *status)
 {
   assert(context == &pc_reads);
-  if (kind == BKCONTROL_CONFIG_CAMERA || kind == BKCONTROL_CONFIG_CAMERA_FRAME)
+  if (kind == BKCONTROL_CONFIG_CAMERA || kind == BKCONTROL_CONFIG_CAMERA_FRAME ||
+      kind == BKCONTROL_CONFIG_CAMERA_BLOCK)
     {
       bkcamera_step(now, true);
       int ret = bkcamera_control(command, kind, offset, record, size, status);
@@ -765,7 +766,7 @@ static void pc_guard_tests(mbedtls_ssl_context *client,
   const uint8_t focus[4] = {0,10,0,0}, eye[4] = {0,5,0,0};
   const uint8_t engineering[4] = {0,19,0,0};
   const uint8_t begin[8] = {0,0,0,10,0,0,0,4};
-  const uint8_t denied_kinds[] = {1,2,3,4,6,7,8,9,12,13,14,15,21,22};
+  const uint8_t denied_kinds[] = {1,2,3,4,6,7,8,9,12,13,14,15,21,22,25};
   pc_owner_lifecycle_tests(cert,key);
   pc_guarded = true;
   control_handshake_on(&control, client, cert, key, true);

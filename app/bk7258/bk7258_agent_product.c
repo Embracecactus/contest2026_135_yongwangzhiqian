@@ -1790,7 +1790,9 @@ static int product_pc_config(void *context, enum bkcontrol_command_e command,
   struct bkcontrol_status_s *status)
 {
 #ifdef BKPRODUCT_PC_CAMERA
-  if (kind == BKCONTROL_CONFIG_CAMERA || kind == BKCONTROL_CONFIG_CAMERA_FRAME)
+  if (kind == BKCONTROL_CONFIG_CAMERA ||
+      kind == BKCONTROL_CONFIG_CAMERA_FRAME ||
+      kind == BKCONTROL_CONFIG_CAMERA_BLOCK)
     {
       const struct bkpc_control_s *lease = &g_pc_usb_owner.usb.lease;
       if (!lease->open || !(lease->capabilities & BKPC_CAP_CAMERA))
