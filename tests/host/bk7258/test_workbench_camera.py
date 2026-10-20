@@ -88,15 +88,25 @@ class CameraTest(unittest.TestCase):
             authenticated = True
             _timeout = 1
 
-            def __init__(self, blocks=True, interrupt=False):
+            def __init__(
+                self,
+                blocks=True,
+                interrupt=False,
+                phase_after_request=3,
+                lost_request_receipt=False,
+            ):
                 self.blocks, self.interrupt = blocks, interrupt
+                self.phase_after_request = phase_after_request
+                self.lost_request_receipt = lost_request_receipt
                 self.phase, self.identity = 0, 0
                 self.nonce = bytes(16)
                 self.block_offsets = []
                 self.actions = []
+                self.now = 0
 
             def _now(self):
-                return 1
+                self.now += 1
+                return self.now
 
             def _sleep(self, unused):
                 pass
@@ -156,8 +166,10 @@ class CameraTest(unittest.TestCase):
                         self.identity, self.nonce, self.phase = (
                             identity + 1,
                             payload[16:],
-                            3,
+                            self.phase_after_request,
                         )
+                        if self.lost_request_receipt:
+                            raise ControlError("request receipt lost after send")
                     else:
                         self.phase = 5
                 return (0, 0, 0, 0, 0)
@@ -191,6 +203,32 @@ class CameraTest(unittest.TestCase):
             m.capture(interrupted)
         self.assertEqual(interrupted.block_offsets, [0, 512])
         self.assertEqual(interrupted.actions, [1, 2])
+
+        expired = Client(phase_after_request=6)
+        result = m.capture(expired)
+        self.assertEqual(result["state"], "expired")
+        self.assertNotIn("image_base64", result)
+        self.assertTrue(result["release_confirmed"])
+        self.assertEqual(expired.actions, [1, 2])
+
+        canceled = Client()
+        result = m.capture(
+            canceled, cancel_requested=lambda: bool(canceled.block_offsets)
+        )
+        self.assertEqual(result["state"], "canceled")
+        self.assertNotIn("image_base64", result)
+        self.assertTrue(result["release_confirmed"])
+        self.assertEqual(canceled.actions, [1, 2])
+
+        timeout = Client(phase_after_request=1)
+        with self.assertRaises(ControlError):
+            m.capture(timeout)
+        self.assertEqual(timeout.actions, [1, 2])
+
+        lost_receipt = Client(lost_request_receipt=True)
+        with self.assertRaises(ControlError):
+            m.capture(lost_receipt)
+        self.assertEqual(lost_receipt.actions, [1, 2])
 
 
 if __name__ == "__main__":
