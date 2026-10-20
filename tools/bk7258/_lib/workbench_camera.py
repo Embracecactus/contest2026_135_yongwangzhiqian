@@ -166,8 +166,8 @@ def capture(client, *, preview=False, cancel_requested=None):
     released = False
     chunk_bytes = block_size(client)
     started = client._now()
-    request(client, 1, current["id"], nonce)
     try:
+        request(client, 1, current["id"], nonce)
         deadline = started + 8
         while True:
             if cancel_requested is not None and cancel_requested():
