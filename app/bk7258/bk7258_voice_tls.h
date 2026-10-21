@@ -115,6 +115,12 @@ struct bkvoice_tls_s
 
 int bkvoice_tls_initialize(struct bkvoice_tls_s *tls,
                            const struct bkvoice_tls_config_s *config);
+/* Prepare a subsequent request only after closing/joining the previous one,
+ * while the request registry still excludes cancel. Initialization prepares
+ * the first request. Opening or closing a connection preserves cancellation.
+ */
+
+int bkvoice_tls_prepare_request(struct bkvoice_tls_s *tls);
 int bkvoice_tls_uninitialize(struct bkvoice_tls_s *tls);
 const struct bkvoice_wss_tls_ops_s *bkvoice_tls_ops(void);
 #ifdef CONFIG_BK7258_ENGINEERING_TEST

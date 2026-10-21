@@ -42,11 +42,13 @@ internal object DeviceUiAcceptance {
         val session = MainActivity::class.java.getDeclaredMethod("getDirectSession").apply { isAccessible = true }
             .invoke(activity) as DeviceControlSession
         val commands = mutableListOf<DeviceControlProtocol.Command>()
+        var events: DeviceControlSession.Events? = null
         var closes = 0
         try {
             onUi(instrumentation) {
                 session.connect(object : DeviceControlSession.Factory {
                     override fun open(value: DeviceControlSession.Events): DeviceControlSession.Transport {
+                        events = value
                         return object : DeviceControlSession.Transport {
                             override fun request(command: DeviceControlProtocol.Command, value: Int,
                                                  accepted: (Boolean) -> Unit) {
@@ -80,11 +82,34 @@ internal object DeviceUiAcceptance {
                     ),
                 )
                 val flow = field("configFlow")
+                val wake = checkNotNull(flow.type.enumConstants).first {
+                    (it as Enum<*>).name == "WAKE"
+                }
+                flow.set(activity, wake)
+                field("wakePayload").set(activity, byteArrayOf(1))
+                check(session.requestPayload(DeviceControlProtocol.Command.CONFIG_READ, ByteArray(4)))
+                check(session.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN,
+                    ByteBuffer.allocate(8).putInt(2).putInt(1).array()))
+                MainActivity::class.java.getDeclaredMethod("failWake", String::class.java).apply {
+                    isAccessible = true
+                }.invoke(activity, "fixture cancellation")
+                check(field("configFlow").get(activity).toString() == "NONE")
+                check(field("wakePayload").get(activity) == null)
+                check(commands.none { it == DeviceControlProtocol.Command.CONFIG_CANCEL }) {
+                    "queued wake BEGIN emitted a remote cancellation"
+                }
+                checkNotNull(events).result(DeviceControlProtocol.Command.CONFIG_READ,
+                    DeviceControlProtocol.Snapshot(0, true, false, null, null, null, null))
+            }
+            instrumentation.waitForIdleSync()
+            onUi(instrumentation) {
+                val flow = field("configFlow")
                 val eyes = checkNotNull(flow.type.enumConstants).first {
                     (it as Enum<*>).name == "EYES"
                 }
                 flow.set(activity, eyes)
                 field("eyeReadingOnly").setBoolean(activity, false)
+                field("eyeRecord").set(activity, ByteArray(44))
                 check(session.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN,
                     ByteBuffer.allocate(8).putInt(5).putInt(44).array()))
                 check(commands.last() == DeviceControlProtocol.Command.CONFIG_BEGIN)
@@ -92,17 +117,26 @@ internal object DeviceUiAcceptance {
             }
             instrumentation.waitForIdleSync()
             onUi(instrumentation) {
-                check(closes == 1) { "background eye install retained the GATT grace connection" }
-                check(session.current().connection == DeviceControlSession.Connection.SUSPENDED &&
-                    !session.current().authenticated) {
-                    "background eye install did not invalidate its authenticated generation"
-                }
+                check(closes == 0) { "background eye install closed before cancellation acknowledgement" }
                 check(commands.none { it == DeviceControlProtocol.Command.CONFIG_CANCEL }) {
-                    "serialized CANCEL was sent behind an in-flight install"
+                    "CANCEL bypassed the in-flight BEGIN acknowledgement"
                 }
-                check((field("eyeMessage").get(activity) as? String)?.contains("结果未知") == true) {
-                    "background eye install was presented as a confirmed cancellation"
+                checkNotNull(events).result(DeviceControlProtocol.Command.CONFIG_BEGIN,
+                    DeviceControlProtocol.Snapshot(0, true, false, null, null, null, null))
+            }
+            instrumentation.waitForIdleSync()
+            onUi(instrumentation) {
+                check(commands.last() == DeviceControlProtocol.Command.CONFIG_CANCEL) {
+                    "background eye install did not serialize CANCEL after BEGIN"
                 }
+                check(field("configFlow").get(activity).toString() == "EYES")
+                checkNotNull(events).result(DeviceControlProtocol.Command.CONFIG_CANCEL,
+                    DeviceControlProtocol.Snapshot(0, true, false, null, null, null, null))
+            }
+            instrumentation.waitForIdleSync()
+            onUi(instrumentation) {
+                check(field("configFlow").get(activity).toString() == "NONE")
+                check((field("eyeMessage").get(activity) as? String)?.contains("已取消") == true)
             }
         } finally {
             onUi(instrumentation) {
@@ -556,7 +590,7 @@ internal object DeviceUiAcceptance {
             check(file.isFile && file.readBytes().contentEquals(bytes))
             val digest = field("selectedEyeAssetSha256").get(activity) as? ByteArray
             check(digest != null && digest.contentEquals(java.security.MessageDigest.getInstance("SHA-256").digest(bytes)))
-            check(field("eyeServer").get(activity) == null && field("eyeRecord").get(activity) == null)
+            check(field("eyeSource").get(activity) == null && field("eyeRecord").get(activity) == null)
             check(field("configFlow").get(activity).toString() == "NONE")
             showResources()
             check(findView(activity.window.decorView) { it is TextView && it.text.toString().contains("${expected.packId} · 版本 ${expected.revision}") } != null) {

@@ -2769,18 +2769,10 @@ static int bk7258_aud_shutdown(struct audio_lowerhalf_s *dev)
   struct bk7258_aud_dev_s *priv = (struct bk7258_aud_dev_s *)dev;
   int ret;
 
-  /* NuttX invokes the last-close shutdown while holding the audio upper
-   * spinlock.  An active worker could be blocked in a DEQUEUE callback on
-   * that same lock.  The supported close contract is therefore:
-   * STOP (or explicit SHUTDOWN), keep the MQ registered while draining all
-   * DEQUEUE/COMPLETE messages, RELEASE, UNREGISTERMQ, FREEBUFFER, then close.
-   * In that normal path this function is callback-free.
-   */
-
-  /* audio_close() invokes this callback while holding the upper-half
-   * spinlock, so even the normal no-op path must not take a sleeping mutex.
-   * release() publishes close_safe only after every worker, APB and hardware
-   * owner has been quiesced.
+  /* Last-close shutdown runs outside the pinned upper-half spinlock, with
+   * callback state alive until success. Join the worker and return every
+   * queued APB even when the application omitted STOP/RELEASE. The usual
+   * explicit-release path is already quiescent and remains a cheap no-op.
    */
 
   if (__atomic_load_n(&priv->close_safe, __ATOMIC_ACQUIRE))

@@ -39,6 +39,7 @@ CONFIG_RE = re.compile(r"^(?:# )?(CONFIG_[A-Za-z0-9_]+)(?:=.*| is not set)$")
 PROFILE_RE = re.compile(r"^(cp|ap)(?:-([a-z][a-z0-9_-]*))?$")
 HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 COMMIT_RE = re.compile(r"^[0-9a-f]{40,64}$")
+SDK_VERSION_RE = re.compile(r"^v\d+\.\d+\.\d+\.\d+$")
 LINK_INPUT_RE = re.compile(r"[^\s\"']+\.(?:a|o|obj)(?=$|[\s\"'])")
 UART_DEFINE = "CONFIG_BK_PRINTF_DISABLE"
 AMBIENT_BUILD_FLAGS = (
@@ -148,8 +149,18 @@ def manifest_sdk(repository: Path) -> ManifestSdk:
     path = project.get("path", "")
     revision = project.get("revision", "")
     upstream = project.get("upstream", "")
-    version = upstream.rsplit("/", 1)[-1]
-    if not path or not COMMIT_RE.fullmatch(revision) or not version:
+    versions = [
+        annotation.get("value")
+        for annotation in project.findall("annotation")
+        if annotation.get("name") == "bk7258-sdk-version"
+    ]
+    if len(versions) != 1 or not SDK_VERSION_RE.fullmatch(versions[0] or ""):
+        raise SdkError(
+            "bk7258-sdk manifest project must contain exactly one valid "
+            "bk7258-sdk-version annotation"
+        )
+    version = versions[0]
+    if not path or not COMMIT_RE.fullmatch(revision) or not upstream:
         raise SdkError("bk7258-sdk manifest project is incomplete")
     return ManifestSdk(path, revision, upstream, version, repository.parent / path)
 

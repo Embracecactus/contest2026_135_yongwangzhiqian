@@ -26,9 +26,13 @@
 #include <errno.h>
 
 #include <nuttx/nuttx.h>
+#include <nuttx/mutex.h>
 #include <nuttx/rpmsg/rpmsg.h>
 #include <nuttx/rptun/rptun.h>
+#include <nuttx/sched.h>
+#include <nuttx/semaphore.h>
 #include <nuttx/signal.h>
+#include <nuttx/spinlock.h>
 
 #include <arch/chip/bk7258_amp.h>
 #include <arch/chip/bk7258_ota_rpmsg.h>
@@ -78,6 +82,9 @@ struct bk7258_rptun_dev_s
   struct rpmsg_endpoint proof_ept;
   rptun_callback_t callback;
   void *callback_arg;
+  pid_t callback_tid;
+  unsigned int callbacks;
+  bool callback_draining;
   char proof_name[RPMSG_NAME_SIZE];
   uint32_t generation;
   uint32_t proof_generation;
@@ -133,6 +140,9 @@ static const struct rptun_ops_s g_bk7258_rptun_ops =
 };
 
 static struct bk7258_rptun_dev_s g_bk7258_rptun;
+static mutex_t g_bk7258_rptun_registration = NXMUTEX_INITIALIZER;
+static spinlock_t g_bk7258_rptun_callback_lock = SP_UNLOCKED;
+static sem_t g_bk7258_rptun_callback_done = SEM_INITIALIZER(0);
 
 /****************************************************************************
  * Private Functions
@@ -444,11 +454,15 @@ static void bk7258_rptun_receive(uint32_t generation, uint32_t notify)
   volatile uint32_t *incoming = bk7258_rptun_incoming_pending(control);
   volatile uint32_t *outgoing = bk7258_rptun_outgoing_pending(control);
   rptun_callback_t callback;
+  void *callback_arg;
+  irqstate_t flags;
   uint32_t pending;
   bool bootstrap;
 
+  flags = spin_lock_irqsave(&g_bk7258_rptun_callback_lock);
   if (!priv->initialized || generation != priv->generation)
     {
+      spin_unlock_irqrestore(&g_bk7258_rptun_callback_lock, flags);
       return;
     }
 
@@ -461,8 +475,14 @@ static void bk7258_rptun_receive(uint32_t generation, uint32_t notify)
   callback = priv->callback;
   if (callback == NULL)
     {
+      spin_unlock_irqrestore(&g_bk7258_rptun_callback_lock, flags);
       return;
     }
+
+  callback_arg = priv->callback_arg;
+  priv->callbacks++;
+  priv->callback_tid = nxsched_gettid();
+  spin_unlock_irqrestore(&g_bk7258_rptun_callback_lock, flags);
 
   pending = __atomic_exchange_n((uint32_t *)(uintptr_t)incoming, 0,
                                 __ATOMIC_ACQ_REL);
@@ -488,18 +508,18 @@ static void bk7258_rptun_receive(uint32_t generation, uint32_t notify)
   if ((pending & BK7258_RPTUN_NOTIFY_ALL) != 0 ||
       bootstrap)
     {
-      callback(priv->callback_arg, RPTUN_NOTIFY_ALL);
+      callback(callback_arg, RPTUN_NOTIFY_ALL);
     }
   else
     {
       if ((pending & BK7258_RPTUN_NOTIFY_VRING0) != 0)
         {
-          callback(priv->callback_arg, 0);
+          callback(callback_arg, 0);
         }
 
       if ((pending & BK7258_RPTUN_NOTIFY_VRING1) != 0)
         {
-          callback(priv->callback_arg, 1);
+          callback(callback_arg, 1);
         }
     }
 
@@ -513,6 +533,18 @@ static void bk7258_rptun_receive(uint32_t generation, uint32_t notify)
     {
       (void)bk7258_rptun_mbox_notify(generation, pending);
     }
+
+  flags = spin_lock_irqsave(&g_bk7258_rptun_callback_lock);
+  if (--priv->callbacks == 0)
+    {
+      priv->callback_tid = INVALID_PROCESS_ID;
+      if (priv->callback_draining)
+        {
+          nxsem_post(&g_bk7258_rptun_callback_done);
+        }
+    }
+
+  spin_unlock_irqrestore(&g_bk7258_rptun_callback_lock, flags);
 }
 
 #ifndef CONFIG_BK7258_AP_CORE
@@ -689,14 +721,80 @@ static int bk7258_rptun_register_callback(struct rptun_dev_s *dev,
 {
   struct bk7258_rptun_dev_s *priv =
     container_of(dev, struct bk7258_rptun_dev_s, rptun);
+  irqstate_t flags;
+  bool wait;
+  int cancelstate;
+  int ret;
 
+  /* All notifications run on the one mailbox worker. Lifecycle changes
+   * belong to the RPTUN task; never wait for that worker from its callback.
+   */
+
+  flags = spin_lock_irqsave(&g_bk7258_rptun_callback_lock);
+  wait = priv->callbacks != 0 &&
+         priv->callback_tid == nxsched_gettid();
+  spin_unlock_irqrestore(&g_bk7258_rptun_callback_lock, flags);
+  if (wait)
+    {
+      return -EDEADLK;
+    }
+
+  /* NuttX's RPTUN upper does not propagate unregister failures. Once we
+   * start revoking this pair, task cancellation must not interrupt the join
+   * and let the upper release an argument still held by the mailbox worker.
+   */
+
+  ret = task_setcancelstate(TASK_CANCEL_DISABLE, &cancelstate);
+  if (ret < 0)
+    {
+      return -errno;
+    }
+
+  ret = nxmutex_lock(&g_bk7258_rptun_registration);
+  if (ret < 0)
+    {
+      task_setcancelstate(cancelstate, NULL);
+      return ret;
+    }
+
+  flags = spin_lock_irqsave(&g_bk7258_rptun_callback_lock);
+  priv->callback = NULL;
+  priv->callback_arg = NULL;
+  wait = priv->callbacks != 0;
+  priv->callback_draining = wait;
+  spin_unlock_irqrestore(&g_bk7258_rptun_callback_lock, flags);
+  bk7258_rptun_mbox_set_notify(NULL);
+
+  /* A mailbox callback already snapshotted outside its own lock may still
+   * enter receive(), but it now sees NULL. Join every earlier snapshot
+   * before its argument can be released or a new generation published.
+   */
+
+  while (wait)
+    {
+      ret = nxsem_wait_uninterruptible(&g_bk7258_rptun_callback_done);
+      if (ret < 0)
+        {
+          nxmutex_unlock(&g_bk7258_rptun_registration);
+          task_setcancelstate(cancelstate, NULL);
+          return ret;
+        }
+
+      flags = spin_lock_irqsave(&g_bk7258_rptun_callback_lock);
+      wait = priv->callbacks != 0;
+      spin_unlock_irqrestore(&g_bk7258_rptun_callback_lock, flags);
+    }
+
+  flags = spin_lock_irqsave(&g_bk7258_rptun_callback_lock);
+  priv->callback_draining = false;
   priv->callback_arg = arg;
   __atomic_store_n(&priv->bootstrap, callback != NULL, __ATOMIC_RELEASE);
-  __asm volatile ("dmb sy" ::: "memory");
   priv->callback = callback;
-  __asm volatile ("dmb sy" ::: "memory");
+  spin_unlock_irqrestore(&g_bk7258_rptun_callback_lock, flags);
   bk7258_rptun_mbox_set_notify(callback != NULL ?
                               bk7258_rptun_receive : NULL);
+  nxmutex_unlock(&g_bk7258_rptun_registration);
+  task_setcancelstate(cancelstate, NULL);
   return OK;
 }
 
