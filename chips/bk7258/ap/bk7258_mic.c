@@ -1754,14 +1754,22 @@ static int bk7258_mic_shutdown(struct audio_lowerhalf_s *dev)
 
   DEBUGASSERT(priv != NULL);
 
-  /* audio_close() invokes shutdown while holding the upper-half spinlock.
-   * The supported bridge always performs STOP and RELEASE first; that path
-   * publishes close_safe only after workers, buffers and the AP-wide AUD
-   * session owner are gone.  Never take a sleeping mutex from last-close.
+  /* The pinned upper half releases its spinlock before last-close shutdown
+   * and retains callback state until this operation succeeds. RELEASE joins
+   * an active capture, returns queued buffers and releases the AUD owner;
+   * this must also work when the application omitted STOP/RELEASE.
    */
 
-  return __atomic_load_n(&priv->close_safe, __ATOMIC_ACQUIRE) ? OK :
-         -EBUSY;
+  if (__atomic_load_n(&priv->close_safe, __ATOMIC_ACQUIRE))
+    {
+      return OK;
+    }
+
+#ifdef CONFIG_AUDIO_MULTI_SESSION
+  return bk7258_mic_release(dev, priv);
+#else
+  return bk7258_mic_release(dev);
+#endif
 }
 
 /****************************************************************************

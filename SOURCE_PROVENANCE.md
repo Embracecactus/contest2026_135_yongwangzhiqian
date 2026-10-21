@@ -1,6 +1,33 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # 源码许可证与来源记录
 
+## 2026-10-21 评审修复依赖
+
+NuttX 修复已发布到 `Embracecactus/nuttx` 的
+`fix/bk7258-review-lifecycle`，提交
+`892be7ba7dc468f11f32eade4c553cc76b0219c3`。它保留既有时钟回移，
+将下述 Bluetooth 本地修复提交化，并修复 audio upper 最后关闭的锁与回调边界、
+V4L2 捕获启动失败的传播；保留各文件原许可证。团队 manifest 使用
+`extend-project` 固定该依赖，`chips/bk7258/kernel_compat.json`
+核对提交与 18 个源码摘要，不再要求本地 Bluetooth 改动或构建补丁。
+
+Agent 既有提交 `35df4b347b17f07c972eb6e7e14a14fee1be78e4` 已原样发布到
+`Embracecactus/packages_ai_agent` 的 `fix/pcm-consumer-priority`。
+它在已发布父提交 `b058771e25efa918819f3d25264b877eb971186e` 上增加
+PCM 消费线程优先级配置和生产者启动前的线程准备同步，仅涉及 `Kconfig`
+与 `src/voice/voice_channel.c`，保留 Apache-2.0。远端提交与现有
+manifest 固定值一致；本次发布不改变已验证构建的依赖源码。
+
+SDK 修复已发布到 `Embracecactus/bk_avdk_smp` 的
+`fix/sdio-completion-mask`，提交
+`eb0d4252a83f0ba88f0eb947fcfa2e36cbcb9bb4`。修改仅限
+`ap/middleware/driver/sdio_host/sdio_host_driver.c` 的 DMA TX 完成判定：
+FIFO 空中断必须已启用才完成发送；保留 Beken Apache-2.0。
+版本仍为 `v3.1.1.9`，由 manifest 注解明确选择。五个 SDK profile
+通过现役 rebuild 入口重建；CP 摘要未变，三个 AP profile 更新已验收摘要。
+相关主机回归直接提取固定依赖的实际函数，不恢复历史补丁链。
+上述依赖发布与主机验证不构成板端生命周期验收；下文历史记录保留当时边界。
+
 ## 2026-10-19 开发快照依赖边界
 
 本分支提交保存当前开发状态，不构成公开 manifest 的独立复现验收。

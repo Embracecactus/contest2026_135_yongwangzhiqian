@@ -983,6 +983,13 @@ static int bk7258_dvp_stop_stream(FAR struct bk7258_dvp_s *priv)
   priv->capture_active = false;
   priv->capture_cb = NULL;
   priv->capture_arg = NULL;
+  /* Revoke the queued destination before releasing the state lock.  The
+   * worker may already own a different destination; work_cancel_sync below
+   * joins that copy before an external STREAMOFF can release its pool.
+   */
+
+  priv->next_buffer = NULL;
+  priv->next_size = 0;
   /* JPEG close is synchronized by the SDK's live VSYNC handler.  Suspending
    * here asserts JPEG/YUV reset before that handshake and leaves the SDK DMA
    * and frame owner alive.  Stop delivery and drain our worker below, then
@@ -1031,6 +1038,8 @@ static int bk7258_dvp_stop_stream(FAR struct bk7258_dvp_s *priv)
     }
   flags = spin_lock_irqsave(&priv->lock);
   bk7258_dvp_drop_events_locked(priv);
+  priv->next_buffer = NULL;
+  priv->next_size = 0;
   if (!current_worker)
     {
       /* work_cancel_sync() owns the queued work after it returns.  Mirror

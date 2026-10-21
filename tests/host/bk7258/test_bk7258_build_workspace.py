@@ -252,14 +252,24 @@ class BuildWorkspaceTest(unittest.TestCase):
         team_manifest.write_text("<manifest/>\n", encoding="utf-8")
         source = self.repository / "chips/bk7258/input.c"
         source.write_text("int value = 1;\n")
+        included = self.repository / "chips/bk7258/input.inc"
+        included.write_text("int included_value = 1;\n")
+        sysinit = (
+            self.repository
+            / "boards/bk7258/aidk_ai_toy/src/etc/init.d/rc.sysinit"
+        )
+        sysinit.parent.mkdir(parents=True, exist_ok=True)
+        sysinit.write_text("echo boot\n")
         lvgl_config = self.repository / "boards/bk7258/common/include/lv_conf.h"
         lvgl_config.parent.mkdir(parents=True, exist_ok=True)
         lvgl_config.write_text("#define LV_ATTRIBUTE_FAST_MEM\n", encoding="utf-8")
         subprocess.run(["git", "init", "-q", str(self.repository)], check=True)
         subprocess.run(
             ["git", "-C", str(self.repository), "add", "chips/bk7258/input.c",
+             "chips/bk7258/input.inc",
              "boards/bk7258/aidk_ai_toy/configs/openvela_ap/defconfig",
              "boards/bk7258/common/include/lv_conf.h",
+             "boards/bk7258/aidk_ai_toy/src/etc/init.d/rc.sysinit",
              "openvela.xml", "contest2026_135_yongwangzhiqian.xml"],
             check=True,
         )
@@ -292,6 +302,13 @@ class BuildWorkspaceTest(unittest.TestCase):
         copied_source = copied / "chips/bk7258/input.c"
         copied_source.parent.mkdir(parents=True)
         copied_source.write_bytes(source.read_bytes())
+        copied_include = copied / "chips/bk7258/input.inc"
+        copied_include.write_bytes(included.read_bytes())
+        copied_sysinit = (
+            copied / "boards/bk7258/aidk_ai_toy/src/etc/init.d/rc.sysinit"
+        )
+        copied_sysinit.parent.mkdir(parents=True, exist_ok=True)
+        copied_sysinit.write_bytes(sysinit.read_bytes())
         index = self.repository / ".git/index"
         index_before = (index.stat().st_mtime_ns, index.read_bytes())
         clean_copy = build_domain._source_tree_state(
@@ -305,6 +322,36 @@ class BuildWorkspaceTest(unittest.TestCase):
         self.assertTrue(dirty_copy["dirty"])
         self.assertNotEqual(
             clean_copy["input_tree_sha256"], dirty_copy["input_tree_sha256"]
+        )
+        copied_source.write_bytes(source.read_bytes())
+        clean_include = build_domain._source_tree_state(
+            copied, ["chips/bk7258"], changed_only=True, git_repository=self.repository
+        )
+        copied_include.write_text("int included_value = 2;\n")
+        dirty_include = build_domain._source_tree_state(
+            copied, ["chips/bk7258"], changed_only=True, git_repository=self.repository
+        )
+        self.assertTrue(dirty_include["dirty"])
+        self.assertNotEqual(
+            clean_include["input_tree_sha256"], dirty_include["input_tree_sha256"]
+        )
+        clean_sysinit = build_domain._source_tree_state(
+            copied,
+            ["boards/bk7258/aidk_ai_toy/src/etc/init.d/rc.sysinit"],
+            changed_only=True,
+            git_repository=self.repository,
+        )
+        self.assertFalse(clean_sysinit["dirty"])
+        copied_sysinit.write_text("echo changed boot\n")
+        dirty_sysinit = build_domain._source_tree_state(
+            copied,
+            ["boards/bk7258/aidk_ai_toy/src/etc/init.d/rc.sysinit"],
+            changed_only=True,
+            git_repository=self.repository,
+        )
+        self.assertTrue(dirty_sysinit["dirty"])
+        self.assertNotEqual(
+            clean_sysinit["input_tree_sha256"], dirty_sysinit["input_tree_sha256"]
         )
         self.assertEqual(index_before, (index.stat().st_mtime_ns, index.read_bytes()))
         self.assertEqual(
@@ -331,6 +378,24 @@ class BuildWorkspaceTest(unittest.TestCase):
             original["input_tree_sha256"], changed_lvgl["input_tree_sha256"]
         )
         lvgl_config.write_text("#define LV_ATTRIBUTE_FAST_MEM\n", encoding="utf-8")
+        included.write_text("int included_value = 2;\n")
+        changed_include = build_domain._source_provenance(
+            self.repository, cp, ap, "shaniu"
+        )
+        self.assertTrue(changed_include["dirty"])
+        self.assertNotEqual(
+            original["input_tree_sha256"], changed_include["input_tree_sha256"]
+        )
+        included.write_text("int included_value = 1;\n")
+        sysinit.write_text("echo changed\n")
+        changed_sysinit = build_domain._source_provenance(
+            self.repository, cp, ap, "shaniu"
+        )
+        self.assertTrue(changed_sysinit["dirty"])
+        self.assertNotEqual(
+            original["input_tree_sha256"], changed_sysinit["input_tree_sha256"]
+        )
+        sysinit.write_text("echo boot\n")
         for path in (
             "chips/bk7258/logs/log.json",
             "chips/bk7258/secrets/key.json",

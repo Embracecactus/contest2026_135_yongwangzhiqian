@@ -3,19 +3,18 @@
 """Replay masked FIFO-empty races through the actual pinned SDK V2 ISR."""
 
 from pathlib import Path
+import argparse
 import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[3]
 REL = Path("ap/middleware/driver/sdio_host/sdio_host_driver.c")
 SDK = ROOT.parent / "vendor/beken/bk_avdk_smp"
-PATCH = ROOT / "chips/bk7258/bk_idk/sdk-profiles/v3.1.1.9/ap-sdio-tx-start.patch"
 
 PREFIX = r"""
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
-#define CONFIG_SDIO_GDMA_EN 1
 #define CONFIG_SDIO_V2P0 1
 #define SDIO_HOST_LOGV(...) ((void)0)
 #define SDIO_HOST_LOGW(...) ((void)0)
@@ -39,7 +38,7 @@ static struct {
 #define sdio_host_hal_is_cmd_rsp_crc_ok_interrupt_triggered(h,s) ((s)&(1u<<10))
 #define sdio_host_hal_is_cmd_rsp_crc_fail_interrupt_triggered(h,s) ((s)&(1u<<11))
 #define sdio_host_hal_is_cmd_rsp_timeout_interrupt_triggered(h,s) ((s)&4)
-#define sdio_host_hal_is_data_write_end_int_triggered(h,s) ((s)&(1u<<4))
+#define sdio_host_hal_is_data_write_end_int_triggered(h,s) ((void)(h), (s)&(1u<<4))
 #define sdio_host_hal_is_fifo_empty_int_triggered(h,s) ((s)&(1u<<9))
 #define sdio_host_hal_is_data_recv_end_int_triggered(h,s) ((s)&(1u<<3))
 #define sdio_host_hal_is_data_timeout_int_triggered(h,s) ((s)&(1u<<5))
@@ -58,6 +57,7 @@ static void rtos_set_semaphore(int *s) { ++*s; }
 
 SUFFIX = r"""
 int main(void) {
+#if CONFIG_SDIO_GDMA_EN
   /* A block ended while DMA has more data: raw empty must not release TX. */
   pending=(1u<<4)|(1u<<9); sdio_host_isr();
   if(s_sdio_host.tx_sema != 0) return 1;
@@ -70,6 +70,15 @@ int main(void) {
   if(s_sdio_host.tx_sema != 1 || hw.sd_cmd_rsp_int_mask.tx_fifo_empty_mask) return 3;
   sdio_host_isr();
   if(s_sdio_host.tx_sema != 1) return 4;
+#else
+  /* CPU writes still complete on write-end, independent of the empty level. */
+  pending=(1u<<4)|(1u<<9); sdio_host_isr();
+  if(s_sdio_host.tx_sema != 1) return 5;
+  pending=(1u<<3)|(1u<<12)|(1u<<9); sdio_host_isr();
+  if(s_sdio_host.rx_sema != 1 || (pending & (1u<<3))) return 6;
+  pending=(1u<<9); sdio_host_isr();
+  if(s_sdio_host.tx_sema != 1) return 7;
+#endif
   puts("PASS: masked FIFO empty cannot complete TX or divert RX; drain posts once");
   return 0;
 }
@@ -82,14 +91,15 @@ def isr(source):
     return source[start:end] + "\n#endif\n"
 
 
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--sdk", type=Path, default=SDK)
+args = parser.parse_args()
+
 with tempfile.TemporaryDirectory(prefix="sdio-dma-isr-") as temporary:
     work = Path(temporary)
-    original = (SDK / REL).read_text()
-    target = work / REL
-    target.parent.mkdir(parents=True)
-    target.write_text(original)
-    subprocess.run(["patch", "--silent", "-p1", "-i", str(PATCH)], cwd=work, check=True)
-    for name, source in (("original", original), ("patched", target.read_text())):
+    source = (args.sdk / REL).read_text()
+    for gdma in (0, 1):
+        name = f"gdma-{gdma}"
         test = work / (name + ".c")
         test.write_text(PREFIX + isr(source) + SUFFIX)
         binary = work / name
@@ -100,12 +110,12 @@ with tempfile.TemporaryDirectory(prefix="sdio-dma-isr-") as temporary:
                 "-Wall",
                 "-Wextra",
                 "-Werror",
+                f"-DCONFIG_SDIO_GDMA_EN={gdma}",
                 str(test),
                 "-o",
                 str(binary),
             ],
             check=True,
         )
-        result = subprocess.run([str(binary)], check=False)
-        assert result.returncode == (1 if name == "original" else 0), name
-    print("PASS: original SDK reproduces premature TX completion")
+        subprocess.run([str(binary)], check=True)
+    print("PASS: pinned SDK ISR completion checks (GDMA enabled and disabled)")

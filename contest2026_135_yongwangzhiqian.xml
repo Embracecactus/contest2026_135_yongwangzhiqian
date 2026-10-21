@@ -8,11 +8,15 @@
   -->
   <include name="openvela.xml"/>
 
-  <!-- Agent extensions are pinned fork commits; publish a new dependency
+  <!-- Dependency fixes are pinned fork commits; publish a new dependency
        commit before publishing this manifest. No build-time patch is used. -->
   <remote name="shaniu-agent" fetch="https://github.com/Embracecactus/"/>
   <remote name="mcuboot-official" fetch="https://github.com/mcu-tools/"/>
   <remote name="speexdsp-official" fetch="https://github.com/xiph/"/>
+  <extend-project name="nuttx" path="nuttx"
+                  remote="shaniu-agent"
+                  revision="892be7ba7dc468f11f32eade4c553cc76b0219c3"
+                  upstream="refs/heads/fix/bk7258-review-lifecycle"/>
   <extend-project name="packages_ai_agent" path="packages/ai_agent"
                   remote="shaniu-agent"
                   revision="35df4b347b17f07c972eb6e7e14a14fee1be78e4"
@@ -21,11 +25,13 @@
   <project path="vendor/beken/bk_avdk_smp"
            name="Embracecactus/bk_avdk_smp"
            remote="git"
-           revision="cb080de1655d579c7593ecf504c440997c4c137b"
-           upstream="refs/heads/openvela/v3.1.1.9"
+           revision="eb0d4252a83f0ba88f0eb947fcfa2e36cbcb9bb4"
+           upstream="refs/heads/fix/sdio-completion-mask"
            sync-c="true"
            clone-depth="1"
-           groups="bk7258-sdk"/>
+           groups="bk7258-sdk">
+    <annotation name="bk7258-sdk-version" value="v3.1.1.9"/>
+  </project>
 
   <!-- BL2 and the release signer consume this exact official MCUboot tree. -->
   <project path="apps/boot/mcuboot/mcuboot" name="mcuboot"

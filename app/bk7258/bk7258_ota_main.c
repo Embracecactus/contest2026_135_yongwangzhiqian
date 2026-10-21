@@ -36,7 +36,7 @@ static const char *bkota_pair_state(enum bk7258_ota_pair_state_e state)
     }
 }
 
-static int bkota_status(void)
+static int bkota_status(FAR const char *request)
 {
   struct bk7258_ota_geometry_s geometry;
   struct bk7258_ota_pair_snapshot_s pair;
@@ -52,6 +52,8 @@ static int bkota_status(void)
   volatile struct bk7258_cpu2_probe_state_s *cpu2 =
     bk7258_cpu2_probe_state();
   volatile struct bk7258_rptun_control_s *rptun = bk7258_rptun_control();
+  uint32_t generation_begin = ap->generation;
+  uint32_t generation_end;
   int ret = bk7258_ota_inactive_geometry(&geometry);
 
   if (ret < 0)
@@ -60,6 +62,8 @@ static int bkota_status(void)
       return EXIT_FAILURE;
     }
 
+  printf("bkota-status-begin request=%s generation=%" PRIu32 "\n",
+         request, generation_begin);
   printf("active=%c inactive=%c cp=0x%08" PRIx32 "+0x%08" PRIx32
          " ap=0x%08" PRIx32 "+0x%08" PRIx32 "\n",
          geometry.active_slot == BK7258_BOOT_SLOT_PRIMARY ? 'A' : 'B',
@@ -181,6 +185,9 @@ static int bkota_status(void)
     }
 #endif
 
+  generation_end = ap->generation;
+  printf("bkota-status-end request=%s generation=%" PRIu32 "\n",
+         request, generation_end);
   return EXIT_SUCCESS;
 }
 
@@ -189,9 +196,20 @@ int main(int argc, char *argv[])
   struct bk7258_ota_pair_snapshot_s pair;
   int ret;
 
-  if (argc == 2 && strcmp(argv[1], "status") == 0)
+  if ((argc == 2 || argc == 3) && strcmp(argv[1], "status") == 0)
     {
-      return bkota_status();
+      /* Echo a bounded query identity so a host cannot combine replies from
+       * earlier polls with the current confirmation attempt.
+       */
+
+      if (argc == 3 &&
+          (strlen(argv[2]) != 16 ||
+           strspn(argv[2], "0123456789abcdef") != 16))
+        {
+          return EXIT_FAILURE;
+        }
+
+      return bkota_status(argc == 3 ? argv[2] : "manual");
     }
 
   if (argc == 2 && strcmp(argv[1], "confirm") == 0)

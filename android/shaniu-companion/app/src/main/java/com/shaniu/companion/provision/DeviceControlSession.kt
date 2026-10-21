@@ -25,6 +25,8 @@ internal class DeviceControlSession(
         fun peerIdentity(identity: ProvisionPeerIdentity) {}
     }
     enum class Connection { DISCONNECTED, CONNECTING, CONNECTED, RECONNECT_WAIT, SUSPENDED }
+    /** Whether cancelling a configuration transaction reached the device. */
+    enum class ConfigCancellation { NOT_ACTIVE, LOCAL_CANCELLED, REMOTE_PENDING }
     data class State(
         val connection: Connection = Connection.DISCONNECTED,
         val authenticated: Boolean = false,
@@ -140,8 +142,8 @@ internal class DeviceControlSession(
         if (!accepted && command == DeviceControlProtocol.Command.CONFIG_BEGIN) configTransaction = false
         return accepted
     }
-    fun cancelConfigTransaction(): Boolean {
-        if (!configTransaction) return false
+    fun cancelConfigTransaction(): ConfigCancellation {
+        if (!configTransaction) return ConfigCancellation.NOT_ACTIVE
         val beginWasOnlyQueued = queued?.command == DeviceControlProtocol.Command.CONFIG_BEGIN
         queued?.clear(); queued = null
         if (beginWasOnlyQueued) {
@@ -151,11 +153,11 @@ internal class DeviceControlSession(
             configTransaction = false
             configCancelRequested = false
             publish(state.copy(operationMessage = null))
-            return true
+            return ConfigCancellation.LOCAL_CANCELLED
         }
         configCancelRequested = true
         if (inFlight == null) pump()
-        return true
+        return ConfigCancellation.REMOTE_PENDING
     }
     fun finishConfigTransaction(message: String? = null) {
         configTransaction = false

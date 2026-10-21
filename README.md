@@ -700,7 +700,8 @@ tools/bk7258/bk7258.py sdk verify --profile ap-aidk
 
 只构建一块板时，仅需表中对应的一对 SDK profile；AIDK 必须是 `cp-aidk + ap-aidk`。
 工具链从 `toolchain.json` 的锁定来源校验安装，不随意使用系统 GCC。
-SDK 源码由 manifest 固定为 `cb080de1655d579c7593ecf504c440997c4c137b`；
+SDK 源码由团队 manifest 的 `revision` 固定；`bk7258-sdk-version` 注解选择
+profile/bundle 目录，`upstream` 仅标识包含该提交的分支，不再决定 SDK 版本。
 需自行重建受许可约束的本地 bundle，不从私人机器复制不明二进制。
 
 ### 3. 三板构建入口
