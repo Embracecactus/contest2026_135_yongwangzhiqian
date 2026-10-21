@@ -78,7 +78,8 @@ static int event(struct bkcloud_tts_s *tts)
       tts->done = true;
       return 0;
     }
-  if (!bkcloud_json_safe(tts->event, tts->event_size)) return -EBADMSG;
+  if (!bkcloud_json_safe_bounded(tts->event, tts->event_size,
+                                 BKCLOUD_TTS_EVENT_MAX)) return -EBADMSG;
   const char *end;
   root = cJSON_ParseWithLengthOpts(tts->event, tts->event_size, &end, false);
   if (!root) return -EBADMSG;

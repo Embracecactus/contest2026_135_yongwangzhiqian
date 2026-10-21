@@ -18,4 +18,10 @@
 
 pid_t nxsched_gettid(void);
 
+#ifdef TEST_BK7258_RPTUN_CORE
+#  include <pthread.h>
+#  define TASK_CANCEL_DISABLE PTHREAD_CANCEL_DISABLE
+int task_setcancelstate(int state, int *oldstate);
+#endif
+
 #endif /* __MOCK_NUTTX_SCHED_H */

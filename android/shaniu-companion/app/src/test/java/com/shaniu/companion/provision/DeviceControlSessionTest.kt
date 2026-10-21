@@ -462,7 +462,7 @@ class DeviceControlSessionTest {
         assertTrue(f.session.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN, byteArrayOf(1)))
         assertFalse(f.session.request(DeviceControlProtocol.Command.VOLUME, 60))
         assertFalse(f.session.requestOta(DeviceControlProtocol.Command.OTA_BEGIN, byteArrayOf(1)))
-        assertTrue(f.session.cancelConfigTransaction())
+        assertEquals(DeviceControlSession.ConfigCancellation.REMOTE_PENDING, f.session.cancelConfigTransaction())
         assertEquals(listOf(DeviceControlProtocol.Command.CONFIG_BEGIN), f.peer.sent.map { it.command })
         f.peer.reply(DeviceControlProtocol.Command.CONFIG_BEGIN, status)
         assertEquals(DeviceControlProtocol.Command.CONFIG_CANCEL, f.peer.sent.last().command)
@@ -480,7 +480,7 @@ class DeviceControlSessionTest {
 
         assertTrue(f.session.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN, byteArrayOf(1)))
         assertTrue(f.session.current().writePending)
-        assertTrue(f.session.cancelConfigTransaction())
+        assertEquals(DeviceControlSession.ConfigCancellation.LOCAL_CANCELLED, f.session.cancelConfigTransaction())
 
         f.peer.reply(DeviceControlProtocol.Command.STATUS, status)
         assertEquals(listOf(DeviceControlProtocol.Command.STATUS), f.peer.sent.map { it.command })
@@ -497,7 +497,7 @@ class DeviceControlSessionTest {
         assertTrue(f.session.current().authenticated)
         assertFalse(f.session.requestOta(DeviceControlProtocol.Command.OTA_BEGIN, byteArrayOf(2)))
         assertFalse(f.session.request(DeviceControlProtocol.Command.PERSONA, 1))
-        assertTrue(f.session.cancelConfigTransaction())
+        assertEquals(DeviceControlSession.ConfigCancellation.REMOTE_PENDING, f.session.cancelConfigTransaction())
         f.peer.reply(DeviceControlProtocol.Command.CONFIG_CANCEL, status)
         assertTrue(f.session.request(DeviceControlProtocol.Command.PERSONA, 1))
         f.session.disconnect()

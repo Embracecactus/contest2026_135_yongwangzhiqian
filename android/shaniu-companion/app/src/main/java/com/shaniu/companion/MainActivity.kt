@@ -30,6 +30,7 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 import com.shaniu.companion.provision.AndroidDeviceControlFactory
 import com.shaniu.companion.provision.DeviceControlSession
+import com.shaniu.companion.provision.ImportedFileOwner
 import com.shaniu.companion.provision.DeviceControlPresentation
 import com.shaniu.companion.provision.DeviceControlProtocol
 import com.shaniu.companion.provision.ResponseLengthPreference
@@ -116,6 +117,9 @@ class MainActivity : Activity() {
 
     private val ioExecutor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
+    // A worker owns imported files until the main-thread completion callback
+    // explicitly transfers them to the selected-file fields.
+    private val importedFileOwner = ImportedFileOwner()
     private val requestCounter = AtomicLong()
     private var inspectedFirmware: BkpackInspector.Metadata? = null
     private var selectedFirmwareFile: java.io.File? = null
@@ -288,6 +292,9 @@ class MainActivity : Activity() {
     private var eyeOffset = 0
     private var eyeRead = ByteArray(0)
     private var eyeReadingOnly = false
+    private var eyeCanceling = false
+    private var eyeApplySent = false
+    private var eyeReadDeferred = false
     private val navigation = mutableMapOf<Int, TextView>()
     private var lastAction = "请配置 HTTPS Gateway、设备 ID 和访问令牌"
 
@@ -413,6 +420,11 @@ class MainActivity : Activity() {
         foreground = true
         directSession.setForeground(true)
         reloadLocalConfiguration()
+        if (configFlow == ConfigFlow.EYES && eyeReadDeferred) {
+            // Resume only an unsent read, preserving completed chunks. An
+            // APPLY/read already in flight keeps its own completion callback.
+            requestEyeRead(eyeOffset)
+        }
         if (legacyConsoleMode && autoReconnectAllowed && !busy && runtime == null && !controlCredentialRequired &&
             draftOrigin.isNotBlank() && draftDeviceId.isNotBlank()) {
             connect(draftOrigin, draftDeviceId, draftPins, "", automatic = true)
@@ -428,8 +440,7 @@ class MainActivity : Activity() {
         renderDeferred = false
         firmwareInspectionEpoch++
         firmwareInspectionPending = false
-        closeEyeServer()
-        if (configFlow == ConfigFlow.EYES) finishEyeInstall("已离开前台；未完成的眼睛安装不会重发")
+        leaveEyeInstallForBackground()
         if (otaSource?.accepted == false && otaUpload == null) {
             otaStartGate.release()
             setOtaKeepAwake(false)
@@ -516,6 +527,7 @@ class MainActivity : Activity() {
         directSubscriptions.clear()
         closeDirect()
         closeRuntime(clearReportedState = true)
+        importedFileOwner.close()
         // Let the queued TLS/session close finish off the main thread.
         ioExecutor.shutdown()
         mainHandler.removeCallbacksAndMessages(null)
@@ -797,6 +809,15 @@ class MainActivity : Activity() {
         source.close()
     }
 
+    private fun ownImportedFile(file: java.io.File): Boolean = importedFileOwner.own(file)
+
+    /** Transfers a worker-owned file to a main-thread field. */
+    private fun claimImportedFile(file: java.io.File): Boolean = importedFileOwner.claim(file)
+
+    private fun discardImportedFile(file: java.io.File) {
+        importedFileOwner.discard(file)
+    }
+
     private fun setOtaKeepAwake(keep: Boolean) {
         if (keep) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -974,9 +995,12 @@ class MainActivity : Activity() {
     private fun failWake(message: String) {
         wakeMessage = message; wakeReadTicket++
         wakeStatusGeneration = null
-        if (!wakeApplied && directSession.cancelConfigTransaction()) {
-            wakeCanceling = true
-        } else finishWake(message)
+        if (wakeApplied) { finishWake(message); return }
+        when (directSession.cancelConfigTransaction()) {
+            DeviceControlSession.ConfigCancellation.REMOTE_PENDING -> wakeCanceling = true
+            DeviceControlSession.ConfigCancellation.LOCAL_CANCELLED,
+            DeviceControlSession.ConfigCancellation.NOT_ACTIVE -> finishWake(message)
+        }
     }
 
     private fun requestCloudModelsRead() {
@@ -1029,7 +1053,7 @@ class MainActivity : Activity() {
     private fun failResponseLength(message: String) {
         responseLengthGeneration = null; responseLengthExpected = null; responseLengthError = message
         responseLengthTransaction?.fill(0); responseLengthTransaction = null
-        if (!responseLengthCanceling && directSession.cancelConfigTransaction()) { responseLengthCanceling = true; return }
+        if (!responseLengthCanceling && directSession.cancelConfigTransaction() == DeviceControlSession.ConfigCancellation.REMOTE_PENDING) { responseLengthCanceling = true; return }
         responseLengthCanceling = false; configFlow = ConfigFlow.NONE; directMessage = message
         directSession.finishConfigTransaction(message)
     }
@@ -1136,7 +1160,7 @@ class MainActivity : Activity() {
     private fun failWakeSensitivity(message: String) {
         wakeSensitivityGeneration = null; wakeSensitivityExpected = null; wakeSensitivityError = message
         wakeSensitivityFailedGeneration = directSession.current().generation
-        if (!wakeSensitivityCanceling && directSession.cancelConfigTransaction()) {
+        if (!wakeSensitivityCanceling && directSession.cancelConfigTransaction() == DeviceControlSession.ConfigCancellation.REMOTE_PENDING) {
             wakeSensitivityCanceling = true
             return
         }
@@ -1219,7 +1243,7 @@ class MainActivity : Activity() {
     private fun failResponseMode(message: String) {
         responseModeGeneration = null; responseModeExpected = null; responseModeError = message
         responseModeFailedGeneration = directSession.current().generation
-        if (!responseModeCanceling && directSession.cancelConfigTransaction()) {
+        if (!responseModeCanceling && directSession.cancelConfigTransaction() == DeviceControlSession.ConfigCancellation.REMOTE_PENDING) {
             responseModeCanceling = true
             return
         }
@@ -1911,7 +1935,7 @@ class MainActivity : Activity() {
         // A new connection or an explicit read can retry; no write is replayed.
         cloudModelsFailedGeneration = directSession.current().generation
         cloudModelsReadDeadline = 0; cloudModelsReadTicket++
-        if (!cloudModelsCanceling && directSession.cancelConfigTransaction()) {
+        if (!cloudModelsCanceling && directSession.cancelConfigTransaction() == DeviceControlSession.ConfigCancellation.REMOTE_PENDING) {
             cloudModelsCanceling = true
             return
         }
@@ -2336,8 +2360,8 @@ class MainActivity : Activity() {
             else { requestWakeSensitivityRead(); render() }
         }
         if (cloudModelsExpected != null) settingsRow("取消模型保存", "停止当前配置事务；不会重放未完成写入", enabled = true) {
-            if (!directSession.cancelConfigTransaction()) directMessage = "当前模型配置已结束"
-            else directMessage = "正在取消模型配置"
+            failCloudModels("模型配置已取消")
+            directMessage = if (cloudModelsCanceling) "正在取消模型配置" else "模型配置已取消"
             render()
         }
     }
@@ -3284,20 +3308,22 @@ class MainActivity : Activity() {
                     val sha = MessageDigest.getInstance("SHA-256").digest(bytes)
                     require(expectedSha == null || MessageDigest.isEqual(sha, expectedSha))
                     val pack = requireNotNull(EyePack.parse(bytes))
+                    check(ownImportedFile(file)) { "Activity destroyed while importing eyes" }
                     Triple(pack, file, sha)
-                } catch (error: Exception) { file.delete(); throw error }
+                } catch (error: Exception) { discardImportedFile(file); throw error }
             }
             mainHandler.post {
                 eyeImportPending = false
                 eyeRestoreDraft = null
                 // Finishing a local file read in background does not start a
                 // device write. A destroyed Activity must release its own file.
-                if (destroyed) { result.getOrNull()?.second?.delete(); return@post }
+                if (destroyed) { result.getOrNull()?.second?.let(::discardImportedFile); return@post }
                 val accepted = result.getOrNull()
                 if (accepted == null) eyeMessage = if (expectedSha != null)
                     "保存的本地素材无效，请重新选择；设备未变更"
                     else "眼睛素材包格式、长度或校验无效"
                 else {
+                    if (!claimImportedFile(accepted.second)) return@post
                     selectedEyeFile?.takeIf { it != accepted.second }?.delete()
                     selectedEyePack = accepted.first
                     selectedEyeAssetSha256 = accepted.third
@@ -3315,7 +3341,8 @@ class MainActivity : Activity() {
         val assetSha256 = selectedEyeAssetSha256 ?: return
         if (!configAvailable() || eyeImportPending) return
         val epoch = directEpoch
-        configFlow = ConfigFlow.EYES; eyeMessage = "正在准备 Wi-Fi 眼睛素材来源…"; render()
+        configFlow = ConfigFlow.EYES; eyeCanceling = false; eyeApplySent = false
+        eyeMessage = "正在准备 Wi-Fi 眼睛素材来源…"; render()
         val source = OtaSourceLease<OtaPackageServer> { server -> ioExecutor.execute { server.close() } }
         eyeSource = source
         ioExecutor.execute {
@@ -3347,6 +3374,12 @@ class MainActivity : Activity() {
     }
 
     private fun requestEyeRead(offset: Int = 0) {
+        if (!foreground) {
+            eyeReadDeferred = true
+            eyeMessage = "眼睛安装已提交；返回后读取设备实际状态"
+            return
+        }
+        eyeReadDeferred = false
         if (!directConfigRequest(DeviceControlProtocol.Command.CONFIG_READ,
                 ByteBuffer.allocate(4).putInt((5 shl 16) or offset).array()))
             finishEyeInstall("无法读取设备当前眼睛状态")
@@ -3354,13 +3387,15 @@ class MainActivity : Activity() {
 
     private fun readCurrentEyes() {
         if (!configAvailable()) return
-        configFlow = ConfigFlow.EYES; eyeReadingOnly = true; eyeOffset = 0; eyeRead = ByteArray(0)
+        configFlow = ConfigFlow.EYES; eyeReadingOnly = true; eyeCanceling = false; eyeApplySent = false
+        eyeOffset = 0; eyeRead = ByteArray(0)
         eyeMessage = "正在读取设备当前眼睛…"
         requestEyeRead(); render()
     }
 
     private fun finishEyeInstall(message: String) {
         eyeRecord = null; eyeOffset = 0; eyeRead = ByteArray(0); eyeReadingOnly = false
+        eyeCanceling = false; eyeApplySent = false; eyeReadDeferred = false
         closeEyeServer()
         if (configFlow == ConfigFlow.EYES) {
             configFlow = ConfigFlow.NONE
@@ -3369,7 +3404,42 @@ class MainActivity : Activity() {
         eyeMessage = message
     }
 
+    /** Stops a pre-apply install without releasing local ownership before the
+     * board has acknowledged cancellation.  APPLY is a committed request: it
+     * is left to complete or time out and is never presented as cancelled. */
+    private fun leaveEyeInstallForBackground() {
+        if (configFlow != ConfigFlow.EYES) return
+        if (eyeReadingOnly) {
+            finishEyeInstall("已离开前台；已停止读取眼睛状态")
+            return
+        }
+        if (eyeApplySent) {
+            eyeMessage = "眼睛安装已提交；返回后读取设备实际状态"
+            return
+        }
+        when (directSession.cancelConfigTransaction()) {
+            DeviceControlSession.ConfigCancellation.REMOTE_PENDING -> {
+                eyeCanceling = true
+                eyeMessage = "正在取消未完成的眼睛安装…"
+            }
+            DeviceControlSession.ConfigCancellation.LOCAL_CANCELLED,
+            DeviceControlSession.ConfigCancellation.NOT_ACTIVE ->
+                finishEyeInstall("已离开前台；未开始的眼睛安装已取消")
+        }
+    }
+
     private fun handleEyeResult(command: DeviceControlProtocol.Command, snapshot: DeviceControlProtocol.Snapshot) {
+        if (command == DeviceControlProtocol.Command.CONFIG_CANCEL) {
+            if (snapshot.error == 0) finishEyeInstall("未完成的眼睛安装已取消")
+            else {
+                // The board may still own staging. End this session so the
+                // next connection reads actual state instead of reusing it.
+                eyeMessage = "眼睛安装取消未确认（${snapshot.error}）；连接已结束，请重新读取设备状态"
+                directSession.disconnect(user = false)
+            }
+            return
+        }
+        if (eyeCanceling) return
         if (snapshot.error != 0) { finishEyeInstall("眼睛安装未确认（${snapshot.error}）；请读取设备实际状态"); return }
         when (command) {
             DeviceControlProtocol.Command.CONFIG_BEGIN, DeviceControlProtocol.Command.CONFIG_APPEND -> {
@@ -3378,11 +3448,14 @@ class MainActivity : Activity() {
                     val end = minOf(record.size, eyeOffset + configAppendMax)
                     if (directConfigRequest(DeviceControlProtocol.Command.CONFIG_APPEND, record.copyOfRange(eyeOffset, end))) eyeOffset = end
                     else finishEyeInstall("设备忙，眼睛安装请求未完成")
-                } else if (!directConfigRequest(DeviceControlProtocol.Command.CONFIG_APPLY, ByteArray(0))) {
-                    finishEyeInstall("设备忙，未开始 Wi-Fi 安装")
-                }
+                } else if (directConfigRequest(DeviceControlProtocol.Command.CONFIG_APPLY, ByteArray(0))) {
+                    eyeApplySent = true
+                } else finishEyeInstall("设备忙，未开始 Wi-Fi 安装")
             }
-            DeviceControlProtocol.Command.CONFIG_APPLY -> { eyeOffset = 0; eyeRead = ByteArray(0); requestEyeRead() }
+            DeviceControlProtocol.Command.CONFIG_APPLY -> {
+                eyeOffset = 0; eyeRead = ByteArray(0)
+                requestEyeRead()
+            }
             DeviceControlProtocol.Command.CONFIG_READ -> {
                 val chunk = snapshot.configChunk ?: run { finishEyeInstall("设备未返回眼睛状态"); return }
                 if (chunk.totalLength != 108) { finishEyeInstall("设备返回的眼睛状态长度无效"); return }
@@ -3434,14 +3507,18 @@ class MainActivity : Activity() {
                             }
                         }
                     }
-                    BkpackInspector.inspect(file) to file
+                    val metadata = BkpackInspector.inspect(file)
+                    check(ownImportedFile(file)) { "Activity destroyed while importing firmware" }
+                    metadata to file
                 } catch (error: Exception) {
-                    file.delete()
+                    discardImportedFile(file)
                     throw error
                 }
             }
             mainHandler.post {
-                finishFirmwareInspection(epoch, inspected.getOrNull(), inspected.isFailure)
+                val accepted = inspected.getOrNull()
+                if (accepted != null && !claimImportedFile(accepted.second)) return@post
+                finishFirmwareInspection(epoch, accepted, inspected.isFailure)
             }
         }
     }

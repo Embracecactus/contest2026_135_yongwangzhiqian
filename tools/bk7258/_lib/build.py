@@ -1451,6 +1451,7 @@ def _source_tree_state(
         ".cmake",
         ".mk",
         ".defs",
+        ".inc",
         ".ld",
         ".csv",
         ".conf",
@@ -1461,7 +1462,10 @@ def _source_tree_state(
         ".txt",
         ".tflite",
     }
-    names = {"Makefile", "CMakeLists.txt", "Kconfig", "defconfig", "Make.defs", "rcS"}
+    names = {
+        "Makefile", "CMakeLists.txt", "Kconfig", "defconfig", "Make.defs",
+        "rcS", "rc.sysinit",
+    }
     tree = hashlib.sha256()
     dirty = False
     count = 0

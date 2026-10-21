@@ -9,13 +9,20 @@
  ****************************************************************************/
 
 #include <errno.h>
+#include <assert.h>
+#include <pthread.h>
+#include <semaphore.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+#include <unistd.h>
 
 #include <arch/chip/bk7258_rptun.h>
+#include <nuttx/mutex.h>
 #include <nuttx/rpmsg/rpmsg.h>
 #include <nuttx/rptun/rptun.h>
 
@@ -63,7 +70,56 @@ static rpmsg_bind_cb_t g_ns_bind;
 static struct rpmsg_endpoint *g_last_ept;
 static rptun_callback_t g_upper_callback;
 static void *g_upper_arg;
-static bk7258_rptun_notify_t g_mbox_notify;
+static _Atomic(bk7258_rptun_notify_t) g_mbox_notify;
+
+int task_setcancelstate(int state, int *oldstate)
+{
+  int ret = pthread_setcancelstate(state, oldstate);
+
+  errno = ret;
+  return ret == 0 ? 0 : -1;
+}
+
+int nxmutex_lock(mutex_t *lock)
+{
+  return -pthread_mutex_lock(lock);
+}
+
+int nxmutex_unlock(mutex_t *lock)
+{
+  return -pthread_mutex_unlock(lock);
+}
+
+int nxsem_wait_uninterruptible(sem_t *sem)
+{
+  while (sem_wait(sem) != 0)
+    {
+      if (errno != EINTR)
+        {
+          return -errno;
+        }
+    }
+
+  return 0;
+}
+
+int nxsem_post(sem_t *sem)
+{
+  return sem_post(sem) == 0 ? 0 : -errno;
+}
+
+pid_t nxsched_gettid(void)
+{
+  static atomic_int next = 1;
+  static _Thread_local pid_t tid;
+
+  if (tid == 0)
+    {
+      tid = atomic_fetch_add(&next, 1);
+    }
+
+  return tid;
+}
 
 static int g_order;
 static int g_register_order;
@@ -402,14 +458,138 @@ static void test_cp_bind_ack_and_restart(void)
 }
 #endif
 
+static pthread_mutex_t g_race_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t g_race_condition = PTHREAD_COND_INITIALIZER;
+static bool g_entered;
+static bool g_release_callback;
+static bool g_unregistered;
+static int g_unregister_result;
+static int g_callback_calls;
+static void *g_callback_context;
+static bk7258_rptun_notify_t g_saved_notify;
+
+static void blocked_callback(void *arg, uint32_t vqid)
+{
+  (void)vqid;
+  pthread_mutex_lock(&g_race_lock);
+  g_callback_context = arg;
+  g_callback_calls++;
+  g_entered = true;
+  pthread_cond_broadcast(&g_race_condition);
+  while (!g_release_callback)
+    {
+      pthread_cond_wait(&g_race_condition, &g_race_lock);
+    }
+
+  pthread_mutex_unlock(&g_race_lock);
+}
+
+static void *receive_thread(void *arg)
+{
+  (void)arg;
+  g_saved_notify(g_control.generation, BK7258_RPTUN_NOTIFY_ALL);
+  return NULL;
+}
+
+static void *unregister_thread(void *arg)
+{
+  (void)arg;
+  int ret = g_lower->ops->register_callback(g_lower, NULL, NULL);
+  pthread_testcancel();
+  pthread_mutex_lock(&g_race_lock);
+  g_unregister_result = ret;
+  g_unregistered = true;
+  pthread_cond_broadcast(&g_race_condition);
+  pthread_mutex_unlock(&g_race_lock);
+  return NULL;
+}
+
+static void test_callback_unregister_drains(bool cancel)
+{
+  pthread_t receiver;
+  pthread_t unregisterer;
+  struct timespec until;
+  void *result;
+  int context;
+  int ret = 0;
+
+  g_entered = false;
+  g_release_callback = false;
+  g_unregistered = false;
+  g_callback_calls = 0;
+
+  CHECK(g_lower->ops->register_callback(g_lower, blocked_callback,
+                                        &context) == 0,
+        "publish blocking callback");
+  g_saved_notify = g_mbox_notify;
+  assert(pthread_create(&receiver, NULL, receive_thread, NULL) == 0);
+  pthread_mutex_lock(&g_race_lock);
+  while (!g_entered)
+    {
+      pthread_cond_wait(&g_race_condition, &g_race_lock);
+    }
+
+  assert(pthread_create(&unregisterer, NULL, unregister_thread, NULL) == 0);
+  clock_gettime(CLOCK_REALTIME, &until);
+  until.tv_nsec += 50000000;
+  if (until.tv_nsec >= 1000000000)
+    {
+      until.tv_nsec -= 1000000000;
+      until.tv_sec++;
+    }
+
+  while (!g_unregistered && ret == 0)
+    {
+      ret = pthread_cond_timedwait(&g_race_condition, &g_race_lock, &until);
+    }
+
+  CHECK(!g_unregistered, "unregister waits for an in-flight callback");
+  CHECK(g_callback_context == &context, "callback keeps its paired argument");
+  if (cancel)
+    {
+      assert(pthread_cancel(unregisterer) == 0);
+    }
+
+  g_release_callback = true;
+  pthread_cond_broadcast(&g_race_condition);
+  pthread_mutex_unlock(&g_race_lock);
+  assert(pthread_join(receiver, NULL) == 0);
+  assert(pthread_join(unregisterer, &result) == 0);
+  if (cancel)
+    {
+      CHECK(result == PTHREAD_CANCELED,
+            "cancellation is delivered only after the callback drain");
+    }
+  else
+    {
+      CHECK(g_unregister_result == 0, "unregister finishes after callback exit");
+    }
+
+  /* The mailbox can hold an old lower callback snapshot across unregister. */
+
+  g_saved_notify(g_control.generation, BK7258_RPTUN_NOTIFY_ALL);
+  CHECK(g_callback_calls == 1, "stale mailbox snapshot cannot enter old upper");
+  CHECK(g_lower->ops->register_callback(g_lower, test_upper_callback,
+                                        &g_control) == 0,
+        "callback can be registered again after draining");
+  unsigned int before = g_upper_count;
+  g_saved_notify(g_control.generation, BK7258_RPTUN_NOTIFY_ALL);
+  CHECK(g_upper_count == before + 1, "new registration receives notification");
+}
+
 int main(void)
 {
+  alarm(10);
 #ifdef TEST_BK7258_RPTUN_AP
   test_ap_create_ack_receipt_and_destroy();
+  test_callback_unregister_drains(false);
+  test_callback_unregister_drains(true);
   printf("bk7258 RPTUN AP proof: %d checks, %d failures\n",
          g_checks, g_failures);
 #else
   test_cp_bind_ack_and_restart();
+  test_callback_unregister_drains(false);
+  test_callback_unregister_drains(true);
   printf("bk7258 RPTUN CP proof: %d checks, %d failures\n",
          g_checks, g_failures);
 #endif

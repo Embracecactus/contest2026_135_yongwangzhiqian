@@ -946,7 +946,7 @@ class ProductDeliveryTest(unittest.TestCase):
     def test_fourth_board_and_non_eight_mib_layout_are_descriptor_only(self) -> None:
         repository = self.root / "synthetic_team"
         board = "future_board"
-        version = "v-test"
+        version = "v3.1.1.9"
         for role in ("cp", "ap"):
             (
                 repository / "boards/bk7258" / board / "configs" / f"openvela_{role}"
@@ -955,7 +955,9 @@ class ProductDeliveryTest(unittest.TestCase):
         (repository / f"{repository.name}.xml").write_text(
             '<manifest><project path="sdk" name="sdk" '
             'groups="bk7258-sdk" revision="' + "0" * 40 + '" '
-            'upstream="refs/tags/' + version + '"/></manifest>\n',
+            'upstream="refs/tags/' + version + '"><annotation '
+            'name="bk7258-sdk-version" value="' + version + '"/>'
+            '</project></manifest>\n',
             encoding="utf-8",
         )
         profile_hash = "0" * 64

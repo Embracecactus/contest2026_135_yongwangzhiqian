@@ -446,6 +446,8 @@ static int request_prepare(struct cloud_backend_s *backend)
 #ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
   if (g_validation) return 0; /* Pure memory; no DNS, TLS or socket exists. */
 #endif
+  int ret = bkvoice_tls_prepare_request(&backend->tls);
+  if (ret != 0) return ret;
   return bkvoice_config_trusted_time(&backend->settings->trust);
 }
 
@@ -458,8 +460,10 @@ static int request_cancel(struct cloud_backend_s *backend)
   return bkvoice_tls_ops()->interrupt(&backend->tls);
 }
 
-/* Preserve cancellation even across the transport's new-connection reset.
- * Connection and all I/O remain bounded by the original request deadline. */
+/* Request preparation owns cancellation reset. Opening any connection in
+ * this request preserves a concurrent cancel and the original deadline.
+ */
+
 static int cloud_open(void *context, const char *host, uint16_t port,
                       uint64_t deadline)
 {

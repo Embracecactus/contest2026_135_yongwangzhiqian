@@ -302,10 +302,15 @@ static bool shallow_json(const char *json, size_t size)
   return !quoted && depth == 0;
 }
 
+bool bkcloud_json_safe_bounded(const char *json, size_t size, size_t limit)
+{
+  return json != NULL && size > 0 && size <= limit &&
+         !memchr(json, 0, size) && shallow_json(json, size);
+}
+
 bool bkcloud_json_safe(const char *json, size_t size)
 {
-  return json != NULL && size > 0 && size <= 65536 &&
-         !memchr(json, 0, size) && shallow_json(json, size);
+  return bkcloud_json_safe_bounded(json, size, 65536);
 }
 
 int bkcloud_text_parse(const char *json, size_t size,

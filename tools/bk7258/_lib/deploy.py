@@ -79,6 +79,19 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _validate_expected_identity(objects: PackageObjects,
+                                expected_version: str | None,
+                                expected_counter: int | None) -> None:
+    if expected_version is not None and objects.version != expected_version:
+        raise ValueError(
+            f"package version {objects.version} does not match {expected_version}"
+        )
+    if expected_counter is not None and objects.counter != expected_counter:
+        raise ValueError(
+            f"package counter {objects.counter} does not match {expected_counter}"
+        )
+
+
 def run(args: argparse.Namespace) -> None:
     if args.status_only or args.reboot_only:
         if args.status_only and args.reboot_only:
@@ -107,22 +120,9 @@ def run(args: argparse.Namespace) -> None:
         raise ValueError("--package is required for USB OTA")
     if args.inspect_only:
         objects = open_package(args.package.resolve(), args.expected_board)
-        if (
-            args.expected_version is not None
-            and objects.version != args.expected_version
-        ):
-            raise ValueError(
-                f"package version {objects.version} does not match "
-                f"{args.expected_version}"
-            )
-        if (
-            args.expected_counter is not None
-            and objects.counter != args.expected_counter
-        ):
-            raise ValueError(
-                f"package counter {objects.counter} does not match "
-                f"{args.expected_counter}"
-            )
+        _validate_expected_identity(
+            objects, args.expected_version, args.expected_counter
+        )
         print(
             f"BK7258 USB OTA: package PASS version={objects.version} "
             f"counter={objects.counter} target={objects.target}"
@@ -137,6 +137,7 @@ def run(args: argparse.Namespace) -> None:
             args.control_port, CH340_VID, CH340_PID, "BK7258 CH340 console"
         )
     objects = open_package(args.package.resolve(), args.expected_board)
+    _validate_expected_identity(objects, args.expected_version, args.expected_counter)
     stream_package(
         ota_port,
         objects,

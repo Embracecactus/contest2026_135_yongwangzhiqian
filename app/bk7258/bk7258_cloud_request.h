@@ -66,6 +66,11 @@ int bkcloud_asr_write(const char *model, const uint8_t *pcm, size_t size,
  * JSON. Tool calls, truncated completions and trailing data are rejected.
  */
 bool bkcloud_json_safe(const char *json, size_t size);
+/* Audio SSE has a separate event budget. The caller still selects a finite
+ * cap; nesting and embedded-NUL protections are identical to text JSON.
+ */
+
+bool bkcloud_json_safe_bounded(const char *json, size_t size, size_t limit);
 int bkcloud_text_parse(const char *json, size_t size,
                       char *text, size_t capacity);
 #endif

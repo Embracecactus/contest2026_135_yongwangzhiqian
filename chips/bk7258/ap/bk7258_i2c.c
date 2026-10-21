@@ -220,6 +220,23 @@ static int bk7258_i2c_transfer(FAR struct i2c_master_s *dev,
       return -EINVAL;
     }
 
+  /* Validate the entire request before changing the bus or sending a
+   * prefix.  NuttX lengths are signed; the SDK consumes uint32_t sizes.
+   */
+
+  for (i = 0; i < count; i++)
+    {
+      if (msgs[i].buffer == NULL || msgs[i].length <= 0)
+        {
+          return -EINVAL;
+        }
+
+      if ((uintmax_t)msgs[i].length > UINT32_MAX)
+        {
+          return -E2BIG;
+        }
+    }
+
   ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
     {
@@ -236,12 +253,6 @@ static int bk7258_i2c_transfer(FAR struct i2c_master_s *dev,
     {
       FAR struct i2c_msg_s *msg = &msgs[i];
       bool is_read = (msg->flags & I2C_M_READ) != 0;
-
-      if (msg->buffer == NULL || msg->length == 0)
-        {
-          ret = -EINVAL;
-          break;
-        }
 
       /* 10-bit addressing is not implemented by the Beken I2C driver
        * (see file header note 4); reject instead of mis-addressing.
@@ -276,8 +287,7 @@ static int bk7258_i2c_transfer(FAR struct i2c_master_s *dev,
           FAR struct i2c_msg_s *next = &msgs[i + 1];
           bool next_read = (next->flags & I2C_M_READ) != 0;
 
-          if (next->buffer == NULL || next->length == 0 ||
-              (next->flags & (I2C_M_TEN | I2C_M_NOSTOP)) != 0 ||
+          if ((next->flags & (I2C_M_TEN | I2C_M_NOSTOP)) != 0 ||
               next->addr != msg->addr ||
               (next->frequency != 0 && msg->frequency != 0 &&
                next->frequency != msg->frequency) ||

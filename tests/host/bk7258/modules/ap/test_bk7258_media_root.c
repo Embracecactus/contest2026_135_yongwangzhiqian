@@ -41,6 +41,15 @@ int bk7258_pm_clock_put(enum bk7258_pm_clock_e clock)
   return g_pm_put_result;
 }
 
+int bk7258_pm_frequency_vote(enum bk7258_pm_freq_client_e client,
+                            enum bk7258_pm_cpu_freq_e frequency)
+{
+  assert(client == BK7258_PM_FREQ_CLIENT_AUDIO);
+  assert(frequency == BK7258_PM_OPP_480M ||
+         frequency == BK7258_PM_OPP_DEFAULT);
+  return OK;
+}
+
 bk_err_t bk_dma_driver_init(void)
 {
   return BK_OK;
@@ -70,13 +79,13 @@ static void test_normal_ownership(void)
   assert(bk7258_media_audio_session_release(0) == -EINVAL);
   assert(bk7258_media_audio_session_acquire(BK7258_MEDIA_AUDIO_MIC) == OK);
   assert(g_pm_get_count == gets + 1);
-  assert(bk7258_media_audio_session_acquire(BK7258_MEDIA_AUDIO_DAC) ==
-         -EBUSY);
+  assert(bk7258_media_audio_session_acquire(BK7258_MEDIA_AUDIO_DAC) == OK);
   assert(g_pm_get_count == gets + 1);
-  assert(bk7258_media_audio_session_release(BK7258_MEDIA_AUDIO_DAC) ==
-         -EPERM);
-  assert(g_pm_put_count == puts);
+  assert(bk7258_media_audio_session_acquire(BK7258_MEDIA_AUDIO_MIC) ==
+         -EBUSY);
   assert(bk7258_media_audio_session_release(BK7258_MEDIA_AUDIO_MIC) == OK);
+  assert(g_pm_put_count == puts);
+  assert(bk7258_media_audio_session_release(BK7258_MEDIA_AUDIO_DAC) == OK);
   assert(g_pm_put_count == puts + 1);
 }
 
@@ -132,9 +141,9 @@ static void test_failed_release_retains_owner(void)
   g_pm_put_result = -ETIMEDOUT;
   assert(bk7258_media_audio_session_release(BK7258_MEDIA_AUDIO_MIC) ==
          -ETIMEDOUT);
-  assert(bk7258_media_audio_session_acquire(BK7258_MEDIA_AUDIO_DAC) ==
-         -EBUSY);
+  assert(bk7258_media_audio_session_acquire(BK7258_MEDIA_AUDIO_DAC) == OK);
   assert(g_pm_get_count == gets);
+  assert(bk7258_media_audio_session_release(BK7258_MEDIA_AUDIO_DAC) == OK);
 
   g_pm_put_result = OK;
   assert(bk7258_media_audio_session_release(BK7258_MEDIA_AUDIO_MIC) == OK);

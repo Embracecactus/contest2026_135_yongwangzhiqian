@@ -140,7 +140,7 @@ PM_REPLAY_CP_RENAMES := -Dbk7258_pm_initialize=cp_pm_initialize \
 	-Dbk7258_pm_soft_off_status=cp_pm_soft_off_status \
 	-Dbk7258_pm_frequency_vote=cp_pm_frequency_vote \
 	-Dbk7258_pm_frequency_get_status=cp_pm_frequency_get_status
-RPTUN_CORE_CFLAGS := -std=c11 -Wall -Wextra -Werror -O2 \
+RPTUN_CORE_CFLAGS := -std=c11 -Wall -Wextra -Werror -O2 -pthread \
 	-DTEST_BK7258_RPTUN_CORE
 STAGE_RUNNER_CFLAGS := -std=c11 -Wall -Wextra -Werror -O2 -pthread
 PLATFORM_TEST_CFLAGS := -std=gnu11 -Wall -Wextra -Werror -O2 -pthread \
@@ -258,7 +258,7 @@ PRODUCT_KEYS_TARGET := $(BUILD)/test_bk7258_product_keys
 VOICE_MEDIA_RECORDER_TARGET := $(BUILD)/test_bk7258_agent_media_recorder
 MEDIA_INCLUDE := $(OPENVELA_ROOT)/apps/frameworks/multimedia/media/include
 
-.PHONY: all check check-layers check-package-tools clean bl1 bl2 ap headers platform storage-contract flash provision active-image run-active-image \
+.PHONY: all check check-layers check-package-tools check-review-regressions clean bl1 bl2 ap headers platform storage-contract flash provision active-image run-active-image \
 	ota-contract reset-marker display-pack display-rpc health-core motion-core nfc-core vision-core vision-feedback usbmode-lease product-keys \
 	vision-record media-volume voice-media-recorder run \
 	run-core run-bl1 run-bl2 run-ap run-headers run-platform \
@@ -284,6 +284,7 @@ check:
 	$(MAKE) clean >/dev/null; \
 	$(MAKE) check-layers; \
 	$(MAKE) check-package-tools; \
+	$(MAKE) check-review-regressions; \
 	ASAN_OPTIONS=$${ASAN_OPTIONS:-detect_leaks=0}; \
 	export ASAN_OPTIONS; \
 	$(MAKE) run; \
@@ -297,6 +298,20 @@ check-package-tools:
 	@python3 ./test_bk7258_package_delivery.py
 	@python3 ./test_bk7258_display_assets.py
 	@python3 ./test_bk7258_aidk_hil_contract.py
+
+# These regressions consume the manifest-pinned dependency sources. A stale
+# NuttX or SDK checkout must not silently exercise an obsolete implementation.
+
+check-review-regressions:
+	python3 -m unittest test_kernel_compat test_bk7258_sdk_manifest \
+		test_bk7258_build_workspace test_deploy_confirmation
+	python3 ./test_audio_close_lifecycle.py --nuttx $(OPENVELA_ROOT)/nuttx
+	python3 ./test_v4l2_cap_error_propagation.py --nuttx $(OPENVELA_ROOT)/nuttx
+	python3 ./test_bk7258_dvp_stop_buffers.py
+	python3 ./test_bk7258_i2c_lengths.py
+	python3 ./test_bk7258_cloud_tts_boundaries.py
+	python3 ./test_sdio_dma_completion.py --sdk $(OPENVELA_ROOT)/vendor/beken/bk_avdk_smp
+	$(MAKE) run-voice-tls-concurrency run-voice-tls-open-cancel run-tts-isolation
 
 all: $(TARGET) $(POLICY_TARGET) $(PM_ACTIVITY_TARGET) $(PM_REPLAY_TARGET) \
 	$(RPTUN_CORE_CP_TARGET) $(RPTUN_CORE_AP_TARGET) \
@@ -555,6 +570,7 @@ run-product-keys: product-keys
 # Provisioning tests compile real app sources into temporary directories.
 # Keep them outside all/check/run until their CMake/OpenSSL requirements are
 # intentionally added to those broader host-test contracts.
+
 provision: test_hci_acl_lifetime.py test_provision_gatt.py \
 	test_provision_pair_query.py \
 	test_provision_tls.py
@@ -2326,3 +2342,23 @@ $(BUILD)/test_agent_audio_playback: test_agent_audio_playback.c \
 
 $(BUILD)/test_pc_camera: test_pc_camera.c $(VOICE_PACK_ROOT)/bk7258_pc_camera.c $(VOICE_PACK_ROOT)/bk7258_pc_camera.h $(VOICE_PACK_ROOT)/bk7258_control_session.h | $(BUILD)
 	$(CC) $(CFLAGS) -Werror -pthread -D_POSIX_C_SOURCE=200809L -DCONFIG_BK7258_VISION_FPS=30 -Dclock_gettime=fixture_clock_gettime -I$(MOCKS) -I$(VOICE_PACK_ROOT) $(filter %.c,$^) -o $@
+
+# Independent cancel-before-open regression; builds the pinned host mbedTLS
+# dependency and never reaches DNS, socket creation, or a network endpoint.
+TLS_OPEN_CANCEL_TARGET := $(BUILD)/test_bk7258_voice_tls_open_cancel
+
+$(TLS_OPEN_CANCEL_TARGET): test_bk7258_voice_tls_open_cancel.c \
+		$(VOICE_PACK_ROOT)/bk7258_voice_tls.c \
+		$(VOICE_PACK_ROOT)/bk7258_voice_tls.h \
+		$(VOICE_OTA_MBEDCRYPTO) | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -D_GNU_SOURCE -DFAR= -pthread \
+		-I$(VOICE_PACK_ROOT) \
+		-I$(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/include \
+		test_bk7258_voice_tls_open_cancel.c $(VOICE_PACK_ROOT)/bk7258_voice_tls.c \
+		$(BUILD)/voice-ota-store-mbedtls/library/libmbedtls.a \
+		$(BUILD)/voice-ota-store-mbedtls/library/libmbedx509.a \
+		$(BUILD)/voice-ota-store-mbedtls/library/libmbedcrypto.a -o $@
+
+.PHONY: run-voice-tls-open-cancel
+run-voice-tls-open-cancel: $(TLS_OPEN_CANCEL_TARGET)
+	./$(TLS_OPEN_CANCEL_TARGET)

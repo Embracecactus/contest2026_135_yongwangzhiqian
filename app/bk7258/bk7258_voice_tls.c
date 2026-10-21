@@ -464,7 +464,6 @@ static int bkvoice_tls_open(void *context, const char *host, uint16_t port,
       return -EALREADY;
     }
 
-  __atomic_store_n(&tls->interrupted, false, __ATOMIC_RELEASE);
   ret = bkvoice_tls_deadline(tls, deadline_ms);
   if (ret < 0)
     {
@@ -899,6 +898,26 @@ int bkvoice_tls_initialize(struct bkvoice_tls_s *tls,
     }
 
   tls->initialized = true;
+  return 0;
+}
+
+int bkvoice_tls_prepare_request(struct bkvoice_tls_s *tls)
+{
+  if (tls == NULL || !tls->initialized)
+    {
+      return -EINVAL;
+    }
+
+  if (tls->opened || tls->socket_open)
+    {
+      return -EBUSY;
+    }
+
+  /* The request owner excludes cancellation until preparation returns.
+   * A new connection within that request must never clear its interrupt.
+   */
+
+  __atomic_store_n(&tls->interrupted, false, __ATOMIC_RELEASE);
   return 0;
 }
 
