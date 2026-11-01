@@ -10,7 +10,12 @@
 #include <pthread.h>
 #include "bk7258_engineering_test.h"
 #include "bk7258_cloud_config.h"
+#include "bk7258_factory_diagnostics.h"
 #include "bk7258_provision_settings.h"
+#include "bk7258_provision_config.h"
+#include "bk7258_provision_claim.h"
+
+#define CONFIG_BK7258_FACTORY_DIAGNOSTICS_CLAIMED_TEST 1
 
 /* Exercise the actual product adapter with transport/provider boundaries
  * replaced. A discovery window without a phone is the HIL baseline. */
@@ -24,6 +29,7 @@ static struct { uint8_t record[64]; size_t certificate_size, key_size; }
   g_identity = {{0}, 1, 1};
 static bool network_busy, pairing;
 static uint32_t peer_generation;
+static uint32_t diagnostic_flags;
 static int configure_calls;
 #ifdef CONFIG_BK7258_TTS_ISOLATION
 typedef struct { char channel[16]; char *content; uint64_t request_id; }
@@ -35,7 +41,7 @@ static int request_status(uint64_t request) { return request == 123 ? 0 : -ESTAL
 static uint64_t voice_channel_request_id(void) { return 123; }
 static int voice_channel_speak_reply(uint64_t request, const char *text)
 { assert(request == 123 && !strcmp(text, "fixed")); isolated_speech++; return 0; }
-static int product_focus_text(uint64_t request, const char *text,
+static int product_local_text(uint64_t request, const char *text,
                                int (*check)(uint64_t))
 { (void)request; (void)text; (void)check; focus_dispatch++; return 0; }
 static int message_bus_push_outbound(agent_msg_t *message)
@@ -45,10 +51,34 @@ static bool bkprov_network_busy(void) { return network_busy; }
 static bool __attribute__((unused)) bkprov_owner_pairing(void) { return pairing; }
 static uint32_t __attribute__((unused)) bkprov_gatt_generation(void)
 { return peer_generation; }
+int bkfactory_diagnostics_status(uint32_t *flags, uint32_t *remaining_ms)
+{ *flags = diagnostic_flags; *remaining_ms = diagnostic_flags ? 600000 : 0; return 0; }
 static bool voice_channel_is_idle(void) { return true; }
 static bool bkagent_ota_busy(void) { return false; }
 static int bkagent_cloud_clear(void) { return 0; }
 static int bkagent_cloud_verify_service(void) { return 0; }
+/* Configuration mutation is outside this voice fixture. Fail explicitly if
+ * the new diagnostic branches are accidentally selected by a voice test. */
+bool bkprov_config_busy(void) { return false; }
+static int bkagent_cloud_test_llm_model(const char *model)
+{ (void)model; assert(0); return -ENOTSUP; }
+static int bkagent_cloud_models_get(struct bkcloud_models_s *models)
+{ (void)models; assert(0); return -ENOTSUP; }
+int bkprov_config_control(enum bkcontrol_command_e command, uint32_t offset,
+    const uint8_t *record, size_t size, struct bkcontrol_status_s *status)
+{
+  (void)command; (void)offset; (void)record; (void)size; (void)status;
+  assert(0); return -ENOTSUP;
+}
+int bkprov_storage_snapshot(void *bundle, size_t capacity, size_t *size,
+    uint64_t *revision, uint8_t transaction[16])
+{
+  (void)bundle; (void)capacity; (void)size; (void)revision; (void)transaction;
+  assert(0); return -ENOTSUP;
+}
+int bkprov_settings_decode(struct bkprov_settings_s *settings,
+    const void *bundle, size_t size)
+{ (void)settings; (void)bundle; (void)size; assert(0); return -ENOTSUP; }
 static int bk7258_agent_trigger_stop(void) { return 0; }
 static int bk7258_agent_power_status(void *context, uint32_t *state,
                                      int32_t *error)
@@ -134,11 +164,18 @@ int main(void)
   peer_generation = 0;
   g_control_bound = true;
   assert(product_benchmark_config(config, sizeof(config)) == -EBUSY);
+  diagnostic_flags = BKFACTORY_DIAGNOSTICS_ELIGIBLE |
+                     BKFACTORY_DIAGNOSTICS_ACTIVE |
+                     BKFACTORY_DIAGNOSTICS_USED;
+  assert(product_benchmark_config(config, sizeof(config)) == 0);
+  assert(configure_calls == 2 && g_configured);
+  g_cloud_loaded = g_configured = false;
+  diagnostic_flags = 0;
   g_control_bound = false;
   network_busy = true;
   assert(product_benchmark_config(config, sizeof(config)) == -EBUSY);
   network_busy = false;
-  assert(configure_calls == 1);
+  assert(configure_calls == 2);
   product_benchmark_step(); /* No queued input: no second executor. */
   assert(bkengvoice_config_decode(config, sizeof(config), &view) == 0);
   assert(view.utc == 1791775062 && view.ca == config + 32 && view.cloud == config + 33);

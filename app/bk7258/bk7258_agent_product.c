@@ -83,6 +83,12 @@
 #include "voice/audio_capture.h"
 #include <media_recorder.h>
 #include "bk7258_agent_cloud.h"
+#ifdef CONFIG_BK7258_TTS_TENCENT_BKTEST
+#include "bk7258_tencent_tts.h"
+#endif
+#ifdef CONFIG_BK7258_TTS_ALIYUN_BKTEST
+#include "bk7258_aliyun_tts.h"
+#endif
 #include "bk7258_agent_ota.h"
 #include "bk7258_cloud_config.h"
 #include "bk7258_provision_identity.h"
@@ -98,6 +104,9 @@
 #endif
 #include "bk7258_pc_grants.h"
 #include "bk7258_focus_intent.h"
+#include "bk7258_local_intent.h"
+#include "bk7258_reply_expression.h"
+#include "bk7258_runtime_skills.h"
 #include "bk7258_focus_pixels.h"
 #include "bk7258_local_content.h"
 #ifdef CONFIG_BK7258_NFC_SERVICE
@@ -152,6 +161,56 @@
 #include <arch/chip/bk7258_ota_rpmsg.h>
 #endif
 #include "bk7258_voice_config.h"
+#endif
+#ifdef CONFIG_BK7258_AGENT_TTS_PSRAM_RESERVOIR
+#include <arch/chip/bk7258_psram.h>
+#endif
+
+#ifdef CONFIG_BK7258_AGENT_TTS_PSRAM_RESERVOIR
+void *voice_channel_tts_reservoir_alloc(size_t preferred_size,
+                                        size_t minimum_size,
+                                        size_t *allocated_size)
+{
+  void *memory;
+
+  if (allocated_size == NULL || minimum_size == 0 ||
+      minimum_size > preferred_size)
+    {
+      return NULL;
+    }
+
+  /* The high PSRAM bank is already donated to the NuttX system heap. Use the
+   * normal allocator so its region policy remains authoritative, but accept
+   * the preferred block only when it really came from PSRAM. Do not consume
+   * an SDK Media slab merely to enlarge an Agent-side jitter reservoir. */
+  memory = malloc(preferred_size);
+  if (memory != NULL && bk7258_psram_system_heap_contains(memory))
+    {
+      *allocated_size = preferred_size;
+      return memory;
+    }
+
+  free(memory);
+  memory = malloc(minimum_size);
+  if (memory != NULL)
+    {
+      *allocated_size = minimum_size;
+    }
+
+  return memory;
+}
+
+void voice_channel_tts_reservoir_free(void *memory)
+{
+  free(memory);
+}
+
+int voice_channel_tts_reservoir_storage(const void *memory)
+{
+  return bk7258_psram_system_heap_contains(memory) ?
+         VOICE_CHANNEL_TTS_STORAGE_EXTERNAL :
+         VOICE_CHANNEL_TTS_STORAGE_NORMAL;
+}
 #endif
 
 /****************************************************************************
@@ -233,10 +292,27 @@ void bk7258_agent_product_wake(void)
 
 
 #include "bk7258_agent_focus.inc"
+#include "bk7258_agent_profile.inc"
 
 static void bk7258_agent_voice_event(int event, int result)
 {
   unsigned int flags = 0;
+  uint64_t request = voice_channel_request_id();
+  if (event == VOICE_CHANNEL_EVENT_OUTPUT_STARTED)
+    {
+      product_profile_playback(request);
+      (void)bkreply_expression_start(request);
+    }
+  if (event == VOICE_CHANNEL_EVENT_OUTPUT_FINISHED ||
+      event == VOICE_CHANNEL_EVENT_TURN_COMPLETE)
+    {
+      bkreply_expression_finish(request);
+    }
+  if (event == VOICE_CHANNEL_EVENT_TURN_COMPLETE)
+    {
+      bk7258_runtime_skills_end(request);
+      product_profile_complete(request, result == 0);
+    }
 #ifdef CONFIG_BK7258_ENGINEERING_TEST
   if (event == VOICE_CHANNEL_EVENT_TURN_COMPLETE)
     {
@@ -603,7 +679,7 @@ static int product_control(void *context, enum bkcontrol_command_e command,
       case BKCONTROL_STATUS: break;
       case BKCONTROL_CANCEL: ret = product_cancel(); break;
       case BKCONTROL_CLEAR_HISTORY:
-        if (!voice_channel_is_idle())
+        if (!voice_channel_is_idle() || !product_profile_idle())
         {
           return -EBUSY;
         }
@@ -619,7 +695,7 @@ static int product_control(void *context, enum bkcontrol_command_e command,
 #ifdef CONFIG_BK7258_PREFERENCES
       case BKCONTROL_MEMORY_SET:
       case BKCONTROL_MEMORY_DELETE:
-        if (!voice_channel_is_idle())
+        if (!voice_channel_is_idle() || !product_profile_idle())
         {
           return -EBUSY;
         }
@@ -774,6 +850,14 @@ static char *product_tools(void)
     "\"pause\",\"resume\",\"cancel\"]},\"seconds\":{\"type\":\"integer\","
     "\"minimum\":1,\"maximum\":4294967}},\"required\":[\"action\"],"
     "\"additionalProperties\":false}}"
+    ",{\"name\":\"reply_expression\",\"description\":"
+    "\"为本轮回复设置情绪元数据。仅影响开始播报后的临时表情，"
+    "不改变用户默认表情；staged不表示已经渲染。根据回复内容选择情绪，"
+    "不确定时保持neutral，不为装饰重复调用。\","
+    "\"input_schema\":{\"type\":\"object\",\"properties\":{"
+    "\"emotion\":{\"type\":\"string\",\"enum\":[\"neutral\",\"happy\","
+    "\"confused\",\"thinking\",\"sorry\"]}},\"required\":[\"emotion\"],"
+    "\"additionalProperties\":false}}"
     ",{\"name\":\"read_file\",\"description\":"
     "\"Read a UTF-8 text file under /data/agent. Use it to open a skill "
     "document under /data/agent/skills before following that skill's "
@@ -781,6 +865,9 @@ static char *product_tools(void)
     "\"object\",\"properties\":{\"path\":{\"type\":\"string\"}},"
     "\"required\":[\"path\"]}}]");
 }
+
+#include "bk7258_agent_device_control.inc"
+#include "bk7258_agent_local_intent.inc"
 
 static int product_tool_execute(const char *name, const char *input,
   char *output, size_t capacity, int (*check)(void *), void *context)
@@ -790,6 +877,7 @@ static int product_tool_execute(const char *name, const char *input,
   int written = 0;
   if (!name || (strcmp(name, "device_status") &&
                 strcmp(name, "device_motion") &&
+                strcmp(name, "reply_expression") &&
                 strcmp(name, "device_control") && strcmp(name, "focus_timer") &&
                 strcmp(name, "read_file")))
     {
@@ -808,8 +896,35 @@ static int product_tool_execute(const char *name, const char *input,
       goto out;
     }
 
+  bool selected = bk7258_runtime_skills_selected(voice_channel_request_id());
+  if (selected)
+    {
+      ret = bk7258_runtime_skills_check(voice_channel_request_id(), name,
+                                       input);
+    }
+  if (ret)
+    {
+      goto out;
+    }
+
   if (!strcmp(name, "read_file"))
     {
+      if (selected)
+        {
+          args = cJSON_Parse(input ? input : "");
+          cJSON *path = cJSON_GetObjectItemCaseSensitive(args, "path");
+          const char *body = NULL;
+          ret = !cJSON_IsString(path) ? -EINVAL :
+            bk7258_runtime_skills_read_file(voice_channel_request_id(),
+                                             path->valuestring, &body);
+          if (!ret)
+            {
+              written = snprintf(output, capacity, "%s", body);
+              if (written < 0 || (size_t)written >= capacity)
+                ret = -ENOSPC;
+            }
+          goto out;
+        }
       /* Reuses the official file tool to read a skill document; that tool
        * writes the success/failure text into output, and a failure is not
        * rewritten as a device error so the model can tell "skill not
@@ -923,121 +1038,15 @@ static int product_tool_execute(const char *name, const char *input,
         (long)sample.x_mms2, (long)sample.y_mms2, (long)sample.z_mms2);
     }
 #endif
+  else if (!strcmp(name, "reply_expression"))
+    {
+      ret = product_reply_expression(args, output, capacity);
+      goto out;
+    }
   else if (!strcmp(name, "device_control"))
     {
-      cJSON *action = cJSON_GetObjectItemCaseSensitive(args, "action");
-      cJSON *value = cJSON_GetObjectItemCaseSensitive(args, "value");
-      cJSON *mood = cJSON_GetObjectItemCaseSensitive(args, "mood");
-      unsigned int observed = 0;
-#ifdef CONFIG_BK7258_DISPLAY_SERVICE
-      uint32_t eye_request_id = 0;
-#endif
-    if (bkagent_ota_busy())
-      {
-        ret = -EBUSY;
-        goto out;
-      }
-
-    ret = -EINVAL;
-    if (!cJSON_IsString(action))
-      {
-        goto out;
-      }
-
-    /* The official Agent tool phase has already stopped capture and has not
-     * started playback yet; the existing product owner is reused, the App's
-     * control restriction on a busy turn is not relaxed, and GPIO is never
-     * driven directly.
-     */
-
-      if (!strcmp(action->valuestring, "mood") && cJSON_IsString(mood))
-        {
-          for (int i = 0; i <= BK7258_PERSONA_TSUNDERE_LITE; i++)
-            {
-              if (!strcmp(mood->valuestring,
-                          bk7258_preferences_persona_name(i)))
-                {
-                  ret = product_apply_persona(i);
-                  break;
-                }
-            }
-        }
-#ifdef CONFIG_BK7258_DISPLAY_SERVICE
-      else if (!strcmp(action->valuestring, "eyes"))
-        {
-          static const char *const expressions[] =
-            {
-              "neutral", "happy", "shy", "sad", "surprised", "thinking",
-              "listening", "speaking", "sleepy"
-            };
-
-          cJSON *expression =
-            cJSON_GetObjectItemCaseSensitive(args, "expression");
-          if (cJSON_IsString(expression))
-            {
-              for (unsigned int i = 0;
-                   i < sizeof(expressions) / sizeof(expressions[0]); i++)
-                {
-                  if (!strcmp(expression->valuestring, expressions[i]))
-                    {
-                      /* Reserve output space before accepting a side effect. */
-                      ret = capacity < 128 ? -ENOSPC :
-                        product_expression_request(expressions[i], &eye_request_id, check, context);
-                      break;
-                    }
-                }
-            }
-        }
-#endif
-      else if (cJSON_IsNumber(value) &&
-               value->valuedouble == value->valueint &&
-               value->valueint >= 0)
-        {
-          if (!strcmp(action->valuestring, "volume") &&
-              value->valueint <= BK7258_TOOL_VALUE_MAX)
-            {
-              ret = bkvoice_media_volume(true, value->valueint, &observed);
-              if (!ret)
-                {
-                  ret = bkvoice_volume_store_set(observed);
-                }
-            }
-#ifdef CONFIG_BK7258_HAPTIC_SERVICE
-          else if (!strcmp(action->valuestring, "vibrate") &&
-                   value->valueint > 0 &&
-                   value->valueint <= BK7258_TOOL_VALUE_MAX)
-            {
-              ret = bkhaptic_service_pulse_wait(value->valueint);
-            }
-#endif
-        }
-
-      if (ret)
-        {
-          goto out;
-        }
-
-#ifdef CONFIG_BK7258_DISPLAY_SERVICE
-      if (eye_request_id)
-        {
-          written = snprintf(output, capacity,
-            "{\"ok\":true,\"action\":\"eyes\",\"state\":\"accepted\","
-            "\"request_id\":%lu,\"rendered\":false}", (unsigned long)eye_request_id);
-        }
-      else
-#endif
-      if (!strcmp(action->valuestring, "volume"))
-        {
-          written = snprintf(output, capacity,
-                             "{\"ok\":true,\"volume_percent\":%u}",
-                             observed);
-        }
-      else
-        {
-          written = snprintf(output, capacity,
-                             "{\"ok\":true,\"action\":\"%s\"}",
-                             action->valuestring);
-        }
+      ret = product_device_control(args, output, capacity, check, context);
+      goto out;
     }
   else
     {
@@ -1750,6 +1759,12 @@ static int product_config(void *context, enum bkcontrol_command_e command,
                              bkvoice_config_now_ms(NULL));
     }
 
+  if (kind == BKCONTROL_CONFIG_MEMORY_FACTS ||
+      kind == BKCONTROL_CONFIG_RUNTIME_SKILLS)
+    {
+      return product_agent_data(command, kind, offset, record, size, status);
+    }
+
   if (kind == BKCONTROL_CONFIG_SETTINGS)
     {
       return bkprov_config_control(command, offset, record, size, status);
@@ -1934,7 +1949,14 @@ static int product_pc_config(void *context, enum bkcontrol_command_e command,
           return bkengvoice_read(offset, status);
         }
       if (command == BKCONTROL_CONFIG_BEGIN)
-        return !offset && !record && size >= 32 && size <= 4128 ? 0 : -EINVAL;
+        return !offset && !record && size >= 32 && size <=
+#if defined(CONFIG_BK7258_TTS_TENCENT_BKTEST) || \
+    defined(CONFIG_BK7258_TTS_ALIYUN_BKTEST)
+          8224
+#else
+          4128
+#endif
+          ? 0 : -EINVAL;
       if (command != BKCONTROL_CONFIG_APPLY || offset) return -ENOTSUP;
       int ret = bkengvoice_command(record, size);
       if (!ret)
@@ -2071,8 +2093,12 @@ static void product_pc_usb_step(void)
   uint8_t certificate_sha256[32];
   uint32_t diagnostic_flags = 0;
   uint32_t diagnostic_remaining = 0;
+  bool factory_control_eligible = !g_control_bound;
+#ifdef CONFIG_BK7258_FACTORY_DIAGNOSTICS_CLAIMED_TEST
+  factory_control_eligible = true;
+#endif
   bool factory_eligible = g_identity_bound && g_identity.generated &&
-                          !g_control_bound && !bkagent_ota_busy() &&
+                          factory_control_eligible && !bkagent_ota_busy() &&
                           bkprov_bootstrap_status() == 1 &&
                           g_identity.certificate.raw.p != NULL &&
                           g_identity.certificate.raw.len != 0;
@@ -2794,6 +2820,8 @@ static int product_reset_step(void)
   ret = bk7258_preferences_response_length_reset_complete();
   if (ret < 0) return ret;
 #endif
+  ret = bk7258_runtime_skills_init();
+  if (ret < 0) return ret;
   ret = bkprov_owner_unbind();
   if (ret < 0) return ret;
   ret = bkprov_network_unbind();
@@ -2976,6 +3004,20 @@ static int bk7258_agent_activate_cloud(bool *storage_waiting)
       goto out;
     }
 
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  /* Presence only: distinguish an owner-only record from a failed service
+   * without exporting the protected configuration or credential material.
+   */
+  syslog(LOG_INFO,
+         "BKVOICE stored config revision=%llu deferred=%u wifi=%u "
+         "trust=%u cloud=%u control=%u\n",
+         (unsigned long long)revision, work->settings.deferred ? 1u : 0u,
+         work->settings.ssid[0] ? 1u : 0u,
+         work->settings.ca_size ? 1u : 0u,
+         work->settings.cloud_size ? 1u : 0u,
+         work->settings.control_key ? 1u : 0u);
+#endif
+
   if (!work->settings.control_key)
     {
       ret = -ENOKEY;
@@ -2984,6 +3026,13 @@ static int bk7258_agent_activate_cloud(bool *storage_waiting)
 
   if (!g_control_bound)
     {
+    /* The authenticated settings record proves CP storage is ready. Skill
+     * failures keep control available for status/reset while execution
+     * rejects unconfirmed state.
+     */
+
+    int skill_result = bk7258_runtime_skills_init();
+    syslog(LOG_INFO, "BKSKILL restore result=%d\n", skill_result);
     ret = bkprov_owner_control(work->settings.control_key, product_control,
                                NULL);
     if (!ret)
@@ -3115,7 +3164,7 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
   bool network_was_busy = false;
   bool storage_waiting = false;
   bool voice_interaction_active = false;
-  bool preferences_pending = false;
+  bool preferences_pending = true;
   bool threshold_ready = false;
   uint32_t connection_generation = bkprov_gatt_generation();
   uint64_t link_check_at = 0;
@@ -3269,6 +3318,7 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
       product_nfc_scene_gate(g_control_bound && !bkagent_ota_busy() &&
         (!atomic_load(&g_voice_initialized) || voice_channel_is_idle()));
       bkfocus_intent_step(now, g_control_bound && !bkagent_ota_busy());
+      bkreply_expression_step();
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
       bool focus_idle = !atomic_load(&g_voice_initialized) ||
                         voice_channel_is_idle();
@@ -3338,7 +3388,7 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
            * cancel outcome exits.
            */
 
-          bool local_done = atomic_exchange(&g_focus_local_done, false);
+          bool local_done = atomic_exchange(&g_local_text_done, false);
           voice_action = voice_interaction_active && !local_done &&
                          !product_voice_result_exits_interaction(
                            voice_turn_result) ?
@@ -3585,8 +3635,17 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
           network_was_busy = bkprov_network_busy();
         }
 
+      /* A new BLE control window makes owner_busy true. Let the existing
+       * idle model preparation below finish first; already-open control and
+       * pairing sessions are still serviced by owner_step as before.
+       */
+      bool local_prepare = !content_busy && g_identity_bound &&
+        atomic_load(&g_agent_core_ready) &&
+        atomic_load(&g_voice_initialized) &&
+        atomic_load(&g_trigger_prepare_pending) &&
+        (threshold_ready || preferences_pending) && voice_channel_is_idle();
       (void)bkprov_owner_step(bkvoice_config_now_ms(NULL), 0, false, false,
-        !bkagent_ota_busy());
+        !bkagent_ota_busy() && !local_prepare);
       PRODUCT_LOOP_CHECKPOINT(12);
 #if defined(CONFIG_BK7258_DISPLAY_SERVICE) && defined(CONFIG_BK7258_USBCDC)
       product_pc_pack_step(g_identity_bound && g_control_bound &&
@@ -3624,11 +3683,17 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
        * start-up -EAGAIN window, which would cache a wrong revision 0.
        */
 
-      if (atomic_load(&g_trigger_prepare_pending) && g_identity_bound &&
+      if (threshold_ready &&
+          atomic_load(&g_trigger_prepare_pending) && g_identity_bound &&
           voice_channel_is_idle() && !bkprov_owner_busy() &&
           !bk7258_agent_trigger_model_pending())
         {
+      uint64_t prepare_begin = bkvoice_config_now_ms(NULL);
+      agent_trace_stage(0, "wake_prepare_threshold",
+                        bk7258_agent_trigger_threshold_get(), 0);
       int ret = bk7258_agent_trigger_prepare();
+      agent_trace_stage(0, "wake_model_prepare",
+                        bkvoice_config_now_ms(NULL) - prepare_begin, ret);
       if (ret != -EBUSY)
         {
           atomic_store(&g_trigger_prepare_pending, false);
@@ -3840,7 +3905,7 @@ static void install_product_skills(void)
 
   static const struct product_skill_s skills[] =
     {
-      "device-assistant.md", g_product_skill_device_assistant
+      {"device-assistant.md", g_product_skill_device_assistant}
     };
 
   for (unsigned int i = 0; i < sizeof(skills) / sizeof(skills[0]); i++)
@@ -3861,6 +3926,44 @@ static void install_product_skills(void)
       fclose(f);
       syslog(LOG_INFO, "bk7258: runtime skill installed: %s\n", path);
     }
+
+#ifdef CONFIG_BK7258_VOICE_TLS
+  char *catalog = calloc(1, 8192);
+  int ret = catalog ? bk7258_runtime_skills_builtin_read(catalog, 8192) :
+                      -ENOMEM;
+  cJSON *root = !ret ? cJSON_Parse(catalog) : NULL;
+  cJSON *items = cJSON_GetObjectItemCaseSensitive(root, "items");
+  cJSON *entry;
+  if (!ret && !cJSON_IsArray(items))
+    {
+      ret = -EPROTO;
+    }
+  cJSON_ArrayForEach(entry, items)
+    {
+      cJSON *id = cJSON_GetObjectItemCaseSensitive(entry, "id");
+      cJSON *body = cJSON_GetObjectItemCaseSensitive(entry, "markdown");
+      char path[96];
+      if (!cJSON_IsString(id) || !cJSON_IsString(body))
+        {
+          ret = -EPROTO;
+          break;
+        }
+      snprintf(path, sizeof(path), "/data/agent/skills/%s.md", id->valuestring);
+      FILE *file = fopen(path, "w");
+      if (!file)
+        {
+          ret = -errno;
+          break;
+        }
+      if (fputs(body->valuestring, file) < 0)
+        ret = -EIO;
+      if (fclose(file) && !ret)
+        ret = -EIO;
+    }
+  cJSON_Delete(root);
+  free(catalog);
+  syslog(LOG_INFO, "BKSKILL builtin_install result=%d\n", ret);
+#endif
 }
 
 /* The fixed official package has no core-only bootstrap entry: its sole
@@ -3901,6 +4004,17 @@ int ai_agent_main(int argc, FAR char *argv[])
     }
 
   install_product_skills();
+
+#ifdef CONFIG_BK7258_VOICE_TLS
+  struct bkreply_expression_ops_s expression_ops = {0};
+#ifdef CONFIG_BK7258_DISPLAY_SERVICE
+  expression_ops.start = product_emotion_start;
+  expression_ops.cancel = bk7258_display_cancel_trial;
+  expression_ops.active = bk7258_display_reply_expression;
+#endif
+  bkreply_expression_init(&expression_ops);
+  bkagent_cloud_set_context_adapter(product_agent_context);
+#endif
 
   ret = config_store_init();
   if (!ret)
@@ -3963,7 +4077,7 @@ int ai_agent_main(int argc, FAR char *argv[])
 #ifdef CONFIG_BK7258_TTS_ISOLATION
   if (!ret) ret = voice_channel_set_local_text_handler(product_tts_isolation_text);
 #else
-  if (!ret) ret = voice_channel_set_local_text_handler(product_focus_text);
+  if (!ret) ret = voice_channel_set_local_text_handler(product_local_text);
 #endif
 #endif
 
@@ -4041,11 +4155,6 @@ int ai_agent_main(int argc, FAR char *argv[])
                 voice_channel_speak_reply(message.request_id,
                                           message.content) :
                 voice_channel_speak(message.content);
-#if defined(CONFIG_BK7258_VOICE_TLS) && defined(CONFIG_BK7258_PREFERENCES)
-          if (!ret && message.request_complete)
-            (void)bkagent_memory_commit(atomic_load(&g_active_persona),
-                                        message.content);
-#endif
           if (message.request_complete)
             message.request_complete(message.request_id, ret);
 #ifdef CONFIG_BK7258_VOICE_TLS

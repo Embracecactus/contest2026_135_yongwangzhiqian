@@ -44,6 +44,17 @@ void bkvoice_kws_host_default_policy(float values[4])
   values[3] = (float)policy.cooldown_ms;
 }
 
+void bkvoice_kws_host_stream_policy(float values[4])
+{
+  struct bkvoice_kws_policy_s policy;
+
+  bkvoice_kws_default_stream_policy(&policy);
+  values[0] = policy.threshold;
+  values[1] = policy.release_threshold;
+  values[2] = (float)policy.consecutive;
+  values[3] = (float)policy.cooldown_ms;
+}
+
 void *bkvoice_kws_host_create_version(bkvoice_kws_infer_t infer, void *context,
                                      int frontend_version)
 {
@@ -77,6 +88,11 @@ void *bkvoice_kws_host_create_stream(bkvoice_kws_infer_t step,
 {
   struct bkvoice_kws_s *kws =
     bkvoice_kws_host_create_version(step, context, frontend_version);
+  if (kws != NULL)
+    {
+      bkvoice_kws_default_stream_policy(&kws->policy);
+    }
+
   if (kws != NULL && bkvoice_kws_set_stream(kws, step, reset) < 0)
     {
       bkvoice_kws_uninitialize(kws);
@@ -99,6 +115,25 @@ void bkvoice_kws_host_pause(void *host)
     {
       bkvoice_kws_pause(host);
     }
+}
+
+int bkvoice_kws_host_start(void *host)
+{
+  return bkvoice_kws_start(host);
+}
+
+int bkvoice_kws_host_threshold(void *host, unsigned int percent)
+{
+  struct bkvoice_kws_s *kws = host;
+
+  if (kws == NULL || percent < 50 || percent > 90)
+    {
+      return -EINVAL;
+    }
+
+  kws->policy.threshold = percent / 100.0f;
+  kws->hits = 0;
+  return 0;
 }
 
 void bkvoice_kws_host_destroy(void *host)

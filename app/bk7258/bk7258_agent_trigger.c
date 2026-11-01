@@ -189,7 +189,15 @@ static void *trigger_model_load(const void *data, size_t size,
     }
 
   context->model_open = true;
-  bkvoice_kws_default_policy(&policy);
+  if (bkvoice_kws_model_is_streaming(context->model))
+    {
+      bkvoice_kws_default_stream_policy(&policy);
+    }
+  else
+    {
+      bkvoice_kws_default_policy(&policy);
+    }
+
   policy.threshold = bk7258_agent_trigger_threshold_get() / 100.0f;
   ret = bkvoice_kws_initialize_version(&context->kws, &policy,
     bkvoice_kws_model_infer, context->model, package.frontend_version);
@@ -235,42 +243,12 @@ static int trigger_model_reset(void *opaque)
    * consecutive-frame policy are unchanged.
    */
 
-  bkvoice_kws_pause(&context->kws);
-
-  /* A new stream has no audio from the past three seconds, so the same
-   * front end is used to generate silent history. If rows=0 waited for
-   * the window to fill, a short word spoken right after the announcement
-   * would slide out
-   * of a valid position before the first inference and could not satisfy the
-   * model's original two-consecutive-frame condition. Only the missing
-   * history is filled in here; later input, the score threshold and events
-   * still come entirely from the normal MIC detection path.
-   */
-
-  if (!bkvoice_kws_model_is_streaming(context->model))
+  ret = bkvoice_kws_start(&context->kws);
+  if (ret < 0)
     {
-      ret = bkvoice_kws_frontend_frame(&context->kws.frontend,
-                                   context->kws.pcm,
-                                   context->kws.features);
-      if (ret < 0)
-        {
-          return ret;
-        }
-
-      for (unsigned int row = 1; row < BKVOICE_KWS_ROWS; row++)
-        {
-          memcpy(context->kws.features + row * BKVOICE_KWS_BINS,
-                 context->kws.features, BKVOICE_KWS_BINS * sizeof(float));
-        }
-
-      context->kws.rows = BKVOICE_KWS_ROWS;
-      context->kws.pending = BKVOICE_KWS_WINDOW - BKVOICE_KWS_HOP;
+      return ret;
     }
 
-  context->kws.last_ms = 0;
-  context->kws.triggered_ms = 0;
-  context->kws.timestamp_valid = false;
-  context->kws.armed = true;
   context->frame_used = 0;
   context->next_frame_ms = 0;
   context->input_frames = 0;

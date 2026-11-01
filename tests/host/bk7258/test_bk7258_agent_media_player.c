@@ -678,6 +678,9 @@ int main(int argc, char** argv)
 }
 #elif defined(TEST_AGENT_TTS_QUEUE)
 /* 同一播放器验收入口，使用真实 Agent 队列及受控 Media 消费端。 */
+#ifndef CONFIG_AI_AGENT_TTS_EARLY_MEDIA_PREPARE
+#define CONFIG_AI_AGENT_TTS_EARLY_MEDIA_PREPARE 1
+#endif
 #include <assert.h>
 #include <stddef.h>
 #include <pthread.h>
@@ -686,9 +689,15 @@ int main(int argc, char** argv)
 #include <stdarg.h>
 #include <stdatomic.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
 #include <time.h>
+#include "voice/voice_channel.h"
+
+#ifndef CONFIG_AI_AGENT_TTS_QUEUE_BYTES
+#define CONFIG_AI_AGENT_TTS_QUEUE_BYTES (64 * 1024)
+#endif
 
 /* Observe production phase logs; the fixture owns only service/Media peers. */
 static pthread_mutex_t test_stage_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -707,8 +716,44 @@ void agent_audio_observe(uint64_t request, uint32_t kind, uint64_t begin,
 {
     (void)request;
     assert(kind > 0 && kind < 9 && begin <= end);
-    if (kind == 4 || kind == 5) assert(bytes <= 2048 && level <= 65536);
+    if (kind == 4 || kind == 5)
+        assert(bytes <= 2048 && level <= CONFIG_AI_AGENT_TTS_QUEUE_BYTES);
     atomic_fetch_add(&test_audio_counts[kind], 1);
+}
+
+static atomic_uint test_reservoir_allocs;
+static atomic_uint test_reservoir_frees;
+static atomic_int test_reservoir_force_fallback;
+static size_t test_reservoir_capacity;
+
+void *voice_channel_tts_reservoir_alloc(size_t preferred_size,
+    size_t minimum_size, size_t *allocated_size)
+{
+    assert(preferred_size == CONFIG_AI_AGENT_TTS_QUEUE_BYTES);
+    assert(minimum_size == 64 * 1024);
+    assert(allocated_size);
+    atomic_fetch_add(&test_reservoir_allocs, 1);
+    test_reservoir_capacity =
+        atomic_load(&test_reservoir_force_fallback) ? minimum_size :
+        preferred_size;
+    *allocated_size = test_reservoir_capacity;
+    return malloc(test_reservoir_capacity);
+}
+
+void voice_channel_tts_reservoir_free(void *memory)
+{
+    assert(memory);
+    atomic_fetch_add(&test_reservoir_frees, 1);
+    free(memory);
+}
+
+int voice_channel_tts_reservoir_storage(const void *memory)
+{
+    assert(memory);
+    return test_reservoir_capacity == CONFIG_AI_AGENT_TTS_QUEUE_BYTES &&
+        CONFIG_AI_AGENT_TTS_QUEUE_BYTES > 64 * 1024 ?
+        VOICE_CHANNEL_TTS_STORAGE_EXTERNAL :
+        VOICE_CHANNEL_TTS_STORAGE_NORMAL;
 }
 
 static void test_stage_syslog(int priority, const char *format, ...)
@@ -798,6 +843,37 @@ static void test_playback_priority_failure(void)
     assert(atomic_load(&test_playback_schedule_calls) == before + 2);
 }
 
+static void test_reservoir_fallback_contract(void)
+{
+#if CONFIG_AI_AGENT_TTS_QUEUE_BYTES > 64 * 1024
+    tts_output_t output = { .request_id = UINT64_MAX };
+    tts_queue_t *queue = NULL;
+    atomic_store(&s_voice.tts_abort, 0);
+    atomic_store(&test_reservoir_force_fallback, 1);
+    pthread_mutex_lock(&test_stage_lock);
+    test_stage_count = 0;
+    pthread_mutex_unlock(&test_stage_lock);
+    assert(tts_queue_open(&output, &queue) == 0);
+    assert(queue && queue->capacity == 64 * 1024);
+    assert(tts_queue_close(queue, 0) == 0);
+    atomic_store(&test_reservoir_force_fallback, 0);
+    pthread_mutex_lock(&test_stage_lock);
+    int requested = test_stage_index(UINT64_MAX,
+        "queue_capacity_requested");
+    int capacity = test_stage_index(UINT64_MAX, "queue_capacity");
+    int fallback = test_stage_index(UINT64_MAX,
+        "queue_capacity_fallback");
+    int storage = test_stage_index(UINT64_MAX, "queue_storage");
+    assert(requested >= 0 && test_stages[requested].value ==
+        CONFIG_AI_AGENT_TTS_QUEUE_BYTES);
+    assert(capacity > requested && test_stages[capacity].value == 64 * 1024);
+    assert(fallback > capacity && test_stages[fallback].value == 64 * 1024);
+    assert(storage > fallback && test_stages[storage].value ==
+        VOICE_CHANNEL_TTS_STORAGE_NORMAL);
+    pthread_mutex_unlock(&test_stage_lock);
+#endif
+}
+
 #include "bk7258_focus_intent.h"
 #include "bk7258_focus_pixels.h"
 #include "tools/tool_guard.h"
@@ -808,10 +884,24 @@ static sem_t g_product_wake;
 static atomic_int test_focus_guard_deny;
 static atomic_int test_focus_guard_calls;
 static atomic_int test_focus_record_calls;
+#ifdef TEST_AGENT_LOCAL_INTENT
+static int test_device_guard_deny, test_device_guard_cancel;
+static unsigned int test_device_records;
+#endif
 
 tool_guard_result_t tool_guard_check(const char *name, const char *input,
     size_t input_len)
 {
+#ifdef TEST_AGENT_LOCAL_INTENT
+    if (!strcmp(name, "device_control")) {
+        assert(input && input_len == strlen(input));
+        cJSON *args = cJSON_Parse(input);
+        assert(args && cJSON_IsString(cJSON_GetObjectItem(args, "action")));
+        cJSON_Delete(args);
+        if (test_device_guard_cancel) assert(voice_channel_cancel() == 0);
+        return test_device_guard_deny ? GUARD_DENY_DISABLED : GUARD_ALLOW;
+    }
+#endif
     assert(!strcmp(name, "focus_timer"));
     assert(input && input_len == strlen(input));
     assert(!strcmp(input, "{\"action\":\"start\",\"seconds\":1}") ||
@@ -825,6 +915,12 @@ tool_guard_result_t tool_guard_check(const char *name, const char *input,
 
 void tool_guard_record_call(const char *name)
 {
+#ifdef TEST_AGENT_LOCAL_INTENT
+    if (!strcmp(name, "device_control")) {
+        test_device_records++;
+        return;
+    }
+#endif
     assert(!strcmp(name, "focus_timer"));
     atomic_fetch_add(&test_focus_record_calls, 1);
 }
@@ -832,6 +928,63 @@ void tool_guard_record_call(const char *name)
 int nxsig_usleep(uint32_t usec) { return usleep(usec); }
 
 #include "bk7258_agent_focus.inc"
+
+#ifdef TEST_AGENT_LOCAL_INTENT
+#include "bk7258_local_intent.h"
+#define CONFIG_BK7258_DISPLAY_SERVICE 1
+#define BK7258_TOOL_VALUE_MAX 100
+#define BK7258_PERSONA_TSUNDERE_LITE 0
+static unsigned int test_volume = 50, test_volume_writes, test_volume_stores;
+static unsigned int test_eye_requests, test_local_cancels;
+static int test_device_ota, test_volume_error, test_store_error, test_eye_error;
+static int bkagent_ota_busy(void) { return test_device_ota; }
+static const char *bk7258_preferences_persona_name(int value)
+{
+    (void)value;
+    return "gentle";
+}
+static int product_apply_persona(int value) { (void)value; return 0; }
+static int bkvoice_media_volume(bool write, unsigned int value,
+    unsigned int *observed)
+{
+    if (test_volume_error) return test_volume_error;
+    if (write) { assert(value <= 100); test_volume = value; test_volume_writes++; }
+    *observed = test_volume;
+    return 0;
+}
+static int bkvoice_volume_store_set(unsigned int value)
+{
+    assert(value == test_volume);
+    test_volume_stores++;
+    return test_store_error;
+}
+static int product_expression_request(const char *expression, uint32_t *id,
+    int (*check)(void *), void *context)
+{
+    assert(!strcmp(expression, "happy"));
+    int ret = check(context);
+    if (ret) return ret;
+    if (test_eye_error) return test_eye_error;
+    *id = ++test_eye_requests; /* Acceptance only; no simulated rendering. */
+    return 0;
+}
+static int product_cancel(void)
+{
+    test_local_cancels++;
+    return voice_channel_cancel();
+}
+#include "bk7258_agent_device_control.inc"
+/* Metadata has its own lifecycle harness. Keep this fixture focused on the
+ * real local-intent/voice path while preserving its admission callback.
+ */
+static int product_profile_begin(uint64_t request, const char *text,
+    int (*check)(uint64_t))
+{
+    (void)text;
+    return check(request);
+}
+#include "bk7258_agent_local_intent.inc"
+#endif
 
 static atomic_int test_canceled;
 static int test_mode;
@@ -850,6 +1003,16 @@ static atomic_int test_first_pcm;
 static atomic_int test_drains, test_closes;
 static int test_stops, test_synth_calls;
 static char test_spoken[4][128];
+
+static unsigned int test_delay_us(const char *name)
+{
+    const char *value = getenv(name);
+    if (!value || !value[0]) return 0;
+    char *end = NULL;
+    unsigned long delay = strtoul(value, &end, 10);
+    assert(end && !*end && delay <= 2000000UL);
+    return (unsigned int)delay;
+}
 
 bool voice_asr_stream_supported(void) { return true; }
 voice_asr_stream_t* voice_asr_stream_open(void)
@@ -1070,14 +1233,32 @@ static void test_preconnect_cancel(int automatic)
 
 static atomic_int test_next_sentence_started;
 
-audio_playback_t* audio_playback_open(const char* path, unsigned int rate,
-    unsigned int channels, unsigned int bits)
+audio_playback_t* audio_playback_open_traced(const char* path,
+    unsigned int rate, unsigned int channels, unsigned int bits,
+    audio_playback_stage_cb_t stage, void* stage_context)
 {
     (void)path;
     assert(rate == 24000 && channels == 1 && bits == 16);
+    if (stage) stage(stage_context, "media_open_begin", 0);
+    unsigned int delay = test_delay_us("VOICE_TEST_MEDIA_OPEN_US");
+    if (delay) usleep(delay);
     test_opens++;
     assert(test_opens == 1);
+    if (stage) {
+        stage(stage_context, "media_open_end", 0);
+        stage(stage_context, "media_prepare_call_begin", 0);
+        stage(stage_context, "media_prepare_call_end", 0);
+        stage(stage_context, "media_start_call_begin", 0);
+        stage(stage_context, "media_start_call_end", 0);
+        stage(stage_context, "media_socket_ready", 0);
+    }
     return (audio_playback_t*)&test_opens;
+}
+
+audio_playback_t* audio_playback_open(const char* path, unsigned int rate,
+    unsigned int channels, unsigned int bits)
+{
+    return audio_playback_open_traced(path, rate, channels, bits, NULL, NULL);
 }
 
 int audio_playback_write(audio_playback_t* pb, const void* bytes, size_t size)
@@ -1130,6 +1311,18 @@ int voice_tts_get_capabilities(voice_tts_capabilities_t* caps)
     return 0;
 }
 
+/* This fixture selects the sentence TTS backend, not text-stream transport. */
+bool voice_tts_text_stream_supported(void) { return false; }
+int voice_tts_speak_text_stream_checked(voice_tts_text_cb text_cb,
+    void *text_context, voice_tts_chunk_cb pcm_cb, void *pcm_context,
+    int (*check)(void *), void *request)
+{
+    (void)text_cb; (void)text_context; (void)pcm_cb; (void)pcm_context;
+    (void)check; (void)request;
+    assert(!"text-stream backend was not selected");
+    return -ENOTSUP;
+}
+
 int voice_tts_speak_stream_checked(const char* text, voice_tts_chunk_cb cb,
     void* context, int (*check)(void*), void* request)
 {
@@ -1147,6 +1340,9 @@ int voice_tts_speak_stream_checked(const char* text, voice_tts_chunk_cb cb,
         (unsigned int)test_synth_calls * 37u : 0;
     size_t total = test_mode == 1 ? 200001 :
         test_mode >= 5 ? 8192 : 200000;
+    unsigned int first_delay = test_delay_us("VOICE_TEST_TTS_FIRST_US");
+    unsigned int chunk_delay = test_delay_us("VOICE_TEST_TTS_CHUNK_US");
+    if (first_delay) usleep(first_delay);
     for (size_t pos = 0; pos < total;) {
         size_t maximum = sizeof(chunk);
         if (test_fragment_seed) {
@@ -1159,6 +1355,7 @@ int voice_tts_speak_stream_checked(const char* text, voice_tts_chunk_cb cb,
         cb(chunk, n, 0, context);
         if (atomic_load(&test_canceled)) return -ECANCELED;
         pos += n;
+        if (chunk_delay && pos < total) usleep(chunk_delay);
     }
     if (test_mode == 6) return -EIO;
     cb(NULL, 0, 1, context);
@@ -1233,6 +1430,135 @@ static void test_history(const agent_msg_t *msg, const char *text)
     test_history_count++;
     if (test_cancel_at_history) assert(voice_channel_cancel() == 0);
 }
+
+#ifdef TEST_AGENT_LOCAL_INTENT
+static void test_local_finish(uint64_t id, int result)
+{
+    agent_msg_t delivered = {0};
+    assert(message_bus_pop_inbound(&delivered, 0) == ERROR);
+    assert(test_synth_calls == 0 && test_opens == 0);
+    assert(atomic_exchange(&g_local_text_done, false));
+    voice_request_complete(id, result < 0 ? result : 0);
+    assert(voice_channel_is_idle());
+}
+
+static void test_product_local_dispatch(void)
+{
+    agent_msg_t delivered = {0};
+    assert(message_bus_init() == 0);
+    assert(voice_channel_set_local_text_handler(product_local_text) == 0);
+    uint64_t id = test_reply_prepare(5);
+    assert(voice_dispatch_text(id, "音量45") == 1);
+    assert(test_volume == 45 && test_volume_writes == 1 && test_volume_stores == 1);
+    assert(voice_dispatch_text(id, "音量四十五") == 1);
+    assert(test_volume_writes == 1);
+    assert(voice_dispatch_text(id, "音量加一点") == -ESTALE);
+    assert(test_volume_writes == 1);
+    test_local_finish(id, 0);
+
+    id = test_reply_prepare(5);
+    assert(voice_dispatch_text(id, "音量加一点") == 1);
+    assert(test_volume == 55);
+    unsigned int writes = test_volume_writes;
+    assert(voice_dispatch_text(id, "音量加一点") == 1);
+    assert(test_volume_writes == writes && test_volume == 55);
+    test_local_finish(id, 0);
+
+    test_volume = 95;
+    id = test_reply_prepare(5);
+    assert(voice_dispatch_text(id, "音量加一点") == 1);
+    assert(test_volume == 100);
+    test_local_finish(id, 0);
+    test_volume = 5;
+    id = test_reply_prepare(5);
+    assert(voice_dispatch_text(id, "音量减一点") == 1);
+    assert(test_volume == 0);
+    test_local_finish(id, 0);
+
+    /* Persistence can fail after hardware changes. A replay cannot apply the
+     * relative operation a second time or silently invoke the cloud. */
+    test_store_error = -EIO;
+    id = test_reply_prepare(5);
+    assert(voice_dispatch_text(id, "音量加一点") == -EIO);
+    assert(test_volume == 10);
+    writes = test_volume_writes;
+    assert(voice_dispatch_text(id, "音量加一点") == -EIO);
+    assert(test_volume_writes == writes && test_volume == 10);
+    test_local_finish(id, -EIO);
+    test_store_error = 0;
+
+    test_volume_error = -ENODEV;
+    id = test_reply_prepare(5);
+    assert(voice_dispatch_text(id, "音量加一点") == -ENODEV);
+    test_local_finish(id, -ENODEV);
+    id = test_reply_prepare(5);
+    assert(voice_dispatch_text(id, "音量50") == -ENODEV);
+    test_local_finish(id, -ENODEV);
+    test_volume_error = 0;
+    assert(test_volume_writes == writes);
+
+    unsigned int records = test_device_records;
+    test_device_guard_deny = 1;
+    id = test_reply_prepare(5);
+    assert(voice_dispatch_text(id, "音量50") == -EACCES);
+    test_local_finish(id, -EACCES);
+    test_device_guard_deny = 0;
+    test_device_guard_cancel = 1;
+    id = test_reply_prepare(5);
+    assert(voice_dispatch_text(id, "音量50") == -ECANCELED);
+    test_local_finish(id, -ECANCELED);
+    test_device_guard_cancel = 0;
+    assert(test_device_records == records && test_volume_writes == writes);
+
+    test_device_ota = 1;
+    id = test_reply_prepare(5);
+    assert(voice_dispatch_text(id, "音量50") == -EBUSY);
+    test_local_finish(id, -EBUSY);
+    test_device_ota = 0;
+    assert(test_volume_writes == writes);
+
+    id = test_reply_prepare(5);
+    assert(voice_dispatch_text(id, "换成开心表情") == 1);
+    assert(voice_dispatch_text(id, "换成开心表情") == 1);
+    assert(test_eye_requests == 1);
+    test_local_finish(id, 0);
+    test_eye_error = -EBUSY;
+    id = test_reply_prepare(5);
+    assert(voice_dispatch_text(id, "换成开心表情") == -EBUSY);
+    test_local_finish(id, -EBUSY);
+    test_eye_error = 0;
+
+    id = test_reply_prepare(5);
+    assert(voice_dispatch_text(id, "停止说话") == 1);
+    assert(voice_request_status(id) == -ECANCELED && test_local_cancels == 1);
+    test_local_finish(id, -ECANCELED);
+    id = test_reply_prepare(5);
+    assert(voice_dispatch_text(id, "音量50") == 1);
+    assert(test_volume == 50);
+    test_local_finish(id, 0);
+
+    /* Misses remain single Agent messages; no local side effects or TTS. */
+    static const char *const misses[] = {
+        "不要把音量调到50", "换成开心表情？", "音量50然后停止",
+        "拍照识物", "解释一下量子力学"
+    };
+    writes = test_volume_writes;
+    records = test_device_records;
+    for (size_t i = 0; i < sizeof(misses) / sizeof(misses[0]); i++) {
+        id = test_reply_prepare(5);
+        assert(voice_dispatch_text(id, misses[i]) == 0);
+        assert(message_bus_pop_inbound(&delivered, 0) == 0);
+        assert(delivered.request_id == id && !strcmp(delivered.content, misses[i]));
+        message_bus_msg_free(&delivered);
+        assert(message_bus_pop_inbound(&delivered, 0) == ERROR);
+        assert(test_synth_calls == 0 && !atomic_load(&g_local_text_done));
+        voice_request_complete(id, 0);
+    }
+    assert(test_volume_writes == writes && test_device_records == records);
+    assert(voice_channel_set_local_text_handler(NULL) == 0);
+    puts("BKLOCAL_HOST_PASS volume clamp replay persistence-error guard cancel ota eyes stop recover fallback-once no-tts");
+}
+#endif
 
 enum {
     LOCAL_TEXT_MISS,
@@ -1402,7 +1728,11 @@ static void test_focus_text_dispatch(void)
     atomic_store(&test_focus_clock_offset, 0);
     assert(pthread_create(&owner, NULL, test_focus_owner, NULL) == 0);
     bkfocus_intent_step(bkvoice_config_now_ms(NULL), true);
+#ifdef TEST_AGENT_LOCAL_INTENT
+    assert(voice_channel_set_local_text_handler(product_local_text) == 0);
+#else
     assert(voice_channel_set_local_text_handler(product_focus_text) == 0);
+#endif
 
     /* An unbound product owner rejects local text without creating a timer or
      * forwarding it to Agent; restoring admission permits the next turn. */
@@ -1698,7 +2028,42 @@ static void test_reply_pipeline(void)
     int body = test_stage_index(id, "final_first");
     int submit = test_stage_index(id, "tts_submit");
     int pcm = test_stage_index(id, "first_pcm");
-    assert(body >= 0 && submit > body && pcm > submit && media > pcm);
+    int enqueued = test_stage_index(id, "pcm_enqueue_first");
+    int watermark = test_stage_index(id, "playback_watermark");
+    int consumer = test_stage_index(id, "consumer_wake");
+    int prepare_begin = test_stage_index(id, "media_prepare_begin");
+    int open_begin = test_stage_index(id, "media_open_begin");
+    int open_end = test_stage_index(id, "media_open_end");
+    int prepare_call_begin = test_stage_index(id, "media_prepare_call_begin");
+    int prepare_call_end = test_stage_index(id, "media_prepare_call_end");
+    int start_call_begin = test_stage_index(id, "media_start_call_begin");
+    int start_call_end = test_stage_index(id, "media_start_call_end");
+    int socket_ready = test_stage_index(id, "media_socket_ready");
+    int prepare_end = test_stage_index(id, "media_prepare_end");
+    int write_begin = test_stage_index(id, "first_media_write_begin");
+    int write_end = test_stage_index(id, "first_media_write_end");
+    int prefill = test_stage_index(id, "playback_prefill");
+    int requested = test_stage_index(id, "queue_capacity_requested");
+    int capacity = test_stage_index(id, "queue_capacity");
+    int storage = test_stage_index(id, "queue_storage");
+    assert(body >= 0 && submit > body && pcm > submit && enqueued > pcm);
+    assert(prefill >= 0 && test_stages[prefill].value == TTS_QUEUE_PREFILL);
+    assert(requested > prefill && test_stages[requested].value ==
+        CONFIG_AI_AGENT_TTS_QUEUE_BYTES);
+    assert(capacity > requested &&
+        test_stages[capacity].value == test_reservoir_capacity);
+    assert(storage > capacity && test_stages[storage].value ==
+        (CONFIG_AI_AGENT_TTS_QUEUE_BYTES > 64 * 1024 ?
+         VOICE_CHANNEL_TTS_STORAGE_EXTERNAL :
+         VOICE_CHANNEL_TTS_STORAGE_NORMAL));
+    assert(watermark > enqueued && consumer > watermark);
+    assert(prepare_begin > pcm && open_begin > prepare_begin &&
+        open_end > open_begin && prepare_call_begin > open_end &&
+        prepare_call_end > prepare_call_begin && start_call_begin > prepare_call_end &&
+        start_call_end > start_call_begin && socket_ready > start_call_end &&
+        prepare_end > socket_ready);
+    assert(write_begin > consumer && write_end > write_begin &&
+        media > write_end);
     assert(test_stage_index(id, "playback_end") < 0);
     assert(test_stage_index(id, "channel_idle") < 0);
     unsigned long long tail_release_ms = voice_now_ms();
@@ -1932,7 +2297,14 @@ int main(int argc, char **argv)
             test_playback_priority_failure();
         } else if (!strcmp(argv[1], "local-text")) {
             test_local_text_dispatch();
-        } else if (!strcmp(argv[1], "focus-text")) {
+        }
+#ifdef TEST_AGENT_LOCAL_INTENT
+        else if (!strcmp(argv[1], "local-intent")) {
+            test_focus_text_dispatch();
+            test_product_local_dispatch();
+        }
+#endif
+        else if (!strcmp(argv[1], "focus-text")) {
             test_focus_text_dispatch();
         } else return 2;
         puts("CONTRACT_PASS");
@@ -1972,6 +2344,9 @@ int main(int argc, char **argv)
     test_focus_text_dispatch();
     test_body_commit();
     test_sse_pipeline();
+    test_reservoir_fallback_contract();
+    assert(atomic_load(&test_reservoir_allocs) ==
+        atomic_load(&test_reservoir_frees));
     puts("BKVOICE_AGENT_QUEUE_HOST_PASS atomic-body-commit cancel-before-after history-once stream-failure-no-history wake-ack cancel-next-turn reply-before-end utf8-tail cancel-recover single-media preconnect fragmented-pcm bounded-ring media-error duplicate-eof");
     return 0;
 }

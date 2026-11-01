@@ -94,6 +94,47 @@ config BK7258_TTS_ISOLATION
 		existing tracked voice turn, TLS provider, PCM queue and Media output.
 		Bypasses ASR and LLM only. Keep disabled in production configurations.
 
+config BK7258_TTS_TENCENT_BKTEST
+	bool "Development-only Tencent continuous-text TTS provider"
+	default n
+	depends on BK7258_ENGINEERING_TEST && BK7258_TTS_ISOLATION
+	depends on BK7258_VOICE_TLS
+	help
+		Register an experiment-only Tencent Cloud continuous-text WebSocket
+		TTS backend. An authenticated BKTEST operator supplies one short-lived,
+		single-use signed URL and Tencent server trust in volatile memory; the
+		long-term API secret never enters firmware or the board. The backend
+		uses the existing Agent, Session, bounded PCM queue and sole Media owner.
+		Keep disabled in every product and release profile.
+
+config BK7258_TTS_ALIYUN_BKTEST
+	bool "Development-only Alibaba Qwen continuous-text TTS provider"
+	default n
+	depends on BK7258_ENGINEERING_TEST && BK7258_TTS_ISOLATION
+	depends on BK7258_VOICE_TLS
+	help
+		Register an experiment-only Alibaba Cloud Qwen-Audio-TTS WebSocket
+		backend. An authenticated BKTEST operator supplies one API key and
+		server trust in volatile memory; the key is erased after the verified
+		WebSocket upgrade and is never persisted or logged. The backend reuses
+		the existing Agent, Session, bounded PCM queue and sole Media owner.
+		Keep disabled in every product and release profile.
+
+config BK7258_AGENT_TTS_PSRAM_RESERVOIR
+	bool "Development-only Agent TTS reservoir in system-heap PSRAM"
+	default n
+	depends on BK7258_APP_AGENT && BK7258_PSRAM_EXT_SYSTEM_HEAP
+	depends on AI_AGENT_TTS_QUEUE_BYTES > 65536
+	help
+		Request the Agent's larger bounded TTS PCM reservoir from the NuttX
+		system heap, then verify that the returned block belongs to a donated
+		BK7258 PSRAM system-heap region. The SDK Media slabs are not touched.
+		Queue control, synchronization and each 2 KiB Media transfer frame stay
+		in ordinary memory. If the preferred external block is unavailable, the
+		queue falls back to the established 64 KiB capacity and reports that
+		capacity in the trace. This changes no playback threshold, PCM content,
+		Agent owner or Media owner. Enable only in an engineering profile.
+
 config BK7258_FACTORY_DIAGNOSTICS
 	bool "Factory-only volatile BKTEST enrollment"
 	default n
@@ -105,6 +146,19 @@ config BK7258_FACTORY_DIAGNOSTICS
 		public leaf-certificate SHA-256, and expires or revokes within one boot.
 		No PCG1, owner, Wi-Fi/cloud, identity, trust or external-SD byte is
 		written.  Keep disabled in every normal product/release profile.
+
+config BK7258_FACTORY_DIAGNOSTICS_CLAIMED_TEST
+	bool "Allow volatile BKTEST enrollment on a claimed engineering device"
+	default n
+	depends on BK7258_AP_CORE && BK7258_FACTORY_DIAGNOSTICS
+	help
+		Allow the one-boot diagnostics-only PC principal while the existing
+		product control owner remains bound.  While that principal is active,
+		also allow the existing BKTEST voice benchmark to load its volatile
+		cloud fixture.  This writes no durable grant or credential and retains
+		the bounded TTL, one-use and explicit revocation rules.  Enable only in
+		an authorized engineering BKTEST image; never in a normal product or
+		release configuration.
 
 config BK7258_AUDIO_PLAYBACK_VALIDATION
 	bool "Development-only one-shot Agent Media playback validation"

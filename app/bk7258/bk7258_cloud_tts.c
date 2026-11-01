@@ -1,8 +1,12 @@
 /* SPDX-License-Identifier: Apache-2.0 */
+#ifndef _POSIX_C_SOURCE
+#  define _POSIX_C_SOURCE 200809L
+#endif
 #include "bk7258_cloud_tts.h"
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <mbedtls/base64.h>
 #include <mbedtls/platform_util.h>
 #ifdef __NuttX__
@@ -16,6 +20,21 @@
  * Decode base64 into a small reusable block instead of a second full chunk.
  */
 #define BKCLOUD_TTS_EVENT_MAX (256u * 1024u)
+
+static uint64_t monotonic_ms(void)
+{
+  struct timespec now = {0};
+  if (clock_gettime(CLOCK_MONOTONIC, &now) != 0) return 0;
+  return (uint64_t)now.tv_sec * 1000u + (uint64_t)now.tv_nsec / 1000000u;
+}
+
+static void observe(struct bkcloud_tts_s *tts,
+                    enum bkcloud_tts_observation_e kind,
+                    uint64_t begin, uint64_t end, size_t bytes, int result)
+{
+  if (tts->observe)
+    tts->observe(tts->observe_context, kind, begin, end, bytes, result);
+}
 
 static void release_buffers(struct bkcloud_tts_s *tts)
 {
@@ -67,10 +86,23 @@ void bkcloud_tts_init(struct bkcloud_tts_s *tts, bkcloud_write_t write, void *co
   if (tts) { tts->write = write; tts->context = context; }
 }
 
+void bkcloud_tts_set_observer(struct bkcloud_tts_s *tts,
+                              bkcloud_tts_observe_t callback, void *context)
+{
+  if (tts)
+    {
+      tts->observe = callback;
+      tts->observe_context = context;
+    }
+}
+
 static int event(struct bkcloud_tts_s *tts)
 {
   cJSON *root = NULL, *choices, *choice, *index, *delta, *audio, *data, *reason;
   int ret = -EBADMSG;
+  uint64_t arrived = monotonic_ms();
+  observe(tts, BKCLOUD_TTS_OBSERVE_SSE_EVENT, arrived, arrived,
+          tts->event_size, 0);
   if (tts->done) return -EPROTO;
   if (tts->event_size == 6 && !memcmp(tts->event, "[DONE]", 6))
     {
@@ -126,9 +158,15 @@ static int event(struct bkcloud_tts_s *tts)
         {
           size_t chunk = size - offset;
           if (chunk > 4096) chunk = 4096;
-          if (mbedtls_base64_decode(tts->pcm, sizeof(tts->pcm), &bytes,
-              (const unsigned char *)encoded + offset, chunk) != 0)
-            { ret = -EBADMSG; goto out; }
+          uint64_t decode_begin = monotonic_ms();
+          int decoded_result = mbedtls_base64_decode(tts->pcm,
+              sizeof(tts->pcm), &bytes,
+              (const unsigned char *)encoded + offset, chunk);
+          uint64_t decode_end = monotonic_ms();
+          observe(tts, BKCLOUD_TTS_OBSERVE_BASE64_DECODE, decode_begin,
+                  decode_end, decoded_result == 0 ? bytes : 0,
+                  decoded_result == 0 ? 0 : -EBADMSG);
+          if (decoded_result != 0) { ret = -EBADMSG; goto out; }
           ret = tts->write(tts->context, tts->pcm, bytes);
           if (ret != 0) { if (ret > 0) ret = -EIO; goto out; }
           tts->total += bytes;

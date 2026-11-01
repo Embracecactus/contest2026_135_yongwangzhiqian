@@ -99,6 +99,7 @@
 #define BK7258_AUD_DMA_RING_GUARD_BYTES  8u
 #define BK7258_AUD_FIFO_BYTES            4u
 #define BK7258_AUD_REQUIRED_CPU_HZ        480000000u
+#define BK7258_AUD_TRACE_UNDERRUN_LIMIT   64u
 
 #define BK7258_AUD_FRAME_BYTES \
   (CONFIG_BK7258_AUD_FRAME_SAMPLES * BK7258_AUD_BYTES_PER_SAMPLE)
@@ -224,6 +225,9 @@ struct bk7258_aud_dev_s
   bool complete_sent;
 
   struct bk7258_aud_diag_s diag;
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  uint32_t traced_underruns;
+#endif
 };
 
 /****************************************************************************
@@ -459,6 +463,43 @@ static void bk7258_aud_trace(struct bk7258_aud_dev_s *priv,
   (void)priv;
   (void)phase;
   (void)result;
+#endif
+}
+
+static void bk7258_aud_trace_underrun(struct bk7258_aud_dev_s *priv,
+                                     unsigned int index)
+{
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  if (priv->traced_underruns++ >= BK7258_AUD_TRACE_UNDERRUN_LIMIT)
+    {
+      return;
+    }
+
+  struct timespec now;
+  if (clock_gettime(CLOCK_MONOTONIC, &now) != 0)
+    {
+      return;
+    }
+
+  uint32_t frame_ms = priv->samplerate == 0 ? 0 :
+    (CONFIG_BK7258_AUD_FRAME_SAMPLES * 1000u + priv->samplerate - 1u) /
+    priv->samplerate;
+  syslog(LOG_INFO, "[aud-underrun] mono_ms=%" PRIu64
+         " count=%" PRIu32 " frame_ms=%" PRIu32
+         " index=%u state=%u outstanding=%u enqueue=%" PRIu32
+         " dequeue=%" PRIu32 " consume=%" PRIu32 " produce=%" PRIu32
+         " final_queued=%u enabled=%u\n",
+         (uint64_t)now.tv_sec * 1000u + (uint64_t)now.tv_nsec / 1000000u,
+         priv->diag.underrun_count, frame_ms, index,
+         (unsigned int)priv->state, (unsigned int)priv->outstanding,
+         priv->diag.enqueue_count, priv->diag.dequeue_count,
+         priv->consume_sequence, priv->produce_sequence,
+         (unsigned int)priv->final_queued,
+         (unsigned int)(priv->dma_started && priv->dac_started &&
+                        priv->pa_enabled && !priv->muted && priv->dig_gain));
+#else
+  (void)priv;
+  (void)index;
 #endif
 }
 
@@ -1690,6 +1731,7 @@ static int bk7258_aud_fill_frame(struct bk7258_aud_dev_s *priv,
         }
 
       priv->diag.underrun_count++;
+      bk7258_aud_trace_underrun(priv, index);
     }
 
   nxmutex_unlock(&priv->lock);
@@ -2085,6 +2127,9 @@ static int bk7258_aud_stop_internal(struct bk7258_aud_dev_s *priv)
   priv->configured = false;
   priv->final_queued = false;
   priv->drain_remaining = 0;
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  priv->traced_underruns = 0;
+#endif
 
   if (first < 0 || bk7258_aud_resources_owned(priv) ||
       priv->outstanding != 0)

@@ -25,10 +25,23 @@ static struct {
   unsigned completions;
   size_t bytes;
   unsigned char pcm[10000];
+  char options[128];
 } peer;
 static uint64_t now_ms;
 static int stop_retires_socket;
 static const int socket_id = 173;
+static const char *open_stages[8];
+static int open_stage_results[8];
+static size_t open_stage_count;
+
+static void playback_stage_observe(void *context, const char *stage, int result)
+{
+  (void)context;
+  assert(open_stage_count < sizeof(open_stages) / sizeof(open_stages[0]));
+  open_stages[open_stage_count] = stage;
+  open_stage_results[open_stage_count] = result;
+  open_stage_count++;
+}
 
 void *media_player_open(const char *stream)
 {
@@ -39,7 +52,11 @@ void *media_player_open(const char *stream)
 int media_player_set_event_callback(void *p, void *cookie, media_event_callback cb)
 { assert(p == &peer && peer.live); peer.callback = cb; peer.cookie = cookie; return 0; }
 int media_player_prepare(void *p, const char *url, const char *options)
-{ assert(p == &peer && !url && strstr(options, "sample_rate=16000")); return 0; }
+{
+  assert(p == &peer && !url && strstr(options, "sample_rate=16000"));
+  assert(strlen(options) < sizeof(peer.options));
+  strcpy(peer.options, options); return 0;
+}
 int media_player_start(void *p)
 { assert(p == &peer && peer.live); return 0; }
 int media_player_get_socket(void *p)
@@ -88,8 +105,25 @@ int __wrap_sem_clockwait(sem_t *sem, clockid_t clock, const struct timespec *ts)
 }
 static audio_playback_t *open_player(void)
 {
-  audio_playback_t *p = audio_playback_open(NULL, 16000, 1, 16);
-  assert(p); return p;
+  static const char *expected[] = {
+    "media_open_begin", "media_open_end", "media_prepare_call_begin",
+    "media_prepare_call_end", "media_start_call_begin",
+    "media_start_call_end", "media_socket_ready",
+  };
+  open_stage_count = 0;
+  audio_playback_t *p = audio_playback_open_traced(NULL, 16000, 1, 16,
+      playback_stage_observe, NULL);
+  assert(p && open_stage_count == sizeof(expected) / sizeof(expected[0]));
+  for (size_t i = 0; i < open_stage_count; i++)
+    assert(!strcmp(open_stages[i], expected[i]) && open_stage_results[i] == 0);
+#ifndef CONFIG_AI_AGENT_TTS_QUEUE_PREFILL
+#define CONFIG_AI_AGENT_TTS_QUEUE_PREFILL 8192
+#endif
+  char queue[24];
+  snprintf(queue, sizeof(queue), "datqmax=%d",
+      CONFIG_AI_AGENT_TTS_QUEUE_PREFILL / 2048);
+  assert(strstr(peer.options, queue));
+  return p;
 }
 #include "../../../app/bk7258/bk7258_agent_audio_validation.inc"
 int main(int argc, char **argv)

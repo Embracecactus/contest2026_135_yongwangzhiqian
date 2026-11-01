@@ -72,6 +72,14 @@ struct bkvoice_tls_config_s
                     uint64_t end, int result);
   void *observe_context;
 #endif
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  /* Request-correlated connection spans: TCP connect (14) and verified TLS
+   * handshake/session processing (15). The callback receives no endpoint,
+   * credential, certificate, request body or response payload. */
+  void (*connect_observe)(void *context, unsigned int kind, uint64_t begin,
+                          uint64_t end, int result);
+  void *connect_observe_context;
+#endif
 };
 
 struct bkvoice_tls_s
@@ -121,6 +129,9 @@ int bkvoice_tls_initialize(struct bkvoice_tls_s *tls,
  */
 
 int bkvoice_tls_prepare_request(struct bkvoice_tls_s *tls);
+/* Joined, idle HTTP connection only. Reject pending data, EOF, faults and
+ * cancellation so the owner can discard it and prepare a fresh connection. */
+int bkvoice_tls_prepare_reuse(struct bkvoice_tls_s *tls);
 int bkvoice_tls_uninitialize(struct bkvoice_tls_s *tls);
 const struct bkvoice_wss_tls_ops_s *bkvoice_tls_ops(void);
 #ifdef CONFIG_BK7258_ENGINEERING_TEST

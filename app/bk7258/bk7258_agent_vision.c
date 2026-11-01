@@ -13,6 +13,8 @@
 #include "tools/tool_registry.h"
 #include "bk7258_agent_vision.h"
 #include "bk7258_vision_service.h"
+#include "bk7258_runtime_skills.h"
+#include "voice/voice_channel.h"
 
 static char *vision_tools(void)
 {
@@ -50,6 +52,9 @@ static int vision_execute(const char *name, const char *input,
   if (!output || !capacity) return ERROR;
   output[0] = '\0';
   ret = check ? check(request_context) : 0;
+  if (ret) goto out;
+  if (bk7258_runtime_skills_selected(voice_channel_request_id()))
+    ret = bk7258_runtime_skills_check(voice_channel_request_id(), name, input);
   if (ret) goto out;
   ret = -EINVAL;
   args = input ? cJSON_Parse(input) : NULL;

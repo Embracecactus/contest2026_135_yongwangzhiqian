@@ -1,6 +1,20 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # 源码许可证与来源记录
 
+## 2026-11-02 语音与 Agent 依赖发布
+
+Agent 语音输入、取消租约、连续文本 TTS、有限双请求调度及可配置 PCM 队列
+沿用 `open-vela/packages_ai_agent` Apache-2.0 源码。扩展已发布到
+`Embracecactus/packages_ai_agent` 的 `feat/contest-voice-streaming-20261102`，
+提交 `2f1316a1d3c8e6750c1401d138ca2f95713d37bd`，由团队 manifest 固定。
+该分支基于官方比赛分支 `e65550f18759f086d7f544edcf17d1e31223244f`；
+保留既有依赖修复，不复制另一份 Agent 实现或在构建时应用补丁。
+
+本次同步发布团队语音调度/本地意图、事实记忆与 Skill、Android 控制入口、
+唤醒帧调度和本地训练工具。私人的录音、微调模型与训练中间产物不发布；
+公开内置模型未替换。主机检查及 Android 构建不等于新的固件实机验收。
+
+
 ## 2026-10-21 评审修复依赖
 
 NuttX 修复已发布到 `Embracecactus/nuttx` 的
@@ -493,6 +507,18 @@ BSD-3-Clause 许可，不复制 Host 实现或改变 SDK。
 产品源仍使用 `-Werror`。身份由 OpenSSL 生成临时 P-256 测试证书，结束删除。
 板端使用 AIDK 的实际 mbedTLS 配置另做镜像构建，主机配置不作为目标验收。
 
+`bk7258_reply_expression.[ch]`、`bk7258_memory_facts.[ch]`、
+`bk7258_runtime_skills.[ch]`、`bk7258_runtime_skills_store.[ch]`、
+`bk7258_agent_profile.inc` 及 Android `AgentDataController.kt` 是本项目
+Apache-2.0 实现。表达复用显示试用 owner，记忆复用加密 snapshot，Skill 签名
+调用上述 mbedTLS 的 P-256/SHA-256 API，不复制密码实现。
+`test_bk7258_runtime_skills.c` 的公钥 DER 与签名测试向量由固定依赖的
+`apps/crypto/mbedtls/mbedtls/tests/data_files/ecdsa_secp256r1.key`
+生成，来源为 `ARMmbed/mbedtls` v3.4.0 的公开 Apache-2.0 测试材料；
+`test_runtime_skill_package.py` 也只使用该公开 fixture。该测试密钥不进入
+固件或产品信任根。`tools/bk7258/_lib/skills.py` 通过现有 OpenSSL 工具签包，
+只接受明确提供的发布者密钥，不生成或选择固件签名身份。
+
 `app/bk7258/bk7258_provision_owner.[ch]` 和
 `tests/host/bk7258/test_provision_owner.c` 为本项目 Apache-2.0 实现。
 复用现有 AP 语音任务、CP 按键租约及 provision pair/storage API，
@@ -574,6 +600,19 @@ not a claim of atomic simultaneous three-axis conversion or physical calibration
 发布资源，只用于 Session 元数据与有界DER解析测试；真实TLS测试另生成各自短期
 合成身份并执行握手。新增生产导出/生命周期适配为本项目原创，没有复制第三方代码。
 
+
+### KWS hard negative frame pooling
+
+The optional `max` negative-frame reduction in
+`tools/bk7258/_lib/voice_kws.py` independently implements the hardest-negative
+frame objective described by WeKws. Reference: `wenet-e2e/wekws`, revision
+`6a45aeb994dd81c0969ff877a5a7c46d60ed0c86`,
+`wekws/model/loss.py::max_pooling_loss`, Apache-2.0:
+https://github.com/wenet-e2e/wekws/blob/6a45aeb994dd81c0969ff877a5a7c46d60ed0c86/wekws/model/loss.py
+No upstream code or weights are embedded. This implementation retains the
+existing three-class final-frame objective, conservative positive supervision,
+and source/history/padding masks; it is not the complete WeKws loss or runtime.
+The original mean reduction remains the default.
 
 ### Local desktop rhythm asset
 

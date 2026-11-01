@@ -50,13 +50,15 @@ function Read-Public([int]$Milliseconds, [bool]$Preamble) {
       # Do not salvage a receipt interleaved with a log: strict matching below
       # must still reject it, and the original bounded deadline still applies.
       if ($plain -notmatch 'BKPROV DIAGNOSTICS' -and
-          $plain -match '^\[\d{2}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}\.\d+\] \[CPU\d+\] \[\d+\] \[\s*[A-Z]+\] \[ap\] [^\r\n]+$') { continue }
+          $plain -match '^(nsh>\s*)?\[\d{2}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}\.\d+\] \[CPU\d+\] \[\d+\] \[\s*[A-Z]+\] \[ap\] [^\r\n]+$') { continue }
       if ($Preamble -and ($plain -match '^\s*$' -or
           $plain -match '^nsh>\s*((bkprov diagnostics-(enable|status|revoke))|(bkhealth power))?\s*$' -or
           $plain -match '^(bkprov diagnostics-(enable|status|revoke)|bkhealth power)\s*$')) { continue }
       return $plain
     }
-    if ((($value -lt 32) -and ($value -ne 27)) -or $value -gt 126 -or $line.Length -ge 255) {
+    # Normal BKPROV RADIO records exceed 255 characters. Keep their read
+    # bounded, then apply the same complete-log/strict-receipt checks above.
+    if ((($value -lt 32) -and ($value -ne 27)) -or $value -gt 126 -or $line.Length -ge 1024) {
       throw 'invalid target status'
     }
     [void]$line.Append([char]$value)
@@ -348,6 +350,10 @@ def enroll(
         record.extend(key)
         receipt = console_enable(console_port, record)
         enabled = True
+        # Enabling the volatile principal changes the native USB authorization
+        # source.  Give the single device owner its existing bounded reopen
+        # interval before probing the new TLS leaf.
+        sleep(NATIVE_REOPEN_SETTLE_SECONDS)
         pem = workbench.probe_certificate(
             native_port, receipt["certificate_sha256"], timeout
         )

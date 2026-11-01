@@ -259,6 +259,7 @@ VOICE_MEDIA_RECORDER_TARGET := $(BUILD)/test_bk7258_agent_media_recorder
 MEDIA_INCLUDE := $(OPENVELA_ROOT)/apps/frameworks/multimedia/media/include
 
 .PHONY: all check check-layers check-package-tools check-review-regressions clean bl1 bl2 ap headers platform storage-contract flash provision active-image run-active-image \
+	run-runtime-skills \
 	ota-contract reset-marker display-pack display-rpc health-core motion-core nfc-core vision-core vision-feedback usbmode-lease product-keys \
 	vision-record media-volume voice-media-recorder run \
 	run-core run-bl1 run-bl2 run-ap run-headers run-platform \
@@ -673,6 +674,42 @@ $(BUILD)/test_agent_tts_queue: test_bk7258_agent_media_player.c \
 		$(REPOSITORY_ROOT)/app/bk7258/bk7258_focus.c \
 		$(REPOSITORY_ROOT)/app/bk7258/bk7258_focus_intent.c \
 		$(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c -o $@
+
+$(BUILD)/test_agent_local_intent: test_bk7258_agent_media_player.c \
+	$(AGENT_SOURCE_ROOT)/src/voice/voice_channel.c \
+	$(AGENT_SOURCE_ROOT)/src/llm/llm_stream.c \
+	$(AGENT_SOURCE_ROOT)/src/core/message_bus.c \
+	$(REPOSITORY_ROOT)/app/bk7258/bk7258_focus.c \
+	$(REPOSITORY_ROOT)/app/bk7258/bk7258_focus_intent.c \
+	$(VOICE_PACK_ROOT)/bk7258_local_intent.c \
+	$(VOICE_PACK_ROOT)/bk7258_local_intent.h \
+	$(VOICE_PACK_ROOT)/bk7258_agent_local_intent.inc \
+	$(VOICE_PACK_ROOT)/bk7258_agent_device_control.inc \
+	$(VOICE_PACK_ROOT)/bk7258_agent_focus.inc | $(BUILD)
+	$(CC) $(CFLAGS) -DTEST_AGENT_TTS_QUEUE -DTEST_AGENT_LOCAL_INTENT -DOK=0 -DERROR=-1 \
+		-ffunction-sections -fdata-sections -Wl,--gc-sections \
+		-I $(MOCKS) -I $(AGENT_SOURCE_ROOT)/include \
+		-I $(AGENT_SOURCE_ROOT)/src \
+		-I $(REPOSITORY_ROOT)/app/bk7258 \
+		-I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON $< \
+		$(AGENT_SOURCE_ROOT)/src/llm/llm_stream.c \
+		$(AGENT_SOURCE_ROOT)/src/core/message_bus.c \
+		$(REPOSITORY_ROOT)/app/bk7258/bk7258_focus.c \
+		$(REPOSITORY_ROOT)/app/bk7258/bk7258_focus_intent.c \
+		$(VOICE_PACK_ROOT)/bk7258_local_intent.c \
+		$(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c -o $@
+
+$(BUILD)/test_shaniu_local_intent: test_shaniu_local_intent.c \
+	$(VOICE_PACK_ROOT)/bk7258_local_intent.c \
+	$(VOICE_PACK_ROOT)/bk7258_local_intent.h | $(BUILD)
+	$(CC) $(CFLAGS) -Werror -I$(VOICE_PACK_ROOT) $< \
+		$(VOICE_PACK_ROOT)/bk7258_local_intent.c -o $@
+
+.PHONY: run-agent-local-intent
+run-agent-local-intent: $(BUILD)/test_agent_local_intent \
+	$(BUILD)/test_shaniu_local_intent
+	./$(BUILD)/test_shaniu_local_intent
+	./$(BUILD)/test_agent_local_intent local-intent
 
 $(BUILD)/test_agent_voice_input: test_bk7258_agent_media_player.c \
 	$(AGENT_SOURCE_ROOT)/src/voice/voice_channel.c \
@@ -1902,11 +1939,76 @@ VOICE_OTA_MBEDTLS_SOURCE := $(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls
 VOICE_OTA_MBEDTLS_BUILD := $(BUILD)/voice-ota-store-mbedtls
 VOICE_OTA_MBEDCRYPTO := $(VOICE_OTA_MBEDTLS_BUILD)/library/libmbedcrypto.a
 
+RUNTIME_SKILLS_TARGET := $(BUILD)/test_bk7258_runtime_skills
+$(RUNTIME_SKILLS_TARGET): test_bk7258_runtime_skills.c $(VOICE_PACK_ROOT)/bk7258_runtime_skills.c $(VOICE_PACK_ROOT)/bk7258_runtime_skills_store.c $(VOICE_PACK_ROOT)/bk7258_provision_store.c $(VOICE_OTA_MBEDCRYPTO) | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -DBKRUNTIME_SKILLS_ROOT='"/tmp/bk7258-runtime-skills"' -pthread -I $(VOICE_PACK_ROOT) -I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON -I $(VOICE_OTA_MBEDTLS_SOURCE)/include $< $(VOICE_PACK_ROOT)/bk7258_runtime_skills.c $(VOICE_PACK_ROOT)/bk7258_runtime_skills_store.c $(VOICE_PACK_ROOT)/bk7258_provision_store.c $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c -Wl,--wrap=bkprov_store_commit $(VOICE_OTA_MBEDCRYPTO) -lm -o $@
+run-runtime-skills: $(RUNTIME_SKILLS_TARGET)
+	./$(RUNTIME_SKILLS_TARGET)
+MEMORY_FACTS_TARGET := $(BUILD)/test_shaniu_memory_facts
+MEMORY_FACTS_RUNTIME_TARGET := $(BUILD)/test_shaniu_memory_facts_runtime
+MEMORY_FACTS_RUNTIME_CFLAGS := \
+	-DPOLICY_ROOT='"/tmp/bk7258-memory-facts-runtime/policy"' \
+	-DSNAPSHOT_ROOT='"/tmp/bk7258-memory-facts-runtime/snapshot"' \
+	-DLEGACY_ROOT='"/tmp/bk7258-memory-facts-runtime/legacy"'
+RUNTIME_SKILLS_STORE_TARGET := $(BUILD)/test_shaniu_runtime_skills_store
+RUNTIME_SKILLS_STORE_CFLAGS := \
+	-DBKRUNTIME_SKILLS_ROOT='"/tmp/bk7258-runtime-skills-store/runtime-skills"'
+
 $(VOICE_OTA_MBEDCRYPTO): $(VOICE_OTA_MBEDTLS_SOURCE)/CMakeLists.txt | $(BUILD)
 	cmake -S $(VOICE_OTA_MBEDTLS_SOURCE) -B $(VOICE_OTA_MBEDTLS_BUILD) \
 		-DENABLE_PROGRAMS=OFF -DENABLE_TESTING=OFF \
 		-DCMAKE_C_FLAGS=-Wno-error=missing-prototypes -DCMAKE_BUILD_TYPE=Release
 	cmake --build $(VOICE_OTA_MBEDTLS_BUILD) -j2
+
+$(MEMORY_FACTS_TARGET): test_shaniu_memory_facts.c \
+		$(VOICE_PACK_ROOT)/bk7258_memory_facts.c \
+		$(VOICE_PACK_ROOT)/bk7258_memory_facts.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) \
+		-I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON \
+		$< $(VOICE_PACK_ROOT)/bk7258_memory_facts.c \
+		$(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c -lm -o $@
+
+$(MEMORY_FACTS_RUNTIME_TARGET): test_shaniu_memory_facts_runtime.c \
+		$(VOICE_PACK_ROOT)/bk7258_agent_memory.c \
+		$(VOICE_PACK_ROOT)/bk7258_agent_memory.h \
+		$(VOICE_PACK_ROOT)/bk7258_agent_memory_codec.c \
+		$(VOICE_PACK_ROOT)/bk7258_agent_memory_codec.h \
+		$(VOICE_PACK_ROOT)/bk7258_memory_facts.c \
+		$(VOICE_PACK_ROOT)/bk7258_memory_facts.h \
+		$(VOICE_PACK_ROOT)/bk7258_provision_store.c \
+		$(VOICE_PACK_ROOT)/bk7258_provision_store.h \
+		mocks/core/session_mgr.h $(VOICE_OTA_MBEDCRYPTO) | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) $(MEMORY_FACTS_RUNTIME_CFLAGS) \
+		-D_GNU_SOURCE -pthread \
+		-I $(MOCKS) -I $(VOICE_PACK_ROOT) \
+		-I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON \
+		-I $(VOICE_OTA_MBEDTLS_SOURCE)/include $< \
+		$(VOICE_PACK_ROOT)/bk7258_agent_memory.c \
+		$(VOICE_PACK_ROOT)/bk7258_agent_memory_codec.c \
+		$(VOICE_PACK_ROOT)/bk7258_memory_facts.c \
+		$(VOICE_PACK_ROOT)/bk7258_provision_store.c \
+		$(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c \
+		-Wl,--wrap=bkprov_store_commit $(VOICE_OTA_MBEDCRYPTO) -lm -o $@
+
+.PHONY: run-memory-facts
+run-memory-facts: $(MEMORY_FACTS_TARGET) $(MEMORY_FACTS_RUNTIME_TARGET)
+	./$(MEMORY_FACTS_TARGET)
+	./$(MEMORY_FACTS_RUNTIME_TARGET)
+
+$(RUNTIME_SKILLS_STORE_TARGET): test_shaniu_runtime_skills_store.c \
+		$(VOICE_PACK_ROOT)/bk7258_runtime_skills_store.c \
+		$(VOICE_PACK_ROOT)/bk7258_runtime_skills_store.h \
+		$(VOICE_PACK_ROOT)/bk7258_provision_store.c \
+		$(VOICE_PACK_ROOT)/bk7258_provision_store.h $(VOICE_OTA_MBEDCRYPTO) | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) $(RUNTIME_SKILLS_STORE_CFLAGS) \
+		-I $(VOICE_PACK_ROOT) -I $(VOICE_OTA_MBEDTLS_SOURCE)/include $< \
+		$(VOICE_PACK_ROOT)/bk7258_runtime_skills_store.c \
+		$(VOICE_PACK_ROOT)/bk7258_provision_store.c \
+		-Wl,--wrap=rename -Wl,--wrap=fsync $(VOICE_OTA_MBEDCRYPTO) -o $@
+
+.PHONY: run-runtime-skills-store
+run-runtime-skills-store: $(RUNTIME_SKILLS_STORE_TARGET)
+	./$(RUNTIME_SKILLS_STORE_TARGET)
 
 # Product-store integration: links the actual SCF1 implementation rather than
 # a local double, and checks BVO2 codec/state and publication recovery paths.
@@ -2205,6 +2307,23 @@ run-expression-ownership: $(BUILD)/test_shaniu_expression_ownership
 
 $(BUILD)/test_shaniu_expression_trial: test_shaniu_expression_trial.c $(VOICE_PACK_ROOT)/bk7258_display_intent.inc $(VOICE_PACK_ROOT)/bk7258_display_selection_request.inc $(VOICE_PACK_ROOT)/bk7258_display_render_identity.inc $(VOICE_PACK_ROOT)/bk7258_display_service.h | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(MOCKS) -I $(VOICE_PACK_ROOT) $< -o $@
+.PHONY: run-agent-profile
+$(BUILD)/test_shaniu_reply_expression: test_shaniu_reply_expression.c $(VOICE_PACK_ROOT)/bk7258_reply_expression.c $(VOICE_PACK_ROOT)/bk7258_reply_expression.h | $(BUILD)
+	$(CC) $(CFLAGS) -Werror -I$(VOICE_PACK_ROOT) $< $(VOICE_PACK_ROOT)/bk7258_reply_expression.c -o $@
+
+$(BUILD)/test_shaniu_agent_profile: test_shaniu_agent_profile.c $(VOICE_PACK_ROOT)/bk7258_agent_profile.inc $(VOICE_PACK_ROOT)/bk7258_reply_expression.c $(VOICE_PACK_ROOT)/bk7258_runtime_skills.c $(VOICE_PACK_ROOT)/bk7258_control_session.c $(AGENT_SOURCE_ROOT)/src/core/message_bus.c $(VOICE_OTA_MBEDCRYPTO) | $(BUILD)
+	$(CC) $(CFLAGS) -Werror -DOK=0 -DERROR=-1 -I$(MOCKS) -I$(VOICE_PACK_ROOT) \
+	  -I$(AGENT_SOURCE_ROOT)/src -I$(AGENT_SOURCE_ROOT)/include \
+	  -I$(OPENVELA_ROOT)/apps/netutils/cjson/cJSON -I$(VOICE_OTA_MBEDTLS_SOURCE)/include \
+	  $< $(VOICE_PACK_ROOT)/bk7258_reply_expression.c $(VOICE_PACK_ROOT)/bk7258_runtime_skills.c \
+	  $(AGENT_SOURCE_ROOT)/src/core/message_bus.c \
+	  $(VOICE_PACK_ROOT)/bk7258_control_session.c \
+	  $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c $(VOICE_OTA_MBEDCRYPTO) -lm -o $@
+
+run-agent-profile: $(BUILD)/test_shaniu_reply_expression $(BUILD)/test_shaniu_agent_profile
+	./$(BUILD)/test_shaniu_reply_expression
+	./$(BUILD)/test_shaniu_agent_profile
+
 .PHONY: run-expression-trial
 run-expression-trial: $(BUILD)/test_shaniu_expression_trial
 	./$(BUILD)/test_shaniu_expression_trial

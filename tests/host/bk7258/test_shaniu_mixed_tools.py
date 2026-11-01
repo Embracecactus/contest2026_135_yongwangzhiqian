@@ -20,6 +20,15 @@ from pathlib import Path
 from test_nfc_rf_lifecycle import ROOT
 
 
+R3_CASE_ENV = {
+    "mixed-r3": {},
+    "mixed-r3-incomplete": {"VOICE_TEST_STREAM_FAULT": "incomplete"},
+    "mixed-r3-disconnect": {"VOICE_TEST_STREAM_FAULT": "disconnect"},
+    "mixed-r3-cancel": {"VOICE_TEST_STREAM_FAULT": "cancel"},
+    "mixed-r3-timeout": {"VOICE_TEST_TOOL_CASE": "timeout"},
+    "mixed-r3-sequential": {"VOICE_TEST_TOOL_CASE": "sequential"},
+}
+
 CASES = (
     "first-answer",
     "mixed",
@@ -30,6 +39,7 @@ CASES = (
     "duplicate-id",
     "vision-cancel",
     "vision-success",
+    *R3_CASE_ENV,
 )
 MUTATION = "mutant-executes-finalize"
 
@@ -49,7 +59,11 @@ def source_for(case: str) -> str:
 
 
 def probe_code(case: str) -> str:
-    scenario = "mixed" if case == MUTATION else case
+    scenario = (
+        "mixed"
+        if case == MUTATION
+        else "mixed-tts" if case in R3_CASE_ENV else case
+    )
     tts_fixture = ROOT / "tests/host/bk7258/test_bk7258_agent_media_player.c"
     return (
         r'''
@@ -161,6 +175,7 @@ static const char *scenario = "'''
 static unsigned planning_requests;
 static unsigned routing_requests;
 static unsigned final_requests;
+static unsigned __attribute__((unused)) stream_requests;
 static unsigned registry_calls;
 static unsigned begin_events;
 static unsigned delta_events;
@@ -201,6 +216,12 @@ static void assert_stages(const char *const *expected, size_t count)
     pthread_mutex_unlock(&test_stage_lock);
     assert(found == count);
 #else
+    if (stage_count != count) {
+        fprintf(stderr, "stage mismatch actual=%u expected=%zu\n",
+            stage_count, count);
+        for (size_t i = 0; i < stage_count; i++)
+            fprintf(stderr, " actual[%zu]=%s\n", i, stage_events[i].stage);
+    }
     assert(stage_count == count);
     for (size_t i = 0; i < count; i++) {
         assert(stage_events[i].request != 0);
@@ -250,13 +271,18 @@ int llm_chat_voice_stream_checked(const char *system, cJSON *messages,
     llm_response_t *response, llm_text_delta_t emit,
     int (*phase)(void *, bool), void *ctx, int (*check)(void *), void *request)
 {
-    (void)system; (void)emit; (void)phase; (void)ctx;
+    (void)system; (void)emit;
     assert(cJSON_IsArray(messages));
     assert(check && check(request) == 0);
     routing_requests++;
+#ifdef TEST_MIXED_TTS
+    unsigned int route_delay = test_delay_us("VOICE_TEST_ROUTE_US");
+    if (route_delay) usleep(route_delay);
+#endif
     if (!strcmp(scenario, "mixed")) fixture_clock_seconds += AGENT_LLM_TIMEOUT_SEC / 2 + 1;
     memset(response, 0, sizeof(*response));
-    return !strcmp(scenario, "mixed") ? -EPROTO : 0;
+    if (!strcmp(scenario, "mixed")) return -EPROTO;
+    return phase ? phase(ctx, false) : 0;
 }
 
 static void set_call(llm_response_t *response, int index, const char *id,
@@ -296,6 +322,8 @@ int llm_chat_plan_checked(const char *system, cJSON *messages,
     memset(response, 0, sizeof(*response));
     planning_requests++;
 #ifdef TEST_MIXED_TTS
+    unsigned int plan_delay = test_delay_us("VOICE_TEST_PLAN_US");
+    if (plan_delay) usleep(plan_delay);
     assert(cJSON_GetArraySize(messages) >= 1);
     cJSON *user = cJSON_GetArrayItem(messages, 0);
     cJSON *role = cJSON_GetObjectItemCaseSensitive(user, "role");
@@ -321,12 +349,25 @@ int llm_chat_plan_checked(const char *system, cJSON *messages,
         response->tool_use = true;
         response->tool_phase_complete = true;
         response->call_count = 2;
+        const char *tool_case = getenv("VOICE_TEST_TOOL_CASE");
         if (!strcmp(scenario, "missing-id")) {
             set_call(response, 0, NULL, "get_weather");
             set_call(response, 1, "finish-1", FINAL_PHASE_TOOL);
         } else if (!strcmp(scenario, "duplicate-id")) {
             set_call(response, 0, "same-id", "get_weather");
             set_call(response, 1, "same-id", FINAL_PHASE_TOOL);
+        } else if (tool_case && !strcmp(tool_case, "sequential")) {
+            response->call_count = 1;
+            set_call(response, 0, "real-1", "get_weather");
+        } else if (tool_case && !strcmp(tool_case, "multi")) {
+            set_call(response, 0, "real-1", "get_weather");
+            set_call(response, 1, "real-2", "get_weather");
+        } else if (tool_case && !strcmp(tool_case, "failure")) {
+            set_call(response, 0, "real-1", "not_registered");
+            set_call(response, 1, "finish-1", FINAL_PHASE_TOOL);
+        } else if (tool_case && !strcmp(tool_case, "timeout")) {
+            set_call(response, 0, "real-1", "timeout_tool");
+            set_call(response, 1, "finish-1", FINAL_PHASE_TOOL);
         } else {
             set_call(response, 0, "real-1", "get_weather");
             set_call(response, 1, "finish-1", FINAL_PHASE_TOOL);
@@ -334,6 +375,29 @@ int llm_chat_plan_checked(const char *system, cJSON *messages,
         return 0;
     }
 
+    const char *tool_case = getenv("VOICE_TEST_TOOL_CASE");
+    if (tool_case && !strcmp(tool_case, "sequential")) {
+        int message_count = cJSON_GetArraySize(messages);
+        if (planning_requests == 2) {
+            assert(message_count == 3 && registry_calls == 1);
+            assert_tool_result(cJSON_GetArrayItem(messages, 2),
+                               "real-1", "sunny");
+            response->tool_use = true;
+            response->tool_phase_complete = true;
+            response->call_count = 1;
+            set_call(response, 0, "real-2", "get_weather");
+            return 0;
+        }
+        assert(planning_requests == 3 && message_count == 5 &&
+               registry_calls == 2);
+        assert_tool_result(cJSON_GetArrayItem(messages, 4),
+                           "real-2", "sunny");
+        response->tool_use = true;
+        response->tool_phase_complete = true;
+        response->call_count = 1;
+        set_call(response, 0, "finish-3", FINAL_PHASE_TOOL);
+        return 0;
+    }
     if (!strcmp(scenario, "unknown-tool")) {
         assert(planning_requests == 2 && cJSON_GetArraySize(messages) == 2);
         assert_tool_result(cJSON_GetArrayItem(messages, 1), "unknown-1",
@@ -357,9 +421,21 @@ int llm_chat_plan_checked(const char *system, cJSON *messages,
     cJSON *assistant = cJSON_GetArrayItem(messages, offset);
     cJSON *tool_calls = cJSON_GetObjectItemCaseSensitive(assistant, "tool_calls");
     assert(cJSON_IsArray(tool_calls) && cJSON_GetArraySize(tool_calls) == 2);
-    assert_tool_result(cJSON_GetArrayItem(messages, offset + 1), "real-1", "sunny");
-    assert_tool_result(cJSON_GetArrayItem(messages, offset + 2), "finish-1", "deferred");
-    assert(registry_calls == 1 && final_requests == 0);
+    if (tool_case && !strcmp(tool_case, "multi")) {
+        assert_tool_result(cJSON_GetArrayItem(messages, offset + 1),
+                           "real-1", "sunny");
+        assert_tool_result(cJSON_GetArrayItem(messages, offset + 2),
+                           "real-2", "sunny");
+        assert(registry_calls == 2 && final_requests == 0);
+    } else {
+        assert_tool_result(cJSON_GetArrayItem(messages, offset + 1), "real-1",
+            tool_case && !strcmp(tool_case, "failure") ? "unknown tool" :
+            tool_case && !strcmp(tool_case, "timeout") ? "tool timeout" :
+            "sunny");
+        assert_tool_result(cJSON_GetArrayItem(messages, offset + 2),
+                           "finish-1", "deferred");
+        assert(registry_calls == 1 && final_requests == 0);
+    }
 
     response->tool_use = true;
     response->tool_phase_complete = true;
@@ -429,15 +505,24 @@ int tool_registry_execute_checked(const char *name, const char *input,
     if (!strcmp(name, "not_registered")) {
         assert(!strcmp(input, "{}"));
         assert(check != NULL && check(request) == 0);
-        registry_calls++;
+        __atomic_add_fetch(&registry_calls, 1, __ATOMIC_SEQ_CST);
         int length = snprintf(output, output_size, "{\"error\":\"unknown tool\"}");
         assert(length > 0 && (size_t)length < output_size);
         return -ENOENT;
     }
+    if (!strcmp(name, "timeout_tool")) {
+        assert(!strcmp(input, "{}"));
+        assert(check != NULL && check(request) == 0);
+        __atomic_add_fetch(&registry_calls, 1, __ATOMIC_SEQ_CST);
+        int length = snprintf(output, output_size,
+            "{\"error\":\"tool timeout\"}");
+        assert(length > 0 && (size_t)length < output_size);
+        return -ETIMEDOUT;
+    }
     assert(!strcmp(name, "get_weather"));
     assert(!strcmp(input, "{}"));
     assert(check != NULL && check(request) == 0);
-    registry_calls++;
+    __atomic_add_fetch(&registry_calls, 1, __ATOMIC_SEQ_CST);
     int length = snprintf(output, output_size, "{\"weather\":\"sunny\"}");
     assert(length > 0 && (size_t)length < output_size);
     return 0;
@@ -488,7 +573,7 @@ int message_bus_push_outbound(const agent_msg_t *message)
 static int request_status(uint64_t request_id)
 {
 #ifdef TEST_MIXED_TTS
-    return voice_request_status(request_id);
+    return request_canceled ? -ECANCELED : voice_request_status(request_id);
 #else
     assert(request_id == 7);
     return request_canceled ? -ECANCELED : 0;
@@ -523,9 +608,26 @@ static unsigned tail_delay_ms;
 static uint64_t answer_started, tail_released;
 static const char first_answer[] = "Water boils when its vapour pressure reaches ambient pressure.";
 static const char *answer_tail = " Lower pressure lowers the boiling point.";
+#ifndef TEST_LATENCY_VARIANT
+#define TEST_LATENCY_VARIANT "r2"
+#endif
+static unsigned __attribute__((unused)) latency_env_ms(const char *name,
+    unsigned fallback)
+{
+    const char *value = getenv(name);
+    if (!value || !value[0]) return fallback;
+    char *end = NULL;
+    unsigned long result = strtoul(value, &end, 10);
+    assert(end && !*end && result <= 5000UL);
+    return (unsigned)result;
+}
+static void wait_answer_time(unsigned delay_ms)
+{
+    while (voice_now_ms() - answer_started < delay_ms) usleep(1000);
+}
 static void release_answer_tail(void)
 {
-    while (voice_now_ms() - answer_started < tail_delay_ms) usleep(1000);
+    wait_answer_time(tail_delay_ms);
     tail_released = voice_now_ms();
 }
 #endif
@@ -539,6 +641,7 @@ static int unused_transport(const char *request, char *response,
     planning_requests++;
     cJSON *body = cJSON_Parse(request);
     assert(body);
+#ifdef CONFIG_AI_AGENT_VOICE_ROUTE
     cJSON *format = cJSON_GetObjectItemCaseSensitive(body, "response_format");
     cJSON *choice = cJSON_GetObjectItemCaseSensitive(format, "type");
     int decision_only = cJSON_IsString(choice) && !strcmp(choice->valuestring, "json_object");
@@ -562,6 +665,16 @@ static int unused_transport(const char *request, char *response,
             "{\"choices\":[{\"finish_reason\":\"stop\",\"message\":{\"content\":\"%s%s\"}}]}",
             first_answer, answer_tail);
     }
+#else
+    assert(!cJSON_GetObjectItemCaseSensitive(body, "response_format"));
+    cJSON *tools = cJSON_GetObjectItemCaseSensitive(body, "tools");
+    assert(cJSON_IsArray(tools) && cJSON_GetArraySize(tools) >= 1);
+    cJSON_Delete(body);
+    release_answer_tail();
+    int n = snprintf(response, capacity,
+        "{\"choices\":[{\"finish_reason\":\"stop\",\"message\":{\"content\":\"%s%s\",\"tool_calls\":[]}}]}",
+        first_answer, answer_tail);
+#endif
     assert(n > 0 && (size_t)n < capacity);
     *length = (size_t)n; *status = 200;
     return 0;
@@ -570,19 +683,115 @@ static int unused_transport(const char *request, char *response,
 #endif
 }
 
+#if defined(CONFIG_AI_AGENT_VOICE_STREAM_TOOLS) && !defined(TEST_PLAN_LATENCY)
+static int controlled_sse_content(
+    int (*receive)(void *, const char *, size_t), void *context,
+    const char *content, int finish)
+{
+    cJSON *value = cJSON_CreateString(content);
+    assert(value);
+    char *encoded = cJSON_PrintUnformatted(value);
+    cJSON_Delete(value);
+    assert(encoded);
+    char frame[1024];
+    int length = snprintf(frame, sizeof(frame),
+        "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":%s}%s}]}\n\n%s",
+        encoded, finish ? ",\"finish_reason\":\"stop\"" : "",
+        finish ? "data: [DONE]\n\n" : "");
+    free(encoded);
+    assert(length > 0 && (size_t)length < sizeof(frame));
+    return receive(context, frame, (size_t)length);
+}
+#endif
+
 static int controlled_final_transport(const char *request,
     int (*receive)(void *, const char *, size_t), void *receive_context,
     int *status, void *context, int (*check)(void *), void *request_context)
 {
-    (void)context;
+    (void)receive; (void)receive_context; (void)context;
     assert(strstr(request, "\"stream\":true") != NULL);
     assert(strstr(request, "fixed ASR input") != NULL);
     assert(check && check(request_context) == 0);
-    assert(++final_requests == 1);
+    stream_requests++;
     *status = 200;
+#if defined(CONFIG_AI_AGENT_VOICE_STREAM_TOOLS) && !defined(TEST_PLAN_LATENCY)
+    cJSON *request_body = cJSON_Parse(request);
+    assert(cJSON_IsObject(request_body));
+    cJSON *request_messages = cJSON_GetObjectItemCaseSensitive(
+        request_body, "messages");
+    assert(cJSON_IsArray(request_messages));
+    int message_count = cJSON_GetArraySize(request_messages);
+    cJSON *system_message = cJSON_GetArrayItem(request_messages, 0);
+    cJSON *system_content = cJSON_GetObjectItemCaseSensitive(
+        system_message, "content");
+    assert(cJSON_IsString(system_content) &&
+        strstr(system_content->valuestring, "Voice execution protocol") &&
+        strstr(system_content->valuestring, "get_weather"));
+    cJSON_Delete(request_body);
+    const char *tool_case = getenv("VOICE_TEST_TOOL_CASE");
+    int sequential = tool_case && !strcmp(tool_case, "sequential");
+    if (message_count == 2 ||
+        (sequential && message_count == 4 && registry_calls == 1)) {
+        unsigned int plan_delay = test_delay_us("VOICE_TEST_PLAN_US");
+        if (plan_delay) usleep(plan_delay);
+        assert(controlled_sse_content(receive, receive_context,
+            "{\"voice_phase\":\"tools\",\"calls\":[", 0) == 0);
+        assert(controlled_sse_content(receive, receive_context,
+            sequential && registry_calls == 1 ?
+            "{\"id\":\"real-2\",\"name\":\"" :
+            "{\"id\":\"real-1\",\"name\":\"", 0) == 0);
+        const char *stream_fault = getenv("VOICE_TEST_STREAM_FAULT");
+        if (stream_fault && !strcmp(stream_fault, "cancel")) {
+            request_canceled = 1;
+            return -ECANCELED;
+        }
+        if (stream_fault && !strcmp(stream_fault, "incomplete")) return 0;
+        if (stream_fault && !strcmp(stream_fault, "disconnect"))
+            return -ECONNRESET;
+        unsigned int fragment_delay =
+            test_delay_us("VOICE_TEST_TOOL_FRAGMENT_US");
+        if (fragment_delay) usleep(fragment_delay);
+        const char *complete =
+            tool_case && !strcmp(tool_case, "multi") ?
+            "get_weather\",\"arguments\":{}},{\"id\":\"real-2\","
+            "\"name\":\"get_weather\",\"arguments\":{}}]}" :
+            tool_case && !strcmp(tool_case, "failure") ?
+            "not_registered\",\"arguments\":{}}]}" :
+            tool_case && !strcmp(tool_case, "timeout") ?
+            "timeout_tool\",\"arguments\":{}}]}" :
+            "get_weather\",\"arguments\":{}}]}";
+        assert(controlled_sse_content(receive, receive_context,
+            complete, 1) == 1);
+        assert(test_synth_calls == 0 && test_opens == 0);
+        return 0;
+    }
+    unsigned int expected_tools =
+        tool_case && (!strcmp(tool_case, "multi") || sequential) ? 2u : 1u;
+    const char *stream_fault = getenv("VOICE_TEST_STREAM_FAULT");
+    unsigned int fallback_marker = stream_fault &&
+        (!strcmp(stream_fault, "incomplete") ||
+         !strcmp(stream_fault, "disconnect")) ? 1u : 0u;
+    int expected_messages = sequential ? 6 :
+        (int)expected_tools + 3 + (int)fallback_marker;
+    assert(message_count == expected_messages &&
+           registry_calls == expected_tools);
+    final_requests++;
+    unsigned int final_delay = test_delay_us("VOICE_TEST_FINAL_US");
+    if (final_delay) usleep(final_delay);
+    assert(controlled_sse_content(receive, receive_context,
+        "{\"voice_phase\":\"final\",\"answer\":\"你好，这是第一句。", 0) == 0);
+    test_wait_first_pcm();
+    assert(test_drains == 0 && test_closes == 0);
+    assert(controlled_sse_content(receive, receive_context,
+        "这是尾句\"}", 1) == 1);
+    return 0;
+#else
+    assert(++final_requests == 1);
 #ifdef TEST_PLAN_LATENCY
+#ifdef CONFIG_AI_AGENT_VOICE_ROUTE
     assert(!strstr(request, "\"tools\"") && planning_requests == 0);
     assert(strstr(request, "\"response_format\":{\"type\":\"json_object\"}"));
+    wait_answer_time(latency_env_ms("FIRST_ANSWER_TOKEN_MS", 0));
     const char header[] = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"{\\\"voice_phase\\\":\\\"final\\\",\\\"answer\\\":\\\"\"}}]}\n\n";
     assert(receive(receive_context, header, strlen(header)) == 0);
     assert(test_synth_calls == 0 && test_opens == 0);
@@ -601,6 +810,11 @@ static int controlled_final_transport(const char *request,
     assert(receive(receive_context, tail, strlen(tail)) == 1);
     return 0;
 #else
+    abort();
+#endif
+#else
+    unsigned int final_delay = test_delay_us("VOICE_TEST_FINAL_US");
+    if (final_delay) usleep(final_delay);
     const char first[] = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"你好，这是第一句。\"}}]}\n\n";
     assert(receive(receive_context, first, sizeof(first) - 1) == 0);
     test_wait_first_pcm();
@@ -609,6 +823,7 @@ static int controlled_final_transport(const char *request,
     int done = receive(receive_context, tail, sizeof(tail) - 1);
     assert(done == 1);
     return 0;
+#endif
 #endif
 }
 #endif
@@ -632,7 +847,7 @@ int main(void)
     /* Fixed text is injected after ASR. Planning, tools, history and the
      * Media lower-half are controlled peers; capture/worker are not invoked. */
     message.request_id = test_reply_prepare(5);
-    message.request_status = voice_request_status;
+    message.request_status = request_status;
     message.request_commit = voice_request_commit;
     message.request_complete = voice_request_complete;
     message.content = "fixed ASR input";
@@ -642,6 +857,7 @@ int main(void)
            cJSON_AddItemToArray(messages, user));
     assert(llm_set_transports("fixture", "fixture.test", unused_transport,
         controlled_final_transport, NULL, NULL) == 0);
+    uint64_t fixture_started = voice_now_ms();
 #endif
 
     if (!strcmp(scenario, "vision-cancel")) {
@@ -690,6 +906,25 @@ int main(void)
         "\"input_schema\":{\"type\":\"object\",\"properties\":{}}}]",
         tool_output, sizeof(tool_output), &message, &failure);
 
+#if defined(CONFIG_AI_AGENT_VOICE_STREAM_TOOLS) && !defined(TEST_PLAN_LATENCY)
+    const char *stream_fault = getenv("VOICE_TEST_STREAM_FAULT");
+    if (stream_fault && !strcmp(stream_fault, "cancel")) {
+        assert(text == NULL && failure == -ECANCELED);
+        assert(planning_requests == 0 && registry_calls == 0 &&
+               final_requests == 0 && stream_requests == 1);
+        assert(test_synth_calls == 0 && test_written == 0);
+        test_history_count = test_cancel_at_history = 0;
+        assert(message_bus_reply_with_history(
+            &message, NULL, failure, test_history) == -ECANCELED);
+        assert(test_history_count == 0 && voice_channel_is_idle());
+        assert(llm_clear_transport() == 0);
+        cJSON_Delete(messages);
+        puts("R3_TOOL_CANCEL_PASS");
+        puts("CONTRACT_PASS");
+        return 0;
+    }
+#endif
+
 #ifdef TEST_PLAN_LATENCY
     const char *fail = getenv("FIRST_ANSWER_FAIL");
     if (fail) {
@@ -712,8 +947,12 @@ int main(void)
     assert(!strcmp(test_spoken[1], answer_tail));
     assert(test_opens == 1 && test_drains == 1 && test_closes == 1 && voice_channel_is_idle());
     int media = test_wait_stage(message.request_id, "first_media");
+#ifdef CONFIG_AI_AGENT_VOICE_ROUTE
     int token = test_wait_stage(message.request_id, "llm_first_token");
     assert(test_stages[token].ms <= test_stages[media].ms);
+#else
+    int token = -1;
+#endif
     int segment_pcm_events = 0;
     for (size_t i = 0; i < test_stage_count; i++)
         if (test_stages[i].request == message.request_id &&
@@ -721,13 +960,43 @@ int main(void)
             segment_pcm_events++;
     assert(segment_pcm_events == test_synth_calls);
     uint64_t first_ms = test_stages[media].ms;
-    printf("FIRST_ANSWER tail_wait_ms=%u first_media_ms=%llu tail_release_ms=%llu plans=%u finals=%u text_bytes=%zu pcm_bytes=%zu\n",
-        tail_delay_ms, (unsigned long long)(first_ms - answer_started),
+    pthread_mutex_lock(&test_stage_lock);
+    int submit = test_stage_index(message.request_id, "tts_submit");
+    int pcm = test_stage_index(message.request_id, "first_pcm");
+    int prepare_begin = test_stage_index(message.request_id, "media_prepare_begin");
+    int prepare_end = test_stage_index(message.request_id, "media_prepare_end");
+    int playback_end = test_stage_index(message.request_id, "playback_end");
+    int idle = test_stage_index(message.request_id, "channel_idle");
+    long long token_ms = token < 0 ? -1 :
+        (long long)(test_stages[token].ms - answer_started);
+    long long submit_ms = submit < 0 ? -1 :
+        (long long)(test_stages[submit].ms - answer_started);
+    long long pcm_ms = pcm < 0 ? -1 :
+        (long long)(test_stages[pcm].ms - answer_started);
+    long long prepare_begin_ms = prepare_begin < 0 ? -1 :
+        (long long)(test_stages[prepare_begin].ms - answer_started);
+    long long prepare_end_ms = prepare_end < 0 ? -1 :
+        (long long)(test_stages[prepare_end].ms - answer_started);
+    long long playback_end_ms = playback_end < 0 ? -1 :
+        (long long)(test_stages[playback_end].ms - answer_started);
+    long long idle_ms = idle < 0 ? -1 :
+        (long long)(test_stages[idle].ms - answer_started);
+    pthread_mutex_unlock(&test_stage_lock);
+    printf("LATENCY_RESULT variant=%s tail_wait_ms=%u first_token_ms=%lld tts_submit_ms=%lld first_pcm_ms=%lld media_prepare_begin_ms=%lld media_prepare_end_ms=%lld first_media_ms=%llu playback_end_ms=%lld turn_ready_ms=%lld tail_release_ms=%llu plans=%u finals=%u text_bytes=%zu pcm_bytes=%zu\n",
+        TEST_LATENCY_VARIANT, tail_delay_ms, token_ms, submit_ms, pcm_ms,
+        prepare_begin_ms, prepare_end_ms,
+        (unsigned long long)(first_ms - answer_started),
+        playback_end_ms, idle_ms,
         (unsigned long long)(tail_released - answer_started), planning_requests,
         final_requests, strlen(expected), test_written);
     fflush(stdout);
+#ifdef CONFIG_AI_AGENT_VOICE_ROUTE
     assert(first_ms < tail_released);
     assert(planning_requests == 0 && final_requests == 1 && !registry_calls);
+#else
+    assert(first_ms >= tail_released);
+    assert(planning_requests == 1 && final_requests == 0 && !registry_calls);
+#endif
     assert(!llm_clear_transport());
     cJSON_Delete(messages);
     puts("CONTRACT_PASS");
@@ -748,10 +1017,11 @@ int main(void)
         assert(voice_channel_is_idle());
         assert(llm_clear_transport() == 0);
         const char *const expected[] = {
-            "voice_stream_request", "voice_stream_response", "plan_request", "plan_response"
+            "voice_stream_request", "voice_phase_tools",
+            "voice_stream_response", "plan_request", "plan_response"
         };
         assert(routing_requests == 1);
-        assert_stages(expected, 4);
+        assert_stages(expected, 5);
 #else
         abort();
 #endif
@@ -769,7 +1039,24 @@ int main(void)
 #ifdef TEST_MIXED_TTS
         assert(failure == 0 && text != NULL &&
                !strcmp(text, "你好，这是第一句。这是尾句"));
-        assert(planning_requests == 2 && registry_calls == 1 && final_requests == 1);
+        const char *tool_case = getenv("VOICE_TEST_TOOL_CASE");
+        unsigned int expected_tools =
+            tool_case && (!strcmp(tool_case, "multi") ||
+                          !strcmp(tool_case, "sequential")) ? 2u : 1u;
+#ifdef CONFIG_AI_AGENT_VOICE_STREAM_TOOLS
+        const char *stream_fault = getenv("VOICE_TEST_STREAM_FAULT");
+        unsigned int fallback_plans = stream_fault &&
+            (!strcmp(stream_fault, "incomplete") ||
+             !strcmp(stream_fault, "disconnect")) ? 1u : 0u;
+        assert(planning_requests == fallback_plans &&
+               registry_calls == expected_tools &&
+               final_requests == 1 && stream_requests ==
+               (tool_case && !strcmp(tool_case, "sequential") ? 3u : 2u));
+#else
+        assert(planning_requests ==
+               (tool_case && !strcmp(tool_case, "sequential") ? 3u : 2u) &&
+               registry_calls == expected_tools && final_requests == 1);
+#endif
         test_history_count = test_cancel_at_history = 0;
         assert(message_bus_reply_with_history(&message, text, 0, test_history) == 0);
         text = NULL;
@@ -780,20 +1067,68 @@ int main(void)
         assert(!strcmp(test_spoken[1], "这是尾句"));
         assert(voice_channel_is_idle());
         assert(llm_clear_transport() == 0);
+        if (getenv("VOICE_TEST_TOOL_METRICS")) {
+            pthread_mutex_lock(&test_stage_lock);
+            int first_event = test_stage_index(message.request_id, "llm_first_event");
+            int phase_tools = test_stage_index(message.request_id, "voice_phase_tools");
+            int tool_fragment = test_stage_index(message.request_id, "tool_call_fragment");
+            int tool_args = test_stage_index(message.request_id, "tool_args_complete");
+            int tool_start = test_stage_index(message.request_id, "tool_start");
+            int tool_result = test_stage_index(message.request_id, "tool_result");
+            int tool_added = test_stage_index(message.request_id, "tool_result_added");
+            int final_token = test_stage_index(message.request_id, "llm_first_token");
+            int speakable = test_stage_index(message.request_id, "speakable_ready");
+            int tts_submit = test_stage_index(message.request_id, "tts_submit");
+            int first_pcm = test_stage_index(message.request_id, "first_pcm");
+            int first_media = test_stage_index(message.request_id, "first_media");
+            int playback_end = test_stage_index(message.request_id, "playback_end");
+            int idle = test_stage_index(message.request_id, "channel_idle");
+            assert(tool_args >= 0 && tool_start >= 0 && tool_result >= 0 &&
+                   tool_added >= 0 && final_token >= 0 && speakable >= 0 &&
+                   tts_submit >= 0 && first_pcm >= 0 && first_media >= 0 &&
+                   playback_end >= 0 && idle >= 0);
+#define STAGE_DELTA(index) ((index) < 0 ? -1LL : \
+    (long long)(test_stages[(index)].ms - fixture_started))
+            printf("TOOL_LATENCY_RESULT first_event_ms=%lld phase_tools_ms=%lld tool_fragment_ms=%lld tool_args_complete_ms=%lld tool_start_ms=%lld tool_end_ms=%lld tool_result_added_ms=%lld final_token_ms=%lld speakable_ms=%lld tts_submit_ms=%lld first_pcm_ms=%lld first_media_ms=%llu playback_end_ms=%llu turn_ready_ms=%llu routes=%u plans=%u streams=%u finals=%u tools=%u text_bytes=%zu pcm_bytes=%zu\n",
+                STAGE_DELTA(first_event), STAGE_DELTA(phase_tools),
+                STAGE_DELTA(tool_fragment), STAGE_DELTA(tool_args),
+                STAGE_DELTA(tool_start), STAGE_DELTA(tool_result),
+                STAGE_DELTA(tool_added), STAGE_DELTA(final_token),
+                STAGE_DELTA(speakable), STAGE_DELTA(tts_submit),
+                STAGE_DELTA(first_pcm),
+                (unsigned long long)(test_stages[first_media].ms - fixture_started),
+                (unsigned long long)(test_stages[playback_end].ms - fixture_started),
+                (unsigned long long)(test_stages[idle].ms - fixture_started),
+                routing_requests, planning_requests, stream_requests,
+                final_requests, registry_calls,
+                strlen("你好，这是第一句。这是尾句"), test_written);
+#undef STAGE_DELTA
+            pthread_mutex_unlock(&test_stage_lock);
+        }
 #else
         assert(failure == 0 && text != NULL && !strcmp(text, "Mixed final."));
         assert(planning_requests == 2 && registry_calls == 1 && final_requests == 1);
         assert(begin_events == 1 && delta_events == 1 && !strcmp(spoken, text));
         const char *const expected[] = {
             "voice_stream_request", "voice_stream_response",
-            "plan_request", "plan_response", "tool_start", "tool_result",
-            "plan_request", "plan_response", "final_request", "llm_first_token", "final_response",
+            "plan_request", "plan_response", "tool_args_complete",
+            "tool_start", "tool_result", "tool_result_added",
+            "tool_result_added", "plan_request", "plan_response",
+            "tool_args_complete", "final_request", "llm_first_token",
+            "final_response",
         };
         assert_stages(expected, sizeof(expected) / sizeof(expected[0]));
         assert(routing_requests == 1);
 #endif
 #ifdef TEST_MIXED_TTS
-        assert(cJSON_GetArraySize(messages) == 6);
+#ifdef CONFIG_AI_AGENT_VOICE_STREAM_TOOLS
+        assert(cJSON_GetArraySize(messages) ==
+            (tool_case && !strcmp(tool_case, "sequential") ? 5 :
+             (int)expected_tools + 2 + (int)fallback_plans));
+#else
+        assert(cJSON_GetArraySize(messages) ==
+            (tool_case && !strcmp(tool_case, "sequential") ? 7 : 6));
+#endif
 #else
         assert(cJSON_GetArraySize(messages) == 5);
 #endif
@@ -854,7 +1189,8 @@ def build_and_run(case: str) -> tuple[bool, subprocess.CompletedProcess[str]]:
             "-o",
             str(temp / "probe"),
         ]
-        if case in ("mixed-tts", "no-tool-final", "first-answer"):
+        if case in ("mixed-tts", "no-tool-final", "first-answer") or \
+                case in R3_CASE_ENV:
             command.extend(
                 [
                     str(agent / "src/llm/llm_proxy.c"),
@@ -871,12 +1207,17 @@ def build_and_run(case: str) -> tuple[bool, subprocess.CompletedProcess[str]]:
             command.insert(1, "-DTEST_MIXED_TTS=1")
         if case == "first-answer":
             command.insert(1, "-DTEST_PLAN_LATENCY=1")
+        if case in R3_CASE_ENV:
+            command.insert(1, "-DCONFIG_AI_AGENT_VOICE_STREAM_TOOLS=1")
         built = subprocess.run(command, capture_output=True, text=True)
         if built.returncode:
             print("SETUP_ERROR", built.stderr, end="")
             return False, built
+        run_env = dict(os.environ)
+        run_env.update(R3_CASE_ENV.get(case, {}))
         result = subprocess.run(
-            [str(temp / "probe")], capture_output=True, text=True, timeout=15
+            [str(temp / "probe")], capture_output=True, text=True, timeout=15,
+            env=run_env,
         )
         if case == "first-answer" and result.returncode == 0:
             longer = subprocess.run(

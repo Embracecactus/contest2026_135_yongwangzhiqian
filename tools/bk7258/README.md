@@ -40,6 +40,42 @@ is retired; do not recreate it to satisfy a stale instruction.
 For the explicit development remote override and official delivery distinction,
 see the root [README](../../README.md).
 
+## Runtime Skill packages
+
+`skill pack` signs an exact UTF-8 manifest with an explicitly supplied P-256
+publisher key. It never creates keys, selects a firmware signer, flashes a
+device, or installs the package. Keep the publisher identity independent of
+firmware signing. A complete example is
+[`examples/skill-focus.json`](examples/skill-focus.json):
+
+```bash
+python3 tools/bk7258/bk7258.py skill pack \
+  --manifest tools/bk7258/examples/skill-focus.json \
+  --signing-key /path/to/publisher.pem --output /tmp/focus-skill-package
+```
+
+The new output directory contains `manifest.json`, `publisher.der`, and
+`package.json`. In the authenticated companion App, open Runtime Skills,
+import the publisher DER public key and compare its SHA-256 fingerprint, then
+install the JSON package. Installation verifies the signature and leaves the
+new Skill disabled until the owner enables it. Replacing the publisher removes
+the previous external Skill. The device currently holds one external Skill.
+
+Manifest fields are exactly `id`, `name`, `profile`, `triggers`, `tools`,
+`permissions`, and `body`. One trigger and at most 2048 UTF-8 manifest bytes are
+supported. `profile` is `focus-coach`, `device-check`, or `object-guide`;
+`tools` and `permissions` must contain the same unique tool names and be a
+subset of that profile. `body` is limited to 512 UTF-8 bytes. The signed package
+contains base64 `manifest` (exact signed bytes) and `signature` (DER ECDSA).
+It cannot supply or replace its own trust root. Built-ins are firmware content,
+not externally verified signatures. Host-only signing tests use the upstream
+mbedTLS published test key, which must never be used as a production identity.
+
+Reproduce software checks with `make -C tests/host/bk7258 run-runtime-skills
+run-runtime-skills-store run-agent-profile run-memory-facts` and
+`python3 tests/host/bk7258/test_runtime_skill_package.py`. These checks do not
+prove real camera, timing, screen or speech behavior.
+
 ## Independent factory software and target-bound complete flash
 
 The current first-build command sequence is in the root [README](../../README.md#官方源码构建当前主入口).
@@ -154,6 +190,37 @@ tools/bk7258/bk7258.py voice kws evaluate --help
 The documented training runs used TensorFlow 2.15.1 in a separate environment.
 Ordinary firmware builds use the existing model and do not require TensorFlow,
 a training corpus, private voice-cloning weights or cloud credentials.
+`voice kws evaluate` defaults to the product recorder-start history; use
+`--startup cold-window` only to reproduce older host reports. Validation can
+scan `--threshold-percent 50..90` within the existing App range. Frozen test
+bindings include startup, policy and runtime source hashes; re-evaluate an
+older binding before testing. Optional verified session `word_end_ms` values
+enable signed first-event latency without relabeling misses or outside events.
+`--post-target-negative-weight` adds non-target suffixes
+after intact target history. Pair it with `--streaming-fresh-positives` to
+avoid contradictory stale-positive time labels; both are train-time changes.
+`--positive-speaker-balance` balances original voices before recording sources
+so repeated TTS generations do not dominate. These options do not change the
+device threshold, cooldown or builtin model. Failed experiments remain in the
+local output tree alongside the selected candidate.
+`--tempo-rates`
+sets explicit train-only speed factors; `--streaming-positive-hold-ms` changes
+the fresh-positive supervision interval (default 600 ms). The latter requires
+`--streaming-fresh-positives`; neither option changes device timing or policy.
+Keep the previous test as regression after inspecting it, and freeze new
+source/voice holdouts before selecting another model.
+`--positive-speed-balance` 保持来源总权重并均衡快、中、慢语速；
+`--feature-augmentation specaugment` 仅遮挡有效训练帧，需启用正例时间元数据。
+`--streaming-positive-final-only` 只用于关闭正例逐帧损失的消融，仍保留有效长度与负例帧监督；
+`--hard-negative-weight` 调整已标记部分词/相似词的惩罚。
+`--checkpoint-selection last` 用于与默认验证损失选点作对照，不代表最后一轮更好。
+这些选项不改变音频前端或设备触发策略；失败模型和未入选候选均保留。
+`--streaming-negative-pair-weight` 和 `--streaming-positive-confirmation`：
+前者保留原负例帧损失并惩罚相隔 300 ms 的高分对，后者只在完整音频结束后的有效区间监督确认对。
+两者需要 `torch-cuda`、流式新鲜正例和正负帧监督；本轮显式使用 `--streaming-positive-reduction max`。
+`--positive-speed-balance-strength` 在原权重与等语速权重之间插值，需配合 `--positive-speed-balance`。
+评测的 `--trace-output` 保存全部实际 C 推理回调的三分类分数，事件统计仍由 C 触发逻辑决定。
+挖掘窗口若包含前置音频，必须保留完整两秒相邻上下文；不得把已打开的最终测试加入训练或重新选型。
 See `.agents/skills/edge-wakeword-training/` for the reusable workflow and the
 contest report for builtin-versus-App-activated model identities.
 

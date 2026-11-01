@@ -14,7 +14,7 @@ enum bkcloud_fixture_mode_e { BKCLOUD_FIXTURE_NORMAL,
   BKCLOUD_FIXTURE_CANCEL_TAIL, BKCLOUD_FIXTURE_FOCUS_START,
   BKCLOUD_FIXTURE_FOCUS_STATUS, BKCLOUD_FIXTURE_FOCUS_PAUSE,
   BKCLOUD_FIXTURE_FOCUS_RESUME, BKCLOUD_FIXTURE_FOCUS_CANCEL,
-  BKCLOUD_FIXTURE_FOCUS_FINISH };
+  BKCLOUD_FIXTURE_FOCUS_FINISH, BKCLOUD_FIXTURE_TOOL_STATUS };
 
 struct bkcloud_fixture_ctx_s
 {
@@ -24,6 +24,7 @@ struct bkcloud_fixture_ctx_s
   atomic_bool canceled;
   bool stream;
   bool decision_only;
+  bool tool_response;
   bool reply_ready;
   size_t sent;
   size_t offset;

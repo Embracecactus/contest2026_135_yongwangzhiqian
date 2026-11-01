@@ -4,6 +4,9 @@
 #include <stddef.h>
 #include <stdbool.h>
 struct bkcloud_models_s;
+struct cJSON;
+/* Register once before voice admission; the callback borrows request JSON. */
+void bkagent_cloud_set_context_adapter(int (*adapter)(struct cJSON *));
 
 /* Service-protocol backends for the official voice registries. No capture,
  * playback, conversation, history, worker or recovery owner lives here. */
@@ -28,6 +31,11 @@ int bkagent_cloud_get_response_length(unsigned int *mode);
 /* Verify the selected server's TLS identity. This does not claim ASR/LLM/TTS
  * request success. Called before the product enables voice requests. */
 int bkagent_cloud_verify_service(void);
+#ifdef CONFIG_BK7258_FACTORY_DIAGNOSTICS_CLAIMED_TEST
+/* Volatile, idle-only comparison of the two Token Plan chat models. The
+ * authenticated BKTEST owner restores its original model on disconnect. */
+int bkagent_cloud_test_llm_model(const char *model);
+#endif
 #ifdef CONFIG_BK7258_ENGINEERING_TEST
 void bkagent_cloud_trace_waits(void);
 #endif

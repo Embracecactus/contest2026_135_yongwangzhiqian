@@ -6,7 +6,7 @@ static pthread_mutex_t g_focus_feedback_lock = PTHREAD_MUTEX_INITIALIZER;
 static struct bkfocus_intent_status_s g_focus_feedback;
 static uint64_t g_focus_feedback_until;
 static unsigned int g_focus_feedback_state;
-static atomic_bool g_focus_local_done;
+static atomic_bool g_local_text_done;
 
 static void product_focus_feedback(const struct bkfocus_intent_status_s *value,
                                    int result, uint64_t now)
@@ -129,7 +129,7 @@ static int product_focus_text(uint64_t request, const char *text,
   uint64_t finished = bkvoice_config_now_ms(NULL);
   if (ret && !status.observed_ms) status.observed_ms = finished;
   product_focus_feedback(&status, ret, finished);
-  atomic_store(&g_focus_local_done, true);
+  atomic_store(&g_local_text_done, true);
   syslog(LOG_INFO,
     "BKFOCUS request=%llu action=%u result=%d phase=%u state=%u "
     "revision=%llu remaining_ms=%llu observed_ms=%llu confirm_ms=%llu "

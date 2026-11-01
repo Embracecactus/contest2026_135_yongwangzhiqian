@@ -1,0 +1,1 @@
+{"id":"focus-ten","name":"十分钟专注","profile":"focus-coach","triggers":["十分钟专注"],"tools":["focus_timer","device_status"],"permissions":["focus_timer","device_status"],"body":"仅按用户请求开始600秒专注：调用focus_timer start，随后读取status。排队不代表开始；只报告实际返回状态。用户要求暂停、继续或取消时调用对应action。无法执行时如实说明，不承诺声音提醒。"}

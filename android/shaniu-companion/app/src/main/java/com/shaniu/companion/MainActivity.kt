@@ -257,6 +257,9 @@ class MainActivity : Activity() {
     private var nfcEditor: com.shaniu.companion.provision.NfcBindingController? = null
     private var focusMinutesDraft = "25"
     private var focusEditor: com.shaniu.companion.provision.FocusTimerController? = null
+    private var agentEditor: com.shaniu.companion.provision.AgentDataController? = null
+    private var agentImportSelected: ((android.net.Uri) -> Unit)? = null
+    private var factDialog: AlertDialog? = null
     private var settingsEditor: com.shaniu.companion.provision.DeviceSettingsEditor? = null
     private var factoryReset: com.shaniu.companion.provision.FactoryResetController? = null
     private var configFlow = ConfigFlow.NONE
@@ -468,6 +471,7 @@ class MainActivity : Activity() {
             EYE_PACK_REQUEST -> data?.data?.let(::selectEyePack)
             PC_PAIR_REQUEST -> data?.data?.let { pcRequestSelected?.invoke(it) }
             PC_PAIR_RESPONSE -> data?.data?.let { pcResponseSelected?.invoke(it) }
+            AGENT_IMPORT_REQUEST -> data?.data?.let { agentImportSelected?.invoke(it) }
             PROVISION_REQUEST -> {
                 directSession.releaseIdentity()
                 val deviceId = ProvisionBootstrap.validDeviceId(
@@ -838,7 +842,7 @@ class MainActivity : Activity() {
         foreground && directSession.requestPayload(command, payload)
 
     private fun configAvailable(): Boolean = foreground && directSession.current().authenticated &&
-        directSnapshot?.publicConfigSupported == true && configFlow == ConfigFlow.NONE && focusEditor == null && trialEditor == null && defaultEditor == null && nfcEditor == null && pcEditor == null && !directPending &&
+        directSnapshot?.publicConfigSupported == true && configFlow == ConfigFlow.NONE && agentEditor == null && focusEditor == null && trialEditor == null && defaultEditor == null && nfcEditor == null && pcEditor == null && !directPending &&
         otaUpload == null && !otaVerificationPending && otaStatus?.state !in 1L..2L
 
     private fun requestConfigCapabilities() {
@@ -922,16 +926,26 @@ class MainActivity : Activity() {
             if (foreground) render()
             return
         }
-        if (state.snapshotFresh && configCapabilitiesGeneration == state.generation && configAvailable()) {
-            // Consume the selection before CONFIG_BEGIN can invoke callbacks.
-            // Later connection loss follows the normal no-replay cleanup.
-            cancelPendingWakeImport("")
-            beginWakePackage(pack)
-            return
+        val needsWakeStatus = pack.bytes[3] == '2'.code.toByte() &&
+            wakeStatusGeneration != state.generation
+        if (state.snapshotFresh && configAvailable()) {
+            // The chooser can expire the old session. Import owns these reads
+            // even on the resources page, where settings polling does not run.
+            when {
+                configCapabilitiesGeneration != state.generation -> requestConfigCapabilities()
+                needsWakeStatus -> requestWakeStatus()
+                else -> {
+                    // Consume before CONFIG_BEGIN; never replay a sent write.
+                    cancelPendingWakeImport("")
+                    beginWakePackage(pack)
+                    return
+                }
+            }
         }
         val message = when {
             !state.authenticated -> "正在验证设备，模型尚未发送"
             !state.snapshotFresh || configCapabilitiesGeneration != state.generation -> "正在读取设备能力，模型尚未发送"
+            needsWakeStatus -> "正在读取设备模型状态，模型尚未发送"
             else -> "等待当前设备操作结束，模型尚未发送"
         }
         if (wakeMessage != message) {
@@ -2491,6 +2505,7 @@ class MainActivity : Activity() {
         page.settingsRow("默认表情", "刷新设备默认，或将已安装素材设为默认", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "eye") { showDefaultSelection() }
         page.sectionTitle("专注与陪伴")
         page.settingsRow("专注计时", "由设备计时，手机可随时回读", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "spark") { showFocusTimer() }
+        page.settingsRow("运行时技能", "查看场景、权限与启用状态", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "spark") { showAgentData(27) }
         page.settingsRow("场景卡片", "专注操作与本地节律内容", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "spark") { showNfcBindings() }
         page.settingsRow("电脑授权", "配对、查看或撤销电脑的访问权限", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "settings") { showPcAuthorization() }
         page.sectionTitle("声音与唤醒")
@@ -2549,13 +2564,13 @@ class MainActivity : Activity() {
                 !memory.memorySupported -> "设备固件尚未提供此功能"
                 memory.memoryPending -> "正在处理，请稍候"
                 memory.memoryFailed -> "上次操作未确认，请核对设备状态"
-                memory.memoryEnabled == true -> "已开启 · 加密保存最近三轮对话"
+                memory.memoryEnabled == true -> "已开启 · 加密保存近期对话和事实"
                 memory.memoryEnabled == false -> "已关闭 · 不读取或新增保存"
                 else -> "正在读取设备设置"
             }, enabled = canManage, iconName = "shield", checked = memory.memoryEnabled == true) {
                 val enable = memory.memoryEnabled != true
                 confirm(if (enable) "开启跨重启记忆" else "关闭跨重启记忆",
-                    if (enable) "允许设备加密保存最近三轮对话，并在下次启动后继续使用。" else "停止读取和保存跨重启记忆。已保存的内容会保留，可通过下方入口删除。") {
+                    if (enable) "允许设备加密保存最近三轮对话及明确表达的称呼、偏好和近期话题，并在下次启动后继续使用。你可以查看、纠正或删除事实。" else "停止读取和保存跨重启记忆。已保存的内容会保留，可通过下方入口删除。") {
                     memoryResultMessage = if (enable) "跨重启记忆已开启" else "跨重启记忆已关闭"
                     memoryDesiredEnabled = enable
                     memoryRequestAccepted = false
@@ -2564,6 +2579,7 @@ class MainActivity : Activity() {
                     }
                 }
             }
+            page.settingsRow("查看与编辑事实", "称呼、偏好与近期话题", enabled = canManage && memory.memoryEnabled == true && configAvailable()) { showAgentData(26) }
             page.settingsRow("删除已保存的记忆", "清除本地记忆和近期上下文，并关闭跨重启记忆", enabled = canManage) {
                 confirm("删除设备记忆", "此操作无法撤销：设备将使旧的加密记忆失效，清空近期上下文，并关闭跨重启记忆。云端服务保留的记录不在此范围内。") {
                     memoryResultMessage = "设备记忆已删除，跨重启记忆已关闭"
@@ -2585,7 +2601,7 @@ class MainActivity : Activity() {
         else page.primaryButton("先添加我的傻妞", !busy) { dismissCompanionSheet(); startProvisioning() }
 
         page.sectionTitle("数据如何使用")
-        page.notice("默认仅保留本次开机的近期上下文。开启记忆后，设备加密保存最近三轮对话。语音会发送到你配置的云服务；云端保留的记录需在对应服务中管理。服务密钥不提供明文回读。")
+        page.notice("默认仅保留本次开机的近期上下文。开启记忆后，设备加密保存最近三轮对话和事实，并在对话时发送给你配置的云服务。云端保留的记录需在对应服务中管理。服务密钥不提供明文回读。")
     }
 
     private fun showPrivacySheet() {
@@ -2779,6 +2795,142 @@ class MainActivity : Activity() {
             })
             focusEditor?.refresh()
         }
+    }
+
+    private fun showAgentData(kind: Int) {
+        if (!configAvailable() || settingsEditor != null || factoryReset != null) return
+        val facts = kind == 26
+        showCompanionSheet(if (facts) "事实记忆" else "运行时技能",
+            if (facts) "只保存你明确表达的信息，可随时纠正。" else "由你决定启用哪些场景与能力。",
+            onClosed = {
+                factDialog?.dismiss(); factDialog = null
+                agentImportSelected = null; agentEditor?.close(); agentEditor = null
+            }) { body, _ ->
+            val controls = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            body.addView(controls)
+            agentEditor = com.shaniu.companion.provision.AgentDataController(directSession, kind) { state ->
+                controls.removeAllViews()
+                val page = CompanionPage(this, controls)
+                page.notice(state.message)
+                val ready = !state.busy && directSession.current().authenticated && directSnapshot?.busy == false
+                page.primaryButton("重新读取", !state.busy && directSession.current().authenticated) { agentEditor?.refresh() }
+                val document = state.document
+                if (facts) {
+                    val enabled = document?.get("enabled")?.asBoolean == true
+                    val values = document?.getAsJsonArray("facts")?.associate {
+                        it.asJsonObject["key"].asString to it.asJsonObject["value"].asString
+                    }.orEmpty()
+                    for ((key, label) in listOf("name" to "称呼", "preference" to "偏好", "topic" to "近期话题")) {
+                        page.settingsRow(label, values[key] ?: "尚未保存", enabled = ready && enabled) {
+                            editAgentFact(key, label, values[key])
+                        }
+                    }
+                    page.notice("修改或删除事实会同时清空近期对话，避免旧内容继续影响回复。关闭记忆后不读取或新增保存；删除全部记忆请返回隐私页。")
+                } else if (document != null) {
+                    for (element in document.getAsJsonArray("items")) {
+                        val item = element.asJsonObject
+                        val id = item["id"].asString
+                        val enabled = item["enabled"].asBoolean
+                        val title = item.get("name")?.asString ?: id
+                        val trigger = item.get("trigger")?.asString.orEmpty()
+                        val permissions = item.getAsJsonArray("permissions").joinToString("、") {
+                            when (it.asString) {
+                                "focus_timer", "focus.timer" -> "专注计时"
+                                "camera_capture", "camera.capture" -> "拍照并发送到云端识别"
+                                "device_status", "device.status" -> "读取设备状态"
+                                "device_motion", "device.motion" -> "读取运动状态"
+                                "reply_expression", "reply.expression" -> "对话表情"
+                                "read_file", "skill.read" -> "读取本技能说明"
+                                else -> it.asString
+                            }
+                        }
+                        val origin = if (item.get("builtin")?.asBoolean == true) "固件内置" else "设备已验签"
+                        page.settingsRow(title, "$origin · 触发词：$trigger\n权限：$permissions", ready, checked = enabled) {
+                            confirm(if (enabled) "停用$title" else "启用$title",
+                                if (enabled) "下次对话将拒绝此场景。" else "此场景可以使用：$permissions。") {
+                                agentEditor?.apply(com.google.gson.JsonObject().apply {
+                                    addProperty("id", id); addProperty("enabled", !enabled)
+                                })
+                            }
+                        }
+                    }
+                    val fingerprint = document.get("trusted_key_sha256")?.asString.orEmpty()
+                    page.notice(if (fingerprint.isEmpty()) "尚未信任外部技能发布者。" else "发布者公钥指纹\n$fingerprint")
+                    page.primaryButton("导入发布者公钥", ready) { selectAgentImport(true) }
+                    page.primaryButton("安装签名技能包", ready && fingerprint.isNotEmpty()) { selectAgentImport(false) }
+                    page.notice("技能只在明确触发后生效。签名包不能增加固件未开放的权限；安装后需单独启用。更换发布者会清除原来的外部技能。")
+                }
+            }
+            agentEditor?.refresh()
+        }
+    }
+
+    private fun editAgentFact(key: String, label: String, value: String?) {
+        val editor = agentEditor ?: return
+        val input = EditText(this).apply {
+            setText(value.orEmpty()); hint = label; contentDescription = label
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            setPadding(dp(20), dp(12), dp(20), dp(12))
+        }
+        val dialog = AlertDialog.Builder(this).setTitle(label)
+            .setMessage("保存或删除会清空近期对话。")
+            .setView(input).setPositiveButton("保存", null).setNegativeButton("取消", null)
+            .apply { if (value != null) setNeutralButton("删除", null) }.create()
+        factDialog = dialog
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val text = input.text.toString().trim()
+                if (text.isEmpty() || text.toByteArray(Charsets.UTF_8).size > 96) {
+                    input.error = "请输入简短事实（最多 32 个常用汉字或 96 字节）"
+                } else if (agentEditor === editor && editor.apply(com.google.gson.JsonObject().apply {
+                        addProperty("op", "set"); addProperty("key", key); addProperty("value", text)
+                    })) dialog.dismiss()
+                else input.error = "设备忙或数据已变化，请返回重新读取"
+            }
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL)?.setOnClickListener {
+                if (agentEditor === editor && editor.apply(com.google.gson.JsonObject().apply {
+                        addProperty("op", "delete"); addProperty("key", key)
+                    })) dialog.dismiss()
+                else input.error = "设备忙或数据已变化，请返回重新读取"
+            }
+        }
+        dialog.show()
+    }
+
+    private fun selectAgentImport(publicKey: Boolean) {
+        val editor = agentEditor ?: return
+        val generation = directSession.current().generation
+        agentImportSelected = { uri ->
+            agentImportSelected = null
+            if (agentEditor === editor && generation == directSession.current().generation) {
+                try {
+                    val bytes = contentResolver.openInputStream(uri)?.use { readPcBytes(it, if (publicKey) 256 else 4095) }
+                        ?: error("无法读取文件")
+                    val request = if (publicKey) com.google.gson.JsonObject().apply {
+                        addProperty("op", "trust")
+                        addProperty("public_key", java.util.Base64.getEncoder().encodeToString(bytes))
+                    } else com.google.gson.JsonParser.parseString(String(bytes, Charsets.UTF_8)).asJsonObject.also {
+                        require(it.keySet() == setOf("manifest", "signature"))
+                        it.addProperty("op", "install")
+                    }
+                    val detail = if (publicKey) "仅信任你确认的发布者。更换公钥将清除已安装的外部技能。\nSHA-256：\n" +
+                        MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it.toInt() and 255) }
+                    else "设备将验证签名和权限范围。安装成功后默认停用，需单独启用。"
+                    confirm(if (publicKey) "信任技能发布者" else "安装技能", detail) {
+                        if (agentEditor === editor && generation == directSession.current().generation && !editor.apply(request)) {
+                            lastAction = "设备忙，请重新读取技能状态"; render()
+                        }
+                    }
+                } catch (_: Exception) {
+                    AlertDialog.Builder(this).setTitle("无法导入")
+                        .setMessage(if (publicKey) "请选择 P-256 发布者公钥文件（DER 格式）。" else "请选择完整的签名技能包。")
+                        .setPositiveButton("知道了", null).show()
+                }
+            }
+        }
+        startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE); type = "*/*"
+        }, AGENT_IMPORT_REQUEST)
     }
 
     private fun pcDeliveryFile(device: String): android.util.AtomicFile {
@@ -4961,6 +5113,7 @@ class MainActivity : Activity() {
         private const val EYE_PACK_REQUEST = 6045
         private const val PC_PAIR_REQUEST = 6046
         private const val PC_PAIR_RESPONSE = 6047
+        private const val AGENT_IMPORT_REQUEST = 6048
         private const val TAB_SETTINGS = 5
         private const val TAB_SERVICES = 6
         private const val TAB_RESOURCES = 7

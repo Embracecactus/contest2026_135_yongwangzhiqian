@@ -16,17 +16,29 @@
 #include "core/session_mgr.h"
 #include "bk7258_agent_memory.h"
 #include "bk7258_agent_memory_codec.h"
+#include "bk7258_memory_facts.h"
 #include "bk7258_preferences.h"
 #include "bk7258_provision_store.h"
 
-#define POLICY_ROOT "/cpdata/shaniu/memory-policy"
-#define SNAPSHOT_ROOT "/cpdata/shaniu/memory-snapshot"
-#define LEGACY_ROOT "/mnt/sdnand/shaniu-memory"
+#ifndef POLICY_ROOT
+#  define POLICY_ROOT "/cpdata/shaniu/memory-policy"
+#endif
+
+#ifndef SNAPSHOT_ROOT
+#  define SNAPSHOT_ROOT "/cpdata/shaniu/memory-snapshot"
+#endif
+
+#ifndef LEGACY_ROOT
+#  define LEGACY_ROOT "/mnt/sdnand/shaniu-memory"
+#endif
 #define HISTORY_TURNS 3u
 #define HISTORY_TEXT 4096u
 #define HISTORY_BYTES (8u + HISTORY_TURNS * (4u + 2u * HISTORY_TEXT))
-#define SEALED_BYTES (HISTORY_BYTES + BKMEMORY_OVERHEAD)
-#define JSON_BYTES (HISTORY_BYTES * 6u + 512u)
+#define FACT_BYTES (1u + BKMEMORY_FACT_SLOTS * \
+                    (2u + BKMEMORY_FACT_KEY + BKMEMORY_FACT_VALUE))
+#define SNAPSHOT_BYTES (HISTORY_BYTES + FACT_BYTES)
+#define SEALED_BYTES (SNAPSHOT_BYTES + BKMEMORY_OVERHEAD)
+#define JSON_BYTES (SNAPSHOT_BYTES * 6u + 512u)
 
 static mutex_t g_memory_lock = NXMUTEX_INITIALIZER;
 static uint8_t g_owner[32];
@@ -35,10 +47,13 @@ static bool g_bound;
 static bool g_known;
 static bool g_restored;
 static int g_error;
+static struct bkmemory_facts_s g_facts;
+static uint64_t g_facts_revision;
+static unsigned int g_persona;
 
 struct snapshot_s
 {
-  uint8_t plain[HISTORY_BYTES];
+  uint8_t plain[SNAPSHOT_BYTES];
   uint8_t sealed[SEALED_BYTES];
   size_t size;
   uint64_t revision;
@@ -97,10 +112,12 @@ static int history_read(cJSON **history)
 static int history_encode(cJSON *history, unsigned int persona,
                            struct snapshot_s *snapshot)
 {
+  size_t fact_size;
   int count = cJSON_GetArraySize(history);
-  if (persona > 4 || count < 0 || count > HISTORY_TURNS * 2 || count % 2)
+  if (persona > 4 || count < 0 || (unsigned int)count > HISTORY_TURNS * 2 ||
+      count % 2)
     return -EBADMSG;
-  memcpy(snapshot->plain, "SMH1", 4);
+  memcpy(snapshot->plain, "SMH2", 4);
   snapshot->plain[4] = count / 2;
   snapshot->plain[5] = persona;
   snapshot->size = 8;
@@ -119,7 +136,11 @@ static int history_encode(cJSON *history, unsigned int persona,
       memcpy(snapshot->plain + snapshot->size, text->valuestring, length);
       snapshot->size += length;
     }
-  return 0;
+  int ret = bkmemory_facts_encode(&g_facts, snapshot->plain + snapshot->size,
+                                  sizeof(snapshot->plain) - snapshot->size,
+                                  &fact_size);
+  if (ret == 0) snapshot->size += fact_size;
+  return ret;
 }
 
 static int legacy_read(void *context)
@@ -199,6 +220,7 @@ static int snapshot_write(struct snapshot_s *snapshot)
       for (int i = 11; i >= 4; i--) { transaction[i] = next; next >>= 8; }
       ret = bkprov_store_commit(&store, snapshot->revision, transaction,
                                 snapshot->sealed, size);
+      if (ret == 0) snapshot->revision++;
     }
   return ret;
 }
@@ -215,14 +237,6 @@ static int restore_locked(void)
   if (!g_policy.enabled) { g_restored = true; return 0; }
   ret = history_read(&history);
   if (ret) goto done;
-  if (cJSON_GetArraySize(history))
-    {
-      /* An active session never has old fragments appended to it; once memory
-       * is explicitly enabled, only the official existing context is saved.
-       */
-      g_restored = true;
-      goto done;
-    }
   snapshot = calloc(1, sizeof(*snapshot));
   if (!snapshot) { ret = -ENOMEM; goto done; }
   ret = snapshot_read(snapshot);
@@ -233,7 +247,8 @@ static int restore_locked(void)
    * boundary of the memory. The current persona only affects reply style;
    * after a switch the same owner's encrypted history is still restored.
    */
-  if (snapshot->size < 8 || memcmp(plain, "SMH1", 4) ||
+  if (snapshot->size < 8 || (memcmp(plain, "SMH1", 4) &&
+      memcmp(plain, "SMH2", 4)) ||
       plain[4] > HISTORY_TURNS || plain[5] > 4 || plain[6] || plain[7])
     { ret = -EBADMSG; goto done; }
   count = plain[4] * 2;
@@ -247,7 +262,26 @@ static int restore_locked(void)
           memchr(plain + pos, 0, length)) { ret = -EBADMSG; goto done; }
       offsets[i] = pos; lengths[i] = length; pos += length;
     }
-  if (pos != snapshot->size) { ret = -EBADMSG; goto done; }
+  if (!memcmp(plain, "SMH1", 4))
+    {
+      if (pos != snapshot->size) { ret = -EBADMSG; goto done; }
+      memset(&g_facts, 0, sizeof(g_facts));
+    }
+  else
+    {
+      size_t fact_size;
+      ret = bkmemory_facts_decode(&g_facts, plain + pos,
+                                  snapshot->size - pos, &fact_size);
+      if (ret || pos + fact_size != snapshot->size) { ret = -EBADMSG; goto done; }
+    }
+  g_facts_revision = snapshot->revision;
+  if (cJSON_GetArraySize(history))
+    {
+      /* Facts are independent durable state.  Existing Session history is
+       * never appended to, but it must not suppress fact recovery. */
+      g_restored = true;
+      goto done;
+    }
   for (unsigned int i = 0; i < count; i++)
     {
       char *text = strndup((char *)plain + offsets[i], lengths[i]);
@@ -260,7 +294,7 @@ static int restore_locked(void)
     }
   history_free(history); history = NULL;
   ret = history_read(&history);
-  if (!ret && cJSON_GetArraySize(history) != count) ret = -EIO;
+  if (!ret && (unsigned int)cJSON_GetArraySize(history) != count) ret = -EIO;
   for (unsigned int i = 0; !ret && i < count; i++)
     {
       cJSON *entry = cJSON_GetArrayItem(history, i);
@@ -297,6 +331,8 @@ int bkagent_memory_bind(const uint8_t owner[32])
       if (g_bound && memcmp(g_owner, owner, sizeof(g_owner)))
         (void)session_clear("voice");
       mbedtls_platform_zeroize(&g_policy, sizeof(g_policy));
+      mbedtls_platform_zeroize(&g_facts, sizeof(g_facts));
+      g_facts_revision = 0;
       memcpy(g_owner, owner, sizeof(g_owner));
       g_bound = true; g_restored = false;
       ret = bkmemory_policy_load(POLICY_ROOT, g_owner, &g_policy);
@@ -317,6 +353,8 @@ int bkagent_memory_reset(void)
    * late reply/control path to recreate the private snapshot. */
   mbedtls_platform_zeroize(g_owner, sizeof(g_owner));
   mbedtls_platform_zeroize(&g_policy, sizeof(g_policy));
+  mbedtls_platform_zeroize(&g_facts, sizeof(g_facts));
+  g_facts_revision = 0;
   g_bound = false;
   g_known = false;
   g_restored = false;
@@ -334,6 +372,7 @@ int bkagent_memory_restore(unsigned int persona)
   if (persona > 4) return -EINVAL;
   int ret = nxmutex_lock(&g_memory_lock);
   if (ret) return ret;
+  g_persona = persona;
   ret = restore_locked();
   nxmutex_unlock(&g_memory_lock);
   return ret;
@@ -345,6 +384,7 @@ int bkagent_memory_commit(unsigned int persona, const char *reply)
   struct snapshot_s *snapshot = NULL;
   int ret = nxmutex_lock(&g_memory_lock);
   if (ret) return ret;
+  g_persona = persona;
   if (!g_known || !g_policy.enabled) goto done;
   if (!g_restored) { ret = g_error ? g_error : -EAGAIN; goto done; }
   snapshot = calloc(1, sizeof(*snapshot));
@@ -359,6 +399,7 @@ int bkagent_memory_commit(unsigned int persona, const char *reply)
     }
   if (!ret) ret = history_encode(history, persona, snapshot);
   if (!ret) ret = snapshot_write(snapshot);
+  if (!ret) g_facts_revision = snapshot->revision;
   g_error = ret;
   syslog(ret ? LOG_WARNING : LOG_INFO,
          "BKVOICE memory save result=%d turns=%u bytes=%u\n", ret,
@@ -401,9 +442,11 @@ int bkagent_memory_control(enum bkcontrol_command_e command, uint32_t value,
       if (!snapshot) ret = -ENOMEM;
       else
         {
-          memcpy(snapshot->plain, "SMH1", 4);
+          memcpy(snapshot->plain, "SMH2", 4);
           snapshot->plain[5] = persona;
-          snapshot->size = 8;
+          snapshot->plain[8] = 0;
+          snapshot->size = 9;
+          memset(&g_facts, 0, sizeof(g_facts));
           g_policy.enabled = true;
           ret = snapshot_write(snapshot);
           g_policy.enabled = enabled;
@@ -426,4 +469,123 @@ uint32_t bkagent_memory_flags(void)
   if (g_error) flags |= 256u;
   nxmutex_unlock(&g_memory_lock);
   return flags;
+}
+
+int bkagent_memory_facts_read(char *json, size_t capacity)
+{
+  int ret = nxmutex_lock(&g_memory_lock);
+
+  if (ret < 0) return ret;
+  if (!g_known)
+    {
+      ret = g_error ? g_error : -EIO;
+      goto done;
+    }
+  ret = bkmemory_facts_json(&g_facts, g_facts_revision,
+                            g_policy.enabled, json, capacity);
+done:
+  nxmutex_unlock(&g_memory_lock);
+  return ret;
+}
+
+int bkagent_memory_facts_context(char *json, size_t capacity)
+{
+  int ret = nxmutex_lock(&g_memory_lock);
+
+  if (ret < 0) return ret;
+  if (!g_known) ret = g_error ? g_error : -EIO;
+  else if (g_error) ret = g_error;
+  else if (json == NULL || capacity == 0) ret = -EINVAL;
+  else if (!g_known || !g_policy.enabled) json[0] = 0;
+  else ret = bkmemory_facts_json(&g_facts, g_facts_revision, true, json,
+                                  capacity);
+  nxmutex_unlock(&g_memory_lock);
+  return ret;
+}
+
+static int facts_save_locked(bool clear_history, bool *published)
+{
+  cJSON *history = NULL;
+  struct snapshot_s *snapshot = calloc(1, sizeof(*snapshot));
+  int ret;
+
+  *published = false;
+  if (snapshot == NULL) return -ENOMEM;
+  ret = clear_history ? 0 : history_read(&history);
+  if (ret == 0 && clear_history) history = cJSON_CreateArray();
+  if (ret == 0 && history == NULL) ret = -ENOMEM;
+  if (ret == 0) ret = history_encode(history, g_persona, snapshot);
+  if (ret == 0) ret = snapshot_write(snapshot);
+  if (ret == 0)
+    {
+      g_facts_revision = snapshot->revision;
+      *published = true;
+    }
+  if (ret == 0 && clear_history)
+    {
+      int cleared = session_clear("voice");
+
+      /* Agent Session follows remove(): -1 plus errno, not -errno. */
+
+      if (cleared < 0 && errno != ENOENT) ret = -EIO;
+    }
+  history_free(history);
+  snapshot_free(snapshot);
+  return ret;
+}
+
+int bkagent_memory_facts_apply(const char *json)
+{
+  struct bkmemory_facts_s before;
+  struct bkmemory_facts_s next;
+  uint64_t expected;
+  bool published = false;
+  int ret = nxmutex_lock(&g_memory_lock);
+
+  if (ret < 0) return ret;
+  if (!g_known || !g_policy.enabled || !g_restored) { ret = -EACCES; goto done; }
+  before = g_facts;
+  next = g_facts;
+  ret = bkmemory_facts_apply(&next, json, g_facts_revision, &expected);
+  if (ret == 0)
+    {
+      g_facts = next;
+      ret = facts_save_locked(true, &published);
+      if (ret == -EINPROGRESS)
+        {
+          g_known = false;
+          mbedtls_platform_zeroize(&g_facts, sizeof(g_facts));
+        }
+      else if (ret && !published) g_facts = before;
+    }
+  if (ret == -EINPROGRESS || published) g_error = ret;
+done:
+  nxmutex_unlock(&g_memory_lock);
+  return ret;
+}
+
+int bkagent_memory_facts_extract_user(const char *text)
+{
+  struct bkmemory_facts_s before;
+  bool published = false;
+  int ret = nxmutex_lock(&g_memory_lock);
+
+  if (ret < 0) return ret;
+  if (!g_known || !g_policy.enabled || !g_restored) { ret = 0; goto done; }
+  before = g_facts;
+  if (bkmemory_facts_extract(&g_facts, text))
+    {
+      ret = facts_save_locked(false, &published);
+      if (ret == -EINPROGRESS)
+        {
+          g_known = false;
+          mbedtls_platform_zeroize(&g_facts, sizeof(g_facts));
+        }
+      else if (ret && !published) g_facts = before;
+    }
+  else ret = 0;
+  if (ret == -EINPROGRESS || published) g_error = ret;
+done:
+  nxmutex_unlock(&g_memory_lock);
+  return ret;
 }

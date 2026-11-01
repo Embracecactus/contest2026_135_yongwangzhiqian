@@ -123,6 +123,12 @@ enum bkcontrol_command_e
  * Only the independently authorized PC camera owner binds this kind.
  */
 #define BKCONTROL_CONFIG_CAMERA_BLOCK 25u
+/* AJV1 revisioned JSON: 16-byte header (magic/body bytes/revision), then UTF-8.
+ * Facts require the existing owner's memory policy. These new kinds are not
+ * implicitly granted to a delegated PC principal.
+ */
+#define BKCONTROL_CONFIG_MEMORY_FACTS 26u
+#define BKCONTROL_CONFIG_RUNTIME_SKILLS 27u
 #define BKCONTROL_CONFIG_CAPABILITIES 0x7fffu
 #define BKCONTROL_CONFIG_RECORD_MAX (140u + 65536u) /* WKM2 显式前端字段 */
 struct bkcontrol_device_info_s

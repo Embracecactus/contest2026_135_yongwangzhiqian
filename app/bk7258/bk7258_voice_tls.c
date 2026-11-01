@@ -194,6 +194,20 @@ void bkvoice_tls_trace_wait(struct bkvoice_tls_s *tls, const char *backend,
 #define TRACE_RESTORE(tls, lane) ((void)0)
 #endif
 
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+static void bkvoice_tls_connect_observe(struct bkvoice_tls_s *tls,
+                                        unsigned int kind, uint64_t begin,
+                                        int result)
+{
+  if (tls->config.connect_observe)
+    {
+      uint64_t end = tls->config.now_ms(tls->config.clock_context);
+      tls->config.connect_observe(tls->config.connect_observe_context,
+                                  kind, begin, end, result);
+    }
+}
+#endif
+
 static int bkvoice_tls_deadline(struct bkvoice_tls_s *tls,
                                 uint64_t deadline_ms)
 {
@@ -286,6 +300,15 @@ static int bkvoice_tls_wait_inner(struct bkvoice_tls_s *tls, short events,
 #endif
       TRACE(tls, events == POLLOUT ? 1 : 2, TRACE_POLL_ADD);
       ret = psock_poll(&tls->socket, &pfd, true);
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+      if (ret < 0)
+        syslog(LOG_WARNING, "BKVOICE tls_poll_setup mono_ms=%llu events=%u "
+               "result=%d callbacks=%u dynamic=%u\n",
+               (unsigned long long)tls->config.now_ms(tls->config.clock_context),
+               (unsigned int)events, ret,
+               CONFIG_NET_PREALLOC_DEVIF_CALLBACKS,
+               CONFIG_NET_ALLOC_DEVIF_CALLBACKS);
+#endif
       if (ret >= 0)
         {
           TRACE(tls, events == POLLOUT ? 1 : 2, TRACE_POLL_WAIT);
@@ -452,6 +475,14 @@ static int bkvoice_tls_open(void *context, const char *host, uint16_t port,
   socklen_t error_size;
   int socket_error;
   int ret;
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  uint64_t tcp_begin = 0;
+  uint64_t tls_begin = 0;
+  bool tcp_started = false;
+  bool tcp_reported = false;
+  bool tls_started = false;
+  bool tls_reported = false;
+#endif
 
   if (tls == NULL || !tls->initialized || host == NULL || host[0] == '\0' ||
       port == 0)
@@ -532,6 +563,10 @@ static int bkvoice_tls_open(void *context, const char *host, uint16_t port,
   peer.sin_family = AF_INET;
   peer.sin_addr = tls->config.peer_address;
   peer.sin_port = htons(port);
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  tcp_begin = tls->config.now_ms(tls->config.clock_context);
+  tcp_started = true;
+#endif
 #ifdef __NuttX__
   TRACE(tls, 0, TRACE_SOCKET);
   ret = psock_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP, &tls->socket);
@@ -600,6 +635,13 @@ static int bkvoice_tls_open(void *context, const char *host, uint16_t port,
         }
     }
 
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  bkvoice_tls_connect_observe(tls, 14, tcp_begin, 0);
+  tcp_reported = true;
+  tls_begin = tls->config.now_ms(tls->config.clock_context);
+  tls_started = true;
+#endif
+
   TRACE(tls, 0, TRACE_SSL);
   mbedtls_ssl_set_bio(&tls->ssl, tls, bkvoice_tls_socket_send,
                       bkvoice_tls_socket_recv, NULL);
@@ -653,11 +695,27 @@ static int bkvoice_tls_open(void *context, const char *host, uint16_t port,
                                       host, port);
       if (ret < 0) goto fail;
     }
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  bkvoice_tls_connect_observe(tls, 15, tls_begin, 0);
+  tls_reported = true;
+#endif
   tls->opened = true;
   TRACE(tls, 0, TRACE_IDLE);
   return 0;
 
 fail:
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  syslog(LOG_WARNING, "BKVOICE tls_connect_fail mono_ms=%llu phase=%u "
+         "send_phase=%u recv_phase=%u result=%d\n",
+         (unsigned long long)tls->config.now_ms(tls->config.clock_context),
+         __atomic_load_n(&tls->trace[0], __ATOMIC_ACQUIRE) & 15u,
+         __atomic_load_n(&tls->trace[1], __ATOMIC_ACQUIRE) & 15u,
+         __atomic_load_n(&tls->trace[2], __ATOMIC_ACQUIRE) & 15u, ret);
+  if (tcp_started && !tcp_reported)
+    bkvoice_tls_connect_observe(tls, 14, tcp_begin, ret);
+  if (tls_started && !tls_reported)
+    bkvoice_tls_connect_observe(tls, 15, tls_begin, ret);
+#endif
   (void)bkvoice_tls_close(tls);
   return ret;
 }
@@ -919,6 +977,22 @@ int bkvoice_tls_prepare_request(struct bkvoice_tls_s *tls)
 
   __atomic_store_n(&tls->interrupted, false, __ATOMIC_RELEASE);
   return 0;
+}
+
+int bkvoice_tls_prepare_reuse(struct bkvoice_tls_s *tls)
+{
+  if (!tls || !tls->initialized || !tls->opened || !tls->socket_open ||
+      __atomic_load_n(&tls->interrupted, __ATOMIC_ACQUIRE) ||
+      __atomic_load_n(&tls->faulted, __ATOMIC_ACQUIRE) ||
+      mbedtls_ssl_get_bytes_avail(&tls->ssl)) return -ENOTCONN;
+  uint8_t byte;
+#ifdef __NuttX__
+  ssize_t ret = psock_recv(&tls->socket, &byte, 1, MSG_PEEK | MSG_DONTWAIT);
+  return ret == -EAGAIN ? 0 : -ENOTCONN;
+#else
+  ssize_t ret = recv(tls->fd, &byte, 1, MSG_PEEK | MSG_DONTWAIT);
+  return ret < 0 && (errno == EAGAIN || errno == EWOULDBLOCK) ? 0 : -ENOTCONN;
+#endif
 }
 
 int bkvoice_tls_uninitialize(struct bkvoice_tls_s *tls)

@@ -123,6 +123,19 @@ static const struct webclient_tls_ops g_tls =
   .close = close_tls,
 };
 
+void bkcloud_http_close(struct bkcloud_http_s *http)
+{
+  if (!http) return;
+  if (http->connection)
+    {
+      webclient_conn_close(http->connection);
+      webclient_conn_free(http->connection);
+      http->connection = NULL;
+    }
+  if (http->connected) (void)close_tls(http, (void *)http);
+  http->idle_since_ms = 0;
+}
+
 static bool media_type(const char *value, const char *type)
 {
   size_t n = strlen(type);
@@ -162,6 +175,7 @@ static int sink(char **buffer, int offset, int end, int *length, void *context)
   int error = response_error(http->active->http_status);
   if (error < 0) return error;
   size_t count = end - offset;
+  if (count) http->response_body_started = true;
   if (http->consume != NULL)
     {
       if (count > http->capacity - http->received) return -E2BIG;
@@ -177,6 +191,7 @@ static int sink(char **buffer, int offset, int end, int *length, void *context)
            * error, even though both terminate its receive loop.
            */
           http->stream_complete = true;
+          if (http->keepalive && http->active->response_framed) return 0;
           return -ECANCELED;
         }
       return ret > 0 ? -EIO : ret;
@@ -200,13 +215,17 @@ static int post(struct bkcloud_http_s *http,
   struct webclient_context client;
   char url[320];
   int ret;
+  bool models_query = false;
+#ifdef CONFIG_BK7258_FACTORY_DIAGNOSTICS_CLAIMED_TEST
+  models_query = endpoint && !strcmp(endpoint, "models") && !body &&
+                 !body_size && !consume;
+#endif
   if (capacity == 0 || (consume == NULL && response == NULL)) return -EINVAL;
   if (response != NULL) memset(response, 0, capacity);
   if (http == NULL || config == NULL || endpoint == NULL || tls == NULL ||
       tls->open_verified == NULL || tls->send == NULL || tls->recv == NULL ||
-      tls->close == NULL || body == NULL || body_size == 0 ||
+      tls->close == NULL || ((!body || !body_size) && !models_query) ||
       (consume == NULL && capacity > 65537) || deadline_ms == 0) return -EINVAL;
-  memset(http, 0, sizeof(*http));
   /* Public config is decoded before entry; enforce bounded strings here too
    * to avoid accidental header injection from an adapter-created config.
    */
@@ -241,6 +260,12 @@ static int post(struct bkcloud_http_s *http,
                   config->port, config->base_path,
                   config->base_path[path - 1] == '/' ? "" : "/", endpoint);
   if (ret < 0 || (size_t)ret >= sizeof(url)) return -ENAMETOOLONG;
+  struct webclient_conn_s *held = http->connection;
+  bool keepalive = http->keepalive;
+  memset(http, 0, sizeof(*http));
+  http->keepalive = keepalive;
+  http->reused = held != NULL;
+  http->connected = held != NULL;
   http->config = config;
   http->tls = tls;
   http->tls_context = tls_context;
@@ -258,7 +283,9 @@ static int post(struct bkcloud_http_s *http,
     "Accept: application/json" : pcm_response ? "Accept: audio/pcm, application/octet-stream" : "Accept: text/event-stream"};
   webclient_set_defaults(&client);
   client.protocol_version = WEBCLIENT_PROTOCOL_VERSION_HTTP_1_1;
-  client.method = "POST";
+  if (keepalive) client.flags |= WEBCLIENT_FLAG_KEEPALIVE;
+  client.connection = held;
+  client.method = models_query ? "GET" : "POST";
   client.url = url;
   client.headers = headers;
   client.nheaders = sizeof(headers) / sizeof(headers[0]);
@@ -281,14 +308,20 @@ static int post(struct bkcloud_http_s *http,
   ret = webclient_perform(&client);
   uint64_t elapsed = monotonic_ms() - started;
   http->status = client.http_status;
-  if (http->connected) close_tls(http, (void *)http);
+  http->connection = client.connection;
   if (ret == -ECANCELED && http->stream_complete) ret = 0;
   if (ret == 0) ret = response_error(http->status);
+  if (!ret && keepalive && consume && !pcm_response &&
+      !http->stream_complete) ret = -EPROTO;
+  if (ret || !http->connection || http->status != 200)
+    bkcloud_http_close(http);
+  else
+    http->idle_since_ms = monotonic_ms();
   /* One bounded summary per request; never include credentials, user text,
    * response bodies or audio. Separate remote waits from local backpressure.
    */
   syslog(LOG_INFO,
-         "BKVOICE HTTP request=%s status=%u ret=%d bytes=%lu receive_ms=%llu consume_ms=%llu read_calls=%lu slow_reads=%lu max_read_ms=%llu body_bytes=%zu total_ms=%llu connect_ms=%llu send_ms=%llu send_calls=%lu\n",
+         "BKVOICE HTTP request=%s status=%u ret=%d bytes=%lu receive_ms=%llu consume_ms=%llu read_calls=%lu slow_reads=%lu max_read_ms=%llu body_bytes=%zu total_ms=%llu connect_ms=%llu send_ms=%llu send_calls=%lu reused=%u held=%u stream_end=%u keepalive=%u http11=%u peer_close=%u body_end=%u framing=%s\n",
          endpoint, http->status, ret, (unsigned long)http->received,
          (unsigned long long)http->receive_ms,
          (unsigned long long)http->consume_ms,
@@ -298,7 +331,13 @@ static int post(struct bkcloud_http_s *http,
          (unsigned long long)elapsed,
          (unsigned long long)http->connect_ms,
          (unsigned long long)http->send_ms,
-         (unsigned long)http->send_calls);
+         (unsigned long)http->send_calls, (unsigned int)http->reused,
+         (unsigned int)(http->connection != NULL),
+         (unsigned int)http->stream_complete, (unsigned int)keepalive,
+         (unsigned int)client.response_http11,
+         (unsigned int)client.response_close,
+         (unsigned int)client.response_body_complete, client.response_chunked ?
+           "chunked" : client.response_framed ? "length" : "close");
 #ifdef BKCLOUD_HAVE_TCP_STATS
   struct tcp_stats_s tcp_after;
   if (have_tcp_before && read_tcp_stats(&tcp_after))
@@ -319,10 +358,13 @@ static int post(struct bkcloud_http_s *http,
 #endif
   mbedtls_platform_zeroize(http->authorization, sizeof(http->authorization));
   mbedtls_platform_zeroize(http->buffer, sizeof(http->buffer));
-  http->config = NULL;
   http->response = NULL;
-  http->tls = NULL;
-  http->tls_context = NULL;
+  if (!http->connection)
+    {
+      http->config = NULL;
+      http->tls = NULL;
+      http->tls_context = NULL;
+    }
   http->active = NULL;
   http->consume = NULL;
   http->consume_context = NULL;
@@ -387,6 +429,18 @@ int bkcloud_http_post(struct bkcloud_http_s *http,
   return post(http, config, endpoint, tls, tls_context, deadline_ms, body,
               body_context, body_size, response, capacity, NULL, NULL, false);
 }
+
+#ifdef CONFIG_BK7258_FACTORY_DIAGNOSTICS_CLAIMED_TEST
+int bkcloud_http_models(struct bkcloud_http_s *http,
+                       const struct bkcloud_config_s *config,
+                       const struct bkvoice_wss_tls_ops_s *tls,
+                       void *tls_context, uint64_t deadline_ms,
+                       char *response, size_t capacity)
+{
+  return post(http, config, "models", tls, tls_context, deadline_ms, NULL,
+              NULL, 0, response, capacity, NULL, NULL, false);
+}
+#endif
 
 int bkcloud_http_events(struct bkcloud_http_s *http,
                        const struct bkcloud_config_s *config,

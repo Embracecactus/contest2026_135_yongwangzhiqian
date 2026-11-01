@@ -48,6 +48,12 @@ boards/bk7258/common/board
 # Local backup files
 *.bak
 
+# Local Tencent Cloud credentials are never repository inputs.
+/docs/SecretKey.csv
+
+# Local Alibaba Cloud credentials are never repository inputs.
+/docs/aliyun.txt
+
 # Local Claude Code state.  Keep legacy per-session notes local, while the
 # maintain-project-memory protocol files below are repository-versioned.
 memory/*

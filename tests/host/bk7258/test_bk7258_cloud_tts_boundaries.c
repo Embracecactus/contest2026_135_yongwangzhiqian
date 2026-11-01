@@ -9,6 +9,31 @@
 #define PCM_MAX (90u * 24000u * 2u)
 
 static size_t pcm_total;
+static size_t observed_events;
+static size_t observed_decodes;
+static size_t observed_decoded_bytes;
+static uint64_t observed_last_ms;
+
+static void observer(void *context, enum bkcloud_tts_observation_e kind,
+                     uint64_t begin, uint64_t end, size_t bytes, int result)
+{
+  (void)context;
+  assert(begin <= end);
+  assert(begin >= observed_last_ms);
+  assert(result == 0);
+  observed_last_ms = end;
+  if (kind == BKCLOUD_TTS_OBSERVE_SSE_EVENT)
+    {
+      assert(bytes != 0);
+      observed_events++;
+    }
+  else
+    {
+      assert(kind == BKCLOUD_TTS_OBSERVE_BASE64_DECODE);
+      observed_decodes++;
+      observed_decoded_bytes += bytes;
+    }
+}
 
 static int sink(void *context, const void *data, size_t size)
 {
@@ -124,9 +149,30 @@ static void test_json_and_pcm_boundaries(void)
   free(event);
 }
 
+static void test_bounded_observer(void)
+{
+  struct bkcloud_tts_s tts;
+  char *event = event_with_audio(8, true); /* Eight A characters decode to 6 B. */
+  pcm_total = 0;
+  observed_events = 0;
+  observed_decodes = 0;
+  observed_decoded_bytes = 0;
+  observed_last_ms = 0;
+  bkcloud_tts_init(&tts, sink, NULL);
+  bkcloud_tts_set_observer(&tts, observer, NULL);
+  assert(feed(&tts, event, strlen(event), 3) == 0);
+  free(event);
+  done(&tts);
+  assert(pcm_total == 6);
+  assert(observed_events == 2); /* Audio event plus [DONE]. */
+  assert(observed_decodes == 1);
+  assert(observed_decoded_bytes == 6);
+}
+
 int main(void)
 {
   test_large_audio_events();
   test_json_and_pcm_boundaries();
+  test_bounded_observer();
   return 0;
 }

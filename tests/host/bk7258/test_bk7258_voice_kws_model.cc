@@ -11,6 +11,8 @@ extern "C" {
 }
 
 #include <assert.h>
+#include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -199,13 +201,28 @@ static struct bkvoice_kws_model_spec_s spec_for(const unsigned char *data,
  * This checks native TFLM compatibility, not board timing or wake accuracy.
  */
 static int check_candidate(const char *frontend, const char *model_path,
-                           const char *feature_path, const char *score_path)
+                           const char *feature_path, const char *score_path,
+                           const char *package_path)
 {
   alignas(16) unsigned char arena[512 * 1024];
   auto bytes = read_model(model_path);
   auto raw_features = read_model(feature_path);
   auto raw_scores = read_model(score_path);
   assert(!bytes.empty() && !raw_features.empty() && !raw_scores.empty());
+  if (package_path != nullptr)
+    {
+      auto package = read_model(package_path);
+      bkvoice_wake_package_s decoded = {};
+      assert(bkvoice_wake_package_decode(package.data(), package.size(),
+                                         &decoded) == 0);
+      assert(bkvoice_wake_package_validate(&decoded) == 0);
+      assert(decoded.model_size == bytes.size());
+      assert(std::memcmp(decoded.model, bytes.data(), bytes.size()) == 0);
+      assert(std::strcmp(bkvoice_wake_package_frontend_id(
+                           decoded.frontend_version), frontend) == 0);
+      std::printf("candidate_package=valid bytes=%zu frontend_version=%u\n",
+                  package.size(), decoded.frontend_version);
+    }
   auto spec = spec_for(bytes.data(), bytes.size());
   spec.frontend = frontend;
   bkvoice_kws_model_s *model = nullptr;
@@ -218,6 +235,7 @@ static int check_candidate(const char *frontend, const char *model_path,
   std::vector<float> features(raw_features.size() / sizeof(float));
   std::vector<float> expected(raw_scores.size() / sizeof(float));
   std::vector<float> first(expected.size());
+  std::vector<double> inference_us;
   std::memcpy(features.data(), raw_features.data(), raw_features.size());
   std::memcpy(expected.data(), raw_scores.data(), raw_scores.size());
   float max_error = 0;
@@ -228,8 +246,12 @@ static int check_candidate(const char *frontend, const char *model_path,
         {
           float scores[BKVOICE_KWS_CLASSES];
           const float *input = features.data() + row * stride;
+          auto started = std::chrono::steady_clock::now();
           int ret = streaming ? bkvoice_kws_model_step(model, input, scores) :
                                 bkvoice_kws_model_infer(model, input, scores);
+          auto elapsed = std::chrono::steady_clock::now() - started;
+          inference_us.push_back(
+            std::chrono::duration<double, std::micro>(elapsed).count());
           assert(ret == 0);
           for (size_t i = 0; i < BKVOICE_KWS_CLASSES; i++)
             {
@@ -250,14 +272,20 @@ static int check_candidate(const char *frontend, const char *model_path,
   std::printf("candidate streaming=%d inputs=%zu arena_used=%zu "
               "max_tflite_score_error=%g reset=exact scope=native-host\n",
               streaming, count, bkvoice_kws_model_arena_used(model), max_error);
+  std::sort(inference_us.begin(), inference_us.end());
+  std::printf("inference_calls=%zu median_us=%.3f p95_us=%.3f "
+              "scope=native-host excludes_frontend_and_scheduling\n",
+              inference_us.size(), inference_us[inference_us.size() / 2],
+              inference_us[(inference_us.size() * 95 - 1) / 100]);
   bkvoice_kws_model_close(model);
   return 0;
 }
 
 int main(int argc, char **argv)
 {
-  if (argc == 6 && std::strcmp(argv[1], "--candidate") == 0)
-    return check_candidate(argv[2], argv[3], argv[4], argv[5]);
+  if ((argc == 6 || argc == 7) && std::strcmp(argv[1], "--candidate") == 0)
+    return check_candidate(argv[2], argv[3], argv[4], argv[5],
+                           argc == 7 ? argv[6] : nullptr);
 
   alignas(16) unsigned char arena[512 * 1024];
   alignas(16) unsigned char small_arena[16];

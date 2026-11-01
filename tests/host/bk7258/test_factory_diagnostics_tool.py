@@ -60,9 +60,40 @@ $serial | Add-Member -MemberType ScriptMethod -Name ReadByte -Value {
         log = "[13/10/26 03:00:00.123456] [CPU0] [57] [  WARN] [ap] BKVOICE diagnostic loop stage=12 begin=1 end=201 elapsed=200"
         self.assertEqual(self.console_reader([log, ready, log, passed], 2), [ready, passed])
 
+    def test_console_reader_skips_prompt_prefixed_complete_async_log(self):
+        ready = "BKPROV DIAGNOSTICS READY bytes=52"
+        log = "nsh> [13/10/26 03:00:00.123456] [CPU0] [57] [  INFO] [ap] BKVOICE trigger input frames=500 mean_abs=15/161"
+        self.assertEqual(self.console_reader([log, ready], 1), ready)
+
     def test_console_reader_does_not_repair_interleaved_receipts(self):
         broken = "BKPROV DIAGNOSTICS PA[CPU0] interrupted"
         self.assertEqual(self.console_reader([broken], 1), broken)
+
+    def test_claimed_device_enrollment_override_is_bktest_only(self):
+        symbol = "CONFIG_BK7258_FACTORY_DIAGNOSTICS_CLAIMED_TEST=y"
+        configs = ROOT / "boards/bk7258/aidk_ai_toy/configs"
+        enabled = [
+            path.relative_to(configs).as_posix()
+            for path in configs.glob("*/defconfig")
+            if symbol in path.read_text(encoding="utf-8")
+        ]
+        self.assertEqual(enabled, ["openvela_ap_bktest/defconfig"])
+
+        kconfig = (ROOT / "app/bk7258/Kconfig").read_text(encoding="utf-8")
+        stanza = kconfig.split(
+            "config BK7258_FACTORY_DIAGNOSTICS_CLAIMED_TEST", 1
+        )[1].split("\nconfig ", 1)[0]
+        self.assertIn("default n", stanza)
+        self.assertIn(
+            "depends on BK7258_AP_CORE && BK7258_FACTORY_DIAGNOSTICS", stanza
+        )
+
+        product = (ROOT / "app/bk7258/bk7258_agent_product.c").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "#ifdef CONFIG_BK7258_FACTORY_DIAGNOSTICS_CLAIMED_TEST", product
+        )
 
     def test_enroll_orders_physical_secret_pin_probe_and_dpapi_profile(self):
         events = []
@@ -95,8 +126,13 @@ $serial | Add-Member -MemberType ScriptMethod -Name ReadByte -Value {
         self.assertNotIn(bytes(range(32, 64)).hex(), encoded)
         self.assertNotIn(bytes(range(1, 17)).hex(), encoded)
 
-    def test_enroll_waits_for_bounded_native_owner_reopen(self):
+    def test_enroll_waits_before_probe_and_after_probe_closes(self):
         events = []
+
+        def probe(*unused):
+            events.append("probe")
+            return "-----BEGIN CERTIFICATE-----\nZmFrZQ==\n-----END CERTIFICATE-----\n"
+
         with patch.object(
             self.module,
             "console_enable",
@@ -104,7 +140,7 @@ $serial | Add-Member -MemberType ScriptMethod -Name ReadByte -Value {
         ), patch.object(
             self.module.workbench,
             "probe_certificate",
-            return_value="-----BEGIN CERTIFICATE-----\nZmFrZQ==\n-----END CERTIFICATE-----\n",
+            side_effect=probe,
         ), patch.object(
             self.module.workbench_profile,
             "create",
@@ -120,7 +156,12 @@ $serial | Add-Member -MemberType ScriptMethod -Name ReadByte -Value {
 
         self.assertEqual(
             events,
-            [("settle", self.module.NATIVE_REOPEN_SETTLE_SECONDS), "profile"],
+            [
+                ("settle", self.module.NATIVE_REOPEN_SETTLE_SECONDS),
+                "probe",
+                ("settle", self.module.NATIVE_REOPEN_SETTLE_SECONDS),
+                "profile",
+            ],
         )
         self.assertGreaterEqual(self.module.NATIVE_REOPEN_SETTLE_SECONDS, 1.0)
         self.assertLessEqual(self.module.NATIVE_REOPEN_SETTLE_SECONDS, 2.0)

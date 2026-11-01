@@ -13,8 +13,8 @@ android {
         applicationId = "com.shaniu.companion"
         minSdk = 29
         targetSdk = 35
-        versionCode = 56
-        versionName = "0.7.26-shaniu-ota-retry"
+        versionCode = 57
+        versionName = "0.7.27-shaniu-wake-import"
         buildConfigField("boolean", "LEGACY_SERVICE_DEMO", "false")
         testInstrumentationRunner = "com.shaniu.companion.provision.ControlKeyInstrumentation"
     }
