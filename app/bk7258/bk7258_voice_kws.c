@@ -19,6 +19,17 @@ void bkvoice_kws_default_policy(struct bkvoice_kws_policy_s *policy)
     }
 }
 
+void bkvoice_kws_default_stream_policy(struct bkvoice_kws_policy_s *policy)
+{
+  bkvoice_kws_default_policy(policy);
+  if (policy != NULL)
+    {
+      /* Require 100 ms of contiguous high scores. */
+
+      policy->consecutive = 5;
+    }
+}
+
 void bkvoice_kws_pause(struct bkvoice_kws_s *kws)
 {
   bkvoice_kws_frontend_reset(&kws->frontend);
@@ -34,6 +45,47 @@ void bkvoice_kws_pause(struct bkvoice_kws_s *kws)
   /* Retain both the monotonic timestamp and trigger/release latch across
    * pauses. A new boot/clock epoch requires explicit reinitialization.
    */
+}
+
+int bkvoice_kws_start(struct bkvoice_kws_s *kws)
+{
+  int ret;
+
+  if (kws == NULL || kws->infer == NULL)
+    {
+      return -EINVAL;
+    }
+
+  bkvoice_kws_pause(kws);
+  if (kws->step == NULL)
+    {
+      /* Match product cold start: fill only missing history with silence.
+       * Waiting three seconds can miss a short word spoken immediately
+       * after the announcement. Causal models keep their own zero state.
+       */
+
+      ret = bkvoice_kws_frontend_frame(&kws->frontend, kws->pcm,
+                                       kws->features);
+      if (ret < 0)
+        {
+          return ret;
+        }
+
+      for (unsigned int row = 1; row < BKVOICE_KWS_ROWS; row++)
+        {
+          memcpy(kws->features + row * BKVOICE_KWS_BINS, kws->features,
+                 BKVOICE_KWS_BINS * sizeof(float));
+        }
+
+      kws->rows = BKVOICE_KWS_ROWS;
+      kws->pending = BKVOICE_KWS_WINDOW - BKVOICE_KWS_HOP;
+    }
+
+  kws->last_ms = 0;
+  kws->triggered_ms = 0;
+  kws->timestamp_valid = false;
+  kws->armed = true;
+  return 0;
 }
 
 int bkvoice_kws_set_stream(struct bkvoice_kws_s *kws,
@@ -186,9 +238,14 @@ int bkvoice_kws_feed(struct bkvoice_kws_s *kws, const int16_t *pcm,
     }
 
   kws->hops++;
-  if ((kws->step != NULL ? !kws->stream_ready :
-       kws->rows < BKVOICE_KWS_ROWS) ||
-      kws->hops % BKVOICE_KWS_INFER_HOPS != 0)
+  /* A causal model already produces a fresh score for every hop. Applying
+   * the window-model inference cadence here discards short keyword peaks.
+   * Confirm consecutive fresh scores; keep sparse inference for full windows.
+   */
+
+  if (kws->step != NULL ? !kws->stream_ready :
+      (kws->rows < BKVOICE_KWS_ROWS ||
+       kws->hops % BKVOICE_KWS_INFER_HOPS != 0))
     {
       return 0;
     }

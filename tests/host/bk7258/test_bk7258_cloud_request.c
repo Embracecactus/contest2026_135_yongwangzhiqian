@@ -384,6 +384,111 @@ static void test_voice_phase_stream(void)
   cJSON_Delete(messages); assert(!llm_clear_transport());
 }
 
+static unsigned voice_event_mask;
+static enum llm_voice_stream_event_e voice_event_reject;
+static int voice_plan_event(void *context,
+    enum llm_voice_stream_event_e event, size_t value)
+{
+  assert(context == &voice_event_mask && value == 1);
+  voice_event_mask |= 1u << event;
+  return event == voice_event_reject ? -ECANCELED : 0;
+}
+
+static void test_voice_tool_plan_stream(void)
+{
+  assert(!llm_set_transports("fixture", "fixture", plan_transport,
+      phase_transport, NULL, NULL));
+  cJSON *messages = cJSON_CreateArray(); assert(messages);
+  llm_response_t response;
+  const char *valid[] = {
+    "{\"voice_phase\":\"final\",\"answer\":\"Complete answer.\"}",
+    "{\"voice_phase\":\"tools\",\"calls\":[{\"id\":\"one\","
+      "\"name\":\"get_weather\",\"arguments\":{}}]}",
+    "{\"voice_phase\":\"tools\",\"calls\":[{\"id\":\"one\","
+      "\"name\":\"get_weather\",\"arguments\":{\"city\":\"Beijing\"}},"
+      "{\"id\":\"two\",\"name\":\"camera_capture\",\"arguments\":{}}]}"
+  };
+  for (unsigned k = 0; k < sizeof(valid) / sizeof(valid[0]); k++) {
+    phase_payload = valid[k];
+    for (phase_piece = 1; phase_piece <= strlen(phase_payload); phase_piece++) {
+      voice_event_mask = spoken_size = 0; spoken[0] = 0;
+      voice_event_reject = 0;
+      assert(!llm_chat_voice_plan_stream_checked("system", messages,
+          &response, body_delta, voice_plan_event, &voice_event_mask,
+          NULL, NULL));
+      assert(voice_event_mask &
+          (1u << LLM_VOICE_STREAM_FIRST_CONTENT));
+      if (!k) {
+        assert(response.tool_phase_complete && !response.tool_use &&
+            !response.call_count && !strcmp(spoken, "Complete answer.") &&
+            response.text && !strcmp(response.text, spoken));
+        assert(voice_event_mask & (1u << LLM_VOICE_STREAM_PHASE_FINAL));
+        assert(!(voice_event_mask &
+            (1u << LLM_VOICE_STREAM_TOOL_FRAGMENT)));
+      } else {
+        assert(response.tool_phase_complete && response.tool_use &&
+            response.call_count == (k == 1 ? 1 : 2) &&
+            !spoken_size && !response.text);
+        assert(!strcmp(response.calls[0].id, "one") &&
+            !strcmp(response.calls[0].name, "get_weather") &&
+            response.calls[0].input &&
+            !strcmp(response.calls[0].input,
+                k == 1 ? "{}" : "{\"city\":\"Beijing\"}"));
+        assert(voice_event_mask & (1u << LLM_VOICE_STREAM_PHASE_TOOLS));
+        assert(voice_event_mask & (1u << LLM_VOICE_STREAM_TOOL_FRAGMENT));
+      }
+      llm_response_free(&response);
+    }
+  }
+
+  const char *bad[] = {
+    "{\"voice_phase\":\"tools\"}",
+    "{\"voice_phase\":\"tools\",\"calls\":[]}",
+    "{\"voice_phase\":\"tools\",\"calls\":[{\"id\":\"one\","
+      "\"name\":\"get_weather\",\"arguments\":{}},{\"id\":\"two\","
+      "\"name\":\"get_weather\",\"arguments\":{}},{\"id\":\"three\","
+      "\"name\":\"get_weather\",\"arguments\":{}}]}",
+    "{\"voice_phase\":\"tools\",\"calls\":[{\"name\":\"get_weather\","
+      "\"id\":\"one\",\"arguments\":{}}]}",
+    "{\"voice_phase\":\"tools\",\"calls\":[{\"id\":\"\",\"name\":"
+      "\"get_weather\",\"arguments\":{}}]}",
+    "{\"voice_phase\":\"tools\",\"calls\":[{\"id\":\"one\",\"name\":"
+      "\"get_weather\",\"arguments\":\"{}\"}]}",
+    "{\"voice_phase\":\"tools\",\"calls\":[{\"id\":\"same\",\"name\":"
+      "\"get_weather\",\"arguments\":{}},{\"id\":\"same\",\"name\":"
+      "\"camera_capture\",\"arguments\":{}}]}",
+    "{\"voice_phase\":\"tools\",\"calls\":[{\"id\":\"one\",\"name\":"
+      "\"get_weather\",\"arguments\":{},\"answer\":\"no\"}]}",
+    "{\"calls\":[],\"voice_phase\":\"tools\"}",
+    "{\"voice_phase\":\"final\",\"answer\":\"no\",\"calls\":[]}",
+    "{\"voice_phase\":\"tools\",\"calls\":["
+  };
+  for (unsigned k = 0; k < sizeof(bad) / sizeof(bad[0]); k++) {
+    phase_payload = bad[k]; phase_piece = 1;
+    voice_event_mask = spoken_size = 0; spoken[0] = 0;
+    assert(llm_chat_voice_plan_stream_checked("system", messages,
+        &response, body_delta, voice_plan_event, &voice_event_mask,
+        NULL, NULL) < 0);
+    /* The final prefix is an explicit protocol commitment, so its answer may
+     * already be emitted before a malformed trailing calls field arrives.
+     * Tool-phase errors are rejected before any speakable text exists. */
+    assert((k == 9 ? spoken_size != 0 : spoken_size == 0) &&
+        !response.text && !response.call_count);
+    llm_response_free(&response);
+  }
+
+  phase_payload = valid[1]; phase_piece = 1;
+  voice_event_mask = spoken_size = 0;
+  voice_event_reject = LLM_VOICE_STREAM_TOOL_FRAGMENT;
+  assert(llm_chat_voice_plan_stream_checked("system", messages,
+      &response, body_delta, voice_plan_event, &voice_event_mask,
+      NULL, NULL) == -ECANCELED);
+  assert(!spoken_size && !response.text && !response.call_count);
+  llm_response_free(&response);
+  voice_event_reject = 0;
+  cJSON_Delete(messages); assert(!llm_clear_transport());
+}
+
 static llm_final_stream_t *fresh(size_t limit)
 {
   spoken_size = 0;
@@ -400,6 +505,7 @@ int main(void)
   test_vision_cancel();
   test_plan_phase();
   test_voice_phase_stream();
+  test_voice_tool_plan_stream();
   /* MiMo's documented SSE shape includes null optional delta fields. */
   const char nullable[] =
     "data: {\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":null,\"reasoning_content\":null}}]}\n\n"

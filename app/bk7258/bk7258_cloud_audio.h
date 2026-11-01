@@ -27,4 +27,11 @@ int bkcloud_synthesize(struct bkcloud_client_s *client,
                        const struct bkvoice_wss_tls_ops_s *tls, void *tls_context,
                        uint64_t deadline_ms, const char *text,
                        bkcloud_write_t pcm, void *context);
+int bkcloud_synthesize_observed(struct bkcloud_client_s *client,
+                       struct bkcloud_tts_s *decoder,
+                       const struct bkcloud_config_s *config,
+                       const struct bkvoice_wss_tls_ops_s *tls, void *tls_context,
+                       uint64_t deadline_ms, const char *text,
+                       bkcloud_write_t pcm, void *context,
+                       bkcloud_tts_observe_t observe, void *observe_context);
 #endif

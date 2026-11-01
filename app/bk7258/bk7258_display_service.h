@@ -53,6 +53,10 @@ int bk7258_display_onboarding(const char *qr);
 int bk7258_display_power(unsigned int phase);
 /* Nonblocking notification; only the display worker touches framebuffer. */
 void bk7258_display_speaking(bool active);
+/* A request-scoped expression trial owns the reply visual while speaking.
+ * This only suppresses the generic speaking overlay, never renders pixels.
+ */
+void bk7258_display_reply_expression(bool active);
 /* Atomic visual intent only; the existing display worker owns all I/O. */
 void bk7258_display_focus(unsigned visual);
 /* Low priority, finite cached-frame intent: 1 moved, 2 settled/completed,

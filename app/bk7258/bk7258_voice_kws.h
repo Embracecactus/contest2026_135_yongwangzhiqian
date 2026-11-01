@@ -31,6 +31,7 @@ struct bkvoice_kws_policy_s
  * and the wake session use this same policy; tune only on validation data.
  */
 void bkvoice_kws_default_policy(struct bkvoice_kws_policy_s *policy);
+void bkvoice_kws_default_stream_policy(struct bkvoice_kws_policy_s *policy);
 
 struct bkvoice_kws_s
 {
@@ -71,14 +72,20 @@ int bkvoice_kws_initialize_version(struct bkvoice_kws_s *kws,
                                    const struct bkvoice_kws_policy_s *policy,
                                    bkvoice_kws_infer_t infer, void *context,
                                    int frontend_version);
-/* Opt-in causal model: step sees exactly one new 40-bin row. Detection still
- * uses the unchanged 15-hop score policy. Pause/gap resets the model state.
+/* Opt-in causal model: step sees exactly one new 40-bin row. Each fresh score
+ * participates in consecutive confirmation. Pause/gap resets the model state.
  */
 int bkvoice_kws_set_stream(struct bkvoice_kws_s *kws,
                            bkvoice_kws_infer_t step,
                            bkvoice_kws_reset_t reset);
 void bkvoice_kws_uninitialize(struct bkvoice_kws_s *kws);
 void bkvoice_kws_pause(struct bkvoice_kws_s *kws);
+/* Start a new recorder/clock epoch, matching the product listener. Window
+ * models prefill silent history; streaming models reset causal state.
+ * Unlike pause/gap, this explicitly rearms the trigger. One serialized owner.
+ */
+
+int bkvoice_kws_start(struct bkvoice_kws_s *kws);
 int bkvoice_kws_feed(struct bkvoice_kws_s *kws, const int16_t *pcm,
                      size_t samples, uint64_t end_ms, float *wake_score);
 

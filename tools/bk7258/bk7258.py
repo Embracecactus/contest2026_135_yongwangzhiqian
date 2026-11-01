@@ -31,6 +31,7 @@ from _lib import layers as layers_domain  # noqa: E402
 from _lib import package as package_domain  # noqa: E402
 from _lib import product as product_domain  # noqa: E402
 from _lib import sdk as sdk_domain  # noqa: E402
+from _lib import skills as skills_domain  # noqa: E402
 from _lib import toolchain as toolchain_domain  # noqa: E402
 from _lib import trust as trust_domain  # noqa: E402
 from _lib import voice as voice_domain  # noqa: E402
@@ -40,6 +41,9 @@ from _lib import workbench as workbench_domain  # noqa: E402
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="bk7258.py")
     commands = parser.add_subparsers(dest="command", required=True)
+    skills_domain.add_arguments(
+        commands.add_parser("skill", help="package owner-signed runtime Skills")
+    )
 
     workbench_domain.add_arguments(
         commands.add_parser(
@@ -1246,6 +1250,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "identity":
             _identity(args)
+        elif args.command == "skill":
+            print(json.dumps(skills_domain.run(args), indent=2))
         elif args.command == "build":
             _build(args)
         elif args.command == "deploy":

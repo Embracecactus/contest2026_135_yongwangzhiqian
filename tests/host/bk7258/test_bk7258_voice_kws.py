@@ -12,6 +12,8 @@ import tempfile
 import wave
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[3]
 SPEC = importlib.util.spec_from_file_location(
@@ -21,6 +23,94 @@ kws = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
 SPEC.loader.exec_module(kws)
 LABELS = (*kws.BASE_LABELS, kws.DEFAULT_WAKE_LABEL)
+
+
+def test_positive_voice_balance_preserves_mass_and_original_identity():
+    import pytest
+
+    records = [
+        dict(
+            split="train",
+            label=kws.DEFAULT_WAKE_LABEL,
+            speaker="many-generations",
+            source_id=f"a-{i}",
+        )
+        for i in range(10)
+    ]
+    records += [
+        dict(
+            split="train",
+            label=kws.DEFAULT_WAKE_LABEL,
+            speaker="one-original",
+            source_id="b",
+        )
+    ] * 4
+    records += [dict(records[0], split="test", speaker="heldout", source_id="c")]
+    balanced = kws._positive_source_totals(records, kws.DEFAULT_WAKE_LABEL, 22, True)
+    assert sum(balanced.values()) == pytest.approx(22)
+    assert balanced["b"] == 11
+    assert sum(v for k, v in balanced.items() if k.startswith("a-")) == pytest.approx(
+        11
+    )
+    original = kws._positive_source_totals(records, kws.DEFAULT_WAKE_LABEL, 22, False)
+    assert set(original.values()) == {2}
+    with pytest.raises(kws.KwsError, match="positive_source_speaker_ambiguous"):
+        kws._positive_source_totals(
+            [*records, dict(records[0], speaker="conflicting")],
+            kws.DEFAULT_WAKE_LABEL,
+            22,
+            True,
+        )
+
+
+def test_post_target_negatives_preserve_target_and_exclude_heldout():
+    import numpy as np
+    import pytest
+
+    pcm = np.zeros(kws.SAMPLES, dtype="<i2")
+    pcm[100:16001] = 12
+    positive = dict(
+        pcm=pcm.tobytes(),
+        split="train",
+        label=kws.DEFAULT_WAKE_LABEL,
+        source_id="target",
+        speaker="speaker",
+        sha256="a" * 64,
+        complete_pcm_span=(100, 16001),
+        frontend_warmup_pcm=bytes(64000),
+    )
+    background = dict(
+        pcm=b"\x21\x00" * kws.SAMPLES,
+        split="train",
+        label="unknown",
+        source_id="background",
+        sha256="b" * 64,
+    )
+    heldout = dict(background, split="test", source_id="heldout")
+    records = [positive, dict(positive, split="validation")]
+    tails, report = kws._post_target_negatives(
+        records, [background, heldout], kws.DEFAULT_WAKE_LABEL, 73
+    )
+    tail = tails[0]
+    assert report["windows"] == report["source_groups"] == 1
+    assert tail["source_id"] == positive["source_id"]
+    assert tail["speaker"] == positive["speaker"]
+    assert tail["label"] == "unknown" and tail["split"] == "train"
+    assert "complete_pcm_span" not in tail
+    prefix = tail["frontend_warmup_pcm"]
+    assert prefix[:64000] == positive["frontend_warmup_pcm"]
+    assert prefix[64000 : 64000 + 32640] == pcm[:16320].tobytes()
+    assert len(prefix) == 64000 + 32640 + 32000
+    assert tail["pcm"] in (background["pcm"], bytes(kws.SAMPLES * 2))
+    assert len(kws._record_pcm(tail)) == kws.SAMPLES * 2
+    assert (
+        kws._post_target_negatives(
+            records, [heldout, background], kws.DEFAULT_WAKE_LABEL, 73
+        )[1]
+        == report
+    )
+    with pytest.raises(kws.KwsError, match="post_target_background_missing"):
+        kws._post_target_negatives(records, [heldout], kws.DEFAULT_WAKE_LABEL, 73)
 
 
 def test_continuous_negative_window_and_adjacent_history():
@@ -131,7 +221,8 @@ def test_tempo_retains_lineage_and_excludes_validation_and_overlong():
     gain = kws._pcm_variant(positive, lambda: bytes(kws.SAMPLES * 2))
     assert gain["complete_pcm_span"] == positive["complete_pcm_span"]
     tempo, _ = kws._tempo_copies([positive], kws.DEFAULT_WAKE_LABEL)
-    assert tempo and all("complete_pcm_span" not in r for r in tempo)
+    assert tempo and all("complete_pcm_span" in r for r in tempo)
+    assert all(r["complete_pcm_span"][1] >= kws._complete_pcm_span(r["pcm"])[1] for r in tempo)
 
 
 def _wav(path: Path, value: int = 1, rate: int = 16000) -> str:
@@ -687,6 +778,40 @@ def test_streaming_negative_frame_loss_masks_history_and_positive_timing(tmp_pat
             np.testing.assert_array_equal(actual[key], expected[key])
 
 
+def test_hard_negative_pooling_targets_spikes_but_excludes_history_and_padding():
+    import numpy as np
+    import pytest
+
+    tf = pytest.importorskip("tensorflow")
+    values = np.broadcast_to([.1, .8, .1], (2, 249, 1, 3)).astype(np.float32).copy()
+    values[0, 170, 0] = [.05, .05, .9]
+    values[1, 160:, 0] = [.05, .05, .9]
+    packed = tf.constant([[1, kws.SAMPLES, 149, 249], [2, 19680, 149, 249]])
+    mean = kws._streaming_negative_frame_loss(tf, 1.0, 1.0)
+    hard = kws._streaming_negative_frame_loss(tf, 1.0, 1.0, "max")
+    expected = hard(packed, tf.constant(values)).numpy()
+    assert expected[0] > mean(packed, tf.constant(values)).numpy()[0] + 1
+    np.testing.assert_allclose(expected[1], mean(packed, tf.constant(values))[1])
+    # Extra easy negative frames cannot dilute an isolated trigger candidate.
+    changed = values.copy()
+    changed[0, 100:160, 0] = [.01, .98, .01]
+    np.testing.assert_allclose(hard(packed, tf.constant(changed)), expected)
+    # Even maximal wake scores outside the actual source must have no effect.
+    changed[:, :100, 0] = [0, 0, 1]
+    padded = np.concatenate((changed, np.broadcast_to([0, 0, 1], (2, 50, 1, 3))), axis=1)
+    predictions = tf.Variable(padded, dtype=tf.float32)
+    with tf.GradientTape() as tape:
+        actual = hard(packed, predictions)
+        total = tf.reduce_sum(actual)
+    gradients = tape.gradient(total, predictions).numpy()
+    np.testing.assert_allclose(actual, expected)
+    assert gradients[0, 170, 0, 2] > 0
+    np.testing.assert_array_equal(gradients[:, :100], 0)
+    np.testing.assert_array_equal(gradients[:, 249:], 0)
+    with pytest.raises(kws.KwsError, match="streaming_negative_reduction_invalid"):
+        kws._streaming_negative_frame_loss(tf, 1, negative_reduction="invalid")
+
+
 def test_streaming_negative_frame_option_defaults_off_and_rejects_other_architectures(tmp_path) -> None:
     import pytest
 
@@ -694,6 +819,16 @@ def test_streaming_negative_frame_option_defaults_off_and_rejects_other_architec
     kws.add_arguments(parser.add_subparsers(dest="command", required=True))
     required = ["kws", "train", "--manifest", "missing.json", "--output", str(tmp_path / "new")]
     assert parser.parse_args(required).streaming_negative_frame_loss_weight == 0
+    assert parser.parse_args(required).streaming_negative_reduction == "mean"
+    assert parser.parse_args(required + ["--streaming-negative-reduction", "max"]).streaming_negative_reduction == "max"
+    for architecture, weight, reduction in (("ds-cnn", 1, "max"),
+                                            (kws.STREAM_ARCHITECTURE, 0, "max"),
+                                            (kws.STREAM_ARCHITECTURE, 1, "invalid")):
+        with pytest.raises(kws.KwsError, match="training_arguments_invalid"):
+            kws.train(tmp_path / "missing.json", tmp_path / "new", epochs=1,
+                      batch_size=1, seed=1, architecture=architecture,
+                      streaming_negative_frame_loss_weight=weight,
+                      streaming_negative_reduction=reduction)
     assert parser.parse_args(required).streaming_positive_frame_loss_weight == 0
     assert parser.parse_args(required).streaming_positive_max_ms == 3000
     for maximum in (2999, 3010, 5001, 6000):
@@ -772,3 +907,275 @@ def test_lazy_derivatives_and_feature_memmap_do_not_retain_window_copies() -> No
             assert cache.is_file() and features[1, 148, 39, 0] == kws.FEATURES - 1
         finally:
             kws._frontend_library = original
+
+
+def test_product_start_and_threshold_use_c_policy():
+    import ctypes
+
+    library = kws._kws_library()
+    calls = []
+
+    def infer(_context, features, scores):
+        calls.append(features[0])
+        scores[0], scores[1], scores[2] = 0.1, 0.15, 0.75
+        return 0
+
+    callback = library._callback_type(infer)
+    pcm = (ctypes.c_int16 * 320)()
+    for percent, startup, expected in (
+        (60, True, [600]),
+        (80, True, []),
+        (60, False, [3300]),
+    ):
+        host = library.bkvoice_kws_host_create(callback, None)
+        assert host
+        try:
+            assert library.bkvoice_kws_host_threshold(host, percent) == 0
+            assert library.bkvoice_kws_host_threshold(host, 49) < 0
+            if startup:
+                assert library.bkvoice_kws_host_start(host) == 0
+            events = []
+            for end in range(20, 4020, 20):
+                score = ctypes.c_float()
+                ret = library.bkvoice_kws_host_feed(
+                    host, pcm, 320, end, ctypes.byref(score)
+                )
+                assert ret >= 0
+                if ret == 1:
+                    events.append(end)
+            assert events == expected
+        finally:
+            library.bkvoice_kws_host_destroy(host)
+
+
+def test_word_end_annotations_bind_latency_without_relabeling(tmp_path):
+    import pytest
+
+    manifest = _manifest(tmp_path)
+    document = json.loads(manifest.read_text())
+    entry = next(x for x in document["entries"] if x["split"] == "validation")
+    session = {
+        **{
+            key: entry[key]
+            for key in ("source_id", "speaker", "split", "consent", "recording_kind")
+        },
+        "session_id": "latency",
+        "timeline_start_ms": 0,
+        "session_end_ms": 3000,
+        "segments": [
+            {
+                "kind": "audio",
+                "start_ms": 0,
+                "path": entry["path"],
+                "sha256": entry["sha256"],
+            }
+        ],
+        "events": [[500, 1800]],
+        "word_end_ms": [1000],
+    }
+    document["sessions"] = [session]
+    records = kws._validate(manifest)[0]
+    sessions = kws._validate_sessions(document, manifest, records)
+    identity = kws._session_digest(sessions)
+    report = kws._stream_outcomes(
+        sessions, [("latency", 1180, 1200, 0.9), ("latency", 1380, 1400, 0.9)]
+    )
+    assert report["word_end_latency"]["median_ms"] == 200
+    assert report["word_end_latency"]["count"] == 1
+    assert report["repeated_wakes"] == 1 and report["strict_recall"] == 1
+    outside = kws._stream_outcomes(sessions, [("latency", 1980, 2000, 0.9)])
+    assert outside["miss_rate"] == 1 and outside["background_false_positives"] == 1
+    early = kws._stream_outcomes(sessions, [("latency", 780, 800, 0.9)])
+    assert early["word_end_latency"]["min_ms"] == -200
+    session["word_end_ms"] = [1020]
+    assert (
+        kws._session_digest(kws._validate_sessions(document, manifest, records))
+        != identity
+    )
+    for invalid in ([True], [], [400], [1801], [1000, 1020]):
+        session["word_end_ms"] = invalid
+        with pytest.raises(kws.KwsError, match="session_word_end_invalid"):
+            kws._validate_sessions(document, manifest, records)
+
+
+def test_evaluate_dispatches_product_start_and_threshold(monkeypatch, tmp_path):
+    parser = argparse.ArgumentParser()
+    kws.add_arguments(parser.add_subparsers(dest="command", required=True))
+    arguments = [
+        "kws",
+        "evaluate",
+        "--manifest",
+        "dataset.json",
+        "--model",
+        "model.tflite",
+        "--output",
+        str(tmp_path / "report.json"),
+        "--frozen-policy",
+        "policy.json",
+        "--split",
+        "validation",
+    ]
+    monkeypatch.setattr(kws, "evaluate", lambda *args, **kwargs: kwargs)
+    assert kws.run(parser.parse_args(arguments)) == {
+        "frontend": None,
+        "startup": "product",
+        "threshold_percent": 60,
+        "trace_output": None,
+    }
+    result = kws.run(
+        parser.parse_args(
+            arguments + ["--startup", "cold-window", "--threshold-percent", "80"]
+        )
+    )
+    assert result["startup"] == "cold-window" and result["threshold_percent"] == 80
+
+
+def test_frozen_policy_rejects_changed_runtime_before_test_inference(
+    tmp_path, monkeypatch
+):
+    import shutil
+    import pytest
+
+    pytest.importorskip("tensorflow")
+    manifest = _manifest(tmp_path)
+    document = json.loads(manifest.read_text())
+    document["sessions"] = []
+    for entry in document["entries"]:
+        if entry["split"] == "train":
+            continue
+        document["sessions"].append(
+            {
+                **{
+                    key: entry[key]
+                    for key in (
+                        "source_id",
+                        "speaker",
+                        "split",
+                        "consent",
+                        "recording_kind",
+                    )
+                },
+                "session_id": entry["source_id"],
+                "timeline_start_ms": 0,
+                "session_end_ms": 3000,
+                "events": [],
+                "segments": [
+                    {
+                        "kind": "audio",
+                        "start_ms": 0,
+                        "path": entry["path"],
+                        "sha256": entry["sha256"],
+                    }
+                ],
+            }
+        )
+    manifest.write_text(json.dumps(document))
+    model = tmp_path / "model.tflite"
+    shutil.copyfile(ROOT / "app/bk7258/models/nihao_openvela.tflite", model)
+    shutil.copyfile(
+        ROOT / "app/bk7258/models/nihao_openvela.metadata.json",
+        tmp_path / "metadata.json",
+    )
+    # This temporary fixture tests binding rejection, not inherited model
+    # quality. Old training provenance is deliberately absent from its metrics.
+    metadata = json.loads((tmp_path / "metadata.json").read_text())
+    metadata["frontend_inputs_sha256"] = kws._frontend_provenance()
+    metadata["metrics"] = {}
+    (tmp_path / "metadata.json").write_text(json.dumps(metadata))
+    document["wake_label"] = metadata["wake_label"]
+    document["wake_phrase"] = metadata["wake_phrase"]
+    manifest.write_text(json.dumps(document))
+    policy = tmp_path / "policy.json"
+    library = kws._kws_library()
+    monkeypatch.setattr(kws, "_kws_library", lambda: library)
+    kws.evaluate(manifest, model, tmp_path / "validation.json", policy, "validation")
+    # Accept the unchanged contract once, then fail before extracting test PCM
+    # features when selection parameters or source bindings are different.
+    trace_path = tmp_path / "scores.npz"
+    result = kws.evaluate(
+        manifest,
+        model,
+        tmp_path / "test.json",
+        policy,
+        "test",
+        trace_output=trace_path,
+    )
+    import numpy as np
+
+    with np.load(trace_path, allow_pickle=False) as traces:
+        assert len(traces.files) == sum(
+            s["split"] == "test" for s in document["sessions"]
+        )
+        assert result["score_traces"]["rows"] == sum(
+            len(traces[key]) for key in traces.files
+        )
+        for key in traces.files:
+            assert traces[key].shape[1] == 4
+            assert np.isfinite(traces[key]).all()
+            assert np.all(np.diff(traces[key][:, 0]) > 0)
+            np.testing.assert_allclose(traces[key][:, 1:].sum(1), 1, atol=1 / 128)
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("test inference reached with mismatched frozen policy")
+
+    monkeypatch.setattr(kws, "_features", forbidden)
+    for kwargs in ({"startup": "cold-window"}, {"threshold_percent": 80}):
+        with pytest.raises(kws.KwsError, match="frozen_policy_binding_mismatch"):
+            kws.evaluate(
+                manifest, model, tmp_path / "rejected.json", policy, "test", **kwargs
+            )
+    original = json.loads(policy.read_text())
+    for key in ("runtime_contract", "policy", "model_sha256"):
+        changed = dict(original)
+        del changed[key]
+        policy.write_text(json.dumps(changed))
+        with pytest.raises(kws.KwsError, match="frozen_policy_binding_mismatch"):
+            kws.evaluate(manifest, model, tmp_path / "rejected.json", policy, "test")
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"tempo_rates": ()},
+        {"tempo_rates": (0.75, 0.75), "tempo_augmentation": True},
+        {"tempo_rates": (float("nan"),), "tempo_augmentation": True},
+        {"tempo_rates": (2.1,), "tempo_augmentation": True},
+        {"tempo_rates": (1.0,), "tempo_augmentation": True},
+        {"tempo_rates": (1.7,)},
+        {"streaming_positive_hold_ms": 800},
+        {"streaming_positive_hold_ms": 810, "streaming_fresh_positives": True},
+        {"streaming_positive_hold_ms": 1020, "streaming_fresh_positives": True},
+    ],
+)
+def test_speed_recipe_rejects_invalid_factors_and_unbound_hold(tmp_path, options):
+    with pytest.raises(kws.KwsError, match="training_arguments_invalid"):
+        kws.train(
+            tmp_path / "missing.json",
+            tmp_path / "new",
+            epochs=1,
+            batch_size=1,
+            seed=1,
+            architecture=kws.STREAM_ARCHITECTURE,
+            streaming_positive_frame_loss_weight=1,
+            **options,
+        )
+
+
+def test_custom_tempo_keeps_complete_pcm_and_original_lineage():
+    source = {
+        "pcm": bytes(6400) + b"\x23\x01" * 22000 + bytes(45600),
+        "label": kws.DEFAULT_WAKE_LABEL,
+        "split": "train",
+        "source_id": "custom-tempo",
+        "speaker": "one-voice",
+        "complete_pcm_span": (3200, 25200),
+    }
+    variants, counts = kws._tempo_copies(
+        [source, dict(source, split="test")], kws.DEFAULT_WAKE_LABEL, 5000, (0.65, 1.7)
+    )
+    assert counts["accepted:0.65"] == counts["accepted:1.7"] == 1
+    assert {row["tempo_factor"] for row in variants} == {0.65, 1.7}
+    for row in variants:
+        assert row["source_id"] == source["source_id"]
+        assert row["speaker"] == source["speaker"] and row["split"] == "train"
+        assert row["complete_pcm_span"][1] >= kws._complete_pcm_span(row["pcm"])[1]

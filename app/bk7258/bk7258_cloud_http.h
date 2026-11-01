@@ -9,7 +9,8 @@
 /* SSE consumers may explicitly finish a validated application stream. */
 #define BKCLOUD_HTTP_STREAM_COMPLETE 1
 
-/* One request owner; no concurrent calls on a transport. Use the verified TLS
+/* Zero-initialize before first use. One request owner; no concurrent calls
+ * on a transport. Use the verified TLS
  * provider with server_auth_only, a resolved address and trusted time. The
  * owner cancels through its TLS interrupt operation and joins before freeing
  * any borrowed config, PCM, response or transport. No retries are implicit.
@@ -40,9 +41,18 @@ struct bkcloud_http_s
   bool pcm_response;
   bool pcm_stream;
   bool stream_complete;
+  /* Optional single-owner HTTP/1.1 connection. This workspace and its TLS
+   * context outlive every request and the idle connection. */
+  bool keepalive;
+  bool reused;
+  bool response_body_started;
+  uint64_t idle_since_ms;
+  struct webclient_conn_s *connection;
   char authorization[BKCLOUD_KEY_MAX + 32];
   char buffer[BKCLOUD_KEY_MAX + 1024];
 };
+/* Caller has joined all I/O before discarding a held connection. */
+void bkcloud_http_close(struct bkcloud_http_s *http);
 /* Config must come from successful CCF1 decoding. Endpoint is a constant
  * adapter path, relative to base_path, e.g. "chat/completions". The caller
  * allocates this workspace outside the small audio worker stack. Response
@@ -55,6 +65,16 @@ int bkcloud_http_post(struct bkcloud_http_s *http,
                      void *tls_context, uint64_t deadline_ms,
                      webclient_body_callback_t body, void *body_context,
                      size_t body_size, char *response, size_t capacity);
+#ifdef CONFIG_BK7258_FACTORY_DIAGNOSTICS_CLAIMED_TEST
+/* Authenticated, same-endpoint GET /models for the development boot probe.
+ * The public-resource GET below deliberately never sends cloud credentials.
+ */
+int bkcloud_http_models(struct bkcloud_http_s *http,
+                       const struct bkcloud_config_s *config,
+                       const struct bkvoice_wss_tls_ops_s *tls,
+                       void *tls_context, uint64_t deadline_ms,
+                       char *response, size_t capacity);
+#endif
 /* Protected-resource GET: borrows only host/port from config, uses no cloud
  * credentials and performs no implicit retry. The capacity includes the
  * trailing reserved byte, so the actual binary length is http->received.

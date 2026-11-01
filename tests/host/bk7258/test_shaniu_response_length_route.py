@@ -23,7 +23,7 @@ def struct_block(name: str) -> str:
 
 def cloud_function(name: str) -> str:
     match = re.search(
-        r"(?:static )?(?:int|void) " + re.escape(name) + r"\([^;{}]*\)\s*\{", CLOUD
+        r"(?:static )?(?:int|void|bool) " + re.escape(name) + r"\([^;{}]*\)\s*\{", CLOUD
     )
     if not match:
         raise ValueError("production function missing: " + name)
@@ -110,8 +110,14 @@ struct cloud_settings_s { struct bkvoice_config_s trust; };
 int bkvoice_config_trusted_time(void *unused) { (void)unused; return 0; }
 static atomic_int g_thinking = ATOMIC_VAR_INIT(-1);
 static atomic_int g_response_length = ATOMIC_VAR_INIT(-1);
+static pthread_mutex_t g_llm_request_lock = PTHREAD_MUTEX_INITIALIZER;
+static int (*g_context_adapter)(cJSON *);
 static bool g_validation = true;
 uint64_t bkvoice_config_now_ms(void *unused) { (void)unused; return 1000; }
+/* Validation mode returns before this call. The symbol remains because the
+ * production branch is still compiled. */
+int bkvoice_tls_prepare_request(struct bkvoice_tls_s *tls) { (void)tls; return 0; }
+int bkvoice_tls_prepare_reuse(struct bkvoice_tls_s *tls) { (void)tls; assert(!"validation must not reuse TLS"); return -ENOTSUP; }
 static struct cloud_backend_s g_tts;
 #define TTS_IDLE_READ_TIMEOUT_MS 1000u
 #define TTS_FIRST_READ_TIMEOUT_MS 1000u
@@ -151,6 +157,47 @@ static void init_backend(struct cloud_backend_s *backend,
   atomic_init(&backend->canceled, false);
 }
 
+static void assert_thinking_request(int mode, uint8_t dialect, const char *expect)
+{
+  struct cloud_backend_s backend;
+  struct bkcloud_fixture_ctx_s peer;
+  char reply[1024] = {0}; size_t length = 0; int status = 0;
+  const char *request = "{\"messages\":[{\"role\":\"user\",\"content\":\"hello\"}]}";
+  atomic_store(&g_thinking, mode);
+  bkagent_cloud_set_response_length(0);
+  captured_size = 0; captured_request[0] = 0;
+  assert(bkcloud_fixture_reset(BKCLOUD_FIXTURE_NORMAL) == 0);
+  assert(bkcloud_fixture_begin(&peer, BKCLOUD_FIXTURE_LLM, BKCLOUD_FIXTURE_NORMAL) == 0);
+  init_backend(&backend, &peer);
+  backend.service.dialect = dialect;
+  assert(llm_transport(request, reply, sizeof(reply), &length, &status,
+                       &backend, request_ok, NULL) == 0);
+  assert(status == 200 && length && strstr(captured_request, "hello"));
+  if (expect) assert(strstr(captured_request, expect));
+  else assert(!strstr(captured_request, "\"thinking\""));
+  assert(bkcloud_fixture_end(&peer) == 0);
+}
+
+static void assert_explicit_thinking_preserved(void)
+{
+  struct cloud_backend_s backend;
+  struct bkcloud_fixture_ctx_s peer;
+  char reply[1024] = {0}; size_t length = 0; int status = 0;
+  const char *request = "{\"messages\":[{\"role\":\"user\",\"content\":\"hello\"}],\"thinking\":{\"type\":\"enabled\"}}";
+  atomic_store(&g_thinking, -1);
+  bkagent_cloud_set_response_length(0);
+  captured_size = 0; captured_request[0] = 0;
+  assert(bkcloud_fixture_reset(BKCLOUD_FIXTURE_NORMAL) == 0);
+  assert(bkcloud_fixture_begin(&peer, BKCLOUD_FIXTURE_LLM, BKCLOUD_FIXTURE_NORMAL) == 0);
+  init_backend(&backend, &peer);
+  backend.service.dialect = 2;
+  assert(llm_transport(request, reply, sizeof(reply), &length, &status,
+                       &backend, request_ok, NULL) == 0);
+  assert(status == 200 && length && strstr(captured_request, request));
+  assert(!strstr(captured_request, "disabled"));
+  assert(bkcloud_fixture_end(&peer) == 0);
+}
+
 static void assert_standard_request(void)
 {
   struct cloud_backend_s backend;
@@ -167,6 +214,31 @@ static void assert_standard_request(void)
   assert(!strstr(captured_request, "Prefer one useful conclusion") &&
          !strstr(captured_request, "Provide a complete explanation"));
   assert(bkcloud_fixture_end(&peer) == 0);
+}
+
+static int attach_context(cJSON *root)
+{
+  return cJSON_AddStringToObject(root, "context_fixture", "staged") ? 0 : -ENOMEM;
+}
+
+static void assert_context_request(void)
+{
+  struct cloud_backend_s backend;
+  struct bkcloud_fixture_ctx_s peer;
+  char reply[1024] = {0}; size_t length = 0; int status = 0;
+  const char *request = "{\"messages\":[{\"role\":\"user\",\"content\":\"hello\"}]}";
+  bkagent_cloud_set_response_length(0);
+  bkagent_cloud_set_context_adapter(attach_context);
+  captured_size = 0; captured_request[0] = 0;
+  assert(bkcloud_fixture_reset(BKCLOUD_FIXTURE_NORMAL) == 0);
+  assert(bkcloud_fixture_begin(&peer, BKCLOUD_FIXTURE_LLM, BKCLOUD_FIXTURE_NORMAL) == 0);
+  init_backend(&backend, &peer);
+  assert(llm_transport(request, reply, sizeof(reply), &length, &status,
+                       &backend, request_ok, NULL) == 0);
+  assert(strstr(captured_request, "\"context_fixture\":\"staged\""));
+  assert(bkcloud_fixture_end(&peer) == 0);
+  bkagent_cloud_set_context_adapter(NULL);
+  puts("CONTEXT_HTTP_REQUEST_PASS");
 }
 
 static void assert_reloaded_request(unsigned int mode)
@@ -213,6 +285,16 @@ int main(int argc, char **argv)
   if (argc == 4) { assert(!strcmp(argv[1], "--reopen")); reopen(argv[2], (unsigned)atoi(argv[3])); return 0; }
   assert(argc == 1 && mkdtemp(root_path));
   assert_standard_request();
+  assert_context_request();
+  /* Unset and explicit-off both take the fast MiMo path. Dialect 1 has no
+   * thinking parameter. A caller-supplied object is not rewritten.
+   */
+  assert_thinking_request(-1, 2, "\"type\":\"disabled\"");
+  assert_thinking_request(0, 2, "\"type\":\"disabled\"");
+  assert_thinking_request(1, 2, "\"type\":\"enabled\"");
+  assert_thinking_request(-1, 1, NULL);
+  assert_explicit_thinking_preserved();
+  atomic_store(&g_thinking, -1);
   assert(product_response_length(BKCONTROL_CONFIG_READ, 0, NULL, 0, &status) == 0 && status.config_total == 24);
   assert(product_response_length(BKCONTROL_CONFIG_BEGIN, 0, NULL, 32, &status) == 0);
   memcpy(record, "RLP1", 4); record[7] = 1; record[16] = 1;
@@ -232,6 +314,11 @@ int main(int argc, char **argv)
 }
 """
 
+assert "llm_apply_thinking(" in TRANSPORT
+assert "llm_apply_thinking(" in cloud_function("llm_stream_transport")
+assert "thinking_mode >=" not in TRANSPORT
+assert "thinking >=" not in cloud_function("llm_stream_transport")
+
 subprocess.run(
     ["make", "-C", str(HERE), "build/test_shaniu_response_length_store"], check=True
 )
@@ -245,9 +332,14 @@ with tempfile.TemporaryDirectory(prefix="response-length-route-") as directory:
                 BACKEND,
                 SET,
                 GET,
+                cloud_function("bkagent_cloud_set_context_adapter"),
                 APPLY,
+                cloud_function("is_tts_backend"),
                 PREPARE,
                 CLOUD_TRANSPORT,
+                cloud_function("llm_http_acquire"),
+                cloud_function("llm_http_release"),
+                cloud_function("llm_http_reconnect"),
                 BODY,
                 TRANSPORT,
                 PRODUCT_ROUTE,

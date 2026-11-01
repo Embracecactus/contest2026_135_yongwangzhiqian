@@ -169,9 +169,14 @@ class HilTestContract(unittest.TestCase):
                 [4, 11, 25, 31, 0, 0],
                 [5, 12, 31, 32, 0, 0],
                 [6, 13, 32, 34, 512, 0],
-                [7, 4, 35, 35, 512, 512],
-                [8, 5, 36, 40, 512, 0],
-                [9, 8, 41, 41, 2, 0],
+                [7, 14, 34, 44, 0, 0],
+                [8, 15, 44, 74, 0, 0],
+                [9, 16, 74, 74, 1024, 0],
+                [10, 17, 74, 75, 768, 0],
+                [11, 18, 75, 75, 512, 0],
+                [12, 4, 75, 75, 512, 512],
+                [13, 5, 76, 80, 512, 0],
+                [14, 8, 81, 81, 2, 0],
             ],
         )
         report = hil_test.audio_stream_report(trace)
@@ -184,9 +189,78 @@ class HilTestContract(unittest.TestCase):
                 (11, "readiness_to_poll_teardown"),
                 (12, "crypto_lock"),
                 (13, "ssl_read"),
+                (14, "tcp_connect"),
+                (15, "tls_handshake"),
+                (16, "sse_event_complete"),
+                (17, "base64_decode"),
+                (18, "resample_ready"),
             ],
         )
         self.assertEqual(report["max_pcm_gap_ms"], 0)
+        self.assertEqual(report["tcp_connect_ms"], 10)
+        self.assertEqual(report["tls_handshake_ms"], 30)
+        self.assertEqual(report["sse_event_count"], 1)
+        self.assertEqual(report["sse_event_max_bytes"], 1024)
+        self.assertEqual(report["base64_decoded_bytes"], 768)
+        self.assertEqual(report["resample_output_bytes"], 512)
+
+    def test_audio_gap_uses_sse_boundary_to_split_wait_classes(self):
+        def classify(middle):
+            events = [[1, 1, 0, 0, 1, 0], [2, 4, 100, 100, 512, 512]]
+            events.extend(middle)
+            events.extend(
+                [
+                    [len(events) + 1, 4, 3000, 3000, 512, 1024],
+                    [len(events) + 2, 5, 3001, 3002, 512, 512],
+                    [len(events) + 3, 8, 3010, 3010, 2, 512],
+                ]
+            )
+            trace = dict(
+                request_id=11,
+                dropped=0,
+                rearm_state=2,
+                rearm_attempts=1,
+                rearm_ms=1,
+                sealed=True,
+                events=events,
+            )
+            report = hil_test.audio_stream_report(trace)
+            return hil_test.audio_gap_report([report])["turns"][0]
+
+        no_data = classify(
+            [
+                [3, 2, 101, 2990, 4096, 0],
+                [4, 16, 2991, 2991, 5000, 0],
+                [5, 17, 2991, 2992, 3072, 0],
+                [6, 18, 2992, 2993, 512, 0],
+            ]
+        )
+        self.assertEqual(no_data["classification"], "no_tls_data_observed")
+        self.assertEqual(no_data["candidate_sources"], ["A", "B"])
+        self.assertEqual(no_data["max_gap"]["max_no_tls_return_ms"], 2890)
+
+        assembling = classify(
+            [
+                [3, 2, 101, 110, 100, 0],
+                [4, 2, 120, 130, 100, 0],
+                [5, 16, 2990, 2990, 5000, 0],
+                [6, 17, 2990, 2991, 3072, 0],
+                [7, 18, 2991, 2992, 512, 0],
+            ]
+        )
+        self.assertEqual(assembling["classification"], "sse_event_assembly_wait")
+        self.assertEqual(assembling["candidate_sources"], ["B", "C"])
+        self.assertEqual(assembling["max_gap"]["tls_read_return_count"], 2)
+
+        local = classify(
+            [
+                [3, 16, 101, 101, 5000, 0],
+                [4, 17, 102, 1500, 3072, 0],
+                [5, 18, 1500, 2990, 512, 0],
+            ]
+        )
+        self.assertEqual(local["classification"], "device_pcm_processing")
+        self.assertEqual(local["candidate_sources"], ["C"])
 
     def test_audio_stream_missing_is_not_zero_and_sentences_are_distinct(self):
         trace = dict(
@@ -616,6 +690,102 @@ class HilTestContract(unittest.TestCase):
             self.assertTrue(all("audio_stream" not in t for t in result["turns"]))
             self.assertEqual(len({t["turn_uid"] for t in result["turns"]}), 2)
 
+    def test_voice_benchmark_runs_before_optional_bktest_device_info(self):
+        calls = []
+        client = SimpleNamespace(
+            engineering_voice_status=lambda: {"session": 0},
+        )
+
+        def unsupported_info():
+            calls.append("info")
+            raise workbench.DeviceRejected(-138)
+
+        client.info = unsupported_info
+
+        @contextmanager
+        def authorized(_):
+            yield client
+
+        with tempfile.TemporaryDirectory() as directory:
+            args = SimpleNamespace(
+                git_sha="1" * 40,
+                wav=None,
+                text="fixed",
+                dialogue=None,
+                repeat=1,
+                cloud_config=None,
+                output_dir=Path(directory) / "report",
+                turn_timeout=180,
+                cancel_after_ms=None,
+                audio_status=False,
+                audio_trace=False,
+                audio_baseline=None,
+            )
+            with patch.object(workbench, "authorized_client", authorized), patch.object(
+                hil_test,
+                "voice_execute",
+                side_effect=lambda *unused, **kwargs: (
+                    kwargs["progress"].update(execution_performed=True)
+                    or calls.append("turn")
+                    or {"request_id": 7, "result": 0}
+                ),
+            ):
+                hil_test.run_benchmark(args)
+            result = json.loads((args.output_dir / "benchmark.json").read_text())
+            self.assertEqual(calls, ["turn", "info"])
+            self.assertTrue(result["execution_performed"])
+            self.assertEqual(result["firmware"]["info_status"], "unsupported")
+            self.assertEqual(result["firmware"]["error"], -138)
+
+    def test_factory_enroll_accepts_optional_bktest_device_info(self):
+        factory = importlib.import_module("_lib.factory_diagnostics")
+        calls = []
+
+        def unsupported_info():
+            calls.append("info")
+            raise workbench.DeviceRejected(-138)
+
+        client = SimpleNamespace(
+            info=unsupported_info,
+            status=lambda: calls.append("status") or {"ready": True},
+            engineering_status=lambda: calls.append("engineering_status")
+            or {"enabled": True, "session": 0},
+        )
+
+        @contextmanager
+        def authorized(_):
+            yield client
+
+        args = SimpleNamespace(
+            operation="enroll",
+            git_sha="1" * 40,
+            session=1,
+            held_ms=3000,
+            pm_mode="blocked",
+            console_port="COM9",
+            port="COM16",
+            profile=Path("factory.spc"),
+            timeout=20,
+        )
+        enrollment = {
+            "flags": 7,
+            "ttl_ms": 600000,
+            "profile_saved": True,
+            "diagnostics_only": True,
+        }
+        with patch.object(
+            factory, "enroll", return_value=enrollment
+        ), patch.object(workbench, "authorized_client", authorized):
+            result = hil_test.run(args, ["bk7258.py", "hil-test", "enroll"])
+
+        self.assertEqual(result["result"], "PASS")
+        self.assertEqual(result["firmware"]["info_status"], "unsupported")
+        self.assertEqual(result["firmware"]["error"], -138)
+        self.assertEqual(result["firmware"]["runtime"], {"ready": True})
+        self.assertNotIn("version", result["firmware"])
+        self.assertEqual(result["observation"]["enrollment"], enrollment)
+        self.assertEqual(calls, ["status", "engineering_status", "info"])
+
     def test_voice_report_injected_input_has_explicit_nonacoustic_origin(self):
         raw = self.voice_log(
             [
@@ -910,6 +1080,82 @@ class HilTestContract(unittest.TestCase):
         self.assertEqual(turn["pcm_max_gap_ms"], 3432)
         self.assertEqual(turn["queue_rebuffers"], 1)
         self.assertIsNone(turn["network_max_gap_ms"])
+        self.assertIsNone(turn["dac_underruns"])
+
+    def test_voice_report_decomposes_llm_and_pcm_to_media_latency(self):
+        log = self.voice_log(
+            [
+                (1000, "input_text", 12, 0),
+                (1100, "voice_stream_request", 1, 0),
+                (1110, "llm_thinking", 0, 0),
+                (1120, "llm_http_begin", 900, 0),
+                (1170, "llm_first_response", 128, 0),
+                (1180, "llm_first_event", 1, 0),
+                (1190, "llm_first_token", 3, 0),
+                (1300, "final_first", 3, 0),
+                (1310, "speakable_ready", 24, 0),
+                (1320, "tts_submit", 24, 0),
+                (1500, "first_pcm", 512, 0),
+                (1500, "pcm_enqueue_first", 512, 0),
+                (1510, "media_prepare_begin", 0, 0),
+                (1511, "media_open_begin", 0, 0),
+                (1530, "media_open_end", 0, 0),
+                (1531, "media_prepare_call_begin", 0, 0),
+                (1550, "media_prepare_call_end", 0, 0),
+                (1551, "media_start_call_begin", 0, 0),
+                (1560, "media_start_call_end", 0, 0),
+                (1561, "media_socket_ready", 0, 0),
+                (1570, "media_prepare_end", 0, 0),
+                (1580, "playback_prefill", 8192, 0),
+                (1581, "queue_capacity_requested", 262144, 0),
+                (1582, "queue_capacity", 262144, 0),
+                (1583, "queue_storage", 1, 0),
+                (3800, "playback_watermark", 8192, 0),
+                (3801, "consumer_wake", 8192, 0),
+                (3802, "first_media_write_begin", 2048, 0),
+                (3885, "first_media_write_end", 2048, 0),
+                (3885, "first_media", 2048, 0),
+                (4000, "llm_http_end", 1200, 0),
+                (4050, "llm_complete", 48, 0),
+                (5000, "queue_peak", 16384, 0),
+                (5001, "pcm_gap_max", 2314, 0),
+                (5002, "queue_rebuffers", 2, 0),
+                (5003, "media_write_max_ms", 83, 0),
+                (5004, "playback_ready_gap_ms", 89, 0),
+                (5005, "queue_full_waits", 13, 0),
+                (5006, "queue_full_wait_total_ms", 612, 0),
+                (5007, "queue_full_wait_max_ms", 74, 0),
+                (6000, "channel_idle", 0, 0),
+            ]
+        )
+        turn = hil_test.voice_report(log, boot_id="media-breakdown")["turns"][0]
+        self.assertEqual(turn["llm_request_ms"], 100)
+        self.assertEqual(turn["llm_first_response_ms"], 170)
+        self.assertEqual(turn["llm_complete_ms"], 3050)
+        self.assertEqual(turn["llm_output_bytes"], 48)
+        self.assertFalse(turn["llm_thinking_enabled"])
+        self.assertEqual(turn["playback_prefill_bytes"], 8192)
+        self.assertEqual(turn["queue_capacity_requested_bytes"], 262144)
+        self.assertEqual(turn["queue_capacity_bytes"], 262144)
+        self.assertIsNone(turn["queue_capacity_fallback_bytes"])
+        self.assertEqual(turn["queue_storage"], "external")
+        self.assertEqual(turn["first_pcm_to_enqueue_ms"], 0)
+        self.assertEqual(turn["enqueue_to_watermark_ms"], 2300)
+        self.assertEqual(turn["watermark_to_consumer_ms"], 1)
+        self.assertEqual(turn["consumer_to_first_write_ms"], 1)
+        self.assertEqual(turn["first_write_duration_ms"], 83)
+        self.assertEqual(turn["first_pcm_to_media_ms"], 2385)
+        self.assertEqual(turn["media_open_duration_ms"], 19)
+        self.assertEqual(turn["media_prepare_call_duration_ms"], 19)
+        self.assertEqual(turn["media_start_call_duration_ms"], 9)
+        self.assertEqual(turn["media_prepare_total_ms"], 60)
+        self.assertEqual(turn["pcm_max_gap_ms"], 2314)
+        self.assertEqual(turn["queue_rebuffers"], 2)
+        self.assertEqual(turn["media_write_max_ms"], 83)
+        self.assertEqual(turn["playback_ready_gap_ms"], 89)
+        self.assertEqual(turn["queue_full_waits"], 13)
+        self.assertEqual(turn["queue_full_wait_total_ms"], 612)
+        self.assertEqual(turn["queue_full_wait_max_ms"], 74)
         self.assertIsNone(turn["dac_underruns"])
 
     def test_long_key_cli_waits_for_independent_terminal_power_evidence(self):

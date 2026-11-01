@@ -6,6 +6,12 @@
 #include "bk7258_cloud_audio.h"
 #include "bk7258_voice_config.h"
 #include "bk7258_voice_tls.h"
+#ifdef CONFIG_BK7258_TTS_TENCENT_BKTEST
+#include "bk7258_tencent_tts.h"
+#endif
+#ifdef CONFIG_BK7258_TTS_ALIYUN_BKTEST
+#include "bk7258_aliyun_tts.h"
+#endif
 #include "bk7258_preferences.h"
 #include "voice/voice_asr.h"
 #include "voice/funasr_asr.h"
@@ -15,6 +21,7 @@
 #include "llm/llm_proxy.h"
 #ifdef CONFIG_BK7258_ENGINEERING_TEST
 #include "bk7258_engineering_test.h"
+#include "core/agent_trace.h"
 #include "voice/voice_channel.h"
 #include <mbedtls/sha256.h>
 #endif
@@ -57,10 +64,30 @@ struct cloud_backend_s
   struct cloud_settings_s *settings;
   struct bkcloud_config_s service;
   struct bkvoice_tls_s tls;
+  struct bkcloud_http_s *http_session;
   mbedtls_x509_time session_from;
   mbedtls_x509_time session_to;
   bool session_offered;
   bool response_received;
+#ifdef CONFIG_BK7258_TTS_ISOLATION
+  /* LLM receive spans use the existing TLS observer. Defer logging until
+   * the request ends so measuring a fragment never delays its delivery.
+   */
+  uint64_t receive_total[5];
+  uint64_t receive_max[5];
+  uint64_t first_socket_data_ms;
+  unsigned int receive_count;
+  struct
+  {
+    uint64_t begin;
+    uint64_t end;
+    uint64_t wait_ms;
+    int bytes;
+  } receive_first[4];
+#endif
+#ifdef CONFIG_BK7258_TTS_ALIYUN_BKTEST
+  bool preconnect_started;
+#endif
   atomic_bool canceled;
 #ifdef CONFIG_BK7258_ENGINEERING_TEST
   uint64_t trace_request;
@@ -76,15 +103,63 @@ static struct cloud_settings_s *g_selected;
 static struct cloud_backend_s g_asr;
 static struct cloud_backend_s g_stream_asr;
 static struct cloud_backend_s g_tts;
+#ifdef CONFIG_AI_AGENT_TTS_REQUEST_OVERLAP
+static struct cloud_backend_s g_tts_prefetch;
+static pthread_mutex_t g_tts_slot_lock = PTHREAD_MUTEX_INITIALIZER;
+static bool g_tts_slot_used[2];
+#endif
 static struct cloud_backend_s g_llm;
+static pthread_mutex_t g_llm_request_lock = PTHREAD_MUTEX_INITIALIZER;
 static atomic_int g_thinking = ATOMIC_VAR_INIT(-1);
 static atomic_int g_response_length = ATOMIC_VAR_INIT(-1);
+static int (*g_context_adapter)(cJSON *);
+
+void bkagent_cloud_set_context_adapter(int (*adapter)(cJSON *))
+{
+  g_context_adapter = adapter;
+}
+
+static bool is_tts_backend(const struct cloud_backend_s *backend)
+{
+  if (backend == &g_tts) return true;
+#ifdef CONFIG_AI_AGENT_TTS_REQUEST_OVERLAP
+  if (backend == &g_tts_prefetch) return true;
+#endif
+  return false;
+}
+
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+static void cloud_connect_observe(void *context, unsigned int kind,
+                                  uint64_t begin, uint64_t end, int result)
+{
+  struct cloud_backend_s *backend = context;
+  uint64_t request = backend->trace_request;
+  if (!request) return;
+  agent_audio_observe(request, kind, begin, end, 0,
+                      result < 0 ? (uint32_t)-result : 0);
+  agent_trace_stage(request, kind == 14 ? "tcp_connect" : "tls_handshake",
+                    end - begin, result);
+}
+#endif
 
 #ifdef CONFIG_BK7258_TTS_ISOLATION
 static void isolation_tls_observe(void *context, unsigned int kind,
                                    uint64_t begin, uint64_t end, int result)
 {
   struct cloud_backend_s *backend = context;
+  if (backend == &g_llm)
+    {
+      /* Handshake records are not HTTP response bytes. */
+      if (!backend->tls.opened || kind < 9 || kind > 13) return;
+      unsigned int index = kind - 9;
+      uint64_t elapsed = end - begin;
+      backend->receive_total[index] += elapsed;
+      if (elapsed > backend->receive_max[index])
+        backend->receive_max[index] = elapsed;
+      if (kind == 9 && result > 0 && !backend->first_socket_data_ms)
+        backend->first_socket_data_ms = end;
+      return;
+    }
   if (backend->trace_request)
     agent_audio_observe(backend->trace_request, kind, begin, end,
                        result > 0 ? result : 0, result < 0 ? -result : 0);
@@ -126,6 +201,9 @@ void bkagent_cloud_trace_waits(void)
   bkvoice_tls_trace_wait(&g_llm.tls, "llm", now);
   bkvoice_tls_trace_wait(&g_asr.tls, "asr", now);
   bkvoice_tls_trace_wait(&g_tts.tls, "tts", now);
+#ifdef CONFIG_AI_AGENT_TTS_REQUEST_OVERLAP
+  bkvoice_tls_trace_wait(&g_tts_prefetch.tls, "tts-prefetch", now);
+#endif
   bkvoice_tls_trace_wait(&g_stream_asr.tls, "stream-asr", now);
 }
 #endif
@@ -336,6 +414,14 @@ static int session_save(void *context, const mbedtls_ssl_context *ssl,
 
 static void backend_release(struct cloud_backend_s *backend)
 {
+  if (backend->http_session)
+    {
+      bkcloud_http_close(backend->http_session);
+      mbedtls_platform_zeroize(backend->http_session,
+                               sizeof(*backend->http_session));
+      free(backend->http_session);
+      backend->http_session = NULL;
+    }
   if (!backend->settings) return;
   /* The official registry prevents deinit while a request/cancel uses TLS. */
 #ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
@@ -386,7 +472,7 @@ static int backend_prepare(struct cloud_backend_s *backend, uint8_t dialect)
   pthread_mutex_unlock(&g_config_lock);
   if (!settings) return -ENOKEY;
   backend->service = settings->service;
-  int ret = backend == &g_tts ? tts_selection(&backend->service) : 0;
+  int ret = is_tts_backend(backend) ? tts_selection(&backend->service) : 0;
   if (ret != 0)
     {
       bkcloud_config_clear(&backend->service);
@@ -408,7 +494,7 @@ static int backend_prepare(struct cloud_backend_s *backend, uint8_t dialect)
       backend->settings = settings;
       return bkcloud_fixture_begin(backend->fixture,
         backend == &g_asr ? BKCLOUD_FIXTURE_ASR :
-        backend == &g_tts ? BKCLOUD_FIXTURE_TTS : BKCLOUD_FIXTURE_LLM,
+        is_tts_backend(backend) ? BKCLOUD_FIXTURE_TTS : BKCLOUD_FIXTURE_LLM,
         BKCLOUD_FIXTURE_NORMAL);
     }
 #endif
@@ -423,8 +509,13 @@ static int backend_prepare(struct cloud_backend_s *backend, uint8_t dialect)
       .session_load = session_load,
       .session_save = session_save,
       .session_context = backend,
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+      .connect_observe = cloud_connect_observe,
+      .connect_observe_context = backend,
+#endif
 #ifdef CONFIG_BK7258_TTS_ISOLATION
-      .observe = backend == &g_tts ? isolation_tls_observe : NULL,
+      .observe = is_tts_backend(backend) || backend == &g_llm ?
+                   isolation_tls_observe : NULL,
       .observe_context = backend,
 #endif
     };
@@ -442,10 +533,38 @@ static int request_prepare(struct cloud_backend_s *backend)
 {
   if (!backend->settings) return -ENOKEY;
   backend->response_received = false;
+#ifdef CONFIG_BK7258_TTS_ISOLATION
+  memset(backend->receive_total, 0, sizeof(backend->receive_total));
+  memset(backend->receive_max, 0, sizeof(backend->receive_max));
+  backend->first_socket_data_ms = 0;
+  backend->receive_count = 0;
+#endif
+#ifdef CONFIG_BK7258_TTS_ALIYUN_BKTEST
+  backend->preconnect_started = false;
+#endif
   atomic_store(&backend->canceled, false);
 #ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
   if (g_validation) return 0; /* Pure memory; no DNS, TLS or socket exists. */
 #endif
+  if (backend->http_session && backend->http_session->connection)
+    {
+      uint64_t idle = bkvoice_config_now_ms(NULL) -
+                      backend->http_session->idle_since_ms;
+      int reuse = idle < 60000u ? bkvoice_tls_prepare_reuse(&backend->tls) :
+                                  -ETIMEDOUT;
+      if (!reuse)
+        {
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+          agent_trace_stage(backend->trace_request, "llm_connection_reuse", 1, 0);
+#endif
+          return bkvoice_config_trusted_time(&backend->settings->trust);
+        }
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+      agent_trace_stage(backend->trace_request, "llm_connection_discard", idle,
+                        reuse);
+#endif
+      bkcloud_http_close(backend->http_session);
+    }
   int ret = bkvoice_tls_prepare_request(&backend->tls);
   if (ret != 0) return ret;
   return bkvoice_config_trusted_time(&backend->settings->trust);
@@ -476,13 +595,33 @@ static int cloud_open(void *context, const char *host, uint16_t port,
 #endif
   struct addrinfo hints = { .ai_family = AF_INET, .ai_socktype = SOCK_STREAM };
   struct addrinfo *addresses = NULL;
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  uint64_t dns_begin = bkvoice_config_now_ms(NULL);
+  agent_trace_stage(backend->trace_request, "dns_begin", 0, 0);
+#endif
   int resolved = getaddrinfo(host, NULL, &hints, &addresses);
-  if (resolved != 0 || !addresses) return -EHOSTUNREACH;
+  if (resolved != 0 || !addresses)
+    {
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+      agent_trace_stage(backend->trace_request, "dns_end",
+                        bkvoice_config_now_ms(NULL) - dns_begin,
+                        -EHOSTUNREACH);
+#endif
+      return -EHOSTUNREACH;
+    }
   backend->tls.config.peer_address =
     ((struct sockaddr_in *)addresses->ai_addr)->sin_addr;
   freeaddrinfo(addresses);
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  agent_trace_stage(backend->trace_request, "dns_end",
+                    bkvoice_config_now_ms(NULL) - dns_begin, 0);
+#endif
   if (atomic_load(&backend->canceled)) return -ECANCELED;
   int ret = bkvoice_tls_ops()->open_verified(&backend->tls, host, port, deadline);
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  agent_trace_stage(backend->trace_request, "tls_session",
+                    backend->session_offered, ret);
+#endif
   if (atomic_load(&backend->canceled))
     {
       (void)bkvoice_tls_ops()->close(&backend->tls);
@@ -508,11 +647,22 @@ static ssize_t cloud_recv(void *context, uint8_t *data, size_t size,
 {
   struct cloud_backend_s *backend = context;
   if (atomic_load(&backend->canceled)) return -ECANCELED;
+#ifdef CONFIG_BK7258_TTS_ALIYUN_BKTEST
+  /* The HTTP client enters receive only after uploading the request. Let
+   * LLM DNS/TLS/upload finish before the independent TTS connection starts.
+   */
+  if (backend == &g_llm && !backend->preconnect_started)
+    {
+      backend->preconnect_started = true;
+      agent_trace_stage(backend->trace_request, "llm_request_sent", 0, 0);
+      (void)bkagent_aliyun_tts_preconnect(backend->trace_request);
+    }
+#endif
 #ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
   if (g_validation) return bkcloud_fixture_tls_ops()->recv(backend->fixture,
                                                           data, size, deadline);
 #endif
-  if (backend == &g_tts)
+  if (is_tts_backend(backend))
     {
       uint64_t idle = bkvoice_config_now_ms(NULL) +
         (backend->response_received ? TTS_IDLE_READ_TIMEOUT_MS :
@@ -523,14 +673,34 @@ static ssize_t cloud_recv(void *context, uint8_t *data, size_t size,
 #ifdef CONFIG_BK7258_ENGINEERING_TEST
   uint64_t begin = bkvoice_config_now_ms(NULL);
 #endif
+#ifdef CONFIG_BK7258_TTS_ISOLATION
+  uint64_t wait_before = backend->receive_total[1];
+#endif
   ssize_t ret = bkvoice_tls_ops()->recv(&backend->tls, data, size, deadline);
+#ifdef CONFIG_BK7258_TTS_ISOLATION
+  if (backend == &g_llm)
+    {
+      unsigned int index = backend->receive_count++;
+      if (index < 4)
+        {
+          backend->receive_first[index].begin = begin;
+          backend->receive_first[index].end = bkvoice_config_now_ms(NULL);
+          backend->receive_first[index].wait_ms =
+            backend->receive_total[1] - wait_before;
+          backend->receive_first[index].bytes = ret;
+        }
+    }
+#endif
 #ifdef CONFIG_BK7258_ENGINEERING_TEST
-  if (backend == &g_tts)
+  if (is_tts_backend(backend))
     agent_audio_observe(backend->trace_request, 2, begin,
       bkvoice_config_now_ms(NULL), ret > 0 ? ret : 0, ret < 0 ? -ret : 0);
+  if (backend == &g_llm && ret > 0 && !backend->response_received)
+    agent_trace_stage(backend->trace_request, "llm_first_response",
+                      (uint64_t)ret, 0);
 #endif
   if (ret > 0) backend->response_received = true;
-  if (ret == -ETIMEDOUT && backend == &g_tts)
+  if (ret == -ETIMEDOUT && is_tts_backend(backend))
     syslog(LOG_WARNING, "AGENT TTS receive timeout phase=%s\n",
            backend->response_received ? "response-idle" : "first-response");
   return ret;
@@ -559,6 +729,10 @@ static const struct bkvoice_wss_tls_ops_s g_transport =
  */
 static int stream_asr_prepare(void *context)
 {
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  struct cloud_backend_s *backend = context;
+  backend->trace_request = voice_channel_request_id();
+#endif
   return request_prepare(context);
 }
 
@@ -625,8 +799,79 @@ int bkagent_cloud_prepare_asr(const char *name)
 
 static int asr_mimo_prepare(void) { return backend_prepare(&g_asr, 2); }
 static int asr_audio_prepare(void) { return backend_prepare(&g_asr, 1); }
-static int tts_mimo_prepare(void) { return backend_prepare(&g_tts, 2); }
-static int tts_audio_prepare(void) { return backend_prepare(&g_tts, 1); }
+static int tts_prepare(uint8_t dialect)
+{
+  int ret = backend_prepare(&g_tts, dialect);
+#ifdef CONFIG_AI_AGENT_TTS_REQUEST_OVERLAP
+  if (!ret) ret = backend_prepare(&g_tts_prefetch, dialect);
+  if (ret)
+    {
+      backend_release(&g_tts_prefetch);
+      backend_release(&g_tts);
+    }
+#endif
+  return ret;
+}
+
+static int tts_mimo_prepare(void) { return tts_prepare(2); }
+static int tts_audio_prepare(void) { return tts_prepare(1); }
+
+/* One HTTP request owns the LLM TLS/workspace. Cancel never waits for this
+ * gate; active I/O observes the interrupt and closes before releasing it. */
+static int llm_http_acquire(struct cloud_backend_s *backend,
+                             struct bkcloud_http_s **http)
+{
+  int error = pthread_mutex_trylock(&g_llm_request_lock);
+  if (error) return -error;
+  if (!backend->settings)
+    {
+      pthread_mutex_unlock(&g_llm_request_lock);
+      return -ENOKEY;
+    }
+  if (!backend->http_session)
+    backend->http_session = calloc(1, sizeof(*backend->http_session));
+  if (!backend->http_session)
+    {
+      pthread_mutex_unlock(&g_llm_request_lock);
+      return -ENOMEM;
+    }
+  *http = backend->http_session;
+  (*http)->keepalive = true;
+#ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
+  if (g_validation) (*http)->keepalive = false;
+#endif
+  return 0;
+}
+
+static void llm_http_release(struct cloud_backend_s *backend, int result)
+{
+  if (result) bkcloud_http_close(backend->http_session);
+  pthread_mutex_unlock(&g_llm_request_lock);
+}
+
+/* A stale idle connection can race its preflight check. Retry at most once,
+ * only before any response body, and never for cancellation or a deadline. */
+static bool llm_http_reconnect(struct cloud_backend_s *backend,
+  struct bkcloud_http_s *http, int *result, int (*check)(void *), void *context)
+{
+  if (!http->reused || http->response_body_started ||
+      (*result != -EPIPE && *result != -ECONNRESET &&
+       *result != -ECONNABORTED && *result != -ENOTCONN && *result != -EIO))
+    return false;
+  if (bkvoice_config_now_ms(NULL) >= http->deadline_ms)
+    {
+      *result = -ETIMEDOUT;
+      return false;
+    }
+  bkcloud_http_close(http);
+  *result = check ? check(context) : 0;
+  if (!*result) *result = request_prepare(backend);
+  if (!*result && check) *result = check(context);
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  agent_trace_stage(backend->trace_request, "llm_connection_retry", 1, *result);
+#endif
+  return *result == 0;
+}
 
 struct llm_body_s { const char *data; size_t size; size_t offset; };
 
@@ -643,63 +888,90 @@ static int llm_body(void *buffer, size_t *size, const void **data,
   return 0;
 }
 
+/* MiMo enables deep thinking by default and holds the first spoken token
+ * until that trace finishes. The persisted preference is fast when its key
+ * is absent. Until that preference is restored, and whenever it is not
+ * explicitly enabled, attach thinking.type=disabled. A confirmed enabled
+ * setting still sends enabled. A thinking object already present on the
+ * caller request is left unchanged. *applied is set only when this function
+ * adds the object; the caller decides whether the body must be reprinted.
+ */
+static int llm_apply_thinking(cJSON *root, uint8_t dialect, bool *applied)
+{
+  const char *type;
+  cJSON *thinking;
+
+  if (applied) *applied = false;
+  if (!cJSON_IsObject(root) || dialect != 2 ||
+      cJSON_GetObjectItemCaseSensitive(root, "thinking"))
+    {
+      return 0;
+    }
+
+  type = atomic_load(&g_thinking) == 1 ? "enabled" : "disabled";
+  thinking = cJSON_AddObjectToObject(root, "thinking");
+  if (!thinking || !cJSON_AddStringToObject(thinking, "type", type))
+    {
+      return -ENOMEM;
+    }
+
+  if (applied) *applied = true;
+  syslog(LOG_INFO, "AGENT LLM MiMo thinking=%s source=device-setting\n", type);
+  return 0;
+}
+
 static int llm_transport(const char *request, char *response, size_t capacity,
                          size_t *length, int *status, void *context,
                          int (*check)(void *), void *request_context)
 {
   struct cloud_backend_s *backend = context;
-  struct bkcloud_http_s *http = calloc(1, sizeof(*http));
-  if (!http) return -ENOMEM;
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  backend->trace_request = voice_channel_is_idle() ? 0 :
+                           voice_channel_request_id();
+#endif
+  struct bkcloud_http_s *http;
+  int ret = llm_http_acquire(backend, &http);
+  if (ret) return ret;
   struct llm_body_s body = { .data = request, .size = strlen(request) };
   char *adapted = NULL;
   *length = 0;
   *status = 0;
-  int ret = request_prepare(backend);
+  ret = request_prepare(backend);
   if (!ret && check) ret = check(request_context);
 
-  /* MiMo enables deep thinking by default. The product's restored/confirmed
-   * device setting is used; the service default is kept while the
-   * configuration is not ready, and an explicit thinking choice from the
-   * official caller is preserved. Only the selected service's protocol
-   * parameter is added here; model, messages, tools and session ownership are
-   * untouched.
+  /* Only the selected service's thinking parameter is added here. Model,
+   * messages, tools and session ownership stay untouched. An unset device
+   * preference takes the fast path instead of MiMo's thinking default.
    */
-  int thinking_mode = atomic_load(&g_thinking);
-  if (!ret && backend->service.dialect == 2 && thinking_mode >= 0)
+  if (!ret && backend->service.dialect == 2)
     {
       cJSON *root = cJSON_Parse(request);
+      bool applied = false;
       if (!cJSON_IsObject(root)) ret = -EPROTO;
-      else if (!cJSON_GetObjectItemCaseSensitive(root, "thinking"))
+      else ret = llm_apply_thinking(root, backend->service.dialect, &applied);
+      if (!ret && applied)
         {
-          cJSON *thinking = cJSON_AddObjectToObject(root, "thinking");
-          const char *type = thinking_mode ? "enabled" : "disabled";
-          if (!thinking || !cJSON_AddStringToObject(thinking, "type", type))
-            ret = -ENOMEM;
+          adapted = cJSON_PrintUnformatted(root);
+          if (!adapted) ret = -ENOMEM;
           else
             {
-              adapted = cJSON_PrintUnformatted(root);
-              if (!adapted) ret = -ENOMEM;
-              else
-                {
-                  body.data = adapted;
-                  body.size = strlen(adapted);
-                  syslog(LOG_INFO,
-                    "AGENT LLM MiMo thinking=%s source=device-setting\n", type);
-                }
+              body.data = adapted;
+              body.size = strlen(adapted);
             }
         }
       cJSON_Delete(root);
     }
 
-  if (!ret && atomic_load(&g_response_length) > 0)
+  if (!ret && (atomic_load(&g_response_length) > 0 || g_context_adapter))
     {
       cJSON *root = cJSON_Parse(adapted ? adapted : request);
       if (!cJSON_IsObject(root)) ret = -EPROTO;
       else if (!(ret = llm_apply_response_length(root)))
         {
-          char *next = cJSON_PrintUnformatted(root);
-          if (!next) ret = -ENOMEM;
-          else
+          if (g_context_adapter) ret = g_context_adapter(root);
+          char *next = !ret ? cJSON_PrintUnformatted(root) : NULL;
+          if (!next && !ret) ret = -ENOMEM;
+          if (next)
             {
               if (adapted)
                 {
@@ -714,10 +986,23 @@ static int llm_transport(const char *request, char *response, size_t capacity,
       cJSON_Delete(root);
     }
 
-  if (!ret) ret = bkcloud_http_post(http, &backend->service, "chat/completions",
-    &g_transport, backend, bkvoice_config_now_ms(NULL) + 60000u,
-    llm_body, &body, body.size, response, capacity);
+  if (!ret)
+    {
+      ret = bkcloud_http_post(http, &backend->service, "chat/completions",
+        &g_transport, backend, bkvoice_config_now_ms(NULL) + 60000u,
+        llm_body, &body, body.size, response, capacity);
+      if (llm_http_reconnect(backend, http, &ret, check, request_context))
+        {
+          body.offset = 0;
+          ret = bkcloud_http_post(http, &backend->service, "chat/completions",
+            &g_transport, backend, http->deadline_ms,
+            llm_body, &body, body.size, response, capacity);
+        }
+    }
   if (atomic_load(&backend->canceled)) ret = -ECANCELED;
+#ifdef CONFIG_BK7258_TTS_ALIYUN_BKTEST
+  if (ret) bkagent_aliyun_tts_preconnect_cancel(backend->trace_request);
+#endif
   *status = http->status;
   if (!ret) *length = http->received;
   if (adapted)
@@ -725,14 +1010,26 @@ static int llm_transport(const char *request, char *response, size_t capacity,
       mbedtls_platform_zeroize(adapted, body.size + 1);
       cJSON_free(adapted);
     }
-  mbedtls_platform_zeroize(http, sizeof(*http));
-  free(http);
+  llm_http_release(backend, ret);
   syslog(LOG_INFO, "AGENT LLM transport=verified-cloud status=%d ret=%d bytes=%zu\n",
          *status, ret, *length);
   return ret;
 }
 
-static int llm_cancel(void *context) { return request_cancel(context); }
+static int llm_cancel(void *context)
+{
+  struct cloud_backend_s *backend = context;
+  int ret = request_cancel(context);
+  if (pthread_mutex_trylock(&g_llm_request_lock) == 0)
+    {
+      bkcloud_http_close(backend->http_session);
+      pthread_mutex_unlock(&g_llm_request_lock);
+    }
+#ifdef CONFIG_BK7258_TTS_ALIYUN_BKTEST
+  bkagent_aliyun_tts_preconnect_cancel(backend->trace_request);
+#endif
+  return ret;
+}
 
 struct llm_stream_sink_s
 {
@@ -757,36 +1054,84 @@ static int llm_stream_transport(const char *request,
   int *status, void *context, int (*check)(void *), void *request_context)
 {
   struct cloud_backend_s *backend = context;
-  struct bkcloud_http_s *http = calloc(1, sizeof(*http));
-  if (!http) return -ENOMEM;
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  backend->trace_request = voice_channel_is_idle() ? 0 :
+                           voice_channel_request_id();
+#endif
+  struct bkcloud_http_s *http;
+  int ret = llm_http_acquire(backend, &http);
+  if (ret) return ret;
   *status = 0;
   struct llm_stream_sink_s sink =
     { http, receive, receive_context, check, request_context };
-  int ret = request_prepare(backend);
+  ret = request_prepare(backend);
   if (!ret && check) ret = check(request_context);
   cJSON *root = !ret ? cJSON_Parse(request) : NULL;
   char *adapted = NULL;
   if (!ret && !cJSON_IsObject(root)) ret = -EPROTO;
-  int thinking = atomic_load(&g_thinking);
-  if (!ret && backend->service.dialect == 2 && thinking >= 0 &&
-      !cJSON_GetObjectItemCaseSensitive(root, "thinking"))
-    {
-      cJSON *item = cJSON_AddObjectToObject(root, "thinking");
-      if (!item || !cJSON_AddStringToObject(item, "type",
-                                            thinking ? "enabled" : "disabled"))
-        ret = -ENOMEM;
-    }
+  if (!ret) ret = llm_apply_thinking(root, backend->service.dialect, NULL);
   if (!ret) ret = llm_apply_response_length(root);
+  if (!ret && g_context_adapter) ret = g_context_adapter(root);
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  if (!ret)
+    {
+      cJSON *thinking = cJSON_GetObjectItemCaseSensitive(root, "thinking");
+      cJSON *type = cJSON_IsObject(thinking) ?
+        cJSON_GetObjectItemCaseSensitive(thinking, "type") : NULL;
+      int enabled = cJSON_IsString(type) && type->valuestring &&
+                    strcmp(type->valuestring, "enabled") == 0;
+      agent_trace_stage(backend->trace_request, "llm_thinking", enabled, 0);
+    }
+#endif
   if (!ret)
     {
       adapted = cJSON_PrintUnformatted(root);
       if (!adapted) ret = -ENOMEM;
     }
   if (!ret)
-    ret = bkcloud_http_events(http, &backend->service, &g_transport, backend,
-      bkvoice_config_now_ms(NULL) + 60000u, adapted, strlen(adapted),
-      llm_stream_receive, &sink, 1024u * 1024u);
+    {
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+      agent_trace_stage(backend->trace_request, "llm_http_begin",
+                        strlen(adapted), 0);
+#endif
+      ret = bkcloud_http_events(http, &backend->service, &g_transport, backend,
+        bkvoice_config_now_ms(NULL) + 60000u, adapted, strlen(adapted),
+        llm_stream_receive, &sink, 1024u * 1024u);
+      if (llm_http_reconnect(backend, http, &ret, check, request_context))
+        ret = bkcloud_http_events(http, &backend->service, &g_transport, backend,
+          http->deadline_ms, adapted, strlen(adapted),
+          llm_stream_receive, &sink, 1024u * 1024u);
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+      agent_trace_stage(backend->trace_request, "llm_http_end",
+                        http->received, ret);
+#endif
+#ifdef CONFIG_BK7258_TTS_ISOLATION
+      syslog(LOG_INFO, "BKVOICE LLM receive request=%llu first_socket_ms=%llu "
+             "wait_ms=%llu wake_max_ms=%llu lock_max_ms=%llu "
+             "ssl_ms=%llu ssl_max_ms=%llu socket_max_ms=%llu reads=%u\n",
+             (unsigned long long)backend->trace_request,
+             (unsigned long long)backend->first_socket_data_ms,
+             (unsigned long long)backend->receive_total[1],
+             (unsigned long long)backend->receive_max[2],
+             (unsigned long long)backend->receive_max[3],
+             (unsigned long long)backend->receive_total[4],
+             (unsigned long long)backend->receive_max[4],
+             (unsigned long long)backend->receive_max[0],
+             backend->receive_count);
+      for (unsigned int i = 0; i < backend->receive_count && i < 4; i++)
+        syslog(LOG_INFO, "BKVOICE LLM read request=%llu index=%u "
+               "begin_ms=%llu end_ms=%llu wait_ms=%llu bytes=%d\n",
+               (unsigned long long)backend->trace_request, i,
+               (unsigned long long)backend->receive_first[i].begin,
+               (unsigned long long)backend->receive_first[i].end,
+               (unsigned long long)backend->receive_first[i].wait_ms,
+               backend->receive_first[i].bytes);
+#endif
+    }
   if (atomic_load(&backend->canceled)) ret = -ECANCELED;
+#ifdef CONFIG_BK7258_TTS_ALIYUN_BKTEST
+  if (ret) bkagent_aliyun_tts_preconnect_cancel(backend->trace_request);
+#endif
   *status = http->status;
   if (adapted)
     {
@@ -794,8 +1139,7 @@ static int llm_stream_transport(const char *request,
       cJSON_free(adapted);
     }
   cJSON_Delete(root);
-  mbedtls_platform_zeroize(http, sizeof(*http));
-  free(http);
+  llm_http_release(backend, ret);
   return ret;
 }
 
@@ -816,6 +1160,29 @@ int bkagent_cloud_activate_llm(void)
   return ret;
 }
 
+#ifdef CONFIG_BK7258_FACTORY_DIAGNOSTICS_CLAIMED_TEST
+int bkagent_cloud_test_llm_model(const char *model)
+{
+  if (!model || (strcmp(model, "mimo-v2.6-flash") &&
+                 strcmp(model, "mimo-v2.6-pro"))) return -EINVAL;
+  if (voice_asr_is_busy() || voice_tts_is_busy()) return -EBUSY;
+  pthread_mutex_lock(&g_config_lock);
+  int ret = !g_selected || g_llm.settings != g_selected ||
+            g_llm.service.dialect != 2 ? -ENOTCONN :
+    llm_set_transports(model, g_llm.service.host, llm_transport,
+                       llm_stream_transport, llm_cancel, &g_llm);
+  if (!ret)
+    {
+      strcpy(g_selected->service.chat_model, model);
+      strcpy(g_llm.service.chat_model, model);
+    }
+  pthread_mutex_unlock(&g_config_lock);
+  syslog(LOG_NOTICE, "BKVOICE test chat_model=%s result=%d persistent=0\n",
+         model, ret);
+  return ret;
+}
+#endif
+
 int bkagent_cloud_clear(void)
 {
   if (voice_asr_is_busy() || voice_tts_is_busy() || llm_request_busy())
@@ -826,6 +1193,9 @@ int bkagent_cloud_clear(void)
   if (ret) return ret;
   backend_release(&g_llm);
   backend_release(&g_tts);
+#ifdef CONFIG_AI_AGENT_TTS_REQUEST_OVERLAP
+  backend_release(&g_tts_prefetch);
+#endif
   backend_release(&g_asr);
   backend_release(&g_stream_asr);
   pthread_mutex_lock(&g_config_lock);
@@ -839,6 +1209,63 @@ int bkagent_cloud_clear(void)
 int bkagent_cloud_verify_service(void)
 {
   struct cloud_backend_s *backend = &g_llm;
+#ifdef CONFIG_BK7258_FACTORY_DIAGNOSTICS_CLAIMED_TEST
+  /* MiMo's official GET /v1/models authenticates without generating user
+   * content. Keep this debug admission probe on the existing verified HTTP
+   * owner, and require the selected ASR/LLM/TTS identifiers in its response.
+   */
+  char *response = calloc(1, 8193);
+  if (!response) return -ENOMEM;
+  struct bkcloud_http_s *http;
+  int ret = llm_http_acquire(backend, &http);
+  if (ret) { free(response); return ret; }
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  backend->trace_request = 0;
+#endif
+  unsigned int models = 0;
+  unsigned int available_chat = 0;
+  ret = request_prepare(backend);
+  if (!ret)
+    {
+      ret = bkcloud_http_models(http, &backend->service, &g_transport,
+        backend, bkvoice_config_now_ms(NULL) + 15000u, response, 8193);
+      if (llm_http_reconnect(backend, http, &ret, NULL, NULL))
+        ret = bkcloud_http_models(http, &backend->service, &g_transport,
+          backend, http->deadline_ms, response, 8193);
+    }
+  cJSON *root = !ret ? cJSON_Parse(response) : NULL;
+  if (!ret)
+    {
+      cJSON *object = cJSON_GetObjectItemCaseSensitive(root, "object");
+      cJSON *data = cJSON_GetObjectItemCaseSensitive(root, "data");
+      if (!cJSON_IsString(object) || strcmp(object->valuestring, "list") ||
+          !cJSON_IsArray(data)) ret = -EPROTO;
+      else
+        {
+          const char *required[] = { backend->service.asr_model,
+            backend->service.chat_model, backend->service.tts_model };
+          cJSON *entry;
+          cJSON_ArrayForEach(entry, data)
+            {
+              cJSON *id = cJSON_GetObjectItemCaseSensitive(entry, "id");
+              if (!cJSON_IsString(id)) continue;
+              if (!strcmp(id->valuestring, "mimo-v2.6-flash")) available_chat |= 1u;
+              if (!strcmp(id->valuestring, "mimo-v2.6-pro")) available_chat |= 2u;
+              if (!strcmp(id->valuestring, "mimo-v2.6-pro-ultraspeed")) available_chat |= 4u;
+              for (unsigned int i = 0; i < 3; i++)
+                if (!strcmp(id->valuestring, required[i])) models |= 1u << i;
+            }
+          if (models != 7u) ret = -ENOENT;
+        }
+    }
+  syslog(LOG_INFO, "AGENT service auth status=%u models=%u result=%d chat_mask=%u\n",
+         http->status, models, ret, available_chat);
+  cJSON_Delete(root);
+  mbedtls_platform_zeroize(response, 8193);
+  free(response);
+  llm_http_release(backend, ret);
+  return ret;
+#else
   int ret = request_prepare(backend);
   if (!ret) ret = cloud_open(backend, backend->service.host,
                              backend->service.port,
@@ -847,17 +1274,51 @@ int bkagent_cloud_verify_service(void)
   if (!ret) ret = closed;
   syslog(LOG_INFO, "AGENT service TLS verified=%d result=%d\n", ret == 0, ret);
   return ret;
+#endif
 }
 static int asr_request_prepare(void) { return request_prepare(&g_asr); }
-static int tts_request_prepare(void) { return request_prepare(&g_tts); }
+static int tts_request_prepare(void)
+{
+#ifdef CONFIG_AI_AGENT_TTS_REQUEST_OVERLAP
+  return !g_tts.settings ? -ENOKEY :
+    bkvoice_config_trusted_time(&g_tts.settings->trust);
+#else
+  return request_prepare(&g_tts);
+#endif
+}
 static int asr_cancel(void) { return request_cancel(&g_asr); }
-static int tts_cancel(void) { return request_cancel(&g_tts); }
+static int tts_cancel(void)
+{
+#ifdef CONFIG_AI_AGENT_TTS_REQUEST_OVERLAP
+  int ret = 0;
+  pthread_mutex_lock(&g_tts_slot_lock);
+  if (g_tts_slot_used[0]) ret = request_cancel(&g_tts);
+  if (g_tts_slot_used[1])
+    {
+      int next = request_cancel(&g_tts_prefetch);
+      if (!ret) ret = next;
+    }
+  pthread_mutex_unlock(&g_tts_slot_lock);
+  return ret;
+#else
+  return request_cancel(&g_tts);
+#endif
+}
 static void asr_release(void) { backend_release(&g_asr); }
-static void tts_release(void) { backend_release(&g_tts); }
+static void tts_release(void)
+{
+  backend_release(&g_tts);
+#ifdef CONFIG_AI_AGENT_TTS_REQUEST_OVERLAP
+  backend_release(&g_tts_prefetch);
+#endif
+}
 
 static int recognize(const unsigned char *pcm, size_t size,
                      char *text, size_t capacity)
 {
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  g_asr.trace_request = voice_channel_request_id();
+#endif
   struct bkcloud_client_s *client = calloc(1, sizeof(*client));
   if (!client) return -ENOMEM;
 #ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
@@ -889,6 +1350,7 @@ struct pcm_output_s
   mbedtls_sha256_context response_hash;
   int hash_result;
 #endif
+  struct cloud_backend_s *backend;
   voice_tts_chunk_cb callback;
   void *context;
   unsigned char *buffer;
@@ -906,13 +1368,14 @@ struct pcm_output_s
 
 static int pcm_write(struct pcm_output_s *output, const void *data, size_t size)
 {
-  if (atomic_load(&g_tts.canceled)) return -ECANCELED;
+  struct cloud_backend_s *backend = output->backend;
+  if (atomic_load(&backend->canceled)) return -ECANCELED;
   if (!size) return 0;
   if (output->callback)
     {
       /* The official callback creates, prepares and feeds its Media player. */
       output->callback(data, size, 0, output->context);
-      if (atomic_load(&g_tts.canceled)) return -ECANCELED;
+      if (atomic_load(&backend->canceled)) return -ECANCELED;
     }
   else
     {
@@ -936,8 +1399,30 @@ static int pcm_write(struct pcm_output_s *output, const void *data, size_t size)
                                                 data, size);
 #endif
   output->used += size;
-  return atomic_load(&g_tts.canceled) ? -ECANCELED : 0;
+  return atomic_load(&backend->canceled) ? -ECANCELED : 0;
 }
+
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+static void tts_parser_observe(void *context,
+                               enum bkcloud_tts_observation_e kind,
+                               uint64_t begin, uint64_t end,
+                               size_t bytes, int result)
+{
+  struct cloud_backend_s *backend = context;
+  uint32_t trace_kind = kind == BKCLOUD_TTS_OBSERVE_SSE_EVENT ? 16u : 17u;
+  agent_audio_observe(backend->trace_request, trace_kind, begin, end,
+                      bytes > UINT32_MAX ? UINT32_MAX : (uint32_t)bytes,
+                      result < 0 ? (uint32_t)-result : 0);
+}
+
+static void pcm_resample_observe(struct cloud_backend_s *backend,
+                                 uint64_t begin, size_t bytes)
+{
+  uint64_t end = bkvoice_config_now_ms(NULL);
+  agent_audio_observe(backend->trace_request, 18, begin, end,
+                      bytes > UINT32_MAX ? UINT32_MAX : (uint32_t)bytes, 0);
+}
+#endif
 
 static int16_t pcm_read_s16le(const unsigned char *data)
 {
@@ -957,12 +1442,16 @@ static void pcm_write_s16le(unsigned char *data, int16_t sample)
  * exact 3:2 linear conversion keeps state across arbitrary HTTP/SSE chunks. */
 static int pcm_frames(struct pcm_output_s *output, const void *data, size_t size)
 {
+  struct cloud_backend_s *backend = output->backend;
   const unsigned char *input = data;
   unsigned char converted[TTS_RESAMPLE_BUFFER_SIZE];
   size_t converted_size = 0;
   int ret;
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  uint64_t resample_begin = bkvoice_config_now_ms(NULL);
+#endif
 
-  if (atomic_load(&g_tts.canceled)) return -ECANCELED;
+  if (atomic_load(&backend->canceled)) return -ECANCELED;
   if (size & 1u) return -EPROTO;
   while (size)
     {
@@ -981,12 +1470,22 @@ static int pcm_frames(struct pcm_output_s *output, const void *data, size_t size
 
       if (converted_size == sizeof(converted))
         {
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+          pcm_resample_observe(backend, resample_begin, converted_size);
+#endif
           ret = pcm_write(output, converted, converted_size);
           if (ret != 0) return ret;
           converted_size = 0;
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+          resample_begin = bkvoice_config_now_ms(NULL);
+#endif
         }
     }
 
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  if (converted_size)
+    pcm_resample_observe(backend, resample_begin, converted_size);
+#endif
   return pcm_write(output, converted, converted_size);
 }
 
@@ -994,6 +1493,9 @@ static int pcm_finish(struct pcm_output_s *output)
 {
   unsigned char converted[2 * sizeof(int16_t)];
   size_t converted_size = 0;
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  uint64_t resample_begin = bkvoice_config_now_ms(NULL);
+#endif
 
   if (output->pending_count)
     {
@@ -1007,6 +1509,10 @@ static int pcm_finish(struct pcm_output_s *output)
       output->pending_count = 0;
     }
 
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+  if (converted_size)
+    pcm_resample_observe(output->backend, resample_begin, converted_size);
+#endif
   return pcm_write(output, converted, converted_size);
 }
 
@@ -1038,27 +1544,29 @@ static int pcm_output(void *context, const void *data, size_t size)
     }
 out:
 #ifdef CONFIG_BK7258_ENGINEERING_TEST
-  agent_audio_observe(g_tts.trace_request, 3, begin,
+  agent_audio_observe(output->backend->trace_request, 3, begin,
     bkvoice_config_now_ms(NULL), input_size, ret < 0 ? -ret : 0);
 #endif
   return ret;
 }
 
-static int synthesize(struct pcm_output_s *output, const char *text)
+static int synthesize_backend(struct cloud_backend_s *backend,
+                              struct pcm_output_s *output, const char *text)
 {
+  output->backend = backend;
 #ifdef CONFIG_BK7258_TTS_ISOLATION
   mbedtls_sha256_init(&output->response_hash);
   output->hash_result = mbedtls_sha256_starts(&output->response_hash, 0);
 #endif
 #ifdef CONFIG_BK7258_ENGINEERING_TEST
   uint64_t request = voice_channel_request_id();
-  if (request != g_tts.trace_request)
+  if (request != backend->trace_request)
     {
-      g_tts.trace_segment = 0;
+      backend->trace_segment = 0;
     }
 
-  g_tts.trace_request = request;
-  trace_content(request, "tts", ++g_tts.trace_segment, text);
+  backend->trace_request = request;
+  trace_content(request, "tts", ++backend->trace_segment, text);
 #endif
 #ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
   if (g_validation && g_validation_sentence < 2)
@@ -1072,10 +1580,16 @@ static int synthesize(struct pcm_output_s *output, const char *text)
   struct bkcloud_tts_s *decoder = calloc(1, sizeof(*decoder));
   int ret = -ENOMEM;
   if (client && decoder)
-    ret = bkcloud_synthesize(client, decoder, &g_tts.service,
-      &g_transport, &g_tts, bkvoice_config_now_ms(NULL) + 120000u,
-      text, pcm_output, output);
-  if (atomic_load(&g_tts.canceled)) ret = -ECANCELED;
+    ret = bkcloud_synthesize_observed(client, decoder, &backend->service,
+      &g_transport, backend, bkvoice_config_now_ms(NULL) + 120000u,
+      text, pcm_output, output,
+#ifdef CONFIG_BK7258_ENGINEERING_TEST
+      tts_parser_observe, backend
+#else
+      NULL, NULL
+#endif
+      );
+  if (atomic_load(&backend->canceled)) ret = -ECANCELED;
   if (ret == 0) ret = pcm_finish(output);
   if (ret == 0 && (output->used == 0 || output->has_tail)) ret = -EPROTO;
   if (ret == 0 && output->callback)
@@ -1099,20 +1613,63 @@ static int synthesize(struct pcm_output_s *output, const char *text)
         }
       encoded[64] = 0;
       syslog(LOG_INFO, "[tts-response] request=%llu bytes=%zu sha256=%s ret=%d\n",
-             (unsigned long long)g_tts.trace_request, output->used, encoded, ret);
+             (unsigned long long)backend->trace_request,
+             output->used, encoded, ret);
     }
   else syslog(LOG_WARNING, "[tts-response] hash_error=%d\n", output->hash_result);
   mbedtls_sha256_free(&output->response_hash);
 #endif
   syslog(LOG_INFO, "AGENT TTS backend=%s mode=%s source_rate=%u "
     "output_rate=%u ret=%d bytes=%zu\n",
-    g_tts.settings->service.dialect == 2 ? "mimo" : "openai-audio",
+    backend->settings->service.dialect == 2 ? "mimo" : "openai-audio",
     output->callback ? "audio-stream/full-text" : "batch",
     TTS_SOURCE_RATE, TTS_OUTPUT_RATE, ret, output->used);
 #ifdef CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION
   if (g_validation) g_validation_sentence++;
 #endif
   return ret;
+}
+
+#ifdef CONFIG_AI_AGENT_TTS_REQUEST_OVERLAP
+static struct cloud_backend_s *tts_slot_claim(void)
+{
+  struct cloud_backend_s *backend = NULL;
+  pthread_mutex_lock(&g_tts_slot_lock);
+  if (!g_tts_slot_used[0])
+    {
+      g_tts_slot_used[0] = true;
+      backend = &g_tts;
+    }
+  else if (!g_tts_slot_used[1])
+    {
+      g_tts_slot_used[1] = true;
+      backend = &g_tts_prefetch;
+    }
+  pthread_mutex_unlock(&g_tts_slot_lock);
+  return backend;
+}
+
+static void tts_slot_release(struct cloud_backend_s *backend)
+{
+  pthread_mutex_lock(&g_tts_slot_lock);
+  if (backend == &g_tts) g_tts_slot_used[0] = false;
+  else if (backend == &g_tts_prefetch) g_tts_slot_used[1] = false;
+  pthread_mutex_unlock(&g_tts_slot_lock);
+}
+#endif
+
+static int synthesize(struct pcm_output_s *output, const char *text)
+{
+#ifdef CONFIG_AI_AGENT_TTS_REQUEST_OVERLAP
+  struct cloud_backend_s *backend = tts_slot_claim();
+  if (!backend) return -EBUSY;
+  int ret = request_prepare(backend);
+  if (!ret) ret = synthesize_backend(backend, output, text);
+  tts_slot_release(backend);
+  return ret;
+#else
+  return synthesize_backend(&g_tts, output, text);
+#endif
 }
 
 static int synthesize_stream(const char *text, voice_tts_chunk_cb callback,
@@ -1149,8 +1706,14 @@ static int capabilities(voice_tts_capabilities_t *caps)
 #define ASR_OPS(label, prepare) \
   { .name = label, .init = prepare, .prepare_request = asr_request_prepare, \
     .recognize = recognize, .cancel = asr_cancel, .deinit = asr_release }
+#ifdef CONFIG_AI_AGENT_TTS_REQUEST_OVERLAP
+#define TTS_STREAM_CAPACITY 2
+#else
+#define TTS_STREAM_CAPACITY 1
+#endif
 #define TTS_OPS(label, prepare) \
-  { .name = label, .init = prepare, .prepare_request = tts_request_prepare, \
+  { .name = label, .max_streams = TTS_STREAM_CAPACITY, .init = prepare, \
+    .prepare_request = tts_request_prepare, \
     .synthesize = synthesize_batch, .synthesize_stream = synthesize_stream, \
     .get_capabilities = capabilities, \
     .cancel = tts_cancel, .deinit = tts_release }
@@ -1169,6 +1732,14 @@ int bkagent_cloud_register(void)
                     voice_tts_register(&g_tts_audio) };
   for (unsigned int i = 0; i < sizeof(results) / sizeof(results[0]); i++)
     if (results[i] != 0 && results[i] != -ENOKEY) return results[i];
+#ifdef CONFIG_BK7258_TTS_TENCENT_BKTEST
+  int tencent = bkagent_tencent_tts_register();
+  if (tencent != 0 && tencent != -ENOKEY) return tencent;
+#endif
+#ifdef CONFIG_BK7258_TTS_ALIYUN_BKTEST
+  int aliyun = bkagent_aliyun_tts_register();
+  if (aliyun != 0 && aliyun != -ENOKEY) return aliyun;
+#endif
   return 0;
 }
 
@@ -1272,6 +1843,9 @@ int bkagent_cloud_validation_begin(void)
    * provider nor persisted cloud, owner, model or voice selection is changed. */
   const char *asr = voice_asr_get_backend(), *tts = voice_tts_get_backend();
   if (g_validation || g_selected || g_asr.settings || g_tts.settings ||
+#ifdef CONFIG_AI_AGENT_TTS_REQUEST_OVERLAP
+      g_tts_prefetch.settings ||
+#endif
       g_llm.settings || g_stream_asr.settings || voice_asr_is_busy() ||
       voice_tts_is_busy() || llm_request_busy() || llm_final_stream_supported() ||
       !asr || strcmp(asr, "mimo") || !tts || strcmp(tts, "mimo")) return -EBUSY;

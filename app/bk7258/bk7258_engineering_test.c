@@ -188,14 +188,31 @@ static void voice_free(void)
 
 int bkengvoice_command(const uint8_t *p, size_t size)
 {
-  if (!p || size < 32 || size > 32 + 4096 || memcmp(p, "BVB1", 4) ||
+  if (!p || size < 32 || size > 32 +
+#if defined(CONFIG_BK7258_TTS_TENCENT_BKTEST) || \
+    defined(CONFIG_BK7258_TTS_ALIYUN_BKTEST)
+      8192 ||
+#else
+      4096 ||
+#endif
+      memcmp(p, "BVB1", 4) ||
       get32(p + 4) != 1 || get32(p + 28) != size - 32) return -EINVAL;
   uint32_t op = get32(p + 8), session = get32(p + 12);
   uint32_t seq = get32(p + 16), mode = get32(p + 20), value = get32(p + 24);
   size_t bytes = size - 32;
   if (!session || !seq) return -EINVAL;
-#ifdef CONFIG_BK7258_TTS_ISOLATION
-  if (mode > 3) return -EINVAL;
+#ifdef CONFIG_BK7258_FACTORY_DIAGNOSTICS_CLAIMED_TEST
+  if (mode > 6) return -EINVAL;
+#elif defined(CONFIG_BK7258_TTS_ISOLATION)
+  if (mode >
+#ifdef CONFIG_BK7258_TTS_ALIYUN_BKTEST
+      5
+#elif defined(CONFIG_BK7258_TTS_TENCENT_BKTEST)
+      4
+#else
+      3
+#endif
+      ) return -EINVAL;
 #else
   if (mode > 2) return -EINVAL;
 #endif
@@ -205,7 +222,15 @@ int bkengvoice_command(const uint8_t *p, size_t size)
     {
       if (seq != 1 || bytes || !value || (mode == 2 && value % 2))
         { ret = -EINVAL; goto out; }
-      if (value > (mode == 0 ? 12288u : mode == 2 ? 480000u : 4096u))
+      if (value > (mode == 0 ? 12288u : mode == 2 ? 480000u :
+#ifdef CONFIG_BK7258_FACTORY_DIAGNOSTICS_CLAIMED_TEST
+                   mode == 6 ? 9216u :
+#endif
+#if defined(CONFIG_BK7258_TTS_TENCENT_BKTEST) || \
+    defined(CONFIG_BK7258_TTS_ALIYUN_BKTEST)
+                   (mode == 4 || mode == 5) ? 8192u :
+#endif
+                   4096u))
         { ret = -E2BIG; goto out; }
       if (g_voice.borrowed || (g_voice.state >= BV_UPLOAD &&
           g_voice.state <= BV_RUNNING)) { ret = -EBUSY; goto out; }
@@ -279,7 +304,7 @@ int bkengvoice_take(struct bkengvoice_input_s *input)
       g_voice.borrowed = true;
       free(g_audio.records);
       memset(&g_audio, 0, sizeof(g_audio));
-      if (g_voice.mode)
+      if (g_voice.mode && g_voice.mode != 6)
         {
           g_audio.records = calloc(AUDIO_TRACE_CAPACITY, AUDIO_TRACE_RECORD);
           if (!g_audio.records) g_audio.dropped = 1;

@@ -1,9 +1,15 @@
+# The transactional store also serves Agent Skills without GATT provisioning.
+if(CONFIG_BK7258_PROVISION_GATT OR
+   (CONFIG_BK7258_APP_AGENT AND CONFIG_BK7258_VOICE_TLS))
+  target_sources(apps PRIVATE bk7258_provision_store.c)
+endif()
+
 if(CONFIG_BK7258_PROVISION_GATT)
   # The pinned NuttX already carries the connection-observation interfaces;
   # use the original headers instead of widening a shared header.
   target_include_directories(apps PRIVATE ${NUTTX_DIR}/wireless/bluetooth)
   target_sources(apps PRIVATE bk7258_provision_gatt.c bk7258_provision_tls.c
-                              bk7258_provision_claim.c bk7258_provision_store.c
+                              bk7258_provision_claim.c
                               bk7258_provision_pair.c bk7258_provision_scan.c bk7258_provision_settings.c bk7258_provision_config.c
                               bk7258_provision_storage.c bk7258_provision_owner.c
                               bk7258_provision_identity.c bk7258_provision_network.c
@@ -31,7 +37,8 @@ if(CONFIG_BK7258_APP_AGENT)
   target_include_directories(apps PRIVATE ${NUTTX_APPS_DIR}/netutils/cjson/cJSON)
   include(${NUTTX_DIR}/../vendor/beken/frameworks/cmake/agent_framework.cmake)
   target_sources(apps PRIVATE bk7258_agent_product.c bk7258_focus.c
-      bk7258_focus_intent.c bk7258_local_content.c)
+      bk7258_focus_intent.c bk7258_local_intent.c bk7258_local_content.c
+      bk7258_reply_expression.c)
   if(CONFIG_BK7258_VISION_SERVICE)
     target_sources(apps PRIVATE bk7258_agent_vision.c)
     if(CONFIG_BK7258_PROVISION_NATIVE)
@@ -54,8 +61,11 @@ if(CONFIG_BK7258_FACTORY_DIAGNOSTICS AND CONFIG_BK7258_AP_CORE)
 endif()
 
 if(CONFIG_BK7258_APP_AGENT AND CONFIG_BK7258_VOICE_TLS)
+  target_sources(apps PRIVATE bk7258_runtime_skills.c
+                              bk7258_runtime_skills_store.c)
   if(CONFIG_BK7258_PREFERENCES)
-    target_sources(apps PRIVATE bk7258_agent_memory.c bk7258_agent_memory_codec.c)
+    target_sources(apps PRIVATE bk7258_agent_memory.c bk7258_agent_memory_codec.c
+                                bk7258_memory_facts.c)
   endif()
   if(CONFIG_BK7258_OTA_MANAGER AND CONFIG_BK7258_OTA_SOURCE_HTTP AND
      CONFIG_BK7258_VOICE_OTA_PERSISTENCE)
@@ -75,6 +85,20 @@ if(CONFIG_BK7258_APP_AGENT AND CONFIG_BK7258_VOICE_TLS)
                               bk7258_cloud_config.c bk7258_cloud_request.c
                               bk7258_cloud_http.c bk7258_cloud_tts.c
                               bk7258_cloud_audio.c bk7258_agent_cloud.c)
+  if(CONFIG_BK7258_TTS_TENCENT_BKTEST)
+    target_sources(apps PRIVATE bk7258_tencent_tts.c)
+    set_property(SOURCE "${CMAKE_CURRENT_LIST_DIR}/bk7258_tencent_tts.c"
+      TARGET_DIRECTORY apps APPEND PROPERTY COMPILE_OPTIONS "-fstack-usage"
+      "-Werror=incompatible-pointer-types" "-Werror=int-conversion"
+      "-Werror=implicit-function-declaration")
+  endif()
+  if(CONFIG_BK7258_TTS_ALIYUN_BKTEST)
+    target_sources(apps PRIVATE bk7258_aliyun_tts.c)
+    set_property(SOURCE "${CMAKE_CURRENT_LIST_DIR}/bk7258_aliyun_tts.c"
+      TARGET_DIRECTORY apps APPEND PROPERTY COMPILE_OPTIONS "-fstack-usage"
+      "-Werror=incompatible-pointer-types" "-Werror=int-conversion"
+      "-Werror=implicit-function-declaration")
+  endif()
   if(CONFIG_BK7258_AUDIO_PIPELINE_VALIDATION)
     target_sources(apps PRIVATE bk7258_cloud_fixture.c)
   endif()

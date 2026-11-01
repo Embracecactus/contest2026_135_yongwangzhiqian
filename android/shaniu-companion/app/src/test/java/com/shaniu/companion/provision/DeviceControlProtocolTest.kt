@@ -6,6 +6,53 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DeviceControlProtocolTest {
+    @Test fun agentDocumentsUseBoundedReadAndWriteFrames() {
+        val sent = mutableListOf<ByteArray>()
+        val states = mutableListOf<DeviceControlProtocol.Snapshot>()
+        val protocol = DeviceControlProtocol(ByteArray(32) { 42 }, { sent += it.copyOf() },
+            { _, snapshot -> states += snapshot })
+        protocol.start(); protocol.receive(response(sent.last()))
+        for (kind in listOf(26, 27)) {
+            for ((offset, total) in listOf(0 to 17, 16 to 800, 4096 to 4111)) {
+                assertTrue(protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_READ,
+                    be32((kind shl 16) or offset)))
+                protocol.receive(response(sent.last(), flags = total))
+                assertEquals(total, states.last().configChunk!!.totalLength)
+            }
+            for (size in listOf(1, 4095)) {
+                assertTrue(protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN,
+                    ByteBuffer.allocate(8).putInt(kind).putInt(size).array()))
+                protocol.receive(response(sent.last()))
+            }
+            for (offset in listOf(1, 4112, 65520)) {
+                assertThrows(IllegalArgumentException::class.java) {
+                    protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_READ,
+                        be32((kind shl 16) or offset))
+                }
+            }
+            for (size in listOf(0, 4096)) {
+                assertThrows(IllegalArgumentException::class.java) {
+                    protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN,
+                        ByteBuffer.allocate(8).putInt(kind).putInt(size).array())
+                }
+            }
+        }
+        protocol.close()
+    }
+
+    @Test fun agentDocumentReadRejectsInvalidWireLength() {
+        for (kind in listOf(26, 27)) for (total in listOf(16, 4112)) {
+            val sent = mutableListOf<ByteArray>()
+            val protocol = DeviceControlProtocol(ByteArray(32) { 42 }, { sent += it.copyOf() }, { _, _ -> })
+            protocol.start(); protocol.receive(response(sent.last()))
+            assertTrue(protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_READ, be32(kind shl 16)))
+            assertThrows(IllegalStateException::class.java) {
+                protocol.receive(response(sent.last(), flags = total))
+            }
+            assertTrue(protocol.closed)
+        }
+    }
+
     @Test fun nfcConfigReadsAcceptLegacyAndExtendedLengthsWithBoundedOffsets() {
         val sent = mutableListOf<ByteArray>()
         val states = mutableListOf<DeviceControlProtocol.Snapshot>()

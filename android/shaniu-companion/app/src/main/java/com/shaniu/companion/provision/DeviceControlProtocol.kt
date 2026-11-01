@@ -101,10 +101,11 @@ internal class DeviceControlProtocol(
                 }
                 else ((kind in 1..2 || kind == 5 || kind == 7 || kind == 8) && offset % 16 == 0) ||
                     ((kind == 4 || kind == 6 || kind == 0x7fff) && offset == 0) ||
-                    (kind == 21 && offset in 0..16 && offset % 16 == 0) }
+                    (kind == 21 && offset in 0..16 && offset % 16 == 0) ||
+                    (kind in 26..27 && offset in 0..4096 && offset % 16 == 0) }
             Command.CONFIG_BEGIN -> payload.size == 8 && ByteBuffer.wrap(payload).let {
                 val kind = it.int; val size = it.int
-                when (kind) { 1 -> size in 15..393; 2 -> size in 137..65676; 3 -> size == 4; 4 -> size == 12; 5 -> size in 44..3371; 6 -> size == 12; 7 -> size in 52..9216; 21 -> size == 32; RESET_TRANSFER_KIND, 10 -> size == 32; 11 -> size == 32 || size == 72; 12 -> size == 40; 14 -> size == 88; 17 -> size == 96; else -> false } }
+                when (kind) { 1 -> size in 15..393; 2 -> size in 137..65676; 3 -> size == 4; 4 -> size == 12; 5 -> size in 44..3371; 6 -> size == 12; 7 -> size in 52..9216; 21 -> size == 32; 26, 27 -> size in 1..4095; RESET_TRANSFER_KIND, 10 -> size == 32; 11 -> size == 32 || size == 72; 12 -> size == 40; 14 -> size == 88; 17 -> size == 96; else -> false } }
             Command.CONFIG_APPEND -> payload.size in 1..512
             Command.CONFIG_APPLY, Command.CONFIG_CANCEL -> payload.isEmpty()
             else -> false
@@ -197,7 +198,8 @@ internal class DeviceControlProtocol(
                                 13 -> flags == 16 || flags == 48
                                 else -> flags == if (pendingReadReceipt) 32 else 64
                             })
-                            require(flags in 12..(when (pendingReadKind) { 7 -> 824; 8 -> 876; RESET_TRANSFER_KIND -> 28; else -> 393 }))
+                            if (pendingReadKind in 26..27) require(flags in 17..4111)
+                            else require(flags in 12..(when (pendingReadKind) { 7 -> 824; 8 -> 876; RESET_TRANSFER_KIND -> 28; else -> 393 }))
                             ConfigChunk(flags, input.copyOfRange(24, 40))
                         } else null
                         complete(command, Snapshot(error, false, false, null, null, null, null,

@@ -137,12 +137,13 @@ static int tts_events(void *context, const void *data, size_t size)
   return ret == 0 ? BKCLOUD_HTTP_STREAM_COMPLETE : ret;
 }
 
-int bkcloud_synthesize(struct bkcloud_client_s *client,
+int bkcloud_synthesize_observed(struct bkcloud_client_s *client,
                        struct bkcloud_tts_s *decoder,
                        const struct bkcloud_config_s *config,
                        const struct bkvoice_wss_tls_ops_s *tls, void *tls_context,
                        uint64_t deadline_ms, const char *text,
-                       bkcloud_write_t pcm, void *context)
+                       bkcloud_write_t pcm, void *context,
+                       bkcloud_tts_observe_t observe, void *observe_context)
 {
   cJSON *root = NULL;
   cJSON *messages;
@@ -159,6 +160,7 @@ int bkcloud_synthesize(struct bkcloud_client_s *client,
   if (config->dialect != 2) return -ENOTSUP;
   memset(client, 0, sizeof(*client));
   bkcloud_tts_init(decoder, pcm, context);
+  bkcloud_tts_set_observer(decoder, observe, observe_context);
   root = cJSON_CreateObject();
   if (!root) goto out;
   messages = cJSON_AddArrayToObject(root, "messages");
@@ -189,4 +191,16 @@ out:
   bkcloud_tts_clear(decoder);
   bkcloud_request_clear(&body_data, &body_size, &body_capacity);
   return ret;
+}
+
+int bkcloud_synthesize(struct bkcloud_client_s *client,
+                       struct bkcloud_tts_s *decoder,
+                       const struct bkcloud_config_s *config,
+                       const struct bkvoice_wss_tls_ops_s *tls, void *tls_context,
+                       uint64_t deadline_ms, const char *text,
+                       bkcloud_write_t pcm, void *context)
+{
+  return bkcloud_synthesize_observed(client, decoder, config, tls, tls_context,
+                                     deadline_ms, text, pcm, context,
+                                     NULL, NULL);
 }

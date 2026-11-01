@@ -67,6 +67,18 @@ static int make_reply(struct bkcloud_fixture_ctx_s *ctx)
     body = "{\"choices\":[{\"index\":0,\"finish_reason\":\"stop\",\"message\":{\"content\":\"{\\\"voice_phase\\\":\\\"final\\\"}\",\"tool_calls\":[]}}]}";
   else if (!ctx->stream)
     body = "{\"choices\":[{\"index\":0,\"finish_reason\":\"tool_calls\",\"message\":{\"content\":\"\",\"tool_calls\":[{\"id\":\"fixture-final\",\"type\":\"function\",\"function\":{\"name\":\"agent_finalize\",\"arguments\":\"{}\"}}]}}]}";
+  else if (ctx->decision_only)
+    {
+      pthread_mutex_lock(&g_lock);
+      ctx->tool_response = ctx->mode == BKCLOUD_FIXTURE_TOOL_STATUS &&
+                           g_report.decision_requests == 0;
+      pthread_mutex_unlock(&g_lock);
+      if (ctx->tool_response)
+        body = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"{\\\"voice_phase\\\":\\\"tools\\\",\\\"calls\\\":[{\\\"id\\\":\\\"fixture-status\\\",\\\"name\\\":\\\"device_status\\\",\\\"arguments\\\":{}}]}\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n";
+      else
+        body = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"{\\\"voice_phase\\\":\\\"final\\\",\\\"answer\\\":\\\"这是第一句。\"}}]}\n\n"
+               "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"这是尾句\\\"}\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n";
+    }
   else
     body = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"这是第一句。\"}}]}\n\n"
            "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"这是尾句\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n";
@@ -83,7 +95,15 @@ counted:
   pthread_mutex_lock(&g_lock);
   if (ctx->role == BKCLOUD_FIXTURE_ASR) g_report.asr_requests++;
   else if (ctx->role == BKCLOUD_FIXTURE_TTS) g_report.tts_requests++;
-  else if (ctx->stream) g_report.final_requests++;
+  else if (ctx->stream)
+    {
+      if (ctx->decision_only)
+        {
+          g_report.plan_requests++;
+          g_report.decision_requests++;
+        }
+      if (!ctx->tool_response) g_report.final_requests++;
+    }
   else
     {
       g_report.plan_requests++;
@@ -103,6 +123,7 @@ static int open_peer(void *arg, const char *host, uint16_t port, uint64_t due)
   ctx->offset = ctx->sent = ctx->scan_size = 0; ctx->reply_ready = false;
   ctx->stream = false; ctx->source_hash = 2166136261u;
   ctx->decision_only = false;
+  ctx->tool_response = false;
   pthread_mutex_lock(&g_lock); ctx->mode = g_mode; pthread_mutex_unlock(&g_lock);
   atomic_store(&ctx->canceled, false);
   ctx->opened = true; pthread_mutex_lock(&g_lock); g_active++;
@@ -125,10 +146,12 @@ static int wait_media(struct bkcloud_fixture_ctx_s *ctx)
          !atomic_load(&ctx->canceled))
     if (pthread_cond_timedwait(&g_media, &g_lock, &limit) == ETIMEDOUT) break;
   bool ready = g_media_started, canceled = atomic_load(&ctx->canceled);
-  if (ready && ctx->mode == BKCLOUD_FIXTURE_NORMAL)
+  bool normal = ctx->mode == BKCLOUD_FIXTURE_NORMAL ||
+                ctx->mode == BKCLOUD_FIXTURE_TOOL_STATUS;
+  if (ready && normal)
     g_report.tail_released_after_media = true;
   pthread_mutex_unlock(&g_lock);
-  return canceled ? -ECANCELED : ready && ctx->mode == BKCLOUD_FIXTURE_NORMAL ? 0 : -ETIMEDOUT;
+  return canceled ? -ECANCELED : ready && normal ? 0 : -ETIMEDOUT;
 }
 static ssize_t recv_peer(void *arg, uint8_t *data, size_t bytes, uint64_t due)
 {
@@ -137,6 +160,7 @@ static ssize_t recv_peer(void *arg, uint8_t *data, size_t bytes, uint64_t due)
   if (!ctx->reply_ready) { int ret = make_reply(ctx); if (ret) return ret; ctx->reply_ready = true; }
   /* Do not expose final SSE tail before Media reports the first actual write. */
   if (ctx->role == BKCLOUD_FIXTURE_LLM && ctx->stream &&
+      !ctx->tool_response &&
       ctx->offset >= ctx->tail_offset)
     { int ret = wait_media(ctx); if (ret) return ret; }
   if (atomic_load(&ctx->canceled)) return -ECANCELED;
@@ -172,7 +196,7 @@ int bkcloud_fixture_cancel(struct bkcloud_fixture_ctx_s *ctx)
 int bkcloud_fixture_end(struct bkcloud_fixture_ctx_s *ctx)
 { return ctx ? (ctx->opened ? -EBUSY : 0) : -EINVAL; }
 int bkcloud_fixture_reset(enum bkcloud_fixture_mode_e mode)
-{ if (mode > BKCLOUD_FIXTURE_FOCUS_FINISH) return -EINVAL;
+{ if (mode > BKCLOUD_FIXTURE_TOOL_STATUS) return -EINVAL;
   pthread_mutex_lock(&g_lock); if (g_active) { pthread_mutex_unlock(&g_lock); return -EBUSY; }
   memset(&g_report, 0, sizeof(g_report)); g_media_started = false; g_mode = mode;
   pthread_mutex_unlock(&g_lock); return 0; }

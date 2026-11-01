@@ -278,5 +278,63 @@ int main(void)
   assert(bkvoice_kws_feed(&kws, pcm, BKVOICE_KWS_HOP, 5000, &score) == 0);
   assert(state.resets == 3 && !kws.stream_ready);
   bkvoice_kws_uninitialize(&kws);
+
+  /* The product prefill must detect early speech without waiting three
+   * seconds. A continuous high score emits once; only a new recorder epoch
+   * may explicitly rearm without first observing a low score.
+   */
+
+  initialize(&kws, &state);
+  assert(bkvoice_kws_start(&kws) == 0);
+  assert(kws.rows == BKVOICE_KWS_ROWS);
+  for (unsigned int frame = 0; frame < 100; frame++)
+    {
+      int expected = frame == 3 * BKVOICE_KWS_INFER_HOPS - 1;
+      assert(feed_one(&kws, pcm, frame, &score) == expected);
+    }
+
+  assert(!kws.armed);
+  bkvoice_kws_pause(&kws);
+  assert(!kws.armed);
+  assert(bkvoice_kws_start(&kws) == 0);
+  for (unsigned int frame = 0; frame < 3 * BKVOICE_KWS_INFER_HOPS; frame++)
+    {
+      int expected = frame == 3 * BKVOICE_KWS_INFER_HOPS - 1;
+      assert(feed_one(&kws, pcm, frame, &score) == expected);
+    }
+
+  /* Streaming start retains causal zero-state semantics and consumes no
+   * invented frame. Both frontend versions share the product entry.
+   */
+
+  assert(bkvoice_kws_set_stream(&kws, fake_infer, fake_reset) == 0);
+  assert(bkvoice_kws_start(&kws) == 0);
+  assert(kws.rows == 0 && kws.pending == 0 && kws.armed);
+  assert(!kws.timestamp_valid && state.resets == 2);
+  bkvoice_kws_uninitialize(&kws);
+
+  /* Short causal peaks between full-window inference ticks must be observed.
+   * One isolated high frame must not satisfy consecutive confirmation.
+   */
+
+  initialize(&kws, &state);
+  bkvoice_kws_default_stream_policy(&kws.policy);
+  assert(kws.policy.consecutive == 5);
+  assert(bkvoice_kws_set_stream(&kws, fake_infer, fake_reset) == 0);
+  assert(bkvoice_kws_start(&kws) == 0);
+  for (unsigned int frame = 0; frame < 30; frame++)
+    {
+      state.mode = frame >= 5 && frame <= 9 ? SCORE_HIGH : SCORE_LOW;
+      assert(feed_one(&kws, pcm, frame, &score) == (frame == 9));
+    }
+
+  assert(bkvoice_kws_start(&kws) == 0);
+  for (unsigned int frame = 0; frame < 30; frame++)
+    {
+      state.mode = frame == 5 || frame == 7 ? SCORE_HIGH : SCORE_LOW;
+      assert(feed_one(&kws, pcm, frame, &score) == 0);
+    }
+
+  bkvoice_kws_uninitialize(&kws);
   return 0;
 }

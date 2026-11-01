@@ -5,7 +5,9 @@ from __future__ import annotations
 
 from bisect import bisect_right
 from datetime import datetime, timezone
+import base64
 import csv
+import hmac
 import hashlib
 import json
 from pathlib import Path
@@ -101,9 +103,9 @@ def voice_packet(operation, session, sequence, mode, value=0, payload=b""):
         or operation not in (1, 2, 3, 4)
         or not session
         or not sequence
-        or mode not in (0, 1, 2, 3)
+        or mode not in (0, 1, 2, 3, 4, 5, 6)
         or not isinstance(payload, bytes)
-        or len(payload) > 4096
+        or len(payload) > (8192 if mode in (4, 5) else 4096)
     ):
         raise HilTestError("Invalid voice benchmark packet")
     return struct.pack(">4s7I", b"BVB1", 1, *numbers, len(payload)) + payload
@@ -152,7 +154,7 @@ def decode_voice_status(wire):
         magic != b"BVS1"
         or version != 1
         or state > 6
-        or mode > 3
+        or mode > 6
         or received > total
         or canceled > 1
         or borrowed > 1
@@ -180,7 +182,8 @@ def voice_execute(
         not isinstance(payload, bytes)
         or not payload
         or len(payload)
-        > (12288 if mode == 0 else 480000 if mode == 2 else 4096)
+        > (12288 if mode == 0 else 9216 if mode == 6 else 480000 if mode == 2 else
+           8192 if mode in (4, 5) else 4096)
     ):
         raise HilTestError("Invalid voice benchmark payload")
     if not 1 <= timeout <= 240 or (
@@ -304,17 +307,23 @@ def audio_stream_report(trace):
     events = trace["events"]
     if len(events) > 8192:
         raise HilTestError("Audio trace exceeds device bound")
-    # Kinds 9..13 retain the BVA2 record layout and are only emitted by the
-    # development TTS isolation build. Keep them out of the established audio
-    # metrics so an isolation span cannot change a production gap statistic.
+    # Diagnostic kinds retain the BVA2 record layout but stay out of the
+    # established audio metrics. 9..13 are TTS-isolation internals; 14..15 are
+    # request-correlated TCP/TLS connection spans; 16..18 locate complete SSE
+    # events, Base64 decode and resampler output in engineering builds.
     diagnostic_names = {
         9: "socket_recv",
         10: "socket_readiness_wait",
         11: "readiness_to_poll_teardown",
         12: "crypto_lock",
         13: "ssl_read",
+        14: "tcp_connect",
+        15: "tls_handshake",
+        16: "sse_event_complete",
+        17: "base64_decode",
+        18: "resample_ready",
     }
-    by_kind = {kind: [] for kind in range(1, 14)}
+    by_kind = {kind: [] for kind in range(1, 19)}
     for seq, event in enumerate(events, 1):
         if (
             len(event) != 6
@@ -393,6 +402,15 @@ def audio_stream_report(trace):
         network_gap_ms=maximum(gaps(network, 3)),
         network_read_max_ms=maximum(e[3] - e[2] for e in by_kind[2]),
         decode_callback_max_ms=maximum(e[3] - e[2] for e in by_kind[3]),
+        sse_event_count=len(by_kind[16]),
+        sse_event_gap_ms=maximum(gaps(sorted(by_kind[16], key=lambda e: e[2]), 2)),
+        sse_event_max_bytes=maximum(e[4] for e in by_kind[16]),
+        base64_decode_max_ms=maximum(e[3] - e[2] for e in by_kind[17]),
+        base64_decoded_bytes=sum(e[4] for e in by_kind[17] if not e[5]),
+        resample_max_ms=maximum(e[3] - e[2] for e in by_kind[18]),
+        resample_output_bytes=sum(e[4] for e in by_kind[18] if not e[5]),
+        tcp_connect_ms=maximum(e[3] - e[2] for e in by_kind[14]),
+        tls_handshake_ms=maximum(e[3] - e[2] for e in by_kind[15]),
         queue_wait_max_ms=maximum(e[3] - e[2] for e in pcm),
         media_write_max_ms=maximum(e[3] - e[2] for e in by_kind[5]),
         media_gap_ms=maximum(e[4] for e in by_kind[8]),
@@ -409,6 +427,7 @@ def audio_stream_report(trace):
         attribution="unresolved; correlate spans and sentence boundaries",
         limitations=[
             "TLS receive timestamps cannot separate network delay from server generation.",
+            "SSE completion proves framing at the device, not when the server emitted bytes.",
             "Receive gaps can include local queue backpressure; compare read entry/exit.",
             "Queue empty waits are not physical DAC underruns or acoustic gaps.",
             "An incomplete trace cannot establish maxima or zero underflow.",
@@ -427,6 +446,9 @@ def audio_gap_report(turns):
         media = sorted((e for e in events if e[1] == 5), key=lambda e: e[2])
         requests = sorted((e for e in events if e[1] == 1), key=lambda e: e[2])
         responses = {e[4]: e for e in events if e[1] == 7}
+        sse_events = sorted((e for e in events if e[1] == 16), key=lambda e: e[2])
+        base64_spans = [e for e in events if e[1] == 17]
+        resample_spans = [e for e in events if e[1] == 18]
 
         def request_at(ms):
             prior = [e for e in requests if e[2] <= ms]
@@ -502,6 +524,8 @@ def audio_gap_report(turns):
 
             network_ms = overlap((e[2], e[3]) for e in events if e[1] == 2)
             enqueue_ms = overlap((e[2], e[3]) for e in pcm)
+            base64_ms = overlap((e[2], e[3]) for e in base64_spans)
+            resample_ms = overlap((e[2], e[3]) for e in resample_spans)
             between_ms = overlap(
                 (responses[e[4] - 1][3], e[2])
                 for e in requests
@@ -522,6 +546,20 @@ def audio_gap_report(turns):
             ]
             prior_read = max(prior_reads, key=lambda e: e[3], default=None)
             same_request = request_at(begin) == request_at(end)
+            reads_returned = [e for e in reads if begin < e[3] <= end]
+            sse_in_gap = [e for e in sse_events if begin < e[2] <= end]
+            next_sse = next((e for e in sse_events if e[2] > begin), None)
+            prior_sse_read = (
+                max((e for e in reads if next_sse and e[3] <= next_sse[2]),
+                    key=lambda e: e[3], default=None)
+                if next_sse
+                else None
+            )
+            progress = [begin] + [e[3] for e in reads_returned] + [end]
+            no_receive_return_ms = max(
+                (right_ms - left_ms for left_ms, right_ms in zip(progress, progress[1:])),
+                default=0,
+            )
             # This locates time after the last receive has returned and before
             # the decoder emits PCM. It includes parsing, locks and descheduling;
             # it does not assert that this thread was executing throughout.
@@ -539,8 +577,22 @@ def audio_gap_report(turns):
                 same_tts_request=same_request,
                 tls_read_overlap_ms=network_ms,
                 enqueue_wait_overlap_ms=enqueue_ms,
+                base64_decode_overlap_ms=base64_ms,
+                resample_overlap_ms=resample_ms,
                 between_requests_ms=between_ms,
                 post_receive_to_decode_ms=post_receive_ms,
+                tls_read_return_count=len(reads_returned),
+                tls_bytes_returned=sum(e[4] for e in reads_returned),
+                max_no_tls_return_ms=no_receive_return_ms,
+                sse_event_count=len(sse_in_gap),
+                next_sse_event_seq=next_sse[0] if next_sse else None,
+                next_sse_event_ms=next_sse[2] if next_sse else None,
+                next_sse_wait_ms=(next_sse[2] - begin if next_sse else None),
+                last_read_to_sse_ms=(
+                    next_sse[2] - prior_sse_read[3]
+                    if next_sse and prior_sse_read
+                    else None
+                ),
                 last_receive_seq=prior_read[0] if prior_read else None,
                 next_decode_seq=callback[0] if callback else None,
                 tls_read_sequences=[
@@ -548,17 +600,47 @@ def audio_gap_report(turns):
                 ],
             )
             classification, candidates = "unresolved", ["A", "B", "C", "D"]
-            if end > begin and network_ms * 5 >= (end - begin) * 4:
+            duration = end - begin
+            sse_telemetry = bool(sse_events or base64_spans or resample_spans)
+            pre_sse_ms = next_sse[2] - begin if next_sse else None
+            reads_before_sse = [
+                e for e in reads_returned if next_sse and e[3] < next_sse[2]
+            ]
+            if duration > 0 and enqueue_ms * 5 >= duration * 4:
+                classification, candidates = "queue_backpressure", ["C", "D"]
+            elif (
+                sse_telemetry
+                and pre_sse_ms is not None
+                and pre_sse_ms * 5 >= duration * 4
+                and network_ms * 5 >= duration * 4
+            ):
+                # At the device boundary no TLS receive returned before the
+                # complete SSE event. This proves the wait precedes local JSON,
+                # Base64, resampling and queue work, but cannot split cloud
+                # generation from transport delay.
+                classification, candidates = "no_tls_data_observed", ["A", "B"]
+            elif (
+                sse_telemetry
+                and pre_sse_ms is not None
+                and pre_sse_ms * 5 >= duration * 4
+                and reads_before_sse
+                and network_ms * 5 < duration * 4
+            ):
+                # Bytes returned on the device while no complete SSE event was
+                # available. They may be partial framing; device scheduling
+                # between feed calls remains a bounded alternative.
+                classification, candidates = "sse_event_assembly_wait", ["B", "C"]
+            elif duration > 0 and (base64_ms + resample_ms) * 5 >= duration * 4:
+                classification, candidates = "device_pcm_processing", ["C"]
+            elif duration > 0 and network_ms * 5 >= duration * 4:
                 # The measured call includes time when its device thread
                 # cannot run. Entry/return timestamps do not prove which
                 # peer, transport or scheduler made it wait.
                 classification, candidates = "receive_call_wait", ["A", "B", "C"]
-            elif end > begin and enqueue_ms * 5 >= (end - begin) * 4:
-                classification, candidates = "queue_backpressure", ["C", "D"]
             elif (
-                end > begin
+                duration > 0
                 and post_receive_ms is not None
-                and post_receive_ms * 5 >= (end - begin) * 4
+                and post_receive_ms * 5 >= duration * 4
                 and enqueue_ms == 0
             ):
                 classification, candidates = "device_pre_pcm_no_receive", ["C"]
@@ -619,6 +701,8 @@ def audio_gap_report(turns):
         limitations=[
             "Wait coverage locates blocking; it is not a proven root cause.",
             "TLS read spans cannot separate cloud generation, network and TLS scheduling.",
+            "No TLS return before SSE completion is a device-boundary observation, not a server timestamp.",
+            "Returned bytes before SSE completion can be partial framing; byte provenance is unavailable.",
             "Per-chunk TLS association is the latest preceding read, not byte provenance.",
             "Media timestamps map FIFO bytes to submission entry, not DAC or acoustics.",
             "Queue push is callback completion; a blocked callback can enqueue in parts.",
@@ -776,6 +860,20 @@ def voice_report(log, *, boot_id, input_marks=()):
             "endpoint_end",
             "asr_final",
             "first_pcm",
+            "pcm_enqueue_first",
+            "playback_watermark",
+            "consumer_wake",
+            "media_prepare_begin",
+            "media_prepare_end",
+            "media_open_begin",
+            "media_open_end",
+            "media_prepare_call_begin",
+            "media_prepare_call_end",
+            "media_start_call_begin",
+            "media_start_call_end",
+            "media_socket_ready",
+            "first_media_write_begin",
+            "first_media_write_end",
             "first_media",
             "channel_idle",
         ):
@@ -812,10 +910,31 @@ def voice_report(log, *, boot_id, input_marks=()):
         def first(stage):
             return next((e for e in indexed.get(stage, ()) if e["result"] == 0), None)
 
+        def last(stage):
+            return next(
+                (e for e in reversed(indexed.get(stage, ())) if e["result"] == 0),
+                None,
+            )
+
         def offset(stage):
             event = first(stage)
             return (
                 None if origin is None or event is None else event["mono_ms"] - origin
+            )
+
+        def last_offset(stage):
+            event = last(stage)
+            return (
+                None if origin is None or event is None else event["mono_ms"] - origin
+            )
+
+        def stage_delta(begin, end):
+            begin_event = first(begin)
+            end_event = first(end)
+            return (
+                end_event["mono_ms"] - begin_event["mono_ms"]
+                if begin_event is not None and end_event is not None
+                else None
             )
 
         mode = mark.get("input_mode")
@@ -851,15 +970,96 @@ def voice_report(log, *, boot_id, input_marks=()):
             "asr_start_ms": "asr_request",
             "asr_final_ms": "asr_final",
             "agent_ready_ms": "agent_ready",
+            "llm_request_ms": "voice_stream_request",
+            "llm_http_begin_ms": "llm_http_begin",
+            "llm_first_response_ms": "llm_first_response",
+            "llm_first_event_ms": "llm_first_event",
             "llm_first_token_ms": "llm_first_token",
             "body_first_character_ms": "final_first",
+            "speakable_ready_ms": "speakable_ready",
             "first_sentence_submit_ms": "tts_submit",
             "tts_first_pcm_ms": "first_pcm",
+            "pcm_enqueue_first_ms": "pcm_enqueue_first",
+            "playback_watermark_ms": "playback_watermark",
+            "consumer_wake_ms": "consumer_wake",
+            "media_prepare_begin_ms": "media_prepare_begin",
+            "media_open_begin_ms": "media_open_begin",
+            "media_open_end_ms": "media_open_end",
+            "media_prepare_call_begin_ms": "media_prepare_call_begin",
+            "media_prepare_call_end_ms": "media_prepare_call_end",
+            "media_start_call_begin_ms": "media_start_call_begin",
+            "media_start_call_end_ms": "media_start_call_end",
+            "media_socket_ready_ms": "media_socket_ready",
+            "media_prepare_end_ms": "media_prepare_end",
+            "first_media_write_begin_ms": "first_media_write_begin",
+            "first_media_write_end_ms": "first_media_write_end",
             "media_first_ms": "first_media",
             "dac_start_ms": "dac_first_pcm",
             "turn_complete_ms": "channel_idle",
         }
         turn.update({field: offset(stage) for field, stage in stages.items()})
+        turn["llm_complete_ms"] = last_offset("llm_complete")
+        turn["llm_http_end_ms"] = last_offset("llm_http_end")
+        llm_complete = last("llm_complete")
+        turn["llm_output_bytes"] = (
+            llm_complete["value"] if llm_complete is not None else None
+        )
+        thinking = [
+            event["value"]
+            for event in indexed.get("llm_thinking", ())
+            if event["result"] == 0
+        ]
+        turn["llm_thinking_enabled"] = (
+            bool(thinking[0])
+            if thinking and all(value == thinking[0] for value in thinking)
+            else None
+        )
+        prefill = first("playback_prefill")
+        turn["playback_prefill_bytes"] = (
+            prefill["value"] if prefill is not None else None
+        )
+        for field, stage in (
+            ("queue_capacity_requested_bytes", "queue_capacity_requested"),
+            ("queue_capacity_bytes", "queue_capacity"),
+            ("queue_capacity_fallback_bytes", "queue_capacity_fallback"),
+            ("queue_full_waits", "queue_full_waits"),
+            ("queue_full_wait_total_ms", "queue_full_wait_total_ms"),
+            ("queue_full_wait_max_ms", "queue_full_wait_max_ms"),
+        ):
+            event = last(stage)
+            turn[field] = event["value"] if event is not None else None
+        storage = last("queue_storage")
+        turn["queue_storage"] = (
+            "external"
+            if storage is not None and storage["value"] == 1
+            else "normal" if storage is not None and storage["value"] == 0 else None
+        )
+        turn.update(
+            first_pcm_to_enqueue_ms=stage_delta("first_pcm", "pcm_enqueue_first"),
+            enqueue_to_watermark_ms=stage_delta(
+                "pcm_enqueue_first", "playback_watermark"
+            ),
+            watermark_to_consumer_ms=stage_delta(
+                "playback_watermark", "consumer_wake"
+            ),
+            consumer_to_first_write_ms=stage_delta(
+                "consumer_wake", "first_media_write_begin"
+            ),
+            first_write_duration_ms=stage_delta(
+                "first_media_write_begin", "first_media_write_end"
+            ),
+            first_pcm_to_media_ms=stage_delta("first_pcm", "first_media"),
+            media_open_duration_ms=stage_delta("media_open_begin", "media_open_end"),
+            media_prepare_call_duration_ms=stage_delta(
+                "media_prepare_call_begin", "media_prepare_call_end"
+            ),
+            media_start_call_duration_ms=stage_delta(
+                "media_start_call_begin", "media_start_call_end"
+            ),
+            media_prepare_total_ms=stage_delta(
+                "media_prepare_begin", "media_prepare_end"
+            ),
+        )
         dac = mark.get("dac_output_mono_ms")
         turn["dac_evidence"] = mark.get("dac_evidence")
         if dac is not None:
@@ -920,12 +1120,16 @@ def voice_report(log, *, boot_id, input_marks=()):
             "pcm_max_gap_ms",
             "network_max_gap_ms",
             "queue_rebuffers",
+            "media_write_max_ms",
+            "playback_ready_gap_ms",
             "dac_underruns",
         ):
             turn[field] = None
         for field, stage in (
             ("pcm_max_gap_ms", "pcm_gap_max"),
             ("queue_rebuffers", "queue_rebuffers"),
+            ("media_write_max_ms", "media_write_max_ms"),
+            ("playback_ready_gap_ms", "playback_ready_gap_ms"),
         ):
             samples = indexed.get(stage, ())
             if samples:
@@ -1276,6 +1480,17 @@ def add_benchmark_arguments(parser):
 
     groups = parser.add_subparsers(dest="test_group", required=True)
     voice = groups.add_parser("voice").add_subparsers(dest="test_action", required=True)
+    persist = voice.add_parser(
+        "persist-config", help="bktest only: fill the existing owner-only development configuration"
+    )
+    workbench.add_connection_arguments(persist, port_required=True)
+    persist.add_argument("--development", action="store_true", required=True)
+    persist.add_argument("--cloud-config", type=Path, required=True)
+    persist.add_argument("--wifi-profile", required=True, help="existing Windows WLAN profile; its PSK stays in memory")
+    persist.add_argument("--expected-revision", type=int, required=True)
+    persist.add_argument("--ready-timeout", type=int, default=120)
+    persist.add_argument("--git-sha", required=True)
+    persist.add_argument("--output-dir", type=Path, required=True)
     benchmark = voice.add_parser(
         "benchmark", help="run fixed inputs on the existing BKTEST voice channel"
     )
@@ -1285,6 +1500,10 @@ def add_benchmark_arguments(parser):
     inputs.add_argument("--text")
     inputs.add_argument("--dialogue", type=Path)
     benchmark.add_argument("--repeat", type=int, default=1)
+    benchmark.add_argument(
+        "--llm-model", choices=("mimo-v2.6-flash", "mimo-v2.6-pro"),
+        help="bktest only: volatile chat-model comparison; restored on disconnect",
+    )
     benchmark.add_argument(
         "--audio-status",
         action="store_true",
@@ -1305,8 +1524,26 @@ def add_benchmark_arguments(parser):
         type=Path,
         help="private development JSON referencing key and CA DER files",
     )
+    benchmark.add_argument(
+        "--tencent-config",
+        type=Path,
+        help="ignored project-local docs/SecretKey.csv for one-boot Tencent signing",
+    )
+    benchmark.add_argument(
+        "--aliyun-config",
+        type=Path,
+        help="ignored project-local docs/aliyun.txt for one-boot Alibaba TTS",
+    )
     benchmark.add_argument("--turn-timeout", type=int, default=180)
+    benchmark.add_argument(
+        "--aliyun-preconnect", action="store_true",
+        help="bktest only: prepare the sole Alibaba task during the LLM request",
+    )
     benchmark.add_argument("--cancel-after-ms", type=int)
+    benchmark.add_argument(
+        "--cancel-first-only", action="store_true",
+        help="cancel only the first turn, then verify immediate same-client recovery",
+    )
     benchmark.add_argument("--git-sha", required=True)
     benchmark.add_argument("--output-dir", type=Path, required=True)
     isolation = voice.add_parser(
@@ -1332,7 +1569,19 @@ def add_benchmark_arguments(parser):
         type=Path,
         help="private development JSON referencing key and CA DER files",
     )
+    isolation.add_argument(
+        "--tencent-config",
+        type=Path,
+        help="ignored project-local docs/SecretKey.csv for one-boot Tencent signing",
+    )
+    isolation.add_argument(
+        "--aliyun-config",
+        type=Path,
+        help="ignored project-local docs/aliyun.txt for one-boot Alibaba TTS",
+    )
     isolation.add_argument("--turn-timeout", type=int, default=180)
+    isolation.add_argument("--aliyun-preconnect", action="store_true")
+    isolation.add_argument("--cancel-after-ms", type=int)
     isolation.add_argument("--git-sha", required=True)
     isolation.add_argument("--output-dir", type=Path, required=True)
 
@@ -1410,7 +1659,279 @@ def _benchmark_cloud(path):
     return record, public
 
 
+def _tencent_get_app_id(secret_id, secret_key):
+    """Read the account AppId through Tencent CAM without persisting identity."""
+    import urllib.error
+    import urllib.request
+
+    host = "cam.tencentcloudapi.com"
+    service = "cam"
+    action = "GetUserAppId"
+    version = "2019-01-16"
+    content_type = "application/json; charset=utf-8"
+    payload = b"{}"
+    timestamp = int(time.time())
+    date = datetime.fromtimestamp(timestamp, timezone.utc).strftime("%Y-%m-%d")
+    canonical_headers = f"content-type:{content_type}\nhost:{host}\n"
+    signed_headers = "content-type;host"
+    canonical_request = "\n".join(
+        (
+            "POST",
+            "/",
+            "",
+            canonical_headers,
+            signed_headers,
+            hashlib.sha256(payload).hexdigest(),
+        )
+    )
+    credential_scope = f"{date}/{service}/tc3_request"
+    string_to_sign = "\n".join(
+        (
+            "TC3-HMAC-SHA256",
+            str(timestamp),
+            credential_scope,
+            hashlib.sha256(canonical_request.encode("utf-8")).hexdigest(),
+        )
+    )
+
+    def sign(key, message):
+        return hmac.new(key, message.encode("utf-8"), hashlib.sha256).digest()
+
+    secret_date = sign(("TC3" + secret_key).encode("utf-8"), date)
+    secret_service = sign(secret_date, service)
+    secret_signing = sign(secret_service, "tc3_request")
+    signature = hmac.new(
+        secret_signing, string_to_sign.encode("utf-8"), hashlib.sha256
+    ).hexdigest()
+    authorization = (
+        "TC3-HMAC-SHA256 "
+        f"Credential={secret_id}/{credential_scope}, "
+        f"SignedHeaders={signed_headers}, Signature={signature}"
+    )
+    request = urllib.request.Request(
+        f"https://{host}",
+        data=payload,
+        method="POST",
+        headers={
+            "Authorization": authorization,
+            "Content-Type": content_type,
+            "Host": host,
+            "X-TC-Action": action,
+            "X-TC-Timestamp": str(timestamp),
+            "X-TC-Version": version,
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            if response.status != 200:
+                raise HilTestError("Tencent AppId lookup returned non-200 status")
+            body = response.read(16385)
+    except urllib.error.HTTPError as error:
+        raise HilTestError(
+            f"Tencent AppId lookup failed with HTTP {error.code}"
+        ) from None
+    except (OSError, TimeoutError, urllib.error.URLError) as error:
+        raise HilTestError("Tencent AppId lookup transport failed") from error
+    finally:
+        authorization = signature = string_to_sign = canonical_request = None
+        secret_date = secret_service = secret_signing = None
+    if len(body) > 16384:
+        raise HilTestError("Tencent AppId response exceeded bound")
+    try:
+        envelope = json.loads(body.decode("utf-8"))
+        response = envelope["Response"]
+        if "Error" in response:
+            code = response["Error"].get("Code", "Unknown")
+            if not isinstance(code, str) or not re.fullmatch(r"[A-Za-z0-9_.-]+", code):
+                code = "Unknown"
+            raise HilTestError(f"Tencent AppId lookup rejected: {code}")
+        app_id = response["AppId"]
+    except HilTestError:
+        raise
+    except (KeyError, TypeError, ValueError, UnicodeError, json.JSONDecodeError) as error:
+        raise HilTestError("Malformed Tencent AppId response") from error
+    if type(app_id) is not int or not 1 <= app_id <= 9999999999999999:
+        raise HilTestError("Tencent AppId response is out of range")
+    return app_id
+
+
+def _tencent_tts_record(path):
+    """Create one signed URL record from the ignored project CSV."""
+    import ipaddress
+    import os
+    import socket
+    import stat
+    from urllib.parse import quote
+    from . import voice
+
+    path = Path(path)
+    repository = Path(__file__).resolve().parents[3]
+    expected = repository / "docs" / "SecretKey.csv"
+    if path.resolve() != expected.resolve():
+        raise HilTestError("Use the ignored project docs/SecretKey.csv only")
+    voice._regular(path, "Tencent API credential", private=True)
+    if path.stat().st_size > 4096 or (os.name == "posix" and
+        stat.S_IMODE(path.stat().st_mode) & 0o077
+    ):
+        raise HilTestError("Tencent API credential must be private and bounded")
+    with path.open("r", encoding="utf-8-sig", newline="") as stream:
+        reader = csv.DictReader(stream)
+        rows = list(reader)
+    if reader.fieldnames is None or set(reader.fieldnames) != {
+        "SecretId", "SecretKey"
+    } or len(rows) != 1:
+        raise HilTestError("Tencent credential CSV needs one complete credential row")
+    secret_id = rows[0].get("SecretId", "").strip()
+    secret_key = rows[0].get("SecretKey", "").strip()
+    if (
+        not 8 <= len(secret_id) <= 128
+        or not 16 <= len(secret_key) <= 256
+        or any(ord(ch) < 0x21 or ord(ch) > 0x7E for ch in secret_id + secret_key)
+    ):
+        raise HilTestError("Invalid Tencent credential structure")
+
+    app_id = _tencent_get_app_id(secret_id, secret_key)
+    voice_type = 101001
+
+    timestamp = int(time.time())
+    session_id = str(uuid.uuid4())
+    parameters = {
+        "Action": "TextToStreamAudioWSv2",
+        "AppId": str(app_id),
+        "Codec": "pcm",
+        "Expired": str(timestamp + 300),
+        "SampleRate": "16000",
+        "SecretId": secret_id,
+        "SessionId": session_id,
+        "Speed": "0",
+        "Timestamp": str(timestamp),
+        "VoiceType": str(voice_type),
+        "Volume": "0",
+    }
+    canonical_query = "&".join(
+        f"{key}={parameters[key]}" for key in sorted(parameters)
+    )
+    canonical = "GETtts.cloud.tencent.com/stream_wsv2?" + canonical_query
+    signature = base64.b64encode(
+        hmac.new(secret_key.encode("ascii"), canonical.encode("ascii"), hashlib.sha1).digest()
+    ).decode("ascii")
+    signed_query = "&".join(
+        f"{quote(key, safe='')}={quote(parameters[key], safe='')}"
+        for key in sorted(parameters)
+    ) + "&Signature=" + quote(signature, safe="")
+    signed_path = ("/stream_wsv2?" + signed_query).encode("ascii")
+
+    ca_path = repository.parent / "out" / "voice-latency-r7-device-20261028" / "globalsign-root-r3.der"
+    voice._regular(ca_path, "Tencent server CA", private=False)
+    if not 1 <= ca_path.stat().st_size <= 4096:
+        raise HilTestError("Bounded Tencent CA DER file required")
+    ca = ca_path.read_bytes()
+    address = ipaddress.IPv4Address(
+        socket.gethostbyname("tts.cloud.tencent.com")
+    ).packed
+    record = struct.pack(
+        ">4sIQII4s4x", b"BVT1", 1, timestamp, len(ca), len(signed_path), address
+    ) + ca + signed_path
+    if len(record) > 8192:
+        raise HilTestError("Tencent one-boot authorization exceeds device bound")
+    public = dict(
+        provider="tencent-stream-wsv2",
+        voice_type=voice_type,
+        sample_rate=16000,
+        codec="pcm",
+        signed_url_ttl_seconds=300,
+        app_id_source="cam.GetUserAppId",
+        ca_sha256=hashlib.sha256(ca).hexdigest(),
+    )
+    # Do not add the signed URL, credential fields, their hashes or paths to
+    # any result. Python strings are process-local; drop references promptly.
+    secret_key = secret_id = signature = canonical = canonical_query = None
+    signed_query = signed_path = None
+    return record, public
+
+
+def _aliyun_tts_record(path, *, preconnect=False):
+    """Build one volatile Qwen TTS authorization record from docs/aliyun.txt."""
+    import ipaddress
+    import os
+    import socket
+    import stat
+    from . import voice
+
+    path = Path(path)
+    repository = Path(__file__).resolve().parents[3]
+    expected = repository / "docs" / "aliyun.txt"
+    if path.resolve() != expected.resolve():
+        raise HilTestError("Use the ignored project docs/aliyun.txt only")
+    voice._regular(path, "Alibaba API credential", private=True)
+    if (
+        not 1 <= path.stat().st_size <= 4096
+        or (
+            os.name == "posix"
+            and stat.S_IMODE(path.stat().st_mode) & 0o077
+        )
+    ):
+        raise HilTestError("Alibaba API credential must be private and bounded")
+    api_key = path.read_text(encoding="ascii").strip()
+    if (
+        not 8 <= len(api_key) <= 256
+        or any(ord(ch) < 0x21 or ord(ch) > 0x7E for ch in api_key)
+    ):
+        raise HilTestError("Invalid Alibaba API credential structure")
+
+    host = "llm-d1hvy2bes12kocx6.cn-beijing.maas.aliyuncs.com"
+    timestamp = int(time.time())
+    ca_path = (
+        repository.parent
+        / "out"
+        / "voice-latency-r7-device-20261028"
+        / "globalsign-root-r3.der"
+    )
+    voice._regular(ca_path, "Alibaba server CA", private=False)
+    if not 1 <= ca_path.stat().st_size <= 4096:
+        raise HilTestError("Bounded Alibaba CA DER file required")
+    ca = ca_path.read_bytes()
+    address = ipaddress.IPv4Address(socket.gethostbyname(host)).packed
+    key_bytes = api_key.encode("ascii")
+    record = (
+        struct.pack(
+            ">4sIQII4sI",
+            b"BVA1",
+            1,
+            timestamp,
+            len(ca),
+            len(key_bytes),
+            address,
+            int(bool(preconnect)),
+        )
+        + ca
+        + key_bytes
+    )
+    if len(record) > 8192:
+        raise HilTestError("Alibaba one-boot authorization exceeds device bound")
+    public = dict(
+        provider="aliyun-qwen-audio-tts",
+        workspace="llm-d1hvy2bes12kocx6",
+        region="cn-beijing",
+        model="qwen-audio-3.1-tts-flash",
+        voice="longanhuan_v3.1",
+        sample_rate=16000,
+        codec="pcm",
+        preconnect_enabled=bool(preconnect),
+        ca_sha256=hashlib.sha256(ca).hexdigest(),
+    )
+    # Never add the API key, its hash or its path to a result artifact.
+    api_key = key_bytes = None
+    return record, public
+
+
 def run_benchmark(args):
+    if getattr(args, "aliyun_preconnect", False) and not getattr(args, "aliyun_config", None):
+        raise HilTestError("--aliyun-preconnect requires --aliyun-config")
+    if getattr(args, "tencent_config", None) is not None and getattr(
+        args, "aliyun_config", None
+    ) is not None:
+        raise HilTestError("Select only one experimental TTS provider")
     baseline = None
     if getattr(args, "audio_baseline", None):
         if (
@@ -1430,6 +1951,15 @@ def run_benchmark(args):
     turns = voice_inputs(
         wav=args.wav, text=args.text, dialogue=args.dialogue, repeat=args.repeat
     )
+    if getattr(args, "llm_model", None) and any(
+        getattr(args, key, None)
+        for key in ("cloud_config", "tencent_config", "aliyun_config")
+    ):
+        raise HilTestError("Chat-model comparison retains the installed cloud and TTS")
+    if getattr(args, "cancel_first_only", False) and (
+        args.cancel_after_ms is None or len(turns) < 2
+    ):
+        raise HilTestError("--cancel-first-only requires cancellation and two turns")
     cloud, cloud_public = (
         _benchmark_cloud(args.cloud_config) if args.cloud_config else (None, None)
     )
@@ -1440,6 +1970,8 @@ def run_benchmark(args):
         execution_performed=False,
         declared_source_sha=args.git_sha,
         cloud=cloud_public,
+        tts_provider=None,
+        llm_model_override=getattr(args, "llm_model", None),
         turns=[],
         measurement_scope="injected completed input; microphone and endpoint bypassed",
         latency_source="AP voice-stage UART ledger; merge with hil-test voice-report",
@@ -1454,8 +1986,24 @@ def run_benchmark(args):
 
     try:
         with workbench.authorized_client(args) as client:
-            result["firmware"] = client.info()
+            # BKTEST images may deliberately omit product OTA, whose INFO
+            # command then returns NuttX -ENOTSUP (-138).  INFO is provenance,
+            # not a prerequisite for the authenticated engineering turn, so
+            # query it only after all commands and trace readback are complete.
+            result["firmware"] = {
+                "info_status": "pending",
+                "declared_source_sha": args.git_sha,
+            }
             session = client.engineering_voice_status()["session"] + 1
+            if getattr(args, "llm_model", None):
+                result["model_selection"] = voice_execute(
+                    client, session=session, mode=0,
+                    payload=b"BVM1" + args.llm_model.encode("ascii"), timeout=30,
+                )
+                save()
+                if result["model_selection"]["result"]:
+                    raise HilTestError("Model selection failed; inspect numeric receipt")
+                session += 1
             if cloud is not None:
                 result["configuration"] = voice_execute(
                     client, session=session, mode=0, payload=cloud, timeout=30
@@ -1468,6 +2016,9 @@ def run_benchmark(args):
                 session += 1
             save()
             for index, turn in enumerate(turns):
+                cancel_ms = args.cancel_after_ms
+                if getattr(args, "cancel_first_only", False) and index:
+                    cancel_ms = None
                 entry = {key: value for key, value in turn.items() if key != "payload"}
                 entry.update(
                     turn_index=index + 1,
@@ -1475,16 +2026,58 @@ def run_benchmark(args):
                     session=session,
                     total_ms=None,
                     progress={},
+                    cancel_after_ms=cancel_ms,
                 )
                 result["turns"].append(entry)
                 save()
+                if getattr(args, "tencent_config", None) is not None:
+                    authorization, public = _tencent_tts_record(args.tencent_config)
+                    if result["tts_provider"] is None:
+                        result["tts_provider"] = public
+                    entry["tts_authorization"] = voice_execute(
+                        client,
+                        session=session,
+                        mode=4,
+                        payload=authorization,
+                        timeout=30,
+                    )
+                    authorization = None
+                    if entry["tts_authorization"]["result"]:
+                        raise HilTestError(
+                            "Tencent volatile setup failed; inspect numeric receipt"
+                        )
+                    session += 1
+                    entry["session"] = session
+                    save()
+                elif getattr(args, "aliyun_config", None) is not None:
+                    authorization, public = _aliyun_tts_record(
+                        args.aliyun_config,
+                        preconnect=getattr(args, "aliyun_preconnect", False),
+                    )
+                    if result["tts_provider"] is None:
+                        result["tts_provider"] = public
+                    entry["tts_authorization"] = voice_execute(
+                        client,
+                        session=session,
+                        mode=5,
+                        payload=authorization,
+                        timeout=30,
+                    )
+                    authorization = None
+                    if entry["tts_authorization"]["result"]:
+                        raise HilTestError(
+                            "Alibaba volatile setup failed; inspect numeric receipt"
+                        )
+                    session += 1
+                    entry["session"] = session
+                    save()
                 entry["observation"] = voice_execute(
                     client,
                     session=session,
                     mode=turn["mode"],
                     payload=turn["payload"],
                     timeout=args.turn_timeout,
-                    cancel_after_ms=args.cancel_after_ms,
+                    cancel_after_ms=cancel_ms,
                     progress=entry["progress"],
                 )
                 if (
@@ -1492,7 +2085,10 @@ def run_benchmark(args):
                     or getattr(args, "audio_status", False)
                 ) and entry["observation"]["request_id"]:
                     request_id = entry["observation"]["request_id"]
-                    deadline = time.monotonic() + 10
+                    immediate_recovery = (
+                        getattr(args, "cancel_first_only", False) and index == 0
+                    )
+                    deadline = time.monotonic() + (0 if immediate_recovery else 10)
                     while True:
                         header = client.engineering_audio_trace(
                             request_id, header_only=True
@@ -1569,12 +2165,23 @@ def run_benchmark(args):
                         encoding="utf-8",
                     )
                 save()
-                expected = -125 if args.cancel_after_ms is not None else 0
+                expected = -125 if cancel_ms is not None else 0
                 if entry["observation"]["result"] != expected:
                     raise HilTestError(
                         "Voice turn failed or cancellation was not observed"
                     )
                 session += 1
+            try:
+                result["firmware"] = client.info()
+            except workbench.DeviceRejected as error:
+                if error.code != -138:  # NuttX ENOTSUP
+                    raise
+                result["firmware"] = {
+                    "info_status": "unsupported",
+                    "error": error.code,
+                    "declared_source_sha": args.git_sha,
+                }
+            save()
     finally:
         cloud = None
         executions = [
@@ -1609,6 +2216,13 @@ def run_tts_isolation(args):
     """Run one fixed TTS-only development turn on the existing BKTEST channel."""
     from . import workbench
 
+    if getattr(args, "aliyun_preconnect", False) and not getattr(args, "aliyun_config", None):
+        raise HilTestError("--aliyun-preconnect requires --aliyun-config")
+
+    if getattr(args, "tencent_config", None) is not None and getattr(
+        args, "aliyun_config", None
+    ) is not None:
+        raise HilTestError("Select only one experimental TTS provider")
     if not re.fullmatch(r"[0-9a-f]{40}", args.git_sha):
         raise HilTestError("Invalid source identity")
     source = tts_isolation_input(args.input_text)
@@ -1623,10 +2237,12 @@ def run_tts_isolation(args):
         execution_performed=False,
         declared_source_sha=args.git_sha,
         cloud=cloud_public,
+        tts_provider=None,
         input={key: source[key] for key in ("bytes", "sha256")},
         total_ms=None,
         measurement_scope="fixed UTF-8 TTS input; ASR and LLM are not invoked",
         latency_source="AP voice-stage UART ledger; merge with hil-test voice-report",
+        cancel_after_ms=getattr(args, "cancel_after_ms", None),
     )
     path = args.output_dir / "voice_tts_isolation.json"
 
@@ -1637,7 +2253,10 @@ def run_tts_isolation(args):
 
     try:
         with workbench.authorized_client(args) as client:
-            result["firmware"] = client.info()
+            result["firmware"] = {
+                "info_status": "pending",
+                "declared_source_sha": args.git_sha,
+            }
             session = client.engineering_voice_status()["session"] + 1
             if cloud is not None:
                 result["configuration"] = voice_execute(
@@ -1649,6 +2268,41 @@ def run_tts_isolation(args):
                         "Development cloud setup failed; inspect numeric receipt"
                     )
                 session += 1
+            if getattr(args, "tencent_config", None) is not None:
+                authorization, public = _tencent_tts_record(args.tencent_config)
+                result["tts_provider"] = public
+                result["tts_authorization"] = voice_execute(
+                    client,
+                    session=session,
+                    mode=4,
+                    payload=authorization,
+                    timeout=30,
+                )
+                authorization = None
+                if result["tts_authorization"]["result"]:
+                    raise HilTestError(
+                        "Tencent volatile setup failed; inspect numeric receipt"
+                    )
+                session += 1
+            elif getattr(args, "aliyun_config", None) is not None:
+                authorization, public = _aliyun_tts_record(
+                    args.aliyun_config,
+                    preconnect=getattr(args, "aliyun_preconnect", False),
+                )
+                result["tts_provider"] = public
+                result["tts_authorization"] = voice_execute(
+                    client,
+                    session=session,
+                    mode=5,
+                    payload=authorization,
+                    timeout=30,
+                )
+                authorization = None
+                if result["tts_authorization"]["result"]:
+                    raise HilTestError(
+                        "Alibaba volatile setup failed; inspect numeric receipt"
+                    )
+                session += 1
             save()
             result["session"] = session
             result["progress"] = {}
@@ -1658,11 +2312,13 @@ def run_tts_isolation(args):
                 mode=3,
                 payload=source["payload"],
                 timeout=args.turn_timeout,
+                cancel_after_ms=getattr(args, "cancel_after_ms", None),
                 progress=result["progress"],
             )
             result["execution_performed"] = result["progress"]["execution_performed"]
-            if result["observation"]["result"]:
-                raise HilTestError("TTS isolation turn failed")
+            expected = -125 if getattr(args, "cancel_after_ms", None) is not None else 0
+            if result["observation"]["result"] != expected:
+                raise HilTestError("TTS isolation failed or cancellation was not observed")
             request_id = result["observation"]["request_id"]
             if (args.audio_trace or args.audio_status) and request_id:
                 deadline = time.monotonic() + 10
@@ -1687,6 +2343,16 @@ def run_tts_isolation(args):
                 result["audio_stream"].update(
                     input_sha256=source["sha256"], input_mode="tts", run_id=result["run_id"]
                 )
+            try:
+                result["firmware"] = client.info()
+            except workbench.DeviceRejected as error:
+                if error.code != -138:  # NuttX ENOTSUP
+                    raise
+                result["firmware"] = {
+                    "info_status": "unsupported",
+                    "error": error.code,
+                    "declared_source_sha": args.git_sha,
+                }
     finally:
         cloud = None
         save()
@@ -1724,7 +2390,87 @@ def run_tts_isolation(args):
     )
 
 
+def run_persist_config(args):
+    import os
+    import subprocess
+    from . import workbench
+
+    if (os.name != "nt" or not args.development
+        or not 0 < args.expected_revision < 2**64
+        or not 1 <= args.ready_timeout <= 180
+        or not re.fullmatch(r"[0-9a-f]{40}", args.git_sha)):
+        raise HilTestError("Invalid development persistence parameters")
+    ssid = args.wifi_profile.encode("utf-8")
+    if not 1 <= len(ssid) <= 32 or b"\0" in ssid:
+        raise HilTestError("Invalid WLAN profile name")
+    wlan = subprocess.run(
+        ["netsh", "wlan", "show", "profile", "name=" + args.wifi_profile, "key=clear"],
+        capture_output=True, timeout=15,
+    )
+    password = None
+    if not wlan.returncode:
+        for encoding in ("utf-8", "gb18030"):
+            try:
+                text = wlan.stdout.decode(encoding)
+            except UnicodeDecodeError:
+                continue
+            for line in text.splitlines():
+                label, separator, value = line.partition(":")
+                if separator and label.strip() in ("Key Content", "关键内容"):
+                    password = value.strip().encode("utf-8")
+                    break
+            if password is not None:
+                break
+    if password is None or not 8 <= len(password) <= 64 or b"\0" in password:
+        raise HilTestError("Existing WLAN profile does not expose a valid PSK")
+    record, public = _benchmark_cloud(args.cloud_config)
+    magic, version, utc, ca_size, cloud_size, address = struct.unpack(
+        ">4sIQII4s4x", record[:32]
+    )
+    operation = uuid.uuid4().bytes
+    ca, cloud = record[32:32 + ca_size], record[32 + ca_size:]
+    payload = struct.pack(
+        ">4s16sQIQ4H4s", b"SCP1", operation, args.expected_revision, 15, utc,
+        len(ssid), len(password), cloud_size, ca_size, address,
+    ) + ssid + password + cloud + ca
+    record = password = text = wlan = None
+    args.output_dir.mkdir(parents=True, exist_ok=False)
+    result = dict(
+        schema="shaniu.development-config-persistence/1",
+        declared_source_sha=args.git_sha,
+        operation=operation.hex(), expected_revision=args.expected_revision,
+        fields=["wifi_ssid", "wifi_psk", "tls_ca", "cloud_endpoint", "cloud_api_key", "asr_model", "chat_model", "tts_model", "utc", "peer_ipv4"],
+        cloud=public, submission=None, runtime=None, ready_observed=False,
+        durability_proven_by_cold_boot=False,
+    )
+    try:
+        with workbench.authorized_client(args) as client:
+            session = client.engineering_voice_status()["session"] + 1
+            result["submission"] = voice_execute(
+                client, session=session, mode=6, payload=payload, timeout=30,
+            )
+            payload = None
+            if result["submission"]["result"]:
+                raise HilTestError("Development settings submission failed; inspect numeric receipt")
+            deadline = time.monotonic() + args.ready_timeout
+            while time.monotonic() < deadline:
+                result["runtime"] = client.status()
+                if result["runtime"]["ready"]:
+                    result["ready_observed"] = True
+                    break
+                time.sleep(0.25)
+            if not result["ready_observed"]:
+                raise HilTestError("Normal cloud admission timed out; inspect runtime and board stages")
+    finally:
+        (args.output_dir / "persistence.json").write_text(
+            json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+    return result
+
+
 def run_voice_test(args):
+    if args.test_action == "persist-config":
+        return run_persist_config(args)
     if args.test_action == "benchmark":
         return run_benchmark(args)
     if args.test_action == "voice_tts_isolation":
@@ -1775,11 +2521,45 @@ def _voice_report_files(args):
         "asr_final_ms",
         "agent_ready_ms",
         "planning_complete_ms",
+        "llm_request_ms",
+        "llm_http_begin_ms",
+        "llm_first_response_ms",
+        "llm_first_event_ms",
         "llm_first_token_ms",
+        "llm_complete_ms",
+        "llm_http_end_ms",
+        "llm_output_bytes",
+        "llm_thinking_enabled",
         "body_first_character_ms",
+        "speakable_ready_ms",
         "first_sentence_submit_ms",
         "tts_first_pcm_ms",
+        "pcm_enqueue_first_ms",
+        "playback_watermark_ms",
+        "consumer_wake_ms",
+        "media_prepare_begin_ms",
+        "media_open_begin_ms",
+        "media_open_end_ms",
+        "media_prepare_call_begin_ms",
+        "media_prepare_call_end_ms",
+        "media_start_call_begin_ms",
+        "media_start_call_end_ms",
+        "media_socket_ready_ms",
+        "media_prepare_end_ms",
+        "first_media_write_begin_ms",
+        "first_media_write_end_ms",
         "media_first_ms",
+        "playback_prefill_bytes",
+        "first_pcm_to_enqueue_ms",
+        "enqueue_to_watermark_ms",
+        "watermark_to_consumer_ms",
+        "consumer_to_first_write_ms",
+        "first_write_duration_ms",
+        "first_pcm_to_media_ms",
+        "media_open_duration_ms",
+        "media_prepare_call_duration_ms",
+        "media_start_call_duration_ms",
+        "media_prepare_total_ms",
         "dac_start_ms",
         "total_ms",
         "turn_complete_ms",
@@ -1787,6 +2567,8 @@ def _voice_report_files(args):
         "queue_rebuffers",
         "pcm_max_gap_ms",
         "network_max_gap_ms",
+        "media_write_max_ms",
+        "playback_ready_gap_ms",
         "dac_underruns",
         "cancel_result",
         "kws_rearm",
@@ -1852,16 +2634,23 @@ def run(args, command):
             timeout=args.timeout,
         )
         with workbench.authorized_client(args) as client:
-            info = client.info()
             runtime = client.status()
             bktest = require_status(client)
-        firmware = {
-            **info,
-            "version": (
+            try:
+                info = client.info()
+            except workbench.DeviceRejected as error:
+                if error.code != -138:  # NuttX ENOTSUP
+                    raise
+                info = {
+                    "info_status": "unsupported",
+                    "error": error.code,
+                    "declared_source_sha": args.git_sha,
+                }
+        firmware = {**info, "runtime": runtime}
+        if all(key in info for key in ("major", "minor", "revision", "build")):
+            firmware["version"] = (
                 f"{info['major']}.{info['minor']}.{info['revision']}+{info['build']}"
-            ),
-            "runtime": runtime,
-        }
+            )
         return report(
             test="factory_diagnostics_enroll",
             result="PASS",
@@ -1876,9 +2665,18 @@ def run(args, command):
         if args.profile is None or not args.console_port:
             raise HilTestError("Factory revocation requires console and profile")
         with workbench.authorized_client(args) as client:
-            info = client.info()
             runtime = client.status()
             require_status(client)
+            try:
+                info = client.info()
+            except workbench.DeviceRejected as error:
+                if error.code != -138:  # NuttX ENOTSUP
+                    raise
+                info = {
+                    "info_status": "unsupported",
+                    "error": error.code,
+                    "declared_source_sha": args.git_sha,
+                }
         revoked = factory_diagnostics.console_revoke(args.console_port)
         invalidated = False
         try:
@@ -1888,13 +2686,11 @@ def run(args, command):
             invalidated = True
         if not invalidated:
             raise HilTestError("Revoked factory profile still authenticated")
-        firmware = {
-            **info,
-            "version": (
+        firmware = {**info, "runtime": runtime}
+        if all(key in info for key in ("major", "minor", "revision", "build")):
+            firmware["version"] = (
                 f"{info['major']}.{info['minor']}.{info['revision']}+{info['build']}"
-            ),
-            "runtime": runtime,
-        }
+            )
         return report(
             test="factory_diagnostics_revoke",
             result="PASS",

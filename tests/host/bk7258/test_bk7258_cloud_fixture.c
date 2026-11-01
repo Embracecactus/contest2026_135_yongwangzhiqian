@@ -107,6 +107,55 @@ int main(void)
   assert(report.asr_requests == 1 && report.final_requests == 1 && report.tts_requests == 2);
   assert(report.tail_released_after_media && report.source_bytes > 0);
   assert(report.plan_requests == 1 && report.decision_requests == 1);
+  /* R3 combines routing and final-answer streaming in one JSON envelope. */
+  assert(bkcloud_fixture_reset(BKCLOUD_FIXTURE_NORMAL) == 0);
+  assert(bkcloud_fixture_begin(&final, BKCLOUD_FIXTURE_LLM,
+      BKCLOUD_FIXTURE_NORMAL) == 0);
+  assert(bkcloud_fixture_tls_ops()->open_verified(&final, "fixture.invalid",
+      443, 1) == 0);
+  send_all(&final, "POST / HTTP/1.1\r\n\r\n{\"stream\":true,"
+      "\"response_format\":{\"type\":\"json_object\"}}");
+  memset(text, 0, sizeof(text));
+  read_until(&final, text, sizeof(text), "这是第一句。");
+  assert(strstr(text, "voice_phase") && !strstr(text, "这是尾句"));
+  assert(bkcloud_fixture_media_started() == 0);
+  read_until(&final, text, sizeof(text), "[DONE]");
+  assert(strstr(text, "这是尾句"));
+  close_ctx(&final);
+  assert(bkcloud_fixture_report(&report) == 0);
+  assert(report.plan_requests == 1 && report.decision_requests == 1 &&
+         report.final_requests == 1 && report.asr_requests == 0 &&
+         report.tts_requests == 0);
+  /* A tools phase must finish before Media starts; the following strict
+   * stream is the only final answer and retains the Media tail barrier. */
+  assert(bkcloud_fixture_reset(BKCLOUD_FIXTURE_TOOL_STATUS) == 0);
+  assert(bkcloud_fixture_begin(&final, BKCLOUD_FIXTURE_LLM,
+      BKCLOUD_FIXTURE_TOOL_STATUS) == 0);
+  assert(bkcloud_fixture_tls_ops()->open_verified(&final, "fixture.invalid",
+      443, 1) == 0);
+  send_all(&final, "POST / HTTP/1.1\r\n\r\n{\"stream\":true,"
+      "\"response_format\":{\"type\":\"json_object\"}}");
+  memset(text, 0, sizeof(text));
+  read_until(&final, text, sizeof(text), "[DONE]");
+  assert(strstr(text, "voice_phase") && strstr(text, "device_status") &&
+         !strstr(text, "这是第一句。"));
+  close_ctx(&final);
+  assert(bkcloud_fixture_begin(&final, BKCLOUD_FIXTURE_LLM,
+      BKCLOUD_FIXTURE_TOOL_STATUS) == 0);
+  assert(bkcloud_fixture_tls_ops()->open_verified(&final, "fixture.invalid",
+      443, 1) == 0);
+  send_all(&final, "POST / HTTP/1.1\r\n\r\n{\"stream\":true,"
+      "\"response_format\":{\"type\":\"json_object\"}}");
+  memset(text, 0, sizeof(text));
+  read_until(&final, text, sizeof(text), "这是第一句。");
+  assert(!strstr(text, "这是尾句"));
+  assert(bkcloud_fixture_media_started() == 0);
+  read_until(&final, text, sizeof(text), "[DONE]");
+  close_ctx(&final);
+  assert(bkcloud_fixture_report(&report) == 0);
+  assert(report.plan_requests == 2 && report.decision_requests == 2 &&
+         report.final_requests == 1 && report.asr_requests == 0 &&
+         report.tts_requests == 0 && report.tail_released_after_media);
   /* A canceled request never releases the held tail as a successful stream. */
   assert(bkcloud_fixture_reset(BKCLOUD_FIXTURE_CANCEL_TAIL) == 0);
   plan_once(&final, text, sizeof(text));

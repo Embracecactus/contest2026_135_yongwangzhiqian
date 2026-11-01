@@ -81,6 +81,7 @@ struct bkdisplay_service_s
 };
 
 static atomic_bool g_speaking;
+static atomic_bool g_reply_expression;
 static atomic_uint g_activity;
 static atomic_uint g_focus_visual;
 static uint64_t g_companion_started;
@@ -94,6 +95,11 @@ void bk7258_display_focus(unsigned visual)
 void bk7258_display_speaking(bool active)
 {
   atomic_store(&g_speaking, active);
+}
+
+void bk7258_display_reply_expression(bool active)
+{
+  atomic_store(&g_reply_expression, active);
 }
 
 enum bkdisplay_diagnostic_stage_e
@@ -851,10 +857,13 @@ static int bkdisplay_worker(int argc, char *argv[])
         }
       else if (service->status.state == BKDISPLAY_SERVICE_READY &&
                service->speaking_frame &&
-               (atomic_load(&g_speaking) || service->speaking_painted))
+               ((atomic_load(&g_speaking) &&
+                 !atomic_load(&g_reply_expression)) ||
+                service->speaking_painted))
         {
           bkdisplay_companion_preempt(service);
-          bool active = atomic_load(&g_speaking);
+          bool active = atomic_load(&g_speaking) &&
+                        !atomic_load(&g_reply_expression);
           service->focus_painted = 0;
           if (active != service->speaking_painted)
             {
