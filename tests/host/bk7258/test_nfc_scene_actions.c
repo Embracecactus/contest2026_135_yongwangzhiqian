@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 
 int main(void)
@@ -40,7 +41,23 @@ int main(void)
   assert(bknfc_bindings_set_action(&state, 3, 4, 0, &card, 6, 1) == -EINVAL);
   assert(state.revision == 3);
   assert(bknfc_bindings_set_action(&state, 3, 4, 0, &card, 6, 0) == 0);
-  assert(bknfc_bindings_set(&state, 4, 5, 0, NULL, 0) == 0);
+
+  /* Action 7 names one installed native app by ID hash plus run seconds. */
+
+  assert(bknfc_bindings_set_action(&state, 4, 5, 0, &card, 7, 60) == -EINVAL);
+  assert(bknfc_bindings_set_action(&state, 4, 5, 0, &card, 7,
+                                   (UINT64_C(0xbd8bb2f5) << 32) | 3601) == -EINVAL);
+  assert(bknfc_binding_action_valid(7, UINT64_C(0xbd8bb2f5) << 32));
+  assert(!bknfc_binding_action_valid(8, UINT64_C(0xbd8bb2f5) << 32));
+  assert(bknfc_bindings_set_action(&state, 4, 5, 0, &card, 7,
+                                   (UINT64_C(0xbd8bb2f5) << 32) | 30) == 0);
+  struct bknfc_bindings_s native = {0};
+  assert(bknfc_bindings_open(&native, root) == 0);
+  assert(bknfc_bindings_lookup_action(&native, &card,
+                                    &action, &argument) == 0);
+  assert(action == 7 && argument == ((UINT64_C(0xbd8bb2f5) << 32) | 30));
+  assert(bknfc_bindings_set_action(&state, 5, 6, 0, &card, 6, 0) == 0);
+  assert(bknfc_bindings_set(&state, 6, 7, 0, NULL, 0) == 0);
   assert(bknfc_bindings_lookup_action(&state, &card,
                                     &action, &argument) == -ENOENT);
   assert(bknfc_bindings_reset(root) == 0);

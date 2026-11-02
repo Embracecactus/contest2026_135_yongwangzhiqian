@@ -39,6 +39,8 @@ static void drain(void)
 }
 static void cancel_during_pulse(void)
 { assert(bkhaptic_service_stop_product() == 0); }
+static void drain_during_wait(void)
+{ drain(); }
 int main(int argc, char **argv)
 {
   assert(argc == 2);
@@ -48,6 +50,20 @@ int main(int argc, char **argv)
       assert(bkhaptic_service_pulse(0) == -EINVAL);
       assert(bkhaptic_service_pulse(101) == -EINVAL);
       assert(!motor_starts);
+    }
+  else if (!strcmp(argv[1], "wait"))
+    {
+      sleep_hook = drain_during_wait;
+      assert(bkhaptic_service_pulse_wait(40) == 0);
+      assert(motor_starts == 1 && motor_stops == 1 && !motor_on);
+      assert(g_bkhaptic.local_completed == g_bkhaptic.local_sequence);
+    }
+  else if (!strcmp(argv[1], "wait-timeout"))
+    {
+      assert(bkhaptic_service_pulse_wait(40) == -ETIMEDOUT);
+      assert(ticks >= 540);
+      drain();
+      assert(!motor_on && g_bkhaptic.local_result == -ECANCELED);
     }
   else
     {

@@ -93,6 +93,11 @@
 #include "bk7258_provision_settings.h"
 #include "bk7258_focus.h"
 #include "bk7258_pc_tasks.h"
+#include "bk7258_pc_approval.h"
+#ifdef CONFIG_BK7258_NATIVE_APPS
+#include "bk7258_native_apps.h"
+#include "bk7258_native_intent.h"
+#endif
 #ifdef CONFIG_BK7258_USBCDC
 #include "bk7258_pc_usb.h"
 #endif
@@ -445,6 +450,200 @@ static const struct bkengtest_ops_s g_engineering_test_ops =
   .system_status = product_engineering_system_status,
   .audio_run = product_engineering_audio_run,
 };
+#endif
+
+#ifdef CONFIG_BK7258_NATIVE_APPS
+#define PRODUCT_NATIVE_DISPLAY_RETRY_MS 10000u
+
+/* Defined with the other companion feedback gates. */
+
+static void product_companion_request_pulse(uint64_t now);
+
+static uint32_t g_native_trial;
+static struct bknative_frame_s g_native_pending_frame;
+static uint64_t g_native_display_blocked_since;
+
+static void product_native_release_display(void)
+{
+  if (g_native_trial)
+    {
+      /* Exact-ID cancellation never restores over a newer display owner. */
+
+      (void)bk7258_display_cancel_trial(g_native_trial);
+      g_native_trial = 0;
+    }
+
+  memset(&g_native_pending_frame, 0, sizeof(g_native_pending_frame));
+  g_native_display_blocked_since = 0;
+}
+
+static int product_native_stop(void)
+{
+  int ret = bknative_stop();
+  product_native_release_display();
+  return ret;
+}
+
+static int product_native_submit_display(
+  const struct bknative_frame_s *frame)
+{
+  static const char *const expressions[] =
+  {
+    NULL, "happy", "thinking", "neutral"
+  };
+  struct bkdisplay_trial_status_s trial;
+  int ret = bk7258_display_trial_status(&trial);
+  if (!ret && g_native_trial &&
+      (trial.id != g_native_trial || trial.state == BKDISPLAY_TRIAL_SUPERSEDED))
+    {
+      ret = -ECANCELED;
+    }
+  else if (!ret && g_native_trial && trial.state == BKDISPLAY_TRIAL_FAILED)
+    {
+      ret = trial.error ? trial.error : -EIO;
+    }
+  else if (!ret && g_native_trial && frame->expression &&
+           trial.state >= BKDISPLAY_TRIAL_PENDING &&
+           trial.state <= BKDISPLAY_TRIAL_RESTORING)
+    {
+      /* The previous module frame still owns the display transaction.  Its
+       * render/restore time is not contention from another product owner. */
+
+      ret = -EAGAIN;
+    }
+  else if (!ret && !g_native_trial && frame->expression &&
+           trial.state >= BKDISPLAY_TRIAL_PENDING &&
+           trial.state <= BKDISPLAY_TRIAL_RESTORING)
+    {
+      ret = -EBUSY;
+    }
+
+  if (!ret && frame->expression)
+    {
+      ret = bk7258_display_trial_checked(expressions[frame->expression],
+                                         frame->duration_ms, trial.id,
+                                         &g_native_trial);
+    }
+
+  return ret;
+}
+
+/* Completion feedback is requested after the module is unloaded.  Each is
+ * one bounded intent through an existing owner: the haptic gate drops it
+ * when busy, and local content arbitrates its own capture/voice admission.
+ */
+
+static void product_native_completion(uint64_t now,
+                                      const struct bknative_output_s *output)
+{
+  if (output->haptic)
+    {
+      product_companion_request_pulse(now);
+    }
+
+  if (output->cue == BKNATIVE_CUE_RHYTHM)
+    {
+      uint32_t intent;
+      int ret = bkcontent_submit(5, 1, &intent);
+      syslog(LOG_INFO, "BKNATIVE cue=%u intent=%lu result=%d\n",
+             (unsigned int)output->cue, (unsigned long)intent, ret);
+    }
+}
+
+static void product_native_step(uint64_t now, bool admitted)
+{
+  const struct bknative_frame_s *display_frame;
+  struct bknative_output_s output;
+  struct bknative_frame_s frame;
+  int ret;
+
+  if (!admitted)
+    {
+      (void)bknative_intent_take(false, NULL);
+      ret = bknative_step(now, false, &output);
+      if (ret <= 0)
+        {
+          product_native_release_display();
+        }
+
+      return;
+    }
+
+  /* A registered card start is consumed only while admitted; the intent
+   * expires on its own if admission does not return within its window.
+   */
+
+  struct bknative_intent_status_s intent;
+  if (bknative_intent_take(true, &intent))
+    {
+      ret = bknative_launch(intent.app_hash, intent.seconds);
+      bknative_intent_finish(intent.id, ret);
+      syslog(LOG_INFO, "BKNATIVE intent=%lu launch=%d\n",
+             (unsigned long)intent.id, ret);
+    }
+
+  ret = bknative_step(now, true, &output);
+  if (ret <= 0)
+    {
+      product_native_release_display();
+      if (ret == 0)
+        {
+          product_native_completion(now, &output);
+        }
+
+      return;
+    }
+
+  if (output.haptic)
+    {
+      product_companion_request_pulse(now);
+    }
+
+  frame = output.frame;
+
+  if (frame.expression)
+    {
+      /* A restore may overlap the next module phase. Keep only the newest
+       * intent while the display worker finishes its bounded transaction. */
+
+      g_native_pending_frame = frame;
+    }
+
+  display_frame = g_native_pending_frame.expression ?
+                  &g_native_pending_frame : &frame;
+  ret = product_native_submit_display(display_frame);
+  if (ret == -EAGAIN && g_native_pending_frame.expression)
+    {
+      return;
+    }
+  else if (ret == -EBUSY && g_native_pending_frame.expression)
+    {
+      if (!g_native_display_blocked_since)
+        {
+          g_native_display_blocked_since = now;
+        }
+
+      if (now >= g_native_display_blocked_since &&
+          now - g_native_display_blocked_since <
+          PRODUCT_NATIVE_DISPLAY_RETRY_MS)
+        {
+          return;
+        }
+    }
+  else if (!ret)
+    {
+      memset(&g_native_pending_frame, 0,
+             sizeof(g_native_pending_frame));
+      g_native_display_blocked_since = 0;
+      return;
+    }
+
+  if (ret)
+    {
+      (void)bknative_abort(ret);
+      product_native_release_display();
+    }
+}
 #endif
 
 #include "bk7258_agent_product_power.inc"
@@ -1603,6 +1802,52 @@ static int product_pc_task_step(uint64_t now, bool admitted)
   return ret;
 }
 
+/* One volatile PC approval request; the PC requests, only the phone owner
+ * decides. Losing admission or the TASKS principal cancels/wipes it.
+ */
+static struct bkpc_approval_s g_pc_approval;
+
+static int product_pc_approval_step(uint64_t now, bool admitted,
+                                    uint8_t key[32])
+{
+  struct bkprov_pc_snapshot_s view;
+  uint64_t binding = 0;
+  int ret;
+
+  if (!admitted)
+    {
+      bkpc_approval_cancel(&g_pc_approval);
+      bkpc_approval_step(&g_pc_approval, now);
+      return -EBUSY;
+    }
+
+  ret = bkpc_authorization_snapshot(NULL, &binding, &view);
+  if (ret == -EAGAIN)
+    {
+      mbedtls_platform_zeroize(&view, sizeof(view));
+      bkpc_approval_step(&g_pc_approval, now);
+      return ret;
+    }
+
+  if (ret == 0 && (view.capabilities & BKPC_CAP_TASKS) != 0)
+    {
+      bkpc_approval_bind(&g_pc_approval, binding, view.revision, view.client);
+      if (key != NULL)
+        {
+          memcpy(key, view.key, sizeof(view.key));
+        }
+    }
+  else
+    {
+      bkpc_approval_bind(&g_pc_approval, 0, 0, NULL);
+      ret = ret < 0 ? ret : -EACCES;
+    }
+
+  mbedtls_platform_zeroize(&view, sizeof(view));
+  bkpc_approval_step(&g_pc_approval, now);
+  return ret;
+}
+
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
 static struct bkselection_control_s g_phone_selection;
 
@@ -1675,6 +1920,25 @@ static int product_config(void *context, enum bkcontrol_command_e command,
                                               size, status);
     }
 #endif
+
+  if (kind == BKCONTROL_CONFIG_PC_APPROVAL)
+    {
+      /* PC requests arrive only through product_pc_config. */
+      return -EACCES;
+    }
+
+  if (kind == BKCONTROL_CONFIG_PC_APPROVAL_DECISION)
+    {
+      uint64_t now = bkvoice_config_now_ms(NULL);
+      int ret = product_pc_approval_step(now, g_control_bound, NULL);
+      if (ret == -EAGAIN && command != BKCONTROL_CONFIG_READ)
+        {
+          return ret;
+        }
+
+      return bkpc_approval_owner_control(&g_pc_approval, command, offset,
+                                          record, size, status, now);
+    }
 
   if (kind == BKCONTROL_CONFIG_PC_TASK && command == BKCONTROL_CONFIG_READ)
     {
@@ -1749,6 +2013,18 @@ static int product_config(void *context, enum bkcontrol_command_e command,
       return bkfocus_control(command, offset, record, size, status,
                              bkvoice_config_now_ms(NULL));
     }
+
+#ifdef CONFIG_BK7258_NATIVE_APPS
+  if (kind == BKCONTROL_CONFIG_NATIVE_APPS)
+    {
+      if (command != BKCONTROL_CONFIG_READ && !voice_channel_is_idle())
+        {
+          return -EBUSY;
+        }
+
+      return bknative_control(command, offset, record, size, status);
+    }
+#endif
 
   if (kind == BKCONTROL_CONFIG_SETTINGS)
     {
@@ -2032,6 +2308,34 @@ static int product_pc_config(void *context, enum bkcontrol_command_e command,
                                    bkvoice_config_now_ms(NULL));
     }
 #endif
+  if (kind == BKCONTROL_CONFIG_PC_APPROVAL)
+    {
+      const struct bkpc_control_s *lease = &g_pc_usb_owner.usb.lease;
+      uint64_t now = bkvoice_config_now_ms(NULL);
+      uint8_t key[32] = {0};
+      int ret;
+
+      if (!lease->open || (lease->capabilities & BKPC_CAP_TASKS) == 0)
+        return -EACCES;
+      ret = product_pc_approval_step(now, g_identity_bound &&
+                                     g_control_bound && !bkagent_ota_busy(),
+                                     key);
+      if (ret == 0 && (g_pc_approval.binding != lease->binding ||
+                       g_pc_approval.grant != lease->revision ||
+                       memcmp(g_pc_approval.client, lease->client,
+                              sizeof(lease->client))))
+        ret = -ESTALE;
+      if (ret == 0)
+        ret = bkpc_approval_pc_control(&g_pc_approval, command, offset,
+                                       record, size, status, key, now);
+      mbedtls_platform_zeroize(key, sizeof(key));
+      if (ret == 0 && command == BKCONTROL_CONFIG_APPLY)
+        syslog(LOG_INFO, "BKAPPROVAL pc request state=%u bytes=%u\n",
+               (unsigned int)g_pc_approval.state,
+               (unsigned int)g_pc_approval.size);
+      return ret;
+    }
+
   return product_config(context, command, kind, offset, record, size, status);
 }
 
@@ -2677,6 +2981,10 @@ static int product_reset_cleanup(void)
   if (g_trigger_started || atomic_load(&g_probe_running) ||
       (atomic_load(&g_voice_initialized) && !voice_channel_is_idle()))
     return -EBUSY;
+#ifdef CONFIG_BK7258_NATIVE_APPS
+  ret = product_native_stop();
+  if (ret < 0) return ret;
+#endif
 #if defined(CONFIG_BK7258_NFC_SERVICE) && defined(CONFIG_BK7258_PROVISION_GATT)
   /* 存储重置工作者只在原NFC工作者真实退出后取得文件清理权。 */
   ret = bk7258_nfc_service_quiesce(true);
@@ -2716,6 +3024,9 @@ static int product_reset_step(void)
     {
       g_reset_phase = PRODUCT_RESET_QUIESCING;
       int content = bkcontent_quiesce();
+#ifdef CONFIG_BK7258_NATIVE_APPS
+      int native = product_native_stop();
+#endif
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
       int pack = bk7258_display_job_quiesce(true);
 #endif
@@ -2732,6 +3043,9 @@ static int product_reset_step(void)
       ret = bkprov_owner_quiesce(true);
       if (ret < 0) return ret;
       if (content < 0) return content;
+#ifdef CONFIG_BK7258_NATIVE_APPS
+      if (native < 0) return native;
+#endif
 #ifdef CONFIG_BK7258_MOTION_SERVICE
       if (motion < 0) return motion;
 #endif
@@ -2794,6 +3108,10 @@ static int product_reset_step(void)
   ret = bk7258_preferences_response_length_reset_complete();
   if (ret < 0) return ret;
 #endif
+#ifdef CONFIG_BK7258_NATIVE_APPS
+  ret = bknative_init();
+  if (ret < 0) return ret;
+#endif
   ret = bkprov_owner_unbind();
   if (ret < 0) return ret;
   ret = bkprov_network_unbind();
@@ -2803,6 +3121,7 @@ static int product_reset_step(void)
   g_control_bound = false;
   bkpc_authorization_unbind();
   bkpc_tasks_bind(&g_pc_tasks, 0, 0);
+  bkpc_approval_bind(&g_pc_approval, 0, 0, NULL);
   g_configured = false;
   g_cloud_loaded = false;
   g_config_revision = 0;
@@ -2984,6 +3303,10 @@ static int bk7258_agent_activate_cloud(bool *storage_waiting)
 
   if (!g_control_bound)
     {
+#ifdef CONFIG_BK7258_NATIVE_APPS
+    int native_result = bknative_init();
+    syslog(LOG_INFO, "BKNATIVE restore result=%d\n", native_result);
+#endif
     ret = bkprov_owner_control(work->settings.control_key, product_control,
                                NULL);
     if (!ret)
@@ -3166,6 +3489,9 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
           int error = errno;
           product_companion_step(bkvoice_config_now_ms(NULL), false,
                                   false, false);
+#ifdef CONFIG_BK7258_NATIVE_APPS
+          (void)product_native_stop();
+#endif
           (void)bkcontent_quiesce();
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
           (void)bk7258_display_job_quiesce(true);
@@ -3198,6 +3524,7 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
 #endif
           product_nfc_scene_gate(false);
           product_pc_task_step(now, false);
+          (void)product_pc_approval_step(now, false, NULL);
           if (reset > 0 || g_reset_phase != PRODUCT_RESET_IDLE)
             {
               /* Do this before TURN_COMPLETE or preference recovery can
@@ -3238,6 +3565,7 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
           bkcontent_step(false);
           product_nfc_scene_gate(false);
           product_pc_task_step(now, false);
+          (void)product_pc_approval_step(now, false, NULL);
           bkfocus_cancel();
           bkfocus_intent_step(now, false);
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
@@ -3253,6 +3581,8 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
 
 #endif
       product_pc_task_step(now, g_control_bound && !bkagent_ota_busy());
+      (void)product_pc_approval_step(now, g_identity_bound &&
+        g_control_bound && !bkagent_ota_busy(), NULL);
       PRODUCT_LOOP_CHECKPOINT(4);
 #ifdef CONFIG_BK7258_ENGINEERING_TEST
       product_benchmark_step();
@@ -3272,7 +3602,10 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
       bool focus_idle = !atomic_load(&g_voice_initialized) ||
                         voice_channel_is_idle();
-      bk7258_display_focus(product_focus_visual(now, focus_idle,
+      unsigned int approval_visual =
+        bkpc_approval_visual(&g_pc_approval, now, focus_idle);
+      bk7258_display_focus(approval_visual ? approval_visual :
+        product_focus_visual(now, focus_idle,
         bkpc_tasks_visual(&g_pc_tasks, now, focus_idle, bkfocus_visual(now))));
 #endif
 #ifdef BKPRODUCT_PC_CAMERA
@@ -3313,9 +3646,23 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
 #endif
       bool task_completed = bkpc_tasks_take_completion(&g_pc_tasks, now);
       PRODUCT_LOOP_CHECKPOINT(7);
+#ifdef CONFIG_BK7258_NATIVE_APPS
+      product_native_step(now, g_control_bound && !bkagent_ota_busy() &&
+        !content_busy && !voice_interaction_active &&
+        (!atomic_load(&g_voice_initialized) || voice_channel_is_idle()) &&
+        bkfocus_visual(now) == 0 &&
+        bkpc_tasks_visual(&g_pc_tasks, now, true, 0) == 0 &&
+        !bkpc_approval_pending(&g_pc_approval));
+#endif
       product_companion_step(now, !bkagent_ota_busy() && !content_busy,
         !atomic_load(&g_voice_initialized) || voice_channel_is_idle(),
         focus_completed || task_completed || content_completed);
+      if (bkpc_approval_take_alert(&g_pc_approval, now,
+            !bkagent_ota_busy() && !content_busy &&
+            (!atomic_load(&g_voice_initialized) || voice_channel_is_idle())))
+        {
+          product_companion_alert(now);
+        }
       PRODUCT_LOOP_CHECKPOINT(8);
       if (now >= voice_cleanup_at)
         {
@@ -4071,6 +4418,9 @@ int ai_agent_main(int argc, FAR char *argv[])
     }
 
   (void)bkcontent_quiesce();
+#ifdef CONFIG_BK7258_NATIVE_APPS
+  (void)product_native_stop();
+#endif
   message_bus_wakeup();
   return OK;
 }

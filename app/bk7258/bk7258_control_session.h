@@ -123,6 +123,13 @@ enum bkcontrol_command_e
  * Only the independently authorized PC camera owner binds this kind.
  */
 #define BKCONTROL_CONFIG_CAMERA_BLOCK 25u
+#define BKCONTROL_CONFIG_NATIVE_APPS 28u
+/* PC approval request/receipt and phone-owner decision; see
+ * bk7258_pc_approval.h. The PC guard binds only PC_APPROVAL (TASKS); the
+ * decision kind is reachable from the authenticated phone owner alone.
+ */
+#define BKCONTROL_CONFIG_PC_APPROVAL 29u
+#define BKCONTROL_CONFIG_PC_APPROVAL_DECISION 30u
 #define BKCONTROL_CONFIG_CAPABILITIES 0x7fffu
 #define BKCONTROL_CONFIG_RECORD_MAX (140u + 65536u) /* WKM2 显式前端字段 */
 struct bkcontrol_device_info_s

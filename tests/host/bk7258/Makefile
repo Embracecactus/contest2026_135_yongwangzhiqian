@@ -259,6 +259,7 @@ VOICE_MEDIA_RECORDER_TARGET := $(BUILD)/test_bk7258_agent_media_recorder
 MEDIA_INCLUDE := $(OPENVELA_ROOT)/apps/frameworks/multimedia/media/include
 
 .PHONY: all check check-layers check-package-tools check-review-regressions clean bl1 bl2 ap headers platform storage-contract flash provision active-image run-active-image \
+	native_apps run-native-intent run-pc-approval \
 	ota-contract reset-marker display-pack display-rpc health-core motion-core nfc-core vision-core vision-feedback usbmode-lease product-keys \
 	vision-record media-volume voice-media-recorder run \
 	run-core run-bl1 run-bl2 run-ap run-headers run-platform \
@@ -1908,6 +1909,21 @@ $(VOICE_OTA_MBEDCRYPTO): $(VOICE_OTA_MBEDTLS_SOURCE)/CMakeLists.txt | $(BUILD)
 		-DCMAKE_C_FLAGS=-Wno-error=missing-prototypes -DCMAKE_BUILD_TYPE=Release
 	cmake --build $(VOICE_OTA_MBEDTLS_BUILD) -j2
 
+NATIVE_APPS_TARGET := $(BUILD)/test_bk7258_native_apps
+NATIVE_TEST_KEY := $(VOICE_OTA_MBEDTLS_SOURCE)/tests/data_files/ec_256_prv.pem
+NATIVE_FOREIGN_TEST_KEY := $(VOICE_OTA_MBEDTLS_SOURCE)/tests/data_files/ec_256_long_prv.pem
+NATIVE_TEST_PUBLISHER_SHA256 := $(shell openssl pkey -in $(NATIVE_TEST_KEY) -pubout -outform DER 2>/dev/null | sha256sum | awk '{print $$1}')
+NATIVE_TEST_IMAGE := $(BUILD)/native-breathing.elf
+$(NATIVE_TEST_IMAGE): $(VOICE_PACK_ROOT)/native-apps/breathing.c $(VOICE_PACK_ROOT)/bk7258_native_abi.h $(TOOLS_ROOT)/bk7258.py $(TOOLS_ROOT)/_lib/native_apps.py $(TOOLS_ROOT)/_lib/toolchain.py | $(BUILD)
+	rm -f $@
+	python3 $(TOOLS_ROOT)/bk7258.py native-app build --source $(VOICE_PACK_ROOT)/native-apps/breathing.c --output $@
+$(BUILD)/native-shake-decide.o: $(VOICE_PACK_ROOT)/native-apps/shake_decide.c $(VOICE_PACK_ROOT)/bk7258_native_abi.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -Dshaniu_native_entry=shaniu_decide_entry -I $(VOICE_PACK_ROOT) -c $< -o $@
+$(NATIVE_APPS_TARGET): test_bk7258_native_apps.c $(VOICE_PACK_ROOT)/bk7258_native_apps.c $(VOICE_PACK_ROOT)/bk7258_native_intent.c $(VOICE_PACK_ROOT)/bk7258_native_abi.h $(VOICE_PACK_ROOT)/bk7258_provision_store.c $(BUILD)/native-shake-decide.o $(NATIVE_TEST_IMAGE) $(VOICE_OTA_MBEDCRYPTO) | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -DBKNATIVE_ROOT='"/tmp/bk7258-native-apps"' -DNATIVE_TEST_KEY='"$(NATIVE_TEST_KEY)"' -DNATIVE_FOREIGN_TEST_KEY='"$(NATIVE_FOREIGN_TEST_KEY)"' -DNATIVE_TEST_IMAGE='"$(abspath $(NATIVE_TEST_IMAGE))"' -DCONFIG_BK7258_NATIVE_PUBLISHER_SHA256='"$(NATIVE_TEST_PUBLISHER_SHA256)"' -pthread -I $(VOICE_PACK_ROOT) -I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON -I $(VOICE_OTA_MBEDTLS_SOURCE)/include -I $(MOCKS) $< $(VOICE_PACK_ROOT)/bk7258_native_apps.c $(VOICE_PACK_ROOT)/bk7258_native_intent.c $(VOICE_PACK_ROOT)/native-apps/breathing.c $(BUILD)/native-shake-decide.o $(VOICE_PACK_ROOT)/bk7258_provision_store.c $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c -Wl,--wrap=bkprov_store_commit $(VOICE_OTA_MBEDCRYPTO) -lm -o $@
+native_apps: $(NATIVE_APPS_TARGET)
+	./$(NATIVE_APPS_TARGET)
+
 # Product-store integration: links the actual SCF1 implementation rather than
 # a local double, and checks BVO2 codec/state and publication recovery paths.
 $(BUILD)/test_bk7258_voice_ota_store: test_bk7258_voice_ota_store.c \
@@ -2231,6 +2247,12 @@ $(BUILD)/test_local_content: test_local_content.c $(VOICE_PACK_ROOT)/bk7258_agen
 	  -DBKCONTENT_PATH='"$(abspath $(BUILD))/local-content.pcm"' \
 	  $(filter %.c,$^) $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c $(VOICE_OTA_MBEDCRYPTO) -o $@
 
+$(BUILD)/test_bk7258_native_intent: test_bk7258_native_intent.c $(VOICE_PACK_ROOT)/bk7258_native_intent.c $(VOICE_PACK_ROOT)/bk7258_native_intent.h $(VOICE_PACK_ROOT)/bk7258_nfc_scene.c $(VOICE_PACK_ROOT)/bk7258_nfc_bindings.c $(VOICE_PACK_ROOT)/bk7258_nfc_core.c $(VOICE_PACK_ROOT)/bk7258_provision_store.c $(VOICE_OTA_MBEDCRYPTO) | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -DCONFIG_BK7258_NATIVE_APPS=1 -pthread -I $(MOCKS) -I $(VOICE_PACK_ROOT) \
+	  -I $(VOICE_OTA_MBEDTLS_SOURCE)/include $(filter %.c,$^) $(VOICE_OTA_MBEDCRYPTO) -o $@
+run-native-intent: $(BUILD)/test_bk7258_native_intent
+	./$(BUILD)/test_bk7258_native_intent
+
 $(BUILD)/test_nfc_scene_actions: test_nfc_scene_actions.c $(VOICE_PACK_ROOT)/bk7258_nfc_bindings.c $(VOICE_PACK_ROOT)/bk7258_nfc_core.c $(VOICE_PACK_ROOT)/bk7258_provision_store.c $(VOICE_OTA_MBEDCRYPTO) | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) -I $(VOICE_OTA_MBEDTLS_SOURCE)/include \
 	  $(filter %.c,$^) $(VOICE_OTA_MBEDCRYPTO) -o $@
@@ -2261,13 +2283,17 @@ $(BUILD)/test_shaniu_nfc_scene: test_shaniu_nfc_scene.c $(VOICE_PACK_ROOT)/bk725
 	  -I $(VOICE_OTA_MBEDTLS_SOURCE)/include -I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON \
 	  $(filter %.c,$^) $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c $(VOICE_OTA_MBEDCRYPTO) -o $@
 
-$(BUILD)/test_shaniu_nfc_worker_scene: test_shaniu_nfc_worker_scene.c $(VOICE_PACK_ROOT)/bk7258_nfc_control.c test_shaniu_nfc_jobs.c $(VOICE_PACK_ROOT)/bk7258_nfc_jobs.inc test_bk7258_nfc_rpc.c bk7258_sensor_rpc_test.h $(BUILD)/test_bk7258_nfc_rpc $(VOICE_PACK_ROOT)/bk7258_nfc_service.c $(VOICE_PACK_ROOT)/bk7258_nfc_scene.c $(VOICE_PACK_ROOT)/bk7258_nfc_worker_scene.inc $(VOICE_OTA_MBEDCRYPTO) $(BUILD)/shaniu-focus-intent.o
+$(BUILD)/test_shaniu_nfc_worker_scene: test_shaniu_nfc_worker_scene.c $(VOICE_PACK_ROOT)/bk7258_nfc_control.c test_shaniu_nfc_jobs.c $(VOICE_PACK_ROOT)/bk7258_nfc_jobs.inc test_bk7258_nfc_rpc.c bk7258_sensor_rpc_test.h $(BUILD)/test_bk7258_nfc_rpc $(VOICE_PACK_ROOT)/bk7258_nfc_service.c $(VOICE_PACK_ROOT)/bk7258_nfc_scene.c $(VOICE_PACK_ROOT)/bk7258_nfc_worker_scene.inc $(VOICE_OTA_MBEDCRYPTO) $(BUILD)/shaniu-focus-intent.o $(BUILD)/shaniu-native-intent.o
 	$(CC) -std=gnu11 -Wall -Wextra -Werror -Wno-unused-function -pthread \
 	  -I $(BUILD)/sensor-rpc-include -I $(MOCKS) -I $(VOICE_PACK_ROOT) -I $(REPOSITORY_ROOT)/nuttx/include \
 	  -I $(VOICE_OTA_MBEDTLS_SOURCE)/include -I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON \
 	  $< $(VOICE_PACK_ROOT)/bk7258_nfc_bindings.c $(VOICE_PACK_ROOT)/bk7258_provision_store.c \
 	  $(VOICE_PACK_ROOT)/bk7258_nfc_scene.c $(VOICE_PACK_ROOT)/bk7258_focus.c $(BUILD)/shaniu-focus-intent.o \
+	  $(BUILD)/shaniu-native-intent.o \
 	  $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c -Wl,--wrap=fsync -Wl,--wrap=read $(VOICE_OTA_MBEDCRYPTO) -lm -o $@
+
+$(BUILD)/shaniu-native-intent.o: $(VOICE_PACK_ROOT)/bk7258_native_intent.c $(VOICE_PACK_ROOT)/bk7258_native_intent.h | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(MOCKS) -I $(VOICE_PACK_ROOT) -c $< -o $@
 
 $(BUILD)/shaniu-focus-intent.o: $(VOICE_PACK_ROOT)/bk7258_focus_intent.c $(VOICE_PACK_ROOT)/bk7258_focus_intent.h | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(MOCKS) -I $(VOICE_PACK_ROOT) \
@@ -2316,6 +2342,18 @@ $(BUILD)/test_pc_owner_binding: test_pc_owner_binding.c $(VOICE_PACK_ROOT)/bk725
 	$(CC) $(CFLAGS) -Werror -pthread -ffunction-sections -fdata-sections -I$(VOICE_PACK_ROOT) -I$(VOICE_OTA_MBEDTLS_SOURCE)/include $(filter-out test_pc_storage.c,$(filter %.c,$^)) -Wl,--gc-sections,--wrap=fsync $(VOICE_OTA_MBEDCRYPTO) -o $@
 
 $(BUILD)/test_pc_owner_binding: test_pc_storage.c $(VOICE_PACK_ROOT)/bk7258_pc_authorization_owner.h $(VOICE_PACK_ROOT)/bk7258_provision_owner.h
+
+PC_APPROVAL_MBEDTLS := $(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/library
+$(BUILD)/test_pc_approval: test_pc_approval.c $(VOICE_PACK_ROOT)/bk7258_pc_approval.c \
+	$(VOICE_PACK_ROOT)/bk7258_pc_approval.h $(VOICE_PACK_ROOT)/bk7258_control_session.h | $(BUILD)
+	$(CC) $(CFLAGS) -Werror -fsanitize=address,undefined -I$(VOICE_PACK_ROOT) \
+		-I$(OPENVELA_ROOT)/apps/crypto/mbedtls/mbedtls/include test_pc_approval.c \
+		$(VOICE_PACK_ROOT)/bk7258_pc_approval.c $(PC_APPROVAL_MBEDTLS)/sha256.c \
+		$(PC_APPROVAL_MBEDTLS)/platform_util.c -o $@
+
+run-pc-approval: $(BUILD)/test_pc_approval
+	$(BUILD)/test_pc_approval
+	python3 -I test_workbench_approval.py
 
 $(BUILD)/test_pc_tasks: test_pc_tasks.c $(VOICE_PACK_ROOT)/bk7258_pc_tasks.c $(VOICE_PACK_ROOT)/bk7258_pc_tasks.h \
 	$(VOICE_PACK_ROOT)/bk7258_focus.c $(VOICE_PACK_ROOT)/bk7258_focus_pixels.h | $(BUILD)

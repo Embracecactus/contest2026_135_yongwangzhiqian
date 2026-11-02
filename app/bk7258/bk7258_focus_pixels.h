@@ -33,7 +33,14 @@ static inline uint16_t bkfocus_pixel(unsigned state, unsigned segments, int x, i
   if (rr>=52*52 && rr<=60*60) for (unsigned i=0;i<32;i++)
     {
       int dx=x-points[i][0],dy=y-points[i][1];
-      if (dx*dx+dy*dy<=16) return i<segments ? 0x07ff : 0x2104;
+      if (dx*dx+dy*dy<=16)
+        return i<segments ? (state == 7 ? 0xfd20 : 0x07ff) : 0x2104;
+    }
+  if (state == 7)
+    {
+      /* PC approval pending: amber exclamation, ring is remaining time. */
+      return x >= -4 && x <= 4 &&
+        ((y >= -26 && y <= 6) || (y >= 14 && y <= 22)) ? 0xfd20 : 0;
     }
   if (state == 5)
     {

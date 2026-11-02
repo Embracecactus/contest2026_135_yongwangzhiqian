@@ -1,6 +1,16 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # 源码许可证与来源记录
 
+## 2026-11-03 第一方原生功能与电脑审批
+
+`bk7258_native_*`、`native-apps/*.c`、`bk7258_pc_approval.[ch]`、Android
+控制器及 `tools/bk7258/_lib/{native_apps,workbench_approval}.py` 均为本项目
+Apache-2.0 实现。原生装载器调用 manifest 固定 NuttX 的 ELF 接口与数据结构；
+没有复制、覆盖或在构建时修改上游源码。它在调用方持有并释放装载分配，规避该
+固定版本已复现的注册表卸载泄漏和未定义符号空名称比较路径，具体边界记录在
+`tools/bk7258/README.md`。主机签名测试只使用固定 mbedTLS 发布的 P-256 测试
+fixture；该测试私钥、公钥指纹和实测包均不进入产品配置或提交。
+
 ## 2026-10-21 评审修复依赖
 
 NuttX 修复已发布到 `Embracecactus/nuttx` 的

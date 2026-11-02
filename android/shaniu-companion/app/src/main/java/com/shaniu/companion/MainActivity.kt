@@ -257,6 +257,9 @@ class MainActivity : Activity() {
     private var nfcEditor: com.shaniu.companion.provision.NfcBindingController? = null
     private var focusMinutesDraft = "25"
     private var focusEditor: com.shaniu.companion.provision.FocusTimerController? = null
+    private var nativeEditor: com.shaniu.companion.provision.AgentDataController? = null
+    private var approvalEditor: com.shaniu.companion.provision.PcApprovalController? = null
+    private var nativeImportSelected: ((android.net.Uri) -> Unit)? = null
     private var settingsEditor: com.shaniu.companion.provision.DeviceSettingsEditor? = null
     private var factoryReset: com.shaniu.companion.provision.FactoryResetController? = null
     private var configFlow = ConfigFlow.NONE
@@ -327,7 +330,7 @@ class MainActivity : Activity() {
         }
         nfcMinutesDraft = savedInstanceState?.getString("nfc_minutes_draft") ?: "25"
         nfcSlotDraft = (savedInstanceState?.getInt("nfc_slot_draft", 0) ?: 0).coerceIn(0, 7)
-        nfcActionDraft = (savedInstanceState?.getInt("nfc_action_draft", 0) ?: 0).coerceIn(0, 5)
+        nfcActionDraft = (savedInstanceState?.getInt("nfc_action_draft", 0) ?: 0).coerceIn(0, 6)
         expressionPreview = savedInstanceState?.getInt("expression_preview", 0) ?: 0
         updateResources = savedInstanceState?.getBoolean("update_resources", false) ?: false
         resourcesBackTab = savedInstanceState?.getInt("resources_back_tab", TAB_PERSONALITY) ?: TAB_PERSONALITY
@@ -468,6 +471,7 @@ class MainActivity : Activity() {
             EYE_PACK_REQUEST -> data?.data?.let(::selectEyePack)
             PC_PAIR_REQUEST -> data?.data?.let { pcRequestSelected?.invoke(it) }
             PC_PAIR_RESPONSE -> data?.data?.let { pcResponseSelected?.invoke(it) }
+            NATIVE_IMPORT_REQUEST -> data?.data?.let { nativeImportSelected?.invoke(it) }
             PROVISION_REQUEST -> {
                 directSession.releaseIdentity()
                 val deviceId = ProvisionBootstrap.validDeviceId(
@@ -838,7 +842,7 @@ class MainActivity : Activity() {
         foreground && directSession.requestPayload(command, payload)
 
     private fun configAvailable(): Boolean = foreground && directSession.current().authenticated &&
-        directSnapshot?.publicConfigSupported == true && configFlow == ConfigFlow.NONE && focusEditor == null && trialEditor == null && defaultEditor == null && nfcEditor == null && pcEditor == null && !directPending &&
+        directSnapshot?.publicConfigSupported == true && configFlow == ConfigFlow.NONE && nativeEditor == null && focusEditor == null && trialEditor == null && defaultEditor == null && nfcEditor == null && pcEditor == null && !directPending &&
         otaUpload == null && !otaVerificationPending && otaStatus?.state !in 1L..2L
 
     private fun requestConfigCapabilities() {
@@ -2491,8 +2495,10 @@ class MainActivity : Activity() {
         page.settingsRow("默认表情", "刷新设备默认，或将已安装素材设为默认", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "eye") { showDefaultSelection() }
         page.sectionTitle("专注与陪伴")
         page.settingsRow("专注计时", "由设备计时，手机可随时回读", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "spark") { showFocusTimer() }
+        page.settingsRow("原生功能", "安装经签名验证的设备功能", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "spark") { showNativeFeatures() }
         page.settingsRow("场景卡片", "专注操作与本地节律内容", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "spark") { showNfcBindings() }
         page.settingsRow("电脑授权", "配对、查看或撤销电脑的访问权限", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "settings") { showPcAuthorization() }
+        page.settingsRow("电脑审批", "核对并批准或拒绝电脑上 AI 助手请求的操作", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "settings") { showPcApproval() }
         page.sectionTitle("声音与唤醒")
         val currentWake = wakeStatus.takeIf { wakeStatusGeneration == directSession.current().generation && directSession.current().authenticated }
         page.settingsRow(currentWake?.active?.let(::wakeModelSummary) ?: "当前唤醒词", if (currentWake == null) "连接后回读设备当前模型" else "设备当前唤醒模型", iconName = "mic") { showWakeSheet() }
@@ -2781,6 +2787,219 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun showPcApproval() {
+        if (!configAvailable() || settingsEditor != null || factoryReset != null) return
+        showCompanionSheet("电脑审批", "傻妞眼睛出现“!”时，在这里核对完整操作。", onClosed = {
+            approvalEditor?.close(); approvalEditor = null
+        }) { body, dialog ->
+            val controls = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            body.addView(controls)
+            fun detail(label: String, value: String) {
+                controls.addView(TextView(this).apply {
+                    text = label; textSize = 12f; setTextColor(MUTED); setPadding(0, dp(12), 0, dp(4))
+                })
+                controls.addView(TextView(this).apply {
+                    text = value.ifEmpty { "（未提供）" }; textSize = 15f; setTextColor(design.ink)
+                    typeface = android.graphics.Typeface.MONOSPACE; setTextIsSelectable(true)
+                    setPadding(dp(14), dp(12), dp(14), dp(12))
+                    background = design.shape(design.selected, dp(14).toFloat())
+                }, LinearLayout.LayoutParams(-1, -2))
+            }
+            var shown = ""
+            approvalEditor = com.shaniu.companion.provision.PcApprovalController(directSession) { state ->
+                val signature = listOf(state.busy, state.message, state.noRequest,
+                    state.request?.requestId?.joinToString("") { "%02x".format(it.toInt() and 255) },
+                    state.request?.state, state.request?.remainingMs?.div(10000)).toString()
+                if (signature == shown) return@PcApprovalController
+                shown = signature
+                controls.removeAllViews()
+                val page = CompanionPage(this, controls)
+                page.notice(state.message)
+                val value = state.request
+                val ready = !state.busy && directSession.current().authenticated
+                if (value != null) {
+                    detail("请求方", value.agent)
+                    detail("目标", value.target)
+                    detail("完整操作（逐字显示）", value.operation)
+                    val fingerprint = value.digest.take(4).joinToString("") { "%02x".format(it.toInt() and 255) }
+                    detail("请求指纹（与电脑终端核对）", fingerprint +
+                        if (value.state == com.shaniu.companion.provision.PcApprovalController.PENDING)
+                            " · 剩余约 ${value.remainingMs / 1000} 秒" else "")
+                    val pending = value.state == com.shaniu.companion.provision.PcApprovalController.PENDING
+                    page.primaryButton("批准此操作", ready && pending) {
+                        confirm("批准电脑操作", "${value.agent} 将执行：\n\n${value.operation}\n\n目标：${value.target.ifEmpty { "（未提供）" }}") {
+                            approvalEditor?.decide(true)
+                        }
+                    }
+                    page.primaryButton("拒绝", ready && pending) { approvalEditor?.decide(false) }
+                }
+                page.primaryButton("重新读取", ready) { approvalEditor?.refresh() }
+                page.notice("只有本页显示的这份完整内容会被批准；电脑若修改内容或更换请求，设备会拒绝此决定。超时或关闭电脑端视为拒绝。")
+            }
+            val poll = object : Runnable {
+                override fun run() {
+                    if (!dialog.isShowing || approvalEditor == null) return
+                    approvalEditor?.refresh()
+                    mainHandler.postDelayed(this, 2000)
+                }
+            }
+            mainHandler.post(poll)
+        }
+    }
+
+    private fun showNativeFeatures() {
+        if (!configAvailable() || settingsEditor != null || factoryReset != null) return
+        showCompanionSheet("原生功能", "从文件或 HTTPS 商店安装经发布者签名验证的设备功能。", onClosed = {
+            nativeImportSelected = null; nativeEditor?.close(); nativeEditor = null
+        }) { body, _ ->
+            val controls = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            body.addView(controls)
+            nativeEditor = com.shaniu.companion.provision.AgentDataController(directSession, 28) { state ->
+                controls.removeAllViews()
+                val page = CompanionPage(this, controls)
+                page.notice(state.message)
+                val ready = !state.busy && directSession.current().authenticated && directSnapshot?.busy == false
+                page.primaryButton("重新读取", !state.busy && directSession.current().authenticated) { nativeEditor?.refresh() }
+                state.document?.let { renderNativeFeatures(page, it, ready) }
+            }
+            nativeEditor?.refresh()
+        }
+    }
+
+    private fun renderNativeFeatures(page: CompanionPage, document: com.google.gson.JsonObject, ready: Boolean) {
+        val running = document.get("running")?.asString.orEmpty()
+        page.notice(if (running.isEmpty()) "当前没有运行中的原生功能。" else "正在运行：$running")
+        when (document.get("last_result")?.asInt ?: 0) {
+            -125 -> page.notice("上次运行已被设备的优先任务中止。")
+            -16 -> page.notice("设备显示或其他资源忙，上次运行未能完成。")
+            -1 -> page.notice("上次运行请求了未声明的权限，已被设备停止。")
+            -110 -> page.notice("上次运行单步耗时超出预算，已被设备停止。")
+            -34 -> page.notice("上次运行输出了无效的画面或反馈请求，已被设备停止。")
+            0 -> Unit
+            else -> page.notice("上次运行失败。请确认功能包与当前固件兼容，再重新启动。")
+        }
+        for (element in document.getAsJsonArray("items")) {
+            val item = element.asJsonObject
+            val id = item["id"].asString
+            val name = item["name"].asString
+            val version = item["version"].asLong
+            val description = item["description"].asString
+            val permissions = item.getAsJsonArray("permissions")?.map { it.asString } ?: listOf("display")
+            val faults = item.get("faults")?.asInt ?: 0
+            val blocked = item.get("blocked")?.asBoolean ?: false
+            val health = if (blocked) "\n本次开机已连续异常 $faults 次，已暂停；重启设备或安装新版本后恢复。"
+                else if (faults > 0) "\n本次开机异常 $faults 次" else ""
+            page.settingsRow(name, "$description\n版本 $version · " +
+                com.shaniu.companion.provision.NativeFeatureStore.permissionLabels(permissions) + health,
+                ready && (running.isEmpty() || running == id) && (!blocked || running == id)) {
+                if (running == id) {
+                    confirm("停止$name", "停止正在设备上运行的功能？") { nativeOperation("stop", id) }
+                } else {
+                    confirm("启动$name", "设备一次运行一个原生功能。语音、升级和关机等优先任务会中止它。") { nativeOperation("start", id) }
+                }
+            }
+            page.settingsRow("卸载$name", "从设备删除此功能", ready && running.isEmpty()) {
+                confirm("卸载$name", "卸载后需要重新导入功能包才能恢复。") { nativeOperation("uninstall", id) }
+            }
+        }
+        val fingerprint = document.get("trusted_key_sha256")?.asString.orEmpty()
+        val publisher = document.get("publisher_key_sha256")?.asString.orEmpty()
+        if (publisher.isEmpty()) page.notice("当前固件尚未配置第一方功能发布者，暂不能安装原生功能。")
+        page.notice(if (fingerprint.isEmpty()) "尚未信任原生功能发布者。" else "发布者公钥指纹\n$fingerprint")
+        page.primaryButton("导入发布者公钥", ready && publisher.isNotEmpty() && document.getAsJsonArray("items").size() == 0) { selectNativeImport(true) }
+        page.primaryButton("从文件安装功能包", ready && fingerprint.isNotEmpty() && running.isEmpty()) { selectNativeImport(false) }
+        val url = preferences.getString("native_feature_store_url", "").orEmpty()
+        page.notice(if (url.isEmpty()) "尚未配置 HTTPS 功能商店目录。" else "功能商店目录\n$url")
+        page.primaryButton("配置商店地址", ready) { editNativeStoreUrl(url) }
+        page.primaryButton("刷新商店", ready && url.isNotEmpty() && fingerprint.isNotEmpty() && running.isEmpty()) { fetchNativeStore(url) }
+        page.notice("仅接受固件指定发布者签名的第一方功能。原生功能与设备固件共享权限；商店使用 HTTPS，设备安装时验签。")
+    }
+
+    private fun nativeOperation(op: String, id: String) {
+        nativeEditor?.apply(com.google.gson.JsonObject().apply { addProperty("op", op); addProperty("id", id) })
+    }
+
+    private fun editNativeStoreUrl(initial: String) {
+        val input = EditText(this).apply { setText(initial); hint = "https://example.com/shaniu-store.json"; inputType = InputType.TYPE_TEXT_VARIATION_URI }
+        AlertDialog.Builder(this).setTitle("功能商店目录").setMessage("仅保存 HTTPS 地址；不会自动下载或信任发布者。")
+            .setView(input).setPositiveButton("保存", null).setNegativeButton("取消", null).create().also { dialog ->
+                dialog.setOnShowListener { dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                    val value = input.text.toString().trim()
+                    if (!com.shaniu.companion.provision.NativeFeatureStore.isHttps(value)) input.error = "请输入 HTTPS 地址"
+                    else { preferences.edit().putString("native_feature_store_url", value).apply(); dialog.dismiss(); nativeEditor?.refresh() }
+                }}
+            }.show()
+    }
+
+    private fun fetchNativeStore(url: String) {
+        val editor = nativeEditor ?: return
+        val generation = directSession.current().generation
+        ioExecutor.execute {
+            try {
+                val entries = com.shaniu.companion.provision.NativeFeatureStore.fetchIndex(url)
+                mainHandler.post {
+                    if (nativeEditor === editor && generation == directSession.current().generation) showNativeStoreEntries(entries)
+                }
+            } catch (_: Exception) { mainHandler.post { lastAction = "无法读取 HTTPS 功能商店目录"; render() } }
+        }
+    }
+
+    private fun showNativeStoreEntries(entries: List<com.shaniu.companion.provision.NativeFeatureStore.Entry>) {
+        if (entries.isEmpty()) { AlertDialog.Builder(this).setTitle("功能商店").setMessage("商店目录暂时没有可安装的功能。").setPositiveButton("知道了", null).show(); return }
+        val labels = entries.map { "${it.name} · v${it.version}\n${it.description}" }.toTypedArray()
+        AlertDialog.Builder(this).setTitle("功能商店").setItems(labels) { _, which -> downloadNativeFeature(entries[which]) }.setNegativeButton("取消", null).show()
+    }
+
+    private fun downloadNativeFeature(entry: com.shaniu.companion.provision.NativeFeatureStore.Entry) {
+        val editor = nativeEditor ?: return
+        val generation = directSession.current().generation
+        ioExecutor.execute {
+            try {
+                val request = com.shaniu.companion.provision.NativeFeatureStore.installRequest(
+                    com.shaniu.companion.provision.NativeFeatureStore.fetchPackage(entry.packageUrl, entry.sha256), entry)
+                mainHandler.post {
+                    if (nativeEditor === editor && generation == directSession.current().generation) confirm("安装${entry.name}", "将下载的已校验功能包发送给设备验签并安装。\n申请权限：" +
+                        com.shaniu.companion.provision.NativeFeatureStore.permissionLabels(com.shaniu.companion.provision.NativeFeatureStore.requestPermissions(request))) { editor.apply(request) }
+                }
+            } catch (_: Exception) { mainHandler.post { lastAction = "功能包下载或格式校验失败"; render() } }
+        }
+    }
+
+    private fun selectNativeImport(publicKey: Boolean) {
+        val editor = nativeEditor ?: return
+        val generation = directSession.current().generation
+        nativeImportSelected = { uri ->
+            nativeImportSelected = null
+            if (nativeEditor === editor && generation == directSession.current().generation) {
+                try {
+                    val bytes = contentResolver.openInputStream(uri)?.use { readPcBytes(it, if (publicKey) 256 else 24576) }
+                        ?: error("无法读取文件")
+                    if (publicKey) com.shaniu.companion.provision.NativeFeatureStore.validatePublisherKey(bytes)
+                    val request = if (publicKey) com.google.gson.JsonObject().apply {
+                        addProperty("op", "trust")
+                        addProperty("public_key", java.util.Base64.getEncoder().encodeToString(bytes))
+                    } else com.shaniu.companion.provision.NativeFeatureStore.installRequest(bytes)
+                    val detail = if (publicKey) "公钥必须匹配固件指定的第一方发布者，且设备上没有已安装的原生功能。\nSHA-256：\n" +
+                        MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it.toInt() and 255) }
+                    else "设备将验证原生包签名、ELF 完整性与声明的权限。安装或更新后默认为停止状态。\n申请权限：" +
+                        com.shaniu.companion.provision.NativeFeatureStore.permissionLabels(com.shaniu.companion.provision.NativeFeatureStore.requestPermissions(request))
+                    confirm(if (publicKey) "信任原生功能发布者" else "安装原生功能", detail) {
+                        if (nativeEditor === editor && generation == directSession.current().generation && !editor.apply(request)) {
+                            lastAction = "设备忙，请重新读取原生功能状态"; render()
+                        }
+                    }
+                } catch (_: Exception) {
+                    AlertDialog.Builder(this).setTitle("无法导入")
+                        .setMessage(if (publicKey) "请选择 P-256 发布者公钥文件（DER 格式）。" else "请选择完整的原生功能包。")
+                        .setPositiveButton("知道了", null).show()
+                }
+            }
+        }
+        startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE); type = "*/*"
+        }, NATIVE_IMPORT_REQUEST)
+    }
+
     private fun pcDeliveryFile(device: String): android.util.AtomicFile {
         val name = java.security.MessageDigest.getInstance("SHA-256").digest(device.toByteArray())
             .joinToString("") { "%02x".format(it.toInt() and 255) }
@@ -3013,7 +3232,21 @@ class MainActivity : Activity() {
                 })
             }
             body.addView(minutes, LinearLayout.LayoutParams(-1, -2))
-            val sceneLabels = listOf("开始专注", "暂停专注", "继续专注", "取消专注", "播放四拍节律（4 秒）", "取消本地内容")
+            page.sectionTitle("原生功能")
+            val nativeApp = EditText(this).apply {
+                contentDescription = "卡片启动的原生功能 ID"; hint = "功能 ID，例如 shake"
+                textSize = 16f; minimumHeight = dp(56); setTextColor(design.ink)
+                inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            }
+            val nativeSeconds = EditText(this).apply {
+                contentDescription = "原生功能运行秒数"; hint = "运行秒数 1–3600，留空为功能默认"
+                textSize = 16f; minimumHeight = dp(56); setTextColor(design.ink)
+                inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            }
+            val nativeTitle = body.getChildAt(body.childCount - 1)
+            body.addView(nativeApp, LinearLayout.LayoutParams(-1, -2))
+            body.addView(nativeSeconds, LinearLayout.LayoutParams(-1, -2))
+            val sceneLabels = listOf("开始专注", "暂停专注", "继续专注", "取消专注", "播放四拍节律（4 秒）", "取消本地内容", "启动原生功能")
             val actions = android.widget.Spinner(this).apply {
                 contentDescription = "卡片场景操作"
                 adapter = android.widget.ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, sceneLabels)
@@ -3022,13 +3255,15 @@ class MainActivity : Activity() {
                     override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
                         nfcActionDraft = position
                         minutes.visibility = if (position == 0) View.VISIBLE else View.GONE
+                        val native = if (position == 6) View.VISIBLE else View.GONE
+                        nativeTitle.visibility = native; nativeApp.visibility = native; nativeSeconds.visibility = native
                     }
                     override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
                 }
                 minimumHeight = dp(48)
             }
             body.addView(actions, LinearLayout.LayoutParams(-1, -2))
-            nfcDraftCapture = { nfcMinutesDraft = minutes.text.toString(); nfcSlotDraft = slots.selectedItemPosition.coerceIn(0, 7); nfcActionDraft = actions.selectedItemPosition.coerceIn(0, 5) }
+            nfcDraftCapture = { nfcMinutesDraft = minutes.text.toString(); nfcSlotDraft = slots.selectedItemPosition.coerceIn(0, 7); nfcActionDraft = actions.selectedItemPosition.coerceIn(0, 6) }
             val saved = TextView(this).apply { textSize = 14f; setTextColor(design.ink); setPadding(0, dp(12), 0, dp(8)) }
             body.addView(saved)
             val sceneStatus = TextView(this).apply {
@@ -3048,11 +3283,22 @@ class MainActivity : Activity() {
             val enroll = button("登记当前卡片", true) {
                 val sceneAction = actions.selectedItemPosition + 1
                 val count = minutes.text.toString().toLongOrNull()
+                val appId = nativeApp.text.toString().trim()
+                val seconds = nativeSeconds.text.toString().let { if (it.isBlank()) 0L else it.toLongOrNull() ?: -1L }
                 if (sceneAction == 1 && (count == null || count <= 0 || count > Long.MAX_VALUE / 60000)) {
                     minutes.error = "请输入有效分钟数"; minutes.requestFocus()
+                } else if (sceneAction == 7 && !appId.matches(Regex("[a-z0-9][a-z0-9-]{0,30}"))) {
+                    nativeApp.error = "请输入设备上已安装功能的 ID"; nativeApp.requestFocus()
+                } else if (sceneAction == 7 && seconds !in 0..3600) {
+                    nativeSeconds.error = "请输入 1–3600 秒，或留空"; nativeSeconds.requestFocus()
                 } else {
-                    minutes.error = null
-                    val argument = when (sceneAction) { 1 -> count!! * 60000; 5 -> 1L; else -> 0L }
+                    minutes.error = null; nativeApp.error = null; nativeSeconds.error = null
+                    val argument = when (sceneAction) {
+                        1 -> count!! * 60000
+                        5 -> 1L
+                        7 -> com.shaniu.companion.provision.NfcBindingController.nativeArgument(appId, seconds)
+                        else -> 0L
+                    }
                     nfcEditor?.act(2, slots.selectedItemPosition, argument, sceneAction)
                 }
             }
@@ -3081,6 +3327,8 @@ class MainActivity : Activity() {
                     "卡片 ${index + 1}：" + when (val action = value.actions[index]) {
                         0 -> "未登记"
                         1 -> "开始专注 ${duration / 1000} 秒"
+                        7 -> "启动原生功能 #%08x".format(duration ushr 32) +
+                            ((duration and 0xffff_ffffL).let { if (it == 0L) "（默认时长）" else "（$it 秒）" })
                         else -> sceneLabels[action - 1]
                     }
                 }.joinToString("\n") else "已保存卡片：尚未确认，请加载并回读"
@@ -4961,6 +5209,7 @@ class MainActivity : Activity() {
         private const val EYE_PACK_REQUEST = 6045
         private const val PC_PAIR_REQUEST = 6046
         private const val PC_PAIR_RESPONSE = 6047
+        private const val NATIVE_IMPORT_REQUEST = 6048
         private const val TAB_SETTINGS = 5
         private const val TAB_SERVICES = 6
         private const val TAB_RESOURCES = 7

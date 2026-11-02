@@ -20,6 +20,7 @@
 #include "bk7258_nfc_scene.h"
 #include "bk7258_focus_intent.h"
 #include "bk7258_local_content.h"
+#include "bk7258_native_intent.h"
 #endif
 #include <sys/stat.h>
 #endif

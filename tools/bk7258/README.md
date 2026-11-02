@@ -40,6 +40,130 @@ is retired; do not recreate it to satisfy a stale instruction.
 For the explicit development remote override and official delivery distinction,
 see the root [README](../../README.md).
 
+## First-party native feature packages
+
+`native-app` builds separately compiled ARM ELF code. The example
+`app/bk7258/native-apps/breathing.c` is deliberately absent from the base
+firmware source list. `--source` accepts another independent C file using
+`app/bk7258/bk7258_native_abi.h`; the default is the breathing exercise.
+
+```bash
+python3 tools/bk7258/bk7258.py native-app build --output /tmp/breathing.elf
+python3 tools/bk7258/bk7258.py native-app pack \
+  --source app/bk7258/native-apps/breathing.c \
+  --id breathing --name '呼吸节奏' --description '按屏幕提示交替吸气和呼气' \
+  --version 1 --signing-key /path/to/approved-publisher.pem \
+  --output /tmp/breathing-package
+python3 tools/bk7258/bk7258.py native-app catalog-entry \
+  --package /tmp/breathing-package/package.json \
+  --package-url https://your-store.example/breathing/package.json \
+  --output /tmp/native-catalog.json
+```
+
+ABI 2 apps (for example `app/bk7258/native-apps/shake_decide.c`) receive
+product motion-classifier events and may request one arbitrated haptic pulse
+or a completion cue. Pack them with `--abi 2` and the canonical grant list,
+for example `--permissions display,motion,haptic`; `display` is always first,
+then any of `motion`, `haptic`, `sound` once each in that order. ABI 1 accepts
+only `display`. `pack` also reports `app_hash`, the FNV-1a ID hash that an NFC
+scene card (action 7) uses to start that app.
+
+These commands neither generate identities nor publish/install anything.
+`pack` exports `publisher.der`, the exact signed manifest, ELF and JSON package.
+The approved public key's DER SHA-256 must be compiled into
+`CONFIG_BK7258_NATIVE_PUBLISHER_SHA256`. Its default is empty: installation is
+disabled until an approved publisher is configured. The phone cannot replace
+this firmware trust root; it can supply only the matching public key, with no
+native features installed. Do not use the upstream test signer in a product.
+
+In the authenticated Android companion, open **原生功能**, import the matching
+DER key, then import the package or configure an HTTPS catalog URL. Catalogs
+use `shaniu.store/1` with `apps` entries containing `id`, `name`, `description`,
+`version`, `package_url`, and the SHA-256 of the complete downloaded package.
+There is no default hosted store. The phone checks format, size, metadata and
+hash; the device performs the cryptographic signature verification. A catalog
+is an HTTPS discovery document, not a separately signed trust authority.
+
+The device's authenticated CONFIG kind 28 reuses AJV1 reads and the existing
+BEGIN/APPEND/APPLY transfer. JSON writes contain the last read `revision` and
+one of `trust`, `install`, `start`, `stop`, `uninstall`; stale writes fail.
+The App reads back the result and never automatically replays an interrupted
+write. Package format `shaniu.native/1` has exact fields `format`, `manifest`,
+`signature`, `image`. The last three are base64; ECDSA P-256/SHA-256 signs the
+exact manifest bytes. Manifest fields are `id`, `name`, `description`, `version`,
+`abi`, `target`, `sha256`, `image_size`, `permissions`. ABI is 1 or 2, target is
+`bk7258-ap-armv8m`; ABI 1 accepts `display`, while ABI 2 additionally supports
+the declared `motion`, `haptic`, and `sound` permissions described above.
+
+Limits: 16 KiB ELF, 24 KiB package, 1 KiB manifest, four installed features,
+32 KiB combined persistent record, and one running feature. Updates must
+increase the installed version and require all features stopped. Verification
+uses the decoded RAM copy before the existing transactional store commits
+`/cpdata/shaniu/native-apps/config.bin`. A failed commit keeps the old record;
+uncertain durability blocks further operations until reload. Installation and
+reboot leave every feature stopped. There is no automatic old-version rollback
+or automatic restart after a module crash.
+
+The ABI is cooperative: `shaniu_native_entry()` returns a versioned descriptor;
+ABI 1 uses `start` and `step`, while ABI 2 adds bounded input and feedback output.
+State is at most 256 bytes and display output is a bounded frame intent. The host
+owns the state, module allocation and exact-ID display cancellation. Modules
+have no imported symbols, constructors, worker threads, timers or registered
+callbacks. The product loop steps at most every 100 ms and stops a feature for
+voice, OTA, power, reset or a superseding display owner. The breathing sample
+alternates happy/thinking every four seconds, defaults to 60 seconds, and accepts
+a duration argument of 1..3600 seconds. This is a display pacing example, not an
+audio metronome or a timing-accuracy claim.
+
+The current NuttX build is flat: these restrictions are an ABI contract,
+**not a security sandbox**. A trusted module can still corrupt memory or fault
+the device. Only reviewed first-party code belongs here. New drivers, IRQs,
+cross-core protocols, partition layouts, low-level audio or a new host ABI
+require firmware changes. Arbitrary third-party uploads, WASM isolation,
+dynamic Agent tool registration and unrestricted audio access are outside this ABI.
+
+The loader reuses pinned NuttX `libelf_initialize/load/bind/unload` and owns
+their allocations directly. It avoids two observed paths in
+`892be7ba7dc468f11f32eade4c553cc76b0219c3`: `libelf_remove` leaves registry and
+export allocations, and `libelf_findsymbol` can compare a null name buffer for
+the undefined symbol. The bounded preflight identifies the entry; no registry,
+base symbol table or custom relocation engine is introduced. The tool checks
+actual relocations against that checkout's ARMv8-M implementation.
+
+Software checks: `make -C tests/host/bk7258 native_apps`,
+`python3 -m unittest tests/host/bk7258/test_native_app_package.py`, and the
+Android `:app:testDebugUnitTest :app:assembleDebug` tasks. Host tests sign real
+cross-compiled ELF using published upstream fixtures, exercise rejected
+signatures/ELF links, transactions, recovery and repeated manager lifecycle,
+and execute the sample's C logic through an explicitly stubbed loader.
+Selected real-board checks additionally covered signed install/start, repeated
+fault blocking, undeclared-permission rejection and the product haptic/capture
+handoff. They do **not** yet prove physical motion classification, NFC card
+launch, arbitrary module safety or production publisher-key operation.
+
+## Phone-owner approval for PC agents
+
+An independently paired PC with the existing `tasks` grant can ask the phone
+owner to approve one exact operation. The device binds the decision to the
+request ID, displayed bytes, expiry and the PC grant key; timeout, replacement,
+authentication failure or any non-approved result is a denial. Only the
+authenticated phone-owner session can submit the decision.
+
+Use `workbench approval-request` to request a decision without executing,
+`approval-run --exec ...` to execute an argument list only after approval, or
+`approval-hook` from a Claude Code `PreToolUse` hook. For example:
+
+```bash
+python3 tools/bk7258/bk7258.py workbench approval-run \
+  --port /dev/ttyACM0 --profile /path/to/pc-profile \
+  --agent codex --target /path/to/repository --approval-timeout 120 \
+  --exec git push fork HEAD:refs/heads/topic
+```
+
+`approval-run` executes the approved argument list directly, without a shell.
+Exit code 2 means the phone owner did not approve. Hook errors produce an
+explicit deny rather than falling through to allow.
+
 ## Independent factory software and target-bound complete flash
 
 The current first-build command sequence is in the root [README](../../README.md#官方源码构建当前主入口).
