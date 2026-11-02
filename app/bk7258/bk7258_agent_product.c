@@ -99,6 +99,9 @@
 #include "bk7258_provision_settings.h"
 #include "bk7258_focus.h"
 #include "bk7258_pc_tasks.h"
+#ifdef CONFIG_BK7258_NATIVE_APPS
+#include "bk7258_native_apps.h"
+#endif
 #ifdef CONFIG_BK7258_USBCDC
 #include "bk7258_pc_usb.h"
 #endif
@@ -521,6 +524,147 @@ static const struct bkengtest_ops_s g_engineering_test_ops =
   .system_status = product_engineering_system_status,
   .audio_run = product_engineering_audio_run,
 };
+#endif
+
+#ifdef CONFIG_BK7258_NATIVE_APPS
+#define PRODUCT_NATIVE_DISPLAY_RETRY_MS 10000u
+
+static uint32_t g_native_trial;
+static struct bknative_frame_s g_native_pending_frame;
+static uint64_t g_native_display_blocked_since;
+
+static void product_native_release_display(void)
+{
+  if (g_native_trial)
+    {
+      /* Exact-ID cancellation never restores over a newer display owner. */
+
+      (void)bk7258_display_cancel_trial(g_native_trial);
+      g_native_trial = 0;
+    }
+
+  memset(&g_native_pending_frame, 0, sizeof(g_native_pending_frame));
+  g_native_display_blocked_since = 0;
+}
+
+static int product_native_stop(void)
+{
+  int ret = bknative_stop();
+  product_native_release_display();
+  return ret;
+}
+
+static int product_native_submit_display(
+  const struct bknative_frame_s *frame)
+{
+  static const char *const expressions[] =
+  {
+    NULL, "happy", "thinking", "neutral"
+  };
+  struct bkdisplay_trial_status_s trial;
+  int ret = bk7258_display_trial_status(&trial);
+  if (!ret && g_native_trial &&
+      (trial.id != g_native_trial || trial.state == BKDISPLAY_TRIAL_SUPERSEDED))
+    {
+      ret = -ECANCELED;
+    }
+  else if (!ret && g_native_trial && trial.state == BKDISPLAY_TRIAL_FAILED)
+    {
+      ret = trial.error ? trial.error : -EIO;
+    }
+  else if (!ret && g_native_trial && frame->expression &&
+           trial.state >= BKDISPLAY_TRIAL_PENDING &&
+           trial.state <= BKDISPLAY_TRIAL_RESTORING)
+    {
+      /* The previous module frame still owns the display transaction.  Its
+       * render/restore time is not contention from another product owner. */
+
+      ret = -EAGAIN;
+    }
+  else if (!ret && !g_native_trial && frame->expression &&
+           trial.state >= BKDISPLAY_TRIAL_PENDING &&
+           trial.state <= BKDISPLAY_TRIAL_RESTORING)
+    {
+      ret = -EBUSY;
+    }
+
+  if (!ret && frame->expression)
+    {
+      ret = bk7258_display_trial_checked(expressions[frame->expression],
+                                         frame->duration_ms, trial.id,
+                                         &g_native_trial);
+    }
+
+  return ret;
+}
+
+static void product_native_step(uint64_t now, bool admitted)
+{
+  const struct bknative_frame_s *display_frame;
+  struct bknative_frame_s frame;
+  int ret;
+
+  if (!admitted)
+    {
+      ret = bknative_step(now, false, &frame);
+      if (ret <= 0)
+        {
+          product_native_release_display();
+        }
+
+      return;
+    }
+
+  ret = bknative_step(now, true, &frame);
+  if (ret <= 0)
+    {
+      product_native_release_display();
+      return;
+    }
+
+  if (frame.expression)
+    {
+      /* A restore may overlap the next module phase. Keep only the newest
+       * intent while the display worker finishes its bounded transaction. */
+
+      g_native_pending_frame = frame;
+    }
+
+  display_frame = g_native_pending_frame.expression ?
+                  &g_native_pending_frame : &frame;
+  ret = product_native_submit_display(display_frame);
+  if (ret == -EAGAIN && g_native_pending_frame.expression)
+    {
+      return;
+    }
+  else if (ret == -EBUSY && g_native_pending_frame.expression)
+    {
+      if (!g_native_display_blocked_since)
+        {
+          g_native_display_blocked_since = now;
+        }
+
+      if (now >= g_native_display_blocked_since &&
+          now - g_native_display_blocked_since <
+          PRODUCT_NATIVE_DISPLAY_RETRY_MS)
+        {
+          return;
+        }
+    }
+  else if (!ret)
+    {
+      memset(&g_native_pending_frame, 0,
+             sizeof(g_native_pending_frame));
+      g_native_display_blocked_since = 0;
+      return;
+    }
+
+  if (ret)
+    {
+      (void)bknative_abort(ret);
+      product_native_release_display();
+    }
+}
 #endif
 
 #include "bk7258_agent_product_power.inc"
@@ -1765,6 +1909,19 @@ static int product_config(void *context, enum bkcontrol_command_e command,
       return product_agent_data(command, kind, offset, record, size, status);
     }
 
+#ifdef CONFIG_BK7258_NATIVE_APPS
+  if (kind == BKCONTROL_CONFIG_NATIVE_APPS)
+    {
+      if (command != BKCONTROL_CONFIG_READ &&
+          (!voice_channel_is_idle() || !product_profile_idle()))
+        {
+          return -EBUSY;
+        }
+
+      return bknative_control(command, offset, record, size, status);
+    }
+#endif
+
   if (kind == BKCONTROL_CONFIG_SETTINGS)
     {
       return bkprov_config_control(command, offset, record, size, status);
@@ -2703,6 +2860,10 @@ static int product_reset_cleanup(void)
   if (g_trigger_started || atomic_load(&g_probe_running) ||
       (atomic_load(&g_voice_initialized) && !voice_channel_is_idle()))
     return -EBUSY;
+#ifdef CONFIG_BK7258_NATIVE_APPS
+  ret = product_native_stop();
+  if (ret < 0) return ret;
+#endif
 #if defined(CONFIG_BK7258_NFC_SERVICE) && defined(CONFIG_BK7258_PROVISION_GATT)
   /* 存储重置工作者只在原NFC工作者真实退出后取得文件清理权。 */
   ret = bk7258_nfc_service_quiesce(true);
@@ -2742,6 +2903,9 @@ static int product_reset_step(void)
     {
       g_reset_phase = PRODUCT_RESET_QUIESCING;
       int content = bkcontent_quiesce();
+#ifdef CONFIG_BK7258_NATIVE_APPS
+      int native = product_native_stop();
+#endif
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
       int pack = bk7258_display_job_quiesce(true);
 #endif
@@ -2758,6 +2922,9 @@ static int product_reset_step(void)
       ret = bkprov_owner_quiesce(true);
       if (ret < 0) return ret;
       if (content < 0) return content;
+#ifdef CONFIG_BK7258_NATIVE_APPS
+      if (native < 0) return native;
+#endif
 #ifdef CONFIG_BK7258_MOTION_SERVICE
       if (motion < 0) return motion;
 #endif
@@ -2822,6 +2989,10 @@ static int product_reset_step(void)
 #endif
   ret = bk7258_runtime_skills_init();
   if (ret < 0) return ret;
+#ifdef CONFIG_BK7258_NATIVE_APPS
+  ret = bknative_init();
+  if (ret < 0) return ret;
+#endif
   ret = bkprov_owner_unbind();
   if (ret < 0) return ret;
   ret = bkprov_network_unbind();
@@ -3033,6 +3204,10 @@ static int bk7258_agent_activate_cloud(bool *storage_waiting)
 
     int skill_result = bk7258_runtime_skills_init();
     syslog(LOG_INFO, "BKSKILL restore result=%d\n", skill_result);
+#ifdef CONFIG_BK7258_NATIVE_APPS
+    int native_result = bknative_init();
+    syslog(LOG_INFO, "BKNATIVE restore result=%d\n", native_result);
+#endif
     ret = bkprov_owner_control(work->settings.control_key, product_control,
                                NULL);
     if (!ret)
@@ -3215,6 +3390,9 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
           int error = errno;
           product_companion_step(bkvoice_config_now_ms(NULL), false,
                                   false, false);
+#ifdef CONFIG_BK7258_NATIVE_APPS
+          (void)product_native_stop();
+#endif
           (void)bkcontent_quiesce();
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
           (void)bk7258_display_job_quiesce(true);
@@ -3363,6 +3541,13 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
 #endif
       bool task_completed = bkpc_tasks_take_completion(&g_pc_tasks, now);
       PRODUCT_LOOP_CHECKPOINT(7);
+#ifdef CONFIG_BK7258_NATIVE_APPS
+      product_native_step(now, g_control_bound && !bkagent_ota_busy() &&
+        !content_busy && !voice_interaction_active &&
+        (!atomic_load(&g_voice_initialized) || voice_channel_is_idle()) &&
+        bkfocus_visual(now) == 0 &&
+        bkpc_tasks_visual(&g_pc_tasks, now, true, 0) == 0);
+#endif
       product_companion_step(now, !bkagent_ota_busy() && !content_busy,
         !atomic_load(&g_voice_initialized) || voice_channel_is_idle(),
         focus_completed || task_completed || content_completed);
@@ -4180,6 +4365,9 @@ int ai_agent_main(int argc, FAR char *argv[])
     }
 
   (void)bkcontent_quiesce();
+#ifdef CONFIG_BK7258_NATIVE_APPS
+  (void)product_native_stop();
+#endif
   message_bus_wakeup();
   return OK;
 }

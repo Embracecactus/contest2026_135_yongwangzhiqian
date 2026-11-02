@@ -1,0 +1,128 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Host-only checks for the signed, independently linked native app."""
+
+import argparse
+import base64
+import json
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import unittest
+
+
+ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT / "tools/bk7258"))
+from _lib import native_apps
+
+
+class NativeAppPackageTest(unittest.TestCase):
+    def test_unsigned_build_needs_no_key(self):
+        with tempfile.TemporaryDirectory(prefix="native-app-build-") as temporary:
+            output = Path(temporary) / "breathing.elf"
+            result = native_apps.build(ROOT, argparse.Namespace(output=output))
+            self.assertFalse(result["signed"])
+            self.assertEqual(result["checks"]["undefined_symbols"], "0")
+            self.assertTrue(result["checks"]["relocations"])
+            self.assertEqual(result["image_size"], output.stat().st_size)
+
+    def test_one_source_changes_image_and_undefined_import_is_rejected(self):
+        program = """#include "bk7258_native_abi.h"
+static int start(void *state, uint32_t argument) { (void)state; return (int)argument; }
+static int step(void *state, uint32_t elapsed, struct bknative_frame_s *frame) { (void)state; frame->expression = elapsed + 7; return 0; }
+const struct bknative_program_s *shaniu_native_entry(void) { static const struct bknative_program_s app = { BKNATIVE_ABI, 0, start, step }; return &app; }
+"""
+        undefined = program.replace(
+            "return 0;", "extern int outside(void); return outside();"
+        )
+        with tempfile.TemporaryDirectory(prefix="native-app-source-") as temporary:
+            root = Path(temporary)
+            source = root / "alternate.c"
+            source.write_text(program)
+            first = root / "sample.elf"
+            second = root / "alternate.elf"
+            native_apps.build(ROOT, argparse.Namespace(output=first, source=None))
+            native_apps.build(ROOT, argparse.Namespace(output=second, source=source))
+            self.assertNotEqual(first.read_bytes(), second.read_bytes())
+            source.write_text(undefined)
+            with self.assertRaisesRegex(ValueError, "undefined"):
+                native_apps.build(
+                    ROOT, argparse.Namespace(output=root / "bad.elf", source=source)
+                )
+
+    def test_breathing_package_is_arm_rel_and_signed(self):
+        key = (
+            ROOT.parent
+            / "apps/crypto/mbedtls/mbedtls/tests/data_files/ecdsa_secp256r1.key"
+        )
+        with tempfile.TemporaryDirectory(prefix="native-app-package-") as temporary:
+            root = Path(temporary)
+            output = root / "package"
+            result = native_apps.pack(
+                ROOT,
+                argparse.Namespace(
+                    id="breathing-demo",
+                    name="Breathing demo",
+                    description="A signed display-only breathing animation.",
+                    version=1,
+                    signing_key=key,
+                    output=output,
+                    openssl=None,
+                ),
+            )
+            self.assertEqual(result["checks"]["undefined_symbols"], "0")
+            self.assertLessEqual(result["image_size"], native_apps.IMAGE_MAX)
+            package = json.loads((output / "package.json").read_text())
+            self.assertEqual(package["format"], native_apps.PACKAGE_FORMAT)
+            self.assertEqual(
+                base64.b64decode(package["manifest"]),
+                (output / "manifest.json").read_bytes(),
+            )
+            public = root / "public.pem"
+            signature = root / "signature.der"
+            signature.write_bytes(base64.b64decode(package["signature"], validate=True))
+            subprocess.run(
+                [
+                    "openssl",
+                    "pkey",
+                    "-pubin",
+                    "-inform",
+                    "DER",
+                    "-in",
+                    str(output / "publisher.der"),
+                    "-out",
+                    str(public),
+                ],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                [
+                    "openssl",
+                    "dgst",
+                    "-sha256",
+                    "-verify",
+                    str(public),
+                    "-signature",
+                    str(signature),
+                    str(output / "manifest.json"),
+                ],
+                check=True,
+                capture_output=True,
+            )
+            catalog = root / "catalog.json"
+            report = native_apps.catalog_entry(
+                argparse.Namespace(
+                    package=output / "package.json",
+                    package_url="https://store.example.test/breathing/package.json",
+                    output=catalog,
+                )
+            )
+            self.assertEqual(report["format"], native_apps.CATALOG_FORMAT)
+            self.assertEqual(
+                json.loads(catalog.read_text())["apps"][0]["id"], "breathing-demo"
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()

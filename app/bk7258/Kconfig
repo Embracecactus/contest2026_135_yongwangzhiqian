@@ -19,6 +19,26 @@ config BK7258_APP_AGENT
 		directory; chip and board code remain
 		independent of the Agent product.
 
+config BK7258_NATIVE_APPS
+	bool "Install signed native product applications"
+	default n
+	depends on BK7258_APP_AGENT && BK7258_PROVISION_NATIVE
+	select LIBC_ELF
+	help
+		Load separately compiled trusted ARM modules through the native
+		application store. Modules share the firmware address space and
+		must obey the cooperative product ABI. This is not a sandbox.
+
+config BK7258_NATIVE_PUBLISHER_SHA256
+	string "Approved native publisher SHA-256 of DER public key"
+	default ""
+	depends on BK7258_NATIVE_APPS
+	help
+		Lowercase SHA-256 of the approved first-party P-256 SPKI DER public
+		key. An empty value disables publisher import and module installation.
+		The authenticated phone supplies only the matching public key; it
+		cannot choose a different trust root. Changing this requires firmware.
+
 config BK7258_PROVISION_NATIVE
 	bool "Device-generated identity and physical-screen QR onboarding"
 	default n
