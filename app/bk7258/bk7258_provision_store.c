@@ -83,6 +83,7 @@ int bkprov_store_check_filesystem(const char *root)
        !strcmp(root, "/cpdata/shaniu/cloud-models") ||
        !strcmp(root, "/cpdata/shaniu/response-length") ||
        !strcmp(root, "/cpdata/shaniu/runtime-skills") ||
+       !strcmp(root, "/cpdata/shaniu/native-apps") ||
        !strcmp(root, "/cpdata/shaniu/wake-models") ||
        !strcmp(root, "/cpdata/shaniu/nfc-cards") ||
        !strcmp(root, "/cpdata/shaniu/pc-grants")))

@@ -2506,6 +2506,7 @@ class MainActivity : Activity() {
         page.sectionTitle("专注与陪伴")
         page.settingsRow("专注计时", "由设备计时，手机可随时回读", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "spark") { showFocusTimer() }
         page.settingsRow("运行时技能", "查看场景、权限与启用状态", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "spark") { showAgentData(27) }
+        page.settingsRow("原生功能", "安装经签名验证的设备功能", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "spark") { showAgentData(28) }
         page.settingsRow("场景卡片", "专注操作与本地节律内容", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "spark") { showNfcBindings() }
         page.settingsRow("电脑授权", "配对、查看或撤销电脑的访问权限", enabled = configAvailable() && settingsEditor == null && factoryReset == null, iconName = "settings") { showPcAuthorization() }
         page.sectionTitle("声音与唤醒")
@@ -2800,8 +2801,9 @@ class MainActivity : Activity() {
     private fun showAgentData(kind: Int) {
         if (!configAvailable() || settingsEditor != null || factoryReset != null) return
         val facts = kind == 26
-        showCompanionSheet(if (facts) "事实记忆" else "运行时技能",
-            if (facts) "只保存你明确表达的信息，可随时纠正。" else "由你决定启用哪些场景与能力。",
+        val native = kind == 28
+        showCompanionSheet(if (facts) "事实记忆" else if (native) "原生功能" else "运行时技能",
+            if (facts) "只保存你明确表达的信息，可随时纠正。" else if (native) "从文件或 HTTPS 商店安装经发布者签名验证的设备功能。" else "由你决定启用哪些场景与能力。",
             onClosed = {
                 factDialog?.dismiss(); factDialog = null
                 agentImportSelected = null; agentEditor?.close(); agentEditor = null
@@ -2826,6 +2828,8 @@ class MainActivity : Activity() {
                         }
                     }
                     page.notice("修改或删除事实会同时清空近期对话，避免旧内容继续影响回复。关闭记忆后不读取或新增保存；删除全部记忆请返回隐私页。")
+                } else if (native && document != null) {
+                    renderNativeFeatures(page, document, ready)
                 } else if (document != null) {
                     for (element in document.getAsJsonArray("items")) {
                         val item = element.asJsonObject
@@ -2897,6 +2901,94 @@ class MainActivity : Activity() {
         dialog.show()
     }
 
+    private fun renderNativeFeatures(page: CompanionPage, document: com.google.gson.JsonObject, ready: Boolean) {
+        val running = document.get("running")?.asString.orEmpty()
+        page.notice(if (running.isEmpty()) "当前没有运行中的原生功能。" else "正在运行：$running")
+        when (document.get("last_result")?.asInt ?: 0) {
+            -125 -> page.notice("上次运行已被设备的优先任务中止。")
+            -16 -> page.notice("设备显示或其他资源忙，上次运行未能完成。")
+            0 -> Unit
+            else -> page.notice("上次运行失败。请确认功能包与当前固件兼容，再重新启动。")
+        }
+        for (element in document.getAsJsonArray("items")) {
+            val item = element.asJsonObject
+            val id = item["id"].asString
+            val name = item["name"].asString
+            val version = item["version"].asLong
+            val description = item["description"].asString
+            page.settingsRow(name, "$description\n版本 $version · 显示权限", ready && (running.isEmpty() || running == id)) {
+                if (running == id) {
+                    confirm("停止$name", "停止正在设备上运行的功能？") { nativeOperation("stop", id) }
+                } else {
+                    confirm("启动$name", "设备一次运行一个原生功能。语音、升级和关机等优先任务会中止它。") { nativeOperation("start", id) }
+                }
+            }
+            page.settingsRow("卸载$name", "从设备删除此功能", ready && running.isEmpty()) {
+                confirm("卸载$name", "卸载后需要重新导入功能包才能恢复。") { nativeOperation("uninstall", id) }
+            }
+        }
+        val fingerprint = document.get("trusted_key_sha256")?.asString.orEmpty()
+        val publisher = document.get("publisher_key_sha256")?.asString.orEmpty()
+        if (publisher.isEmpty()) page.notice("当前固件尚未配置第一方功能发布者，暂不能安装原生功能。")
+        page.notice(if (fingerprint.isEmpty()) "尚未信任原生功能发布者。" else "发布者公钥指纹\n$fingerprint")
+        page.primaryButton("导入发布者公钥", ready && publisher.isNotEmpty() && document.getAsJsonArray("items").size() == 0) { selectAgentImport(true) }
+        page.primaryButton("从文件安装功能包", ready && fingerprint.isNotEmpty() && running.isEmpty()) { selectAgentImport(false) }
+        val url = preferences.getString("native_feature_store_url", "").orEmpty()
+        page.notice(if (url.isEmpty()) "尚未配置 HTTPS 功能商店目录。" else "功能商店目录\n$url")
+        page.primaryButton("配置商店地址", ready) { editNativeStoreUrl(url) }
+        page.primaryButton("刷新商店", ready && url.isNotEmpty() && fingerprint.isNotEmpty() && running.isEmpty()) { fetchNativeStore(url) }
+        page.notice("仅接受固件指定发布者签名的第一方功能。原生功能与设备固件共享权限；商店使用 HTTPS，设备安装时验签。")
+    }
+
+    private fun nativeOperation(op: String, id: String) {
+        agentEditor?.apply(com.google.gson.JsonObject().apply { addProperty("op", op); addProperty("id", id) })
+    }
+
+    private fun editNativeStoreUrl(initial: String) {
+        val input = EditText(this).apply { setText(initial); hint = "https://example.com/shaniu-store.json"; inputType = InputType.TYPE_TEXT_VARIATION_URI }
+        AlertDialog.Builder(this).setTitle("功能商店目录").setMessage("仅保存 HTTPS 地址；不会自动下载或信任发布者。")
+            .setView(input).setPositiveButton("保存", null).setNegativeButton("取消", null).create().also { dialog ->
+                dialog.setOnShowListener { dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                    val value = input.text.toString().trim()
+                    if (!com.shaniu.companion.provision.NativeFeatureStore.isHttps(value)) input.error = "请输入 HTTPS 地址"
+                    else { preferences.edit().putString("native_feature_store_url", value).apply(); dialog.dismiss(); agentEditor?.refresh() }
+                }}
+            }.show()
+    }
+
+    private fun fetchNativeStore(url: String) {
+        val editor = agentEditor ?: return
+        val generation = directSession.current().generation
+        ioExecutor.execute {
+            try {
+                val entries = com.shaniu.companion.provision.NativeFeatureStore.fetchIndex(url)
+                mainHandler.post {
+                    if (agentEditor === editor && generation == directSession.current().generation) showNativeStoreEntries(entries)
+                }
+            } catch (_: Exception) { mainHandler.post { lastAction = "无法读取 HTTPS 功能商店目录"; render() } }
+        }
+    }
+
+    private fun showNativeStoreEntries(entries: List<com.shaniu.companion.provision.NativeFeatureStore.Entry>) {
+        if (entries.isEmpty()) { AlertDialog.Builder(this).setTitle("功能商店").setMessage("商店目录暂时没有可安装的功能。").setPositiveButton("知道了", null).show(); return }
+        val labels = entries.map { "${it.name} · v${it.version}\n${it.description}" }.toTypedArray()
+        AlertDialog.Builder(this).setTitle("功能商店").setItems(labels) { _, which -> downloadNativeFeature(entries[which]) }.setNegativeButton("取消", null).show()
+    }
+
+    private fun downloadNativeFeature(entry: com.shaniu.companion.provision.NativeFeatureStore.Entry) {
+        val editor = agentEditor ?: return
+        val generation = directSession.current().generation
+        ioExecutor.execute {
+            try {
+                val request = com.shaniu.companion.provision.NativeFeatureStore.installRequest(
+                    com.shaniu.companion.provision.NativeFeatureStore.fetchPackage(entry.packageUrl, entry.sha256), entry)
+                mainHandler.post {
+                    if (agentEditor === editor && generation == directSession.current().generation) confirm("安装${entry.name}", "将下载的已校验功能包发送给设备验签并安装。") { editor.apply(request) }
+                }
+            } catch (_: Exception) { mainHandler.post { lastAction = "功能包下载或格式校验失败"; render() } }
+        }
+    }
+
     private fun selectAgentImport(publicKey: Boolean) {
         val editor = agentEditor ?: return
         val generation = directSession.current().generation
@@ -2904,26 +2996,28 @@ class MainActivity : Activity() {
             agentImportSelected = null
             if (agentEditor === editor && generation == directSession.current().generation) {
                 try {
-                    val bytes = contentResolver.openInputStream(uri)?.use { readPcBytes(it, if (publicKey) 256 else 4095) }
+                    val native = editor.kind() == 28
+                    val bytes = contentResolver.openInputStream(uri)?.use { readPcBytes(it, if (publicKey) 256 else if (native) 24576 else 4095) }
                         ?: error("无法读取文件")
+                    if (publicKey && native) com.shaniu.companion.provision.NativeFeatureStore.validatePublisherKey(bytes)
                     val request = if (publicKey) com.google.gson.JsonObject().apply {
                         addProperty("op", "trust")
                         addProperty("public_key", java.util.Base64.getEncoder().encodeToString(bytes))
-                    } else com.google.gson.JsonParser.parseString(String(bytes, Charsets.UTF_8)).asJsonObject.also {
+                    } else if (native) com.shaniu.companion.provision.NativeFeatureStore.installRequest(bytes) else com.google.gson.JsonParser.parseString(String(bytes, Charsets.UTF_8)).asJsonObject.also {
                         require(it.keySet() == setOf("manifest", "signature"))
                         it.addProperty("op", "install")
                     }
-                    val detail = if (publicKey) "仅信任你确认的发布者。更换公钥将清除已安装的外部技能。\nSHA-256：\n" +
+                    val detail = if (publicKey) (if (native) "公钥必须匹配固件指定的第一方发布者，且设备上没有已安装的原生功能。\nSHA-256：\n" else "仅信任你确认的发布者。更换公钥将清除已安装的外部技能。\nSHA-256：\n") +
                         MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it.toInt() and 255) }
-                    else "设备将验证签名和权限范围。安装成功后默认停用，需单独启用。"
-                    confirm(if (publicKey) "信任技能发布者" else "安装技能", detail) {
+                    else if (native) "设备将验证原生包签名、ELF 完整性与显示权限。安装或更新后默认为停止状态。" else "设备将验证签名和权限范围。安装成功后默认停用，需单独启用。"
+                    confirm(if (publicKey) if (native) "信任原生功能发布者" else "信任技能发布者" else if (native) "安装原生功能" else "安装技能", detail) {
                         if (agentEditor === editor && generation == directSession.current().generation && !editor.apply(request)) {
                             lastAction = "设备忙，请重新读取技能状态"; render()
                         }
                     }
                 } catch (_: Exception) {
                     AlertDialog.Builder(this).setTitle("无法导入")
-                        .setMessage(if (publicKey) "请选择 P-256 发布者公钥文件（DER 格式）。" else "请选择完整的签名技能包。")
+                        .setMessage(if (publicKey) "请选择 P-256 发布者公钥文件（DER 格式）。" else if (editor.kind() == 28) "请选择完整的原生功能包。" else "请选择完整的签名技能包。")
                         .setPositiveButton("知道了", null).show()
                 }
             }

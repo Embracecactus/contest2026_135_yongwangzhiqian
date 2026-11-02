@@ -52,6 +52,10 @@ if(CONFIG_BK7258_APP_AGENT)
   endif()
 endif()
 
+if(CONFIG_BK7258_NATIVE_APPS)
+  target_sources(apps PRIVATE bk7258_native_apps.c bk7258_native_loader.c)
+endif()
+
 if(CONFIG_BK7258_ENGINEERING_TEST)
   target_sources(apps PRIVATE bk7258_engineering_test.c)
 endif()

@@ -213,7 +213,7 @@ static int reset_user_records(const char *root)
 {
   static const char *const names[] = {
     "memory-policy", "memory-snapshot", "cloud-models", "response-length",
-    "voice-volume", "wake-models", "runtime-skills"
+    "voice-volume", "wake-models", "runtime-skills", "native-apps"
   };
   unsigned int budget = 4096;
   for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); i++)

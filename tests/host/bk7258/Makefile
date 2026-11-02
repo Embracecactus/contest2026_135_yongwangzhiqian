@@ -259,7 +259,7 @@ VOICE_MEDIA_RECORDER_TARGET := $(BUILD)/test_bk7258_agent_media_recorder
 MEDIA_INCLUDE := $(OPENVELA_ROOT)/apps/frameworks/multimedia/media/include
 
 .PHONY: all check check-layers check-package-tools check-review-regressions clean bl1 bl2 ap headers platform storage-contract flash provision active-image run-active-image \
-	run-runtime-skills \
+	run-runtime-skills native_apps \
 	ota-contract reset-marker display-pack display-rpc health-core motion-core nfc-core vision-core vision-feedback usbmode-lease product-keys \
 	vision-record media-volume voice-media-recorder run \
 	run-core run-bl1 run-bl2 run-ap run-headers run-platform \
@@ -341,7 +341,7 @@ all: $(TARGET) $(POLICY_TARGET) $(PM_ACTIVITY_TARGET) $(PM_REPLAY_TARGET) \
 	$(VOICE_MEDIA_RECORDER_TARGET) \
 	bl1 bl2 ap
 
-run: run-motion-rpc run-nfc-rpc run-wifi-native-lease run-camera-storage run-vision-record run-media-volume run-headers run-core run-platform run-flash run-ota-confirmation run-ota-transport run-ota-manager run-active-image \
+run: native_apps run-motion-rpc run-nfc-rpc run-wifi-native-lease run-camera-storage run-vision-record run-media-volume run-headers run-core run-platform run-flash run-ota-confirmation run-ota-transport run-ota-manager run-active-image \
 	run-bl1 run-bl2 run-ap run-display-pack run-display-rpc \
 	run-health-core run-motion-core run-nfc-core run-vision-core run-vision-feedback \
 	run-usbmode-lease run-product-keys \
@@ -1944,6 +1944,18 @@ $(RUNTIME_SKILLS_TARGET): test_bk7258_runtime_skills.c $(VOICE_PACK_ROOT)/bk7258
 	$(CC) $(VOICE_PACK_CFLAGS) -DBKRUNTIME_SKILLS_ROOT='"/tmp/bk7258-runtime-skills"' -pthread -I $(VOICE_PACK_ROOT) -I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON -I $(VOICE_OTA_MBEDTLS_SOURCE)/include $< $(VOICE_PACK_ROOT)/bk7258_runtime_skills.c $(VOICE_PACK_ROOT)/bk7258_runtime_skills_store.c $(VOICE_PACK_ROOT)/bk7258_provision_store.c $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c -Wl,--wrap=bkprov_store_commit $(VOICE_OTA_MBEDCRYPTO) -lm -o $@
 run-runtime-skills: $(RUNTIME_SKILLS_TARGET)
 	./$(RUNTIME_SKILLS_TARGET)
+NATIVE_APPS_TARGET := $(BUILD)/test_bk7258_native_apps
+NATIVE_TEST_KEY := $(VOICE_OTA_MBEDTLS_SOURCE)/tests/data_files/ec_256_prv.pem
+NATIVE_FOREIGN_TEST_KEY := $(VOICE_OTA_MBEDTLS_SOURCE)/tests/data_files/ec_256_long_prv.pem
+NATIVE_TEST_PUBLISHER_SHA256 := $(shell openssl pkey -in $(NATIVE_TEST_KEY) -pubout -outform DER 2>/dev/null | sha256sum | awk '{print $$1}')
+NATIVE_TEST_IMAGE := $(BUILD)/native-breathing.elf
+$(NATIVE_TEST_IMAGE): $(VOICE_PACK_ROOT)/native-apps/breathing.c $(VOICE_PACK_ROOT)/bk7258_native_abi.h $(TOOLS_ROOT)/bk7258.py $(TOOLS_ROOT)/_lib/native_apps.py $(TOOLS_ROOT)/_lib/toolchain.py | $(BUILD)
+	rm -f $@
+	python3 $(TOOLS_ROOT)/bk7258.py native-app build --source $(VOICE_PACK_ROOT)/native-apps/breathing.c --output $@
+$(NATIVE_APPS_TARGET): test_bk7258_native_apps.c $(VOICE_PACK_ROOT)/bk7258_native_apps.c $(VOICE_PACK_ROOT)/bk7258_provision_store.c $(NATIVE_TEST_IMAGE) $(VOICE_OTA_MBEDCRYPTO) | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) -DBKNATIVE_ROOT='"/tmp/bk7258-native-apps"' -DNATIVE_TEST_KEY='"$(NATIVE_TEST_KEY)"' -DNATIVE_FOREIGN_TEST_KEY='"$(NATIVE_FOREIGN_TEST_KEY)"' -DNATIVE_TEST_IMAGE='"$(abspath $(NATIVE_TEST_IMAGE))"' -DCONFIG_BK7258_NATIVE_PUBLISHER_SHA256='"$(NATIVE_TEST_PUBLISHER_SHA256)"' -pthread -I $(VOICE_PACK_ROOT) -I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON -I $(VOICE_OTA_MBEDTLS_SOURCE)/include $< $(VOICE_PACK_ROOT)/bk7258_native_apps.c $(VOICE_PACK_ROOT)/native-apps/breathing.c $(VOICE_PACK_ROOT)/bk7258_provision_store.c $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c -Wl,--wrap=bkprov_store_commit $(VOICE_OTA_MBEDCRYPTO) -lm -o $@
+native_apps: $(NATIVE_APPS_TARGET)
+	./$(NATIVE_APPS_TARGET)
 MEMORY_FACTS_TARGET := $(BUILD)/test_shaniu_memory_facts
 MEMORY_FACTS_RUNTIME_TARGET := $(BUILD)/test_shaniu_memory_facts_runtime
 MEMORY_FACTS_RUNTIME_CFLAGS := \

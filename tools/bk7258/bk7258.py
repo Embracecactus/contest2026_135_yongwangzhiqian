@@ -28,6 +28,7 @@ from _lib import hil_test as hil_test_domain  # noqa: E402
 from _lib import image as image_domain  # noqa: E402
 from _lib import layout as layout_domain  # noqa: E402
 from _lib import layers as layers_domain  # noqa: E402
+from _lib import native_apps as native_apps_domain  # noqa: E402
 from _lib import package as package_domain  # noqa: E402
 from _lib import product as product_domain  # noqa: E402
 from _lib import sdk as sdk_domain  # noqa: E402
@@ -43,6 +44,9 @@ def _parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True)
     skills_domain.add_arguments(
         commands.add_parser("skill", help="package owner-signed runtime Skills")
+    )
+    native_apps_domain.add_arguments(
+        commands.add_parser("native-app", help="build and sign constrained native app packages")
     )
 
     workbench_domain.add_arguments(
@@ -1252,6 +1256,8 @@ def main(argv: list[str] | None = None) -> int:
             _identity(args)
         elif args.command == "skill":
             print(json.dumps(skills_domain.run(args), indent=2))
+        elif args.command == "native-app":
+            print(json.dumps(native_apps_domain.run(REPOSITORY, args), indent=2))
         elif args.command == "build":
             _build(args)
         elif args.command == "deploy":
