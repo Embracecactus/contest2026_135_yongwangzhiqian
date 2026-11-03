@@ -10,6 +10,7 @@ import java.nio.ByteBuffer
 object CloudSettings {
     const val MIMO_TOKEN_PLAN_URL = "https://token-plan-cn.xiaomimimo.com/v1"
     const val MIMO_STANDARD_URL = "https://api.xiaomimimo.com/v1"
+    const val MIMO_DEFAULT_CHAT_MODEL = "mimo-v2.6-flash"
     enum class Dialect(val wire: Int) { OPENAI_CHAT_AUDIO(1), MIMO(2) }
 
     /** Validates cloud fields locally, without resolving or contacting the endpoint. */
@@ -36,6 +37,11 @@ object CloudSettings {
         models.firstOrNull { (_, model) -> model.length !in 1..127 ||
             !Regex("[a-zA-Z0-9/_.:-]+").matches(model) }?.let { (name, _) ->
             return "$name 无效。"
+        }
+        if (host.equals("api.xiaomimimo.com", ignoreCase = true) &&
+            chatModel in listOf("mimo-v2.5", "mimo-v2.5-pro")) {
+            val replacement = if (chatModel == "mimo-v2.5-pro") "mimo-v2.6-pro" else MIMO_DEFAULT_CHAT_MODEL
+            return "对话模型 $chatModel 已停用，请改用 $replacement；语音识别和合成模型无需更改。"
         }
         return null
     }

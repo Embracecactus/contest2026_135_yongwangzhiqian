@@ -1,0 +1,88 @@
+{
+  "evidence_kind": "2026-11-03-night-follow-up",
+  "board_identity_prefix": "571ab95e",
+  "running_firmware_exact_identity": "not established",
+  "voice": {
+    "test_kind": "live-human-speech",
+    "chat_model": "mimo-v2.6-flash",
+    "user_confirmed_audible_answer": true,
+    "timing_ms": {
+      "capture_close_to_asr_final": 1813,
+      "planning": 3948,
+      "final_request_to_first_token": 25394,
+      "capture_close_to_first_pcm": 32799
+    },
+    "scope": "One observed turn, not a generalized latency metric; no environmental audio or physical video was recorded."
+  },
+  "app": {
+    "version_code": 58,
+    "version_name": "0.7.28-shaniu-mimo-chat",
+    "apk_sha256": "c2cf93b2d7bba13c29cb3de5bf95a9da799a5ee3a10cf137bd863058d9d3700b",
+    "mimo_defaults": {
+      "chat": "mimo-v2.6-flash",
+      "asr": "mimo-v2.5-asr",
+      "tts": "mimo-v2.5-tts"
+    },
+    "data_cleared": false,
+    "installed_apk_hash_matches_build": true
+  },
+  "ble": {
+    "kind": "real-phone-same-board-comparison",
+    "samples_per_case": 1,
+    "negotiated_mtu": 71,
+    "baseline": {
+      "max_write_bytes": 20,
+      "tls_ready_ms": 3264
+    },
+    "follow_up": {
+      "max_write_bytes": 67,
+      "tls_ready_ms": 2853
+    },
+    "scope": "tls_ready_ms includes connection, discovery, MTU, subscription and TLS. This is not a bulk-throughput measurement; 68 B first-packet timeout is retained separately, while 64 B and 67 B connected on the real phone.",
+    "additional_recorded_connection": {
+      "max_write_bytes": 67,
+      "negotiated_mtu": 71,
+      "tls_ready_ms": 2423,
+      "prior_connect_failures": 2,
+      "owner_verified_and_status_readback": true
+    }
+  },
+  "build_and_release_boundary": {
+    "merged_baseline_source": "8e526e238256aaa15f2c2974bd71f0d3b1d48c93",
+    "baseline_full_ci_run": "41643031351",
+    "baseline_full_ci_conclusion": "success",
+    "board_flashed": false,
+    "scope": "The earlier baseline CI predates these source fixes; new commit delivery is checked separately. No board firmware was changed in these phone and voice measurements."
+  },
+  "video": {
+    "path": "videos/phone/app58-ble-connect.mp4",
+    "sha256": "11cf5b739a2056d268eb07504a1ae5de4b1feb749846ae55d17c940e7f4f2ee7",
+    "bytes": 1409296,
+    "duration_seconds": 40.0437,
+    "width": 540,
+    "height": 1120,
+    "full_decode": "pass",
+    "scope": "real phone discovery, reconnect and authenticated status; no environmental audio or physical device view"
+  },
+  "software_checks": {
+    "android_junit": {
+      "total": 348,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 9
+    },
+    "android_assemble_debug": "pass",
+    "android_lint_debug": "pass",
+    "host_provision_regressions": "pass",
+    "host_mtu_regressions": {
+      "passed": 2
+    },
+    "firmware_incremental_build": "pass"
+  },
+  "source_log_sha256": {
+    "uart-live-turn": "57a9e40ce3a2e115d43ade746e8ed0c8ab0d0178bc8e35b2103552753c6b5d90",
+    "uart-live-turn-delayed": "6182ba0dd4ce5fed06222c6a9aa5589b78456365e092513eac31bd9774e9d8b8",
+    "uart-chat26-human": "7b42429c125e4db4063e6ff230087692f0af56c219d44d81e09da1fb13c93f8e"
+  },
+  "filtered_log_sha256": "6adc7fa1ad05de517559fb8087ce493f1bdc421f1a22a2b0081da6b85b87aac9"
+}

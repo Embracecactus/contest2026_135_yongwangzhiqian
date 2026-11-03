@@ -93,7 +93,7 @@ class ProvisionTlsTest {
                 enabledCipherSuites = arrayOf("TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256")
             }, output, input)
         }, { serverPlain.write(it) }, { now })
-        var maximumPayload = 20
+        var maximumPayload = 67
         var observedPayload = 0
         fun deliver(from: ProvisionGattSession, to: ProvisionGattSession): Boolean {
             val write = from.nextWrite() ?: return false
@@ -121,6 +121,8 @@ class ProvisionTlsTest {
             }
         }
         try {
+            client.negotiatedMtu(client.generation, 71)
+            server.negotiatedMtu(server.generation, 71)
             server.start()
             client.start()
             drain()
@@ -131,15 +133,16 @@ class ProvisionTlsTest {
                 .generateCertificate(identity.certificatePem.byteInputStream())
             assertArrayEquals(certificate.encoded, exported.encoded)
             client.promoteToControl()
-            client.negotiatedMtu(client.generation, 70)
-            server.negotiatedMtu(server.generation, 70)
-            maximumPayload = 67
+            assertEquals(67, observedPayload)
+            client.negotiatedMtu(client.generation, 23)
+            server.negotiatedMtu(server.generation, 23)
+            maximumPayload = 20
             observedPayload = 0
             val message = ByteArray(4096) { (it % 251).toByte() }
             client.send(message)
             drain()
             assertArrayEquals(message, serverPlain.toByteArray())
-            assertEquals(67, observedPayload)
+            assertEquals(20, observedPayload)
             client.negotiatedMtu(client.generation, 185)
             server.negotiatedMtu(server.generation, 185)
             maximumPayload = 182

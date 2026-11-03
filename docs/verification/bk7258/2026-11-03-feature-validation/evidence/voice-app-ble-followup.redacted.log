@@ -1,0 +1,71 @@
+# uart-live-turn (filtered stages; no speech text or credentials)
+[03/11/26 13:27:27.459375] [CPU0] [1123] [  INFO] [ap] [voice-stage] request=3 mono_ms=45057347 stage=capture_closed value=0 result=0
+[03/11/26 13:27:27.459656] [CPU0] [1123] [  INFO] [ap] [voice-stage] request=3 mono_ms=45057347 stage=asr_final value=0 result=-61
+[03/11/26 13:27:27.698906] [CPU0] [55] [  INFO] [ap] BKVOICE turn complete=-61 interaction=exit next=wake result=0
+# uart-live-turn-delayed (filtered stages; no speech text or credentials)
+[03/11/26 13:31:12.557000] [CPU0] [1140] [  INFO] [ap] [voice-stage] request=4 mono_ms=45282445 stage=capture_closed value=0 result=0
+[03/11/26 13:31:12.557343] [CPU0] [1140] [  INFO] [ap] [voice-stage] request=4 mono_ms=45282445 stage=asr_request value=56960 result=0
+[03/11/26 13:31:15.093750] [CPU0] [1140] [  INFO] [ap] BKVOICE HTTP request=chat/completions status=200 ret=0 bytes=469 receive_ms=613 consume_ms=0 read_calls=2 slow_reads=1 max_read_ms=613 body_bytes=76160 total_ms=2534 connect_ms=380 send_ms=1440 send_calls=16 reused=0 held=0 stream_end=0 keepalive=0 http11=1 peer_close=0 body_end=0 framing=length
+[03/11/26 13:31:15.098812] [CPU0] [1140] [  INFO] [ap] [voice-stage] request=4 mono_ms=45284986 stage=asr_final value=21 result=0
+[03/11/26 13:31:15.100718] [CPU0] [86] [  INFO] [ap] [voice-stage] request=4 mono_ms=45284988 stage=agent_ready value=1 result=0
+[03/11/26 13:31:15.138750] [CPU0] [86] [  INFO] [ap] [voice-stage] request=4 mono_ms=45285026 stage=plan_request value=1 result=0
+[03/11/26 13:31:15.161843] [CPU0] [86] [  INFO] [ap] [llm] OpenAI API with tools (model: mimo-v2.5, 9047 bytes)
+[03/11/26 13:31:15.171687] [CPU0] [86] [  INFO] [ap] AGENT LLM MiMo thinking=disabled source=device-setting
+[03/11/26 13:31:17.966406] [CPU0] [86] [  INFO] [ap] BKVOICE HTTP request=chat/completions status=400 ret=-121 bytes=0 receive_ms=2428 consume_ms=0 read_calls=1 slow_reads=1 max_read_ms=2428 body_bytes=9821 total_ms=2767 connect_ms=311 send_ms=18 send_calls=2 reused=0 held=0 stream_end=0 keepalive=1 http11=1 peer_close=0 body_end=0 framing=length
+[03/11/26 13:31:17.967968] [CPU0] [86] [  INFO] [ap] AGENT LLM transport=verified-cloud status=400 ret=-121 bytes=0
+[03/11/26 13:31:17.968468] [CPU0] [86] [  INFO] [ap] [voice-stage] request=4 mono_ms=45287856 stage=plan_response value=1 result=-121
+[03/11/26 13:31:18.023750] [CPU0] [55] [  INFO] [ap] BKVOICE turn complete=-121 interaction=exit next=wake result=0
+# uart-chat26-human (filtered stages; no speech text or credentials)
+[03/11/26 14:05:43.712875] [CPU0] [1239] [  INFO] [ap] [voice-stage] request=7 mono_ms=47347645 stage=capture_closed value=0 result=0
+[03/11/26 14:05:43.713156] [CPU0] [1239] [  INFO] [ap] [voice-stage] request=7 mono_ms=47347645 stage=asr_request value=49920 result=0
+[03/11/26 14:05:45.515937] [CPU0] [1239] [  INFO] [ap] BKVOICE HTTP request=chat/completions status=200 ret=0 bytes=463 receive_ms=935 consume_ms=0 read_calls=2 slow_reads=1 max_read_ms=934 body_bytes=66772 total_ms=1801 connect_ms=482 send_ms=268 send_calls=15 reused=0 held=0 stream_end=0 keepalive=0 http11=1 peer_close=0 body_end=0 framing=length
+[03/11/26 14:05:45.525312] [CPU0] [1239] [  INFO] [ap] [voice-stage] request=7 mono_ms=47349458 stage=asr_final value=15 result=0
+[03/11/26 14:05:45.528812] [CPU0] [86] [  INFO] [ap] [voice-stage] request=7 mono_ms=47349461 stage=agent_ready value=1 result=0
+[03/11/26 14:05:45.562531] [CPU0] [86] [  INFO] [ap] [voice-stage] request=7 mono_ms=47349495 stage=plan_request value=1 result=0
+[03/11/26 14:05:45.584125] [CPU0] [86] [  INFO] [ap] [llm] OpenAI API with tools (model: mimo-v2.6-flash, 9047 bytes)
+[03/11/26 14:05:45.594218] [CPU0] [86] [  INFO] [ap] AGENT LLM MiMo thinking=disabled source=device-setting
+[03/11/26 14:05:49.506750] [CPU0] [86] [  INFO] [ap] BKVOICE HTTP request=chat/completions status=200 ret=0 bytes=529 receive_ms=3344 consume_ms=0 read_calls=1 slow_reads=1 max_read_ms=3344 body_bytes=9821 total_ms=3886 connect_ms=515 send_ms=21 send_calls=2 reused=0 held=1 stream_end=0 keepalive=1 http11=1 peer_close=0 body_end=1 framing=length
+[03/11/26 14:05:49.508406] [CPU0] [86] [  INFO] [ap] AGENT LLM transport=verified-cloud status=200 ret=0 bytes=529
+[03/11/26 14:05:49.510875] [CPU0] [86] [  INFO] [ap] [voice-stage] request=7 mono_ms=47353443 stage=plan_response value=1 result=0
+[03/11/26 14:05:49.516500] [CPU0] [86] [  INFO] [ap] [voice-stage] request=7 mono_ms=47353449 stage=final_request value=1 result=0
+[03/11/26 14:05:49.525656] [CPU0] [86] [  INFO] [ap] AGENT LLM MiMo thinking=disabled source=device-setting
+[03/11/26 14:06:14.910906] [CPU0] [86] [  INFO] [ap] [voice-stage] request=7 mono_ms=47378843 stage=llm_first_token value=6 result=0
+[03/11/26 14:06:14.912312] [CPU0] [1249] [  INFO] [ap] [voice-stage] request=7 mono_ms=47378845 stage=final_first value=3 result=0
+[03/11/26 14:06:15.336531] [CPU0] [1249] [  INFO] [ap] [voice-stage] request=7 mono_ms=47379269 stage=tts_submit value=37 result=0
+[03/11/26 14:06:16.511781] [CPU0] [1249] [  INFO] [ap] [voice-stage] request=7 mono_ms=47380444 stage=first_pcm value=512 result=0
+[03/11/26 14:06:16.803406] [CPU0] [86] [  INFO] [ap] BKVOICE HTTP request=chat/completions status=200 ret=0 bytes=8132 receive_ms=27169 consume_ms=86 read_calls=33 slow_reads=8 max_read_ms=5289 body_bytes=4420 total_ms=27274 connect_ms=0 send_ms=12 send_calls=2 reused=1 held=1 stream_end=1 keepalive=1 http11=1 peer_close=0 body_end=1 framing=chunked
+[03/11/26 14:06:18.966437] [CPU0] [1249] [  INFO] [ap] BKVOICE HTTP request=chat/completions status=200 ret=0 bytes=178068 receive_ms=2616 consume_ms=578 read_calls=48 slow_reads=6 max_read_ms=479 body_bytes=174 total_ms=3627 connect_ms=424 send_ms=1 send_calls=2 reused=0 held=0 stream_end=1 keepalive=0 http11=1 peer_close=0 body_end=0 framing=chunked
+[03/11/26 14:06:18.981718] [CPU0] [1249] [  INFO] [ap] [voice-stage] request=7 mono_ms=47382914 stage=tts_submit value=118 result=0
+[03/11/26 14:06:26.564406] [CPU0] [1249] [  INFO] [ap] BKVOICE HTTP request=chat/completions status=200 ret=0 bytes=574446 receive_ms=3614 consume_ms=3695 read_calls=160 slow_reads=5 max_read_ms=588 body_bytes=261 total_ms=7581 connect_ms=249 send_ms=1 send_calls=2 reused=0 held=0 stream_end=1 keepalive=0 http11=1 peer_close=0 body_end=0 framing=chunked
+[03/11/26 14:06:28.886093] [CPU0] [55] [  INFO] [ap] BKVOICE turn complete=0 interaction=active next=capture result=0
+[03/11/26 14:06:34.010031] [CPU0] [1255] [  INFO] [ap] [voice-stage] request=8 mono_ms=47397942 stage=capture_closed value=0 result=0
+[03/11/26 14:06:34.010375] [CPU0] [1255] [  INFO] [ap] [voice-stage] request=8 mono_ms=47397943 stage=asr_request value=161280 result=0
+[03/11/26 14:06:38.765187] [CPU0] [1255] [  INFO] [ap] BKVOICE HTTP request=chat/completions status=200 ret=0 bytes=469 receive_ms=1172 consume_ms=0 read_calls=2 slow_reads=1 max_read_ms=1171 body_bytes=215252 total_ms=4752 connect_ms=572 send_ms=2650 send_calls=44 reused=0 held=0 stream_end=0 keepalive=0 http11=1 peer_close=0 body_end=0 framing=length
+[03/11/26 14:06:38.775562] [CPU0] [1255] [  INFO] [ap] [voice-stage] request=8 mono_ms=47402708 stage=asr_final value=21 result=0
+[03/11/26 14:06:38.779906] [CPU0] [86] [  INFO] [ap] [voice-stage] request=8 mono_ms=47402712 stage=agent_ready value=1 result=0
+[03/11/26 14:06:38.820125] [CPU0] [86] [  INFO] [ap] [voice-stage] request=8 mono_ms=47402752 stage=plan_request value=1 result=0
+[03/11/26 14:06:38.840250] [CPU0] [86] [  INFO] [ap] [llm] OpenAI API with tools (model: mimo-v2.6-flash, 9294 bytes)
+[03/11/26 14:06:38.850781] [CPU0] [86] [  INFO] [ap] AGENT LLM MiMo thinking=disabled source=device-setting
+[03/11/26 14:06:42.859031] [CPU0] [86] [  INFO] [ap] BKVOICE HTTP request=chat/completions status=200 ret=0 bytes=635 receive_ms=3950 consume_ms=0 read_calls=1 slow_reads=1 max_read_ms=3950 body_bytes=10068 total_ms=3975 connect_ms=0 send_ms=21 send_calls=2 reused=1 held=1 stream_end=0 keepalive=1 http11=1 peer_close=0 body_end=1 framing=length
+[03/11/26 14:06:42.860468] [CPU0] [86] [  INFO] [ap] AGENT LLM transport=verified-cloud status=200 ret=0 bytes=635
+[03/11/26 14:06:42.863343] [CPU0] [86] [  INFO] [ap] [voice-stage] request=8 mono_ms=47406796 stage=plan_response value=1 result=0
+[03/11/26 14:06:42.878062] [CPU0] [1261] [  INFO] [ap] [voice-stage] request=8 mono_ms=47406810 stage=final_first value=3 result=0
+[03/11/26 14:06:42.880875] [CPU0] [1261] [  INFO] [ap] [voice-stage] request=8 mono_ms=47406813 stage=tts_submit value=52 result=0
+[03/11/26 14:06:44.463093] [CPU0] [1261] [  INFO] [ap] [voice-stage] request=8 mono_ms=47408395 stage=first_pcm value=512 result=0
+[03/11/26 14:06:47.221468] [CPU0] [1261] [  INFO] [ap] BKVOICE HTTP request=chat/completions status=200 ret=0 bytes=240654 receive_ms=2708 consume_ms=817 read_calls=70 slow_reads=4 max_read_ms=712 body_bytes=189 total_ms=4338 connect_ms=803 send_ms=4 send_calls=2 reused=0 held=0 stream_end=1 keepalive=0 http11=1 peer_close=0 body_end=0 framing=chunked
+[03/11/26 14:06:47.232656] [CPU0] [1261] [  INFO] [ap] [voice-stage] request=8 mono_ms=47411165 stage=tts_submit value=142 result=0
+[03/11/26 14:06:57.563937] [CPU0] [1261] [  INFO] [ap] BKVOICE HTTP request=chat/completions status=200 ret=0 bytes=699618 receive_ms=4261 consume_ms=5604 read_calls=171 slow_reads=6 max_read_ms=808 body_bytes=288 total_ms=10328 connect_ms=439 send_ms=1 send_calls=2 reused=0 held=0 stream_end=1 keepalive=0 http11=1 peer_close=0 body_end=0 framing=chunked
+[03/11/26 14:06:59.931656] [CPU0] [55] [  INFO] [ap] BKVOICE turn complete=0 interaction=active next=capture result=0
+[03/11/26 14:07:04.987437] [CPU0] [1272] [  INFO] [ap] [voice-stage] request=9 mono_ms=47428920 stage=capture_closed value=0 result=0
+[03/11/26 14:07:04.988812] [CPU0] [1272] [  INFO] [ap] [voice-stage] request=9 mono_ms=47428921 stage=asr_final value=0 result=-61
+[03/11/26 14:07:05.217531] [CPU0] [55] [  INFO] [ap] BKVOICE turn complete=-61 interaction=exit next=wake result=0
+# phone-baseline20-metrics
+11-03 22:19:29.034 31747 32754 W ShaniuProvisionGatt: transport_close reason=disconnected stage=connecting elapsed_ms=426 gatt_status=62
+11-03 22:19:30.574 31747   613 W ShaniuProvisionGatt: transport_close reason=disconnected stage=connecting elapsed_ms=361 gatt_status=62
+11-03 22:19:35.994 31747   788 I ShaniuProvisionGatt: tls_ready mtu=71 max_write=20 elapsed_ms=3264
+# phone-final67-metrics
+11-03 22:22:06.791  2062  2443 I ShaniuProvisionGatt: tls_ready mtu=71 max_write=67 elapsed_ms=2853
+# phone-final67-video
+11-03 22:34:11.666  7930  8289 W ShaniuProvisionGatt: transport_close reason=disconnected stage=connecting elapsed_ms=620 gatt_status=62
+11-03 22:34:13.192  7930  8365 W ShaniuProvisionGatt: transport_close reason=disconnected stage=connecting elapsed_ms=348 gatt_status=62
+11-03 22:34:17.769  7930  8368 I ShaniuProvisionGatt: tls_ready mtu=71 max_write=67 elapsed_ms=2423

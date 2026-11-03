@@ -52,4 +52,28 @@ class CloudSettingsTest {
             CloudSettings.inputError("not a URI", "fixture-only".toCharArray(),
                 "vendor/asr", "vendor/chat", "vendor/tts"))
     }
+
+    @Test fun rejectsRetiredChatModelsOnOfficialMimoEndpoint() {
+        for (chat in listOf("mimo-v2.5", "mimo-v2.5-pro")) {
+            val error = CloudSettings.inputError("https://API.XIAOMIMIMO.COM/v1", CharArray(0),
+                "mimo-v2.5-asr", chat, "mimo-v2.5-tts", allowMissingKey = true)
+            assertTrue(error?.contains("已停用") == true)
+            assertThrows(IllegalArgumentException::class.java) {
+                CloudSettings.encode(CloudSettings.MIMO_STANDARD_URL, "fixture-only".toCharArray(),
+                    CloudSettings.Dialect.MIMO, "mimo-v2.5-asr", chat, "mimo-v2.5-tts")
+            }
+        }
+    }
+
+    @Test fun acceptsCurrentMimoChatAndUnchangedSpeechModels() {
+        for (chat in listOf("mimo-v2.6-flash", "mimo-v2.6-pro", "mimo-v2.6-pro-ultraspeed")) {
+            assertNull(CloudSettings.inputError(CloudSettings.MIMO_STANDARD_URL, CharArray(0),
+                "mimo-v2.5-asr", chat, "mimo-v2.5-tts", allowMissingKey = true))
+        }
+    }
+
+    @Test fun preservesCustomEndpointModelAliases() {
+        assertNull(CloudSettings.inputError("https://cloud.example/v1", "fixture-only".toCharArray(),
+            "mimo-v2.5-asr", "mimo-v2.5", "mimo-v2.5-tts"))
+    }
 }

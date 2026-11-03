@@ -3,9 +3,14 @@
 [项目与视频](../../README.md) · [技术报告](../../docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md) · [当前板级验收](../../boards/bk7258/CONFIGS.md) · [历史记录](../../docs/platforms/bk7258/shaniu-master-plan.md)
 
 原生 Kotlin 工程，包名 `com.shaniu.companion`。当前源码版本
-`0.7.27-shaniu-wake-import`（versionCode 57），Android 10+（minSdk 29），
+`0.7.28-shaniu-mimo-chat`（versionCode 58），Android 10+（minSdk 29），
 compile/target SDK 35。App 只承担配置和控制：设备完成配置后独立运行语音，
 关闭 App 不等于结束设备端交互会话。
+
+0.7.28 将默认对话模型更新为 `mimo-v2.6-flash`，并提示更换官方接口已停用的
+v2.5 对话模型；已有设备配置不会因安装 App 自动改写。旧固件协商 MTU 71 时使用
+67 B 有效数据，修复 68 B 分片重组超时；MTU 185 仍可发送 182 B，并未恢复全局
+20 B 限速。真实手机安装、连接与语音证据见[夜间复测](../../docs/verification/bk7258/2026-11-03-feature-validation/README.md#夜间配置真人语音与-app-ble-跟进)。
 
 [![App 操作演示](../../docs/contest/assets/app-demo-cover.jpg)](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-app-demo.mp4)
 
@@ -72,8 +77,9 @@ adb -s <手机序列号> install -r app/build/outputs/apk/debug/app-debug.apk
 
 1. 打开蓝牙并授予系统要求的权限。新设备从“添加傻妞 · 扫码连接”进入，扫描
    设备屏幕认领码；已有绑定直接连接并认证，不重复认领。认领无需互联网。
-2. 让板子扫描附近 Wi-Fi，填写网络配置与所选云服务凭据。支持 MiMo
-   标准服务或 Token Plan 配置；设备保存并返回结果后才显示成功。
+2. 让板子扫描附近 Wi-Fi，填写网络配置与所选云服务凭据。默认使用 MiMo
+   标准服务，也可填写兼容接口；请使用允许设备运行时调用的凭据。
+   设备保存并返回结果后才显示成功。
 3. 定制页提供表情、默认资源、唤醒模型与“回答与唤醒”入口；设置页提供云服务
    与模型、音量和记忆等入口，资源安装转到更新页。录音、播放或资源事务占用时
    如实显示暂不可操作，支持项以设备能力回读为准。
@@ -82,9 +88,10 @@ adb -s <手机序列号> install -r app/build/outputs/apk/debug/app-debug.apk
 5. 重启/短暂断连后重新认证并读取设备当前状态；超时的写操作不自动重发。
    删除手机绑定仅清除手机持有的连接资料，不能清除设备数据来冒充重新认证。
 
-已有 owner 绑定不代表网络和语音服务已配置。11 月 3 日这台板的非敏感配置头
-显示仅保存 owner；串口临时联网没有填入持久服务配置。应使用已绑定手机补齐
-并确认保存，再检查语音就绪，敏感配置页不录屏。
+已有 owner 绑定不代表网络和语音服务已配置。11 月 3 日下午这台板的非敏感配置头
+仅有 owner；随后已用绑定手机补齐网络和服务，更新对话模型并回读配置版本 5，
+当晚完成一次真人语音回答。该次回答延迟较长，重启后的恢复仍需另验。
+正常配置应确认保存与设备应用结果，再检查语音就绪；敏感配置页不录屏。
 
 NFC 场景动作 7 已在 App 和板端源码中接入，可把卡片映射为按 App ID 哈希启动一个
 已安装原生功能；它不取代 BLE 认领、owner 认证或签名安装。本轮仅完成主机、JVM

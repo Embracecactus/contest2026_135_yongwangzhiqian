@@ -651,7 +651,7 @@ internal class DeviceSettingsEditor(
     private fun populate(state: DeviceSettings.Public) {
         network.setText(state.ssid); password.text.clear(); replacePassword.isChecked = false
         url.setText(state.baseUrl); key.text.clear(); dialect.setSelection(if (state.dialect == 1) 1 else 0)
-        asr.setText(state.asr.ifEmpty { "mimo-v2.5-asr" }); chat.setText(state.chat.ifEmpty { "mimo-v2.5" }); tts.setText(state.tts.ifEmpty { "mimo-v2.5-tts" })
+        asr.setText(state.asr.ifEmpty { "mimo-v2.5-asr" }); chat.setText(state.chat.ifEmpty { CloudSettings.MIMO_DEFAULT_CHAT_MODEL }); tts.setText(state.tts.ifEmpty { "mimo-v2.5-tts" })
     }
     private fun save(cloud: Boolean) {
         val state = current ?: return
