@@ -11,6 +11,8 @@ on:
       - 'boards/bk7258/**'
       - 'chips/bk7258/**'
       - 'frameworks/**'
+      - 'nuttx/**'
+      - 'gateway/shaniu/**'
       - 'android/shaniu-companion/**'
       - 'tools/bk7258/**'
       - 'tests/host/bk7258/**'

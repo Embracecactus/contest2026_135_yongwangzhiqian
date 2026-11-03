@@ -209,7 +209,7 @@ explicit deny rather than falling through to allow.
 
 ## Independent factory software and target-bound complete flash
 
-The current first-build command sequence is in the root [README](../../README.md#官方源码构建当前主入口).
+The current first-build command sequence is in the root [README](../../README.md#从源码复现).
 `identity init --development` creates and reuses the caller's own BL1 and
 MCUboot signer outside the repository. `build --development-identity` uses its
 public keys for the complete BL1/BL2/CP/AP build. `release full

@@ -23,13 +23,15 @@
 | 使用手机连接、配置和更新傻妞 | [Android 操作说明](../android/shaniu-companion/README.md) |
 | 查询当前支持与验收边界 | [CONFIGS.md](../boards/bk7258/CONFIGS.md) |
 | 查构建、部署、硬件与产品合同 | [平台入口](platforms/bk7258/README.md) / [芯片契约](chips/bk7258/README.md) |
+| 跟做傻妞认领、语音、资源、电脑工作台、OTA 与评委复现 | [上手与评委复核](platforms/bk7258/shaniu-user-guide.md) / [功能与证据清单](platforms/bk7258/shaniu-feature-inventory.md) |
 | 决赛提交清单、答辩安排与初赛后更新 | [决赛提交与初赛后更新](contest/决赛提交与初赛后更新.md) |
 | 查看本轮实测、录像和缺陷处理 | [11-03 功能复测](verification/bk7258/2026-11-03-feature-validation/README.md) |
 | 查来源和许可证 | [SOURCE_PROVENANCE.md](../SOURCE_PROVENANCE.md) |
 
 历史资料：[日期化验收记录](verification/bk7258/) ·
 [Master Plan 历史决策](platforms/bk7258/shaniu-master-plan.md) ·
-[9 月 20 日技术报告](contest/技术报告-BK7258三核适配与傻妞AI伴侣.md)。
+[9 月 20 日技术报告](contest/技术报告-BK7258三核适配与傻妞AI伴侣.md) ·
+[9 月 20 日初赛评审流程快照](contest/初赛评审流程与实测快照-20260920.md)。
 
 阅读历史资料时，以其记录日期和构建身份为边界。凡标题或开头标为“历史”“快照”
 或“retired”的内容，只用于解释当时决策，不能作为当前命令、信任根、分区或板型状态。

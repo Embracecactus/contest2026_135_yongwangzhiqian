@@ -1,371 +1,335 @@
-# BK7258 × openvela: three-core adaptation and Shaniu
+# Shaniu: an openvela AI companion that lives on your desk
 
-[简体中文](README.md) · [Technical report (Chinese)](docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md)
+[简体中文](README.md) · [Feature and evidence inventory (Chinese)](docs/platforms/bk7258/shaniu-feature-inventory.md) · [Hands-on and demonstration guide (Chinese)](docs/platforms/bk7258/shaniu-user-guide.md) · [Current board acceptance](boards/bk7258/CONFIGS.md) · [Android App](android/shaniu-companion/README.md) · [Build CLI](tools/bk7258/README.md) · [Technical report (Sep 20 snapshot, Chinese)](docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md)
 
-One shared BK7258 SoC adaptation supports three physical boards. CPU0 runs
-the CP NuttX image; CPU1 and CPU2 run a separate AP SMP image.
-T5-Board runs the Dolphin utility application. AIToyBoard runs Shaniu,
-a voice and vision companion using the official Agent, Session, Voice,
-Media and Trigger components.
+<p align="center">
+  <img src="docs/assets/readme/shaniu-device-top.jpg" width="560" alt="Shaniu: the AIDK AI Toy board in its clear acrylic sandwich enclosure, eyes on two round displays">
+</p>
 
-## Current finals entry
+Shaniu (傻妞) is an AI companion that sits on your desk. Say “你好，openvela”
+(“hello, openvela”) and she goes online by herself to understand and answer you,
+showing on two round eye displays whether she is listening, thinking or speaking.
+She can look at something you hold up to her camera, react when you pick her up,
+keep a focus timer, and receive the result of a long job running on your computer,
+giving a short buzz when it finishes. The phone is only needed to claim her out
+of the box, enter Wi-Fi and cloud settings, customize and update her. A computer
+can hand her task results, or ask the phone owner to approve one command for its
+AI assistant, only after the phone has authorized that computer once.
 
-Finals: upload deadline 2026-11-04, defense 2026-11-07/08 (8-minute talk + 2-minute Q&A).
-The submission checklist and post-preliminary update summary are in
-[finals submission and updates (Chinese)](docs/contest/决赛提交与初赛后更新.md). The defense deck and
-official template are uploaded through the contest form and are not committed.
+She runs on a **BK7258** tri-core chip: CPU0 runs the openvela CP instance for
+radio, storage and updates; CPU1/CPU2 run the AP instance in SMP for voice,
+display and the Agent. The same chip adaptation also serves two other boards;
+T5-Board runs the Dolphin graphical tool.
 
-Use the [official-source build instructions](README.md#官方源码构建当前主入口)
-and [scoped integration evidence](docs/verification/bk7258/2026-10-09-finals-integration.md).
-The team project defaults to the official repository; CI pins manifest and team source
-to the same event candidate before syncing. PR runs verify the exact merge commit,
-base and head. Published NuttX, Agent and SDK dependency identities are recorded in
-[source provenance](SOURCE_PROVENANCE.md#2026-10-21-评审修复依赖).
-The single current board acceptance summary is [CONFIGS.md](boards/bk7258/CONFIGS.md).
-Dependency publication, a full manifest reproduction and device acceptance
-require separate evidence.
+Competition scope: **new hardware platform adaptation + AI hardware product innovation**, matching the [technical report](docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md).
 
-The 2026-11-03 workspace candidate passes its software gates and three AIDK
-direct builds. The `packages_ai_agent` streaming/audio changes are fixed at fork
-commit [`76c65bc6`](https://github.com/Embracecactus/packages_ai_agent/commit/76c65bc6231a7eeb49c32f8938a3d005a4221776).
-The tested `nuttx-apps` webclient keep-alive change is fixed at fork commit
-[`d529ec81`](https://github.com/Embracecactus/nuttx-apps/commit/d529ec814bc11a4e76954a8dfb903c55e1eca4f3).
-The team manifest pins both identities; clean synchronization and physical-device
-acceptance still require separate evidence.
-The subsequent media-recorder logging fix was published as media dependency
-commit [`eee16420`](https://github.com/Embracecactus/frameworks_multimedia_media/commit/eee164209463601512683acef433fee687d3844a)
-and is pinned by the team manifest. It was incrementally built but not flashed;
-see [source provenance](SOURCE_PROVENANCE.md#2026-11-03-录音结束日志修正依赖已固定).
+> **Status (2026-11-04).** Source is maintained on the official contest branch
+> `dev-ai-contest-2026`. PR #140 was merged with its build and independent delivery
+> verification checks passing. This proves a clean GitHub environment can build
+> development-identity-signed firmware and the App from the pinned manifest; it
+> does not prove a release image works on a board. **The current source has no
+> author-signed release and no whole-device, all-feature acceptance yet.** `0.7.129+775`
+> has a bounded same-board approval-display acceptance; the November 3 board
+> observations come from a device whose full firmware version could not be read
+> back. Per-feature evidence is listed below and in the inventory; board-level
+> conclusions live only in [CONFIGS.md](boards/bk7258/CONFIGS.md).
 
-## Real-device videos
+The official template requires the project, direction, layout, run steps and AI Coding explanation; see the [contest overview](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/contest_overview.md), [submission guide](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/code_submission_guide.md), and [AI-log guide](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/ai_coding_log_guide.md). Claude Code and Codex assisted design, implementation, diagnosis and documentation. Use [`logs/README.md`](logs/README.md) as the entry: historical exports retain collector label `lijian`, while this review's redacted additions are under `logs/Embracecactus/`; neither identity field is rewritten merely because the current GitHub username differs. Internal reasoning/context, media and sensitive payloads are excluded or redacted/hashed. The collector does not push automatically. All 211 sessions and 113,146 events pass the official schema validator; the log entry explains the public snapshots' completeness limits.
 
-New archived evidence from November 3:
-[55-second board camera capture/save/cancel/recapture recording](docs/verification/bk7258/2026-11-03-feature-validation/videos/board/camera-capture-cancel-recapture.mp4),
-[results and logs](docs/verification/bk7258/2026-11-03-feature-validation/README.md), and
-[local player for all 19 clips](docs/verification/bk7258/2026-11-03-feature-validation/index.html).
-The other clips are 14 passing emulator recordings and four failed diagnostic
-segments. The board footage is dim and silent; its complete running CP/AP identity
-is unknown, so it is not attributed to generation 770 or today's build. These
-files are archived with the repository, but have not been uploaded as an
-independent Release or to the contest materials site. The September 20 published
-videos remain below.
+## What she can do today
 
-[![Project demonstration](docs/contest/assets/demo-cover.jpg)](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-demo.mp4)
+Evidence levels, low to high: **implemented** → **host/emulator tested** →
+**board observed** → **real phone** → **confirmed by a person**. Each row states
+only the highest level reached and its version; an older firmware result does
+not mean the current source passes.
 
-- [Main demonstration — 4:48](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-demo.mp4)
-- [Android controls — 1:26, supplementary](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-app-demo.mp4)
-- [Downloads, subtitles and hashes](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/tag/shaniu-demo-20260920)
-- [Bilibili mirror (BV1pueq6hEzQ)](https://www.bilibili.com/video/BV1pueq6hEzQ/)
+| Capability | How you use it | Depends on | Highest evidence (date · version) |
+| --- | --- | --- | --- |
+| Local wake, continuous Q&A | Say “你好，openvela”, ask; follow up without re-waking after playback | Wake on device; ASR, answer and TTS need Wi-Fi and a cloud service | Board, full chain: Sep 20 · `18.6.401+638`. Nov 3: real-person wake matched locally twice, but the device lacked network/cloud settings, so the dialogue correctly did not start (`ENETDOWN`) |
+| Local fixed commands | Volume, expression, “stop talking”, “start focus 25 minutes” | Cloud ASR still converts speech to text; a hit skips the LLM. The MIC is released during playback, so this is not acoustic barge-in | Host tests and AIDK build; new commands not board-accepted |
+| Photo understanding | “看看这个，这是什么？” (“what is this?”) | Cloud multimodal model | Board: Sep 20 · 639 user-confirmed; color errors seen, no accuracy statistics |
+| Eyes and status | Listening, thinking, speaking, offline states; installable eye packs | Local | Board: 641 two packs persisted across reset; Nov 3 expression render/readback |
+| Motion expressions; completion buzz | Pick her up or tilt her; a short buzz when focus or a PC task finishes | Accelerometer and motor | Board: Nov 3 samples and two driver returns of 0; pickup reaction and feel not yet confirmed by a person |
+| Focus timer | Start/pause/resume/cancel by voice, App, NFC card or PC | Local timer | Emulator and host tests; voice entry not board-accepted |
+| NFC scene cards | Register a card in the App for focus, local content or launching a feature, then tap | MFRC522; ISO14443A UID cards | Emulator drafts; board no-card scan `-110`; no real-card trigger yet |
+| Fact memory | Enable memory, “记住我叫……” (“remember my name is…”); view/correct/delete in the App | Encrypted on the device | Real phone + board: Nov 1 add/correct/delete/reboot readback |
+| Runtime Skills | “专注助手：……” and two other scene prefixes | Cloud Agent; external Skills must be signed | Real phone + board: Nov 1 enable/disable persisted |
+| PC task feedback | `workbench task-run` runs a real command; the result goes to Shaniu | Native USB; `tasks` grant from the phone | Board: Nov 3 success and timeout receipts confirmed; screen/buzz not confirmed by a person |
+| On-demand PC camera | Browser workbench: capture one frame, save, cancel, recapture | Native USB; `camera` grant | Board: Nov 3 two 640×480 frames, [55 s real-speed recording](docs/verification/bk7258/2026-11-03-feature-validation/videos/board/camera-capture-cancel-recapture.mp4) |
+| Single-use phone approval | The PC's AI assistant requests a command; Shaniu shows “!”; the phone owner approves or rejects | Claimed phone; PC already holds `tasks` | Host tests; Nov 3 board + phone: approved command ran (author's local screen recording; receipt approved, authenticated=true, exit code 0), unattended request expired and nothing ran; reject not yet tested |
+| Claim, Wi-Fi, settings | Scan the code on her screen; enter Wi-Fi and cloud settings over authenticated BLE | Phone; claiming needs no internet | Real phone: 637/641 claim, Oct 18 and Nov 1 Mi 10 sessions; Nov 4 read-only Mi 10: installed `0.7.28-shaniu-mimo-chat` / code 58 saved and read back cloud settings, device reported Wi-Fi ready. This is not a voice, BLE-lifecycle or OTA acceptance result |
+| Resource and wake-model updates | Install eye packs (Wi-Fi) and switch/import wake models (BLE) from the App | Phone and device on the same LAN | Board: 641 install and reset persistence |
+| App firmware update (OTA) | Pick a `.bkpack`; the device pulls it over Wi-Fi and verifies after reboot | Matching signing trust and rollback counter | Board: 634 first real OTA; 767 reconnect after update passed; 770 updated but automatic reconnect failed |
+| Signed native features | “帮我做个决定” (“help me decide”); install first-party signed packages from the App | Product firmware needs a publisher key fingerprint | Host tests; **the product configuration's fingerprint is empty, so release firmware rejects installation** |
+| Keys | K1/K3 volume; hold K2 alone ≥3 s and release to request power-off | Local | Volume keys: 638 board; K2 power-off not separately accepted. Factory reset only through the authenticated App |
 
-The same board recording is also on Bilibili:
-<https://www.bilibili.com/video/BV1pueq6hEzQ/>. GitHub strips `<iframe>` when it
-renders a README, so the repository links out to the player; sites that do allow
-frames (a self-hosted documentation or showcase page) can embed the player the
-author provides below. Only the link is guaranteed to work from the repository
-page.
+<p align="center">
+  <img src="docs/assets/readme/eye-states.gif" width="520" alt="State sketch rendered from the real eye pack and firmware drawing rules">
+  <br><sub>Rendered from the repository eye pack <code>shaniu-cyan-v2</code> and the drawing rules in <code>bk7258_focus_pixels.h</code>; an illustration, not a board recording.</sub>
+</p>
 
-```html
-<iframe src="//player.bilibili.com/player.html?isOutside=true&aid=117302603290813&bvid=BV1pueq6hEzQ&cid=42051569905&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+## Real demonstrations
+
+- **Board video (2026-09-20)**:
+  [main video 4:48](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-demo.mp4)
+  · [App video 1:26](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-app-demo.mp4)
+  · [Bilibili BV1pueq6hEzQ](https://www.bilibili.com/video/BV1pueq6hEzQ/)
+  · [subtitles and hashes](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/tag/shaniu-demo-20260920).
+  The App video only shows the OTA entry.
+- **Board camera (2026-11-03)**: a [55 s real-speed screen recording](docs/verification/bk7258/2026-11-03-feature-validation/videos/board/camera-capture-cancel-recapture.mp4)
+  of the PC workbench taking real frames from the device camera; no ambient sound, dark image.
+- **App emulator recordings (2026-11-03)**: 14 passing groups and 4 failure
+  diagnostics with fixture data, in the [feature validation record](docs/verification/bk7258/2026-11-03-feature-validation/README.md#手机模拟器录像).
+  An emulator proves nothing about real Bluetooth, NFC, sound or OTA.
+
+<p align="center">
+  <img src="docs/assets/readme/app-screens-emulator.jpg" width="760" alt="Android App emulator screenshots: connection state, settings, focus timer, initial claiming screen">
+  <br><sub>Android App <code>0.7.27</code> on the emulator (fixture state); the latest recorded real phone App is <code>0.7.28-shaniu-mimo-chat</code> / code 58.</sub>
+</p>
+
+## Who does what: device, phone, computer
+
+```mermaid
+flowchart LR
+  subgraph Desk["Shaniu on the desk (runs on her own)"]
+    D["Local wake · capture and playback · eyes · motion · NFC · focus · camera"]
+  end
+  Cloud["Your cloud service<br/>ASR · LLM · TTS"]
+  Phone["Phone App (owner)<br/>claim · Wi-Fi and cloud · customize · update<br/>PC authorization · optional single approval"]
+  PC["PC workbench<br/>real tasks · on-demand camera · resources<br/>approval requests from its AI assistant"]
+  D <-- "Wi-Fi + TLS" --> Cloud
+  Phone -- "authenticated BLE: settings and control<br/>LAN HTTPS: resources and firmware" --> D
+  PC -- "native USB + TLS<br/>only the granted permissions" --> D
+  Phone -. "one-time grant tasks/camera/resources" .-> PC
 ```
 
-The main video is under five minutes. These are edited demonstrations, not
-continuous stress-test recordings. Distribution copies retain the complete
-content and use 1080p H.264/AAC. The App video shows the OTA entry, not an
-entire upgrade; OTA evidence is recorded separately.
+**Why do some computer operations need the phone?** Most do not. The PC is
+authorized once by the phone; afterwards builds, training or rendering run with
+`task-run` hand their results straight to Shaniu. The single-use approval is a
+separate, optional gate for commands you want to check yourself, for example
+before the coding assistant on your PC runs `git push` (`workbench approval-run`,
+or a Claude Code `PreToolUse` hook). The decision lives on the phone because it
+holds the owner credential from claiming and can show the whole command verbatim;
+anyone can touch the device on the desk, and a round eye display cannot show a
+full command. **Starting a computer operation by voice is not implemented.**
 
-## Product behavior
+```mermaid
+sequenceDiagram
+  participant A as AI assistant on the PC
+  participant D as Shaniu
+  participant P as Phone owner
+  A->>D: request (verbatim command, target, ID, deadline)
+  D->>D: amber "!" and countdown ring, short buzz
+  P->>D: read the full command, approve or reject
+  D->>A: receipt signed with that PC's grant key
+  A->>A: run only on a valid "approved" receipt
+```
 
-“你好，openvela” enters an interaction: local acknowledgement, automatic
-capture, actual ASR, official Agent / selected LLM, TTS and speaker playback.
-Follow-up questions do not require another wake word. Session termination
-returns to hotword listening. ASR is batch. Final-body sentence streaming, cancellation and the next round have
-controlled-response engineering HIL evidence. Real cloud latency, acoustic quality
-and a total cancellation hard bound remain unproven.
+## First use
 
-The device owns conversation execution. Android handles authenticated BLE
-provisioning and settings, plus Wi-Fi HTTPS delivery of eye assets and signed
-OTA packages. It does not relay conversation audio. Camera access uses the
-existing single owner; native tools expose bounded device actions.
-Optional persistent memory is encrypted and restored into official Sessions.
+1. **You need** Shaniu (AIDK AI Toy board in its clear enclosure, USB power), an
+   Android 10+ phone, 2.4 GHz Wi-Fi and your own cloud account (MiMo standard API
+   or Token Plan by default). No author credentials are shipped.
+2. **Install the App** from source (below) or a published APK. If an older App is
+   installed, check signature compatibility first; uninstalling or clearing data
+   deletes the claim credential.
+3. **Claim**: Device → “添加傻妞 · 扫码连接” (add Shaniu, scan to connect), scan the
+   code on her screen. No internet is needed; the result is read back from the device.
+4. **Connect**: let the device scan Wi-Fi; enter the password and the cloud
+   endpoint, API key and models. Secrets are never read back.
+5. **Talk**: say “你好，openvela”.
 
-The current Android source is `0.7.27-shaniu-wake-import` (version code 57).
-Its porcelain-and-ink UI uses the device eyes as the only normal-state colour;
-the eyes reflect only an authenticated, fresh device state. Native features
-support ABI 1/2 compatibility plus ABI 3 motion, bounded feedback, trusted time,
-small persistent state, result labels, voice/Agent control and schedules. The
-normal product publisher fingerprint is intentionally empty, so installation
-remains disabled until an approved first-party key is configured. PC approval
-requests bind the agent, target, operation, request ID and expiry; only the
-phone owner can decide. See the
-[2026-11-03 software validation](docs/verification/bk7258/2026-11-03-comprehensive-software-validation.md)
-for host, build and emulator evidence and the remaining physical-device scope.
-The [later November 3 run](docs/verification/bk7258/2026-11-03-feature-validation/README.md)
-adds 14 emulator groups and a board expiry check that ran no command. Positive
-phone approval/rejection remains untested. Single-use approval is a separate
-entry point; ordinary previously authorized PC tasks and device conversations do
-not require a phone decision each time. Device voice initiating PC operations is
-not implemented.
+The full factory first-boot identity and claim-code path has not been accepted
+on a new board yet.
 
-After ASR, explicit Chinese volume, expression, stop and focus-timer commands
-use a local intent route before Agent dispatch. Volume changes reuse Media
-readback and persistence; expressions enter the existing queue (acceptance is
-not rendering). Repeated requests cannot apply a relative volume change twice.
-Tool denial and execution errors do not fall through to the cloud. Other text,
-including camera requests, retains the original Agent path. `BKLOCAL` and
-`BKFOCUS` logs expose request IDs, results and routing time without transcripts.
-This still requires the configured ASR backend and does not implement acoustic
-barge-in. Parser and Voice-dispatch host checks and the AIDK firmware build pass;
-the added commands have not yet been validated on the board. Run
-`make -C tests/host/bk7258 run-agent-local-intent` for the host checks.
+## Daily use
 
-## Boards and build entry points
+- **Talking**: after waking, ask naturally; follow up before the silence timeout.
+  Answer length, thinking, model, volume and speed are App settings that survive reboot.
+- **Local commands** (matched on the device after ASR, no LLM request): volume
+  0–100, expressions, stop/cancel, focus start/pause/resume/remaining, launching
+  an installed native feature. Negations, conditions, questions and multiple
+  intents go to the Agent instead.
+- **Without network**: wake detection, eyes, keys, motion expressions, NFC cards,
+  local content and the focus timer keep working; ASR, answers, TTS and photo
+  understanding need the network and fail honestly without it.
+- **Keys**: K1/K3 volume down/up; hold K2 alone for at least 3 s and release to
+  request power-off, press K2 to power on. Factory reset only in the authenticated App.
 
-The local finals revision (PPTX, PDF, speaker notes, timing, sources, and
-shooting checklist), original deck, and official template remain in the
-workspace and are **not part of this repository publication**. The revision
-has 12 main slides, three hidden appendices, and the embedded 55-second board
-video on slide 3. The PDF is only a static backup.
+## Customization and updates
 
-The [submission assets](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/tag/shaniu-demo-20260920)
-include a Chinese report (PDF/DOCX), the 4:48 main video, a separate App demo,
-four authentic board photos, an A2 poster and an editable 18-slide presentation.
-Source and original AI logs remain in Git, not in the submission ZIP. Device
-bootstrap secrets and device-bound recovery images are excluded. Artifact
-preparation is not a completed website submission or upstream PR merge. The
-packaged attachments (PDF/DOCX/PPT) predate the 637/638 updates and have not
-been regenerated; the Markdown sources in this repository do not update them.
+| Content | File | Channel | Counted as applied when |
+| --- | --- | --- | --- |
+| Eye expressions | `.bkep` ([how to build](app/bk7258/assets/display/README.md)) | Phone-hosted HTTPS over Wi-Fi | The device reads back matching `pack_id`, `revision`, `source_sha256` |
+| Default expression and timed trial | Installed resources | Authenticated BLE or PC workbench (`resources`) | Device readback |
+| Wake model | `.wkm` (three bundled in the App) | Authenticated BLE in chunks | Readback of active model SHA, label and phrase |
+| Runtime Skill | Signed JSON ([packing](tools/bk7258/README.md#runtime-skill-packages)) | App imports publisher key and package | Device verifies; disabled after install |
+| Native feature | Signed `shaniu.native/1` | App install | Device verification and anti-rollback; rejected until the product fingerprint is set |
+| Firmware | Signed `.bkpack` OTA | App submits the source; device pulls over LAN HTTPS | After reboot: version, counter, active slot and `pair=confirmed` |
 
-| Board | CLI ID | Application | SDK profiles |
-|---|---|---|---|
-| T5AI-Core V1.0.1 | `t5ai_core` | Platform baseline | `cp`, `ap` |
-| T5-Board V1.0.2 | `t5_board` | Dolphin | `cp`, `ap` |
-| AIToyBoard / AIDK AI Toy | `aidk_ai_toy` | Shaniu | `cp-aidk`, `ap-aidk` |
+## Architecture
 
-Each selects `app + openvela_ap` through its own `openvela.conf`.
-Compiling does not require a physical board. Consult the
-[board bindings](boards/bk7258/README.md) and [configuration contract](boards/bk7258/CONFIGS.md);
-T5AI-EVB is not interchangeable with T5-Board.
+```mermaid
+flowchart TB
+  BL["Own BL1 → MCUboot BL2 → same-slot signed CP/AP (A/B)"]
+  subgraph SoC["BK7258 (three Cortex-M33)"]
+    direction LR
+    CP["<b>CP · CPU0 · openvela</b><br/>Wi-Fi / BLE controller<br/>Flash · LittleFS · signed OTA<br/>Health supervision · log aggregation"]
+    AP["<b>AP · CPU1 + CPU2 SMP · openvela</b><br/>Agent · Session · Voice · Media<br/>TFLite Micro wake · local intents<br/>Dual eyes · camera · motion · NFC · haptics<br/>PC workbench services · native features"]
+    CP <-- "RPTUN / RPMsg<br/>one owner per resource" --> AP
+  end
+  BL --> SoC
+```
 
-**Historical publication record (2026-09-20, not the current build entry):** the working baseline was the official repository
-`open-vela/contest2026_135_yongwangzhiqian` on `dev-ai-contest-2026`, which now
-contains the F01-F12 remediation (`b72b8bbb..daacdc75`, 13 commits) and the
-later 636/637 commits (`019a449e`, `faab4493`, `7d667565`). Source snapshot
-`82610138` on `feat/shaniu-contest-delivery-20260920` was the historical fork
-delivery path; a fork push is not an upstream merge or a completed contest
-submission, and that content is merged into the baseline above.
-The Agent changes at that historical checkpoint were published as
-[`add0db19`](https://github.com/Embracecactus/packages_ai_agent/commit/add0db19d00301769907a5ece03fb9bd88d2edb4),
-based on official `e65550f18759f086d7f544edcf17d1e31223244f` (21 files).
-That historical manifest pinned this fork commit and 248 checked-out Linux dependency revisions.
-No retired patch/overlay chain is restored. Public source availability is not an
-upstream merge, a clean three-board build, or new board acceptance.
-See [provenance](SOURCE_PROVENANCE.md).
+| Physical board | Build ID | Role | CP/AP SDK |
+| --- | --- | --- | --- |
+| AIDK AI Toy (AIToyBoard) | `aidk_ai_toy` | Shaniu | `cp-aidk + ap-aidk` |
+| T5-Board V1.0.2 | `t5_board` | Dolphin graphical tool | `cp + ap` |
+| Tuya T5AI-Core V1.0.1 | `t5ai_core` | Minimal-system baseline | `cp + ap` |
 
-On 2026-09-20 all three boards' CP/AP **direct builds passed** from an isolated
-source checkout at `c10a7668`, using pinned dependencies and verified existing
-SDK/toolchain caches. See the [build record and hashes](docs/verification/bk7258/2026-09-20-public-source-build.md).
-These unsigned build checks were not flashed and do not replace the signed
-635/637 packages.
+Engineering highlights: a source-built BL1 and packer (32-byte data + 2-byte CRC
+Flash encoding) with MCUboot and paired CP/AP updates (first real App OTA at
+634); RPMsg temporary threads replaced by resident workers (ENOMEM at run 53 →
+80 clean runs); native ELF loading confined to CPU0 after a CPU1 cross-core lock
+problem (100 + 100 cycles pass, root cause not claimed fixed); the SDK “OPP
+320M” label found to mean 160 MHz on CPU0 (CoreMark 561.58 at 240 MHz on the
+T5-Board performance profile, 10 runs). Details: [technical report](docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md)
+and [dated verification records](docs/verification/bk7258/).
 
-The following commands are the historical direct-build procedure. For the current signed
-first build, use the official-source entry linked above. Historical prerequisites: Ubuntu 22.04.
+## Wake word and voice
+
+- Built-in model: 32-channel full-INT8 DS-CNN, 23,640 B, TFLite Micro, ~80 ms
+  per inference, evaluated every 300 ms, two consecutive hits, 1 s cooldown,
+  default threshold 0.60 (App range 50–90%).
+- Training: `bk7258.py voice kws audit/train/evaluate` with source isolation and
+  quantization alignment. Several rounds improved a synthetic held-out set
+  (127/400 → 318/400 in one round) but regressed on others; **no candidate
+  replaced the product model**, and there is no multi-speaker human FAR/FRR result.
+- TTS: on the same board and input, MiMo SSE (first PCM 1,227–1,344 ms, max gap
+  531–697 ms) was kept over Tencent Cloud WebSocket (1,605–1,682 ms, gaps
+  3,863–7,607 ms, one timeout in three); five samples only, not a ranking.
+- The AIDK product configuration currently plays the contest-period authorized
+  “我在” recording (`CONFIG_BK7258_AIDK_PRIVATE_WAKE_REPLY_PCM=y`); a public
+  synthetic alternative is documented in [WAKE_REPLY_PUBLIC.md](app/bk7258/assets/WAKE_REPLY_PUBLIC.md).
+
+## Tests and evidence
+
+| Layer | Entry | Latest result |
+| --- | --- | --- |
+| BK7258 host | `make -C tests/host/bk7258 check`, `run-shaniu-contracts` | Nov 3 local: 996 contract cases PASS (GCC 11); 104 headers × CP/AP × C11/C++17 |
+| Android | `./gradlew :app:testDebugUnitTest :app:lintDebug` | 345 distinct JVM cases passed (union of runs); lint 0 errors |
+| Android emulator | instrumentation `ui_gallery` / `ui_probe` | 14 scenario groups, including 11 provisioning errors; fixture state |
+| Firmware build | `bk7258.py build --board aidk_ai_toy` | Product, native-loader and CSI diagnostic direct builds pass |
+| Cold CI | [`Shaniu cold delivery`](https://github.com/open-vela/contest2026_135_yongwangzhiqian/actions/workflows/shaniu-source-checks.yml) | See “CI status” below |
+| Board | [dated records](docs/verification/bk7258/) | Latest: [Nov 3 feature validation](docs/verification/bk7258/2026-11-03-feature-validation/README.md) |
+
+## Reproduce from source
+
+| Level | Guaranteed | Notes |
+| --- | --- | --- |
+| Same source and configuration | Yes | The team manifest pins every dependency, the SDK and the toolchain |
+| Equivalent behavior | Expected | Still needs acceptance on your board |
+| Byte-identical unsigned payloads | Not verified | Raw image hashes from two independent environments have not been compared |
+| Byte-identical signed images | No | Different signing keys; private keys, device identity, calibration and cloud credentials are not public inputs |
+
+A debug APK you build has your debug signature and **cannot update** the
+author-signed App in place; uninstalling loses the Keystore claim credential.
+Your development signing identity (or the ephemeral one CI creates) is **not
+accepted** by the author's board, whose BL1/MCUboot trust root is another key.
+
+**Environment**: x86_64 Linux (CI uses Ubuntu 24.04, the author Ubuntu 22.04),
+network access to GitHub/PyPI/Google Maven, `git`, Google `repo`, `make`,
+`gcc`, `openssl`, `libssl-dev`, `zip`, `unzip`, Python 3.10, JDK 17, Android SDK Platform 35
+(Gradle 8.13 via the wrapper). No board, cloud account, author key or training data.
+
+Run the commands from the Chinese README section
+[“从源码复现”](README.md#从源码复现) in a **new empty directory** (not under an
+existing repo client): `repo init` with `-m contest2026_135_yongwangzhiqian.xml
+-g default,bk7258-sdk,platform-linux`, a local manifest that pins the team
+project to the manifest commit, the bounded `repo sync` list used by CI, then
+`toolchain install/verify`, `sdk rebuild/verify` for `cp-aidk` and `ap-aidk`,
+`identity init --development`, `build --board aidk_ai_toy --boot mcuboot
+--development-identity --rollback-floor 1`, `release full ... --factory-init`,
+`verify package` and `verify trust`; then `./gradlew :app:assembleDebug
+:app:assembleDebugAndroidTest :app:testDebugUnitTest` in
+`android/shaniu-companion`. Without board data the release states
+`same-device-hardware-data-required`: **there is no 8 MiB image for arbitrary boards**.
+
+The Android commands run in a subshell in that sequence, so the following host-test
+commands run again from the team-project root:
 
 ```bash
-repo init -u https://github.com/open-vela/contest2026_135_yongwangzhiqian \
-  -b dev-ai-contest-2026 \
-  -m contest2026_135_yongwangzhiqian.xml -g default,bk7258-sdk
-repo sync -c -j8
+(
+  cd android/shaniu-companion
+  ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :app:testDebugUnitTest
+)
 ```
 
-The main manifest supplies the Agent fork pin and the linkfiles; no team-project
-override is needed. To re-examine the historical fork snapshot, use
-`https://github.com/Embracecactus/contest2026_135_yongwangzhiqian` with
-`feat/shaniu-contest-delivery-20260920`; that content is merged into the
-baseline above and is not the current entry point.
-Record `repo manifest -r` and dirty dependency state, then enter the team repository:
+**Packaging and independent verification.** `release full --factory-init` without an
+accepted same-device base produces independently signed factory software, not a
+complete-flash product delivery ZIP. Follow the Chinese README's
+[packaging section](README.md#打包交付物与独立核验) to create the CI-shaped review
+archive (firmware, debug APK, pinned manifest, public build evidence and
+`SHA256SUMS.txt`) and verify it after unpacking with `sha256sum`, `verify package`,
+and `verify trust`. That archive is deliberately not passed to `verify delivery`.
+
+The CLI-verified `product delivery ZIP` is a separate, board-bound artifact. Only
+with an accepted readback and evidence from **your own same board**, rerun `release
+full` with `--base` and `--base-evidence`, then run:
 
 ```bash
-cd contest2026_135_yongwangzhiqian
-tools/bk7258/bk7258.py toolchain install
-tools/bk7258/bk7258.py toolchain verify
-tools/bk7258/bk7258.py sdk rebuild --profile cp --source ../vendor/beken/bk_avdk_smp --jobs 8
-tools/bk7258/bk7258.py sdk rebuild --profile cp-aidk --source ../vendor/beken/bk_avdk_smp --jobs 8
-tools/bk7258/bk7258.py sdk rebuild --profile ap --source ../vendor/beken/bk_avdk_smp --jobs 8
-tools/bk7258/bk7258.py sdk rebuild --profile ap-aidk --source ../vendor/beken/bk_avdk_smp --jobs 8
-tools/bk7258/bk7258.py build --board t5ai_core --boot direct --jobs 8
-tools/bk7258/bk7258.py build --board t5_board --boot direct --jobs 8
-tools/bk7258/bk7258.py build --board aidk_ai_toy --boot direct --jobs 8
+python3 tools/bk7258/bk7258.py release full --build-manifest "$build_manifest" \
+  --development-identity --version 0.7.0+1 --product shaniu \
+  --artifact-id my-own-board-build --factory-init \
+  --base <own-base.bin> --base-evidence <own-accepted-base.json> \
+  --output-dir ../out/shaniu-own-full
+python3 tools/bk7258/bk7258.py release product \
+  --full-release ../out/shaniu-own-full --base <own-base.bin> \
+  --openssl /usr/bin/openssl --output ../out/shaniu-own-product.zip
+python3 tools/bk7258/bk7258.py verify delivery \
+  --delivery ../out/shaniu-own-product.zip --openssl /usr/bin/openssl
 ```
 
-Build boards sequentially. A single-board build needs only its two SDK profiles.
-The owner has verified Dolphin recording WAV files to SD on T5-Board, including
-the recorded `0.1.0+13` build. Commit `8de0ae78` restores the accidentally removed
-Dolphin-only NuttX recorder build wiring and enables recording again. T5 CP/AP
-builds, existing recorder host checks and ELF linkage checks passed. Subsequent
-board verification found a GT9xx/LVGL input mismatch; `c6976458` fixes the adapter
-and display/input initialization now passes. The TF problem recorded for that
-candidate was later traced to card contact and recovered by re-seating; physical
-touch and recording-to-SD with the new build remain unverified, and the recovery
-does not prove recording passed.
-See the [Dolphin record](docs/platforms/bk7258/dolphin-master-plan.md).
-See [CONFIGS.md](boards/bk7258/CONFIGS.md) for current Shaniu acceptance;
-the 634/635/637/638 records retain their historical version boundaries.
-Keep the team checkout directory name specified by the manifest; SDK tools read
-its same-named XML. AIToyBoard requires both `cp-aidk` and `ap-aidk`.
-The team manifest owns the SDK identity; see [source provenance](SOURCE_PROVENANCE.md).
-Outputs and source/configuration hashes are recorded in the emitted build manifest.
-`direct` is unsigned bring-up, **not** an update for a provisioned secure device.
-For signed builds and device-safe deployment, use the
-[existing release SOP](docs/platforms/bk7258/nuttx-port/bk7258-build-flash-debug-sop.md).
-Private keys and device-specific recovery images are not public build dependencies.
+`verify delivery` verifies the ZIP's package, build manifest, accepted-base evidence
+and full recovery image. It neither authorizes flashing another board nor proves App,
+voice, BLE, OTA, or whole-device acceptance. The official CI separately verifies
+source/manifest identity using its GitHub event context; do not fabricate that event
+locally.
 
-## Verification status (2026-09-20)
+**CI status (2026-11-04).** PR #140 was merged. Its post-merge `b21fa804` build
+and `verify-delivery` checks succeeded in the official repository. They use an
+ephemeral development identity and do not create a package trusted by the
+author's board or any existing device. The visible branch head [`906a38d3` also has a successful official build/verify-delivery push run](https://github.com/open-vela/contest2026_135_yongwangzhiqian/actions/runs/41676359713); before using an artifact, check the [official workflow](https://github.com/open-vela/contest2026_135_yongwangzhiqian/actions/workflows/shaniu-source-checks.yml)
+for the exact selected commit. Artifacts expire after seven days.
 
-This section retains the 2026-09-20 historical snapshot. Current acceptance
-is maintained only in [CONFIGS.md](boards/bk7258/CONFIGS.md); these version-bound
-results do not establish acceptance of current source.
+**Author-signed release.** None exists for the current source. The
+[2026-09-20 firmware comparison package](https://github.com/open-vela/contest2026_135_yongwangzhiqian/releases/tag/shaniu-firmware-20260920)
+(`18.6.401+641` images without device data and APK `0.5.23`) is historical. The
+old serial provisioning and same-device recovery flow is preserved in the
+[preliminary review snapshot (Chinese)](docs/contest/初赛评审流程与实测快照-20260920.md).
 
-- **Source-layer gate** (static, not board evidence): `bk7258.py verify layers`
-  PASS (500 sources / 252 Kconfig / 2 hash-bound legacy exceptions); the Agent
-  orchestrator and trigger backend pass the pinned nxstyle with 0 findings.
-- **T5-Board** (unsigned direct chain): four segments downloaded; boot reaches
-  `SYSINIT/FINALINIT/RCS PASS`, NSH and dolphin-ui start; the SD failure was a
-  TF card-contact problem, confirmed by re-seating.
-- **AIDK AI Toy**: signed `v18.6.401+638` full image (operator 8,388,608 B,
-  SHA256 `33c387c1…1cfc`; `.bkpack` 7,980,186 B) built and package-verified
-  from clean source `dc06613d`.  Its CP/AP payloads are byte-identical to 637,
-  and the two images differ in 659 bytes, all inside counters and signature
-  regions.  The owner flashed it and confirmed wake → the "我在" acknowledgement
-  (the 31,208-byte recording played) → ASR → LLM → TTS → playback → follow-up
-  capture without a second wake word → silence timeout back to standby; one ASR
-  request failed transiently with `ret=-5` and later requests succeeded in the
-  same observation window; the excerpt cannot prove whether a standby or a
-  second wake happened in between.  App OTA was not retested on 638 and still cites the 634 result.
-  Artifact hashes and layers:
-  [638 verification record](docs/verification/bk7258/2026-09-20-shaniu-638-full-image.md);
-  previous generation of the same content:
-  [637 record](docs/verification/bk7258/2026-09-20-shaniu-637-full-image.md).
-- **Full-image boundary**: `release full` materializes the operator image from a
-  same-unit readback base, so it carries that unit's device-bound persistent
-  data and stays a same-unit recovery artifact. It is not a published
-  general-purpose first-flash image and must not be flashed on another board;
-  the factory-init path is not verified. Reviewers and judges build from source
-  ([`tools/bk7258/README.md`](tools/bk7258/README.md), "First complete flash").
+## Limits and roadmap
 
-`wake_reply.pcm` (31,208 B) is a private acknowledgement recording admitted for
-the contest only; public configurations keep it disabled and it is removed
-after the contest. Device bootstrap secrets and device-bound recovery images are
-not part of the public deliverables.
+Not yet done: whole-device, all-feature acceptance of the current source; `0.7.129+775`
+has only the bounded same-board approval-display acceptance. Still open: phone reject;
+real NFC cards; motion and haptic feel; real BLE and OTA reconnect with App
+`0.7.28-shaniu-mimo-chat` / code 58; native feature installation (publisher fingerprint). Unmeasured: power
+and battery life, long-term stability, multi-speaker wake rate, acoustics (no
+echo cancellation; half-duplex), BOM cost. The enclosure is the kit's clear
+acrylic sandwich, a prototype. Next: complete the board checks above, choose the
+first-party publisher identity, run OTA-reconnect and stability campaigns,
+collect human wake data, then power, enclosure and production provisioning.
 
-## First deployment: source to first full run
+## Repository map
 
-The Chinese root README carries the authoritative step-by-step chapter
-("评审快速开始"); the per-input sources, consumers, install locations and
-success criteria are in the
-[first-deployment input list](docs/platforms/bk7258/first-deployment-inputs.md).
-Three boundaries apply before anything else:
+`chips/bk7258/` and `boards/bk7258/` (chip mechanisms, three boards) ·
+`app/bk7258/` and `app/dolphin/` (product services, Dolphin) ·
+`android/shaniu-companion/` · `tools/bk7258/` (the only build/release/workbench
+CLI) · `tests/host/bk7258/` · `nuttx/`, `frameworks/` · `gateway/shaniu/`
+(frozen historical gateway) · [`docs/`](docs/README_EN.md) · [`logs/`](logs/README.md)
+(AI Coding log entry and identity/privacy boundary).
 
-1. **The operator image is device-bound.** `release full` materializes it from a
-   same-unit readback, so a reviewer must run `package accept-base` on their own
-   board and never flash the author's image.
-2. **First-time `/data` initialization is explicit.** The firmware only runs
-   `mount -t littlefs /dev/mtdblock0 /data` and never formats automatically; a
-   board whose `persistent_data` is not LittleFS uses the CP command
-   `bkdata init --confirm erase-non-littlefs`, which formats only content that
-   is not already a valid LittleFS, and then reboots. This command has not been
-   verified on a new board yet.
-3. **Identity supply and App claiming are separate.** The device TLS identity
-   (BPI1) is written through the CP `bkprov supply` command; the App then imports
-   the same `owner-bootstrap.json` to claim the device over BLE.
-
-Main line, in dependency order (full commands and criteria in the Chinese
-chapter):
-
-1. Identify the board (`aidk_ai_toy`), the CH340 console and whether the device
-   is running or blank; a blank board needs the K1 Boot ROM window, never
-   `reset reboot`.
-2. `repo init/sync` from `open-vela/contest2026_135_yongwangzhiqian`
-   `dev-ai-contest-2026`, then `toolchain install/verify` and
-   `sdk rebuild/verify --profile cp-aidk|ap-aidk`.
-3. Public assets: builtin KWS model `nihao_openvela.tflite` (23,640 B,
-   `922eba91…`), the contest-only `wake_reply.pcm` (31,208 B), and the eye
-   source `shaniu-cyan-v2.json`; build an installable `.bkep` with
-   `package eye-pack` and check it with `verify eye-pack`. Reviewers need no
-   author binary: the repository source generates it (stdlib only) and the
-   expected result is 108,634 B / `050f1175…` with `pack_id=shaniu-cyan-v2`,
-   `revision=2`, `source_sha256=9a161ad6…`.
-4. Per-device private inputs: one EC P-256 device certificate/key pair per board
-   (OpenSSL command in the Chinese chapter), generated outside the repository;
-   the four-field `owner-bootstrap.json` is never hand-written, it is produced by
-   `voice pairing --direct-cloud` together with the identity write. The device
-   never overwrites a different stored identity (`EEXIST`) and there is no
-   supported identity-clear entry, so a board claimed by someone else needs that
-   owner's bootstrap file.
-5. Storage state, build and image: confirm `BK7258 FINALINIT PASS`; bind the
-   board's own readback with `package accept-base`; then `build --boot mcuboot`
-   and `release full` to produce the 8-MiB operator image and `.bkpack`.
-6. Flash with `bk_loader` (CH340, `--fast-link 1`; T5-Board reset rules do not
-   apply to AIDK) and check `FINALINIT PASS` plus `AIDK DEFERRED DONE
-   failures=0`.
-7. `voice pairing --direct-cloud` writes `owner-bootstrap.json` (0600,
-   four fields) and supplies the same BPI1 record via `bkprov supply`; verify
-   with `bkprov status` (`identity=present`) and after a reboot.
-8. Install the App, import the authorization file, claim over BLE, then submit
-   Wi-Fi and cloud settings.
-9. First interaction: wake → "我在" acknowledgement → ASR → LLM → TTS → playback
-   → follow-up without a new wake word → standby.
-10. Resource updates through the App: import a `.bkep` with "导入眼睛素材包",
-    install it with "通过 Wi-Fi 安装所选眼睛", verify with "读取当前眼睛" and a
-    display change, then re-check after a reboot; import a `.wkm` with
-    "导入唤醒词模型" (builtin `nihao_openvela` for the review path) and verify the
-    device's active model label/phrase/SHA256, not just the App selection.
-
-Not yet closed: board verification of `bkdata init` and `bkprov supply` on a new
-unit, and a full App-side resource-update readback on that unit. The packaged PDF/DOCX/PPT attachments
-still predate the 637/638 updates.
-
-## App, models, Skills and evidence
-
-- [Firmware comparison release](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/tag/shaniu-firmware-20260920)
-  (`shaniu-firmware-20260920`) ships the last board round `18.6.401+641` as
-  device-data-free images (boot/BL2/CP/AP/pair/manifest), the build evidence,
-  the debug APK (8,310,136 B), two installable `.bkep` packs and the three
-  `.wkm` models, each with a SHA256 entry. The 8-MiB operator image and the
-  full `.bkpack` are **not** published because both embed this unit's
-  `payloads/persistent_data.bin`: device TLS private key, local Wi-Fi
-  credentials and the cloud API key. Reviewers who want a flashable full image
-  must materialize it from their own board's readback, as the quick-start
-  chapter requires.
-- [Android project](android/shaniu-companion/README.md): JDK 17, SDK 35,
-  Android 10+, source version `0.7.27-shaniu-wake-import` / code 57.
-- [Model tools](tools/bk7258/README.md): existing `voice kws` commands.
-  Training dependencies are not required for a normal firmware build.
-  The public builtin model is 23,640 B / SHA prefix `922eba91`;
-  the App-activated experimental 47,672 B model `536ebba8` is a different asset.
-- [Eye assets](app/bk7258/assets/display/README.md): original atlas, metadata,
-  pack/verify commands. The private acknowledgement PCM (31,208 B) is admitted
-  for the contest build only, disabled in public configurations, and removed
-  afterwards.
-- [Reusable development Skills](docs/platforms/bk7258/shaniu-skill-capability-map.md).
-  Runtime `device-assistant.md` was verified on firmware `18.6.399+635`:
-  installation log, a 2,012-byte tool table, user-confirmed voice and display.
-  See the [635 evidence](docs/verification/bk7258/2026-09-20-shaniu-runtime-skill-635.md).
-- [Historical Master Plan and board evidence](docs/platforms/bk7258/shaniu-master-plan.md).
-  Actual App OTA to `18.6.398+634` was confirmed after reboot (counter 634,
-  slot B, confirmed trial). Reinstalled eyes persisted across reset.
-  App controls and App OTA were not rerun on 635; their unchanged source paths
-  do not constitute new acceptance. Deploying the 635 full package raises its
-  bootloader floor to 635; the OTA-only package does not replace BL1/BL2.
-  The historical 638 build is `18.6.401+638` (floor 638, same-unit recovery image,
-  byte-identical CP/AP payloads to 637); its App OTA path was not retested
-  either.
-  Historical upgrade paths, storage faults and independent human wake-word
-  generalization are not thereby certified.
-
-App and model tooling remain versioned in this repository. The official
-`packages/ai_agent` is a separate dependency, not a missing team-owned repo.
-Retired test applications stay out of the Shaniu product configuration;
-historical verification records retain their original boundaries.
-See the [documentation index](docs/README.md), [AI logs](logs/README.md)
-and [source/license provenance](SOURCE_PROVENANCE.md).
-Original code is licensed under [Apache-2.0](LICENSE).
+Original code is [Apache-2.0](LICENSE); third-party code, SDK, models and
+generated assets are listed in [SOURCE_PROVENANCE.md](SOURCE_PROVENANCE.md).
+Cloud credentials, private keys, private voices and device-bound recovery data
+are not distributed.
