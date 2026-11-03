@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0",
+  "team_id": "contest2026_135",
+  "github_login": "Embracecactus",
+  "generator": "claude-code-collector@1.2.0",
+  "updated_at": "2026-11-03T21:49:33.415Z",
+  "sessions": [
+    {
+      "session_id": "96e463ac-37bf-4b71-b72a-c107e699fda0",
+      "tool": "claude-code",
+      "started_at": "2026-11-03T12:39:46.885Z",
+      "last_event_at": "2026-11-03T16:11:26.249Z",
+      "event_count": 963,
+      "raw_event_count": 3204,
+      "file_path": "logs/Embracecactus/2026-11-03/claude-code__96e463ac-37bf-4b71-b72a-c107e699fda0.jsonl",
+      "collection_mode": "cli",
+      "health": "degraded",
+      "source_sha256": "bf1ab024adeb9fb2fa6197e3bad922b31d2f81e5f8ffbb8097766869f830d2f3",
+      "exported_at": "2026-11-03T21:49:33.018497+00:00",
+      "redacted_count_total": 941,
+      "omission_counts": {
+        "without_timestamp": 1194,
+        "nonconversation_or_internal": 727,
+        "internal_context": 2,
+        "reasoning_or_media_block": 318,
+        "tool_payload_redacted": 938
+      },
+      "data_completeness_warning": "Public conversation snapshot; not a complete capture for completeness scoring. Internal context, reasoning, summaries and binary media are omitted. Tool names and call IDs retain opaque SHA-256 payload references, not raw arguments/results. Visible conversation text is preserved except explicit credential and personal-path redaction. Active sessions stop at this export; later commit, push and merge events are outside the snapshot."
+    },
+    {
+      "session_id": "01a1a234-fbf9-7662-abce-21117ea699b2",
+      "tool": "codex",
+      "started_at": "2026-11-03T16:19:35.836Z",
+      "last_event_at": "2026-11-03T21:49:32.905Z",
+      "event_count": 334,
+      "raw_event_count": 1459,
+      "file_path": "logs/Embracecactus/2026-11-03/codex__01a1a234-fbf9-7662-abce-21117ea699b2.jsonl",
+      "collection_mode": "cli",
+      "health": "degraded",
+      "source_sha256": "7221f55387c3b6af362ba8bcd2ad7dabe936afc23ffae5ab328915ccba2c6b80",
+      "exported_at": "2026-11-03T21:49:33.018497+00:00",
+      "redacted_count_total": 305,
+      "omission_counts": {
+        "nonconversation_or_internal": 908,
+        "reasoning_or_internal_item": 216,
+        "internal_context": 1,
+        "tool_payload_redacted": 297
+      },
+      "data_completeness_warning": "Public conversation snapshot; not a complete capture for completeness scoring. Internal context, reasoning, summaries and binary media are omitted. Tool names and call IDs retain opaque SHA-256 payload references, not raw arguments/results. Visible conversation text is preserved except explicit credential and personal-path redaction. Active sessions stop at this export; later commit, push and merge events are outside the snapshot."
+    }
+  ]
+}

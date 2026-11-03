@@ -25,13 +25,15 @@ facts and are not duplicated under `docs/`. For BK7258, use
 | Connect, configure and update with Android | [Android guide](../android/shaniu-companion/README.md) |
 | Check current support and acceptance | [CONFIGS.md](../boards/bk7258/CONFIGS.md) |
 | Find build, deployment and hardware contracts | [Platform entry](platforms/bk7258/README_EN.md) / [chip contracts](chips/bk7258/README.md) |
+| Follow onboarding, voice, resources, desktop, OTA and reviewer reproduction | [Hands-on guide (Chinese)](platforms/bk7258/shaniu-user-guide.md) / [feature inventory (Chinese)](platforms/bk7258/shaniu-feature-inventory.md) |
 | Finals submission checklist, defense logistics and post-preliminary updates | [Finals submission (Chinese)](contest/决赛提交与初赛后更新.md) |
 | Review the latest recorded feature run | [November 3 evidence and videos](verification/bk7258/2026-11-03-feature-validation/README.md) |
 | Check licensing and source origins | [SOURCE_PROVENANCE.md](../SOURCE_PROVENANCE.md) |
 
 Historical sources: [dated evidence](verification/bk7258/),
 [Master Plan decisions](platforms/bk7258/shaniu-master-plan.md), and
-[September 20 contest report](contest/技术报告-BK7258三核适配与傻妞AI伴侣.md).
+[September 20 contest report](contest/技术报告-BK7258三核适配与傻妞AI伴侣.md), and the
+[September 20 preliminary-review snapshot (Chinese)](contest/初赛评审流程与实测快照-20260920.md).
 
 A document marked historical, snapshot, or retired is bounded by its recorded
 date and build identity. It must not be used as the current command, trust-root,

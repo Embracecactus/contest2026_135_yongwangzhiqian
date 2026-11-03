@@ -1,6 +1,6 @@
 # BK7258 build, package and hardware evidence SOP
 
-Use the root [official-source build entry](../../../../README.md#官方源码构建当前主入口)
+Use the root [official-source build entry](../../../../README.md#从源码复现)
 for signed first builds. Team source and manifest must resolve to the same
 candidate SHA; dependency revisions are owned by the team manifest, not copied here.
 Current acceptance is maintained in `boards/bk7258/CONFIGS.md`; the
@@ -462,9 +462,11 @@ are ownership rules, not a requirement to run every test path for each change.
 
 ## Pre-submit checks
 
-The organization CI only verifies CLA signatures, so the repository's own
-gates run locally before a change is committed. Run the gate that matches
-the change; a passing result is recorded in the commit message:
+The organization checks CLA signatures. This repository also runs
+`.github/workflows/shaniu-source-checks.yml` for manifest-pinned cold builds,
+Android and host tests, package signatures, and independent delivery checks.
+Run the local gate that matches the change before committing; record its
+actual result separately from the remote workflow and device acceptance:
 
 - Any change under `boards/bk7258/`, `app/`, `chips/bk7258/` or the tools
   themselves:
