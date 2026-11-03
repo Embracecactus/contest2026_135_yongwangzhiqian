@@ -307,12 +307,23 @@ flowchart TB
 ### 环境
 
 - x86_64 Linux（CI 使用 Ubuntu 24.04，作者使用 Ubuntu 22.04），可访问 GitHub、PyPI、
-  Google Maven；`git`、Google `repo`、`make`、`gcc`、`openssl`、`libssl-dev`；制作/解开
+  Google Maven；`git`、Google `repo`、`make`、`gcc`、`g++`、`cmake`、`openssl`、`libssl-dev`；
+  完整主机检查还需 `pkg-config` 与 `libcmocka-dev`。制作/解开
   下文审查 ZIP 另需 `zip` 与 `unzip`。
 - Python 3.10（venv）。Arm GNU 工具链由 `toolchain install` 按 `toolchain.json`
   下载并校验，不使用系统交叉编译器。
 - Android：JDK 17、Android SDK Platform 35，Gradle 8.13 由 wrapper 下载。
 - 不需要开发板、云账号、作者私钥或训练数据。
+
+Android SDK 安装好后，还要在运行构建/测试的同一个 shell 指定其位置。下面是 Linux
+常见位置；若你的安装目录不同，替换路径，或按 [App 构建说明](android/shaniu-companion/README.md#构建)
+在本地 `local.properties` 设置 `sdk.dir`。`run-shaniu-contracts` 包含 Android JVM/TLS
+互通用例，同样需要 SDK；只安装 SDK 而不配置位置会报 `SDK location not found`。
+
+```bash
+export ANDROID_HOME="$HOME/Android/Sdk"
+test -f "$ANDROID_HOME/platforms/android-35/android.jar"
+```
 
 ### 获取固定版本的源码
 
@@ -477,6 +488,8 @@ python3 tools/bk7258/bk7258.py verify delivery \
 ### 运行测试
 
 ```bash
+python3 -m pip install --index-url https://pypi.org/simple \
+  -r gateway/shaniu/requirements.txt -r tests/host/bk7258/python-requirements.txt pyserial==3.5
 make -C tests/host/bk7258 check              # 主机测试门禁，结束标记 BK7258_HOST_TEST_PASS
 make -C tests/host/bk7258 run-shaniu-contracts  # 产品行为合同
 python3 tools/bk7258/bk7258.py verify layers    # 芯片/板/应用分层门禁

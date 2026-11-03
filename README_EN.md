@@ -239,8 +239,13 @@ accepted** by the author's board, whose BL1/MCUboot trust root is another key.
 
 **Environment**: x86_64 Linux (CI uses Ubuntu 24.04, the author Ubuntu 22.04),
 network access to GitHub/PyPI/Google Maven, `git`, Google `repo`, `make`,
-`gcc`, `openssl`, `libssl-dev`, `zip`, `unzip`, Python 3.10, JDK 17, Android SDK Platform 35
+`gcc`, `g++`, `cmake`, `openssl`, `libssl-dev`, `zip`, `unzip`, Python 3.10, JDK 17, Android SDK Platform 35
 (Gradle 8.13 via the wrapper). No board, cloud account, author key or training data.
+Full host checks also need `pkg-config` and `libcmocka-dev`. Configure the installed Android SDK
+in the same shell, for example `export ANDROID_HOME="$HOME/Android/Sdk"` (replace with your own
+installation path), and check that `$ANDROID_HOME/platforms/android-35/android.jar` exists.
+Alternatively set `sdk.dir` in the App's local `local.properties`. The contract suite includes
+Android JVM/TLS tests and needs this SDK configuration too.
 
 Run the commands from the Chinese README section
 [“从源码复现”](README.md#从源码复现) in a **new empty directory** (not under an
