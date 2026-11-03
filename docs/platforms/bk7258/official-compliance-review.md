@@ -24,7 +24,7 @@
 - **已修复的交付文档缺口：**原根 `README.md` 仍保留大赛模板，且没有在主路径写明
   工具链安装、SDK bundle 重建、配对构建和产物命名。本次已用中英文作品说明替换。
 - **已修复的文档归属问题：**原 `docs/bk7258-t5ai/` 实际覆盖三块板，现已迁移为
-  `docs/platforms/bk7258/`；学习资料迁为 `docs/learning/bk7258/`，逆向资料改名为
+  `docs/platforms/bk7258/`；学习资料迁为 `docs/learning/bk7258/`（该目录已于 2026-11-03 按所有者要求删除），逆向资料改名为
   `bootloader-analysis/`，T5AI-Core 专属探针下沉到
   `hardware/t5ai-core/probe/`。现役源码、导航和验证文档中的引用同步更新。
 - **不是缺口：**所谓“CMake 漏编 13 个驱动”不成立；13 个名称正好由三个

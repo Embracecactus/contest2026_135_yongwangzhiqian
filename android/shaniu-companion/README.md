@@ -30,9 +30,8 @@ compile/target SDK 35。App 只承担配置和控制：设备完成配置后独�
 不会因此变成成功。断线/关闭页面不自动重发、更改默认或宣称远端已取消。
 不支持默认选择协议的旧固件会明确提示，不回退到其他写入路径。
 
-JVM/模拟器验证与实际 BLE/板端流程分开；当前页面没有已安装素材目录接口，
-本地素材选择跨 Activity 重建的完整保持性仍待后续验证。使用与本仓手机 kind17
-设备端接线对应的固件；APK 本身不能补齐旧固件接口。
+JVM/模拟器已覆盖本地草稿与页面重建；实际 BLE/板端流程另行验收。当前页面没有
+已安装素材目录接口，仍需与手机 kind17 协议对应的固件；APK 不能补齐旧固件能力。
 
 ## 构建
 
@@ -49,10 +48,6 @@ cd android/shaniu-companion
 不需要连接开发板，不需要 Beken SDK、私人训练数据、云 API key 或设备认证文件。
 没有授权/配对设备时可查看界面，但不应伪造设备在线或设置成功。
 
-2026-09-20 已从隔离公开源码完成 `assembleDebug`（JDK 21.0.6 / Gradle 8.13 /
-SDK 35，复用依赖缓存）；APK 为 8,038,482 B，未安装或操作手机。
-完整哈希与边界见[本次构建记录](../../docs/verification/bk7258/2026-09-20-public-source-build.md)。
-
 安装到自己选择的手机：
 
 ```bash
@@ -64,24 +59,32 @@ adb -s <手机序列号> install -r app/build/outputs/apk/debug/app-debug.apk
 现有单元检查可用 `:app:testDebugUnitTest`，不是正常安装的强制前置，
 也不代表射频、音频或烧录成功。
 
-2026-11-03 当前源码完成 debug App/测试 APK 构建和 345 个 JVM 用例（9 个跳过、
-0 失败），Android lint 为 0 error / 95 warning。Android 模拟器的浅色、深色图库
-各覆盖 30 个公开模拟状态和 20 轮导航，安全探针与 BLE 扫描 API 探针通过；模拟器
-没有发现真实外设，也不能透传电脑蓝牙，因此这些结果不是手机连接实板的证据。
-完整边界见[综合软件验证记录](../../docs/verification/bk7258/2026-11-03-comprehensive-software-validation.md)。
+2026-11-03 完成 debug App/测试 APK 构建，Android lint 为 0 error / 95 warning。
+随后补跑原先跳过的 9 项，累计 345 个不同 JVM 用例取得通过记录；这是多次运行的
+通过并集，不是一次“345/345”。14 组模拟器检查均有通过录像，其中包含浅/深色
+图库、导航、安全状态及 11 个配网异常场景。首次异常组合在图形环境中超时，
+保留 App 数据并临时切换软件渲染后完整复测通过，失败录像也保留。
+模拟器没有发现真实外设，也不能透传电脑蓝牙，因此这些结果不是手机连接实板的证据。
+构建记录见[综合软件验证](../../docs/verification/bk7258/2026-11-03-comprehensive-software-validation.md)，
+后续检查与录像见[功能复测](../../docs/verification/bk7258/2026-11-03-feature-validation/README.md#手机模拟器录像)。
 
 ## 操作顺序
 
-1. 打开蓝牙并授予系统要求的权限。导入**该设备**由所有者提供的授权资料，
-   扫描、选择并认证设备；不要把别的设备认证资料当作通用示例。
+1. 打开蓝牙并授予系统要求的权限。新设备从“添加傻妞 · 扫码连接”进入，扫描
+   设备屏幕认领码；已有绑定直接连接并认证，不重复认领。认领无需互联网。
 2. 让板子扫描附近 Wi-Fi，填写网络配置与所选云服务凭据。支持 MiMo
    标准服务或 Token Plan 配置；设备保存并返回结果后才显示成功。
-3. 设置页可控制音量、聊天风格、回答模式、云模型、唤醒模型/阈值、眼睛资源；
-   心情页提供产品表达入口。录音、播放或资源事务占用时如实显示暂不可操作。
+3. 定制页提供表情、默认资源、唤醒模型与“回答与唤醒”入口；设置页提供云服务
+   与模型、音量和记忆等入口，资源安装转到更新页。录音、播放或资源事务占用时
+   如实显示暂不可操作，支持项以设备能力回读为准。
 4. 正常使用说“你好，openvela”进入设备交互。App 不负责逐轮启动、停止、
    重连或录音转发。
 5. 重启/短暂断连后重新认证并读取设备当前状态；超时的写操作不自动重发。
    删除手机绑定仅清除手机持有的连接资料，不能清除设备数据来冒充重新认证。
+
+已有 owner 绑定不代表网络和语音服务已配置。11 月 3 日这台板的非敏感配置头
+显示仅保存 owner；串口临时联网没有填入持久服务配置。应使用已绑定手机补齐
+并确认保存，再检查语音就绪，敏感配置页不录屏。
 
 NFC 场景动作 7 已在 App 和板端源码中接入，可把卡片映射为按 App ID 哈希启动一个
 已安装原生功能；它不取代 BLE 认领、owner 认证或签名安装。本轮仅完成主机、JVM
@@ -97,8 +100,10 @@ NFC 场景动作 7 已在 App 和板端源码中接入，可把卡片映射为�
 - “电脑审批”只允许已有 `tasks` grant 的电脑发起，只有手机 owner 能决定。手机
   显示 Agent、目标与操作原文；超时、请求变化、授权变化和无效签名一律按拒绝处理。
 
-以上链路的软件测试通过，但当前手机已断开，本轮没有完成真实 BLE 安装、动作 7
-刷卡启动或 PC → USB → 板子 → 手机 → PC 的审批闭环。
+11 月 3 日实板已确认审批无人批准时过期、命令不执行，
+[回执](../../docs/verification/bk7258/2026-11-03-feature-validation/evidence/approval-expired.json)
+保留在对应验证目录。手机批准/拒绝、真实 BLE 安装与动作 7 刷卡启动仍未验收。
+单次审批是独立流程；普通已有授权的电脑任务与设备日常语音不用逐次找手机批准。
 
 ## 连接与安全边界
 
@@ -113,74 +118,21 @@ NFC 场景动作 7 已在 App 和板端源码中接入，可把卡片映射为�
 - 可选持久记忆由设备加密存储并投影回官方 Session；手机不托管对话历史。
   删除/禁用需设备完成并确认，收到请求不等于已经持久化。
 
-## 授权文件与新板复现
+## 认领与设备身份
 
-授权文件不是公共配置：`provision-bootstrap-v1` JSON 中含 `device_id`、
-`certificate_sha256` 和 32 字节随机 `possession_secret`（Base64 编码）。
-它不包含设备私钥，但持有秘密足以参与认领，因此**不放入 Git、APK、比赛 ZIP
-或公开 Release**。云服务 token、Android 控制密钥及 OTA 签名私钥也分别保密。
+正常入口是设备页的“添加傻妞 · 扫码连接”。首启身份和屏幕认领码由设备负责，
+App 以认领码提供的身份与持有证明核对设备，再经认证 BLE 配置网络与云服务。
+扫描到广播不等于身份已验证；认领结果不确定时使用“核对认领结果”，不重新造身份。
 
-评审编译 APK/固件不需要作者的授权文件。实际使用自己购入的新板时，需供应
-该板自己的设备身份：有效的 EC P-256 证书/私钥，证书用于 TLS serverAuth，
-允许 digitalSignature。App 校验证书精确 SHA256 pin、有效期及用途；不能用
-关闭验证或通用密码替代。证书私钥不是固件 OTA 签名根。
+已有绑定、Android Keystore 与设备 owner 必须保留；换手机、清数据或重置是不同
+操作，不能用来绕过连接问题。设备 TLS 私钥、云凭据和 OTA 签名根彼此独立。
+APK/固件构建不需要作者的设备授权文件。
 
-新板所有者尚无设备身份时，可在仓库之外准备一套仅用于自己新板的证书；
-已有设备不执行此步骤，不覆盖已有密钥：
-
-```bash
-umask 077
-shaniu_identity_dir=$(mktemp -d)
-openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
-  -sha256 -nodes -days 3650 -subj '/CN=shaniu-device' \
-  -addext 'basicConstraints=critical,CA:FALSE' \
-  -addext 'keyUsage=critical,digitalSignature' -addext 'extendedKeyUsage=serverAuth' \
-  -keyout "$shaniu_identity_dir/device-key.pem" \
-  -out "$shaniu_identity_dir/device-cert.pem"
-```
-
-此命令是新板供应说明，本轮未执行。使用后将该临时目录安全迁入自己的私密
-持久目录再供应，勿留待系统清理；证书有效期校验依赖手机时钟正常。
-
-**现役的有线入口**：仅对已启动、尚未供应身份的自有新板使用下面的 CLI 加
-Windows PowerShell `COMn` 串口（可从 WSL 工作流调用，不宣称支持原生 Linux
-`/dev/tty*`）。`--direct-cloud` 现在经 CP 控制台 `bkprov supply` 把同一条 BPI1
-记录交给 AP 侧 provisioning store（2026-09-20 起，固件与工具均已具备；641 实板
-只读 `bkprov status` 通过，同一身份重放的写入在 commit 阶段被拒 `ret=-2002`，
-新板从零写入尚未通过）；旧的
-Gateway 模式（`bkvoice provision` RAM 记录）仍是历史路径，随退役运行时在
-`7079493e` 移除。以下占位符替换为本机安全目录与真实 COM 口；
-**不要对作者的 635/637 演示板重新执行**：
-
-```bash
-tools/bk7258/bk7258.py voice pairing \
-  --console-port <实际串口> --device-id <新板唯一标识> --direct-cloud \
-  --client-cert <安全目录/device-cert.pem> \
-  --client-key <安全目录/device-key.pem> \
-  --activation-output <安全目录/owner-bootstrap.json>
-```
-
-命令从团队仓根目录执行；虽沿用 `client-*` 参数名，direct-cloud 模式实际
-供应的是板端 TLS 身份。既有工具随机生成持有秘密，以 `0600`、不覆盖方式
-先保存授权文件，再通过有线入口供应同一身份。串口结果不确定时保留该文件，
-查清板态后仅可用原证书/私钥、原文件及 `--resume` 续接，不能另造一份秘密。
-无需另建认证服务器、NFC 流程或新工具。
-
-身份记录本身只经受信有线通道写入，**从不上 BLE**（BPI1 含设备私钥，见
-`app/bk7258/bk7258_provision_identity.h`）。写入设备后，App 在已有身份上做的是
-**认领与配网**，走 BLE 服务（`app/bk7258/bk7258_provision_gatt.c`、
-`bk7258_provision_owner.c`、`bk7258_provision_claim.c`，协议与安全决策见
-[provision-v1 安全决策](../../docs/platforms/bk7258/shaniu-provision-security.md)）。
-`bkprov supply` 的实板安装与重启加载尚未在新板实测；非 LittleFS 的
-`persistent_data` 使用 CP `bkdata init --confirm erase-non-littlefs` 显式初始化
-（见[首次部署输入清单](../../docs/platforms/bk7258/first-deployment-inputs.md)
-第 6 节）。
-
-通过本地 USB 等私密方式把 **owner-bootstrap.json 单独**交给该板的合法使用者，
-在 App 导入后完成 BLE 认领与配网。不要传设备私钥；不要把文件放在公共下载链接。
-手机删除绑定后，应重新导入同一板授权文件并读取现状，不清空板端数据。
-635 现有设备与手机数据保持原样；本次仅完善供应说明，不轮换任何身份，
-也不声称新板首次供应已重新实测。
+旧版导入授权资料和串口身份供给属于兼容维修路径；历史输入与判据保留在
+[9 月 20 日部署快照](../../docs/platforms/bk7258/first-deployment-inputs.md)，
+不作为新设备的默认步骤。授权 JSON 含持有秘密，不进入 Git、APK、比赛 ZIP 或
+公开链接；已有设备不重新生成或替换身份。实际首启/认领范围见
+[当前板级验收](../../boards/bk7258/CONFIGS.md)。
 
 ## 眼睛资源与真实 App OTA
 
@@ -216,11 +168,11 @@ BLE 只传已认证的来源描述、CA、完整性参数及控制状态，不�
 | `ota/OtaPackageServer.kt` | 短生命周期本地 HTTPS 供包 |
 | `EyePack.kt` | 眼睛资源输入与完整性边界 |
 | `app/src/main/assets/wake-models/` | 随 App 的公开内置唤醒包 |
-| `app/src/main/res/` | 原创红色水晶伴侣图标与 UI 资源 |
+| `app/src/main/res/` | 应用图标与 UI 资源 |
 
 App 工程与固件适配在同一团队仓版本管理，不额外建立 App Git 仓或 NuttX linkfile。
-官方 Agent 是工作区另一依赖项目，现有扩展由 manifest 固定到公开 fork
-`add0db19`；它不是 Android Gradle 依赖。来源和许可见
+官方 Agent 是工作区另一依赖项目，其来源与固定提交由团队 manifest 维护；
+它不是 Android Gradle 依赖。来源和许可见
 [App 来源记录](SOURCE_PROVENANCE.md)与[项目来源记录](../../SOURCE_PROVENANCE.md)。
 
 已完成校验的本地眼睛素材选择会保存在 Activity 状态中；页面重建时重新校验

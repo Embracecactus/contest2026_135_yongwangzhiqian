@@ -1,0 +1,9 @@
+{
+  "name": "security-memory",
+  "exit_code": 0,
+  "passed": true,
+  "seconds": 77.9,
+  "videos": [
+    "videos/emulator/security-memory-01.mp4"
+  ]
+}

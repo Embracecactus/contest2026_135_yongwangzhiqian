@@ -4,6 +4,7 @@
  * a synthetic authority directly: it does not prove phone owner lifecycle.
  */
 #include "bk7258_control_pair.h"
+#include "bk7258_provision_gatt.h"
 #include <time.h>
 
 static uint8_t tls_input[4096];
@@ -24,7 +25,10 @@ ssize_t bkprov_gatt_read(uint32_t generation, void *data, size_t size)
 ssize_t bkprov_gatt_send(uint32_t generation, const void *data, size_t size)
 {
   const uint8_t *bytes = data;
-  assert(generation == 1 && size <= 20);
+  assert(generation == 1 && size <= BKPROV_GATT_MAX_PAYLOAD_SIZE);
+  /* The GATT boundary accepts a larger buffer and returns a short ATT write. */
+  size = size < BKPROV_GATT_LEGACY_PAYLOAD_SIZE ?
+         size : BKPROV_GATT_LEGACY_PAYLOAD_SIZE;
   printf("DATA ");
   for (size_t i = 0; i < size; i++) printf("%02x", bytes[i]);
   putchar('\n');

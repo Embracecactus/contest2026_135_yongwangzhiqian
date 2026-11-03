@@ -1,0 +1,9 @@
+{
+  "name": "nfc-scenes",
+  "exit_code": 0,
+  "passed": true,
+  "seconds": 79.9,
+  "videos": [
+    "videos/emulator/nfc-scenes-01.mp4"
+  ]
+}

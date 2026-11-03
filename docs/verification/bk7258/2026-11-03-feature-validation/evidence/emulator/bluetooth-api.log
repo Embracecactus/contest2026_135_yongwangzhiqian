@@ -1,0 +1,1 @@
+PASS: emulator Bluetooth facade accepted a real filtered BLE scan and stop; no physical peripheral or board acceptance; adapter_on=true; filtered_scan_ms=2500; matches=0

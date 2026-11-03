@@ -1,0 +1,1 @@
+PASS: Android Keystore non-exportable key, encrypted pending recovery, authenticated certificate pin, plaintext wipe, Android provider TLS fragmentation and pin rejection; authenticated peer certificate export and close clearing; PC pairing OAEP SHA256 and nonempty label roundtrip; synthetic bound UI, memory control gates and Wi-Fi state

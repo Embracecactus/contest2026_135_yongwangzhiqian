@@ -65,6 +65,8 @@ static bool threshold_ready;
 static bool channel_idle=true;
 #define bkagent_ota_busy() false
 #define bkprov_network_busy() network_busy
+#define bkvoice_config_now_ms(ctx) now
+#define agent_trace_stage(...) ((void)0)
 #define bkprov_owner_busy() false
 #define voice_channel_is_idle() channel_idle
 #define bk7258_agent_trigger_model_pending() false
@@ -116,6 +118,7 @@ int main(int argc,char **argv) {
   channel_idle=true;g_trigger_prepare_pending=true;
  }
  step();
+ if(!g_trigger_started && threshold_ready) step();
  if(!strcmp(argv[1],"cloud-retry")) {
   g_trigger_started=true;
   assert(product_clear(NULL)==0 && stops==0 && g_trigger_started);
@@ -129,6 +132,7 @@ int main(int argc,char **argv) {
  } else if(!strcmp(argv[1],"threshold-busy")) {
   assert(starts==0);
   threshold_error=0; now=1100;step();
+  step();
   assert(starts==1 && applied_threshold==85);
  } else {
   assert(prepares==1 && starts==1 && g_trigger_started && applied_threshold==85);

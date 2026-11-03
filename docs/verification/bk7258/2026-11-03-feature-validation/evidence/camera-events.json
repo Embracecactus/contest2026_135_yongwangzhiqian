@@ -1,0 +1,201 @@
+[
+  {
+    "operation": "status",
+    "start_seconds": 2.184,
+    "end_seconds": 4.655,
+    "job": {
+      "id": "98d7135bcfc146eaa5a607ba94dfdb9a",
+      "operation": "status",
+      "phase": "returned",
+      "snapshot": null,
+      "result": {
+        "ready": false,
+        "busy": false,
+        "volume": 53,
+        "persona": 1,
+        "turn": 0,
+        "runtime_error": 0
+      },
+      "cancel_requested": false,
+      "error": null
+    }
+  },
+  {
+    "operation": "task-status",
+    "start_seconds": 7.286,
+    "end_seconds": 10.147,
+    "job": {
+      "id": "94b8709397cb437187d3eb62fea02269",
+      "operation": "task-status",
+      "phase": "returned",
+      "snapshot": null,
+      "result": {
+        "state": "canceled",
+        "task_id": "950d554650d64c0290a20de405383b1a",
+        "event_sequence": 4,
+        "remaining_ms": 0,
+        "admitted": true,
+        "expired": true,
+        "feedback_pending": false,
+        "progress": null
+      },
+      "cancel_requested": false,
+      "error": null
+    }
+  },
+  {
+    "operation": "camera-status",
+    "start_seconds": 12.79,
+    "end_seconds": 15.655,
+    "job": {
+      "id": "0047f1ffcb6c41dda0df6da0697b7fcb",
+      "operation": "camera-status",
+      "phase": "returned",
+      "snapshot": null,
+      "result": {
+        "state": "canceled",
+        "id": 0,
+        "nonce": "00000000000000000000000000000000",
+        "captured_ms": 0,
+        "size": 0,
+        "width": 0,
+        "height": 0,
+        "format": null,
+        "error": -125,
+        "admitted": true,
+        "valid": false,
+        "sensor_fps": 0,
+        "capture_sequence": 0,
+        "capture_elapsed_ms": 0,
+        "remaining_ms": 0
+      },
+      "cancel_requested": false,
+      "error": null
+    }
+  },
+  {
+    "operation": "camera-capture",
+    "start_seconds": 18.283,
+    "end_seconds": 26.429,
+    "job": {
+      "id": "6a84d7a2766640c682bedd1f0bcdd41b",
+      "operation": "camera-capture",
+      "phase": "returned",
+      "snapshot": null,
+      "result": {
+        "state": "ready",
+        "id": 1,
+        "nonce": "bbd6beec5535430d96788401afa52dd3",
+        "captured_ms": 26069520,
+        "size": 8583,
+        "width": 640,
+        "height": 480,
+        "format": "JPEG",
+        "error": 0,
+        "admitted": true,
+        "valid": true,
+        "sensor_fps": 30,
+        "capture_sequence": 0,
+        "capture_elapsed_ms": 1704,
+        "remaining_ms": 119579,
+        "transfer_seconds": 4.429307099999278,
+        "frame_transfer_seconds": 1.4134682000003522,
+        "transfer_chunk_bytes": 512,
+        "sha256": "a07d8166245b2fe7b36b1059fe3be9f789684814f549979978552fe4a247e03d",
+        "release_confirmed": true,
+        "preview_available": true
+      },
+      "cancel_requested": false,
+      "error": null
+    }
+  },
+  {
+    "operation": "save-displayed-frame",
+    "seconds": 30.293,
+    "file": "board-frame-private.jpg"
+  },
+  {
+    "operation": "camera-cancel",
+    "seconds": 35.252,
+    "job": {
+      "id": "60cbe8739ec54176af038e846312580f",
+      "operation": "camera-capture",
+      "phase": "returned",
+      "snapshot": null,
+      "result": {
+        "state": "canceled",
+        "id": 2,
+        "release_confirmed": true,
+        "preview_available": false
+      },
+      "cancel_requested": true,
+      "error": null
+    }
+  },
+  {
+    "operation": "camera-capture",
+    "start_seconds": 37.882,
+    "end_seconds": 46.398,
+    "job": {
+      "id": "28d091a7b89e4183bc058496bb1000c5",
+      "operation": "camera-capture",
+      "phase": "returned",
+      "snapshot": null,
+      "result": {
+        "state": "ready",
+        "id": 3,
+        "nonce": "506b8622a05547bc93555353fcd70623",
+        "captured_ms": 26088489,
+        "size": 11767,
+        "width": 640,
+        "height": 480,
+        "format": "JPEG",
+        "error": 0,
+        "admitted": true,
+        "valid": true,
+        "sensor_fps": 30,
+        "capture_sequence": 0,
+        "capture_elapsed_ms": 1574,
+        "remaining_ms": 119448,
+        "transfer_seconds": 5.066674899993814,
+        "frame_transfer_seconds": 2.019549199991161,
+        "transfer_chunk_bytes": 512,
+        "sha256": "d4095045dd21554361acde0cff5af7409bbe4ffa85f2ca5cc7c042cd7068db63",
+        "release_confirmed": true,
+        "preview_available": true
+      },
+      "cancel_requested": false,
+      "error": null
+    }
+  },
+  {
+    "operation": "camera-status",
+    "start_seconds": 49.014,
+    "end_seconds": 51.461,
+    "job": {
+      "id": "3ee33fa735df48f58c6552bae4f872e9",
+      "operation": "camera-status",
+      "phase": "returned",
+      "snapshot": null,
+      "result": {
+        "state": "canceled",
+        "id": 3,
+        "nonce": "506b8622a05547bc93555353fcd70623",
+        "captured_ms": 26088489,
+        "size": 0,
+        "width": 0,
+        "height": 0,
+        "format": null,
+        "error": -125,
+        "admitted": true,
+        "valid": false,
+        "sensor_fps": 0,
+        "capture_sequence": 0,
+        "capture_elapsed_ms": 1574,
+        "remaining_ms": 0
+      },
+      "cancel_requested": false,
+      "error": null
+    }
+  }
+]

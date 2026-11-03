@@ -1,0 +1,9 @@
+{
+  "name": "provision-validation",
+  "exit_code": 0,
+  "passed": true,
+  "seconds": 92.1,
+  "videos": [
+    "videos/emulator/provision-validation-01.mp4"
+  ]
+}

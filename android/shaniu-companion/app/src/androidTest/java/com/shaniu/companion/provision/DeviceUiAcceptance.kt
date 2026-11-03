@@ -1534,18 +1534,18 @@ internal object DeviceUiAcceptance {
                             "input connection rejected fixture text"
                         }
                     }
-                    // The IME may finish its composing update after the key
-                    // events return. Keep this wait bounded and require the
-                    // exact final text before testing draft preservation.
+                    // Composing text and the IME animation finish independently.
+                    // Require both before checking keyboard layout and drafts.
                     val inputDeadline = android.os.SystemClock.uptimeMillis() + 2_000
-                    var delivered = false
+                    var inputReady = false
                     do {
                         instrumentation.waitForIdleSync()
                         onUi(instrumentation) {
-                            delivered = input.text.toString().endsWith("_draft")
+                            inputReady = input.text.toString().endsWith("_draft") &&
+                                dialog.window!!.decorView.rootWindowInsets.isVisible(WindowInsets.Type.ime())
                         }
-                        if (!delivered) Thread.sleep(50)
-                    } while (!delivered && android.os.SystemClock.uptimeMillis() < inputDeadline)
+                        if (!inputReady) Thread.sleep(50)
+                    } while (!inputReady && android.os.SystemClock.uptimeMillis() < inputDeadline)
                     onUi(instrumentation) {
                         if (!cloud) {
                             check(input.text.toString().endsWith("_draft")) {

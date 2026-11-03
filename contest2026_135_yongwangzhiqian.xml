@@ -25,6 +25,10 @@
                   remote="shaniu-agent"
                   revision="76c65bc6231a7eeb49c32f8938a3d005a4221776"
                   upstream="refs/heads/feat/contest-voice-streaming-20261102"/>
+  <extend-project name="frameworks_multimedia_media" path="frameworks/multimedia/media"
+                  remote="shaniu-agent"
+                  revision="eee164209463601512683acef433fee687d3844a"
+                  upstream="refs/heads/fix/recorder-normal-stop-20261103"/>
 
   <project path="vendor/beken/bk_avdk_smp"
            name="Embracecactus/bk_avdk_smp"

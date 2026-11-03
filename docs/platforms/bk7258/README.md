@@ -42,29 +42,32 @@ N15/N17 文档恢复旧地址、旧脚本或旧信任设计。
 ## 平台文档
 
 - [参赛技术报告](../../contest/技术报告-BK7258三核适配与傻妞AI伴侣.md)：赛事材料快照、量化结果和分版本验收；
+- [2026-11-03 功能复测与录像](../../verification/bk7258/2026-11-03-feature-validation/README.md)：对应日期的实板、模拟器与日志修复构建证据，不替代当前验收入口；
 - 视频与三板构建入口见仓库 README；三板共享 SoC 实现，T5-Board 运行 Dolphin，
   AIToyBoard 运行傻妞。板级现状只在 `boards/bk7258/CONFIGS.md` 汇总；
   固定依赖及发布证据见团队 manifest 与 `SOURCE_PROVENANCE.md`。
 
 - [桌面伙伴行为合同](shaniu-desktop-companion.md)：动作候选、缓存表情、有限触觉及资源预算；
-- [傻妞 AIDK AI Toy 全项目 Master Plan](shaniu-master-plan.md)：历史目标、设计决策与分版本证据；
-- [BKVoice 历史方案](bkvoice-authorized-voice-app.md)：已退出当前主线的 Gateway/音色探索
-  及复现来源，不作为当前开发或恢复旧运行时的入口；
-- [傻妞 Android companion 范围](shaniu-android-companion-plan.md)：现役 BLE 控制 App 与明确标记的历史方案；
+- Android 操作与界面约束见仓库 `android/shaniu-companion/README.md` 及同目录 `DESIGN.md`；
 - [RF 校准与工厂烧录规范](rf-calibration-and-factory-provisioning.md)：设备唯一 RF
   数据、Beken 量产/测试工具职责、工位流程及恢复/OTA/通用工厂镜像边界；
-- [官方符合性复核](official-compliance-review.md) / [English](official-compliance-review.en.md)：
-  2026-08-28 审计快照，解释 openvela 1443/1444/1445 的强制项与架构差异；
-- [官网文档适配矩阵](openvela-document-adaptation-matrix.md)：2026-08-28 能力审计快照，
-  不是当前路线图；
 - [T5-Board P0 调试、xTS 与性能手册](p0-diagnostics-performance.md)：2026-08-27
   诊断/性能 profile 与证据边界；
+- [BKVision 摄像头与连续录像](bkvision-camera-recording.md)：AIDK `bkvision` 命令、分层、
+  SD NAND 数据路径与 `18.6.321+381` 录像证据；迭代过程见[连续录像适配](aidk-continuous-recording.md)；
 - [构建、发布与硬件证据 SOP](nuttx-port/bk7258-build-flash-debug-sop.md)：现役操作入口。
 
 ## 历史与板级证据
 
+- [Master Plan](shaniu-master-plan.md)：历史目标、设计决策与分版本实板记录；
+- [BKVoice 历史方案](bkvoice-authorized-voice-app.md)：Gateway/音色探索与复现来源，不作为现役开发入口；
+- [9 月 20 日部署输入快照](first-deployment-inputs.md)：旧身份供应、资源与哈希证据；
+- [官方符合性复核](official-compliance-review.md) / [English](official-compliance-review.en.md)
+  及[官网适配矩阵](openvela-document-adaptation-matrix.md)：2026-08-28 审计快照；
 - [移植报告](porting-report.md)记录以涂鸦 T5AI-Core 首板 bring-up 为起点的 BK7258
   芯片移植历史；其中 N1–N15 详细实板证据止于 2026-08-04，不发布当前多板状态；
+- [AIDK 2026-09-01 板测证据](aidk-ai-toy-board-test-handoff.md)与
+  [2026-09-29 工厂初始化验证](factory-validation-20260929.md)：对应构建身份的实板记录；
 - [`bootloader-analysis/`](bootloader-analysis/)保留涂鸦与 Beken Bootloader 的
   逆向证据；
 - [`nuttx-port/`](nuttx-port/)只保留仍有独立技术价值的故障复盘、源码核验和历史设计；

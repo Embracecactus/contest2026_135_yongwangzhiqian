@@ -1,0 +1,111 @@
+{
+  "scope": "Fix confirmed defects observed during local validation; no commit, flash, owner change or credential provisioning.",
+  "fixed": [
+    {
+      "issue": "Normal recorder stop logs invalid PTS and encoding failure for its flush marker / AVERROR_EOF",
+      "source": "frameworks/multimedia/media/server/media_recorder.c",
+      "change": "Skip media timestamp handling for the empty stop marker; retain error logs for real encoding failures. Preserve EOF return, trailer and successful completion callback.",
+      "validation": "Incremental direct AIDK CP/AP build passed; media_recorder.c object rebuilt. Not flashed."
+    },
+    {
+      "issue": "Temporary Wi-Fi verification helper expected CONNECTED=1 instead of actual enum value 3",
+      "source": "connect-existing-wifi.py",
+      "validation": {
+        "actual_connected_link3": true,
+        "connecting_link1_rejected": true,
+        "failed_status_rejected": true
+      }
+    }
+  ],
+  "reclassified": [
+    {
+      "issue": "Voice ready=false after console Wi-Fi connect",
+      "conclusion": "Saved SCB4 record contains only owner; SSID, host, CA and cloud fields are all absent. Requires existing owner phone to save service settings.",
+      "evidence": "voice-configuration-presence.json"
+    },
+    {
+      "issue": "Direct console haptic pulse -16",
+      "conclusion": "Expected MIC interlock rejection. Existing product-task path successfully pauses capture, pulses and rearms twice; actual tactile feel awaits human confirmation.",
+      "evidence": "board-pc-tasks.redacted.log"
+    }
+  ],
+  "emulator": "GPU/renderer hang recovered in prior run with temporary software rendering; 14 scenario groups have pass records, including complete provisioning rerun.",
+  "build": {
+    "returncode": 0,
+    "seconds": 19.06,
+    "mode": "incremental direct build; not flashed"
+  },
+  "artifacts": [
+    {
+      "role": "boot",
+      "sha256": "25a10fb7e693f2cb0d3bb26c79710a48eeaa606b13b3360c6d977307eabe4112"
+    },
+    {
+      "role": "cp",
+      "sha256": "f594fda28b6b3373c6d0a6e25ff77dfce2d6660cbe9588812080cc1a3cd9f043"
+    },
+    {
+      "role": "ap",
+      "sha256": "03938d76abc01a67e0f8a7d40da34b055446107b9ed75f57a13ef6c9c98fdd22"
+    },
+    {
+      "role": "pair",
+      "sha256": "0117225c5aa4d82962355cbf0a72d7a8b317a38dbf27bd6ee34d5bb6c360108c"
+    }
+  ],
+  "warnings": [
+    "'%s' directive output may be truncated writing up to 511 bytes into a region of size between 473 and 483 [-Wformat-truncation=]",
+    "'media_recorder_cmd_to_string' defined but not used [-Wunused-function]"
+  ],
+  "physical_acceptance": "The log fix is compiled but not installed on the connected board. Phone, acoustic, NFC and tactile acceptance remains as listed in the filming checklist.",
+  "source_publication": {
+    "repository": "Embracecactus/frameworks_multimedia_media",
+    "commit": "eee164209463601512683acef433fee687d3844a",
+    "manifest_pinned": true,
+    "flashed": false,
+    "note": "Published after the original local validation snapshot; source bytes match the archived patch."
+  },
+  "publication_checks": {
+    "host_check": {
+      "command": "make -C tests/host/bk7258 check",
+      "exit_code": 0
+    },
+    "android": {
+      "tasks": [
+        "assembleDebug",
+        "assembleDebugAndroidTest",
+        "testDebugUnitTest",
+        "lintDebug"
+      ],
+      "offline": true,
+      "exit_code": 0
+    },
+    "contract_execution": {
+      "counts": {
+        "PASS": 996,
+        "FAIL_ASSERTION": 0,
+        "SETUP_ERROR": 0,
+        "NOT_RUN": 0
+      },
+      "production_unchanged": true,
+      "collection_errors": [],
+      "required_count": 996,
+      "raw_result_sha256": "32ea0f6950b78577b4840a3e5b8c5d05db76afa9b9c199e114d2e95f478dd1bd",
+      "registry_sha256": "1491c2b23f85bc1e8eba43cbcbcb7ac4ee155182918c40e77b750b8e29de9cfb",
+      "validation": "Actual collection_errors() recheck over the preserved 996-case run after registering its 12 existing passing cases; execution not rerun."
+    },
+    "collector_selftests": {
+      "passed": 30,
+      "exit_code": 0
+    },
+    "ai_logs": {
+      "files_validated": 209,
+      "events_validated": 111849,
+      "exit_code": 0,
+      "new_claude_sessions": 10,
+      "new_codex_sessions": 37
+    },
+    "scope": "Host/build/collection checks only; no firmware deployment or additional physical acceptance.",
+    "fixes": "Updated stale host extraction and dependency fixtures, retained the immutable acceptance ID for the renamed enrollment test, and registered 12 existing passing cases. No production assertions or collection rejection rules were removed."
+  }
+}

@@ -8,10 +8,9 @@ source, configuration, or build artifacts.
 
 | Layer | Directory | Content and boundary |
 |---|---|---|
+| Contest delivery | [`contest/`](contest/) | Published technical-report snapshot and photos; [finals submission and updates](contest/决赛提交与初赛后更新.md); finals defense sources and the official template remain in the workspace, are uploaded through the contest form and are not committed; products and videos are linked from the repository README |
 | Chip / SoC | [`chips/<soc>/`](chips/) | Board-independent register, startup, IRQ, clock, PM, SDK ABI, and shared-debug contracts |
 | Platform integration | [`platforms/<soc>/`](platforms/) | Cross-board build, boot/update model, delivery method, compliance notes, and explicitly historical engineering records |
-| Learning | [`learning/`](learning/) | Source-versioned tutorials and mental models; never live implementation or board-acceptance status |
-| Workflow | [`workflows/`](workflows/) | Git and collaboration procedures not owned by one SoC or board |
 | Verification | [`verification/<soc>/`](verification/) | Immutable, dated host/board acceptance records with build identity and applicability |
 
 Board names, profiles, partitions, and release policy are source/configuration
@@ -20,19 +19,19 @@ facts and are not duplicated under `docs/`. For BK7258, use
 
 ## BK7258 entry points
 
-- [Contest report (Chinese)](contest/技术报告-BK7258三核适配与傻妞AI伴侣.md);
-- [Videos and three-board build guide](../README_EN.md), including pinned Agent fork dependencies and verification limits;
-- [635 runtime Skill evidence](verification/bk7258/2026-09-20-shaniu-runtime-skill-635.md): user-confirmed voice/display; App OTA remains the separate 634 result.
+| Task | Entry |
+| --- | --- |
+| Understand the project, view videos/materials or build | [Project README](../README_EN.md) |
+| Connect, configure and update with Android | [Android guide](../android/shaniu-companion/README.md) |
+| Check current support and acceptance | [CONFIGS.md](../boards/bk7258/CONFIGS.md) |
+| Find build, deployment and hardware contracts | [Platform entry](platforms/bk7258/README_EN.md) / [chip contracts](chips/bk7258/README.md) |
+| Finals submission checklist, defense logistics and post-preliminary updates | [Finals submission (Chinese)](contest/决赛提交与初赛后更新.md) |
+| Review the latest recorded feature run | [November 3 evidence and videos](verification/bk7258/2026-11-03-feature-validation/README.md) |
+| Check licensing and source origins | [SOURCE_PROVENANCE.md](../SOURCE_PROVENANCE.md) |
 
-- [SoC and board integration](platforms/bk7258/README_EN.md) for the cross-board
-  build, boot, update, and delivery boundary;
-- [SoC documentation](chips/bk7258/README.md) for shared BK7258 contracts;
-- [Learner documentation](learning/bk7258/README.md) for source-versioned tutorials;
-- [Acceptance records](verification/bk7258/) for immutable, dated evidence;
-- `boards/bk7258/CONFIGS.md` for the current supported-board, profile,
-  partition, and configuration contract; and
-- `SOURCE_PROVENANCE.md` for licenses and the origin of source, tables,
-  protocols, and initialization sequences.
+Historical sources: [dated evidence](verification/bk7258/),
+[Master Plan decisions](platforms/bk7258/shaniu-master-plan.md), and
+[September 20 contest report](contest/技术报告-BK7258三核适配与傻妞AI伴侣.md).
 
 A document marked historical, snapshot, or retired is bounded by its recorded
 date and build identity. It must not be used as the current command, trust-root,

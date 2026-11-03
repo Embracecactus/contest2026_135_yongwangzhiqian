@@ -183,6 +183,7 @@ static int execute(void *c,enum bkcontrol_command_e cmd,uint32_t arg,struct bkco
 {(void)c;(void)cmd;(void)arg;(void)s;return 0;}
 #ifdef TEST_SELECTION_PRODUCT
 #include "bk7258_pc_usb.h"
+#include "bk7258_pc_approval.h"
 #include "bk7258_display_job_control.h"
 #define CONFIG_BK7258_DISPLAY_SERVICE 1
 #define g_pc_selection selection_control
@@ -191,6 +192,7 @@ static uint8_t g_pc_selection_client[16];
 static struct bkpc_usb_owner_s g_pc_usb_owner;
 static struct bkcontrol_pair_s pair_fixture;
 static struct bkpack_control_s g_pc_pack;
+static struct bkpc_approval_s g_pc_approval;
 static bool g_identity_bound=true,g_control_bound=true;
 static uint64_t source_grant=2;
 static int bkpc_authorization_snapshot(void *ctx,uint64_t *binding,struct bkprov_pc_snapshot_s *view)
@@ -206,6 +208,21 @@ static int bkpc_authorization_snapshot(void *ctx,uint64_t *binding,struct bkprov
 #define bkpack_control_bind(...) (assert(false),-ENOTSUP)
 #define bkpack_control_read(...) (assert(false),-ENOTSUP)
 #define bkpack_control_apply(...) (assert(false),-ENOTSUP)
+/* PC approval is a different control kind.  The resource-route fixture
+ * extracts product_pc_config() but must fail if that unrelated branch runs. */
+static int test_product_pc_approval_step(uint64_t now, bool admitted,
+                                         uint8_t key[32])
+{ (void)now; (void)admitted; (void)key; assert(false); return -ENOTSUP; }
+static int test_bkpc_approval_pc_control(struct bkpc_approval_s *state,
+                                         enum bkcontrol_command_e command,
+                                         uint32_t offset,
+                                         const uint8_t *record, size_t size,
+                                         struct bkcontrol_status_s *status,
+                                         const uint8_t key[32], uint64_t now)
+{ (void)state; (void)command; (void)offset; (void)record; (void)size;
+  (void)status; (void)key; (void)now; assert(false); return -ENOTSUP; }
+#define product_pc_approval_step test_product_pc_approval_step
+#define bkpc_approval_pc_control test_bkpc_approval_pc_control
 static int selection_entropy(void *ctx,uint8_t *p,size_t n)
 {static uint8_t epoch=7;assert(ctx==&pair_fixture.tls.random && n==16);memset(p,0,n);p[0]=epoch++;return 0;}
 #define mbedtls_ctr_drbg_random selection_entropy

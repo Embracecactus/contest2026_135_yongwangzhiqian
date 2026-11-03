@@ -1,20 +1,20 @@
 # BK7258 CP/AP configuration seeds
 
-## Current verification status (2026-10-25)
+## Current verification status (2026-11-03)
 
 This is the single current board/profile acceptance summary. Product goals
 remain in `goal-objective.md` and the
 [desktop companion contract](../../docs/platforms/bk7258/shaniu-desktop-companion.md).
 Dated verification records retain their original version and evidence scope.
 
-- The reviewed team source is `930d75ae`. Its recorded validation covers
+- The 2026-10-25 reviewed team source was `930d75ae`. Its recorded validation covers
   three boards' CP/AP and unsigned BL1 builds, five SDK profiles, host checks,
   33 Android unit tests and debug/application-test APK assembly. That pass did
   not run physical boards, phone instrumentation, real cloud, signing or
   flashing; it is not a new verified product firmware generation.
 - Published dependency identities are owned by the team manifest and
   [source provenance](../../SOURCE_PROVENANCE.md#2026-10-21-评审修复依赖).
-  The local NuttX and SDK checkouts have now been synchronized to those pins;
+  The 2026-10-25 local NuttX and SDK checkouts were synchronized to those pins;
   NuttX HEAD and all 18 source hashes pass the unchanged compatibility gate.
   The [dependency synchronization record](../../docs/verification/bk7258/2026-10-25-dependency-sync.md)
   separates this source check from builds and device acceptance. Never bypass
@@ -25,19 +25,44 @@ Dated verification records retain their original version and evidence scope.
   unaccepted. CPU1 heartbeat failures in 755/756/757/759 and a later 770
   `PRIMARY_TIMEOUT` have no established common root cause. Earlier bounded
   healthy windows do not close those failures.
+- The 2026-11-03 workspace has separate
+  [software and three AIDK direct-build evidence](../../docs/verification/bk7258/2026-11-03-comprehensive-software-validation.md)
+  and [subsequent emulator/board evidence with recordings](../../docs/verification/bk7258/2026-11-03-feature-validation/README.md).
+  The latter covers the same identified AIDK, CP `NuttX 0.0.0 892be7ba7dc arm aidk_ai_toy`.
+  Its version query returned `-138`; the full running CP/AP identity is unknown.
+  These observations are not acceptance of generation 770 or the current source.
+  No firmware was flashed. The later media-recorder log fix was published as
+  media dependency commit `eee16420` and pinned by the team manifest. It passed
+  an incremental build only and was not flashed; see
+  [source provenance](../../SOURCE_PROVENANCE.md#2026-11-03-录音结束日志修正依赖已固定).
 
-The N1–N4 evidence below comes from the
+The N1–N4 table distinguishes the new dated run from the
 [2026-10-18 record, including its later sections](../../docs/verification/bk7258/2026-10-18-stability-and-phone-hil.md)
 and the separate
 [2026-10-20 camera candidate record](../../docs/verification/bk7258/2026-10-20-workbench-camera-lifecycle.md).
-It does not establish physical acceptance of `930d75ae`.
+Earlier records retain their original limits.
 
 | Goal | Existing source / version-bound evidence | Acceptance still missing |
 |---|---|---|
-| N1 motion, expression, haptics | Single motion worker, 100 ms sampling lease and admission generation; the later 770 session has real sensor samples and the owner's confirmation of an expression change | Correlated pickup/putdown events, human haptic experience and current-candidate device validation |
-| N2 scene cards | NFC service and eight-slot protocol; status readback and one no-card content load on 2026-10-18 | Physical-card scene/content triggering and its exception paths |
-| N3 computer tasks | The later 770 session preserves a real process exit code 0, a separate timeout cancellation, confirmed device results and corresponding LCD submissions | Full M3 resource workflow and current-candidate acceptance; the earlier session with a missing exit code remains a separate incomplete record |
-| N4 on-demand camera | Earlier 15,211 B / 76.6 s transfer; later 770 session decoded 13,575 B at 640×480 with 512 B chunks in 2.240 s frame transfer / 5.257 s total. Real browser capture, cancel and recapture also passed in that earlier feature session | The 2026-10-20 preview/save candidate has host/browser-fixture checks only: both device attempts stopped at TLS before a camera command. Current lifecycle changes, local save on a real device, concurrency, long-term stability and human image-quality review remain unaccepted |
+| N1 motion, expression, haptics | 11-03: changing sensor samples, happy→neutral render/readback, and two product-feedback haptic calls returning 0 followed by capture rearm. The direct serial pulse returned `-16` under the expected MIC interlock. Historical 770 also has an owner-confirmed expression change | Correlated pickup/putdown events, visible expression mapping, human haptic experience and current-candidate device validation |
+| N2 scene cards | NFC service and eight-slot protocol; historical status/no-card content load. 11-03: App scene drafts pass in the emulator; board scan returns `-110` without a confirmed card in range | Physical-card scene/content triggering and its exception paths; no-card timeout is not proof of a broken module |
+| N3 computer tasks | 11-03: normal subprocess return 0; timeout has `reason=timeout`, subprocess return 1 and CLI exit 130; both device results confirmed. Unapproved single-use request expires without running a process | Phone approval and rejection, visible/audible feedback, full resource workflow and current-candidate acceptance; `feedback_verified=false` |
+| N4 on-demand camera | 11-03: real browser capture, save with matching JPEG hash, cancel, recapture and cache release pass; 55 s recording retained. Two 640×480 frames, 8,583/11,767 B; frame transfer 1.413/2.020 s, backend capture/read 4.429/5.067 s (not click-to-display latency). This adds real save evidence to the older fixture-only candidate record | Running image correspondence, concurrency, long-term stability and human image-quality review; dark workbench recording still needs a well-lit object and physical-device shot |
+
+On 11-03, temporary Wi-Fi association succeeded. The non-sensitive SCB4 header
+shows an owner-only saved configuration: network and voice-service fields are
+empty. Voice `ready=false` therefore does not establish a recovery bug; the
+bound phone must save the missing configuration before live voice acceptance.
+The existing PC profile's resource queries returned `-13`; positive resource
+operations still require the appropriate owner grant. Product native installation
+remains disabled while `CONFIG_BK7258_NATIVE_PUBLISHER_SHA256` is empty.
+
+Android evidence now includes 345 distinct JVM cases passed across multiple
+runs (the initial nine skipped cases were covered), and 14 emulator scenario
+groups, including all 11 provisioning error cases. The first combined error run
+timed out in the emulator graphics environment; the complete run passed after a
+data-preserving software-renderer restart. Failed recordings remain available.
+These checks do not establish physical BLE, NFC, sound or OTA acceptance.
 
 The 2026-10-18 decision still places OTA and post-upgrade reconnection after
 the desktop features. Historical 634 and later 767 successes retain their own

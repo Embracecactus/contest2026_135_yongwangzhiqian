@@ -29,8 +29,10 @@ if __name__ == "__main__":
     else:
         raise RuntimeError("product_focus_visual body changed")
     focus_visual = focus_source[focus_start:focus_end]
-    visual_start = source.index("      bk7258_display_focus(product_focus_visual(")
-    visual_statement = source[visual_start : source.index(";", visual_start) + 1]
+    visual_start = source.index("      unsigned int approval_visual =")
+    visual_statement = source[
+        visual_start : source.index(";\n#endif", visual_start) + 1
+    ]
     visual_step = (
         "static void product_visual_test(uint64_t now) {"
         "bool focus_idle = !atomic_load(&g_voice_initialized) || "
@@ -44,6 +46,7 @@ if __name__ == "__main__":
     activation = function(source, "bk7258_agent_activate_cloud")
     prefix = r"""
 #include "bk7258_pc_authorization_owner.h"
+#include "bk7258_pc_approval.h"
 #include "bk7258_pc_tasks.h"
 #include "bk7258_pc_grants.h"
 #include "bk7258_preferences.h"
@@ -52,6 +55,7 @@ if __name__ == "__main__":
 #include "bk7258_focus_pixels.h"
 #include <pthread.h>
 static struct bkpc_tasks_s g_pc_tasks;
+static struct bkpc_approval_s g_pc_approval;
 static unsigned painted, focus_visual;
 static bool voice_idle=true;
 #define voice_channel_is_idle() voice_idle
@@ -61,6 +65,11 @@ static struct bkfocus_intent_status_s g_focus_feedback;
 static uint64_t g_focus_feedback_until;
 static unsigned int g_focus_feedback_state;
 #define bk7258_display_focus(value) (painted=(value))
+#define bkpc_approval_visual(...) 0
+#define PRODUCT_LOOP_CHECKPOINT(stage) ((void)(stage))
+#define syslog(priority, format, ...) ((void)(priority), (void)(format), \
+                                       (void)(__VA_ARGS__))
+#define LOG_INFO 0
 #include <mbedtls/platform_util.h>
 static bool g_identity_bound=true, g_control_bound, g_save_first, g_configured;
 static uint64_t g_config_revision;
@@ -114,6 +123,14 @@ static uint64_t task_now=100;
 #define product_response_mode(...) (-ENOTSUP)
 #define product_wake_threshold(...) (-ENOTSUP)
 #define bk7258_agent_trigger_control(...) (-ENOTSUP)
+static int product_pc_approval_step(uint64_t now, bool admitted, uint8_t key[32])
+{ (void)now; (void)admitted; (void)key; assert(false); return -ENOTSUP; }
+static int product_agent_data(enum bkcontrol_command_e command, uint32_t kind,
+                              uint32_t offset, const uint8_t *record,
+                              size_t size, struct bkcontrol_status_s *status)
+{ (void)command; (void)kind; (void)offset; (void)record; (void)size;
+  (void)status; assert(false); return -ENOTSUP; }
+static int bk7258_runtime_skills_init(void) { return 0; }
 static bool task_snapshot_eagain;
 static int product_test_pc_snapshot(void *context, uint64_t *binding,
                                     struct bkprov_pc_snapshot_s *view)

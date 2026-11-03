@@ -774,8 +774,6 @@ docs/
   chips/bk7258/                          BK7258 chip 共用文档
     README.md                            chip 层索引与归档规则
     sdk-clock-operating-points.md        当前 SDK OPP/每核频率契约
-    sdk-context-index.md                 SDK 历史检索快照
-    chip-code-review-cleanup-guide.md    chip 历史清理评审
     jlink-swd-debug-guide.md             chip 层 J-Link/SWD 方法
   platforms/bk7258/
     README.md                            多板平台集成与实板证据索引

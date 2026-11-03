@@ -16,6 +16,10 @@
 > [`d529ec81`](https://github.com/Embracecactus/nuttx-apps/commit/d529ec814bc11a4e76954a8dfb903c55e1eca4f3)。
 > 团队 manifest 已固定两个身份；干净同步与实板验收仍须分别取证，详见
 > [综合软件验证记录](docs/verification/bk7258/2026-11-03-comprehensive-software-validation.md#提交前复现状态)。
+> 随后的录音结束日志修复已发布为媒体依赖提交
+> [`eee16420`](https://github.com/Embracecactus/frameworks_multimedia_media/commit/eee164209463601512683acef433fee687d3844a)，
+> 并由团队 manifest 固定；仅增量构建通过、未刷板，见
+> [来源记录](SOURCE_PROVENANCE.md#2026-11-03-录音结束日志修正依赖已固定)。
 
 [English](README_EN.md) · [参赛技术报告](docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md) · [板级配置与当前验收](boards/bk7258/CONFIGS.md) · [历史计划与证据](docs/platforms/bk7258/shaniu-master-plan.md)
 
@@ -56,6 +60,9 @@ Windows Android 模拟器已运行此 APK，并实际操作导航、键盘和表
 模拟器检查不能替代圆屏扫码、真实 BLE、App OTA 安装或实际听音。
 本轮完整软件检查、固件构建身份、模拟器范围及尚未完成的实板项目见
 [2026-11-03 综合软件验证记录](docs/verification/bk7258/2026-11-03-comprehensive-software-validation.md)。
+后续补跑与 14 组模拟器录像见
+[同日功能复测](docs/verification/bk7258/2026-11-03-feature-validation/README.md#手机模拟器录像)；
+345 是不同用例在多次运行中的通过并集，原先跳过的 9 项均有通过记录。
 
 设备发现使用 App 前台内的连续卡片，广播候选不代表已认证；新设备仍须扫码，
 已认领设备复用原认证会话。设置表单保留固定保存入口，支持 200% 字体和键盘。
@@ -81,6 +88,14 @@ Windows Android 模拟器已运行此 APK，并实际操作导航、键盘和表
 
 ## 先看实机演示
 
+**11 月 3 日新增归档实测材料：**
+[实板取景、保存、取消与重拍（55 秒原速）](docs/verification/bk7258/2026-11-03-feature-validation/videos/board/camera-capture-cancel-recapture.mp4)
+· [验证说明与日志](docs/verification/bk7258/2026-11-03-feature-validation/README.md)
+· [全部 19 段录像播放器](docs/verification/bk7258/2026-11-03-feature-validation/index.html)。
+播放器在本地浏览器打开；其余录像为 14 段模拟器通过记录和 4 段失败诊断。
+实板片段没有环境音、画面偏暗；完整 CP/AP 版本尚未读回，不归为 770 或本日构建。
+这 19 段录像随仓归档，未上传独立 Release 或比赛材料网站；下方保留 9 月 20 日发布的完整演示。
+
 [![三块开发板与傻妞实机演示](docs/contest/assets/demo-cover.jpg)](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-demo.mp4)
 
 [主视频：三核适配与实机应用（4 分 48 秒）](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-demo.mp4)
@@ -102,6 +117,13 @@ GitHub 渲染 README 时会剥离 `<iframe>`，所以仓库页以上面的链接
 App 视频展示 OTA 入口，**未拍摄完整 OTA 过程**；实际升级结果另见验收记录。
 
 ## 比赛材料
+
+**决赛（11-04 截止上传，11-07/08 答辩）：** 提交清单、答辩要求和可直接粘贴的
+“初赛后主要更新”见 [决赛提交与初赛后更新](docs/contest/决赛提交与初赛后更新.md)。
+
+本地决赛修订版（PPTX、PDF、讲稿、时间预算、来源及拍摄清单）和原稿/官方模板
+均保留在工作区，经表单上传，**不随仓库发布**。修订版为 12 页主讲加 3 页隐藏备查，
+第 3 页内嵌上述 55 秒实板录像；PDF 仅作静态备份。
 
 [已发布的提交包](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/tag/shaniu-demo-20260920)
 **已更新为 v5.1 材料**（2026-09-20，技术报告事实冻结 `6a8a3e55`）：
@@ -157,6 +179,7 @@ tag 指向合并提交 `6a8a3e55`），fork 与官方仓两份资产 SHA256 一�
 在其他发布根上的板子；生产发行必须另用明确授权的长期身份。
 
 ```bash
+set -euo pipefail
 repo init -u https://github.com/open-vela/contest2026_135_yongwangzhiqian.git \
   -b dev-ai-contest-2026 -m contest2026_135_yongwangzhiqian.xml -g default,bk7258-sdk,platform-linux
 # Freeze the team project to the manifest commit before sync (no dependency overrides).
@@ -198,10 +221,11 @@ python3 tools/bk7258/bk7258.py sdk rebuild --profile ap-aidk --source ../vendor/
 python3 tools/bk7258/bk7258.py sdk verify --profile cp-aidk
 python3 tools/bk7258/bk7258.py sdk verify --profile ap-aidk
 python3 tools/bk7258/bk7258.py identity init --development
+shaniu_build_log=$(mktemp)
 python3 tools/bk7258/bk7258.py build --board aidk_ai_toy --boot mcuboot \
-  --development-identity --rollback-floor 1 --jobs 4
-build_manifest=$(find ../out/bk7258/aidk_ai_toy -path '*/releases/mcuboot/build-manifest.json' -type f -print -quit)
-test -n "$build_manifest"
+  --development-identity --rollback-floor 1 --jobs 4 | tee "$shaniu_build_log"
+build_manifest=$(sed -n 's/^build manifest=//p' "$shaniu_build_log")
+test -f "$build_manifest"
 python3 tools/bk7258/bk7258.py release full --build-manifest "$build_manifest" \
   --development-identity --version 0.6.0+1 --product shaniu \
   --artifact-id review-first-build --factory-init \
@@ -240,10 +264,10 @@ PR/push 自动触发后先查看同一提交的运行，不再手动重复触发
 与 [开发 fork Actions](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/actions/workflows/shaniu-source-checks.yml)
 属于不同运行，旧成绩不能归到新候选。
 
-在决赛 PR 合并之前，官方分支仍是旧版；评审候选以 PR 的 head/base/merge SHA 和
-对应运行交付物为准。合并后以上官方入口才取得该成果。标准构建关闭 BKTEST、固定云
-响应和自动工程自检，保留原 KWS、“我在”、K2 关机/恢复出厂契约及 K1/K3 音量。
-临时 CI 签名只用于本次构建验证，后续维护须复用自己的持久开发身份或正式长期身份。
+PR 检查绑定其 head/base/merge SHA；比赛评审以截止前官方专属仓已合入的代码为准，
+未合入 PR 或 fork 不作为评审依据。标准产品构建关闭 BKTEST、固定云响应和自动工程
+自检。K2 是电源键，K1/K3 调音量；恢复出厂使用已认证 App，不能混同普通关机。
+临时 CI 签名只用于该次构建；后续维护复用持久开发身份或明确批准的长期发布身份。
 
 ## 历史赛事版评审流程（非当前候选操作入口）
 
@@ -603,8 +627,11 @@ Kconfig 默认 `n`，但 **AIDK 评审 preset（`configs/openvela_ap/defconfig`�
 电脑审批把 Agent、目标目录、操作原文、随机请求 ID、有效期和单次使用绑定在同一
 请求中。电脑必须已有 `tasks` 授权，只能发起请求；手机 owner 才能批准或拒绝。
 设备对回执使用该电脑 grant key 的 HMAC，电脑端校验失败、超时、授权变化或取消均
-按拒绝处理。该链路已完成 C/Python/Android 主机测试和固件链接检查，但本轮未在
-真实手机、USB 工作台与板子上完成端到端审批，不把模拟器结果写成实机通过。
+按拒绝处理。该链路已完成 C/Python/Android 主机测试和固件链接检查；11 月 3 日
+实板复测确认无人批准时请求过期、命令不执行，见
+[过期回执](docs/verification/bk7258/2026-11-03-feature-validation/evidence/approval-expired.json)。
+手机批准和拒绝的完整闭环仍待实测。单次审批是独立入口，普通已有授权的电脑任务
+与傻妞日常对话不需要每次由手机批准；尚未实现由傻妞语音直接发起电脑操作。
 
 语音设置中的“回答长度”提供简洁、标准、详细三档，默认标准。它通过已有认证
 配置通道保存并在设备重启后恢复，与思考开关、模型、音量和语速分开；本轮明确

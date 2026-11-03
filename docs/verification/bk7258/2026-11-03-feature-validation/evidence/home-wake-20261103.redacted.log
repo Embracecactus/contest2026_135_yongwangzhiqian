@@ -1,0 +1,45 @@
+# UART extracts; numbers refer to the retained original capture. No microphone audio was recorded.
+4: nsh> [K[03/11/26 11:19:27.558253] [CPU0] [1042] [  INFO] [ap] BKVOICE trigger input frames=500 mean_abs=14/646 
+5: [03/11/26 11:19:28.049347] [CPU0] [1042] [  INFO] [ap] BKVOICE KWS windows=34 scores=996/3/0 max_wake=0 features=258/654 clipped=0
+9: [03/11/26 11:19:37.558940] [CPU0] [1042] [  INFO] [ap] BKVOICE trigger input frames=500 mean_abs=14/162 
+10: [03/11/26 11:19:38.247940] [CPU0] [1042] [  INFO] [ap] BKVOICE KWS windows=34 scores=972/27/0 max_wake=0 features=266/612 clipped=0
+13: [03/11/26 11:19:47.564878] [CPU0] [1042] [  INFO] [ap] BKVOICE trigger input frames=500 mean_abs=13/198 
+14: [03/11/26 11:19:48.460972] [CPU0] [1042] [  INFO] [ap] BKVOICE KWS windows=34 scores=988/11/0 max_wake=11 features=258/659 clipped=0
+15: [03/11/26 11:19:57.558347] [CPU0] [1042] [  INFO] [ap] BKVOICE trigger input frames=500 mean_abs=14/159 
+16: [03/11/26 11:19:58.660097] [CPU0] [1042] [  INFO] [ap] BKVOICE KWS windows=34 scores=992/7/0 max_wake=0 features=266/659 clipped=0
+17: [03/11/26 11:20:07.559440] [CPU0] [1042] [  INFO] [ap] BKVOICE trigger input frames=500 mean_abs=13/201 
+18: [03/11/26 11:20:08.860190] [CPU0] [1042] [  INFO] [ap] BKVOICE KWS windows=34 scores=996/0/0 max_wake=0 features=274/660 clipped=0
+19: [03/11/26 11:20:17.559503] [CPU0] [1042] [  INFO] [ap] BKVOICE trigger input frames=500 mean_abs=13/164 
+20: [03/11/26 11:20:19.061222] [CPU0] [1042] [  INFO] [ap] BKVOICE KWS windows=34 scores=996/0/0 max_wake=0 features=266/665 clipped=0
+21: [03/11/26 11:20:27.558315] [CPU0] [1042] [  INFO] [ap] BKVOICE trigger input frames=500 mean_abs=12/1937 
+22: [03/11/26 11:20:28.054034] [CPU0] [1042] [  INFO] [ap] BKVOICE KWS candidate hits=1/2 score=976
+29: [03/11/26 11:20:28.381972] [CPU0] [1034] [ ERROR] [ap] [media][media_recorder_proc_dat:816] media_recorder_encode_frame failed: -541478725
+35: [03/11/26 11:20:28.397565] [CPU0] [55] [  WARN] [ap] BKVOICE local wake turn start failed=-100
+36: [03/11/26 11:20:28.536909] [CPU0] [27] [ ERROR] [ap] input[0] write to mix failed, ret:-22.
+48: [03/11/26 11:20:28.724815] [CPU0] [27] [ ERROR] [ap] input[0] write to mix failed, ret:-22.
+52: [03/11/26 11:20:29.093847] [CPU0] [1050] [  INFO] [ap] BKVOICE KWS windows=32 scores=363/632/3 max_wake=976 features=0/836 clipped=0
+53: [03/11/26 11:20:30.888565] [CPU0] [1050] [  INFO] [ap] BKVOICE KWS candidate hits=1/2 score=859
+60: [03/11/26 11:20:31.212753] [CPU0] [1045] [ ERROR] [ap] [media][media_recorder_proc_dat:816] media_recorder_encode_frame failed: -541478725
+66: [03/11/26 11:20:31.230659] [CPU0] [55] [  WARN] [ap] BKVOICE local wake turn start failed=-100
+67: [03/11/26 11:20:31.364315] [CPU0] [27] [ ERROR] [ap] input[0] write to mix failed, ret:-22.
+79: [03/11/26 11:20:31.554722] [CPU0] [27] [ ERROR] [ap] input[0] write to mix failed, ret:-22.
+83: [03/11/26 11:20:39.113972] [CPU0] [1059] [  INFO] [ap] BKVOICE KWS windows=32 scores=996/3/0 max_wake=992 features=258/793 clipped=0
+84: [03/11/26 11:20:41.529065] [CPU0] [1059] [  INFO] [ap] BKVOICE trigger input frames=500 mean_abs=10/16394 
+85: [03/11/26 11:20:49.311003] [CPU0] [1059] [  INFO] [ap] BKVOICE KWS windows=34 scores=996/0/0 max_wake=0 features=258/661 clipped=0
+86: [03/11/26 11:20:51.517690] [CPU0] [1059] [  INFO] [ap] BKVOICE trigger input frames=500 mean_abs=10/160 
+87: [03/11/26 11:20:59.512503] [CPU0] [1059] [  INFO] [ap] BKVOICE KWS windows=34 scores=996/0/0 max_wake=0 features=248/728 clipped=0
+88: [03/11/26 11:21:01.519003] [CPU0] [1059] [  INFO] [ap] BKVOICE trigger input frames=500 mean_abs=11/366 
+89: [03/11/26 11:21:09.709659] [CPU0] [1059] [  INFO] [ap] BKVOICE KWS windows=34 scores=996/0/0 max_wake=0 features=258/647 clipped=0
+90: [03/11/26 11:21:11.517972] [CPU0] [1059] [  INFO] [ap] BKVOICE trigger input frames=500 mean_abs=12/306 
+91: [03/11/26 11:21:19.913284] [CPU0] [1059] [  INFO] [ap] BKVOICE KWS windows=34 scores=996/0/0 max_wake=0 features=258/661 clipped=0
+92: [03/11/26 11:21:21.517815] [CPU0] [1059] [  INFO] [ap] BKVOICE trigger input frames=500 mean_abs=11/214 
+93: [03/11/26 11:21:30.120972] [CPU0] [1059] [  INFO] [ap] BKVOICE KWS windows=34 scores=996/0/0 max_wake=0 features=258/649 clipped=0
+94: [03/11/26 11:21:31.517722] [CPU0] [1059] [  INFO] [ap] BKVOICE trigger input frames=500 mean_abs=11/152 
+98: [03/11/26 11:21:40.319472] [CPU0] [1059] [  INFO] [ap] BKVOICE KWS windows=34 scores=996/0/0 max_wake=0 features=258/660 clipped=0
+99: [03/11/26 11:21:41.517753] [CPU0] [1059] [  INFO] [ap] BKVOICE trigger input frames=500 mean_abs=12/150 
+102: [03/11/26 11:21:50.510034] [CPU0] [1059] [  INFO] [ap] BKVOICE KWS windows=34 scores=996/3/0 max_wake=0 features=280/679 clipped=0
+103: [03/11/26 11:21:51.517847] [CPU0] [1059] [  INFO] [ap] BKVOICE trigger input frames=500 mean_abs=14/401 
+104: [03/11/26 11:22:00.710659] [CPU0] [1059] [  INFO] [ap] BKVOICE KWS windows=34 scores=996/0/0 max_wake=0 features=287/675 clipped=0
+105: [03/11/26 11:22:01.518815] [CPU0] [1059] [  INFO] [ap] BKVOICE trigger input frames=500 mean_abs=20/177 
+106: [03/11/26 11:22:10.919284] [CPU0] [1059] [  INFO] [ap] BKVOICE KWS windows=34 scores=984/15/0 max_wake=0 features=287/659 clipped=0
+107: [03/11/26 11:22:11.524597] [CPU0] [1059] [  INFO] [ap] BKVOICE trigger input frames=500 mean_abs=19/178 

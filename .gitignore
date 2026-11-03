@@ -56,6 +56,11 @@ boards/bk7258/common/board
 # Local Alibaba Cloud credentials are never repository inputs.
 /docs/aliyun.txt
 
+# Finals defense decks, PDF exports and the organizer's official template are
+# uploaded through the contest form, never committed.
+/docs/*.pptx
+/docs/*.pdf
+
 # Local Claude Code state.  Keep legacy per-session notes local, while the
 # maintain-project-memory protocol files below are repository-versioned.
 memory/*

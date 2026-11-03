@@ -1,6 +1,21 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # 源码许可证与来源记录
 
+## 2026-11-03 录音结束日志修正（依赖已固定）
+
+工作区依赖 `frameworks/multimedia/media/server/media_recorder.c` 的 Apache-2.0
+实现新增两处修正：空停止帧不执行时间戳归一化，正常 `AVERROR_EOF` 不记录为
+编码失败；真正的错误返回、尾部写入与完成回调语义保留。
+[补丁与构建证据](docs/verification/bk7258/2026-11-03-feature-validation/README.md#问题分类与修复)
+记录了实际媒体对象重编译和 AIDK direct 增量构建通过。修复随后发布到
+[`frameworks_multimedia_media` 的 `eee16420`](https://github.com/Embracecactus/frameworks_multimedia_media/commit/eee164209463601512683acef433fee687d3844a)，
+团队 manifest 通过 `extend-project` 固定该提交。未刷板；依赖源码发布不代表实机验收，
+也不将此前增量构建表述为全工作区干净同步构建。
+
+同日较早完成的 Agent 与 apps 依赖固定见
+[综合软件验证的复现状态](docs/verification/bk7258/2026-11-03-comprehensive-software-validation.md#提交前复现状态)。
+下方 11-02 的未发布描述保留为当时快照，不覆盖以上依赖的后续固定。
+
 ## 2026-11-03 第一方原生功能与电脑审批
 
 `bk7258_native_*`、`native-apps/*.c`、`bk7258_pc_approval.[ch]`、Android

@@ -1,0 +1,350 @@
+{
+  "date": "2026-11-03",
+  "scope": "Same connected AIDK board, Android API 36 emulator and local software checks; no flash or commit.",
+  "app": {
+    "version": "0.7.27-shaniu-wake-import",
+    "version_code": 57,
+    "installed_apk_sha256": "9bc1743a790308fc79730c541ffc2f28219f95c15f870ce2b89695be1797ca8e",
+    "test_apk_sha256": "2b1343790d126a91d004629b61161ef7a1ab7c59adc63aec5bbf29e7b26f3cc4",
+    "installed_matches_local_build": true
+  },
+  "board": {
+    "profile": "aidk_ai_toy",
+    "identity_prefix": "571ab95e",
+    "uname": "NuttX 0.0.0 892be7ba7dc arm aidk_ai_toy",
+    "cp_ap_artifact_identity": "not established; version query returned -138"
+  },
+  "features": [
+    {
+      "id": 1,
+      "name": "唤醒、对话与追问",
+      "status": "缺少配置",
+      "evidence": "实板 KWS 持续处理输入；非敏感配置头确认 SCB4 仅含 owner，Wi-Fi、服务地址、证书和云服务字段均为空，因此临时联网后仍 ready=false。",
+      "remaining": "用已绑定手机补齐并保存配置，再真人唤醒、追问、停止。"
+    },
+    {
+      "id": 2,
+      "name": "语音识物",
+      "status": "未完成",
+      "evidence": "摄像头取景已通过；ASR→识物→语音回答链路未测。",
+      "remaining": "明亮物体、真人提问，保留声音与等待。"
+    },
+    {
+      "id": 3,
+      "name": "双眼表情",
+      "status": "部分通过",
+      "evidence": "实板 happy→neutral 命令、状态与渲染日志一致；已恢复 neutral。",
+      "remaining": "看清双眼实际外观与左右映射。"
+    },
+    {
+      "id": 4,
+      "name": "语音控制设备",
+      "status": "未完成",
+      "evidence": "当前 volume=53、persona=1；语音控制入口未验收。",
+      "remaining": "语音改音量、角色、表情并回读；恢复原值。"
+    },
+    {
+      "id": 5,
+      "name": "实体按键",
+      "status": "待现场",
+      "evidence": "未按实物按键；不以软件事件替代。",
+      "remaining": "现场按键、观察反馈与恢复。"
+    },
+    {
+      "id": 6,
+      "name": "动作和触觉",
+      "status": "部分通过",
+      "evidence": "加速度真实样本更新；电脑任务反馈的两次振动驱动返回 0，唤醒采集均恢复成功。直接串口脉冲因麦克风互锁返回 -16，属于该入口的预期拒绝。",
+      "remaining": "拿起/倾斜/放下；实际完成场景中确认振感。"
+    },
+    {
+      "id": 7,
+      "name": "专注计时",
+      "status": "软件通过",
+      "evidence": "模拟器真实 View 草稿、取消、恢复等检查通过；无实板完整计时证据。",
+      "remaining": "手机设置短计时，开始、结束、取消与反馈回读。"
+    },
+    {
+      "id": 8,
+      "name": "事实记忆",
+      "status": "软件覆盖",
+      "evidence": "复用此前主机/JVM 逻辑检查；今天未写入真实设备事实。",
+      "remaining": "新增、修改、删除演示事实并通过对话核对。"
+    },
+    {
+      "id": 9,
+      "name": "RuntimeSkill",
+      "status": "软件覆盖",
+      "evidence": "复用此前主机的解析、存储及权限检查；没有今天的设备开关回读。",
+      "remaining": "关闭/开启一个已有 Skill，读取并验证语音行为。"
+    },
+    {
+      "id": 10,
+      "name": "NFC 场景卡",
+      "status": "缺实卡证据",
+      "evidence": "模拟器登记草稿与导航通过；实板扫描 -110，未确认有兼容卡在场。",
+      "remaining": "兼容卡登记、保存、回读、移开再刷卡触发。"
+    },
+    {
+      "id": 11,
+      "name": "本地内容播放",
+      "status": "软件覆盖",
+      "evidence": "复用此前 8 个主机场景；未播放真实设备内容。",
+      "remaining": "现成内容包播放、停止；有卡时补刷卡触发。"
+    },
+    {
+      "id": 12,
+      "name": "签名原生小功能",
+      "status": "安装前置未满足",
+      "evidence": "ABI/管理器/示例有主机检查；当前产品配置未设置发布公钥指纹。",
+      "remaining": "先确认发布身份和对应固件；手机到场不能单独解决。"
+    },
+    {
+      "id": 13,
+      "name": "电脑任务状态",
+      "status": "实板协议通过",
+      "evidence": "正常任务子进程返回 0；超时任务 reason=timeout、子进程返回 1、CLI 返回 130；两者 device_result=confirmed，体感/外观仍未确认。",
+      "remaining": "人眼/触觉确认傻妞反馈，补同框录像。"
+    },
+    {
+      "id": 14,
+      "name": "手机单次审批",
+      "status": "负向路径通过",
+      "evidence": "实板请求过期，decision=expired，process_returncode=null；没有执行命令。",
+      "remaining": "真实手机批准/拒绝；现有审批设计另待用户确认。"
+    },
+    {
+      "id": 15,
+      "name": "电脑按需取景",
+      "status": "实板通过",
+      "evidence": "两次真实帧、保存、取消后重拍、释放缓存均有回执及录屏；画面偏暗。",
+      "remaining": "放置明亮物体，补可用于答辩的同框素材。"
+    },
+    {
+      "id": 16,
+      "name": "电脑资源工作台",
+      "status": "权限阻断",
+      "evidence": "当前 profile 的目录、默认、试用读取均被设备拒绝 -13；不自动扩大授权。",
+      "remaining": "手机按现有流程授予 resources/scenes，再装包、试用、回读。"
+    },
+    {
+      "id": 17,
+      "name": "认领、Wi-Fi 与连接",
+      "status": "部分通过",
+      "evidence": "Wi-Fi 真实连接成功；只改运行态。模拟器认领异常路径有独立结果；没有手机 BLE 实连。",
+      "remaining": "沿用现有绑定；手机连接、切页、后台恢复、断连后重连。"
+    },
+    {
+      "id": 18,
+      "name": "语音/模型/角色设置",
+      "status": "软件通过；实板缺配置",
+      "evidence": "编辑状态、未知状态和恢复检查通过；现板仅保存 owner，语音服务配置为空。",
+      "remaining": "已绑定手机补齐服务配置并回读；敏感页停录。"
+    },
+    {
+      "id": 19,
+      "name": "表情和唤醒资源",
+      "status": "软件通过",
+      "evidence": "模拟器导入草稿、试用导航、默认选择及后台取消通过。",
+      "remaining": "兼容已审核包的实机安装和回读；现成恢复方案齐备后更换模型。"
+    },
+    {
+      "id": 20,
+      "name": "App OTA 与重连",
+      "status": "未完成",
+      "evidence": "复用主机/JVM 包与生命周期检查；未更新实板。找到的 recovery 包不当作 App OTA 包。",
+      "remaining": "核对固件身份、合法兼容 OTA 包，手机执行并验证重连。"
+    },
+    {
+      "id": 21,
+      "name": "隐私和设备归属",
+      "status": "部分通过",
+      "evidence": "模拟器 Keystore/TLS/状态隔离检查通过，现有设备身份保持；没有清除 owner。",
+      "remaining": "沿用绑定进行实机权限回读；出厂复位不纳入普通演示。"
+    },
+    {
+      "id": 22,
+      "name": "状态与诊断",
+      "status": "部分通过",
+      "evidence": "AP/双核健康、加速度、充电状态、双屏服务可读；版本接口 -138，温度未校准。",
+      "remaining": "查清当前固件身份；功耗、长稳、多人唤醒另做专项。"
+    }
+  ],
+  "prior_software": {
+    "native_abi3": "passed actual native manager, package checks, intents and example app behavior with controlled hardware dependencies",
+    "nfc_rpc_cases": 34,
+    "python_tests": 54,
+    "directed_cases": 40,
+    "local_content_scenarios": 8,
+    "android_unique_passing_cases": 345,
+    "android_evidence": "338 unique passes from full interoperability-enabled run, plus 7 separately executed native display TLS integration cases; all 345 distinct JUnit names passed. Initial default run skipped 9; initial legacy TLS fixture assertion failed and was retained."
+  },
+  "isolated_provision_cases": [
+    {
+      "case": "authentication_failure",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 11.94,
+      "screenrecord": false
+    },
+    {
+      "case": "backgrounded_resolver_clears_progress_before_late_callback",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 3.73,
+      "screenrecord": false
+    },
+    {
+      "case": "cancelled_late_callback",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 73.8,
+      "screenrecord": false
+    },
+    {
+      "case": "delayed_resolver_double_click_then_back_ignores_late_failure",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 4.91,
+      "screenrecord": false
+    },
+    {
+      "case": "dns_failure_does_not_create_session",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 11.16,
+      "screenrecord": false
+    },
+    {
+      "case": "ime_input_scroll_bounds_and_secure_view_draw",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 6.55,
+      "screenrecord": false
+    },
+    {
+      "case": "local_utf8_and_nonhex_password_rejection",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 56.67,
+      "screenrecord": false
+    },
+    {
+      "case": "recovery_cancel_before_and_after_connection_creation",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 1.22,
+      "screenrecord": false
+    },
+    {
+      "case": "recreate_keeps_only_isolated_pending_binding",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 3.74,
+      "screenrecord": false
+    },
+    {
+      "case": "transport_timeout_close",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 56.68,
+      "screenrecord": false
+    },
+    {
+      "case": "verify_ack_then_negative12_is_failure",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 9.03,
+      "screenrecord": false
+    }
+  ],
+  "recorded_runs": [
+    {
+      "name": "bluetooth-api",
+      "passed": true,
+      "seconds": 5.1
+    },
+    {
+      "name": "default-expression",
+      "passed": true,
+      "seconds": 46.7
+    },
+    {
+      "name": "expression-trial",
+      "passed": true,
+      "seconds": 78.4
+    },
+    {
+      "name": "eyes-background-cancel",
+      "passed": true,
+      "seconds": 6.6
+    },
+    {
+      "name": "eyes-draft",
+      "passed": true,
+      "seconds": 15.5
+    },
+    {
+      "name": "focus-timer",
+      "passed": true,
+      "seconds": 48.3
+    },
+    {
+      "name": "gallery-dark",
+      "passed": true,
+      "seconds": 88.7
+    },
+    {
+      "name": "gallery-light",
+      "passed": true,
+      "seconds": 138.5
+    },
+    {
+      "name": "nfc-scenes",
+      "passed": true,
+      "seconds": 79.9
+    },
+    {
+      "name": "pc-authorization",
+      "passed": true,
+      "seconds": 16.3
+    },
+    {
+      "name": "provision-errors",
+      "passed": false,
+      "seconds": 601.7
+    },
+    {
+      "name": "provision-errors-recovered",
+      "passed": true,
+      "seconds": 12.7
+    },
+    {
+      "name": "provision-validation",
+      "passed": true,
+      "seconds": 92.1
+    },
+    {
+      "name": "security-memory",
+      "passed": true,
+      "seconds": 77.9
+    },
+    {
+      "name": "settings-state",
+      "passed": true,
+      "seconds": 9.1
+    }
+  ],
+  "video_count": 19,
+  "videos_bytes": 36643640,
+  "constraints": [
+    "Emulator fixtures are not BLE or board acceptance.",
+    "No microphone/speaker playback acceptance.",
+    "Video has no environment audio.",
+    "Protected provision screens can be black.",
+    "Initial combined provision timeout retained; isolated rerun results recorded separately.",
+    "Camera shows a dim scene; not final demo image quality.",
+    "Private profiles, Wi-Fi credentials, activation material and raw device configuration are excluded.",
+    "Reviewed serial copies redact local IP addresses and abbreviate the public device identity; raw originals remain in the local run directory."
+  ]
+}

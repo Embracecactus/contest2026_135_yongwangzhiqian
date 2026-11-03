@@ -1,0 +1,9 @@
+{
+  "name": "settings-state",
+  "exit_code": 0,
+  "passed": true,
+  "seconds": 9.1,
+  "videos": [
+    "videos/emulator/settings-state-01.mp4"
+  ]
+}

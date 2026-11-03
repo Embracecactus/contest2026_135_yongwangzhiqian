@@ -1,0 +1,74 @@
+{
+  "schema": "shaniu.home-wake-diagnosis/1",
+  "date": "2026-11-03",
+  "timezone": "Asia/Shanghai",
+  "board_identity_prefix": "571ab95e",
+  "cp_uname": "NuttX 0.0.0 892be7ba7dc arm aidk_ai_toy",
+  "exact_cp_ap_firmware_identity_verified": false,
+  "speech": {
+    "recorded_at_utc": "2026-11-03T11:21:17.442119+00:00",
+    "speech_source": "live human, reported by user",
+    "requested_phrase": "你好 openvela",
+    "reported_attempts": 3,
+    "reported_response": "initially described as no response; then clarified eyes are moving",
+    "distance_cm_requested": 30,
+    "distance_confirmed": false,
+    "ack_speech_confirmed": false,
+    "raw_audio_recorded": false
+  },
+  "capture": {
+    "duration_seconds": 180,
+    "original_log_sha256": "ce23399e1881586b4e7b5f518ae909c16a82106f31b02f34d7558d57a56cc95f",
+    "events": [
+      {
+        "board_time": "2026-11-03T11:20:28.397565",
+        "candidate_score_thousandths": 976,
+        "turn_start_result": -100
+      },
+      {
+        "board_time": "2026-11-03T11:20:31.230659",
+        "candidate_score_thousandths": 859,
+        "turn_start_result": -100
+      }
+    ],
+    "attempt_to_event_mapping": "Not all three reported attempts can be mapped individually; no recognition-rate claim."
+  },
+  "live_status": {
+    "ready": false,
+    "busy": false,
+    "volume": 80,
+    "runtime_error": 0,
+    "wifi_link": 2,
+    "wifi_link_meaning": "disconnected",
+    "ap_faults": 0,
+    "ap_recoveries": 0
+  },
+  "persisted_configuration_presence": {
+    "format": "SCB4",
+    "ssid_length": 0,
+    "password_length": 0,
+    "host_length": 0,
+    "ca_bytes": 0,
+    "cloud_bytes": 0,
+    "only_nonsecret_header_read": true,
+    "read_offset": 64,
+    "read_length": 32,
+    "source_sha256": "efd8814ed0c7454d66748776aeb394ff3782d7a40313e2210de8f3ce710b7f3d"
+  },
+  "diagnosis": "Local keyword matches reached turn admission; ENETDOWN rejected both turns. Saved Wi-Fi and cloud settings are absent.",
+  "source_interpretation": "bk7258_agent_trigger.c trigger_process_locked returns -ENETDOWN without starting ASR or playing the acknowledgement when admitted is false.",
+  "additional_observations": [
+    "Normal recorder EOF error logging remains on the running firmware; the earlier source fix was not flashed.",
+    "Mixer write -22 appeared around local listener release/rearm; causality for audible behavior is not established."
+  ],
+  "completion": {
+    "wake_model_changed": false,
+    "threshold_changed": false,
+    "flashed": false,
+    "credentials_read": false,
+    "settings_written": false,
+    "online_voice_restored": false,
+    "waiting_for": "Existing owner phone connection and network/cloud settings restoration."
+  },
+  "scope": "Live-human wake diagnosis only; not a successful cloud dialogue, cold-boot reconnection test, or physical video recording."
+}

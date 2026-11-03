@@ -2,8 +2,8 @@
 
 本文保留早期自有 Gateway、语音运行时与授权音色探索的设计来源和历史证据，不是
 当前适配任务清单，也不要求恢复文中旧入口。当前设备端采用官方 Agent/Session/Voice/
-Media，控制 App 不承担对话或音频中转；现状与优先级只见
-[傻妞全项目 Master Plan](shaniu-master-plan.md)。历史源码按当前调用者及复现用途保留。
+Media，控制 App 不承担对话或音频中转；现状只见 `boards/bk7258/CONFIGS.md`
+（入口见[平台事实所有权](README.md#事实所有权)）。历史源码按当前调用者及复现用途保留。
 
 ## 1. 产品目标与当前边界
 
@@ -18,7 +18,8 @@ Gateway/GPU 主机承担动态 ASR、VLM、LLM、授权音色 TTS、唱歌生成
 移动端首版固定为原生 Android 完整控制台；微信小程序只作为后续经用户 Gateway 接入的
 轻客户端。Android 负责 BLE 近场认领、Wi-Fi/Gateway 配置、设备状态、隐私、情绪偏好、
 单帧图片和受控视频预览；小程序不直接承担底层配网、持续视频、OTA 或诊断。详细决策、
-协议边界与验收阶段见 [傻妞 Android companion 计划](shaniu-android-companion-plan.md)。
+历史移动端工作流见 [Master Plan 的 W4](shaniu-master-plan.md#w4原生-android)；
+现行操作见仓库 `android/shaniu-companion/README.md`。
 
 产品不把“所有模型都塞进 MCU”当目标。板端必须独立完成隐私指示、唤醒、VAD、会话状态、
 音频/相机资源仲裁、离线降级和安全更新；高质量生成任务按能力卸载到用户控制的主机。
@@ -595,7 +596,7 @@ UIKit 的完整 video/media 组合在独立 Media profile 通过后再启用。�
 8. 当前基线只有 standalone BKVoice 会话/audio owner，断网回退固定 voice pack。优先验证
    AI Agent 的替代 profile，通过清理、资源和实板门后切换，不能并存第二套状态机。
 
-BKVoice 的协议和清理门继续复用 [P2-A 单轮接话契约](shaniu-next-stage-single-turn-plan.md)，
+BKVoice 的 `companion-v1` 协议以 [Gateway 说明](../../../gateway/shaniu/README.md) 和其源码为准，
 执行顺序以 [主计划第 17.5 节](shaniu-master-plan.md#openvela-mimo-execution) 为准，
 不重复已经完成的 host 纵切。产品 UART/串口功能明确不实现；只保留通用 provider seam，
 串口不进入运行路径、回退路径或验收门。

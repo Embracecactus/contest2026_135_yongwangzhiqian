@@ -1,0 +1,45 @@
+bkdisplay mood happy
+[03/11/26 08:18:35.512284] [CPU0] [1000] [  INFO] [ap] BKVOICE KWS windows=34 scores=996/0/0 max_wake=0 features=274/636 clipped=0
+[03/11/26 08:18:38.391722] [CPU0] [1000] [  INFO] [ap] BKVOICE trigger input frames=500 mean_abs=15/155 
+BKDISPLAY MOOD PASS requested=happy applied=happy sequence=546 screens=2 mapping=unverified
+nsh> 
+nsh> sleep 2
+[03/11/26 08:18:39.988503] [CPU0] [51] [  INFO] [ap] BKDISPLAY RENDER PASS expression=happy pack=shaniu-cyan-v3 revision=3 screens=2 mapping=unverified fallback=0 sequence=546
+nsh> 
+nsh> bkdisplay status
+BKDISPLAY STATUS service=ready state=READY(3) last_error=0 screens=2 expression=happy pack=shaniu-cyan-v3 revision=3 mapping=unverified sequence=550 storage=/dev/mmcsd0
+nsh> 
+nsh> bkdisplay mood neutral
+[03/11/26 08:18:45.722847] [CPU0] [1000] [  INFO] [ap] BKVOICE KWS windows=34 scores=996/0/0 max_wake=0 features=266/637 clipped=0
+[03/11/26 08:18:48.452909] [CPU0] [1000] [  INFO] [ap] BKVOICE trigger input frames=500 mean_abs=17/147 
+BKDISPLAY MOOD PASS requested=neutral applied=neutral sequence=551 screens=2 mapping=unverified
+nsh> 
+nsh> sleep 2
+[03/11/26 08:18:48.839315] [CPU0] [51] [  INFO] [ap] BKDISPLAY RENDER PASS expression=neutral pack=shaniu-cyan-v3 revision=3 screens=2 mapping=unverified fallback=0 sequence=551
+nsh> 
+nsh> bkdisplay status
+BKDISPLAY STATUS service=ready state=READY(3) last_error=0 screens=2 expression=neutral pack=shaniu-cyan-v3 revision=3 mapping=unverified sequence=555 storage=/dev/mmcsd0
+nsh> 
+nsh> bkhaptic pulse 40
+BKHAPTIC FAIL ret=-16
+nsh> 
+nsh> bkhaptic status
+BKHAPTIC ready=1
+nsh> 
+nsh> bknfc scan
+BKNFC SCAN FAIL rpc=0 operation=-110
+nsh> 
+nsh> bkhealth status
+BKHEALTH STATUS operation=0 battery_state=charging(4) voltage_mV=4106 percent=unavailable temperature_raw=544 reference_raw=0 generation=1 sequence=443 temperature_mC=unavailable calibrated=no
+nsh> 
+nsh> apctl health
+AP supervisor state=HEALTHY(2) reason=NONE(0) generation=1 flags=0000001f
+Supervisor heartbeat primary/secondary=241221/241227 age=0/0 ms transport seq/age=0/0 ms healthy/sample=26534140/20 ms sample_sequence=102050
+Supervisor faults/recoveries/consecutive=0/0/0 injection=NONE(0) last_error=0
+Supervisor recurring=0 auto_attempts=0 lockouts=0 budget=0/0 window_ms=0 worker_stack=4096
+nsh> 
+nsh> bkwifi status
+BKWIFI RESULT operation=status status=0 link=3 rssi=-23 ip=[LAN-IP] mask=[LAN-IP] router=[LAN-IP]
+nsh> 
+nsh> [03/11/26 08:18:55.877534] [CPU0] [1000] [  INFO] [ap] BKVOICE KWS windows=34 scores=996/0/0 max_wake=0 features=274/627 clipped=0
+[03/11/26 08:18:58.387940] [CPU0] [1000] [  INFO] [ap] BKVOICE trigger input frames=500 mean_abs=17/141 
