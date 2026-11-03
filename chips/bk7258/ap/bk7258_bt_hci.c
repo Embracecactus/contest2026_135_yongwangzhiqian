@@ -27,6 +27,7 @@
 
 #include <nuttx/clock.h>
 #include <nuttx/mutex.h>
+#include <nuttx/net/bluetooth.h>
 #include <nuttx/semaphore.h>
 #include <nuttx/signal.h>
 #include <nuttx/wireless/bluetooth/bt_driver.h>
@@ -62,6 +63,9 @@
 #define BK7258_BT_ATT_OP_MTU_REQ         0x02u
 #define BK7258_BT_ATT_MTU_REQ_SIZE       3u
 #define BK7258_BT_ATT_MAX_LE_MTU         517u
+#define BK7258_BT_ATT_RX_MTU \
+  (BLUETOOTH_MAX_FRAMELEN - BLUETOOTH_H4_HDRLEN - \
+   BK7258_BT_ACL_HEADER_SIZE - BK7258_BT_L2CAP_HEADER_SIZE)
 #define BK7258_BT_OP_HOST_BUFFER_SIZE    0x0c33u
 #define BK7258_BT_OP_HOST_NUM_COMPLETED  0x0c35u
 
@@ -1102,16 +1106,28 @@ void __wrap_bt_l2cap_receive(struct bt_conn_s *conn, struct bt_buf_s *buf)
         {
           uint8_t *mtu_data = buf->data + BK7258_BT_L2CAP_HEADER_SIZE + 1u;
           uint16_t peer_mtu = bk7258_bt_get_le16(mtu_data);
+          uint16_t max_mtu = BK7258_BT_ATT_RX_MTU;
 
-          if (peer_mtu > BK7258_BT_ATT_MAX_LE_MTU)
+          /* bt_receive reserves H4 space even after this driver strips H4.
+           * ATT's transmit-based MTU calculation omits that receive byte,
+           * so the last ACL fragment otherwise overflows the reassembly
+           * buffer. Clamp before ATT selects and advertises its own MTU.
+           */
+
+          if (max_mtu > BK7258_BT_ATT_MAX_LE_MTU)
             {
-              bk7258_bt_put_le16(mtu_data, BK7258_BT_ATT_MAX_LE_MTU);
+              max_mtu = BK7258_BT_ATT_MAX_LE_MTU;
+            }
+
+          if (peer_mtu > max_mtu)
+            {
+              bk7258_bt_put_le16(mtu_data, max_mtu);
               __atomic_fetch_add(
                 &g_bk7258_bt_hci.stats.host_mtu_clamped, 1u,
                 __ATOMIC_RELAXED);
               __atomic_store_n(
                 &g_bk7258_bt_hci.stats.last_mtu_clamp,
-                (uint32_t)peer_mtu << 16 | BK7258_BT_ATT_MAX_LE_MTU,
+                (uint32_t)peer_mtu << 16 | max_mtu,
                 __ATOMIC_RELAXED);
             }
         }

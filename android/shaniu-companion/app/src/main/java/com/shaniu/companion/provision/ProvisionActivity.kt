@@ -247,7 +247,7 @@ class ProvisionActivity : Activity() {
         }
         text("兼容协议需要服务同时支持语音输入与 PCM 合成，当前合成音色为 alloy；仅支持文字聊天的服务不可用。", 12, advanced)
         asrModel = field("语音识别模型", target = advanced).apply { setText("mimo-v2.5-asr") }
-        chatModel = field("对话模型", target = advanced).apply { setText("mimo-v2.5") }
+        chatModel = field("对话模型", target = advanced).apply { setText(CloudSettings.MIMO_DEFAULT_CHAT_MODEL) }
         ttsModel = field("语音合成模型", target = advanced).apply { setText("mimo-v2.5-tts") }
         advanced.visibility = View.GONE
         var appliedServicePreset = 0
@@ -263,7 +263,7 @@ class ProvisionActivity : Activity() {
                     cloudUrl.setText(CloudSettings.MIMO_STANDARD_URL)
                     cloudDialect.setSelection(0)
                     asrModel.setText("mimo-v2.5-asr")
-                    chatModel.setText("mimo-v2.5")
+                    chatModel.setText(CloudSettings.MIMO_DEFAULT_CHAT_MODEL)
                     ttsModel.setText("mimo-v2.5-tts")
                 } else advanced.visibility = View.VISIBLE
             }

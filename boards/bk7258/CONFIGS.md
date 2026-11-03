@@ -49,10 +49,14 @@ Earlier records retain their original limits.
 | N3 computer tasks | 11-03: normal subprocess return 0; timeout has `reason=timeout`, subprocess return 1 and CLI exit 130; both device results confirmed. Unapproved single-use request expires without running a process | Phone approval and rejection, visible/audible feedback, full resource workflow and current-candidate acceptance; `feedback_verified=false` |
 | N4 on-demand camera | 11-03: real browser capture, save with matching JPEG hash, cancel, recapture and cache release pass; 55 s recording retained. Two 640×480 frames, 8,583/11,767 B; frame transfer 1.413/2.020 s, backend capture/read 4.429/5.067 s (not click-to-display latency). This adds real save evidence to the older fixture-only candidate record | Running image correspondence, concurrency, long-term stability and human image-quality review; dark workbench recording still needs a well-lit object and physical-device shot |
 
-On 11-03, temporary Wi-Fi association succeeded. The non-sensitive SCB4 header
-shows an owner-only saved configuration: network and voice-service fields are
-empty. Voice `ready=false` therefore does not establish a recovery bug; the
-bound phone must save the missing configuration before live voice acceptance.
+The earlier 11-03 afternoon snapshot has temporary Wi-Fi association but an
+owner-only saved configuration: network and voice-service fields are empty.
+That snapshot's Voice `ready=false` therefore did not establish a recovery bug.
+Later that night, the bound phone saved the missing configuration and one
+human wake-and-question turn produced an audibly confirmed delayed answer with
+`mimo-v2.6-flash`; the dated record keeps both snapshots and timing scope.
+This does not establish restart persistence, generalized voice latency or full
+firmware correspondence. See the [night follow-up evidence](../../docs/verification/bk7258/2026-11-03-feature-validation/evidence/voice-app-ble-followup.json).
 The existing PC profile's resource queries returned `-13`; positive resource
 operations still require the appropriate owner grant. Product native installation
 remains disabled while `CONFIG_BK7258_NATIVE_PUBLISHER_SHA256` is empty.
@@ -63,6 +67,19 @@ groups, including all 11 provisioning error cases. The first combined error run
 timed out in the emulator graphics environment; the complete run passed after a
 data-preserving software-renderer restart. Failed recordings remain available.
 These checks do not establish physical BLE, NFC, sound or OTA acceptance.
+
+On the same identified AIDK and real phone, App `0.7.28-shaniu-mimo-chat`
+(version code 58; APK SHA-256 `c2cf93b2…d3700b`) negotiated MTU 71 and completed
+one 67 B maximum-write connection with TLS ready at 2,853 ms, versus 3,264 ms
+for the one 20 B baseline. This is not bulk-throughput evidence; 68 B first-
+packet timeout remains a preserved failure, while 64 B and 67 B succeeded.
+The App's chat default is now `mimo-v2.6-flash`; ASR/TTS remain v2.5. Board
+advertise-MTU receive-header space was corrected by 1 B, but the board was not
+flashed and its full running identity remains unknown. The new NuttX host tests
+(2), Android build/unit/lint, and incremental firmware build are build/test
+evidence only. Full delivery checks must correspond to the fixes' own commit;
+merged PR #140 baseline `8e526e238256aaa15f2c2974bd71f0d3b1d48c93` and its
+successful full CI run `41643031351` predate these fixes.
 
 The 2026-10-18 decision still places OTA and post-upgrade reconnection after
 the desktop features. Historical 634 and later 767 successes retain their own

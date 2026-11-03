@@ -13,8 +13,8 @@ android {
         applicationId = "com.shaniu.companion"
         minSdk = 29
         targetSdk = 35
-        versionCode = 57
-        versionName = "0.7.27-shaniu-wake-import"
+        versionCode = 58
+        versionName = "0.7.28-shaniu-mimo-chat"
         buildConfigField("boolean", "LEGACY_SERVICE_DEMO", "false")
         testInstrumentationRunner = "com.shaniu.companion.provision.ControlKeyInstrumentation"
     }

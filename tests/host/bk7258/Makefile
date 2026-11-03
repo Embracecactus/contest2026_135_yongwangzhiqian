@@ -575,12 +575,13 @@ run-product-keys: product-keys
 # Keep them outside all/check/run until their CMake/OpenSSL requirements are
 # intentionally added to those broader host-test contracts.
 
-provision: test_hci_acl_lifetime.py test_provision_gatt.py \
+provision: test_hci_acl_lifetime.py test_hci_att_mtu.py test_provision_gatt.py \
 	test_provision_pair_query.py \
 	test_provision_tls.py
 
 run-provision: provision
 	python3 test_hci_acl_lifetime.py
+	python3 test_hci_att_mtu.py
 	python3 test_provision_gatt.py
 	python3 test_provision_pair_query.py
 	python3 test_provision_tls.py

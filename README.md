@@ -470,8 +470,11 @@ tools/bk7258/bk7258.py voice pairing --console-port <COM> \
 - 配网与云配置的具体字段（App「设备配置」页，密钥只在你手机上输入、经已认证的
   BLE 通道下发，App 侧的编码器不保留它）：`Wi-Fi 名称`、`Wi-Fi 密码`、
   `API Key`（1–4096 个可打印 ASCII）、`HTTPS 服务地址`（默认
-  `https://token-plan-cn.xiaomimimo.com/v1`）、`语音识别模型` / `对话模型` /
-  `语音合成模型`（默认 `mimo-v2.5-asr` / `mimo-v2.5` / `mimo-v2.5-tts`）。
+  `https://api.xiaomimimo.com/v1`）、`语音识别模型` / `对话模型` /
+  `语音合成模型`（默认 `mimo-v2.5-asr` / `mimo-v2.6-flash` / `mimo-v2.5-tts`）。
+  MiMo 官方已于 2026-10-21 停用 `mimo-v2.5` / `mimo-v2.5-pro` 对话模型；
+  已有设备请在云服务配置中更新对话模型，ASR/TTS 模型无需更改。
+  模型可用性以 [MiMo 官方说明](https://mimo.mi.com/docs/en-US/quick-start/model) 为准。
   设备保存并回读成功后才算配置完成。**评委必须自备该云服务的账号与额度**，
   仓库和 Release 都不含作者的云凭据；设置页的「云端模型」只保存公开模型 ID，
   不含地址与密钥。设备侧另可用官方 Agent 的 NSH 命令

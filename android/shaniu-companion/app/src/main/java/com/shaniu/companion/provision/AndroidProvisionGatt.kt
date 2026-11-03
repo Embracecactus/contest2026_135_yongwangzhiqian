@@ -57,6 +57,8 @@ class AndroidProvisionGatt(
     private var rx: BluetoothGattCharacteristic? = null
     private var stage = Stage.CONNECTING
     private var reportedReady = false
+    private var negotiatedMtu = 23
+    private var largestWrite = 0
     private val transportStartedAtMs = System.nanoTime() / 1_000_000
     private val session = ProvisionGattSession(tls, ::deliverPlaintext)
 
@@ -66,8 +68,7 @@ class AndroidProvisionGatt(
     private fun deliverPlaintext(bytes: ByteArray) {
         if (stopping.get()) return
         if (!reportedReady) {
-            reportedReady = true
-            events.tlsEstablished()
+            reportTlsEstablished()
         }
         if (!stopping.get()) events.plaintext(bytes)
     }
@@ -119,7 +120,10 @@ class AndroidProvisionGatt(
         override fun onMtuChanged(candidate: BluetoothGatt, mtu: Int, status: Int) {
             post {
                 if (!current(candidate) || stage != Stage.MTU) return@post
-                if (status == BluetoothGatt.GATT_SUCCESS) session.negotiatedMtu(session.generation, mtu)
+                if (status == BluetoothGatt.GATT_SUCCESS) {
+                    negotiatedMtu = mtu
+                    session.negotiatedMtu(session.generation, mtu)
+                }
                 subscribe(candidate) // Failed negotiation keeps ATT MTU 23.
             }
         }
@@ -197,6 +201,13 @@ class AndroidProvisionGatt(
             connection.writeCharacteristic(target)
         }
         if (!accepted) throw IOException("GATT write not accepted")
+        largestWrite = maxOf(largestWrite, write.value.size)
+    }
+
+    private fun reportTlsEstablished() {
+        reportedReady = true
+        Log.i(LOG_TAG, "tls_ready mtu=$negotiatedMtu max_write=$largestWrite elapsed_ms=${elapsedMs()}")
+        events.tlsEstablished()
     }
 
     /** Only send authentication/config messages after the product claim owner
@@ -255,8 +266,7 @@ class AndroidProvisionGatt(
                 if (session.closed) { stop(session.failure ?: "transport_closed"); continue }
                 if (!stopping.get()) flushWrite()
                 if (session.established && !reportedReady && !stopping.get()) {
-                    reportedReady = true
-                    events.tlsEstablished()
+                    reportTlsEstablished()
                 }
             }
         } catch (_: SecurityException) { stop("bluetooth_permission_denied") }
