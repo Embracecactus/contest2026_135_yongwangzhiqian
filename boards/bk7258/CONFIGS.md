@@ -101,6 +101,18 @@ saved network and cloud settings in the App, authenticated readback returned
 `ready=true` and `runtime_error=0`. This is readiness, not a new spoken-turn test. See the
 [dated follow-up](../../docs/verification/bk7258/2026-11-03-feature-validation/README.md#11-04-电脑审批感叹号缺失).
 
+The 11-04 wake follow-up found that the historical-base recovery had also
+restored the builtin `922eba91` model. The owner's adapted P5 (`5c82f8fe`,
+frontend v2) was restored through App model import at the existing 85% threshold.
+One 34.28 s public-negative speaker replay produced no wake; one previously
+enrolled positive replay triggered and rearmed. A software restart retained P5
+and authenticated status returned `ready=true`, `runtime_error=0`. This is a
+same-unit personalization recovery on firmware 775 / App 58, not a replacement
+of the public builtin model or independent human/long-duration acceptance.
+Private model/audio remain excluded from Git. After any later recovery from an
+older full-device base, verify the selected model as well as network/cloud
+settings. See the [bounded wake evidence](../../docs/verification/bk7258/2026-11-03-feature-validation/README.md#11-04-误唤醒与同机模型恢复).
+
 ## Configuration ownership
 
 Each maintained role seed contains only:
