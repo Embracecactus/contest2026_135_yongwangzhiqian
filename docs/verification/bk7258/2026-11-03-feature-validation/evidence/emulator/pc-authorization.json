@@ -1,0 +1,9 @@
+{
+  "name": "pc-authorization",
+  "exit_code": 0,
+  "passed": true,
+  "seconds": 16.3,
+  "videos": [
+    "videos/emulator/pc-authorization-01.mp4"
+  ]
+}

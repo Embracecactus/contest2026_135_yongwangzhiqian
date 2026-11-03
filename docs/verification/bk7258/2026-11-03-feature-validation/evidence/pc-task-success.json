@@ -1,0 +1,9 @@
+{
+  "task_id": "bb2cd11378aa436a92ca49efa2f01b12",
+  "event_sequence": 2,
+  "process_state": "success",
+  "process_returncode": 0,
+  "reason": "exited",
+  "device_result": "confirmed",
+  "feedback_verified": false
+}

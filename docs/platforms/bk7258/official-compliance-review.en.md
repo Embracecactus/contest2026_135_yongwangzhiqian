@@ -35,7 +35,8 @@ that generate driver source names.
   matching Chinese and English project descriptions.
 - **Resolved documentation-ownership issue:** `docs/bk7258-t5ai/` covered three
   boards despite its name and is now `docs/platforms/bk7258/`. Learner material
-  is under `docs/learning/bk7258/`, reverse-engineering records are explicitly
+  is under `docs/learning/bk7258/` (that directory was removed at the owner's
+  request on 2026-11-03), reverse-engineering records are explicitly
   `bootloader-analysis/`, and the T5AI-Core-only probe is under
   `hardware/t5ai-core/probe/`. Active source comments, navigation, and
   verification-document references were updated with the move.

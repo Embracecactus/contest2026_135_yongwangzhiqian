@@ -1,0 +1,1 @@
+PASS: RES-01.eye-background-cancel closes the authenticated control generation and reports an unknown install result; emulator transport only

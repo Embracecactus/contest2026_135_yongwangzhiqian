@@ -1,0 +1,9 @@
+{
+  "name": "gallery-dark",
+  "exit_code": 0,
+  "passed": true,
+  "seconds": 88.7,
+  "videos": [
+    "videos/emulator/gallery-dark-01.mp4"
+  ]
+}

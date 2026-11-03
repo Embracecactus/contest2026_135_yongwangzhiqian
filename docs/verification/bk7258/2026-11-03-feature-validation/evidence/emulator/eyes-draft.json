@@ -1,0 +1,9 @@
+{
+  "name": "eyes-draft",
+  "exit_code": 0,
+  "passed": true,
+  "seconds": 15.5,
+  "videos": [
+    "videos/emulator/eyes-draft-01.mp4"
+  ]
+}

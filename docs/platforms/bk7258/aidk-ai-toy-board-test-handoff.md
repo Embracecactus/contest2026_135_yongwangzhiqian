@@ -1,26 +1,18 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# AIDK AI Toy board-test handoff
+# AIDK AI Toy board-test evidence (2026-09-01)
 
 Snapshot date: 2026-09-01
 Repository: `contest2026_135_yongwangzhiqian`
 Branch: `dev-ai-contest-2026`
 Hardware-code HEAD: `e270b43` (`fix(bk7258): restore ICMP ping socket support`)
 
-This is a live hardware-debug handoff, not an immutable verification record.
-Begin the next session with `current mode: hardware-fast iteration`, read the
-repository `AGENTS.md`, and replace this snapshot with new board evidence when
-the target state changes.
+This is a dated board-evidence snapshot for generation 189, not a current status
+or operating procedure. Current support and acceptance are recorded only in
+`boards/bk7258/CONFIGS.md`; build, flash and trust steps follow the maintained
+[build, package and hardware evidence SOP](nuttx-port/bk7258-build-flash-debug-sop.md).
 
-## Scope boundary
-
-This session owns only the AIDK AI Toy board-test loop. Preserve the working
-AP/RPTUN/CPU2, Bluetooth, Wi-Fi and deferred-device behavior. Reconfirm the
-MFRC522 probe only after a reboot or contradictory runtime evidence. Voice-model
-training, private voice artifacts and OpenAI feedback belong to other sessions;
-do not read, stage, move or commit them during board debugging.
-
-## Git and artifact boundary
+## Hardware-fix commits
 
 The hardware closure after `de3e9af` is:
 
@@ -34,15 +26,6 @@ The hardware closure after `de3e9af` is:
 | `56a7ef6` | re-enter the chip UART lifecycle before the MFRC522 open | MFRC522 probe passed on generation 187 |
 | `102c8b9` | honor SDK SRAM-only allocation and PSRAM free ownership | WPA handshake and DHCP passed on generation 188 |
 | `e270b43` | select the AP ICMP socket dependency with BK7258 Wi-Fi vnet | connected status and gateway ping passed on generation 189 |
-
-Unrelated owner/parallel work remained in the checkout:
-
-- modified `AGENTS.md`;
-- untracked `tests/host/bk7258/test_wechat_voice_manifest.py`;
-- untracked `tools/bkvoice/`.
-
-Those paths were not staged or committed. Run `git status --short --branch`
-before each edit or commit and stage only the board-test closure.
 
 ## Installed test artifact
 
@@ -169,11 +152,11 @@ Generation 188 passed standalone Wi-Fi scanning, and the generation-189 delta
 only enables the AP ICMP socket. Boot latency remains accepted from generation
 184, and the MFRC522 success log remains from generation 187. Report those
 generation boundaries explicitly; do not relabel older evidence as generation
-189. Reopen a closed driver hypothesis only when new runtime evidence conflicts.
+189.
 
 ## Acceptance matrix
 
-| Area | Pass condition | Current handoff state |
+| Area | Pass condition | State on 2026-09-01 |
 |---|---|---|
 | Boot latency | RCS near the 1.3-second baseline; SDIO/MMC remains deferred | passed on `18.6.124+184`; not recaptured on generation 189 |
 | AP topology | AP READY, CPU2 online, RPTUN connected, supervisor healthy/faults 0 | generation-189 `bkota status` and post-traffic health passed |
@@ -182,38 +165,3 @@ generation boundaries explicitly; do not relabel older evidence as generation
 | Wi-Fi reachability | connected status and gateway ping after successful connect | status and two pings passed on `18.6.129+189`; standalone scan not recaptured |
 | MFRC522 | configured UART snapshot, valid response and `mfrc522-pass` | passed on generation 187; relevant code unchanged through generation 189 |
 | RF/device data | same-unit `sys_rf` and device-unique tail preserved byte-for-byte | generation-189 package verified; prior runtime acceptance retained |
-
-## Flash and trust guardrails
-
-- Do not flash merely because this handoff exists. Wait for explicit owner
-  authorization and identify the exact artifact first.
-- Do not use J-Link in the AIDK board-test loop.
-- Prefer an installed apps-only path only when its public trust root accepts the
-  CP/AP change.
-- Every authorized MCUboot whole-device download starts a clean build and a new
-  pair of independent ephemeral P-256 roots with a strictly increasing rollback
-  generation. Never reuse private keys.
-- A dense 8 MiB image must materialize `sys_rf` and the device-unique tail from
-  the accepted complete readback of this same unit. Never copy it to another
-  board and never chip-erase the target.
-- A universal factory image remains unavailable until per-unit
-  RF/MAC/Bluetooth provisioning exists.
-
-Use the maintained
-[build, package and hardware evidence SOP](nuttx-port/bk7258-build-flash-debug-sop.md)
-for an authorized build or package operation.
-
-## Copy-ready prompt for the next session
-
-```text
-接管 AIDK AI Toy 板上快速调试。先完整阅读仓库 AGENTS.md 和
-docs/platforms/bk7258/aidk-ai-toy-board-test-handoff.md，并声明
-current mode: hardware-fast iteration。只处理板测，不接管语音训练或 OpenAI
-反馈。当前板上是已确认的 18.6.129+189/counter 189；Wi-Fi 已完成 WPA 握手、
-DHCP、连接状态和两次 gateway ping，ping 均返回 status=0；普通 Bluetooth
-scan/all/info/stats 与 post-traffic supervisor health 通过。N12V 定向测试只因
-现场未发现匹配广播而未通过，不代表基础蓝牙失败。MFRC522 已在 generation 187
-探测成功，相关代码到 generation 189 未再变化。若需要同代际全量矩阵，只补采
-bkwifi scan 15000。不要使用 J-Link，不要泄漏 Wi-Fi 凭据，不要碰 sys_rf，也
-不要执行未授权全量烧录。只有新板证据与当前记录冲突时才重新打开已闭环假设。
-```

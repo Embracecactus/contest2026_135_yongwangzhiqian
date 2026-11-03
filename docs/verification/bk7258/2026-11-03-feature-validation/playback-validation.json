@@ -1,0 +1,36 @@
+{
+  "date": "2026-11-03",
+  "scope": "Local recording integrity and playback checks; not additional physical-function acceptance",
+  "video_count": 19,
+  "sha256_all_match": true,
+  "full_decode_all_passed": true,
+  "decode_options": [
+    "-xerror",
+    "-map",
+    "0:v:0",
+    "-vsync",
+    "0",
+    "-enc_time_base",
+    "-1",
+    "-f",
+    "null"
+  ],
+  "browser_all_advanced": true,
+  "responsive_layouts": [
+    {
+      "width": 1280,
+      "scrollWidth": 1280,
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "scrollWidth": 390,
+      "overflow": false
+    }
+  ],
+  "browser_errors": [],
+  "notes": [
+    "Android screenrecord files use variable frame timing. Decode preserved the source time base; an initial default null-muxer check rounded timestamps and emitted duplicate-DTS diagnostics. Originals were not re-encoded.",
+    "Playback success verifies files and player operation, not the real BLE/NFC/voice functions represented by emulator fixtures."
+  ]
+}

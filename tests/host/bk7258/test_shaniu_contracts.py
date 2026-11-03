@@ -731,9 +731,13 @@ def main():
         "test_pin_probe_stage_is_preserved_after_confirmed_revoke",
         "test_console_bridge_binds_inputs_without_putting_secret_in_argv",
     ):
+        # Preserve the acceptance ID while following the renamed test method.
+        method = ("test_enroll_waits_before_probe_and_after_probe_closes"
+                  if name == "test_enroll_waits_for_bounded_native_owner_reopen"
+                  else name)
         add(suite, "FACT-01.tool." + name, "FACT-01", "L1",
             [sys.executable, HERE / "test_factory_diagnostics_tool.py",
-             "FactoryDiagnosticsToolTest." + name], marker=False)
+             "FactoryDiagnosticsToolTest." + method], marker=False)
     for name in (
         "test_power_status_is_read_from_coordinator_after_native_usb_closes",
         "test_power_wait_is_bounded_and_requires_a_terminal_state",

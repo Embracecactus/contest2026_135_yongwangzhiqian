@@ -2756,13 +2756,11 @@ SD 与 MSC 互斥，后续仍需加密存储、开关/删除及导出边界验�
 
 - [BKVoice 产品架构与适配计划](bkvoice-authorized-voice-app.md)：板端 App、Gateway AI、
   授权音色、视觉、UI 和 OpenVela 组件；
-- [下一阶段单轮接话纵切计划](shaniu-next-stage-single-turn-plan.md)：PTT、出站 WSS、Gateway、
-  下行播放、无串口验收和故障门；
-- [原生 Android companion 计划](shaniu-android-companion-plan.md)：BLE 配网、控制台、视频、
-  权限及后续微信小程序；
+- [W4 原生 Android](#w4原生-android)：保留当时 BLE、Gateway 控制台和视频的历史工作流；
+  现行操作见仓库 `android/shaniu-companion/README.md`；
 - [BK7258 构建、发布与硬件证据 SOP](nuttx-port/bk7258-build-flash-debug-sop.md)：构建、签名、
   打包、部署和实板证据；
-- [AIDK 当前板测交接](aidk-ai-toy-board-test-handoff.md)：日期化硬件基线和明确缺口。
+- [AIDK 2026-09-01 板测证据](aidk-ai-toy-board-test-handoff.md)：generation 189 的日期化硬件基线和证据边界。
 
 冲突时使用以下优先级：当前源码/配置与日期化证据 > Master Plan 的状态和优先级 > 专项设计 >
 历史研究文档。Master Plan 不覆盖真实配置或实板证据。

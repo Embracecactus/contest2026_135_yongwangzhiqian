@@ -10,6 +10,11 @@ Media and Trigger components.
 
 ## Current finals entry
 
+Finals: upload deadline 2026-11-04, defense 2026-11-07/08 (8-minute talk + 2-minute Q&A).
+The submission checklist and post-preliminary update summary are in
+[finals submission and updates (Chinese)](docs/contest/决赛提交与初赛后更新.md). The defense deck and
+official template are uploaded through the contest form and are not committed.
+
 Use the [official-source build instructions](README.md#官方源码构建当前主入口)
 and [scoped integration evidence](docs/verification/bk7258/2026-10-09-finals-integration.md).
 The team project defaults to the official repository; CI pins manifest and team source
@@ -27,8 +32,23 @@ The tested `nuttx-apps` webclient keep-alive change is fixed at fork commit
 [`d529ec81`](https://github.com/Embracecactus/nuttx-apps/commit/d529ec814bc11a4e76954a8dfb903c55e1eca4f3).
 The team manifest pins both identities; clean synchronization and physical-device
 acceptance still require separate evidence.
+The subsequent media-recorder logging fix was published as media dependency
+commit [`eee16420`](https://github.com/Embracecactus/frameworks_multimedia_media/commit/eee164209463601512683acef433fee687d3844a)
+and is pinned by the team manifest. It was incrementally built but not flashed;
+see [source provenance](SOURCE_PROVENANCE.md#2026-11-03-录音结束日志修正依赖已固定).
 
 ## Real-device videos
+
+New archived evidence from November 3:
+[55-second board camera capture/save/cancel/recapture recording](docs/verification/bk7258/2026-11-03-feature-validation/videos/board/camera-capture-cancel-recapture.mp4),
+[results and logs](docs/verification/bk7258/2026-11-03-feature-validation/README.md), and
+[local player for all 19 clips](docs/verification/bk7258/2026-11-03-feature-validation/index.html).
+The other clips are 14 passing emulator recordings and four failed diagnostic
+segments. The board footage is dim and silent; its complete running CP/AP identity
+is unknown, so it is not attributed to generation 770 or today's build. These
+files are archived with the repository, but have not been uploaded as an
+independent Release or to the contest materials site. The September 20 published
+videos remain below.
 
 [![Project demonstration](docs/contest/assets/demo-cover.jpg)](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-demo.mp4)
 
@@ -79,6 +99,12 @@ requests bind the agent, target, operation, request ID and expiry; only the
 phone owner can decide. See the
 [2026-11-03 software validation](docs/verification/bk7258/2026-11-03-comprehensive-software-validation.md)
 for host, build and emulator evidence and the remaining physical-device scope.
+The [later November 3 run](docs/verification/bk7258/2026-11-03-feature-validation/README.md)
+adds 14 emulator groups and a board expiry check that ran no command. Positive
+phone approval/rejection remains untested. Single-use approval is a separate
+entry point; ordinary previously authorized PC tasks and device conversations do
+not require a phone decision each time. Device voice initiating PC operations is
+not implemented.
 
 After ASR, explicit Chinese volume, expression, stop and focus-timer commands
 use a local intent route before Agent dispatch. Volume changes reuse Media
@@ -93,6 +119,12 @@ the added commands have not yet been validated on the board. Run
 `make -C tests/host/bk7258 run-agent-local-intent` for the host checks.
 
 ## Boards and build entry points
+
+The local finals revision (PPTX, PDF, speaker notes, timing, sources, and
+shooting checklist), original deck, and official template remain in the
+workspace and are **not part of this repository publication**. The revision
+has 12 main slides, three hidden appendices, and the embedded 55-second board
+video on slide 3. The PDF is only a static backup.
 
 The [submission assets](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/tag/shaniu-demo-20260920)
 include a Chinese report (PDF/DOCX), the 4:48 main video, a separate App demo,

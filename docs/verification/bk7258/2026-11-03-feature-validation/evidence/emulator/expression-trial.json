@@ -1,0 +1,9 @@
+{
+  "name": "expression-trial",
+  "exit_code": 0,
+  "passed": true,
+  "seconds": 78.4,
+  "videos": [
+    "videos/emulator/expression-trial-01.mp4"
+  ]
+}

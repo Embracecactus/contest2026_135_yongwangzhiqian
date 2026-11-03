@@ -1,0 +1,32 @@
+version
+nsh: version: command not found
+nsh> 
+nsh> bkidentity
+BKIDENTITY PASS sha256=571ab95e…
+nsh> 
+nsh> help
+help usage:  help [-v] [<cmd>]
+
+    .             dd            hexdump       pwd           true          
+    [             df            kill          reboot        truncate      
+    ?             dmesg         pkill         resetcause    uname         
+    alias         echo          ls            rm            umount        
+    unalias       env           mkdir         rmdir         unset         
+    basename      exec          mkrd          rpmsg         uptime        
+    break         exit          mount         rptun         usleep        
+    cat           expr          mv            set           watch         
+    cd            false         pidof         sleep         xd            
+    cp            fdinfo        pmconfig      source        wait          
+    cmp           free          printf        test          
+    dirname       help          ps            time          
+
+Builtin Apps:
+    bkhaptic      bkmotion      reset         bkprov        setlogmask    
+    bkkeys        bknfc         apctl         bkdata        
+    bkdisplay     bkvision      bkwifi        nsh           
+    bkhealth      usbmode       bkidentity    sh            
+nsh> 
+nsh> [26/07/26 06:59:29.247344] [CPU0] [126] [  INFO] [ap] BKVOICE trigger input frames=500 mean_abs=10/106 
+[26/07/26 06:59:32.442500] [CPU0] [126] [  INFO] [ap] BKVOICE KWS windows=34 scores=996/0/0 max_wake=0 features=258/632 clipped=0
+[26/07/26 06:59:39.247625] [CPU0] [126] [  INFO] [ap] BKVOICE trigger input frames=500 mean_abs=11/99 
+[26/07/26 06:59:42.639063] [CPU0] [126] [  INFO] [ap] BKVOICE KWS windows=34 scores=996/0/0 max_wake=0 features=258/636 clipped=0

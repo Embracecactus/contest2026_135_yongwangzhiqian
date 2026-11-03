@@ -1,11 +1,11 @@
 # BK7258 build, package and hardware evidence SOP
 
-Current entry reviewed: 2026-10-09 (finals source integration).
-
 Use the root [official-source build entry](../../../../README.md#官方源码构建当前主入口)
-for signed first builds and the [finals evidence](../../../verification/bk7258/2026-10-09-finals-integration.md)
-for current validation boundaries. Team source and manifest must resolve to the same
-candidate SHA. Agent is pinned to `20890a97b9515cce3de34006ad7a9b1746a109ed`.
+for signed first builds. Team source and manifest must resolve to the same
+candidate SHA; dependency revisions are owned by the team manifest, not copied here.
+Current acceptance is maintained in `boards/bk7258/CONFIGS.md`; the
+[2026-10-09 finals evidence](../../../verification/bk7258/2026-10-09-finals-integration.md)
+retains that run's scope rather than representing later candidates.
 Standard product builds disable engineering validation. No QEMU integration is required.
 
 The following 2026-09-20 procedure and device results are historical records; its

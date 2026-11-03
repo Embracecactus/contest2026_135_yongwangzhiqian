@@ -1,0 +1,433 @@
+[
+  {
+    "title": "实板按需取景、保存、取消与重拍",
+    "layer": "真实摄像头与 USB 工作台",
+    "passed": true,
+    "duration_seconds": 55.0,
+    "streams": [
+      {
+        "codec_type": "video",
+        "width": 1280,
+        "height": 900
+      }
+    ],
+    "bytes": 1269634,
+    "sha256": "93d3265df96e9d96740319281f123c01e59b9f72bb69898f2aa66f0eb1c14d70",
+    "file": "videos/board/camera-capture-cancel-recapture.mp4",
+    "log": "evidence/camera-events.json"
+  },
+  {
+    "title": "蓝牙扫描 API（无真实外设）",
+    "layer": "模拟器软件检查",
+    "passed": true,
+    "duration_seconds": 4.42,
+    "streams": [
+      {
+        "codec_type": "video",
+        "width": 720,
+        "height": 1600
+      },
+      {
+        "codec_type": "data"
+      },
+      {
+        "codec_type": "data"
+      }
+    ],
+    "bytes": 67921,
+    "sha256": "910a0bbf66e08765f89648f86c4f1056b2193c5a5e12945ff56270d1e2cbb6a3",
+    "file": "videos/emulator/bluetooth-api-01.mp4",
+    "log": "evidence/emulator/bluetooth-api.log"
+  },
+  {
+    "title": "默认表情选择",
+    "layer": "模拟器软件检查",
+    "passed": true,
+    "duration_seconds": 43.53,
+    "streams": [
+      {
+        "codec_type": "video",
+        "width": 720,
+        "height": 1600
+      },
+      {
+        "codec_type": "data"
+      },
+      {
+        "codec_type": "data"
+      }
+    ],
+    "bytes": 5248358,
+    "sha256": "3c3b07ea11df068ab5e0a9c91f9cc2141a1ee8601aca5815aee2083ec713cfb9",
+    "file": "videos/emulator/default-expression-01.mp4",
+    "log": "evidence/emulator/default-expression.log"
+  },
+  {
+    "title": "表情试用导航",
+    "layer": "模拟器软件检查",
+    "passed": true,
+    "duration_seconds": 73.54,
+    "streams": [
+      {
+        "codec_type": "video",
+        "width": 720,
+        "height": 1600
+      },
+      {
+        "codec_type": "data"
+      },
+      {
+        "codec_type": "data"
+      }
+    ],
+    "bytes": 6575901,
+    "sha256": "7c5297afe395df25ac8da74f1621454661fe3218bdaa32ad8f5b93100085f572",
+    "file": "videos/emulator/expression-trial-01.mp4",
+    "log": "evidence/emulator/expression-trial.log"
+  },
+  {
+    "title": "表情安装后台取消",
+    "layer": "模拟器软件检查",
+    "passed": true,
+    "duration_seconds": 4.99,
+    "streams": [
+      {
+        "codec_type": "video",
+        "width": 720,
+        "height": 1600
+      },
+      {
+        "codec_type": "data"
+      },
+      {
+        "codec_type": "data"
+      }
+    ],
+    "bytes": 281243,
+    "sha256": "9a759e67a3886c51c39134a344adc2880c2db6ff9c89833591281296ccfa5b55",
+    "file": "videos/emulator/eyes-background-cancel-01.mp4",
+    "log": "evidence/emulator/eyes-background-cancel.log"
+  },
+  {
+    "title": "表情导入草稿",
+    "layer": "模拟器软件检查",
+    "passed": true,
+    "duration_seconds": 13.98,
+    "streams": [
+      {
+        "codec_type": "video",
+        "width": 720,
+        "height": 1600
+      },
+      {
+        "codec_type": "data"
+      },
+      {
+        "codec_type": "data"
+      }
+    ],
+    "bytes": 786302,
+    "sha256": "47cfa05992f0808b6c53e8780f85af173fa591ffccdcbaecca874c7162d3cbf2",
+    "file": "videos/emulator/eyes-draft-01.mp4",
+    "log": "evidence/emulator/eyes-draft.log"
+  },
+  {
+    "title": "专注计时草稿",
+    "layer": "模拟器软件检查",
+    "passed": true,
+    "duration_seconds": 45.72,
+    "streams": [
+      {
+        "codec_type": "video",
+        "width": 720,
+        "height": 1600
+      },
+      {
+        "codec_type": "data"
+      },
+      {
+        "codec_type": "data"
+      }
+    ],
+    "bytes": 5252906,
+    "sha256": "3bb127f39833746014e8ba7e2570ba74a4e9cd10ce7cb16e170d4373ec7ec566",
+    "file": "videos/emulator/focus-timer-01.mp4",
+    "log": "evidence/emulator/focus-timer.log"
+  },
+  {
+    "title": "App 深色主题与导航",
+    "layer": "模拟器软件检查",
+    "passed": true,
+    "duration_seconds": 84.51,
+    "streams": [
+      {
+        "codec_type": "video",
+        "width": 720,
+        "height": 1600
+      },
+      {
+        "codec_type": "data"
+      },
+      {
+        "codec_type": "data"
+      }
+    ],
+    "bytes": 3647913,
+    "sha256": "c3cce2e56f8f338e7c2f21f30615f9037c5bfbccf8c50e3fcc18dde593c5ebf8",
+    "file": "videos/emulator/gallery-dark-01.mp4",
+    "log": "evidence/emulator/gallery-dark.log"
+  },
+  {
+    "title": "App 浅色主题与导航",
+    "layer": "模拟器软件检查",
+    "passed": true,
+    "duration_seconds": 133.07,
+    "streams": [
+      {
+        "codec_type": "video",
+        "width": 720,
+        "height": 1600
+      },
+      {
+        "codec_type": "data"
+      },
+      {
+        "codec_type": "data"
+      }
+    ],
+    "bytes": 3293561,
+    "sha256": "2d65abccc52ca00489d8e207a69208969f3b13e7d4cb7de9c0bf08e4898689e1",
+    "file": "videos/emulator/gallery-light-01.mp4",
+    "log": "evidence/emulator/gallery-light.log"
+  },
+  {
+    "title": "NFC 场景卡草稿",
+    "layer": "模拟器软件检查",
+    "passed": true,
+    "duration_seconds": 76.39,
+    "streams": [
+      {
+        "codec_type": "video",
+        "width": 720,
+        "height": 1600
+      },
+      {
+        "codec_type": "data"
+      },
+      {
+        "codec_type": "data"
+      }
+    ],
+    "bytes": 5472122,
+    "sha256": "ef8f98f7454353da63f895e192e17ddcdde80fb883c86a9522cf625129475978",
+    "file": "videos/emulator/nfc-scenes-01.mp4",
+    "log": "evidence/emulator/nfc-scenes.log"
+  },
+  {
+    "title": "电脑配对与取消",
+    "layer": "模拟器软件检查",
+    "passed": true,
+    "duration_seconds": 14.84,
+    "streams": [
+      {
+        "codec_type": "video",
+        "width": 720,
+        "height": 1600
+      },
+      {
+        "codec_type": "data"
+      },
+      {
+        "codec_type": "data"
+      }
+    ],
+    "bytes": 1459575,
+    "sha256": "e80413c6ba0e58e12892ece16ac5283212a4f1cc4287d3e5e4e2f97078911f15",
+    "file": "videos/emulator/pc-authorization-01.mp4",
+    "log": "evidence/emulator/pc-authorization.log"
+  },
+  {
+    "title": "配网异常组合（初次超时，保留原片）",
+    "layer": "模拟器软件检查",
+    "passed": false,
+    "duration_seconds": 169.62,
+    "streams": [
+      {
+        "codec_type": "video",
+        "width": 720,
+        "height": 1600
+      },
+      {
+        "codec_type": "data"
+      },
+      {
+        "codec_type": "data"
+      }
+    ],
+    "bytes": 193198,
+    "sha256": "b4400748b754f83d3fe667d1d58d5fa78b1680feecb7bb914450e0744c6b413c",
+    "file": "videos/diagnostics/provision-timeout-01.mp4",
+    "log": "evidence/emulator/provision-errors.log"
+  },
+  {
+    "title": "配网异常组合（初次超时，保留原片）",
+    "layer": "模拟器软件检查",
+    "passed": false,
+    "duration_seconds": 169.74,
+    "streams": [
+      {
+        "codec_type": "video",
+        "width": 720,
+        "height": 1600
+      },
+      {
+        "codec_type": "data"
+      },
+      {
+        "codec_type": "data"
+      }
+    ],
+    "bytes": 90977,
+    "sha256": "57aca326de0392f43e45b9598288ca268cf0a9bfa7d5e3b20ace9a9dc5c0ee87",
+    "file": "videos/diagnostics/provision-timeout-02.mp4",
+    "log": "evidence/emulator/provision-errors.log"
+  },
+  {
+    "title": "配网异常组合（初次超时，保留原片）",
+    "layer": "模拟器软件检查",
+    "passed": false,
+    "duration_seconds": 169.79,
+    "streams": [
+      {
+        "codec_type": "video",
+        "width": 720,
+        "height": 1600
+      },
+      {
+        "codec_type": "data"
+      },
+      {
+        "codec_type": "data"
+      }
+    ],
+    "bytes": 152712,
+    "sha256": "25381c0585958955ee22b9a137b5ca78ddff449cbde827615700508c720dd1ac",
+    "file": "videos/diagnostics/provision-timeout-03.mp4",
+    "log": "evidence/emulator/provision-errors.log"
+  },
+  {
+    "title": "配网异常组合（初次超时，保留原片）",
+    "layer": "模拟器软件检查",
+    "passed": false,
+    "duration_seconds": 71.18,
+    "streams": [
+      {
+        "codec_type": "video",
+        "width": 720,
+        "height": 1600
+      },
+      {
+        "codec_type": "data"
+      },
+      {
+        "codec_type": "data"
+      }
+    ],
+    "bytes": 152514,
+    "sha256": "d2011e52b28ab6158f24636d8f6d8e84a388934f239c6a62e881c568173bfebe",
+    "file": "videos/diagnostics/provision-timeout-04.mp4",
+    "log": "evidence/emulator/provision-errors.log"
+  },
+  {
+    "title": "配网异常组合（恢复图形环境后完整复测）",
+    "layer": "模拟器软件检查",
+    "passed": true,
+    "duration_seconds": 11.92,
+    "streams": [
+      {
+        "codec_type": "video",
+        "width": 720,
+        "height": 1600
+      },
+      {
+        "codec_type": "data"
+      },
+      {
+        "codec_type": "data"
+      }
+    ],
+    "bytes": 1520049,
+    "sha256": "a590522a6e4ea4f0ff93b46bc2ef7c36f961e3131d88f94d3fe34144e8de1a93",
+    "file": "videos/emulator/provision-errors-recovered-01.mp4",
+    "log": "evidence/emulator/provision-errors-recovered.log"
+  },
+  {
+    "title": "配网输入校验",
+    "layer": "模拟器软件检查",
+    "passed": true,
+    "duration_seconds": 88.0,
+    "streams": [
+      {
+        "codec_type": "video",
+        "width": 720,
+        "height": 1600
+      },
+      {
+        "codec_type": "data"
+      },
+      {
+        "codec_type": "data"
+      }
+    ],
+    "bytes": 161522,
+    "sha256": "7a6acfd5ab29b8f341a109143dff00b24578261f8d2b3fa2b6e8d7b28437e5c8",
+    "file": "videos/emulator/provision-validation-01.mp4",
+    "log": "evidence/emulator/provision-validation.log"
+  },
+  {
+    "title": "安全状态与 Keystore 检查",
+    "layer": "模拟器软件检查",
+    "passed": true,
+    "duration_seconds": 74.94,
+    "streams": [
+      {
+        "codec_type": "video",
+        "width": 720,
+        "height": 1600
+      },
+      {
+        "codec_type": "data"
+      },
+      {
+        "codec_type": "data"
+      }
+    ],
+    "bytes": 550831,
+    "sha256": "7a1b779566b2873a5cc1c669545b3080894cfffdf94fd06ccd7dbbc693bd6084",
+    "file": "videos/emulator/security-memory-01.mp4",
+    "log": "evidence/emulator/security-memory.log"
+  },
+  {
+    "title": "设置状态与门禁",
+    "layer": "模拟器软件检查",
+    "passed": true,
+    "duration_seconds": 7.28,
+    "streams": [
+      {
+        "codec_type": "video",
+        "width": 720,
+        "height": 1600
+      },
+      {
+        "codec_type": "data"
+      },
+      {
+        "codec_type": "data"
+      }
+    ],
+    "bytes": 466401,
+    "sha256": "9ae69176b6835c628743c5a6109b4d91e697636be67a100ef996bbe8aa1a5787",
+    "file": "videos/emulator/settings-state-01.mp4",
+    "log": "evidence/emulator/settings-state.log"
+  }
+]

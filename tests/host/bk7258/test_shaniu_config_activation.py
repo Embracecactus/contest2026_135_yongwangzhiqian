@@ -41,6 +41,7 @@ def main() -> int:
 #include <stdio.h>
 #include <string.h>
 #define syslog(...) ((void)0)
+#define PRODUCT_LOOP_CHECKPOINT(stage) ((void)(stage))
 #define LOG_INFO 0
 #define LOG_WARNING 1
 #define BK7258_WIFI_LINK_CONNECTED 1

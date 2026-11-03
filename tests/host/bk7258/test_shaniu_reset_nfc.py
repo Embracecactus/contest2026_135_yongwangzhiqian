@@ -14,7 +14,14 @@ PREFIX = r"""
 #include <errno.h>
 #include <stdatomic.h>
 #include "bk7258_pc_tasks.h"
+#include "bk7258_pc_approval.h"
+#include "bk7258_runtime_skills.h"
 static struct bkpc_tasks_s g_pc_tasks;
+static struct bkpc_approval_s g_pc_approval;
+int bk7258_runtime_skills_init(void) { return 0; }
+void bkpc_approval_bind(struct bkpc_approval_s *state, uint64_t binding,
+                        uint64_t grant, const uint8_t client[16])
+{ (void)state; (void)binding; (void)grant; (void)client; }
 #define CONFIG_BK7258_DISPLAY_SERVICE 1
 static int pack_error, pack_stops;
 int bk7258_display_job_quiesce(bool stop)

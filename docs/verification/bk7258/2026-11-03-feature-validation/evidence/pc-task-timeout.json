@@ -1,0 +1,9 @@
+{
+  "task_id": "950d554650d64c0290a20de405383b1a",
+  "event_sequence": 4,
+  "process_state": "canceled",
+  "process_returncode": 1,
+  "reason": "timeout",
+  "device_result": "confirmed",
+  "feedback_verified": false
+}

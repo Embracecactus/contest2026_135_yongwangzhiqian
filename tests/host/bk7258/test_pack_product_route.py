@@ -22,6 +22,7 @@ def main():
     source = (here / "test_display_job_service.c").read_text()
     prefix = r"""
 #include "bk7258_pc_usb.h"
+#include "bk7258_pc_approval.h"
 #include "bk7258_display_selection_control.h"
 /* This fixture verifies the installer route, not selection/catalog. */
 static struct bkselection_control_s g_pc_selection;
@@ -35,11 +36,27 @@ static uint8_t g_pc_selection_client[16];
 #define g_pc_pack wire
 static struct bkpc_usb_owner_s g_pc_usb_owner;
 static struct bkcontrol_pair_s pair_fixture;
+static struct bkpc_approval_s g_pc_approval;
 static bool g_identity_bound=true, g_control_bound=true;
 static int source_error, random_calls;
 static uint64_t grant=8;
 #define bkagent_ota_busy() false
 #define bkvoice_config_now_ms(ctx) bkdisplay_job_now()
+#define syslog(...) ((void)0)
+#define LOG_INFO 0
+static int test_product_pc_approval_step(uint64_t now, bool admitted,
+                                         uint8_t key[32])
+{ (void)now; (void)admitted; (void)key; assert(false); return -ENOTSUP; }
+static int test_bkpc_approval_pc_control(struct bkpc_approval_s *state,
+                                         enum bkcontrol_command_e command,
+                                         uint32_t offset,
+                                         const uint8_t *record, size_t size,
+                                         struct bkcontrol_status_s *status,
+                                         const uint8_t key[32], uint64_t now)
+{ (void)state; (void)command; (void)offset; (void)record; (void)size;
+  (void)status; (void)key; (void)now; assert(false); return -ENOTSUP; }
+#define product_pc_approval_step test_product_pc_approval_step
+#define bkpc_approval_pc_control test_bkpc_approval_pc_control
 static int random_peer(void *ctx, unsigned char *out, size_t n)
 {
   assert(ctx==&pair_fixture.tls.random && n==16); random_calls++;

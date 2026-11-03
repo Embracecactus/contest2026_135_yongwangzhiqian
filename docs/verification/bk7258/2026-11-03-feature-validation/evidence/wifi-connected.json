@@ -1,0 +1,12 @@
+{
+  "credential_source": "existing current-user Windows WLAN profile",
+  "credential_echo": "disabled by bkwifi connect",
+  "persistent_device_config_changed": false,
+  "connected": true,
+  "stage": "completed",
+  "seconds": 5.24,
+  "status": 0,
+  "link": 3,
+  "has_nonzero_ipv4": true,
+  "classification_note": "Corrected the summary parser: current BK7258_WIFI_LINK_CONNECTED enum is 3; no connection retry was needed."
+}

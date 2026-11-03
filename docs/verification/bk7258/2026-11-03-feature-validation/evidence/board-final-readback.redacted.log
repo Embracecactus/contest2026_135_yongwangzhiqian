@@ -1,0 +1,33 @@
+bkwifi status
+BKWIFI RESULT operation=status status=0 link=3 rssi=-23 ip=[LAN-IP] mask=[LAN-IP] router=[LAN-IP]
+nsh> 
+nsh> apctl health
+AP supervisor state=HEALTHY(2) reason=NONE(0) generation=1 flags=0000001f
+Supervisor heartbeat primary/secondary=250438/250444 age=0/0 ms transport seq/age=0/0 ms healthy/sample=27547980/200 ms sample_sequence=105949
+Supervisor faults/recoveries/consecutive=0/0/0 injection=NONE(0) last_error=0
+Supervisor recurring=0 auto_attempts=0 lockouts=0 budget=0/0 window_ms=0 worker_stack=4096
+nsh> 
+nsh> bkdisplay status
+BKDISPLAY STATUS service=ready state=READY(3) last_error=0 screens=2 expression=neutral pack=shaniu-cyan-v3 revision=3 mapping=unverified sequence=1162 storage=/dev/mmcsd0
+nsh> 
+nsh> bkmotion status
+BKMOTION SAMPLE PASS timestamp_us=27549611563 x_mms2=78 y_mms2=-156 z_mms2=-9924 status=0 source=periodic-cache unit=mm_s2 privacy=telemetry-only
+nsh> 
+nsh> bkhaptic status
+BKHAPTIC ready=1
+nsh> 
+nsh> [03/11/26 08:35:45.714284] [CPU0] [1000] [  INFO] [ap] BKVOICE KWS windows=34 scores=996/0/0 max_wake=0 features=280/628 clipped=0
+bkhealth status
+BKHEALTH STATUS operation=0 battery_state=charging(4) voltage_mV=4105 percent=unavailable temperature_raw=545 reference_raw=0 generation=1 sequence=460 temperature_mC=unavailable calibrated=no
+nsh> 
+nsh> bkdata status
+BKDATA STATUS data=mounted type=0a732923 littlefs=yes
+nsh> 
+nsh> uptime
+07:39:10 up  7:39, load average: 0.00, 0.00, 0.00
+nsh> 
+nsh> [03/11/26 08:35:48.401065] [CPU0] [1000] [  INFO] [ap] BKVOICE trigger input frames=500 mean_abs=18/111 
+[03/11/26 08:35:55.891222] [CPU0] [1000] [  INFO] [ap] BKVOICE KWS windows=34 scores=996/0/0 max_wake=0 features=266/630 clipped=0
+[03/11/26 08:35:58.388065] [CPU0] [1000] [  INFO] [ap] BKVOICE trigger input frames=500 mean_abs=19/109 
+[03/11/26 08:36:06.079784] [CPU0] [1000] [  INFO] [ap] BKVOICE KWS windows=34 scores=996/3/0 max_wake=0 features=274/627 clipped=0
+[03/11/26 08:36:08.389190] [CPU0] [1000] [  INFO] [ap] BKVOICE trigger input frames=500 mean_abs=16/178 

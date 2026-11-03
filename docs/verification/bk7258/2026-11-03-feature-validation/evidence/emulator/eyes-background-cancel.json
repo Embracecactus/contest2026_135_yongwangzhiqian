@@ -1,0 +1,9 @@
+{
+  "name": "eyes-background-cancel",
+  "exit_code": 0,
+  "passed": true,
+  "seconds": 6.6,
+  "videos": [
+    "videos/emulator/eyes-background-cancel-01.mp4"
+  ]
+}

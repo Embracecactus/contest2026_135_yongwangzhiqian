@@ -48,6 +48,9 @@ addresses, scripts, or trust policy from historical N15/N17 documents.
   Current board acceptance is summarized only in `boards/bk7258/CONFIGS.md`.
   Published dependency identities belong to the team manifest and
   `SOURCE_PROVENANCE.md`.
+- [November 3 feature checks and recordings](../../verification/bk7258/2026-11-03-feature-validation/README.md)
+  retain the dated board, emulator and logging-fix build evidence; they do not
+  replace the current acceptance entry.
 - [Shaniu Master Plan](shaniu-master-plan.md) retains historical decisions and
   version-bound evidence; the [desktop companion contract](shaniu-desktop-companion.md)
   defines product behavior.
@@ -62,7 +65,11 @@ addresses, scripts, or trust policy from historical N15/N17 documents.
 - [openvela documentation adaptation matrix](openvela-document-adaptation-matrix.md):
   a 2026-08-28 capability-audit snapshot, not a live roadmap;
 - [T5-Board P0 diagnostics, xTS, and performance guide](p0-diagnostics-performance.md):
-  the T5-Board profiles and evidence boundary as reviewed on 2026-08-27; and
+  the T5-Board profiles and evidence boundary as reviewed on 2026-08-27;
+- [BKVision camera and continuous recording](bkvision-camera-recording.md)
+  (Chinese): AIDK `bkvision` commands, layering, SD NAND data path and the
+  `18.6.321+381` recording evidence; the iteration record is
+  [continuous recording adaptation](aidk-continuous-recording.md); and
 - [build, release, and hardware-evidence SOP](nuttx-port/bk7258-build-flash-debug-sop.md):
   the maintained operator entry.
 
@@ -71,6 +78,9 @@ addresses, scripts, or trust policy from historical N15/N17 documents.
 - The [porting report](porting-report.md) records the BK7258 chip-porting history
   that began with bring-up on the Tuya T5AI-Core. Its detailed N1–N15 board
   evidence ends on 2026-08-04; it does not publish the current multi-board status.
+- The [AIDK 2026-09-01 board-test evidence](aidk-ai-toy-board-test-handoff.md)
+  and [2026-09-29 factory-init validation](factory-validation-20260929.md) are
+  board records bound to their build identities.
 - [`bootloader-analysis/`](bootloader-analysis/) retains Tuya and Beken
   bootloader reverse-engineering evidence.
 - [`nuttx-port/`](nuttx-port/) retains only independently useful fault analyses,

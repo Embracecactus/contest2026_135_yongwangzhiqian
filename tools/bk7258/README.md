@@ -327,34 +327,34 @@ scan `--threshold-percent 50..90` within the existing App range. Frozen test
 bindings include startup, policy and runtime source hashes; re-evaluate an
 older binding before testing. Optional verified session `word_end_ms` values
 enable signed first-event latency without relabeling misses or outside events.
-See the [wakeword audit and reproducible comparison](../../docs/verification/bk7258/2026-10-26-wakeword/wakeword-benchmark.md)
-for data limitations, collection format and physical board steps.
-The [actual training iteration](../../docs/verification/bk7258/2026-10-26-wakeword/wakeword-training.md)
-provides paired experiments, an INT8/WKM2 candidate and a frozen independent
-test comparison. `--post-target-negative-weight` adds non-target suffixes
+The 2026-10-26 wakeword audit and reproducible comparison are local-only
+research records and are excluded from this publication; they document the data
+limitations, collection format and physical-board steps. The local training
+iteration provides paired experiments, an INT8/WKM2 candidate and a frozen
+independent test comparison. `--post-target-negative-weight` adds non-target suffixes
 after intact target history. Pair it with `--streaming-fresh-positives` to
 avoid contradictory stale-positive time labels; both are train-time changes.
 `--positive-speaker-balance` balances original voices before recording sources
 so repeated TTS generations do not dominate. These options do not change the
 device threshold, cooldown or builtin model. Failed experiments remain in the
 local output tree alongside the selected candidate.
-The [fast-speech follow-up](../../docs/verification/bk7258/2026-10-26-wakeword/wakeword-speed-training.md)
-records per-frame failures and paired multi-speed experiments. `--tempo-rates`
+The local-only fast-speech follow-up records per-frame failures and paired
+multi-speed experiments. `--tempo-rates`
 sets explicit train-only speed factors; `--streaming-positive-hold-ms` changes
 the fresh-positive supervision interval (default 600 ms). The latter requires
 `--streaming-fresh-positives`; neither option changes device timing or policy.
 Keep the previous test as regression after inspecting it, and freeze new
 source/voice holdouts before selecting another model.
-第三轮 [开源训练技术迁移与消融](../../docs/verification/bk7258/2026-10-26-wakeword/wakeword-round3-training.md)
-比较了速度权重、SpecAugment、正例逐帧监督和难负例损失。
+第三轮开源训练技术迁移与消融为本地研究记录，本次未发布；其比较了速度权重、
+SpecAugment、正例逐帧监督和难负例损失。
 `--positive-speed-balance` 保持来源总权重并均衡快、中、慢语速；
 `--feature-augmentation specaugment` 仅遮挡有效训练帧，需启用正例时间元数据。
 `--streaming-positive-final-only` 只用于关闭正例逐帧损失的消融，仍保留有效长度与负例帧监督；
 `--hard-negative-weight` 调整已标记部分词/相似词的惩罚。
 `--checkpoint-selection last` 用于与默认验证损失选点作对照，不代表最后一轮更好。
 这些选项不改变音频前端或设备触发策略；失败模型和未入选候选均保留。
-第四轮 [时间损失、来源权重与连续确认实验](../../docs/verification/bk7258/2026-10-26-wakeword/wakeword-round4-training.md)
-新增 `--streaming-negative-pair-weight` 和 `--streaming-positive-confirmation`：
+第四轮时间损失、来源权重与连续确认实验为本地研究记录，本次未发布；其新增
+`--streaming-negative-pair-weight` 和 `--streaming-positive-confirmation`：
 前者保留原负例帧损失并惩罚相隔 300 ms 的高分对，后者只在完整音频结束后的有效区间监督确认对。
 两者需要 `torch-cuda`、流式新鲜正例和正负帧监督；本轮显式使用 `--streaming-positive-reduction max`。
 `--positive-speed-balance-strength` 在原权重与等语速权重之间插值，需配合 `--positive-speed-balance`。
@@ -485,6 +485,10 @@ The source, SD NAND layout contract, visual-state list, and binary format are
 documented under `app/bk7258/assets/display/`.
 
 ## Shaniu owner console enrollment
+
+This section serves the historical Gateway console. Normal Shaniu setup uses
+the Android screen-QR claiming flow described in `android/shaniu-companion/README.md`;
+it does not require a Gateway enrollment document.
 
 `voice console-enrollment` only writes a private enrollment document for the
 owner's phone. It does not contact a board or Gateway and never mutates an

@@ -283,19 +283,10 @@ CP reset entry：关闭 boot AON + APB WDT
 中间空洞填 `0xff`，不能把 AP 紧跟在 CP 后面，否则 CP 启动的是一份镜像，AP controller
 却从另一个地址读到垃圾。
 
-## 11. 如何构建和自动验证
+## 11. 当时的验收判据
 
-在比赛仓根目录执行当前统一构建入口：
-
-```bash
-cd <contest-repository-root>
-./tools/bk7258/bk7258.py build \
-  --board t5_board --boot direct --jobs <N> --clean
-```
-
-烧录和自动采集使用项目脚本。正式执行前先阅读
-[自动调试 SOP](bk7258-build-flash-debug-sop.md)，确认 COM7 是 loader/reset，
-COM11 是 460800 8N1 console。
+构建、下载和串口采集按现行[构建、发布与硬件证据 SOP](bk7258-build-flash-debug-sop.md)
+执行；当时 T5AI-Core 首板的 loader/console 端口分配不是现行板型配置。
 
 有效 physical reset 必须同时满足：
 

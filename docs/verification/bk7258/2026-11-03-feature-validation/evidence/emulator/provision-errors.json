@@ -1,0 +1,12 @@
+{
+  "name": "provision-errors",
+  "exit_code": 124,
+  "passed": false,
+  "seconds": 601.7,
+  "videos": [
+    "videos/diagnostics/provision-timeout-01.mp4",
+    "videos/diagnostics/provision-timeout-02.mp4",
+    "videos/diagnostics/provision-timeout-03.mp4",
+    "videos/diagnostics/provision-timeout-04.mp4"
+  ]
+}

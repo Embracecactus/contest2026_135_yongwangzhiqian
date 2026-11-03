@@ -1,0 +1,11 @@
+{
+  "format": "SCB4",
+  "ssid_length": 0,
+  "password_length": 0,
+  "host_length": 0,
+  "ca_bytes": 0,
+  "cloud_bytes": 0,
+  "read_scope": "Only configuration header at offset 64, count 32; owner key and credential payload were not read",
+  "record_file_bytes": 128,
+  "conclusion": "Owner-only saved configuration. Transient console Wi-Fi connection does not populate durable voice-service settings."
+}

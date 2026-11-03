@@ -1,0 +1,9 @@
+{
+  "name": "default-expression",
+  "exit_code": 0,
+  "passed": true,
+  "seconds": 46.7,
+  "videos": [
+    "videos/emulator/default-expression-01.mp4"
+  ]
+}

@@ -1,0 +1,12 @@
+[
+  {
+    "name": "success",
+    "returncode": 0,
+    "seconds": 6.3
+  },
+  {
+    "name": "timeout",
+    "returncode": 130,
+    "seconds": 7.33
+  }
+]

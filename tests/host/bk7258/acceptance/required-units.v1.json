@@ -984,7 +984,19 @@
     "AGENT-01.voice-report.test_voice_report_text_input_and_queue_gaps_keep_evidence_scope",
     "AGENT-01.voice-benchmark.test_audio_stream_separates_network_queue_and_consumer",
     "AGENT-01.voice-benchmark.test_audio_stream_missing_is_not_zero_and_sentences_are_distinct",
-    "AGENT-01.voice-benchmark.test_audio_trace_usb_checks_identity_bounds_and_sealed_records"
+    "AGENT-01.voice-benchmark.test_audio_trace_usb_checks_identity_bounds_and_sealed_records",
+    "AGENT-01.voice-benchmark.test_benchmark_status_only_keeps_usb_rearm_without_claiming_trace",
+    "FACT-01.diagnostics-concurrent",
+    "FACT-01.diagnostics-backwards",
+    "provision.DeviceControlProtocolTest.agentDocumentsUseBoundedReadAndWriteFrames",
+    "provision.DeviceControlProtocolTest.nfcConfigReadRejectsUnknownLengthsAndCloses",
+    "provision.DeviceControlProtocolTest.nfcConfigReadsAcceptLegacyAndExtendedLengthsWithBoundedOffsets",
+    "provision.DeviceControlProtocolTest.agentDocumentReadRejectsInvalidWireLength",
+    "provision.PcAuthorizationControllerTest.reconnectAuthenticationRepublishesControlsWithoutReplayingAuthorization",
+    "provision.NfcBindingControllerTest.authenticationRecoveryPublishesWithoutReplayingNfcWork",
+    "ota.OtaUpdatePolicyTest.terminalMismatchRequiresSameDeviceAndNoAcceptedSource",
+    "ota.OtaUpdatePolicyTest.cancellationKeepsDeviceCommitAndSingleRequestGuards",
+    "ota.OtaUpdatePolicyTest.releasedPreparationCannotRunUnderNewLease"
   ],
   "baseline_ids": [
     "K2-01.release-2999",
@@ -1972,6 +1984,18 @@
     "AGENT-01.voice-report.test_voice_report_text_input_and_queue_gaps_keep_evidence_scope",
     "AGENT-01.voice-benchmark.test_audio_stream_separates_network_queue_and_consumer",
     "AGENT-01.voice-benchmark.test_audio_stream_missing_is_not_zero_and_sentences_are_distinct",
-    "AGENT-01.voice-benchmark.test_audio_trace_usb_checks_identity_bounds_and_sealed_records"
+    "AGENT-01.voice-benchmark.test_audio_trace_usb_checks_identity_bounds_and_sealed_records",
+    "AGENT-01.voice-benchmark.test_benchmark_status_only_keeps_usb_rearm_without_claiming_trace",
+    "FACT-01.diagnostics-concurrent",
+    "FACT-01.diagnostics-backwards",
+    "provision.DeviceControlProtocolTest.agentDocumentsUseBoundedReadAndWriteFrames",
+    "provision.DeviceControlProtocolTest.nfcConfigReadRejectsUnknownLengthsAndCloses",
+    "provision.DeviceControlProtocolTest.nfcConfigReadsAcceptLegacyAndExtendedLengthsWithBoundedOffsets",
+    "provision.DeviceControlProtocolTest.agentDocumentReadRejectsInvalidWireLength",
+    "provision.PcAuthorizationControllerTest.reconnectAuthenticationRepublishesControlsWithoutReplayingAuthorization",
+    "provision.NfcBindingControllerTest.authenticationRecoveryPublishesWithoutReplayingNfcWork",
+    "ota.OtaUpdatePolicyTest.terminalMismatchRequiresSameDeviceAndNoAcceptedSource",
+    "ota.OtaUpdatePolicyTest.cancellationKeepsDeviceCommitAndSingleRequestGuards",
+    "ota.OtaUpdatePolicyTest.releasedPreparationCannotRunUnderNewLease"
   ]
 }

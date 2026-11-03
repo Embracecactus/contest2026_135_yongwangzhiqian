@@ -1,0 +1,9 @@
+{
+  "name": "gallery-light",
+  "exit_code": 0,
+  "passed": true,
+  "seconds": 138.5,
+  "videos": [
+    "videos/emulator/gallery-light-01.mp4"
+  ]
+}

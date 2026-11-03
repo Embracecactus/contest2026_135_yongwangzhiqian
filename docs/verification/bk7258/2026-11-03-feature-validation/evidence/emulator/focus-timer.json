@@ -1,0 +1,9 @@
+{
+  "name": "focus-timer",
+  "exit_code": 0,
+  "passed": true,
+  "seconds": 48.3,
+  "videos": [
+    "videos/emulator/focus-timer-01.mp4"
+  ]
+}

@@ -1,6 +1,10 @@
 # AIDK 连续录像适配
 
-## 当前限制：显示共存与重启持久化仍未通过
+## v287–v296 限制：显示共存与重启持久化当时未通过
+
+本节记录 v287–v296 迭代当时的状态，不是现行状态。之后 `18.6.321+381` 的 10 秒录像与
+断电保留结果见 [BKVision 摄像头与连续录像](bkvision-camera-recording.md)；
+现行支持范围以 `boards/bk7258/CONFIGS.md` 为准。
 
 `18.6.287+347` 在显示服务启用时，纯取帧 10.04 秒有 300 次 VSYNC、
 202 次 JPEG 中断及 202 个有效帧。另一次 CP 独立计时的 `time "bkvision bench 10"`
@@ -80,7 +84,7 @@ chip 层另拒绝 DMA 仍活动时的成功返回，并在失败清理前保存 
 SDK 原始仓库保持不变，补丁只应用于规范 SDK 重建入口创建的临时副本。
 这解释并修正了当前 DMA 路径的一项错误，不把所有历史 CPU FIFO 失败归因于同一问题。
 
-原始证据：[`out/bkvision-perf-v284/`](../../../out/bkvision-perf-v284/)，包括
+原始证据保留在本地 `out/bkvision-perf-v284/`（本次未发布），包括
 `mask-record60/serial.txt`、`avi-decode.json`、`fat-audit-after-record.txt` 和
 `mask-remove-repeat-record10/serial.txt`。该轮启用 MSC 维护模式、关闭 AP 显示服务；
 傻妞显示/摄像头共存及正式 USB OTA 配置需要后续独立验证，不能从本轮外推。

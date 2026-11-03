@@ -1,0 +1,9 @@
+{
+  "name": "provision-errors-recovered",
+  "exit_code": 0,
+  "passed": true,
+  "seconds": 12.7,
+  "videos": [
+    "videos/emulator/provision-errors-recovered-01.mp4"
+  ]
+}

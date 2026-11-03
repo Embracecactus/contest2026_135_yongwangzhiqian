@@ -1,0 +1,72 @@
+[26/07/26 07:05:58.797625] [CPU0] [55] [  INFO] [ap] BKCAM admission blocked=00
+[26/07/26 07:05:59.270969] [CPU0] [126] [  INFO] [ap] BKVOICE KWS inference_us=639250 result=0
+[26/07/26 07:05:59.588188] [CPU0] [126] [  INFO] [ap] BKVOICE trigger input frames=500 mean_abs=14/111 
+[26/07/26 07:06:00.533063] [CPU0] [126] [  INFO] [ap] BKVOICE KWS windows=34 scores=996/0/0 max_wake=0 features=266/635 clipped=0
+[26/07/26 07:06:02.350219] [CPU0] [27] [  INFO] [ap] process abufsink@Capture0 unlink _
+[26/07/26 07:06:02.351000] [CPU0] [27] [  INFO] [ap] [amix_input_free 285]input 0x6079fa40 free, link_size:0 fifo_size:0 total inputs:0
+[26/07/26 07:06:02.351750] [CPU0] [122] [  INFO] [ap] Pending command: unlink _
+[26/07/26 07:06:02.352094] [CPU0] [122] [  WARN] [ap] [media][media_recorder_proc_dat:784] Invalid PTS detected: -9223372036854775808, resetting to sync_pts: 0
+[26/07/26 07:06:02.352438] [CPU0] [122] [ ERROR] [ap] [media][media_recorder_proc_dat:816] media_recorder_encode_frame failed: -541478725
+[26/07/26 07:06:02.365063] [CPU0] [27] [ ERROR] [ap] input[0] write to mix failed, ret:-22.
+[26/07/26 07:06:02.366719] [CPU0] [27] [  INFO] [ap] pfw domain:MicDomain switch to conf:off
+[26/07/26 07:06:02.367469] [CPU0] [27] [  INFO] [ap] [ff_nuttx_close][/dev/audio/pcm0c] stop
+[26/07/26 07:06:02.368563] [CPU0] [27] [  INFO] [ap] [ff_nuttx_poll_available][/dev/audio/pcm0c] complete
+[26/07/26 07:06:02.369563] [CPU0] [55] [  INFO] [ap] [audio_cap] close raw_pcm samples=[408728960,408846400) count=117440 rms=57 peak=724 dc=-3 clipped_permyriad=0 max_receive_interval_ms=42 stream_error=0 hardware_drop=unknown
+[26/07/26 07:06:02.372563] [CPU0] [55] [  INFO] [ap] [audio_cap] closed
+[26/07/26 07:06:02.423094] [CPU0] [53] [  INFO] [ap] BKFOCUS display visual=00000400 sequence=9
+[26/07/26 07:06:02.491782] [CPU0] [27] [ ERROR] [ap] input[0] write to mix failed, ret:-22.
+[26/07/26 07:06:02.530719] [CPU0] [36] [  INFO] [ap] BKHAPTIC product sequence=1 result=0
+[26/07/26 07:06:02.564938] [CPU0] [55] [  INFO] [ap] [audio_cap] opened media recorder (16000Hz 1ch 16bit)
+[26/07/26 07:06:02.579844] [CPU0] [27] [  INFO] [ap] pfw domain:MicDomain switch to conf:warm
+[26/07/26 07:06:02.594469] [CPU0] [943] [  INFO] [ap] Pending command: link 0x22347a1 0x6073aff0 fmt=1:rate=16000:ch=1
+[26/07/26 07:06:02.598532] [CPU0] [55] [  INFO] [ap] [audio_cap] media recorder capture started
+[26/07/26 07:06:02.599063] [CPU0] [55] [  INFO] [ap] BKVOICE single capture rearm ret=0
+[26/07/26 07:06:02.600500] [CPU0] [27] [  INFO] [ap] [ff_nuttx_open][/dev/audio/pcm0c] configure, sr:16000 ch:1 ret:0
+[26/07/26 07:06:02.600750] [CPU0] [27] [  INFO] [ap] [ff_nuttx_open][/dev/audio/pcm0c] set buffer info, n:4 size:640
+[26/07/26 07:06:02.601000] [CPU0] [27] [  INFO] [ap] [ff_nuttx_open][/dev/audio/pcm0c] get buffer info, n:4 size:640 ret:0
+[26/07/26 07:06:02.640094] [CPU0] [27] [  INFO] [ap] [ff_nuttx_open][/dev/audio/pcm0c] start ret:0
+[26/07/26 07:06:02.643782] [CPU0] [27] [ ERROR] [ap] input[0] write to mix failed, ret:-22.
+[26/07/26 07:06:02.644188] [CPU0] [27] [  INFO] [ap] process abufsink@Capture0 link 0x22347a1 0x6073aff0 fmt=1:rate=16000:ch=1
+[26/07/26 07:06:02.653250] [CPU0] [27] [  INFO] [ap] [amix_input_alloc 247]input 0x6079c670 alloc, resample: 0, first size: 640 total inputs:1
+[26/07/26 07:06:02.667750] [CPU0] [952] [  INFO] [ap] BKVOICE Trigger model stream reset
+[26/07/26 07:06:02.939313] [CPU0] [55] [  WARN] [ap] BKPC USB result=-104 epoch=5
+[26/07/26 07:06:02.961219] [CPU0] [55] [  INFO] [ap] BKCAM admission blocked=c0
+[26/07/26 07:06:03.931813] [CPU0] [55] [  WARN] [ap] BKPC USB result=0 epoch=6
+[26/07/26 07:06:05.077438] [CPU0] [55] [  INFO] [ap] BKCAM admission blocked=00
+[26/07/26 07:06:06.347782] [CPU0] [53] [  INFO] [ap] BKFOCUS display visual=00000000 sequence=10
+[26/07/26 07:06:09.587594] [CPU0] [27] [  INFO] [ap] process abufsink@Capture0 unlink _
+[26/07/26 07:06:09.588407] [CPU0] [27] [  INFO] [ap] [amix_input_free 285]input 0x6079c670 free, link_size:0 fifo_size:0 total inputs:0
+[26/07/26 07:06:09.589032] [CPU0] [943] [  INFO] [ap] Pending command: unlink _
+[26/07/26 07:06:09.589344] [CPU0] [943] [  WARN] [ap] [media][media_recorder_proc_dat:784] Invalid PTS detected: -9223372036854775808, resetting to sync_pts: 0
+[26/07/26 07:06:09.589688] [CPU0] [943] [ ERROR] [ap] [media][media_recorder_proc_dat:816] media_recorder_encode_frame failed: -541478725
+[26/07/26 07:06:09.598594] [CPU0] [27] [  INFO] [ap] pfw domain:MicDomain switch to conf:off
+[26/07/26 07:06:09.599438] [CPU0] [27] [  INFO] [ap] [ff_nuttx_close][/dev/audio/pcm0c] stop
+[26/07/26 07:06:09.601657] [CPU0] [27] [  INFO] [ap] [ff_nuttx_poll_available][/dev/audio/pcm0c] complete
+[26/07/26 07:06:09.603282] [CPU0] [55] [  INFO] [ap] [audio_cap] close raw_pcm samples=[0,111680) count=111680 rms=1116 peak=32767 dc=51 clipped_permyriad=9 max_receive_interval_ms=40 stream_error=0 hardware_drop=unknown
+[26/07/26 07:06:09.604125] [CPU0] [55] [  INFO] [ap] [audio_cap] closed
+[26/07/26 07:06:09.655219] [CPU0] [53] [  INFO] [ap] BKFOCUS display visual=00000600 sequence=12
+[26/07/26 07:06:09.711813] [CPU0] [27] [ ERROR] [ap] input[0] write to mix failed, ret:-22.
+[26/07/26 07:06:09.760282] [CPU0] [36] [  INFO] [ap] BKHAPTIC product sequence=2 result=0
+[26/07/26 07:06:09.794782] [CPU0] [55] [  INFO] [ap] [audio_cap] opened media recorder (16000Hz 1ch 16bit)
+[26/07/26 07:06:09.811532] [CPU0] [27] [  INFO] [ap] pfw domain:MicDomain switch to conf:warm
+[26/07/26 07:06:09.824032] [CPU0] [955] [  INFO] [ap] Pending command: link 0x22347a1 0x6073aff0 fmt=1:rate=16000:ch=1
+[26/07/26 07:06:09.825344] [CPU0] [55] [  INFO] [ap] [audio_cap] media recorder capture started
+[26/07/26 07:06:09.826125] [CPU0] [55] [  INFO] [ap] BKVOICE single capture rearm ret=0
+[26/07/26 07:06:09.840625] [CPU0] [27] [  INFO] [ap] [ff_nuttx_open][/dev/audio/pcm0c] configure, sr:16000 ch:1 ret:0
+[26/07/26 07:06:09.840938] [CPU0] [27] [  INFO] [ap] [ff_nuttx_open][/dev/audio/pcm0c] set buffer info, n:4 size:640
+[26/07/26 07:06:09.841188] [CPU0] [27] [  INFO] [ap] [ff_nuttx_open][/dev/audio/pcm0c] get buffer info, n:4 size:640 ret:0
+[26/07/26 07:06:09.880063] [CPU0] [27] [  INFO] [ap] [ff_nuttx_open][/dev/audio/pcm0c] start ret:0
+[26/07/26 07:06:09.883782] [CPU0] [27] [ ERROR] [ap] input[0] write to mix failed, ret:-22.
+[26/07/26 07:06:09.884157] [CPU0] [27] [  INFO] [ap] process abufsink@Capture0 link 0x22347a1 0x6073aff0 fmt=1:rate=16000:ch=1
+[26/07/26 07:06:09.893282] [CPU0] [27] [  INFO] [ap] [amix_input_alloc 247]input 0x60768e40 alloc, resample: 0, first size: 320 total inputs:1
+[26/07/26 07:06:09.907344] [CPU0] [958] [  INFO] [ap] BKVOICE Trigger model stream reset
+[26/07/26 07:06:10.171594] [CPU0] [55] [  WARN] [ap] BKPC USB result=-104 epoch=6
+[26/07/26 07:06:10.201219] [CPU0] [55] [  INFO] [ap] BKCAM admission blocked=c0
+[26/07/26 07:06:10.551063] [CPU0] [958] [  INFO] [ap] BKVOICE KWS windows=31 scores=148/851/0 max_wake=3 features=0/837 clipped=0
+[26/07/26 07:06:11.161250] [CPU0] [55] [  WARN] [ap] BKPC USB result=0 epoch=7
+[26/07/26 07:06:19.855250] [CPU0] [958] [  INFO] [ap] BKVOICE trigger input frames=500 mean_abs=16/15992 
+[26/07/26 07:06:20.748782] [CPU0] [958] [  INFO] [ap] BKVOICE KWS windows=34 scores=996/0/0 max_wake=0 features=274/632 clipped=0
+[26/07/26 07:06:29.848157] [CPU0] [958] [  INFO] [ap] BKVOICE trigger input frames=500 mean_abs=13/119 
+[26/07/26 07:06:30.941969] [CPU0] [958] [  INFO] [ap] BKVOICE KWS windows=34 scores=996/0/0 max_wake=0 features=258/635 clipped=0
+[26/07/26 07:06:39.846282] [CPU0] [958] [  INFO] [ap] BKVOICE trigger input frames=500 mean_abs=12/257 
+[26/07/26 07:06:41.139438] [CPU0] [958] [  INFO] [ap] BKVOICE KWS windows=34 scores=996/0/0 max_wake=0 features=258/626 clipped=0

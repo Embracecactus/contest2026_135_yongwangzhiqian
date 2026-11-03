@@ -1,0 +1,9 @@
+{
+  "name": "bluetooth-api",
+  "exit_code": 0,
+  "passed": true,
+  "seconds": 5.1,
+  "videos": [
+    "videos/emulator/bluetooth-api-01.mp4"
+  ]
+}
