@@ -77,7 +77,11 @@ internal class DeviceSettingsEditor(
     private val saveCloud = button("仅保存云服务和模型") { save(true) }
     private val reload = button("重新读取设备配置") { read(false) }
     private val saveAction = actionButton(if (cloudPage) "保存云配置" else "保存 Wi-Fi") { save(cloudPage) }
-    private val closeAction = actionButton("关闭") { close() }
+    private val closeAction = actionButton("关闭") { close() }.apply {
+        backgroundTintList = android.content.res.ColorStateList.valueOf(android.graphics.Color.TRANSPARENT)
+        strokeColor = android.content.res.ColorStateList.valueOf(design.divider); strokeWidth = dp(1)
+        setTextColor(enabledInk())
+    }
     private val footer = LinearLayout(activity).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(dp(24), dp(8), dp(24), dp(16))
@@ -132,7 +136,7 @@ internal class DeviceSettingsEditor(
             buildCloudForm()
         } else {
             editorContent.addView(TextView(activity).apply {
-                text = "连接网络"; textSize = 22f; setTextColor(design.ink)
+                text = "连接网络"; design.style(this, com.shaniu.companion.CompanionDesign.Type.TITLE)
                 setPadding(dp(24), dp(20), dp(24), dp(12)); isAccessibilityHeading = true
             })
         }
@@ -415,8 +419,12 @@ internal class DeviceSettingsEditor(
         box.addView(group, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(16) })
         return input
     }
+    /** Secondary (outlined) action inside the form; only the footer save is filled. */
     private fun button(label: String, action: () -> Unit) = com.google.android.material.button.MaterialButton(activity).apply {
-        text = label; isAllCaps = false; minHeight = dp(48)
+        text = label; isAllCaps = false; minHeight = dp(52)
+        backgroundTintList = android.content.res.ColorStateList.valueOf(android.graphics.Color.TRANSPARENT)
+        strokeColor = android.content.res.ColorStateList.valueOf(design.divider); strokeWidth = dp(1)
+        setTextColor(enabledInk()); rippleColor = android.content.res.ColorStateList.valueOf(design.selected)
         setOnClickListener { action() }; box.addView(this)
     }
     private fun actionButton(label: String, action: () -> Unit) = com.google.android.material.button.MaterialButton(activity).apply {
@@ -424,6 +432,8 @@ internal class DeviceSettingsEditor(
         setSingleLine(false); maxLines = 2
         setOnClickListener { action() }
     }
+    private fun enabledInk() = android.content.res.ColorStateList(
+        arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf()), intArrayOf(design.muted, design.ink))
     private fun note(text: String) { message.text = text; lastMessage = text }
     private fun saveBlocked(): Boolean = current?.state in listOf(1, 4) ||
         preferences.contains("$deviceId.operation")

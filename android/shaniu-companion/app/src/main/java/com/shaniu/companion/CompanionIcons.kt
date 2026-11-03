@@ -4,7 +4,7 @@ package com.shaniu.companion
 import android.content.Context
 import android.graphics.drawable.Drawable
 
-/** Native vectors from the supplied V2 design; no remote assets or icon font. */
+/** Native vectors from the supplied V2 design plus the redesign marks; no remote assets or icon font. */
 internal object CompanionIcons {
     fun drawable(context: Context, name: String, color: Int): Drawable =
         requireNotNull(context.getDrawable(when (name) {
@@ -28,6 +28,10 @@ internal object CompanionIcons {
         "eye" -> R.drawable.ic_ui_eye
         "help" -> R.drawable.ic_ui_help
         "qr" -> R.drawable.ic_ui_qr
+        "pair" -> R.drawable.ic_ui_pair
+        "phone" -> R.drawable.ic_ui_phone
+        "check" -> R.drawable.ic_ui_check
+        "link" -> R.drawable.ic_ui_link
         else -> R.drawable.ic_ui_info
     })).mutate().apply { setTint(color) }
 }
