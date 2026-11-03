@@ -104,6 +104,9 @@ int llm_chat_vision_checked(const char *prompt, const char *image_b64,
 /* Reuse the maintained real voice queue/Media fixture.  Renaming its cancel
  * stub leaves Agent's normal final-stream cancellation symbol available. */
 #define TEST_AGENT_TTS_QUEUE 1
+/* Keep Agent's optional observer weak in this combined translation unit.
+ * The standalone queue fixture validates its observer callbacks. */
+#define TEST_AGENT_AUDIO_OBSERVER_WEAK 1
 #define llm_cancel_request tts_fixture_llm_cancel_request
 int tts_fixture_llm_cancel_request(void);
 #define main tts_fixture_regression_main
@@ -112,6 +115,7 @@ int tts_fixture_llm_cancel_request(void);
         + r'''"
 #undef main
 #undef llm_cancel_request
+#undef TEST_AGENT_AUDIO_OBSERVER_WEAK
 #endif
 
 #ifdef TEST_MIXED_TTS

@@ -711,6 +711,7 @@ static size_t test_stage_count;
 #include <stdint.h>
 static atomic_uint test_audio_counts[9];
 
+#ifndef TEST_AGENT_AUDIO_OBSERVER_WEAK
 void agent_audio_observe(uint64_t request, uint32_t kind, uint64_t begin,
     uint64_t end, uint32_t bytes, uint32_t level)
 {
@@ -720,6 +721,7 @@ void agent_audio_observe(uint64_t request, uint32_t kind, uint64_t begin,
         assert(bytes <= 2048 && level <= CONFIG_AI_AGENT_TTS_QUEUE_BYTES);
     atomic_fetch_add(&test_audio_counts[kind], 1);
 }
+#endif
 
 static atomic_uint test_reservoir_allocs;
 static atomic_uint test_reservoir_frees;
