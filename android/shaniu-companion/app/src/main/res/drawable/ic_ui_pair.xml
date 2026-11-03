@@ -1,0 +1,7 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Shaniu mark: the device's two round displays, each with an eye. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:pathData="M1.9,12a4.9,4.9 0 1,0 9.8,0a4.9,4.9 0 1,0 -9.8,0" android:fillColor="#00000000" android:strokeColor="#FF000000" android:strokeWidth="1.7" />
+    <path android:pathData="M12.3,12a4.9,4.9 0 1,0 9.8,0a4.9,4.9 0 1,0 -9.8,0" android:fillColor="#00000000" android:strokeColor="#FF000000" android:strokeWidth="1.7" />
+    <path android:pathData="M6.8,10.4v3.2M17.2,10.4v3.2" android:fillColor="#00000000" android:strokeColor="#FF000000" android:strokeWidth="2" android:strokeLineCap="round" />
+</vector>

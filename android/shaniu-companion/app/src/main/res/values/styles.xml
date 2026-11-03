@@ -1,13 +1,24 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <resources>
+    <!-- Mirrors CompanionDesign: porcelain and ink; colour is reserved for her eyes. -->
     <style name="Theme.Shaniu" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="colorPrimary">#195C49</item>
+        <item name="colorPrimary">#17161B</item>
         <item name="colorOnPrimary">#FFFFFF</item>
-        <item name="colorSurface">#FFFFFF</item>
-        <item name="colorOnSurface">#192720</item>
+        <item name="colorSecondaryContainer">#EBE6DF</item>
+        <item name="colorOnSecondaryContainer">#17161B</item>
+        <item name="colorSurface">#FFFDFA</item>
+        <item name="colorOnSurface">#17161B</item>
+        <item name="colorOnSurfaceVariant">#6A6670</item>
+        <item name="colorOutline">#C9C3BA</item>
+        <item name="colorError">#B3261E</item>
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#195C49</item>
-        <item name="android:windowBackground">#F5F6F3</item>
-        <item name="android:navigationBarColor">#FFFFFF</item>
+        <item name="android:colorAccent">#17161B</item>
+        <item name="android:windowBackground">#F4F1EC</item>
+        <item name="android:navigationBarColor">#F4F1EC</item>
+    </style>
+
+    <style name="ShaniuSheetAnimation">
+        <item name="android:windowEnterAnimation">@anim/sheet_enter</item>
+        <item name="android:windowExitAnimation">@anim/sheet_exit</item>
     </style>
 </resources>

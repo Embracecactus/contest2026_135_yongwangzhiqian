@@ -1,13 +1,18 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <resources>
     <style name="Theme.Shaniu" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="colorPrimary">#ABE7BE</item>
-        <item name="colorOnPrimary">#102C1B</item>
-        <item name="colorSurface">#1C2822</item>
-        <item name="colorOnSurface">#EFF6EF</item>
+        <item name="colorPrimary">#F2EFEA</item>
+        <item name="colorOnPrimary">#121215</item>
+        <item name="colorSecondaryContainer">#26262C</item>
+        <item name="colorOnSecondaryContainer">#F2EFEA</item>
+        <item name="colorSurface">#18181C</item>
+        <item name="colorOnSurface">#F2EFEA</item>
+        <item name="colorOnSurfaceVariant">#A29EA7</item>
+        <item name="colorOutline">#3A3A42</item>
+        <item name="colorError">#FFB4AB</item>
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#ABE7BE</item>
-        <item name="android:windowBackground">#111815</item>
-        <item name="android:navigationBarColor">#1C2822</item>
+        <item name="android:colorAccent">#F2EFEA</item>
+        <item name="android:windowBackground">#0E0E11</item>
+        <item name="android:navigationBarColor">#0E0E11</item>
     </style>
 </resources>

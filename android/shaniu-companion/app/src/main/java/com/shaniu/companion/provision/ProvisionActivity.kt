@@ -76,6 +76,7 @@ class ProvisionActivity : Activity() {
     private lateinit var stopButton: Button
     private lateinit var stepLabel: TextView
     private lateinit var titleLabel: TextView
+    private lateinit var stepBar: LinearLayout
     private lateinit var resultButton: Button
     private lateinit var bindingStore: ProvisionBindingStore
     private var page = 0
@@ -151,16 +152,35 @@ class ProvisionActivity : Activity() {
         }
         setContentView(ScrollView(this).apply { addView(form); applySystemInsets() })
         installSystemBack { goBack() }
-        text("‹ 返回", 16).apply {
-            minHeight = dp(48); isClickable = true; isFocusable = true
+        form.addView(android.widget.ImageButton(this).apply {
+            setImageDrawable(com.shaniu.companion.CompanionIcons.drawable(this@ProvisionActivity, "back", INK))
+            contentDescription = "返回"; setPadding(dp(12), dp(12), dp(12), dp(12))
+            background = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(design.selected), null,
+                design.shape(android.graphics.Color.WHITE, dp(24).toFloat()))
+            translationX = -dp(12).toFloat()
             setOnClickListener { goBack() }
+        }, LinearLayout.LayoutParams(dp(48), dp(48)))
+        // Three-step progress: one segment per page, filled as the user advances.
+        stepBar = LinearLayout(this).apply {
+            repeat(3) { index ->
+                addView(View(this@ProvisionActivity), LinearLayout.LayoutParams(0, dp(4), 1f).apply {
+                    if (index > 0) marginStart = dp(6)
+                })
+            }
         }
-        stepLabel = text("扫码认领 → 设置网络 → 开始陪伴", 14)
+        form.addView(stepBar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(4)).apply { topMargin = dp(8) })
+        stepLabel = text("扫码认领 → 设置网络 → 开始陪伴", 12).apply {
+            design.style(this, com.shaniu.companion.CompanionDesign.Type.LABEL, MUTED)
+            setPadding(0, dp(12), 0, 0)
+        }
         titleLabel = text("添加傻妞", 28)
-        status = text("保持傻妞开机，扫描圆屏上的认领码。认领不需要互联网；相机仅用于扫码，蓝牙用于安全连接设备。", 15)
+        status = text("保持傻妞开机，扫描圆屏上的认领码。认领不需要互联网；相机仅用于扫码，蓝牙用于安全连接设备。", 15).apply {
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+        }
         discoveryPage = section()
-        discoveryPage.addView(com.shaniu.companion.CompanionPortraitView(this),
-            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(190)))
+        discoveryPage.addView(com.shaniu.companion.CompanionPresenceView(this).apply {
+            mood = com.shaniu.companion.CompanionPresenceView.Mood.AWAKE
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(170)).apply { topMargin = dp(8); bottomMargin = dp(16) })
         button("扫描傻妞屏幕上的认领码", discoveryPage) {
             if (connection == null) {
                 stopDiscovery()
@@ -172,7 +192,8 @@ class ProvisionActivity : Activity() {
                     .setBarcodeImageEnabled(false).initiateScan()
             }
         }.apply { primaryStyle() }
-        scanButton = button("查找附近的傻妞", discoveryPage) { stopNfc(); discover() }.apply { primaryStyle() }
+        // One filled action per page: scanning the screen code is the primary path.
+        scanButton = button("查找附近的傻妞", discoveryPage) { stopNfc(); discover() }
         nfcButton = button("碰一碰查找", discoveryPage) { beginNfc() }
         nfcStatus = text("", 13, discoveryPage).apply { visibility = View.GONE }
         if (!packageManager.hasSystemFeature(PackageManager.FEATURE_NFC_HOST_CARD_EMULATION)) {
@@ -265,18 +286,24 @@ class ProvisionActivity : Activity() {
         it.orientation = LinearLayout.VERTICAL; parent.addView(it)
     }
     private fun text(label: String, size: Int, target: LinearLayout = form) = TextView(this).also {
-        it.text = label; it.textSize = size.toFloat(); it.setTextColor(if (size >= 20) INK else MUTED)
-        if (size >= 20) it.typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
-        it.setLineSpacing(dp(3).toFloat(), 1f)
-        it.setPadding(0, dp(8), 0, dp(12)); target.addView(it)
+        it.text = label
+        val type = when {
+            size >= 26 -> com.shaniu.companion.CompanionDesign.Type.DISPLAY
+            size >= 20 -> com.shaniu.companion.CompanionDesign.Type.TITLE
+            size >= 15 -> com.shaniu.companion.CompanionDesign.Type.BODY
+            size >= 13 -> com.shaniu.companion.CompanionDesign.Type.CALLOUT
+            else -> com.shaniu.companion.CompanionDesign.Type.CAPTION
+        }
+        design.style(it, type, if (size >= 20) INK else MUTED)
+        it.setPadding(0, dp(if (size >= 20) 12 else 6), 0, dp(if (size >= 20) 4 else 12)); target.addView(it)
     }
     private fun field(label: String, secret: Boolean = false, target: LinearLayout = form) = EditText(this).also {
         it.hint = label
         it.contentDescription = label
         it.setTextColor(INK); it.setHintTextColor(MUTED)
         it.setPadding(dp(16), dp(12), dp(16), dp(12))
-        it.background = design.shape(design.surface, dp(16).toFloat())
-        it.minHeight = dp(56)
+        it.background = design.outline(design.surface, design.divider, dp(16).toFloat())
+        it.minHeight = dp(56); it.textSize = 16f
         it.isSaveEnabled = false
         it.importantForAutofill = android.view.View.IMPORTANT_FOR_AUTOFILL_NO
         it.inputType = InputType.TYPE_CLASS_TEXT or if (secret) InputType.TYPE_TEXT_VARIATION_PASSWORD else InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
@@ -284,10 +311,11 @@ class ProvisionActivity : Activity() {
     }
     private fun button(label: String, target: LinearLayout = form, action: () -> Unit): Button {
         return Button(this).apply {
-            text = label; isAllCaps = false; textSize = 16f; setTextColor(INK)
+            text = label; isAllCaps = false
+            design.style(this, com.shaniu.companion.CompanionDesign.Type.HEADLINE, INK)
             stateListAnimator = null
-            typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
-            background = design.shape(design.selected, dp(18).toFloat())
+            background = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(design.selected),
+                design.outline(android.graphics.Color.TRANSPARENT, design.divider, dp(28).toFloat()), null)
             minHeight = dp(56)
             setPadding(dp(16), dp(12), dp(16), dp(12))
             setOnClickListener { action() }
@@ -296,7 +324,9 @@ class ProvisionActivity : Activity() {
     }
     private fun Button.primaryStyle() {
         setTextColor(design.onAccent)
-        background = design.shape(design.accent, dp(20).toFloat())
+        background = android.graphics.drawable.RippleDrawable(
+            android.content.res.ColorStateList.valueOf(android.graphics.Color.argb(40, 255, 255, 255)),
+            design.shape(design.accent, dp(28).toFloat()), null)
     }
 
     private fun showPage(value: Int) {
@@ -307,6 +337,8 @@ class ProvisionActivity : Activity() {
         networkPage.visibility = if (value == 1) View.VISIBLE else View.GONE
         resultPage.visibility = if (value == 2) View.VISIBLE else View.GONE
         titleLabel.text = listOf("添加傻妞", "连接 Wi-Fi", "正在连接傻妞")[value]
+        for (index in 0 until stepBar.childCount) stepBar.getChildAt(index).background =
+            design.shape(if (index <= value) design.ink else design.divider, dp(2).toFloat())
         stepLabel.text = "${value + 1} / 3  ·  " + listOf("找到设备", "连接 Wi-Fi", "确认结果")[value]
         revealStatus()
     }
