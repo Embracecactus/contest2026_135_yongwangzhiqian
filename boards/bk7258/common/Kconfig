@@ -183,6 +183,52 @@ config BK7258_OTA_TRIAL_STABLE_MS
 	range 5000 120000
 	depends on BK7258_OTA_AUTO_CONFIRM
 
+choice
+	prompt "Pending-pair confirmation policy"
+	default BK7258_OTA_CONFIRM_POLICY_NETWORK if BK7258_WIFI_VNET
+	default BK7258_OTA_CONFIRM_POLICY_OFFLINE
+	depends on BK7258_OTA_AUTO_CONFIRM
+	help
+		Explicit readiness policy carried in the health token and revalidated
+		immediately before each AP and CP MCUboot trailer mutation, in
+		addition to the CP/AP generation, heartbeat and RPMsg checks.
+
+config BK7258_OTA_CONFIRM_POLICY_NETWORK
+	bool "Network OTA: require AP Wi-Fi association and native lease"
+	depends on BK7258_WIFI_VNET
+	help
+		Reset the stable interval until the AP reports an associated STA and a
+		matching native NuttX lease.  This proves local network readiness
+		without making confirmation depend on cloud uptime.
+
+config BK7258_OTA_CONFIRM_POLICY_OFFLINE
+	bool "Offline/file OTA: require AP product readiness"
+	help
+		For devices updated without a network.  Requires the AP product
+		application to publish an explicit readiness result for the running
+		generation (BK7258_AP_SUPERVISOR_FLAG_PRODUCT_READY) over the
+		generation-bound RPMsg health channel.  The pair is not confirmed,
+		and BL2 reverts it at the trial deadline, until that result exists.
+
+endchoice
+
+config BK7258_OTA_CONFIRM_REQUIRE_PRODUCT_READY
+	bool "Also require AP product readiness for network OTA"
+	default n
+	depends on BK7258_OTA_CONFIRM_POLICY_NETWORK
+	help
+		Add the authenticated AP product readiness flag to the network policy.
+		Enable only once the product application publishes readiness.
+
+config BK7258_OTA_ENGINEERING_UNSAFE_CONFIRM
+	bool "Engineering-only unsafe manual OTA confirm (no health token)"
+	default n
+	depends on BK7258_ENGINEERING_CONTROLS
+	help
+		Provide "bkota confirm-unsafe-engineering", which confirms a pending
+		CP/AP pair without any Supervisor health or readiness token and logs
+		the bypass.  Never enable in a product configuration.
+
 config BK7258_OTA_TRIAL_TIMEOUT_MS
 	int "Pending trial deadline before revert reset (milliseconds)"
 	default 60000

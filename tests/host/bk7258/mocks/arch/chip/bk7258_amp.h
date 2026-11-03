@@ -27,6 +27,14 @@ struct bk7258_ap_boot_state_s
   uint32_t reserved[32];
 };
 
+enum bk7258_ota_confirm_policy_e
+{
+  BK7258_OTA_CONFIRM_POLICY_NONE = 0,
+  BK7258_OTA_CONFIRM_POLICY_NETWORK,
+  BK7258_OTA_CONFIRM_POLICY_OFFLINE,
+  BK7258_OTA_CONFIRM_POLICY_ENGINEERING_OVERRIDE
+};
+
 struct bk7258_ap_supervisor_health_token_s
 {
   uint32_t generation;
@@ -34,7 +42,15 @@ struct bk7258_ap_supervisor_health_token_s
   uint32_t flags;
   uint32_t healthy_age_ms;
   uint32_t sample_age_ms;
+  uint32_t policy;
+  uint32_t required_flags;
 };
+
+#define BK7258_AP_SUPERVISOR_FLAG_WIFI_READY    (1u << 8)
+#define BK7258_AP_SUPERVISOR_FLAG_PRODUCT_READY (1u << 9)
+#define BK7258_AP_SUPERVISOR_PRODUCT_HEALTH_FLAGS \
+  (BK7258_AP_SUPERVISOR_FLAG_WIFI_READY | \
+   BK7258_AP_SUPERVISOR_FLAG_PRODUCT_READY)
 
 struct bk7258_ap_image_desc_s
 {

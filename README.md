@@ -4,12 +4,20 @@
 > TLS 身份、Android 安装签名、云 API 凭据彼此独立。后续赛事期旧流程是历史记录，
 > 不能用其手工供给或旧实机结果代替当前候选验收。
 
-> **2026-10-19 开发快照：** 本分支保存当前开发进度。固定的 Agent、NuttX
-> 依赖提交及本地 HCI 补丁尚未全部发布，公开 manifest 暂不能独立复现。
-> 依赖与验证边界见 [源码来源记录](SOURCE_PROVENANCE.md)及
-> [稳定性与手机验证记录](docs/verification/bk7258/2026-10-18-stability-and-phone-hil.md)。
+> **依赖与验收入口：** 固定的 NuttX、Agent 与 SDK 修复已发布，身份见
+> [2026-10-21 来源记录](SOURCE_PROVENANCE.md#2026-10-21-评审修复依赖)。
+> 板级当前事实与桌面伙伴验收边界统一维护在 [CONFIGS.md](boards/bk7258/CONFIGS.md)。
+> 依赖可取得、完整 manifest 独立复现和实板验收分别取证，不能互相代替。
 
-[English](README_EN.md) · [参赛技术报告](docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md) · [板级配置](boards/bk7258/CONFIGS.md) · [实际验收与待办](docs/platforms/bk7258/shaniu-master-plan.md)
+> **2026-11-03 当前候选边界：** 本工作区的软件门禁与三组 AIDK direct 构建通过；
+> `packages_ai_agent` 流式/音频改动已固定到 fork 提交
+> [`76c65bc6`](https://github.com/Embracecactus/packages_ai_agent/commit/76c65bc6231a7eeb49c32f8938a3d005a4221776)。
+> `nuttx-apps` webclient keep-alive 已固定到 fork 提交
+> [`d529ec81`](https://github.com/Embracecactus/nuttx-apps/commit/d529ec814bc11a4e76954a8dfb903c55e1eca4f3)。
+> 团队 manifest 已固定两个身份；干净同步与实板验收仍须分别取证，详见
+> [综合软件验证记录](docs/verification/bk7258/2026-11-03-comprehensive-software-validation.md#提交前复现状态)。
+
+[English](README_EN.md) · [参赛技术报告](docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md) · [板级配置与当前验收](boards/bk7258/CONFIGS.md) · [历史计划与证据](docs/platforms/bk7258/shaniu-master-plan.md)
 
 一套 BK7258 芯片适配，三块开发板，两个独立 NuttX 镜像：CPU0 运行 CP，
 CPU1/CPU2 运行 AP SMP。在此基础上，T5-Board 运行小海豚 Dolphin，
@@ -19,13 +27,16 @@ AIToyBoard 运行可独立语音交互的 AI 伴侣「傻妞」。
 比赛仓库是 [open-vela/contest2026_135_yongwangzhiqian](https://github.com/open-vela/contest2026_135_yongwangzhiqian)；
 开发 fork 不是另一个参赛项目。
 
-## Android 设备应用（0.7.26-shaniu-ota-retry / code 56）
+## Android 设备应用（0.7.27-shaniu-wake-import / code 57）
 
 主导航为 **设备｜定制｜更新｜设置**。设备页默认打开；认领无需互联网，
 Wi-Fi 与云模型独立编辑。密码和 Key 不回读、不写入界面保存状态。
 定制页集中唤醒模型和眼睛资源；上传、安装、生效仍以设备回读为准。
 
-界面使用 Material 3 View 组件、系统字体、4/8dp 间距和浅/深色语义颜色。
+界面使用 Material 3 View 组件、系统字体和 8dp 间距网格。当前设计以暖瓷白/墨色
+为基础，只让设备眼睛使用薄荷色：未连接时闭眼、连接中扫描、已认证后睁眼，
+Wi-Fi 异常与对话中状态也只依据设备确认或仍有效的会话状态呈现，不用动画冒充在线。
+四个主页面、底部弹层、返回路径、横屏/平板宽度和“移除动画”均使用同一组件规则。
 采用 [Insta360 的设备连接入口](https://onlinemanual.insta360.com/app/en-us/operation-tutorial/camera-connection/connect-the-camera-to-the-insta360-app)
 和 [DJI Mimo 的升级条件与恢复提示](https://repair.dji.com/help/content?customId=en-us03400006836&lang=en&re=US&spaceId=34)
 的交互原则，不复制品牌素材、联网激活限制或商业模块；导航分组参考
@@ -43,6 +54,8 @@ Windows Android 模拟器已运行此 APK，并实际操作导航、键盘和表
 截图标明“模拟状态”，不生成 owner、不连接实板，也不出现在正常 App 中。
 `ui_probe=1` 保留 Keystore、TLS 和 OTA 最终版本核对断言。
 模拟器检查不能替代圆屏扫码、真实 BLE、App OTA 安装或实际听音。
+本轮完整软件检查、固件构建身份、模拟器范围及尚未完成的实板项目见
+[2026-11-03 综合软件验证记录](docs/verification/bk7258/2026-11-03-comprehensive-software-validation.md)。
 
 设备发现使用 App 前台内的连续卡片，广播候选不代表已认证；新设备仍须扫码，
 已认领设备复用原认证会话。设置表单保留固定保存入口，支持 200% 字体和键盘。
@@ -125,7 +138,7 @@ App 视频展示 OTA 入口，**未拍摄完整 OTA 过程**；实际升级结�
 本页与仓库文档的更新不代表这些附件已同步。
 
 [固件对比包与 App 安装包](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/tag/shaniu-firmware-20260920)
-提供最后一轮实机固件 `18.6.401+641` 的**去设备数据镜像**（CP/AP/pair/boot/BL2/manifest）、
+提供 2026-09-20 实机固件 `18.6.401+641` 的**去设备数据镜像**（CP/AP/pair/boot/BL2/manifest）、
 构建证据、debug APK、两只成品眼睛包与三份唤醒模型，全部列出 SHA256。
 同一份包也发布在官方赛事仓
 （[open-vela Releases](https://github.com/open-vela/contest2026_135_yongwangzhiqian/releases/tag/shaniu-firmware-20260920)，
@@ -517,8 +530,9 @@ tools/bk7258/bk7258.py voice pairing --console-port <COM> \
 
 ## 实机验收状态（2026-09-20）
 
-以下结果按版本与证据层次分开记录；每条结论绑定具体提交、镜像或包身份，
-不用“当前 HEAD 全部通过”作为长期描述。
+本节保留 2026-09-20 历史快照；当前板级结论只见
+[CONFIGS.md](boards/bk7258/CONFIGS.md)。以下结果各自绑定提交、镜像或包身份，
+不表示当前 HEAD 已通过。
 
 - **三板构建门禁**（源码层静态检查，不是实板证明）：`bk7258.py verify layers`
   PASS（500 源文件 / 252 Kconfig / 2 条哈希绑定遗留豁免）；`app/bk7258` 的
@@ -572,16 +586,48 @@ Kconfig 默认 `n`，但 **AIDK 评审 preset（`configs/openvela_ap/defconfig`�
 - **看与表达**：复用唯一摄像头 owner 拍照识物，双圆屏显示眼睛动画；
   Agent 通过受限工具查询状态、加速度，控制音量、表情与有界振动。
 - **手机控制**：BLE 认领、配网、音量/风格/回答模式/模型/唤醒阈值设置；
-  Wi-Fi HTTPS 安装眼睛资源、传送 OTA 包。App 不维持每轮对话，也不中转音频。
+  Wi-Fi HTTPS 安装眼睛资源、第一方签名原生功能和传送 OTA 包。App 不维持每轮
+  对话，也不中转音频。
 - **隐私**：默认本地唤醒；云服务使用选定后端和受保护鉴权；
   可选加密记忆投影到官方 Session，不上传旧数据来完成迁移。
+
+原生功能管理器兼容 ABI 1/2，并以 ABI 3 增加动作输入、受限触觉/声音、可信本地
+时间、最多 32 B 保存进度、结果标签、语音/Agent 启停及最多 4 条每日定时。模块只经
+声明权限使用宿主能力；回调超时、越权和非法输出会停止运行，同一次开机两次异常后
+拒绝再次启动。NFC 场景动作 7 可按 App ID 哈希启动已安装功能。当前产品配置的
+`CONFIG_BK7258_NATIVE_PUBLISHER_SHA256` **有意留空**，所以正式固件在选定并配置
+第一方发布密钥前拒绝安装；测试密钥不会提升为产品信任根。行为合同与实板待测项见
+[N4/N5 合同](docs/platforms/bk7258/shaniu-desktop-companion.md#n4-原生功能-abi-2-与刷卡启动)和
+[ABI 3 实板清单](docs/verification/bk7258/2026-11-02-native-abi3-hil-checklist.md)。
+
+电脑审批把 Agent、目标目录、操作原文、随机请求 ID、有效期和单次使用绑定在同一
+请求中。电脑必须已有 `tasks` 授权，只能发起请求；手机 owner 才能批准或拒绝。
+设备对回执使用该电脑 grant key 的 HMAC，电脑端校验失败、超时、授权变化或取消均
+按拒绝处理。该链路已完成 C/Python/Android 主机测试和固件链接检查，但本轮未在
+真实手机、USB 工作台与板子上完成端到端审批，不把模拟器结果写成实机通过。
 
 语音设置中的“回答长度”提供简洁、标准、详细三档，默认标准。它通过已有认证
 配置通道保存并在设备重启后恢复，与思考开关、模型、音量和语速分开；本轮明确
 要求简短或详细时优先于长期偏好。旧固件不支持时 App 会说明，保存结果必须由设备
 读回确认。偏好影响请求提示，不截断正文或音频；实际模型遵循程度仍需真实服务验证。
 
-已取得识别文字后，明确的“开始专注25分钟”（或“开始25分钟专注”）、
+已取得识别文字后，固定指令先走端侧意图路由：
+
+| 指令示例 | 本地执行 |
+| --- | --- |
+| 把音量调到百分之五十／音量50 | 音量设为 0–100，读取实际值并保存 |
+| 音量加一点／音量减一点 | 在当前值上增减 10 个百分点，限制在 0–100 |
+| 换成开心表情 | 交给原表情队列；还支持中性、害羞、难过、惊讶、思考、倾听、说话、睡觉 |
+| 停止／停止说话／取消回答／结束当前对话 | 请求现有 Voice 取消并结束当前交互 |
+
+命中不再请求 LLM/TTS；音量最终值受 Media 音量档位约束，表情入队仅表示接受，
+不表示已经渲染。重复的同一请求不会重复增减音量，工具禁用、OTA 忙或执行失败时
+返回原错误，不再转给 Agent 重试。拍照识物继续使用既有相机与 Agent 链路。
+`BKLOCAL` 日志记录请求编号、意图、结果、重放与路由耗时，不记录识别正文；
+未命中记录 `route=agent`，原专注路径使用 `BKFOCUS` 日志。按请求编号去重后可统计
+路由命中率与处理延迟；这里的耗时不包含 ASR 或实际发声。
+
+明确的“开始专注25分钟”（或“开始25分钟专注”）、
 “暂停专注”“继续专注”“取消专注／取消当前专注计时”“专注还剩多久？”
 可走本地专注快捷路径。开始命令使用阿拉伯数字和秒／分钟，范围为 1–4294967 秒；
 否定、条件、引用、缺参数、多个意图或动作问句不会因关键词命中而执行，
@@ -590,6 +636,38 @@ Kconfig 默认 `n`，但 **AIDK 评审 preset（`configs/openvela_ap/defconfig`�
 等真实状态确认后，以限时屏幕数字、暂停／停止／失败图形反馈，不合成任意本地语音。
 剩余时间带观察时间并拒绝过期快照；完成提示约 5 秒后退出，计时状态仍可查询。
 计时沿用原有易失策略，重启不自动恢复正在运行的计时；App 和已授权 USB 仍走原认证接口。
+
+端侧意图路由已通过主机解析与真实 Voice 分发代码联调、AIDK 固件构建；
+尚未完成新增指令的烧板验收，不据此宣称离线语音、播报中语音打断或百毫秒实机响应。
+复现主机检查：`make -C tests/host/bk7258 run-agent-local-intent`。
+
+情绪与事实记忆、Runtime Skill 的新增实现：
+
+- **播报表情**：LLM 可调用 `reply_expression({"emotion":"happy"})` 设置本轮
+  元数据，支持 `neutral/happy/confused/thinking/sorry`。Media 开始输出时交给
+  原显示试用机制，结束或取消时撤销；不修改默认表情，也不把元数据读出来。
+  `confused/thinking` 复用思考素材，`sorry` 复用难过素材；暂不调整 TTS 音色或语速。
+- **事实记忆**：开启原有记忆选项后，成功播报的对话可从“记住我叫…”、
+  “我喜欢…”、“我最近在聊…”提取称呼、偏好、近期话题，各保存一条、最多 96 UTF-8
+  字节。采用明确前缀规则，不声称具备任意对话摘要能力。事实与历史共用加密快照，
+  兼容旧历史；App“隐私与记忆 → 查看与编辑事实”可查看、纠正和删除。
+  纠正或删除会清空近期对话，避免旧信息再次进入下一轮上下文。关闭记忆时不注入
+  事实，删除全部记忆沿用原有密钥失效与关闭流程。
+- **三个场景**：以“专注助手：开始十分钟专注”“设备体检：检查状态”或
+  “识物解说：看看这个”为前缀进入对应 Skill。每轮锁定工具权限，执行前验证
+  工具及参数；读说明只允许当前 Skill 文件，禁用或越权不会回退重试。
+  App“专注与陪伴 → 运行时技能”查看权限、启停场景、导入发布者公钥和签名包。
+  外部包使用 P-256/SHA-256 签名，只能声明现有场景权限的子集，安装后默认停用；
+  公钥、包和启用状态保存在设备本地，重启重新验签。
+
+签名包制作见 [CLI 说明](tools/bk7258/README.md#runtime-skill-packages)。
+本次构建身份、主机拒绝用例与 App 检查见
+[2026-11-01 软件验证记录](docs/verification/bk7258/2026-11-01-agent-profile-skills.md)。
+后续手机与 AIDK 的真实读写、重启保持、连接检查及遇到的问题见
+[同日实板联调记录](docs/verification/bk7258/2026-11-01-agent-profile-skills-hil.md)。
+以上新增能力的主机检查和固件/App 构建不能替代实板验收：未据此声称表情与声音
+的物理同步误差、真实跨天记忆或三场景实机完成率。`BKEMOTION` 的 accepted 仅代表
+显示请求受理，`BKFACT` 仅记录请求编号和保存结果，不记录事实正文。
 
 
 ASR 当前为批处理。规划阶段可直接返回经过完整协议校验的无工具正文，复用该正文
@@ -630,7 +708,7 @@ Wi-Fi / BT / Flash / OTA       官方 Agent / Session / Voice / Media
 
 ### 发布状态与依赖身份
 
-当前开发与复现基线是官方主仓 `open-vela/contest2026_135_yongwangzhiqian`
+本节 2026-09-20 历史开发与复现基线是官方主仓 `open-vela/contest2026_135_yongwangzhiqian`
 的 `dev-ai-contest-2026` 分支：F01–F12 整改的 13 个提交
 （`b72b8bbb..daacdc75`，对应 rebase 前的 `0eb0f779..204aa4f8`）以及随后的
 636/637 提交（`019a449e`、`faab4493`、`7d667565`）都已合入。`repo init`
@@ -644,8 +722,8 @@ Wi-Fi / BT / Flash / OTA       官方 Agent / Session / Voice / Media
 635/637 使用的既有 Agent 扩展已原样发布到
 [Agent fork 的固定提交](https://github.com/Embracecactus/packages_ai_agent/commit/add0db19d00301769907a5ece03fb9bd88d2edb4)，
 基于官方 `e65550f18759f086d7f544edcf17d1e31223244f`，21 个文件、+1830/-549 行。
-团队 manifest 固定引用 `add0db19d00301769907a5ece03fb9bd88d2edb4`，
-`openvela.xml` 固定本次 Linux 工作区的 248 个公共依赖提交；SDK 版本不变。
+当时团队 manifest 固定引用 `add0db19d00301769907a5ece03fb9bd88d2edb4`，
+`openvela.xml` 固定当时 Linux 工作区的 248 个公共依赖提交；SDK 版本未变。
 不恢复退役 patch，也不在构建时覆盖官方源码。**依赖已公开不等于已合入上游，
 更不等于三板干净构建或 637 实板重验。**来源及验证范围见
 [来源记录](SOURCE_PROVENANCE.md)。
@@ -732,18 +810,15 @@ T5-Board 小海豚录音并保存 WAV 到 SD 卡**已获用户实板确认**，�
 [现役构建/发布 SOP](docs/platforms/bk7258/nuttx-port/bk7258-build-flash-debug-sop.md)。
 编译不需要私人设备身份、云 token、原始训练录音或签名私钥。
 公开源码可复现实现与构建输入，不承诺不同签名、私有提示音或用户配置下的
-全片镜像逐字节等同于同板交付包。当前实板结论为 638，见
-[638 验收摘要](docs/verification/bk7258/2026-09-20-shaniu-638-full-image.md)
-（上一代同内容构建见
-[637 验收摘要](docs/verification/bk7258/2026-09-20-shaniu-637-full-image.md)）；
-634/635 记录作为对应版本的历史证据保留，不再追加新结论。
+全片镜像逐字节等同于同板交付包。当前实板结论统一见
+[CONFIGS.md](boards/bk7258/CONFIGS.md)；634/635/637/638 等记录保留各自版本的历史证据。
 同板恢复包含设备数据，只用于同一台设备、不公开、不跨板烧录，也不为复现
 自动轮换信任根。
 
 ### 4. Android、模型与显示资源
 
 - [Android 工程与构建](android/shaniu-companion/README.md)：JDK 17、Android SDK 35，
-  当前源码版本 `0.7.26-shaniu-ota-retry` / code 56，Android 10+。
+  当前源码版本 `0.7.27-shaniu-wake-import` / code 57，Android 10+。
 - [模型训练与工具入口](tools/bk7258/README.md)：`voice kws audit/train/evaluate`；
   [内置模型元数据](app/bk7258/models/nihao_openvela.metadata.json)随仓库提供。
   TensorFlow 训练环境不是普通固件编译依赖。
@@ -764,6 +839,9 @@ Android 工程不参加 NuttX 构建，训练数据也不通过 linkfile 混入�
 `y`，它也不是编译前置（未提供素材时构建立即报错，而不是静音降级）。
 
 ## 实测结果与边界
+
+下表是 2026-09-20 赛事期历史快照，不再更新为当前状态；当前结论见
+[CONFIGS.md](boards/bk7258/CONFIGS.md)。
 
 | 内容 | 已有证据 | 不扩大的结论 |
 |---|---|---|

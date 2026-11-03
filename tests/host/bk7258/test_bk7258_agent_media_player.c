@@ -1033,6 +1033,11 @@ void voice_asr_stream_abort(voice_asr_stream_t* stream)
 int voice_asr_cancel(void) { return 0; }
 int llm_cancel_request(void) { return 0; }
 int audio_capture_abort(audio_capture_t* cap) { assert(cap); return 0; }
+int audio_capture_request_abort(audio_capture_t* cap)
+{
+    assert(cap);
+    return 0;
+}
 
 static int16_t test_wake_pcm[16000];
 static size_t test_wake_count, test_wake_offset;
@@ -1295,6 +1300,11 @@ int audio_playback_write(audio_playback_t* pb, const void* bytes, size_t size)
     return (int)size;
 }
 
+void audio_playback_request_stop(audio_playback_t* pb)
+{
+    (void)pb;
+    test_stops++;
+}
 void audio_playback_stop(audio_playback_t* pb) { (void)pb; test_stops++; }
 int audio_playback_drain(audio_playback_t* pb, unsigned int timeout_ms)
 { assert(pb && timeout_ms > 0); test_drains++; return 0; }

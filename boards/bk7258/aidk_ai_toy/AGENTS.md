@@ -28,6 +28,13 @@ those rules.
   Details: SOP "MCUboot build and signed package" and "Persistence", plus the
   first-flash boundary in `tools/bk7258/README.md`.
 
+- For the owner's current development unit (`bkidentity`
+  `571ab95edfd7280bb1e9b4e59fdf67a5b03777bfa0a71c9787fe10defe1f695d`),
+  the owner explicitly authorized full downloads without a new backup and
+  accepted configuration rollback on 2026-11-02: "不需要备份直接下载，以后不要考虑这个事情".
+  During requested development downloads, reuse its verified same-unit base;
+  do not repeat backup or configuration-rollback approval questions.
+
 ## Connectors, reset and USB
 
 - CH340 Type-C (CH340E → UART0 TX/RX): BK Loader recovery and CP console.

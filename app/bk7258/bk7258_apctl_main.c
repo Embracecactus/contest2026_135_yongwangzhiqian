@@ -175,6 +175,15 @@ static int apctl_supervisor_status(void)
          status.consecutive_failures,
          apctl_supervisor_injection_name(status.injection),
          status.injection, status.last_error);
+  printf("Supervisor recurring=%" PRIu32 " auto_attempts=%" PRIu32
+         " lockouts=%" PRIu32 " budget=%" PRIu32 "/%" PRIu32
+         " window_ms=%" PRIu32 " worker_stack=%" PRIu32 "%s\n",
+         status.recurring_faults, status.auto_recovery_attempts,
+         status.lockout_count, status.retry_budget,
+         status.lifetime_budget, status.retry_window_ms,
+         status.worker_stack_size,
+         (status.flags & BK7258_AP_SUPERVISOR_FLAG_RECURRING) != 0 ?
+         " RECURRING" : "");
 
   if ((status.flags & BK7258_AP_SUPERVISOR_FLAG_FAULT_SAVED) != 0)
     {

@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 ############################################################################
 
-ifneq ($(filter y m,$(CONFIG_TESTS_BK7258_CMOCKA) $(CONFIG_TESTS_BK7258_RPMSG_EXEC)),)
+ifneq ($(filter y m,$(CONFIG_TESTS_BK7258_CMOCKA) $(CONFIG_TESTS_BK7258_RPMSG_EXEC) \
+                 $(CONFIG_TESTS_BK7258_SMP_DIAG)),)
 CONFIGURED_APPS += $(APPDIR)/testing/bk7258
 endif

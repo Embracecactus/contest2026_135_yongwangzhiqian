@@ -17,9 +17,13 @@
                   remote="shaniu-agent"
                   revision="892be7ba7dc468f11f32eade4c553cc76b0219c3"
                   upstream="refs/heads/fix/bk7258-review-lifecycle"/>
+  <extend-project name="nuttx-apps" path="apps"
+                  remote="shaniu-agent"
+                  revision="d529ec814bc11a4e76954a8dfb903c55e1eca4f3"
+                  upstream="refs/heads/feat/webclient-keepalive-20261103"/>
   <extend-project name="packages_ai_agent" path="packages/ai_agent"
                   remote="shaniu-agent"
-                  revision="2f1316a1d3c8e6750c1401d138ca2f95713d37bd"
+                  revision="76c65bc6231a7eeb49c32f8938a3d005a4221776"
                   upstream="refs/heads/feat/contest-voice-streaming-20261102"/>
 
   <project path="vendor/beken/bk_avdk_smp"

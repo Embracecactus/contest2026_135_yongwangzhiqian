@@ -268,6 +268,14 @@ int bk7258_ap_application_start(void)
     }
 #endif
 
+#ifdef CONFIG_TESTS_BK7258_NATIVE_APPS
+  ret = bk7258_native_app_test_initialize();
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
+
   return 0;
 }
 

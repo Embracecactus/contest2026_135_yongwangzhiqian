@@ -6,6 +6,7 @@
 | 文档 | 定位 | 时效 |
 |---|---|---|
 | [SDK 时钟 OPP 与每核频率契约](sdk-clock-operating-points.md) | CP/AP/Bus 频率、电压、DVFS/PM、DWT 和外设时钟口径 | 当前权威契约 |
+| [原始 CSI 采集契约](wifi-csi.md) | 回调长度、队列、UDP 记录与 RuView 格式适配 | AIDK 原始采集已验证；人体检测效果待验收 |
 | [SDK 上下文索引](sdk-context-index.md) | BK7258 SDK header/startup/linker/driver 的检索快照 | 历史索引；当前来源仍以 manifest 为准 |
 | [chip 代码评审与清理指导](chip-code-review-cleanup-guide.md) | 迁移前 chip 目录的逐项静态审计与后来状态勘误 | 历史评审；不是当前待办清单 |
 | [J-Link/SWD 调试指南](jlink-swd-debug-guide.md) | Cortex-M33 fault、寄存器、断点和 BK7258 启动调试 | 通用方法；具体接线与端口由板级文档给出 |

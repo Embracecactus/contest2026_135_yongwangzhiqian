@@ -35,6 +35,69 @@ static void post(const char *reply, int expected, int failure, size_t capacity)
   if (expected == 0) { assert(!strcmp(output, "{}")); assert(strstr(peer.request, "POST /v1/chat/completions HTTP/1.1\r\n")); assert(strstr(peer.request, "Authorization: Bearer test-only-key\r\n")); }
   free(http);
 }
+
+static void keepalive_roundtrip(void)
+{
+  struct bkcloud_http_s *http = calloc(1, sizeof(*http));
+  struct bkcloud_config_s config = {.port = 443};
+  struct peer_s peer = {0};
+  char output[128];
+  assert(http != NULL);
+  strcpy(config.host, "cloud.example");
+  strcpy(config.base_path, "/v1");
+  strcpy(config.api_key, "test-only-key");
+  http->keepalive = true;
+
+  peer.reply = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}";
+  assert(bkcloud_http_post(http, &config, "chat/completions", &g_tls,
+      &peer, 123456, body, NULL, 2, output, sizeof(output)) == 0);
+  assert(!http->reused && http->connection != NULL);
+  assert(peer.opens == 1 && peer.closes == 0);
+
+  peer.reply = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n"
+               "1\r\n{\r\n1\r\n}\r\n0\r\n\r\n";
+  peer.offset = peer.sent = 0;
+  assert(bkcloud_http_post(http, &config, "chat/completions", &g_tls,
+      &peer, 123456, body, NULL, 2, output, sizeof(output)) == 0);
+  assert(http->reused && http->connection != NULL);
+  assert(peer.opens == 1 && peer.closes == 0);
+
+  peer.reply = "HTTP/1.1 200 OK\r\nConnection: close\r\n"
+               "Content-Length: 2\r\n\r\n{}";
+  peer.offset = peer.sent = 0;
+  assert(bkcloud_http_post(http, &config, "chat/completions", &g_tls,
+      &peer, 123456, body, NULL, 2, output, sizeof(output)) == 0);
+  assert(http->reused && http->connection == NULL);
+  assert(peer.opens == 1 && peer.closes == 1);
+  free(http);
+}
+
+static void keepalive_rejects_ambiguous_framing(void)
+{
+  static const char *const replies[] = {
+    "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nContent-Length: 3\r\n\r\n{}",
+    "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n"
+      "Content-Length: 2\r\n\r\n1\r\n{\r\n1\r\n}\r\n0\r\n\r\n",
+  };
+  struct bkcloud_config_s config = {.port = 443};
+  strcpy(config.host, "cloud.example");
+  strcpy(config.base_path, "/v1");
+  strcpy(config.api_key, "test-only-key");
+  for (size_t i = 0; i < sizeof(replies) / sizeof(replies[0]); i++)
+    {
+      struct bkcloud_http_s *http = calloc(1, sizeof(*http));
+      struct peer_s peer = {.reply = replies[i]};
+      char output[128];
+      assert(http != NULL);
+      http->keepalive = true;
+      assert(bkcloud_http_post(http, &config, "chat/completions", &g_tls,
+          &peer, 123456, body, NULL, 2, output, sizeof(output)) == -EPROTO);
+      assert(http->connection == NULL);
+      assert(peer.opens == 1 && peer.closes == 1);
+      free(http);
+    }
+}
+
 int main(void)
 {
   post("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}", 0, 0, 128);
@@ -44,5 +107,7 @@ int main(void)
   post("HTTP/1.1 401 Unauthorized\r\nContent-Length: 2\r\n\r\n{}", -EACCES, 0, 128);
   post("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}", -E2BIG, 0, 2);
   post("", -ECANCELED, -ECANCELED, 128);
+  keepalive_roundtrip();
+  keepalive_rejects_ambiguous_framing();
   return 0;
 }

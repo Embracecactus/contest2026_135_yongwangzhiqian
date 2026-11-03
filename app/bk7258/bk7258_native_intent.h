@@ -19,9 +19,8 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* Compact local-trigger argument: app-ID hash in the high word, run seconds
- * (0 selects the app default of 60) in the low word.  Product integrations
- * decide which authenticated local trigger, if any, is allowed to submit it.
+/* NFC scene action 7 argument: app-ID hash in the high word, run seconds
+ * (0 selects the app default of 60) in the low word.
  */
 
 #define BKNATIVE_INTENT_SECONDS_MAX 3600u
@@ -120,8 +119,8 @@ uint32_t bknative_app_hash(const char *id);
 bool bknative_intent_argument_valid(uint64_t argument);
 
 /* Producer side.  One slot; a pending request is never replaced, so a second
- * request while one waits is refused with -EBUSY.  submit() is the compact
- * START shape with the short local-trigger window.
+ * request while one waits is refused with -EBUSY.  submit() is the NFC
+ * action 7 shape (START with the short card window).
  */
 
 int bknative_intent_submit(uint64_t argument, uint32_t *id);

@@ -30,7 +30,7 @@ class NativeAppPackageTest(unittest.TestCase):
         program = """#include "bk7258_native_abi.h"
 static int start(void *state, uint32_t argument) { (void)state; return (int)argument; }
 static int step(void *state, uint32_t elapsed, struct bknative_frame_s *frame) { (void)state; frame->expression = elapsed + 7; return 0; }
-const struct bknative_program_s *shaniu_native_entry(void) { static const struct bknative_program_s app = { .abi = BKNATIVE_ABI, .state_size = 0, .start = start, .step = step }; return &app; }
+const struct bknative_program_s *shaniu_native_entry(void) { static const struct bknative_program_s app = { BKNATIVE_ABI, 0, start, step }; return &app; }
 """
         undefined = program.replace(
             "return 0;", "extern int outside(void); return outside();"

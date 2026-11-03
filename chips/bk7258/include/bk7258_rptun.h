@@ -357,6 +357,17 @@ bk7258_rptun_control(void)
 void bk7258_rptun_mark_connected(void);
 #endif
 
+#if defined(CONFIG_BK7258_AP_CORE) && \
+    (defined(CONFIG_TESTS_BK7258_NATIVE_TRACE) || \
+     defined(CONFIG_TESTS_BK7258_NATIVE_TRANSPORT))
+const volatile uint32_t *bk7258_rptun_native_lock_word(void);
+#endif
+
+#if defined(CONFIG_BK7258_AP_CORE) && \
+    defined(CONFIG_TESTS_BK7258_NATIVE_TRANSPORT)
+int bk7258_rptun_native_direct_probe(uint32_t sequence);
+#endif
+
 #ifdef CONFIG_BK7258_RPTUN_MBOX
 int bk7258_rptun_mbox_probe(uint32_t count, uint32_t timeout_ms);
 #endif

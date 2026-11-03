@@ -163,7 +163,8 @@ if(CONFIG_BK7258_AP_CONTROL)
 endif()
 
 if(CONFIG_BK7258_AP_SUPERVISOR)
-  list(APPEND BK7258_CP_SRCS cp/bk7258_ap_supervisor.c)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_ap_supervisor.c
+       cp/bk7258_ap_recovery_policy.c)
 endif()
 
 if(CONFIG_BK7258_BT_IPC OR CONFIG_BK7258_WIFI_VNET)
@@ -177,6 +178,10 @@ if(CONFIG_BK7258_WIFI_VNET)
   if(NOT CONFIG_BK7258_AP_CORE)
     bk7258_wrap_sdk_symbol(malloc)
   endif()
+endif()
+
+if(CONFIG_BK7258_WIFI_RF_CAPTURE)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_wifi_rf_capture.c)
 endif()
 
 if(CONFIG_BK7258_WIFI_PACKET_DIAG)
@@ -382,6 +387,10 @@ endif()
 
 if(CONFIG_BK7258_OTA_SOURCE_USB)
   list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_ota_source_usb.c)
+endif()
+
+if(CONFIG_BK7258_WIFI_CSI)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_wifi_csi.c)
 endif()
 
 if(CONFIG_BK7258_WIFI_VNET)
@@ -698,6 +707,10 @@ set(BK7258_AP_SMP_SRCS
     ap/bk7258_ap_smp.c
     ap/bk7258_ap_smp_advanced.c)
 
+if(CONFIG_BK7258_AP_SMP_DIAG)
+  list(APPEND BK7258_AP_SMP_SRCS ap/bk7258_ap_smp_diag.c)
+endif()
+
 if(CONFIG_BK7258_AP_IPI)
   list(APPEND BK7258_AP_SMP_SRCS
        common/bk7258_sdk_irq.c
@@ -717,6 +730,21 @@ else()
 endif()
 
 target_sources(arch PRIVATE ${BK7258_SRCS})
+
+if(CONFIG_TESTS_BK7258_NATIVE_TRACE)
+  # Chip-owned diagnostic hooks; upstream sources stay intact.
+  target_compile_options(open_amp-static PRIVATE -finstrument-functions)
+  target_link_options(nuttx PRIVATE
+    "LINKER:--wrap=__cyg_profile_func_enter"
+    "LINKER:--wrap=__cyg_profile_func_exit")
+  set_property(SOURCE
+    "${CMAKE_CURRENT_SOURCE_DIR}/common/bk7258_rptun.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/common/bk7258_rptun_mbox.c"
+    TARGET_DIRECTORY arch APPEND PROPERTY COMPILE_OPTIONS -finstrument-functions)
+  cmake_language(DEFER DIRECTORY "${NUTTX_DIR}" CALL set_property SOURCE
+    "${NUTTX_DIR}/drivers/rpmsg/rpmsg_virtio.c"
+    TARGET_DIRECTORY drivers APPEND PROPERTY COMPILE_OPTIONS -finstrument-functions)
+endif()
 
 target_include_directories(arch PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/common

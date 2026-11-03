@@ -29,7 +29,7 @@ int bk7258_radio_mode_acquire(enum bk7258_radio_mode_e mode)
 {
   int ret;
 
-  if (mode <= BK7258_RADIO_MODE_IDLE || mode > BK7258_RADIO_MODE_BLE_SCAN)
+  if (mode <= BK7258_RADIO_MODE_IDLE || mode > BK7258_RADIO_MODE_WIFI_CSI)
     {
       return -EINVAL;
     }
@@ -64,7 +64,7 @@ int bk7258_radio_mode_release(enum bk7258_radio_mode_e mode)
 {
   int ret;
 
-  if (mode <= BK7258_RADIO_MODE_IDLE || mode > BK7258_RADIO_MODE_BLE_SCAN)
+  if (mode <= BK7258_RADIO_MODE_IDLE || mode > BK7258_RADIO_MODE_WIFI_CSI)
     {
       return -EINVAL;
     }

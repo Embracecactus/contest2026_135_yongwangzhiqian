@@ -16,10 +16,7 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
-import android.widget.CheckBox
 import android.widget.EditText
-import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.SeekBar
@@ -31,7 +28,6 @@ import java.security.SecureRandom
 import com.shaniu.companion.provision.AndroidDeviceControlFactory
 import com.shaniu.companion.provision.DeviceControlSession
 import com.shaniu.companion.provision.ImportedFileOwner
-import com.shaniu.companion.provision.DeviceControlPresentation
 import com.shaniu.companion.provision.DeviceControlProtocol
 import com.shaniu.companion.provision.ResponseLengthPreference
 import com.shaniu.companion.provision.DeviceControlScanner
@@ -55,9 +51,6 @@ import com.shaniu.companion.protocol.ConsoleOperation
 import com.shaniu.companion.protocol.ConsoleErrorCode
 import com.shaniu.companion.protocol.ConsolePolicy
 import com.shaniu.companion.protocol.EventDisposition
-import com.shaniu.companion.protocol.Emotion
-import com.shaniu.companion.protocol.TurnPhase
-import com.shaniu.companion.protocol.FirmwareRelease
 import com.shaniu.companion.protocol.FirmwareReleaseCatalog
 import com.shaniu.companion.protocol.GatewayConnection
 import com.shaniu.companion.protocol.MutationContext
@@ -66,9 +59,7 @@ import com.shaniu.companion.protocol.MutationReceiptStatus
 import com.shaniu.companion.protocol.MemoryDeleteScope
 import com.shaniu.companion.protocol.PermissionLevel
 import com.shaniu.companion.protocol.PermissionState
-import com.shaniu.companion.protocol.PersonaMode
 import com.shaniu.companion.protocol.PrivacyCapability
-import com.shaniu.companion.protocol.UpdatePhase
 import com.shaniu.companion.provision.ProvisionActivity
 import com.shaniu.companion.provision.ProvisionBindingStore
 import com.shaniu.companion.provision.ProvisionBootstrap
@@ -93,74 +84,79 @@ import java.util.concurrent.atomic.AtomicLong
  * optimistically and must be confirmed by a later snapshot/event.
  */
 class MainActivity : Activity() {
-    private data class GatewayRuntime(
+    internal data class GatewayRuntime(
         val epoch: Long,
         val deviceId: String,
         val session: OkHttpConsoleGatewaySession,
         val client: ConsoleGatewayClient,
     )
 
-    private lateinit var preferences: SharedPreferences
+    internal lateinit var preferences: SharedPreferences
     private lateinit var tokenStore: AndroidKeystoreTokenStore
     private lateinit var provisionBindingStore: ProvisionBindingStore
-    private lateinit var content: LinearLayout
+    internal lateinit var content: LinearLayout
     private lateinit var contentScroll: ScrollView
-    private lateinit var discoveryHost: android.widget.FrameLayout
+    private lateinit var statusBanner: TextView
+    /** +1 drill-in, -1 back out, 0 sibling tab: chooses the page transition. */
+    private var navDirection = 0
+    internal lateinit var discoveryHost: android.widget.FrameLayout
     private lateinit var cloudEditorHost: LinearLayout
     private var cloudEditorOpening = false
     private var cloudEditorEmbedded = false
-    private lateinit var pageRoot: LinearLayout
+    internal lateinit var pageRoot: LinearLayout
     private var renderedTab: Int? = null
     private var renderTicket = 0L
     private var touchActive = false
     private var renderDeferred = false
 
     private val ioExecutor = Executors.newSingleThreadExecutor()
-    private val mainHandler = Handler(Looper.getMainLooper())
+    internal val mainHandler = Handler(Looper.getMainLooper())
     // A worker owns imported files until the main-thread completion callback
     // explicitly transfers them to the selected-file fields.
     private val importedFileOwner = ImportedFileOwner()
     private val requestCounter = AtomicLong()
-    private var inspectedFirmware: BkpackInspector.Metadata? = null
-    private var selectedFirmwareFile: java.io.File? = null
-    private var firmwareInspectionPending = false
-    private var firmwareInspectionMessage: String? = null
+    internal var inspectedFirmware: BkpackInspector.Metadata? = null
+    internal var selectedFirmwareFile: java.io.File? = null
+    internal var firmwareInspectionPending = false
+    internal var firmwareInspectionMessage: String? = null
     private var firmwareInspectionEpoch = 0L
     private var otaSource: OtaSourceLease<OtaPackageServer>? = null
     private val otaServer get() = otaSource?.current()
-    private var otaUpload: OtaControlUpload? = null
-    private var otaStatus: DeviceControlProtocol.OtaStatus? = null
-    private var otaStatusGeneration: Long? = null
-    private var otaMessage = ""
-    private var otaStatusReadError: String? = null
+    internal var otaUpload: OtaControlUpload? = null
+    internal var otaStatus: DeviceControlProtocol.OtaStatus? = null
+    internal var otaStatusGeneration: Long? = null
+    internal var otaMessage = ""
+    internal var otaStatusReadError: String? = null
     private var otaVerificationPending = false
     private val otaStartGate = OtaStartGate()
 
-    private var runtime: GatewayRuntime? = null
+    internal var runtime: GatewayRuntime? = null
     private var eventConnection: GatewayEventConnection? = null
-    private var store: CompanionStore? = null
-    private var releaseCatalog: FirmwareReleaseCatalog? = null
+    internal var store: CompanionStore? = null
+    internal var releaseCatalog: FirmwareReleaseCatalog? = null
     private var connectionEpoch = 0L
     private var eventStreamEpoch = 0L
-    private var currentTab = TAB_OVERVIEW
-    private var expressionPreview = 0
-    private var updateResources = false
+    internal var currentTab = TAB_OVERVIEW
+    internal var expressionPreview = 0
+    internal var updateResources = false
     // Detail pages remember where they were opened from, so Back and the
     // highlighted tab follow the user's path rather than a fixed parent.
     private val detailStack = ArrayList<Int>()
     private var renderedNavTab: Int? = null
-    private var companionSheet: android.app.Dialog? = null
-    private var refreshCompanionSheet: (() -> Unit)? = null
-    private var busy = false
-    private var eventConnected = false
+    internal var companionSheet: android.app.Dialog? = null
+    internal var refreshCompanionSheet: (() -> Unit)? = null
+    internal var busy = false
+    internal var eventConnected = false
     private var foreground = false
-    private var autoReconnectAllowed = true
+    internal var autoReconnectAllowed = true
     private var reconnectAttempt = 0
     private var reconnectTicket = 0L
-    private var destroyed = false
-    private var developerPanel = false
+    internal var destroyed = false
+    internal var developerPanel = false
     private var legacyConsoleMode = false
-    private val directSession by lazy {
+    // Reflected by the UI acceptance probe as getDirectSession(); keep the JVM name.
+    @get:JvmName("getDirectSession")
+    internal val directSession by lazy {
         DeviceControlSession(
             nowMs = { android.os.SystemClock.elapsedRealtime() },
             post = { action -> mainHandler.post { action() }; Unit },
@@ -178,34 +174,34 @@ class MainActivity : Activity() {
             },
         )
     }
-    private val directConnection: DeviceControlSession?
+    internal val directConnection: DeviceControlSession?
         get() = directSession.takeIf { it.current().authenticated }
     private val directSubscriptions = mutableListOf<DeviceControlSession.Cancel>()
     private var directObservedGeneration = 0L
     private var directServiceWasReady = false
-    private var directScanner: DeviceControlScanner? = null
+    internal var directScanner: DeviceControlScanner? = null
     private var directDialog: AlertDialog? = null
-    private data class DirectCandidate(
+    internal data class DirectCandidate(
         val device: android.bluetooth.BluetoothDevice,
         val name: String,
         val epoch: Long,
     )
     // Scan records are selection hints only. A candidate is never a claimed or
     // authenticated device until the existing control session verifies it.
-    private val directCandidates = mutableListOf<DirectCandidate>()
-    private var directScanFinished = false
-    private var directDiscoveryDismissed = false
-    private var directDiscoveryVisible = false
-    private val directSnapshot get() = directSession.current().snapshot
-    private val directFirmwareInfo get() = directSession.current().firmwareInfo
+    internal val directCandidates = mutableListOf<DirectCandidate>()
+    internal var directScanFinished = false
+    internal var directDiscoveryDismissed = false
+    internal var directDiscoveryVisible = false
+    internal val directSnapshot get() = directSession.current().snapshot
+    internal val directFirmwareInfo get() = directSession.current().firmwareInfo
     private var directEpoch = 0L
-    private val directPending get() = directSession.current().writePending
-    private var memoryResultMessage: String? = null
-    private var memoryDesiredEnabled: Boolean? = null
-    private var memoryRequestAccepted = false
-    private var directConnecting = false
-    private var directMessage = "尚未连接设备"
-    private data class CloudModels(val asr: String, val chat: String, val tts: String)
+    internal val directPending get() = directSession.current().writePending
+    internal var memoryResultMessage: String? = null
+    internal var memoryDesiredEnabled: Boolean? = null
+    internal var memoryRequestAccepted = false
+    internal var directConnecting = false
+    internal var directMessage = "尚未连接设备"
+    internal data class CloudModels(val asr: String, val chat: String, val tts: String)
     private var cloudModels: CloudModels? = null
     private var cloudModelsGeneration: Long? = null
     private var cloudModelsFailedGeneration: Long? = null
@@ -213,34 +209,34 @@ class MainActivity : Activity() {
     private var cloudModelsWire: ByteArray? = null
     private var cloudModelsOffset = 0
     private var cloudModelsTotal = -1
-    private var cloudModelsExpected: CloudModels? = null
+    internal var cloudModelsExpected: CloudModels? = null
     private var cloudModelsReadDeadline = 0L
     private var cloudModelsReadTicket = 0L
-    private var cloudModelsCanceling = false
-    private var responseMode: Int? = null
-    private var responseModeGeneration: Long? = null
+    internal var cloudModelsCanceling = false
+    internal var responseMode: Int? = null
+    internal var responseModeGeneration: Long? = null
     private var responseModeFailedGeneration: Long? = null
     private var responseModeExpected: Int? = null
-    private var responseModeError: String? = null
+    internal var responseModeError: String? = null
     private var responseModeCanceling = false
-    private var responseLength: Int? = null
-    private var responseLengthApplied: Int? = null
+    internal var responseLength: Int? = null
+    internal var responseLengthApplied: Int? = null
     private var responseLengthRevision: Long? = null
-    private var responseLengthGeneration: Long? = null
+    internal var responseLengthGeneration: Long? = null
     private var responseLengthExpected: Int? = null
-    private var responseLengthError: String? = null
+    internal var responseLengthError: String? = null
     private var responseLengthCanceling = false
     private var responseLengthWire = ByteArray(0)
     private var responseLengthOffset = 0
     private var responseLengthVerifyHeader = false
     private var responseLengthTransaction: ByteArray? = null
-    private var wakeSensitivityPercent: Int? = null
-    private var wakeSensitivityGeneration: Long? = null
+    internal var wakeSensitivityPercent: Int? = null
+    internal var wakeSensitivityGeneration: Long? = null
     private var wakeSensitivityFailedGeneration: Long? = null
     private var wakeSensitivityExpected: Int? = null
-    private var wakeSensitivityError: String? = null
+    internal var wakeSensitivityError: String? = null
     private var wakeSensitivityCanceling = false
-    private enum class ConfigFlow { SETTINGS, NONE, CAPABILITIES, CLOUD, WAKE, RESPONSE, RESPONSE_LENGTH, SENSITIVITY, EYES }
+    internal enum class ConfigFlow { SETTINGS, NONE, CAPABILITIES, CLOUD, WAKE, RESPONSE, RESPONSE_LENGTH, SENSITIVITY, EYES }
     private var trialSecondsDraft = ""
     private var trialExpressionDraft = 0
     private var trialPackDraft = false
@@ -261,38 +257,39 @@ class MainActivity : Activity() {
     private var focusMinutesDraft = "25"
     private var focusEditor: com.shaniu.companion.provision.FocusTimerController? = null
     private var agentEditor: com.shaniu.companion.provision.AgentDataController? = null
+    private var approvalEditor: com.shaniu.companion.provision.PcApprovalController? = null
     private var agentImportSelected: ((android.net.Uri) -> Unit)? = null
     private var factDialog: AlertDialog? = null
-    private var settingsEditor: com.shaniu.companion.provision.DeviceSettingsEditor? = null
-    private var factoryReset: com.shaniu.companion.provision.FactoryResetController? = null
-    private var configFlow = ConfigFlow.NONE
+    internal var settingsEditor: com.shaniu.companion.provision.DeviceSettingsEditor? = null
+    internal var factoryReset: com.shaniu.companion.provision.FactoryResetController? = null
+    internal var configFlow = ConfigFlow.NONE
     private var configAppendMax = 32
     private var configCapabilitiesGeneration: Long? = null
     private var wakePackage: WakeModelPackage? = null
-    private var wakePayload: ByteArray? = null
+    internal var wakePayload: ByteArray? = null
     private var wakeExpectedSha: ByteArray? = null
-    private var wakeStatus: WakeModelPackage.Companion.Status? = null
-    private var wakeStatusGeneration: Long? = null
+    internal var wakeStatus: WakeModelPackage.Companion.Status? = null
+    internal var wakeStatusGeneration: Long? = null
     private var wakeRestoreRequested = false
-    private var wakeApplied = false
-    private var wakeCanceling = false
+    internal var wakeApplied = false
+    internal var wakeCanceling = false
     private var wakeReadTicket = 0L
     private var wakeOffset = 0
     private var wakeRead = ByteArray(0)
     private var wakeReadTotal = -1
     private var wakeDeadline = 0L
-    private var wakeMessage: String? = null
-    private var pendingWakeImport: WakeModelPackage? = null
+    internal var wakeMessage: String? = null
+    internal var pendingWakeImport: WakeModelPackage? = null
     private var wakeImportDeviceId = ""
     private var wakeImportDeadline = 0L
     private var wakeImportTicket = 0L
     // Bounded local draft only. Never retain an install transaction/server.
     private var eyeRestoreDraft: Pair<ByteArray, ByteArray>? = null
-    private var selectedEyePack: EyePack? = null
+    internal var selectedEyePack: EyePack? = null
     private var selectedEyeFile: java.io.File? = null
     private var selectedEyeAssetSha256: ByteArray? = null
-    private var eyeMessage: String? = null
-    private var eyeImportPending = false
+    internal var eyeMessage: String? = null
+    internal var eyeImportPending = false
     private var eyeSource: OtaSourceLease<OtaPackageServer>? = null
     private var eyeRecord: ByteArray? = null
     private var eyeOffset = 0
@@ -302,13 +299,13 @@ class MainActivity : Activity() {
     private var eyeApplySent = false
     private var eyeReadDeferred = false
     private val navigation = mutableMapOf<Int, TextView>()
-    private var lastAction = "请配置 HTTPS Gateway、设备 ID 和访问令牌"
+    internal var lastAction = "请配置 HTTPS Gateway、设备 ID 和访问令牌"
 
-    private var draftOrigin = ""
-    private var draftDeviceId = ""
-    private var draftPins = ""
-    private var provisionedDeviceId = ""
-    private var controlCredentialRequired = false
+    internal var draftOrigin = ""
+    internal var draftDeviceId = ""
+    internal var draftPins = ""
+    internal var provisionedDeviceId = ""
+    internal var controlCredentialRequired = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -333,7 +330,7 @@ class MainActivity : Activity() {
         }
         nfcMinutesDraft = savedInstanceState?.getString("nfc_minutes_draft") ?: "25"
         nfcSlotDraft = (savedInstanceState?.getInt("nfc_slot_draft", 0) ?: 0).coerceIn(0, 7)
-        nfcActionDraft = (savedInstanceState?.getInt("nfc_action_draft", 0) ?: 0).coerceIn(0, 5)
+        nfcActionDraft = (savedInstanceState?.getInt("nfc_action_draft", 0) ?: 0).coerceIn(0, 6)
         expressionPreview = savedInstanceState?.getInt("expression_preview", 0) ?: 0
         updateResources = savedInstanceState?.getBoolean("update_resources", false) ?: false
         savedInstanceState?.getIntegerArrayList("detail_stack")?.let { saved ->
@@ -405,7 +402,7 @@ class MainActivity : Activity() {
         render()
     }
 
-    private fun navigateBack() {
+    fun navigateBack() {
         when {
             directDiscoveryVisible -> dismissDirectDiscovery()
             developerPanel -> developerPanel = false
@@ -609,15 +606,18 @@ class MainActivity : Activity() {
     }
 
     private fun buildRoot(): View {
+        // Material navigation matched to width: bottom bar on compact phones,
+        // a navigation rail on expanded widths (tablets, landscape foldables).
+        val rail = resources.configuration.screenWidthDp >= RAIL_MIN_WIDTH_DP
         val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
+            orientation = if (rail) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
             setBackgroundColor(BACKGROUND)
         }
         content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(24), dp(8), dp(24), dp(32))
         }
-        // Readable measure on tablets and landscape: centre a phone-width column.
+        // Readable measure on wide windows: centre a phone-width column.
         val column = object : android.widget.FrameLayout(this) {
             override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
                 val available = View.MeasureSpec.getSize(widthMeasureSpec)
@@ -631,29 +631,35 @@ class MainActivity : Activity() {
             addView(column); isVerticalScrollBarEnabled = false
             overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
         }
-        root.addView(
-            contentScroll,
-            LinearLayout.LayoutParams(0, 0).apply {
-                width = ViewGroup.LayoutParams.MATCH_PARENT
-                height = 0
-                weight = 1f
-            },
-        )
+        val pages = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        // Outcome and failure messages sit above the scrolling page so they are
+        // seen where the user is, never left below the fold.
+        statusBanner = TextView(this).apply {
+            design.style(this, CompanionDesign.Type.CALLOUT, INK)
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+            compoundDrawablePadding = dp(12)
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+            visibility = View.GONE
+        }
+        pages.addView(statusBanner, LinearLayout.LayoutParams(-1, -2).apply {
+            leftMargin = dp(16); rightMargin = dp(16); topMargin = dp(8)
+        })
+        pages.addView(contentScroll, LinearLayout.LayoutParams(-1, 0, 1f))
         cloudEditorHost = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; visibility = View.GONE
         }
-        root.addView(cloudEditorHost, LinearLayout.LayoutParams(-1, 0, 1f))
+        pages.addView(cloudEditorHost, LinearLayout.LayoutParams(-1, 0, 1f))
         // The bar shares the page ground and is separated by a hairline, so the
         // system gesture area beneath it never shows a mismatched band.
-        root.addView(View(this).apply { setBackgroundColor(design.divider) }, LinearLayout.LayoutParams(-1, 1))
-        val tabRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
+        val tabs = LinearLayout(this).apply {
+            orientation = if (rail) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+            gravity = if (rail) Gravity.CENTER_HORIZONTAL or Gravity.TOP else Gravity.CENTER
             setBackgroundColor(BACKGROUND)
-            setPadding(dp(8), dp(6), dp(8), dp(6))
+            if (rail) setPadding(dp(8), dp(24), dp(8), dp(24)) else setPadding(dp(8), dp(6), dp(8), dp(6))
         }
         renderedNavTab = null
         TABS.forEach { (tab, title) ->
-            tabRow.addView(
+            tabs.addView(
                 TextView(this).apply {
                     text = title
                     design.style(this, CompanionDesign.Type.CAPTION, MUTED)
@@ -674,19 +680,41 @@ class MainActivity : Activity() {
                         render()
                     }
                 },
-                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f),
+                if (rail) LinearLayout.LayoutParams(dp(80), ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(12) }
+                else LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f),
             )
         }
-        root.addView(
-            tabRow,
-            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT),
-        )
+        val hairline = View(this).apply { setBackgroundColor(design.divider) }
+        if (rail) {
+            root.addView(tabs, LinearLayout.LayoutParams(dp(96), ViewGroup.LayoutParams.MATCH_PARENT))
+            root.addView(hairline, LinearLayout.LayoutParams(1, -1))
+            root.addView(pages, LinearLayout.LayoutParams(0, -1, 1f))
+        } else {
+            root.addView(pages, LinearLayout.LayoutParams(-1, 0, 1f))
+            root.addView(hairline, LinearLayout.LayoutParams(-1, 1))
+            root.addView(tabs, LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
         pageRoot = root
         discoveryHost = android.widget.FrameLayout(this).apply { visibility = View.GONE }
         return android.widget.FrameLayout(this).apply {
             addView(root, android.widget.FrameLayout.LayoutParams(-1, -1))
             addView(discoveryHost, android.widget.FrameLayout.LayoutParams(-1, -1))
         }
+    }
+
+    /** Persistent outcome or failure of the last action, shown at the top. */
+    private fun renderStatusBanner(message: String) {
+        val failure = listOf("失败", "无法", "不能", "错误", "停止自动连接").any { it in message }
+        statusBanner.visibility = if (message.isBlank()) View.GONE else View.VISIBLE
+        if (message.isBlank()) return
+        statusBanner.text = message
+        statusBanner.setTextColor(if (failure) design.warning else INK)
+        statusBanner.background = design.shape(if (failure) design.warningSurface else design.selected,
+            dp(CompanionDesign.RADIUS_CONTROL.toInt()).toFloat())
+        statusBanner.setCompoundDrawablesRelativeWithIntrinsicBounds(
+            CompanionIcons.drawable(this, if (failure) "info" else "check", if (failure) design.warning else INK).apply {
+                setBounds(0, 0, dp(18), dp(18))
+            }, null, null, null)
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
@@ -703,7 +731,7 @@ class MainActivity : Activity() {
         return handled
     }
 
-    private fun render() {
+    fun render() {
         if (destroyed) return
         refreshCompanionSheet?.invoke()
         // Polling must not remove the target between touch-down and click.
@@ -745,10 +773,10 @@ class MainActivity : Activity() {
         contentScroll.visibility = View.VISIBLE
         cloudEditorHost.visibility = View.GONE
         content.removeAllViews()
-        if (pageChanged) revealPage()
+        if (pageChanged) revealPage(navDirection)
         if (!legacyConsoleMode) {
+            renderStatusBanner(lastAction)
             renderDirectCompanion()
-            if (lastAction.isNotBlank()) addMuted(lastAction)
             return
         }
         if (developerPanel) statusStrip()
@@ -763,11 +791,11 @@ class MainActivity : Activity() {
         if (!developerPanel && lastAction.contains("失败")) addMuted(lastAction)
     }
 
-    private val directPersonas = listOf("温柔陪伴", "活泼俏皮", "安静倾听", "认真交流", "轻轻嘴硬")
-    private val directPersonaDescriptions = listOf("慢慢聊，温柔回应", "轻松一点，多一点趣味",
+    internal val directPersonas = listOf("温柔陪伴", "活泼俏皮", "安静倾听", "认真交流", "轻轻嘴硬")
+    internal val directPersonaDescriptions = listOf("慢慢聊，温柔回应", "轻松一点，多一点趣味",
         "留些空间，听你说完", "一起理清思路", "带一点俏皮的小别扭")
 
-    private fun directStatus(): String {
+    internal fun directStatus(): String {
         val state = directSession.current()
         return when (state.connection) {
             DeviceControlSession.Connection.CONNECTING -> "正在连接并验证设备…"
@@ -781,7 +809,8 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun closeDirect(preserveAcceptedOtaSource: Boolean = false): Boolean {
+    // Public: the OTA acceptance probe invokes this reflectively.
+    fun closeDirect(preserveAcceptedOtaSource: Boolean = false): Boolean {
         cancelPendingWakeImport("连接已关闭，尚未向设备发送模型")
         closeEyeServer()
         if (configFlow == ConfigFlow.EYES) finishEyeInstall("连接已关闭；未完成的眼睛安装不会重发")
@@ -819,10 +848,15 @@ class MainActivity : Activity() {
     }
 
     // Keep the one-argument JVM signature: the UI acceptance probe invokes it reflectively.
-    private fun selectTab(value: Int) = selectTab(value, push = true)
+    fun selectTab(value: Int) = selectTab(value, push = true)
 
-    private fun selectTab(value: Int, push: Boolean) {
+    fun selectTab(value: Int, push: Boolean) {
         dismissCompanionSheet()
+        navDirection = when {
+            !push -> -1
+            value in DETAIL_TABS && value != currentTab -> 1
+            else -> 0
+        }
         if (value in TOP_LEVEL_TABS || value == TAB_INTERACTION) detailStack.clear()
         else if (push && value != currentTab) {
             detailStack.remove(value)
@@ -863,12 +897,12 @@ class MainActivity : Activity() {
         else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
-    private fun directRequest(command: DeviceControlProtocol.Command, value: Int = 0): Boolean {
+    internal fun directRequest(command: DeviceControlProtocol.Command, value: Int = 0): Boolean {
         if (!foreground) return false
         return directSession.request(command, value)
     }
 
-    private fun directOtaRequest(command: DeviceControlProtocol.Command,
+    internal fun directOtaRequest(command: DeviceControlProtocol.Command,
                                  payload: ByteArray = ByteArray(0)): Boolean {
         if (!foreground) return false
         return directSession.requestOta(command, payload)
@@ -877,7 +911,7 @@ class MainActivity : Activity() {
     private fun directConfigRequest(command: DeviceControlProtocol.Command, payload: ByteArray): Boolean =
         foreground && directSession.requestPayload(command, payload)
 
-    private fun configAvailable(): Boolean = foreground && directSession.current().authenticated &&
+    internal fun configAvailable(): Boolean = foreground && directSession.current().authenticated &&
         directSnapshot?.publicConfigSupported == true && configFlow == ConfigFlow.NONE && agentEditor == null && focusEditor == null && trialEditor == null && defaultEditor == null && nfcEditor == null && pcEditor == null && !directPending &&
         otaUpload == null && !otaVerificationPending && otaStatus?.state !in 1L..2L
 
@@ -937,7 +971,7 @@ class MainActivity : Activity() {
         mainHandler.post { advanceWakeImport(ticket) }
     }
 
-    private fun cancelPendingWakeImport(message: String) {
+    internal fun cancelPendingWakeImport(message: String) {
         if (pendingWakeImport == null) return
         pendingWakeImport = null
         wakeImportDeviceId = ""
@@ -991,16 +1025,16 @@ class MainActivity : Activity() {
         mainHandler.postDelayed({ advanceWakeImport(ticket) }, 200)
     }
 
-    private fun selectBundledWakeModel(label: String) {
+    internal fun selectBundledWakeModel(label: String) {
         val pack = try { assets.open("wake-models/$label.wkm").use(WakeModelPackage::read) } catch (_: Exception) { null }
         if (pack == null) { wakeMessage = "尚未随 APK 提供有效模型包"; render(); return }
         beginWakePackage(pack)
     }
 
-    private fun wakeModelSummary(descriptor: WakeModelPackage.Companion.Descriptor): String =
+    internal fun wakeModelSummary(descriptor: WakeModelPackage.Companion.Descriptor): String =
         "${descriptor.phrase} · 模型 ${descriptor.sha256.take(4).joinToString("") { "%02x".format(it.toInt() and 0xff) }}"
 
-    private fun restoreWakeModel() {
+    internal fun restoreWakeModel() {
         if (!configAvailable()) return
         configFlow = ConfigFlow.WAKE; wakeRestoreRequested = true
         wakeDeadline = android.os.SystemClock.elapsedRealtime() + 10_000
@@ -1008,7 +1042,7 @@ class MainActivity : Activity() {
         requestWakeStatus()
     }
 
-    private fun requestWakeStatus() {
+    internal fun requestWakeStatus() {
         if (configFlow == ConfigFlow.NONE) {
             if (!configAvailable()) return
             configFlow = ConfigFlow.WAKE
@@ -1042,7 +1076,7 @@ class MainActivity : Activity() {
         directSession.finishConfigTransaction()
     }
 
-    private fun failWake(message: String) {
+    fun failWake(message: String) {
         wakeMessage = message; wakeReadTicket++
         wakeStatusGeneration = null
         if (wakeApplied) { finishWake(message); return }
@@ -1071,7 +1105,7 @@ class MainActivity : Activity() {
     private fun validModelId(value: String): Boolean = value.length in 1..127 &&
         value.all { it.code in 0x21..0x7e && (it.isLetterOrDigit() || it in "._:/-") }
 
-    private fun requestResponseModeRead() {
+    internal fun requestResponseModeRead() {
         if (configFlow == ConfigFlow.NONE) {
             if (!configAvailable()) return
             configFlow = ConfigFlow.RESPONSE
@@ -1084,7 +1118,7 @@ class MainActivity : Activity() {
             failResponseMode("设备忙，尚未读取回答模式")
     }
 
-    private fun requestResponseLengthRead() {
+    internal fun requestResponseLengthRead() {
         if (configFlow == ConfigFlow.NONE) { if (!configAvailable()) return; configFlow = ConfigFlow.RESPONSE_LENGTH }
         if (configFlow != ConfigFlow.RESPONSE_LENGTH || responseLengthCanceling) return
         responseLengthGeneration = null; responseLengthError = null; responseLengthWire = ByteArray(0); responseLengthOffset = 0; responseLengthVerifyHeader = false
@@ -1096,7 +1130,7 @@ class MainActivity : Activity() {
                 ByteBuffer.allocate(4).putInt((21 shl 16) or responseLengthOffset).array())) failResponseLength("设备忙，尚未读取回答长度")
     }
 
-    private fun responseLengthLabel(mode: Int) = when (mode) {
+    internal fun responseLengthLabel(mode: Int) = when (mode) {
         1 -> "简洁"; 2 -> "详细"; else -> "标准"
     }
 
@@ -1108,7 +1142,7 @@ class MainActivity : Activity() {
         directSession.finishConfigTransaction(message)
     }
 
-    private fun editResponseLength() {
+    internal fun editResponseLength() {
         val old = responseLength ?: return; val generation = directSession.current().generation
         if (responseLengthGeneration != generation) return
         var desired = old
@@ -1174,7 +1208,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun requestWakeSensitivityRead() {
+    internal fun requestWakeSensitivityRead() {
         if (configFlow == ConfigFlow.NONE) {
             if (!configAvailable()) return
             configFlow = ConfigFlow.SENSITIVITY
@@ -1185,7 +1219,7 @@ class MainActivity : Activity() {
             failWakeSensitivity("设备忙，尚未读取唤醒灵敏度")
     }
 
-    private fun editWakeSensitivity() {
+    internal fun editWakeSensitivity() {
         val old = wakeSensitivityPercent ?: return
         val generation = directSession.current().generation
         if (wakeSensitivityGeneration != generation) return
@@ -1270,7 +1304,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun editResponseMode() {
+    internal fun editResponseMode() {
         val old = responseMode ?: return
         val generation = directSession.current().generation
         if (responseModeGeneration != generation) return
@@ -1543,7 +1577,7 @@ class MainActivity : Activity() {
         )
     }
 
-    private fun startLocalOta() {
+    fun startLocalOta() {
         val file = selectedFirmwareFile ?: return
         val pack = inspectedFirmware ?: return
         val connection = directConnection
@@ -1667,7 +1701,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun cancelLocalOta() {
+    internal fun cancelLocalOta() {
         val upload = otaUpload
         if (upload?.state == OtaControlUpload.State.WAITING) {
             upload.cancel()
@@ -1680,7 +1714,7 @@ class MainActivity : Activity() {
         render()
     }
 
-    private fun expectedOtaConfirmed(): Boolean {
+    internal fun expectedOtaConfirmed(): Boolean {
         if (!OtaSourceLease.mayApplyVerification(otaSource)) return false
         val sessionState = directSession.current()
         if (!sessionState.authenticated || otaStatusGeneration != sessionState.generation ||
@@ -1745,7 +1779,7 @@ class MainActivity : Activity() {
             .commit() && preferences.getString(KEY_OTA_EXPECTED_CATALOG, null) == pack.catalogSha256
     }
 
-    private fun editDirectVolume() {
+    internal fun editDirectVolume() {
         var volume = directSnapshot?.volume ?: return
         val label = TextView(this).apply { text = "音量 $volume%"; setPadding(dp(24), dp(12), dp(24), 0) }
         val slider = SeekBar(this).apply {
@@ -1766,7 +1800,7 @@ class MainActivity : Activity() {
     }
 
     @Suppress("MissingPermission")
-    private fun scanDirect() {
+    internal fun scanDirect() {
         if (!foreground) return
         val permissions = if (android.os.Build.VERSION.SDK_INT >= 31)
             arrayOf(android.Manifest.permission.BLUETOOTH_SCAN, android.Manifest.permission.BLUETOOTH_CONNECT)
@@ -1799,7 +1833,7 @@ class MainActivity : Activity() {
         render()
     }
 
-    private fun connectDirect(device: android.bluetooth.BluetoothDevice, epoch: Long) {
+    internal fun connectDirect(device: android.bluetooth.BluetoothDevice, epoch: Long) {
         if (epoch != directEpoch || !foreground || destroyed) return
         directScanner?.close(); directScanner = null
         if (provisionedDeviceId.isBlank()) {
@@ -1818,7 +1852,7 @@ class MainActivity : Activity() {
             ioExecutor, { action -> mainHandler.post { action() }; Unit }))
     }
 
-    private fun dismissDirectDiscovery() {
+    fun dismissDirectDiscovery() {
         if (!directDiscoveryVisible) return
         directScanner?.close(); directScanner = null
         val wasScanning = directConnecting
@@ -1977,7 +2011,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun failCloudModels(message: String) {
+    internal fun failCloudModels(message: String) {
         cloudModelsWire?.fill(0); cloudModelsWire = null; cloudModelsTotal = -1; cloudModelsOffset = 0
         cloudModelsExpected = null; cloudModelsReadError = message
         cloudModelsGeneration = null
@@ -2084,11 +2118,11 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun editDeviceSettings() {
+    internal fun editDeviceSettings() {
         openDeviceSettings(false)
     }
 
-    private fun openDeviceSettings(cloud: Boolean, modelFocus: String? = null) {
+    fun openDeviceSettings(cloud: Boolean, modelFocus: String? = null) {
         if (settingsEditor != null) return
         val embedded = cloud && currentTab == TAB_SERVICES
         cloudEditorOpening = embedded
@@ -2122,549 +2156,20 @@ class MainActivity : Activity() {
                 CompanionPage(this, content).pageTitle("资源包与唤醒词", "先检查兼容性，再发送到设备。", ::navigateBack)
                 renderCustomizationResources()
             }
-            TAB_PERSONA -> {
-                val page = CompanionPage(this, content)
-                page.pageTitle("聊天风格", "选择陪伴的语气。", ::navigateBack)
-                if (directSession.current().authenticated && directSnapshot != null) {
-                    val ready = !directPending && directSession.current().snapshotFresh && directSnapshot?.busy == false
-                    directPersonas.forEachIndexed { index, name ->
-                        page.settingsRow(name, directPersonaDescriptions[index], enabled = ready,
-                            selected = directSnapshot?.persona == index) {
-                            directRequest(DeviceControlProtocol.Command.PERSONA, index)
-                        }
-                    }
-                    if (!ready) addMuted(if (directSnapshot?.busy == true) "对话进行中，结束后可切换风格。" else "正在等待设备确认当前状态。")
-                    addMuted("傻妞是 AI 伴侣，声音由模型合成。切换以设备回读为准。")
-                } else {
-                    page.featureCard("spark", "连接后，选择她说话的方式。", "连接设备后查看和设置人物风格。")
-                }
-                if (!directSession.current().authenticated || directSnapshot == null) {
-                    if (bound) primaryButton("连接傻妞", !directConnecting) { scanDirect() }
-                    else primaryButton("先添加我的傻妞", !busy) { startProvisioning() }
-                }
-            }
+            TAB_PERSONA -> renderPersona(bound)
             TAB_PRIVACY -> {
                 CompanionPage(this, content).pageTitle("隐私与记忆", "有用的陪伴，也应有清楚的边界。", ::navigateBack)
                 renderPrivacyControls(content)
             }
-            TAB_UPDATE -> {
-                CompanionPage(this, content).pageTitle("更新", "每次进步，都清楚可见。")
-                CompanionPage(this, content).segments(listOf("固件更新", "资源更新"), if (updateResources) 1 else 0) {
-                    updateResources = it == 1; render()
-                }
-                if (updateResources) { renderResourceOverview(); return }
-                val sessionState = directSession.current()
-                val localState = sessionState.snapshot
-                val ota = otaStatus
-                if (ota != null && ota.state != 0L) {
-                    val otaCurrent = sessionState.authenticated &&
-                        otaStatusGeneration == sessionState.generation && otaStatusReadError == null
-                    val otaStaleReason = when {
-                        otaCurrent -> ""
-                        !sessionState.authenticated -> "\n当前未连接；连接后读取设备实际升级状态。"
-                        otaStatusReadError != null -> "\n当前连接读取升级状态失败；正在重新读取。"
-                        else -> "\n当前连接正在重新读取升级状态。"
-                    }
-                    val percent = if (ota.progress != null && ota.total != null && ota.total > 0)
-                        ((ota.progress * 100L) / ota.total).coerceIn(0L, 100L) else null
-                    val label = when (ota.state) {
-                        0L -> "空闲"
-                        1L -> "已排队"
-                        2L -> "升级中"
-                        3L -> when {
-                            ota.phase == 7L -> "已回滚，请核对当前版本"
-                            ota.phase == 8L || ota.result != 0 -> "升级失败，设备未确认安装成功"
-                            expectedOtaConfirmed() -> "已确认完成升级"
-                            else -> "已结束，等待版本核对"
-                        }
-                        else -> "状态未知"
-                    }
-                    val phase = when (ota.phase) {
-                        1L -> "正在下载"
-                        2L -> "正在校验"
-                        3L -> "已写入，等待重启"
-                        4L -> "正在重启"
-                        5L -> "试运行中"
-                        6L -> if (expectedOtaConfirmed()) "已核对新版本" else "设备已确认，等待版本核对"
-                        7L -> "已回滚"
-                        8L -> "升级失败"
-                        null -> "未知"
-                        else -> "未知阶段（${ota.phase}）"
-                    }
-                    val result = when {
-                        ota.result == 0 -> "无错误"
-                        ota.state in 1L..2L && ota.result == -115 -> "进行中"
-                        else -> "设备错误 ${ota.result}"
-                    }
-                    val confirmed = otaCurrent && expectedOtaConfirmed()
-                    val stage = if (!otaCurrent) null else when (ota.phase) {
-                        1L -> 2
-                        2L, 3L -> 3
-                        4L, 5L -> 4
-                        6L -> 5
-                        else -> null
-                    }
-                    CompanionPage(this, content).updateProgress(label, "$phase · $result$otaStaleReason",
-                        percent?.toInt().takeIf { otaCurrent && ota.phase == 1L }, stage, confirmed,
-                        failed = ota.state == 3L && (ota.phase == 7L || ota.phase == 8L || ota.result != 0))
-                }
-                val info = directFirmwareInfo
-                if (ota == null || ota.state == 0L) CompanionPage(this, content).updateIntroduction(
-                    info?.let { "${it.major}.${it.minor}.${it.revision} · ${it.build}" } ?: "待真实设备回读",
-                    inspectedFirmware?.let { "本地包 · ${it.version}" } ?: "尚未选择本地包")
-                val canStart = inspectedFirmware != null && selectedFirmwareFile != null &&
-                    sessionState.snapshotFresh && localState?.otaSupported == true && directConnection != null &&
-                    otaUpload == null && !directPending && !preferences.getBoolean(KEY_OTA_EXPECTED_PENDING, false)
-                primaryButton("开始固件更新", canStart) { startLocalOta() }
-                actionButton(if (firmwareInspectionPending) "正在检查固件包…" else "选择本地更新包", !firmwareInspectionPending) {
-                    startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                        type = "*/*"; addCategory(Intent.CATEGORY_OPENABLE)
-                        putExtra(android.provider.DocumentsContract.EXTRA_INITIAL_URI,
-                            android.provider.DocumentsContract.buildDocumentUri(
-                                "com.android.externalstorage.documents", "primary:Download"))
-                    }, FIRMWARE_PACKAGE_REQUEST)
-                }
-                inspectedFirmware?.let { pack ->
-                    addCard("所选固件包", "版本 ${pack.version}\n设备 ${pack.board}\n镜像共 ${pack.ap.size + pack.cp.size} 字节")
-                    addCard("升级说明", "此固件包未提供升级说明。")
-                    addMuted("文件完整性检查通过。设备兼容性与签名仍需由连接的设备确认。")
-                }
-                firmwareInspectionMessage?.let { addMuted(it) }
-                if (otaMessage.isNotBlank()) addMuted(otaMessage)
-                otaStatusReadError?.let(::addMuted)
-                if (preferences.getBoolean(KEY_OTA_EXPECTED_PENDING, false)) {
-                    addCard("正在确认更新结果", "传输完成后，还需要设备安装、重连并核对新版本。连接同一设备即可继续查询，无需重复安装。")
-                    actionButton("查询设备更新结果", directSession.current().authenticated && !directPending) {
-                        directOtaRequest(DeviceControlProtocol.Command.OTA_STATUS)
-                    }
-                }
-                if (otaUpload?.state == OtaControlUpload.State.WAITING ||
-                    otaUpload?.state == OtaControlUpload.State.ACCEPTED || ota?.state in 1L..2L) {
-                    val uploading = otaUpload?.state == OtaControlUpload.State.WAITING
-                    val cancellable = OtaUpdatePolicy.mayRequestCancellation(
-                        uploading, directPending, ota?.state, ota?.phase)
-                    actionButton("取消升级", cancellable) { cancelLocalOta() }
-                    if (!uploading && !cancellable && !directPending)
-                        addMuted("设备已进入安装提交阶段，请保持供电并等待重连；此时不能立即取消。")
-                }
-                addMuted("更新期间请保持 App 在前台。蓝牙发送更新指令，设备通过局域网 HTTPS 拉取镜像；重连并核对版本后才确认完成。")
-                if (!canStart) addMuted(when {
-                    inspectedFirmware == null -> "先选择普通 OTA 包；工厂全量包不能用于此入口。"
-                    directConnection == null -> "需要连接已认领的设备，才能核对更新能力。"
-                    !sessionState.snapshotFresh -> "设备状态已过期，正在重新读取；暂不能开始升级。"
-                    localState?.otaSupported != true -> "当前固件未提供此更新能力。"
-                    else -> "当前设备事务尚未结束，请等待后重试。"
-                })
-                if (localState?.otaSupported != true && directConnection != null)
-                    addMuted("设备固件未声明本地升级能力，不能开始升级。")
-                if (directConnection == null && provisionedDeviceId.isNotBlank())
-                    primaryButton(if (directConnecting) "正在连接…" else "连接设备读取版本", !directConnecting) { scanDirect() }
-            }
+            TAB_UPDATE -> renderFirmwareUpdate()
             TAB_ADVANCED -> renderVoiceAdvanced()
-            else -> {
-                if (currentTab == TAB_SETTINGS) { renderSettingsHome(bound); return }
-                val page = CompanionPage(this, content)
-                page.pageTitle("云服务与模型", "听、想、说，分别选择适合的服务。", ::navigateBack)
-                if (configAvailable() && pendingWakeImport == null && settingsEditor == null) {
-                    // Reading configuration publishes state; construct after this render.
-                    mainHandler.post {
-                        if (!destroyed && currentTab == TAB_SERVICES && settingsEditor == null &&
-                            configAvailable() && pendingWakeImport == null) openDeviceSettings(true)
-                    }
-                } else {
-                    page.featureCard("cloud", "连接后，选择陪伴的声音。", when {
-                        !bound -> "先添加你的傻妞，再读取云服务与模型。"
-                        !directSession.current().authenticated -> "连接并验证设备后，显示已保存的配置。"
-                        !directSession.current().snapshotFresh -> "正在读取设备能力，请稍候。"
-                        directSnapshot?.publicConfigSupported != true -> "当前固件未提供云服务配置能力。"
-                        else -> "请等待当前设备操作结束。"
-                    })
-                    if (!bound) primaryButton("添加我的傻妞", !busy) { startProvisioning() }
-                    else if (!directSession.current().authenticated)
-                        primaryButton(if (directConnecting) "正在连接…" else "连接我的傻妞", !directConnecting) { scanDirect() }
-                }
-
-            }
+            TAB_SETTINGS -> renderSettingsHome(bound)
+            else -> renderServices(bound)
         }
     }
 
-    /** Projects verified session state onto her eyes. Never optimistic: an
-     * unauthenticated or stale link cannot look awake. */
-    private fun presenceMood(): CompanionPresenceView.Mood {
-        val state = directSession.current()
-        val snapshot = state.snapshot.takeIf { state.authenticated && state.snapshotFresh }
-        return when {
-            provisionedDeviceId.isBlank() && !directConnecting && directScanner == null -> CompanionPresenceView.Mood.ABSENT
-            state.connection == DeviceControlSession.Connection.CONNECTING ||
-                state.connection == DeviceControlSession.Connection.RECONNECT_WAIT ||
-                (!state.authenticated && (directConnecting || directScanner != null)) -> CompanionPresenceView.Mood.SEARCHING
-            !state.authenticated -> CompanionPresenceView.Mood.OFFLINE
-            snapshot == null -> CompanionPresenceView.Mood.UNSURE
-            snapshot.busy -> CompanionPresenceView.Mood.ENGAGED
-            snapshot.wifiReady == false || !snapshot.ready -> CompanionPresenceView.Mood.DROWSY
-            else -> CompanionPresenceView.Mood.AWAKE
-        }
-    }
-
-    /** Phone → device → voice service, each hop only as strong as its evidence. */
-    private fun connectionChain(page: CompanionPage, action: (() -> Unit)?) {
-        val state = directSession.current()
-        val snapshot = state.snapshot.takeIf { state.authenticated && state.snapshotFresh }
-        val phoneLink = when {
-            state.authenticated -> CompanionPage.Link.LIVE
-            state.connection == DeviceControlSession.Connection.CONNECTING ||
-                state.connection == DeviceControlSession.Connection.RECONNECT_WAIT || directConnecting -> CompanionPage.Link.PENDING
-            else -> CompanionPage.Link.OFF
-        }
-        val networkLink = when (snapshot?.wifiReady) {
-            true -> CompanionPage.Link.LIVE
-            false -> CompanionPage.Link.BROKEN
-            null -> if (state.authenticated) CompanionPage.Link.UNKNOWN else CompanionPage.Link.OFF
-        }
-        val management = if (state.authenticated) "管理已连接" else "管理未连接"
-        val network = when (snapshot?.wifiReady) {
-            true -> "Wi-Fi 已连接"
-            false -> "设备未联网"
-            null -> "联网待确认"
-        }
-        page.connectionChain(
-            nodes = listOf(
-                CompanionPage.ChainNode("phone", "手机", when (phoneLink) {
-                    CompanionPage.Link.LIVE -> "蓝牙已验证"
-                    CompanionPage.Link.PENDING -> "正在连接"
-                    else -> "未连接"
-                }),
-                CompanionPage.ChainNode("pair", "傻妞", when {
-                    snapshot?.busy == true -> "对话中"
-                    snapshot != null -> "在线"
-                    state.authenticated -> "读取中"
-                    else -> "—"
-                }),
-                CompanionPage.ChainNode("cloud", "语音服务", when {
-                    snapshot == null -> "待确认"
-                    snapshot.wifiReady == false -> "无网络"
-                    snapshot.ready -> "就绪"
-                    else -> "未就绪"
-                }),
-            ),
-            links = listOf(phoneLink, networkLink),
-            summary = "$management · $network",
-            description = "$management，$network，查看网络设置",
-            action = action,
-        )
-    }
-
-    private fun renderHome(bound: Boolean) {
-        val page = CompanionPage(this, content)
-        val state = directSession.current()
-        val fresh = state.authenticated && state.snapshotFresh
-        val snapshot = state.snapshot.takeIf { fresh }
-        page.homeHeader(if (bound) "我的傻妞" else "等待与你相遇", "傻妞", "添加或查找设备") {
-            if (bound) scanDirect() else startProvisioning()
-        }
-        page.presence(presenceMood(), if (resources.configuration.fontScale > 1.3f) 132 else 168)
-        content.addView(View(this), LinearLayout.LayoutParams(-1, dp(12)))
-        page.hero(when {
-            !bound -> "认识一下，傻妞。"
-            !state.authenticated -> "让傻妞，回到你身边。"
-            !fresh -> "正在了解傻妞的状态。"
-            snapshot?.wifiReady == false -> "先帮我连上网。"
-            snapshot?.busy == true -> "正在处理这次对话。"
-            snapshot?.ready == false -> "语音服务尚未就绪。"
-            else -> "我在，随时听你说。"
-        }, if (!bound) "确认是你的设备，再开始连接。" else directStatus())
-        if (!bound) {
-            primaryButton("添加傻妞 · 扫码连接", !busy) { startProvisioning() }
-            page.secondaryButton(if (directConnecting) "正在查找附近设备…" else "查找附近的傻妞", !busy && !directConnecting) { scanDirect() }
-            content.addView(TextView(this).apply {
-                text = "无需云账号 · 认领后再设置网络和语音服务"
-                design.style(this, CompanionDesign.Type.CAPTION, MUTED)
-                gravity = Gravity.CENTER; setPadding(0, dp(16), 0, dp(8))
-            })
-            page.sectionTitle("傻妞能做什么")
-            page.informationRow("一句你好，唤醒她", "设备独立对话，关闭 App 也不打断", "mic")
-            page.informationRow("一点点，变成你熟悉的她", "眼睛、表情、聊天风格和唤醒词", "eye")
-            page.informationRow("每次进步，都清楚可见", "固件和资源更新，装好后回读确认", "download")
-            return
-        }
-        // One contextual action at a time, in order of what unblocks her most.
-        if (!state.authenticated && state.connection != DeviceControlSession.Connection.CONNECTING &&
-            state.connection != DeviceControlSession.Connection.RECONNECT_WAIT)
-            primaryButton(if (directConnecting) "正在连接…" else "连接我的傻妞", !directConnecting) { scanDirect() }
-        if (snapshot?.busy == true && snapshot.memoryPending != true)
-            page.secondaryButton("停止这次对话", !directPending) { directRequest(DeviceControlProtocol.Command.CANCEL) }
-        if (snapshot?.wifiReady == false) {
-            val notice = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(18), dp(20), dp(16))
-                background = design.shape(design.warningSurface, dp(CompanionDesign.RADIUS_GROUP.toInt()).toFloat())
-                addView(TextView(this@MainActivity).apply {
-                    text = "连接还在，不必重新认领"
-                    design.style(this, CompanionDesign.Type.HEADLINE, design.warning)
-                    setCompoundDrawablesRelativeWithIntrinsicBounds(CompanionIcons.drawable(this@MainActivity, "wifi", design.warning).apply {
-                        setBounds(0, 0, dp(20), dp(20))
-                    }, null, null, null)
-                    compoundDrawablePadding = dp(10)
-                })
-            }
-            CompanionPage(this, notice).addMuted("手机仍可通过蓝牙为傻妞更换网络。")
-            CompanionPage(this, notice).primaryButton("更换 Wi-Fi", configAvailable()) { editDeviceSettings() }
-            content.addView(notice, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
-        }
-        connectionChain(page) {
-            if (configAvailable()) editDeviceSettings() else { selectTab(TAB_SETTINGS); render() }
-        }
-        if (snapshot?.wifiReady != false) {
-            val volume = DeviceControlPresentation.volume(state)
-            page.volumeCard(snapshot?.volume, volume.enabled, volume.reason) { value ->
-                // Recheck current ownership and freshness after the user's gesture.
-                if (DeviceControlPresentation.volume(directSession.current()).enabled)
-                    directRequest(DeviceControlProtocol.Command.VOLUME, value)
-                render()
-            }
-        }
-        page.sectionTitle("她的设定")
-        page.settingsRow("她的模样", "眼睛 · 唤醒 · 应答", iconName = "eye") { selectTab(TAB_PERSONALITY); render() }
-        page.settingsRow("聊天风格", snapshot?.persona?.let { directPersonas.getOrNull(it) } ?: "连接后读取设备当前风格",
-            iconName = "spark") { selectTab(TAB_PERSONA); render() }
-        page.settingsRow("云服务与模型", "听懂你 · 对话 · 说给你听", iconName = "cloud") { selectTab(TAB_SERVICES); render() }
-        val firmware = directFirmwareInfo
-        val updateSubtitle = when {
-            preferences.getBoolean(KEY_OTA_EXPECTED_PENDING, false) -> "正在确认更新结果"
-            otaUpload != null || otaStatus?.state in 1L..2L -> "正在更新，请保持在前台"
-            firmware != null && state.authenticated -> "当前 ${firmware.major}.${firmware.minor}.${firmware.revision} · ${firmware.build}"
-            else -> "连接后读取设备版本"
-        }
-        page.settingsRow("固件更新", updateSubtitle, iconName = "download") {
-            updateResources = false; selectTab(TAB_UPDATE); render()
-        }
-    }
-
-    private fun renderVoiceAdvanced() {
-        CompanionPage(this, content).pageTitle("回答与唤醒", "她怎样回应你，多容易被唤醒。", ::navigateBack)
-        val configSupported = directSnapshot?.publicConfigSupported == true
-        val configMutationReady = configAvailable() && pendingWakeImport == null
-        settingsRow("服务连接与凭据", "查看服务地址，按需更新密钥", configMutationReady) { openDeviceSettings(true) }
-        sectionTitle("声音与对话")
-        val volumeControl = DeviceControlPresentation.volume(directSession.current())
-        settingsRow("扬声器音量", volumeControl.reason, enabled = volumeControl.enabled) { editDirectVolume() }
-        settingsRow("聊天风格", directSnapshot?.persona?.let { directPersonas[it] }
-            ?: "选择你喜欢的陪伴方式") { selectTab(TAB_PERSONA); render() }
-        val responseCurrent = responseModeGeneration == directSession.current().generation
-        val responseText = when {
-            !directSession.current().authenticated -> "连接并验证设备后读取"
-            !directSession.current().snapshotFresh -> "设备状态待刷新，尚未确认"
-            !configSupported -> "当前固件未提供此设置"
-            configFlow == ConfigFlow.RESPONSE -> "正在读取或保存回答模式…"
-            !responseCurrent -> responseModeError ?: "点击读取设备实际回答模式"
-            responseMode == 0 -> "快速对话 · 关闭深度思考\n识别和语音合成仍需网络等待"
-            else -> "深度思考 · 回答可能更慢"
-        }
-        settingsRow("回答模式", responseText, enabled = configMutationReady) {
-            if (responseCurrent) editResponseMode() else { requestResponseModeRead(); render() }
-        }
-        val responseLengthCurrent = responseLengthGeneration == directSession.current().generation
-        val responseLengthText = when {
-            !directSession.current().authenticated -> "连接并验证设备后读取"
-            !directSession.current().snapshotFresh -> "设备状态待刷新，尚未确认"
-            !configSupported -> "当前固件未提供此设置"
-            configFlow == ConfigFlow.RESPONSE_LENGTH -> "正在读取或保存回答长度…"
-            !responseLengthCurrent -> responseLengthError ?: "点击读取设备实际回答长度"
-            responseLengthApplied != responseLength -> "${responseLengthLabel(responseLength ?: 0)}；服务尚未应用，点击重新读取"
-            else -> "${responseLengthLabel(responseLength ?: 0)}；明确的本轮用户要求优先"
-        }
-        settingsRow("回答长度", responseLengthText, enabled = configMutationReady) {
-            if (responseLengthCurrent && responseLengthApplied == responseLength) editResponseLength()
-            else { requestResponseLengthRead(); render() }
-        }
-        val sensitivityCurrent = wakeSensitivityGeneration == directSession.current().generation
-        val sensitivityText = when {
-            !directSession.current().authenticated -> "连接并验证设备后读取"
-            !directSession.current().snapshotFresh -> "设备状态待刷新，尚未确认"
-            !configSupported -> "当前固件未提供此设置"
-            configFlow == ConfigFlow.SENSITIVITY -> "正在读取或保存唤醒门限…"
-            !sensitivityCurrent -> wakeSensitivityError ?: "点击读取设备实际门限"
-            wakeSensitivityPercent != null -> "设备门限 %.2f（越低越易唤醒，也可能误唤醒）".format(wakeSensitivityPercent!! / 100.0)
-            else -> "尚未读取设备门限"
-        }
-        settingsRow("唤醒灵敏度", sensitivityText, enabled = configMutationReady) {
-            if (sensitivityCurrent) editWakeSensitivity()
-            else { requestWakeSensitivityRead(); render() }
-        }
-        if (cloudModelsExpected != null) settingsRow("取消模型保存", "停止当前配置事务；不会重放未完成写入", enabled = true) {
-            failCloudModels("模型配置已取消")
-            directMessage = if (cloudModelsCanceling) "正在取消模型配置" else "模型配置已取消"
-            render()
-        }
-    }
-
-    private fun renderSettingsHome(bound: Boolean) {
-        val page = CompanionPage(this, content)
-        page.pageTitle("设置", "让连接、声音和隐私都由你掌握。")
-        page.settingsRow("我的傻妞", if (bound) "设备归属 · 当前手机已认领" else "尚未添加设备", iconName = "pair") { showConnectionSheet() }
-        page.settingsRow("Wi-Fi", when (directSnapshot?.wifiReady) {
-            true -> "设备已连接网络"; false -> "设备未联网"; else -> "连接设备后读取"
-        }, iconName = "wifi") { openNetworkSettings() }
-        page.settingsRow("云服务与模型", "对话、语音识别、语音合成", iconName = "cloud") { selectTab(TAB_SERVICES); render() }
-        page.settingsRow("回答与唤醒", "音量、回答模式、唤醒灵敏度", iconName = "speaker") { selectTab(TAB_ADVANCED); render() }
-        sectionTitle("隐私与授权")
-        val editable = configAvailable() && settingsEditor == null && factoryReset == null
-        page.settingsRow("隐私与记忆", "管理对话记忆与数据", iconName = "shield") { showPrivacySheet() }
-        page.settingsRow("电脑授权", "配对、查看或撤销电脑的访问权限", enabled = editable, iconName = "phone") { showPcAuthorization() }
-        sectionTitle("使用偏好")
-        page.settingsRow("外观模式", "跟随系统 · " + if (design.dark) "深色" else "浅色", iconName = "moon") {
-            showCompanionSheet("外观模式", "跟随手机系统的浅色或深色模式。") { body, _ ->
-                CompanionPage(this, body).addCard("系统外观", "在手机的显示设置中切换外观，App 将自动跟随。")
-            }
-        }
-        page.settingsRow("帮助与诊断", "连接问题与设备状态", iconName = "help") {
-            showCompanionSheet("连接问题与设备状态", "从手机、网络到云服务，逐项检查。") { body, _ ->
-                val details = CompanionPage(this, body)
-                connectionChain(details, null)
-                details.addCard("蓝牙连接", if (directSession.current().authenticated) "设备身份已验证。" else "请保持设备在附近，先扫码认领，再连接蓝牙。")
-                details.addCard("设备网络", "蓝牙连通不代表设备已联网。网络中断时，可通过蓝牙重新配网，无需重新认领。")
-                details.settingsRow("云服务", "检查服务地址、模型与密钥", iconName = "cloud") { selectTab(TAB_SERVICES); render() }
-                details.settingsRow("声音与回答", "音量、回答模式、唤醒灵敏度", iconName = "speaker") { selectTab(TAB_ADVANCED); render() }
-                if (directMessage.isNotBlank()) details.addMuted(directMessage)
-            }
-        }
-        sectionTitle("设备归属")
-        if (!bound) page.settingsRow("添加傻妞", "扫描设备屏幕，离线安全认领", iconName = "plus") { startProvisioning() }
-        else {
-            page.settingsRow("转交或恢复出厂", "清除用户配置，撤销旧控制凭据",
-                enabled = directSession.current().authenticated && directSession.current().snapshotFresh &&
-                    !directPending && settingsEditor == null && factoryReset == null,
-                danger = true, iconName = "refresh") { confirmFactoryReset() }
-            if (com.shaniu.companion.provision.FactoryResetController.hasPending(this, provisionedDeviceId))
-                page.settingsRow("核对恢复出厂结果", "只查询回执，不重复清理", directSession.current().authenticated && !directPending,
-                    iconName = "info") { queryFactoryReset() }
-        }
-        content.addView(LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(0, dp(32), 0, dp(8))
-            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-            addView(CompanionPresenceView(this@MainActivity).apply { mood = presenceMood(); still = true },
-                LinearLayout.LayoutParams(dp(56), dp(26)))
-        }, LinearLayout.LayoutParams(-1, -2))
-        content.addView(TextView(this).apply {
-            text = "傻妞 App ${BuildConfig.VERSION_NAME} · 设备状态以回读为准"
-            design.style(this, CompanionDesign.Type.CAPTION, MUTED); gravity = Gravity.CENTER
-        })
-    }
-
-    private fun openNetworkSettings() {
-        dismissCompanionSheet()
-        if (configAvailable()) editDeviceSettings()
-        else if (provisionedDeviceId.isBlank()) startProvisioning()
-        else if (!directSession.current().authenticated) scanDirect()
-        else AlertDialog.Builder(this).setTitle("暂时无法修改网络")
-            .setMessage("设备配置能力尚未就绪，或另一项操作正在进行。请稍后再试。")
-            .setPositiveButton("知道了", null).show()
-    }
-
-    private fun showConnectionSheet() {
-        showCompanionSheet("我的傻妞", "手机与设备，设备与网络。") { body, _ ->
-            val page = CompanionPage(this, body)
-            page.presence(presenceMood(), 120)
-            connectionChain(page, null)
-            page.informationRow("手机 ↔ 设备", if (directSession.current().authenticated) "蓝牙已连接 · 身份已验证" else "未建立已验证的蓝牙连接", "bluetooth")
-            page.informationRow("设备 ↔ 网络", when (directSnapshot?.wifiReady) {
-                true -> "设备已联网"; false -> "设备未联网"; else -> "等待设备回读"
-            }, "wifi")
-            page.sectionTitle("连接管理")
-            page.settingsRow("设置网络", "蓝牙负责管理，Wi-Fi 负责云端对话", iconName = "wifi") { openNetworkSettings() }
-            page.settingsRow("核对认领结果", "恢复中断或不确定的认领", !busy && settingsEditor == null, iconName = "qr") {
-                dismissCompanionSheet(); startProvisioning()
-            }
-            if (directConnection != null) page.settingsRow("断开手机连接", "设备仍可独立对话", iconName = "bluetooth") {
-                dismissCompanionSheet(); closeDirect(); render()
-            }
-            if (provisionedDeviceId.isNotBlank()) page.settingsRow("移除本机连接资料", "保留设备网络和服务配置", !busy && !directPending,
-                danger = true, iconName = "close") {
-                dismissCompanionSheet(); confirmClearProvisioning()
-            }
-        }
-    }
-
-    private fun renderAppearance() {
-        val page = CompanionPage(this, content)
-        page.pageTitle("定制", "一点点，变成你熟悉的她。")
-        val moods = listOf(CompanionPresenceView.Mood.AWAKE, CompanionPresenceView.Mood.HAPPY, CompanionPresenceView.Mood.ASLEEP)
-        val names = listOf("日常", "开心", "晚安")
-        // The stage is always dark: it stands for the device glass, not a theme.
-        val stage = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(18), dp(20), dp(16))
-            background = design.shape(design.stage, dp(CompanionDesign.RADIUS_SHEET.toInt()).toFloat())
-        }
-        val caption = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        caption.addView(TextView(this).apply {
-            text = "她的模样"; design.style(this, CompanionDesign.Type.OVERLINE, design.stageMuted)
-        }, LinearLayout.LayoutParams(0, -2, 1f))
-        caption.addView(TextView(this).apply {
-            text = "示意 · 仅预览"; design.style(this, CompanionDesign.Type.CAPTION, design.stageMuted)
-        })
-        stage.addView(caption)
-        val portrait = CompanionPresenceView(this).apply { mood = moods[expressionPreview.coerceIn(0, 2)] }
-        stage.addView(portrait, LinearLayout.LayoutParams(-1, dp(150)).apply { topMargin = dp(8) })
-        stage.addView(TextView(this).apply {
-            text = "薄荷眼睛"; design.style(this, CompanionDesign.Type.TITLE, design.stageInk)
-            gravity = Gravity.CENTER; setPadding(0, dp(12), 0, dp(16))
-        })
-        val expressions = LinearLayout(this)
-        val tiles = mutableListOf<LinearLayout>()
-        fun refreshSelection() {
-            tiles.forEachIndexed { index, tile ->
-                tile.isSelected = index == expressionPreview
-                tile.background = design.outline(if (tile.isSelected) Color.parseColor("#1C1C21") else Color.TRANSPARENT,
-                    if (tile.isSelected) design.eye else design.stageLine, dp(18).toFloat(),
-                    dp(if (tile.isSelected) 2 else 1).toFloat())
-                tile.contentDescription = names[index] + "，仅预览" + if (tile.isSelected) "，当前已选择" else ""
-            }
-        }
-        names.forEachIndexed { index, label ->
-            val tile = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; setPadding(dp(8), dp(10), dp(8), dp(10))
-                isClickable = true; isFocusable = true; minimumHeight = dp(72)
-                addView(CompanionPresenceView(this@MainActivity).apply { mood = moods[index]; still = true },
-                    LinearLayout.LayoutParams(-1, dp(30)))
-                addView(TextView(this@MainActivity).apply {
-                    text = label; design.style(this, CompanionDesign.Type.LABEL, design.stageInk); gravity = Gravity.CENTER
-                    setPadding(0, dp(6), 0, 0)
-                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-                })
-                setOnClickListener { expressionPreview = index; portrait.mood = moods[index]; refreshSelection() }
-            }
-            tiles.add(tile)
-            expressions.addView(tile, LinearLayout.LayoutParams(0, -2, 1f).apply { if (index < 2) marginEnd = dp(8) })
-        }
-        refreshSelection()
-        stage.addView(expressions, LinearLayout.LayoutParams(-1, -2))
-        content.addView(stage, LinearLayout.LayoutParams(-1, -2))
-        val editable = configAvailable() && settingsEditor == null && factoryReset == null
-        page.sectionTitle("表情与外观")
-        page.settingsRow("在设备上限时试用", "指定时长，到期恢复；不更改默认", enabled = editable, iconName = "eye") { showExpressionTrial() }
-        page.settingsRow("默认表情", "刷新设备默认，或将已安装素材设为默认", enabled = editable, iconName = "eye") { showDefaultSelection() }
-        page.settingsRow("资源更新", "眼睛、唤醒模型与应答音", iconName = "download") { updateResources = true; selectTab(TAB_UPDATE); render() }
-        page.sectionTitle("声音与唤醒")
-        val currentWake = wakeStatus.takeIf { wakeStatusGeneration == directSession.current().generation && directSession.current().authenticated }
-        page.settingsRow(currentWake?.active?.let(::wakeModelSummary) ?: "当前唤醒词", if (currentWake == null) "连接后回读设备当前模型" else "设备当前唤醒模型", iconName = "mic") { showWakeSheet() }
-        page.settingsRow("聊天风格", directSnapshot?.persona?.let { directPersonas.getOrNull(it) } ?: "选择你喜欢的陪伴方式",
-            iconName = "spark") { selectTab(TAB_PERSONA); render() }
-        page.settingsRow("回答与唤醒", "回答模式、回答长度与唤醒灵敏度", iconName = "speaker") { selectTab(TAB_ADVANCED); render() }
-        page.settingsRow("唤醒应答", "查看本地应答设置", iconName = "speaker") {
-            showCompanionSheet("唤醒应答", "本地应答与云端语音分开管理。") { body, _ ->
-                CompanionPage(this, body).addCard("设备能力", "当前固件未提供独立的唤醒应答设置，不能在 App 中修改应答语。")
-            }
-        }
-        page.sectionTitle("专注与陪伴")
-        page.settingsRow("专注计时", "由设备计时，手机可随时回读", enabled = editable, iconName = "moon") { showFocusTimer() }
-        page.settingsRow("场景卡片", "专注操作与本地节律内容", enabled = editable, iconName = "link") { showNfcBindings() }
-        page.settingsRow("运行时技能", "查看场景、权限与启用状态", enabled = editable, iconName = "spark") { showAgentData(27) }
-        page.settingsRow("原生功能", "安装经签名验证的设备功能", enabled = editable, iconName = "device") { showAgentData(28) }
-        page.addMuted(if (editable) "实验模型单独标记，不会自动替换稳定默认。"
-            else "连接设备且没有其他操作进行时，才能修改设备上的设置。实验模型不会自动替换稳定默认。")
-    }
-
-    private fun showWakeSheet() {
+    // Public: the UI acceptance probe opens this sheet reflectively.
+    fun showWakeSheet() {
         showCompanionSheet("一句你好，唤醒她", "当前唤醒词以设备回读为准。", done = false) { body, dialog ->
             val page = CompanionPage(this, body)
             val wave = LinearLayout(this).apply { gravity = Gravity.CENTER; importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO }
@@ -2682,66 +2187,8 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun renderResourceOverview() {
-        val page = CompanionPage(this, content)
-        page.settingsRow("眼睛资源", "查看、导入与确认当前外观", iconName = "eye") { selectTab(TAB_RESOURCES); render() }
-        val current = wakeStatus.takeIf { wakeStatusGeneration == directSession.current().generation && directSession.current().authenticated }
-        page.settingsRow("唤醒模型", current?.active?.let(::wakeModelSummary) ?: "设备当前模型待回读", iconName = "mic") { selectTab(TAB_RESOURCES); render() }
-        page.settingsRow("应答音", "当前固件未提供独立资源安装", enabled = false, iconName = "speaker") { }
-        actionButton("导入资源包", true) { selectTab(TAB_RESOURCES); render() }
-        page.notice("先校验兼容性，再安装和确认生效。")
-    }
-
-    private fun renderPrivacyControls(body: LinearLayout) {
-        val page = CompanionPage(this, body)
-        if (directSession.current().authenticated && directSnapshot != null) {
-            val memory = directSnapshot!!
-            val canManage = directSession.current().snapshotFresh && !directPending && memoryResultMessage == null && memory.ready && !memory.busy && memory.memorySupported && !memory.memoryPending && memory.memoryEnabled != null
-            page.settingsRow("对话记忆", when {
-                !memory.memorySupported -> "设备固件尚未提供此功能"
-                memory.memoryPending -> "正在处理，请稍候"
-                memory.memoryFailed -> "上次操作未确认，请核对设备状态"
-                memory.memoryEnabled == true -> "已开启 · 加密保存近期对话和事实"
-                memory.memoryEnabled == false -> "已关闭 · 不读取或新增保存"
-                else -> "正在读取设备设置"
-            }, enabled = canManage, iconName = "shield", checked = memory.memoryEnabled == true) {
-                val enable = memory.memoryEnabled != true
-                confirm(if (enable) "开启跨重启记忆" else "关闭跨重启记忆",
-                    if (enable) "允许设备加密保存最近三轮对话及明确表达的称呼、偏好和近期话题，并在下次启动后继续使用。你可以查看、纠正或删除事实。" else "停止读取和保存跨重启记忆。已保存的内容会保留，可通过下方入口删除。") {
-                    memoryResultMessage = if (enable) "跨重启记忆已开启" else "跨重启记忆已关闭"
-                    memoryDesiredEnabled = enable
-                    memoryRequestAccepted = false
-                    if (!directRequest(DeviceControlProtocol.Command.MEMORY_SET, if (enable) 1 else 0)) {
-                        memoryResultMessage = null; memoryDesiredEnabled = null
-                    }
-                }
-            }
-            page.settingsRow("查看与编辑事实", "称呼、偏好与近期话题", enabled = canManage && memory.memoryEnabled == true && configAvailable()) { showAgentData(26) }
-            page.settingsRow("删除已保存的记忆", "清除本地记忆和近期上下文，并关闭跨重启记忆", enabled = canManage) {
-                confirm("删除设备记忆", "此操作无法撤销：设备将使旧的加密记忆失效，清空近期上下文，并关闭跨重启记忆。云端服务保留的记录不在此范围内。") {
-                    memoryResultMessage = "设备记忆已删除，跨重启记忆已关闭"
-                    memoryDesiredEnabled = false
-                    memoryRequestAccepted = false
-                    if (!directRequest(DeviceControlProtocol.Command.MEMORY_DELETE)) {
-                        memoryResultMessage = null; memoryDesiredEnabled = null
-                    }
-                }
-            }
-            page.settingsRow("清空近期对话", if (directSnapshot?.busy == true)
-                "请等待当前对话结束" else "让下一次聊天从新的话题开始",
-                enabled = directSession.current().snapshotFresh && !directPending && directSnapshot?.ready == true && directSnapshot?.busy == false) {
-                confirm("清空近期对话", "清除设备用于继续聊天的近期上下文。云端服务可能保留的记录不在此清除范围内，人物与配网设置会保留。") {
-                    directRequest(DeviceControlProtocol.Command.CLEAR_HISTORY)
-                }
-            }
-        } else if (provisionedDeviceId.isNotBlank()) page.primaryButton("连接设备以管理记忆", !directConnecting) { dismissCompanionSheet(); scanDirect() }
-        else page.primaryButton("先添加我的傻妞", !busy) { dismissCompanionSheet(); startProvisioning() }
-
-        page.sectionTitle("数据如何使用")
-        page.notice("默认仅保留本次开机的近期上下文。开启记忆后，设备加密保存最近三轮对话和事实，并在对话时发送给你配置的云服务。云端保留的记录需在对应服务中管理。服务密钥不提供明文回读。")
-    }
-
-    private fun showPrivacySheet() {
+    // Public: the UI acceptance probe opens this sheet reflectively.
+    fun showPrivacySheet() {
         showCompanionSheet("隐私与记忆", "有用的陪伴，也应有清楚的边界。") { body, _ ->
             val controls = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
             body.addView(controls)
@@ -2757,7 +2204,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun showDefaultSelection() {
+    fun showDefaultSelection() {
         if (!configAvailable() || settingsEditor != null || factoryReset != null) return
         showCompanionSheet("默认表情", "把喜欢的模样，留作日常陪伴。", done = false, onClosed = {
             defaultEditor?.close(); defaultEditor = null
@@ -2799,7 +2246,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun showExpressionTrial() {
+    fun showExpressionTrial() {
         if (!configAvailable() || settingsEditor != null || factoryReset != null) return
         showCompanionSheet("限时表情试用", "让她换个表情，陪你一小会儿。", onClosed = {
             trialEditor?.close(); trialEditor = null
@@ -2886,7 +2333,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun showFocusTimer() {
+    fun showFocusTimer() {
         if (!configAvailable() || settingsEditor != null || factoryReset != null) return
         showCompanionSheet("专注计时", "把这一段时间，留给眼前的事。", onClosed = {
             focusEditor?.close(); focusEditor = null
@@ -2934,7 +2381,71 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun showAgentData(kind: Int) {
+    internal fun showPcApproval() {
+        if (!configAvailable() || settingsEditor != null || factoryReset != null) return
+        showCompanionSheet("电脑审批", "傻妞眼睛出现“!”时，在这里核对完整操作。", onClosed = {
+            approvalEditor?.close(); approvalEditor = null
+        }) { body, dialog ->
+            val controls = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            body.addView(controls)
+            fun detail(label: String, value: String) {
+                controls.addView(TextView(this).apply {
+                    text = label; textSize = 12f; setTextColor(MUTED); setPadding(0, dp(12), 0, dp(4))
+                })
+                controls.addView(TextView(this).apply {
+                    text = value.ifEmpty { "（未提供）" }; textSize = 15f; setTextColor(design.ink)
+                    typeface = android.graphics.Typeface.MONOSPACE; setTextIsSelectable(true)
+                    setPadding(dp(14), dp(12), dp(14), dp(12))
+                    background = design.shape(design.selected, dp(14).toFloat())
+                }, LinearLayout.LayoutParams(-1, -2))
+            }
+            var shown = ""
+            approvalEditor = com.shaniu.companion.provision.PcApprovalController(directSession) { state ->
+                // Polling re-reads every 2 s; redraw only when what the owner
+                // is reading changes (remaining time in 10 s steps).
+                val signature = listOf(state.busy, state.message, state.noRequest,
+                    state.request?.requestId?.joinToString("") { "%02x".format(it.toInt() and 255) },
+                    state.request?.state, state.request?.remainingMs?.div(10000)).toString()
+                if (signature == shown) return@PcApprovalController
+                shown = signature
+                controls.removeAllViews()
+                val page = CompanionPage(this, controls)
+                page.notice(state.message)
+                val value = state.request
+                val ready = !state.busy && directSession.current().authenticated
+                if (value != null) {
+                    detail("请求方", value.agent)
+                    detail("目标", value.target)
+                    detail("完整操作（逐字显示）", value.operation)
+                    val fingerprint = value.digest.take(4).joinToString("") { "%02x".format(it.toInt() and 255) }
+                    detail("请求指纹（与电脑终端核对）", fingerprint +
+                        if (value.state == com.shaniu.companion.provision.PcApprovalController.PENDING)
+                            " · 剩余约 ${value.remainingMs / 1000} 秒" else "")
+                    val pending = value.state == com.shaniu.companion.provision.PcApprovalController.PENDING
+                    page.primaryButton("批准此操作", ready && pending) {
+                        confirm("批准电脑操作", "${value.agent} 将执行：\n\n${value.operation}\n\n目标：${value.target.ifEmpty { "（未提供）" }}") {
+                            approvalEditor?.decide(true)
+                        }
+                    }
+                    page.primaryButton("拒绝", ready && pending) { approvalEditor?.decide(false) }
+                }
+                page.primaryButton("重新读取", ready) { approvalEditor?.refresh() }
+                page.notice("只有本页显示的这份完整内容会被批准；电脑若修改内容或更换请求，设备会拒绝此决定。超时或关闭电脑端视为拒绝。")
+            }
+            // Poll while this sheet is open and idle so a new request appears
+            // without extra taps; a decision is never sent automatically.
+            val poll = object : Runnable {
+                override fun run() {
+                    if (!dialog.isShowing || approvalEditor == null) return
+                    approvalEditor?.refresh()
+                    mainHandler.postDelayed(this, 2000)
+                }
+            }
+            mainHandler.post(poll)
+        }
+    }
+
+    internal fun showAgentData(kind: Int) {
         if (!configAvailable() || settingsEditor != null || factoryReset != null) return
         val facts = kind == 26
         val native = kind == 28
@@ -3040,9 +2551,20 @@ class MainActivity : Activity() {
     private fun renderNativeFeatures(page: CompanionPage, document: com.google.gson.JsonObject, ready: Boolean) {
         val running = document.get("running")?.asString.orEmpty()
         page.notice(if (running.isEmpty()) "当前没有运行中的原生功能。" else "正在运行：$running")
+        val lastApp = document.get("last_app")?.asString.orEmpty()
+        val lastValue = document.get("last_value")?.asInt ?: 0
+        val lastLabels = document.getAsJsonArray("items").map { it.asJsonObject }
+            .firstOrNull { it["id"].asString == lastApp }?.getAsJsonArray("results")
+        if (running.isEmpty() && (document.get("last_result")?.asInt ?: 0) == 0 &&
+            lastLabels != null && lastValue in 1..lastLabels.size()) {
+            page.notice("上次结果（$lastApp）：${lastLabels[lastValue - 1].asString}")
+        }
         when (document.get("last_result")?.asInt ?: 0) {
             -125 -> page.notice("上次运行已被设备的优先任务中止。")
             -16 -> page.notice("设备显示或其他资源忙，上次运行未能完成。")
+            -1 -> page.notice("上次运行请求了未声明的权限，已被设备停止。")
+            -110 -> page.notice("上次运行单步耗时超出预算，已被设备停止。")
+            -34 -> page.notice("上次运行输出了无效的画面或反馈请求，已被设备停止。")
             0 -> Unit
             else -> page.notice("上次运行失败。请确认功能包与当前固件兼容，再重新启动。")
         }
@@ -3052,7 +2574,14 @@ class MainActivity : Activity() {
             val name = item["name"].asString
             val version = item["version"].asLong
             val description = item["description"].asString
-            page.settingsRow(name, "$description\n版本 $version · 显示权限", ready && (running.isEmpty() || running == id)) {
+            val permissions = item.getAsJsonArray("permissions")?.map { it.asString } ?: listOf("display")
+            val faults = item.get("faults")?.asInt ?: 0
+            val blocked = item.get("blocked")?.asBoolean ?: false
+            val health = if (blocked) "\n本次开机已连续异常 $faults 次，已暂停；重启设备或安装新版本后恢复。"
+                else if (faults > 0) "\n本次开机异常 $faults 次" else ""
+            page.settingsRow(name, "$description\n版本 $version · " +
+                com.shaniu.companion.provision.NativeFeatureStore.permissionLabels(permissions) + health,
+                ready && (running.isEmpty() || running == id) && (!blocked || running == id)) {
                 if (running == id) {
                     confirm("停止$name", "停止正在设备上运行的功能？") { nativeOperation("stop", id) }
                 } else {
@@ -3062,6 +2591,18 @@ class MainActivity : Activity() {
             page.settingsRow("卸载$name", "从设备删除此功能", ready && running.isEmpty()) {
                 confirm("卸载$name", "卸载后需要重新导入功能包才能恢复。") { nativeOperation("uninstall", id) }
             }
+        }
+        document.getAsJsonArray("schedule")?.takeIf { it.size() > 0 }?.let { schedule ->
+            val clock = document.get("clock_valid")?.asBoolean ?: false
+            page.notice("定时启动（可用语音设置或取消）" + (if (clock) "" else "\n设备时间未同步，定时暂不生效。") + "\n" +
+                schedule.joinToString("\n") { element ->
+                    val entry = element.asJsonObject
+                    val minute = entry["minute"].asInt
+                    val id = entry["id"].asString.ifEmpty { "（已卸载的功能）" }
+                    val last = when (entry["last_result"].asInt) { 1 -> "尚未到时"; 0 -> "已启动"; else -> "上次已跳过" }
+                    "%02d:%02d %s %s · %s".format(minute / 60, minute % 60,
+                        com.shaniu.companion.provision.NativeFeatureStore.repeatLabel(entry["days"].asInt), id, last)
+                })
         }
         val fingerprint = document.get("trusted_key_sha256")?.asString.orEmpty()
         val publisher = document.get("publisher_key_sha256")?.asString.orEmpty()
@@ -3119,7 +2660,8 @@ class MainActivity : Activity() {
                 val request = com.shaniu.companion.provision.NativeFeatureStore.installRequest(
                     com.shaniu.companion.provision.NativeFeatureStore.fetchPackage(entry.packageUrl, entry.sha256), entry)
                 mainHandler.post {
-                    if (agentEditor === editor && generation == directSession.current().generation) confirm("安装${entry.name}", "将下载的已校验功能包发送给设备验签并安装。") { editor.apply(request) }
+                    if (agentEditor === editor && generation == directSession.current().generation) confirm("安装${entry.name}", "将下载的已校验功能包发送给设备验签并安装。\n申请权限：" +
+                        com.shaniu.companion.provision.NativeFeatureStore.permissionLabels(com.shaniu.companion.provision.NativeFeatureStore.requestPermissions(request))) { editor.apply(request) }
                 }
             } catch (_: Exception) { mainHandler.post { lastAction = "功能包下载或格式校验失败"; render() } }
         }
@@ -3145,7 +2687,8 @@ class MainActivity : Activity() {
                     }
                     val detail = if (publicKey) (if (native) "公钥必须匹配固件指定的第一方发布者，且设备上没有已安装的原生功能。\nSHA-256：\n" else "仅信任你确认的发布者。更换公钥将清除已安装的外部技能。\nSHA-256：\n") +
                         MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it.toInt() and 255) }
-                    else if (native) "设备将验证原生包签名、ELF 完整性与显示权限。安装或更新后默认为停止状态。" else "设备将验证签名和权限范围。安装成功后默认停用，需单独启用。"
+                    else if (native) "设备将验证原生包签名、ELF 完整性与声明的权限。安装或更新后默认为停止状态。\n申请权限：" +
+                        com.shaniu.companion.provision.NativeFeatureStore.permissionLabels(com.shaniu.companion.provision.NativeFeatureStore.requestPermissions(request)) else "设备将验证签名和权限范围。安装成功后默认停用，需单独启用。"
                     confirm(if (publicKey) if (native) "信任原生功能发布者" else "信任技能发布者" else if (native) "安装原生功能" else "安装技能", detail) {
                         if (agentEditor === editor && generation == directSession.current().generation && !editor.apply(request)) {
                             lastAction = "设备忙，请重新读取技能状态"; render()
@@ -3179,7 +2722,7 @@ class MainActivity : Activity() {
         return bytes.copyOf(count)
     }
 
-    private fun showPcAuthorization() {
+    fun showPcAuthorization() {
         if (!configAvailable() || settingsEditor != null || factoryReset != null) return
         val device = provisionedDeviceId
         if (pcReceiptDevice != device) { pcReceiptDevice = device; pcReceiptTransaction = null; pcReceiptTarget = null }
@@ -3356,7 +2899,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun showNfcBindings() {
+    fun showNfcBindings() {
         if (!configAvailable() || settingsEditor != null || factoryReset != null) return
         showCompanionSheet("场景卡片", "为兼容卡片选择一个明确操作。", done = false, onClosed = {
             nfcDraftCapture?.invoke(); nfcDraftCapture = null
@@ -3395,7 +2938,21 @@ class MainActivity : Activity() {
                 })
             }
             body.addView(minutes, LinearLayout.LayoutParams(-1, -2))
-            val sceneLabels = listOf("开始专注", "暂停专注", "继续专注", "取消专注", "播放四拍节律（4 秒）", "取消本地内容")
+            page.sectionTitle("原生功能")
+            val nativeApp = EditText(this).apply {
+                contentDescription = "卡片启动的原生功能 ID"; hint = "功能 ID，例如 shake"
+                textSize = 16f; minimumHeight = dp(56); setTextColor(design.ink)
+                inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            }
+            val nativeSeconds = EditText(this).apply {
+                contentDescription = "原生功能运行秒数"; hint = "运行秒数 1–3600，留空为功能默认"
+                textSize = 16f; minimumHeight = dp(56); setTextColor(design.ink)
+                inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            }
+            val nativeTitle = body.getChildAt(body.childCount - 1)
+            body.addView(nativeApp, LinearLayout.LayoutParams(-1, -2))
+            body.addView(nativeSeconds, LinearLayout.LayoutParams(-1, -2))
+            val sceneLabels = listOf("开始专注", "暂停专注", "继续专注", "取消专注", "播放四拍节律（4 秒）", "取消本地内容", "启动原生功能")
             val actions = android.widget.Spinner(this).apply {
                 contentDescription = "卡片场景操作"
                 adapter = android.widget.ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, sceneLabels)
@@ -3404,13 +2961,15 @@ class MainActivity : Activity() {
                     override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
                         nfcActionDraft = position
                         minutes.visibility = if (position == 0) View.VISIBLE else View.GONE
+                        val native = if (position == 6) View.VISIBLE else View.GONE
+                        nativeTitle.visibility = native; nativeApp.visibility = native; nativeSeconds.visibility = native
                     }
                     override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
                 }
                 minimumHeight = dp(48)
             }
             body.addView(actions, LinearLayout.LayoutParams(-1, -2))
-            nfcDraftCapture = { nfcMinutesDraft = minutes.text.toString(); nfcSlotDraft = slots.selectedItemPosition.coerceIn(0, 7); nfcActionDraft = actions.selectedItemPosition.coerceIn(0, 5) }
+            nfcDraftCapture = { nfcMinutesDraft = minutes.text.toString(); nfcSlotDraft = slots.selectedItemPosition.coerceIn(0, 7); nfcActionDraft = actions.selectedItemPosition.coerceIn(0, 6) }
             val saved = TextView(this).apply { textSize = 14f; setTextColor(design.ink); setPadding(0, dp(12), 0, dp(8)) }
             body.addView(saved)
             val sceneStatus = TextView(this).apply {
@@ -3430,11 +2989,22 @@ class MainActivity : Activity() {
             val enroll = button("登记当前卡片", true) {
                 val sceneAction = actions.selectedItemPosition + 1
                 val count = minutes.text.toString().toLongOrNull()
+                val appId = nativeApp.text.toString().trim()
+                val seconds = nativeSeconds.text.toString().let { if (it.isBlank()) 0L else it.toLongOrNull() ?: -1L }
                 if (sceneAction == 1 && (count == null || count <= 0 || count > Long.MAX_VALUE / 60000)) {
                     minutes.error = "请输入有效分钟数"; minutes.requestFocus()
+                } else if (sceneAction == 7 && !appId.matches(Regex("[a-z0-9][a-z0-9-]{0,30}"))) {
+                    nativeApp.error = "请输入设备上已安装功能的 ID"; nativeApp.requestFocus()
+                } else if (sceneAction == 7 && seconds !in 0..3600) {
+                    nativeSeconds.error = "请输入 1–3600 秒，或留空"; nativeSeconds.requestFocus()
                 } else {
-                    minutes.error = null
-                    val argument = when (sceneAction) { 1 -> count!! * 60000; 5 -> 1L; else -> 0L }
+                    minutes.error = null; nativeApp.error = null; nativeSeconds.error = null
+                    val argument = when (sceneAction) {
+                        1 -> count!! * 60000
+                        5 -> 1L
+                        7 -> com.shaniu.companion.provision.NfcBindingController.nativeArgument(appId, seconds)
+                        else -> 0L
+                    }
                     nfcEditor?.act(2, slots.selectedItemPosition, argument, sceneAction)
                 }
             }
@@ -3463,6 +3033,8 @@ class MainActivity : Activity() {
                     "卡片 ${index + 1}：" + when (val action = value.actions[index]) {
                         0 -> "未登记"
                         1 -> "开始专注 ${duration / 1000} 秒"
+                        7 -> "启动原生功能 #%08x".format(duration ushr 32) +
+                            ((duration and 0xffff_ffffL).let { if (it == 0L) "（默认时长）" else "（$it 秒）" })
                         else -> sceneLabels[action - 1]
                     }
                 }.joinToString("\n") else "已保存卡片：尚未确认，请加载并回读"
@@ -3480,186 +3052,6 @@ class MainActivity : Activity() {
             }
             nfcEditor?.refresh()
         }
-    }
-
-    private fun dismissCompanionSheet() {
-        val previous = companionSheet
-        companionSheet = null; refreshCompanionSheet = null
-        previous?.dismiss()
-    }
-
-    private fun showCompanionSheet(title: String, subtitle: String, done: Boolean = true,
-                                   onClosed: () -> Unit = {},
-                                   populate: (LinearLayout, android.app.Dialog) -> Unit) {
-        dismissCompanionSheet()
-        val dialog = android.app.Dialog(this)
-        companionSheet = dialog
-        val body = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(10), dp(24), dp(24))
-        }
-        CompanionPage(this, body).sheetHeader(title, subtitle) { dialog.dismiss() }
-        populate(body, dialog)
-        if (done) CompanionPage(this, body).primaryButton("完成", true) { dialog.dismiss() }
-        val scroll = object : ScrollView(this) {
-            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-                val screenLimit = dp((resources.configuration.screenHeightDp - 48).coerceAtLeast(160))
-                // 键盘缩小窗口时遵守父布局约束，不能继续按全屏高度测量。
-                val available = if (View.MeasureSpec.getMode(heightMeasureSpec) == View.MeasureSpec.UNSPECIFIED)
-                    screenLimit else minOf(screenLimit, View.MeasureSpec.getSize(heightMeasureSpec))
-                super.onMeasure(widthMeasureSpec, View.MeasureSpec.makeMeasureSpec(available, View.MeasureSpec.AT_MOST))
-            }
-        }.apply { isFillViewport = false; addView(body); clipToOutline = true }
-        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
-        dialog.setContentView(scroll)
-        dialog.window?.apply {
-            val radius = dp(CompanionDesign.RADIUS_SHEET.toInt()).toFloat()
-            setBackgroundDrawable(android.graphics.drawable.GradientDrawable().apply {
-                setColor(design.background)
-                cornerRadii = floatArrayOf(radius, radius, radius, radius, 0f, 0f, 0f, 0f)
-            })
-            setGravity(Gravity.BOTTOM); addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-            setDimAmount(if (design.dark) 0.6f else 0.36f)
-            setWindowAnimations(R.style.ShaniuSheetAnimation)
-            setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
-        }
-        dialog.setOnDismissListener {
-            onClosed()
-            if (companionSheet === dialog) { companionSheet = null; refreshCompanionSheet = null }
-        }
-        dialog.show()
-        dialog.window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-        var visibleSignature = 0
-        scroll.viewTreeObserver.addOnGlobalLayoutListener {
-            if (dialog.isShowing) {
-                val visible = android.graphics.Rect()
-                dialog.window?.decorView?.getWindowVisibleDisplayFrame(visible)
-                val signature = 31 * visible.height() + visible.width()
-                if (visible.height() > 0 && signature != visibleSignature) {
-                    visibleSignature = signature
-                    // Floating windows may keep their full height with the IME open.
-                    // Use the display frame, never the already constrained decor size.
-                    dialog.window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT,
-                        minOf(body.measuredHeight, visible.height()))
-                }
-            }
-        }
-    }
-
-    private fun renderDirectDiscoveryCard() {
-        val appearing = directDiscoveryVisible && discoveryHost.visibility != View.VISIBLE
-        discoveryHost.removeAllViews()
-        discoveryHost.visibility = if (directDiscoveryVisible) View.VISIBLE else View.GONE
-        pageRoot.importantForAccessibility = if (directDiscoveryVisible)
-            View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS else View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
-        if (!directDiscoveryVisible) return
-        discoveryHost.setBackgroundColor(design.scrim)
-        discoveryHost.isClickable = true
-        discoveryHost.setOnClickListener { dismissDirectDiscovery() }
-        val sheet = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL; isClickable = true
-        }
-        val scroll = object : ScrollView(this) {
-            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-                val maximum = (discoveryHost.height.takeIf { it > 0 } ?: dp(resources.configuration.screenHeightDp)) - dp(60)
-                super.onMeasure(widthMeasureSpec, View.MeasureSpec.makeMeasureSpec(maximum.coerceAtLeast(dp(160)), View.MeasureSpec.AT_MOST))
-            }
-        }.apply {
-            addView(sheet); isFillViewport = false
-            val radius = dp(CompanionDesign.RADIUS_SHEET.toInt()).toFloat()
-            background = android.graphics.drawable.GradientDrawable().apply {
-                setColor(design.surface); cornerRadii = floatArrayOf(radius, radius, radius, radius, 0f, 0f, 0f, 0f)
-            }
-            clipToOutline = true
-        }
-        discoveryHost.addView(scroll, android.widget.FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
-        val state = directSession.current()
-        val title = when {
-            state.connection == DeviceControlSession.Connection.CONNECTING -> "正在连接并验证设备"
-            state.connection == DeviceControlSession.Connection.RECONNECT_WAIT -> "正在重新连接设备"
-            state.connection == DeviceControlSession.Connection.CONNECTED && state.authenticated -> "已验证连接傻妞"
-            directScanner != null -> "正在查找附近设备"
-            directScanFinished -> "附近设备查找结束"
-            else -> "设备连接状态"
-        }
-        val summary = when {
-            state.connection != DeviceControlSession.Connection.DISCONNECTED -> directStatus()
-            directScanner != null && directCandidates.isEmpty() -> "仅显示同一服务的蓝牙广播；设备身份将在选择后验证。"
-            directScanner != null -> "发现 ${directCandidates.size} 台候选设备；请选择一台进行身份验证。"
-            directCandidates.isEmpty() -> directMessage
-            else -> "请选择一台候选设备进行身份验证。"
-        }
-        CompanionPage(this, sheet).addDiscoveryCard(
-            title = title,
-            summary = summary,
-            candidates = directCandidates.map { candidate ->
-                val suffix = candidate.device.address.takeLast(5)
-                CompanionPage.DiscoveryCandidate(
-                    title = "${candidate.name} · $suffix",
-                    detail = if (provisionedDeviceId.isBlank()) "未验证设备 · 选择后扫描设备屏幕认领码" else "未验证设备 · 选择后核对认领身份",
-                    contentDescription = "${candidate.name}，未验证设备，身份以安全认领验证为准",
-                    enabled = !directDiscoveryDismissed,
-                    select = { connectDirect(candidate.device, candidate.epoch) },
-                )
-            },
-            dismissLabel = if (directScanner != null) "停止查找" else "收起",
-            dismissDescription = if (directScanner != null)
-                "停止查找附近设备，不会自动重新扫描" else "收起设备发现状态卡",
-            dismiss = ::dismissDirectDiscovery,
-            mood = when {
-                state.authenticated -> CompanionPresenceView.Mood.AWAKE
-                directScanner != null || state.connection == DeviceControlSession.Connection.CONNECTING ||
-                    state.connection == DeviceControlSession.Connection.RECONNECT_WAIT -> CompanionPresenceView.Mood.SEARCHING
-                else -> CompanionPresenceView.Mood.OFFLINE
-            },
-        )
-        if (appearing) {
-            // Slide in once when the overlay opens; refreshes re-render in place.
-            discoveryHost.alpha = 0f
-            discoveryHost.animate().alpha(1f).setDuration(180).start()
-            scroll.translationY = dp(360).toFloat()
-            scroll.animate().translationY(0f).setDuration(320).setInterpolator(CompanionDesign.emphasized()).start()
-        }
-    }
-
-    private fun renderCustomizationResources() {
-        sectionTitle("声音与显示资源")
-        val configMutationReady = configAvailable() && pendingWakeImport == null
-        settingsRow("导入唤醒词模型", wakeMessage ?: "从本地导入已训练的唤醒词模型",
-            enabled = configMutationReady) {
-            startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                type = "application/octet-stream"; addCategory(Intent.CATEGORY_OPENABLE)
-            }, WAKE_MODEL_REQUEST)
-        }
-        val bundled = listOf("nihao_openvela", "nihao_bingbing", "nihao_shaniu")
-        val wakeNames = listOf("你好，openvela", "你好冰冰", "你好傻妞")
-        bundled.forEachIndexed { index, label ->
-            val available = try { assets.open("wake-models/$label.wkm").use(WakeModelPackage::read) != null } catch (_: Exception) { false }
-            settingsRow(wakeNames[index], if (available) "切换到此唤醒词" else "此版本暂未提供", enabled = available && configMutationReady) { selectBundledWakeModel(label) }
-        }
-        val currentWake = wakeStatus.takeIf { wakeStatusGeneration == directSession.current().generation }
-        settingsRow("读取当前唤醒词", currentWake?.active?.let(::wakeModelSummary) ?: "从设备读取实际模型", enabled = configMutationReady) { requestWakeStatus() }
-        if (pendingWakeImport != null)
-            settingsRow("取消模型导入", "取消等待；模型尚未发送", enabled = true) {
-                cancelPendingWakeImport("已取消导入，尚未向设备发送模型"); render()
-            }
-        if (configFlow == ConfigFlow.WAKE && wakePayload != null && !wakeApplied)
-            settingsRow("取消模型传输", "保留设备当前模型", enabled = !wakeCanceling) {
-                failWake("模型传输已取消，保留原模型"); render()
-            }
-        settingsRow("导入眼睛素材包", eyeMessage ?: "从本地导入 .bkep 眼睛素材包",
-            enabled = !eyeImportPending && configFlow == ConfigFlow.NONE) {
-            startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                type = "application/octet-stream"; addCategory(Intent.CATEGORY_OPENABLE)
-            }, EYE_PACK_REQUEST)
-        }
-        val selectedEyes = selectedEyePack
-        settingsRow("通过 Wi-Fi 安装所选眼睛", selectedEyes?.let { "${it.packId} · 版本 ${it.revision}" }
-            ?: "请先导入眼睛素材包", enabled = selectedEyes != null && !eyeImportPending && configAvailable()) {
-            startEyeInstall()
-        }
-        settingsRow("读取当前眼睛", "读取设备实际安装状态", enabled = configAvailable()) { readCurrentEyes() }
-        settingsRow("恢复上一唤醒词模型", currentWake?.previous?.let { "恢复为 ${wakeModelSummary(it)}" }
-            ?: "恢复前先读取设备保存的上一模型", enabled = configMutationReady) { restoreWakeModel() }
     }
 
     private fun restoreEyeDraft(saved: Bundle?) {
@@ -3728,7 +3120,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun startEyeInstall() {
+    internal fun startEyeInstall() {
         val file = selectedEyeFile ?: return
         selectedEyePack ?: return
         val assetSha256 = selectedEyeAssetSha256 ?: return
@@ -3778,7 +3170,7 @@ class MainActivity : Activity() {
             finishEyeInstall("无法读取设备当前眼睛状态")
     }
 
-    private fun readCurrentEyes() {
+    internal fun readCurrentEyes() {
         if (!configAvailable()) return
         configFlow = ConfigFlow.EYES; eyeReadingOnly = true; eyeCanceling = false; eyeApplySent = false
         eyeOffset = 0; eyeRead = ByteArray(0)
@@ -3938,334 +3330,7 @@ class MainActivity : Activity() {
         render()
     }
 
-    private fun statusStrip() {
-        val state = store?.state
-        val transport = when {
-            busy -> "连接中"
-            runtime == null -> "未连接"
-            eventConnected -> "HTTPS + WSS 在线"
-            else -> "HTTPS 在线 / WSS 断开"
-        }
-        addCard(
-            "连接状态",
-            "$transport\n设备：${state?.deviceId ?: draftDeviceId.ifBlank { "未配置" }}" +
-                "\n最近操作：$lastAction",
-        )
-    }
-
-    private fun renderOverview() {
-        content.addView(CompanionPresenceView(this).apply {
-            mood = when { busy -> CompanionPresenceView.Mood.SEARCHING; runtime == null -> CompanionPresenceView.Mood.OFFLINE
-                else -> CompanionPresenceView.Mood.AWAKE }
-        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(200)).apply { bottomMargin = dp(24) })
-        val hasBinding = draftDeviceId.isNotBlank() && !controlCredentialRequired
-        val needsControlBinding = expectedControlDeviceId().isNotBlank() && !hasBinding
-        sectionTitle(if (runtime == null && !hasBinding && !needsControlBinding) "让陪伴，从这里开始" else "今天，也在你身边")
-        addMuted(if (busy) "正在连接你的傻妞，稍等一下。"
-                 else if (runtime == null && needsControlBinding) "傻妞已保存网络设置；绑定 App 控制凭据后即可连接。"
-                 else if (runtime == null && hasBinding) "暂时没有连上，请确认傻妞和手机都已联网。"
-                 else if (runtime == null) "连接你的傻妞，一起说说今天的事。"
-                 else if (!eventConnected) "正在恢复连接，稍等一下。"
-                 else "已连接。可以查看设备状态、调节音量或停止当前对话。")
-        val primaryAction = when {
-            runtime != null -> "对话与音量"
-            needsControlBinding -> "绑定 App 控制"
-            hasBinding -> "重新连接"
-            else -> "添加傻妞"
-        }
-        actionButton(primaryAction, !busy) {
-            when {
-                runtime != null -> { selectTab(TAB_PERSONALITY); render() }
-                needsControlBinding -> startConsoleEnrollmentImport()
-                hasBinding -> connect(draftOrigin, draftDeviceId, draftPins, "")
-                else -> startProvisioning()
-            }
-        }
-        if (runtime != null) {
-            actionButton("对话状态") { selectTab(TAB_INTERACTION); render() }
-        } else if (!hasBinding && !needsControlBinding) {
-            actionButton("连接已有设备", !busy) { startConsoleEnrollmentImport() }
-        }
-    }
-
-    private fun renderSettings() {
-        if (developerPanel) { renderDeveloperConnection(); return }
-        sectionTitle("我的傻妞")
-        val expectedDevice = expectedControlDeviceId()
-        val hasBinding = draftDeviceId.isNotBlank() && !controlCredentialRequired
-        addCard("设备", when {
-            runtime != null -> "已连接"
-            expectedDevice.isNotBlank() && !hasBinding -> "网络已设置，等待绑定 App 控制"
-            else -> "尚未连接"
-        })
-        if (expectedDevice.isNotBlank()) {
-            actionButton(if (hasBinding) "更换 App 控制凭据" else "绑定 App 控制凭据", !busy) {
-                startConsoleEnrollmentImport()
-            }
-        } else {
-            actionButton("连接已有设备", !busy) { startConsoleEnrollmentImport() }
-        }
-        actionButton("添加设备") {
-            startProvisioning()
-        }
-        actionButton("隐私与权限") { selectTab(TAB_PRIVACY); render() }
-        actionButton("设备更新") { selectTab(TAB_UPDATE); render() }
-        if (expectedDevice.isNotBlank() || draftDeviceId.isNotBlank()) {
-            actionButton("清除本机连接资料", !busy) { confirmClearProvisioning() }
-        }
-        if (BuildConfig.LEGACY_SERVICE_DEMO &&
-            (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
-            sectionTitle("开发工具")
-            actionButton("开发者联调") { developerPanel = true; render() }
-        }
-    }
-
-    private fun renderDeveloperConnection() {
-        actionButton("认领设备与 Wi-Fi 配网") {
-            startProvisioning(developerMode = true)
-        }
-        sectionTitle("连接配置")
-        val originInput = editField("HTTPS Gateway，例如 https://gateway.example.com", draftOrigin)
-        val deviceInput = editField("设备 ID", draftDeviceId)
-        val pinsInput = editField(
-            "可选 SPKI pin，每行一个 sha256/...",
-            draftPins,
-            multiline = true,
-        )
-        val tokenInput = editField(
-            "访问令牌（留空则使用已保存令牌）",
-            "",
-            secret = true,
-        )
-        actionButton(if (runtime == null) "保存并连接" else "重新连接", enabled = !busy) {
-            draftOrigin = originInput.text.toString().trim()
-            draftDeviceId = deviceInput.text.toString().trim()
-            draftPins = pinsInput.text.toString().trim()
-            val suppliedToken = tokenInput.text.toString()
-            tokenInput.setText("")
-            connect(draftOrigin, draftDeviceId, draftPins, suppliedToken)
-        }
-        actionButton("刷新设备快照", enabled = runtime != null && !busy) { refreshSnapshot() }
-        actionButton("断开", enabled = runtime != null || busy) {
-            autoReconnectAllowed = false
-            closeRuntime(clearReportedState = true)
-            lastAction = "已断开；本机配置和加密令牌仍保留"
-            render()
-        }
-        actionButton("清除本机绑定资料", enabled = !busy) {
-            confirmClearProvisioning()
-        }
-
-        sectionTitle("设备报告")
-        val state = store?.state
-        if (state == null) {
-            addMuted("连接成功后显示 Gateway 返回的设备快照。")
-        } else {
-            addCard(
-                "${state.presence} · ${state.turn}",
-                "Gateway：${state.gateway}\n" +
-                    "固件：${state.firmwareVersion ?: "未知"}\n" +
-                    "电量：${state.batteryPercent?.let { "$it%" } ?: "未知"}" +
-                    (when (state.charging) {
-                        true -> "（充电中）"
-                        false -> ""
-                        null -> "（充电状态未知）"
-                    }) +
-                        "\n代次/事件：${state.generation}/${state.lastSequence}\n" +
-                        "修订：${state.revision}\n" +
-                        "需全量同步：${if (state.needsSnapshot) "是" else "否"}",
-            )
-        }
-    }
-
-    private fun renderInteraction() {
-        sectionTitle("语音交互")
-        addMuted("在这里查看对话状态，或停止当前对话。")
-        val state = requireReportedState("查看对话状态") ?: return
-        addCard("当前对话", "${turnLabel(state.turn)}\n当前心情：${emotionLabel(state.emotion)}")
-        val cancellable = state.turn == TurnPhase.LISTENING ||
-            state.turn == TurnPhase.THINKING || state.turn == TurnPhase.SPEAKING
-        actionButton("停止当前对话", canMutate() && cancellable) {
-            submitMutation(ConsoleOperation.CANCEL_TURN)
-        }
-    }
-
-    private fun renderPersonality() {
-        sectionTitle("心情与声音")
-        val state = requireReportedState("调整相处方式和声音") ?: return
-        addCard(
-            "当前设置",
-            "声音：${state.volumePercent?.let { "$it%" } ?: "未知"}\n" +
-                "相处方式：${personaLabel(state.personaMode)}\n" +
-                "设备确认后，界面才会显示为已生效。",
-        )
-        val volumeLabel = TextView(this).apply {
-            text = state.volumePercent?.let { getString(R.string.volume_slider_format, it) }
-                ?: "等待设备上报音量"
-            textSize = 16f
-            setTextColor(INK)
-        }
-        content.addView(volumeLabel)
-        content.addView(
-            SeekBar(this).apply {
-                max = 100
-                progress = state.volumePercent ?: 0
-                isEnabled = canMutate() && state.volumePercent != null
-                setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                    override fun onProgressChanged(bar: SeekBar?, value: Int, fromUser: Boolean) {
-                        volumeLabel.text = getString(R.string.volume_slider_format, value)
-                    }
-
-                    override fun onStartTrackingTouch(bar: SeekBar?) = Unit
-
-                    override fun onStopTrackingTouch(bar: SeekBar?) {
-                        submitMutation(
-                            ConsoleOperation.SET_VOLUME,
-                            ConsoleMutationArguments.SetVolume(bar?.progress ?: return),
-                        )
-                    }
-                })
-            },
-            LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-            ),
-        )
-        PersonaMode.values().forEach { mode ->
-            actionButton(
-                if (mode == state.personaMode) "${personaLabel(mode)}（当前）" else personaLabel(mode),
-                canMutate() && mode != state.personaMode,
-            ) {
-                submitMutation(
-                    ConsoleOperation.SET_PERSONA_MODE,
-                    ConsoleMutationArguments.SetPersonaMode(mode),
-                )
-            }
-        }
-    }
-
-    private fun renderPrivacy() {
-        sectionTitle("隐私权限")
-        val state = requireReportedState("管理隐私与权限") ?: return
-        PrivacyCapability.values().forEach { capability ->
-            val current = state.permissions[capability] ?: PermissionState.NOT_GRANTED
-            addCard(capabilityLabel(capability), "当前状态：${permissionStateLabel(current)}")
-            if (capability == PrivacyCapability.LONG_TERM_MEMORY) {
-                renderLongTermMemoryControls(current)
-            }
-        }
-    }
-
-    private fun renderLongTermMemoryControls(state: PermissionState) {
-        when (state) {
-            PermissionState.ALLOWED -> {
-                addMuted("仅在傻妞确认播放完成后保存对话文本。关闭会停止后续保存；清除会删除已保存的对话记忆。")
-                actionButton("关闭长期记忆", canMutate()) {
-                    confirm(
-                        title = "关闭长期记忆",
-                        message = "将停止傻妞后续保存对话记忆，并删除已经保存的对话内容。此操作需要本机确认。",
-                    ) {
-                        submitMutation(
-                            ConsoleOperation.CONFIGURE_PERMISSION,
-                            ConsoleMutationArguments.ConfigurePermission(
-                                PrivacyCapability.LONG_TERM_MEMORY,
-                                PermissionState.DENIED,
-                            ),
-                            locallyConfirmed = true,
-                        )
-                    }
-                }
-                actionButton("清除对话记忆", canMutate()) {
-                    confirm(
-                        title = "清除对话记忆",
-                        message = "将删除傻妞已经保存的对话记忆，但长期记忆仍保持开启。此操作需要本机确认。",
-                    ) {
-                        submitMutation(
-                            ConsoleOperation.DELETE_MEMORY,
-                            ConsoleMutationArguments.DeleteMemory(MemoryDeleteScope.CONVERSATIONS),
-                            locallyConfirmed = true,
-                        )
-                    }
-                }
-            }
-            PermissionState.NOT_GRANTED ->
-                addMuted("长期记忆默认关闭；当前版本需由设备所有者在受控服务配置中明确启用，App 不提供远程开启。")
-            PermissionState.DENIED ->
-                addMuted("长期记忆已关闭并清除；当前 App 不提供重新开启入口。")
-        }
-    }
-
-    private fun renderUpdate() {
-        sectionTitle("固件更新")
-        val state = requireReportedState("查看设备更新") ?: return
-        addCard(
-            updatePhaseLabel(state.update.phase),
-            "当前：${state.firmwareVersion ?: "未知"}\n" +
-                "目标：${state.update.targetVersion ?: if (state.update.phase == UpdatePhase.UNKNOWN) "未知" else "无"}\n" +
-                "进度：${if (state.update.phase == UpdatePhase.UNKNOWN) "未知" else "${state.update.progressPercent}%"}\n" +
-                (state.update.error?.let { "原因：${updateErrorLabel(it)}\n" } ?: "") +
-                "只有设备确认完成，才表示升级成功。",
-        )
-        actionButton("刷新已验证发布列表", canMutate() && state.generation > 0) {
-            fetchReleases()
-        }
-        val catalog = releaseCatalog
-        if (catalog == null) {
-            addMuted("尚未从 Gateway 获取发布清单。")
-            return
-        }
-        if (catalog.releases.isEmpty()) {
-            addMuted("Gateway 当前没有适用于该设备的发布。")
-        }
-        catalog.releases.forEach { release -> renderRelease(release, state) }
-    }
-
-    private fun renderRelease(release: FirmwareRelease, state: CompanionState) {
-        val phaseAllowsStart = state.update.phase in setOf(
-            UpdatePhase.IDLE,
-            UpdatePhase.FAILED,
-            UpdatePhase.ROLLED_BACK,
-        )
-        val sourceMatches = state.firmwareVersion == release.requiredSourceVersion
-        val canStart = canMutate() &&
-            state.turn == TurnPhase.IDLE &&
-            phaseAllowsStart &&
-            sourceMatches
-        addCard(
-            "版本 ${release.targetVersion}",
-            "当前版本要求：${release.requiredSourceVersion}\n" +
-                "发布清单和安装包摘要已由 Gateway 验证。",
-        )
-        addMuted(
-            when {
-                state.update.phase in setOf(
-                    UpdatePhase.AWAITING_LOCAL_CONFIRMATION,
-                    UpdatePhase.DOWNLOADING,
-                    UpdatePhase.VERIFYING,
-                    UpdatePhase.STAGED,
-                    UpdatePhase.REBOOTING,
-                    UpdatePhase.TRIAL,
-                ) -> "已有更新任务进行中；请等待设备上报最终结果。"
-                !sourceMatches -> "设备当前版本与该增量包的来源版本不匹配。"
-                state.turn != TurnPhase.IDLE -> "请等当前对话结束后再开始更新。"
-                else -> "请求只携带已验证发布的摘要；设备会独立下载并校验签名。"
-            },
-        )
-        actionButton("更新到 ${release.targetVersion}", canStart) {
-            confirm(
-                title = "安装固件 ${release.targetVersion}",
-                message = "更新期间傻妞会停止对话并重启。只有设备完成试运行并上报确认后，App 才会显示更新成功。",
-            ) {
-                submitMutation(
-                    ConsoleOperation.REQUEST_FIRMWARE_UPDATE,
-                    ConsoleMutationArguments.FirmwareUpdate(release.manifestSha256),
-                    locallyConfirmed = true,
-                )
-            }
-        }
-    }
-
-    private fun connect(
+    internal fun connect(
         originValue: String,
         deviceId: String,
         pinsValue: String,
@@ -4523,7 +3588,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun refreshSnapshot() {
+    internal fun refreshSnapshot() {
         val active = runtime ?: return
         if (busy) return
         busy = true
@@ -4560,7 +3625,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun fetchReleases() {
+    internal fun fetchReleases() {
         val active = runtime ?: return
         val state = store?.state ?: return
         if (busy || state.generation <= 0) return
@@ -4584,7 +3649,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun submitMutation(
+    internal fun submitMutation(
         operation: ConsoleOperation,
         arguments: ConsoleMutationArguments = ConsoleMutationArguments.None,
         locallyConfirmed: Boolean = false,
@@ -4693,7 +3758,8 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun confirmFactoryReset() {
+    // Public: the UI acceptance probe opens this sheet reflectively.
+    fun confirmFactoryReset() {
         if (provisionedDeviceId.isBlank() || !directSession.current().authenticated || factoryReset != null) return
         if (!directSession.current().snapshotFresh) {
             directMessage = "设备状态已过期，请刷新后再试"
@@ -4735,7 +3801,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun queryFactoryReset() {
+    internal fun queryFactoryReset() {
         if (provisionedDeviceId.isBlank()) return
         if (factoryReset == null) factoryReset = com.shaniu.companion.provision.FactoryResetController(this, directSession, provisionedDeviceId) { state ->
             if (state.message.isNotBlank()) directMessage = state.message
@@ -4752,7 +3818,7 @@ class MainActivity : Activity() {
         render()
     }
 
-    private fun confirmClearProvisioning() {
+    internal fun confirmClearProvisioning() {
         confirm(
             title = "清除本机连接资料",
             message = "将删除这台手机保存的设备连接资料。傻妞上的网络设置和服务凭据不会改变，尚未核对的认领回执会保留。",
@@ -4802,7 +3868,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun closeRuntime(
+    internal fun closeRuntime(
         clearReportedState: Boolean,
         resetReconnectAttempt: Boolean = true,
     ) {
@@ -4833,10 +3899,10 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun canMutate(): Boolean =
+    internal fun canMutate(): Boolean =
         runtime != null && eventConnected && !busy && store?.state?.needsSnapshot == false
 
-    private fun requireReportedState(action: String = "查看和调整设置"): CompanionState? {
+    internal fun requireReportedState(action: String = "查看和调整设置"): CompanionState? {
         val state = store?.state
         if (state == null) {
             val needsControlBinding = expectedControlDeviceId().isNotBlank() &&
@@ -4855,7 +3921,7 @@ class MainActivity : Activity() {
 
     private fun isCurrent(epoch: Long): Boolean = !destroyed && epoch == connectionEpoch
 
-    private fun startProvisioning(developerMode: Boolean = false) {
+    internal fun startProvisioning(developerMode: Boolean = false) {
         // 认领可能更换身份，不能在返回前台时复用旧身份的重连工厂。
         // 保留持久凭据；返回后由用户选择设备，按最新认领结果重新认证。
         closeDirect()
@@ -4867,7 +3933,7 @@ class MainActivity : Activity() {
         )
     }
 
-    private fun startConsoleEnrollmentImport() {
+    internal fun startConsoleEnrollmentImport() {
         if (busy) return
         startActivityForResult(
             Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
@@ -4949,7 +4015,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun expectedControlDeviceId(): String =
+    internal fun expectedControlDeviceId(): String =
         provisionedDeviceId.ifBlank { draftDeviceId }
 
     private fun isCurrentStream(epoch: Long, streamEpoch: Long): Boolean =
@@ -5072,213 +4138,10 @@ class MainActivity : Activity() {
         GatewayFailureReason.PROTOCOL_ERROR -> "协议校验失败"
     }
 
-    private fun settingsRow(title: String, subtitle: String, enabled: Boolean = true,
-                            selected: Boolean = false, danger: Boolean = false, action: () -> Unit) =
-        CompanionPage(this, content).settingsRow(title, subtitle, enabled, selected, danger, action = action)
-
-    private fun primaryButton(label: String, enabled: Boolean, action: () -> Unit) =
-        CompanionPage(this, content).primaryButton(label, enabled, action)
-
-    /** Tab glyph with a pill indicator. A newly selected pill grows from the
-     * icon outward over 240 ms; animator scale 0 shows it immediately. */
-    private fun navigationIcon(tab: Int, selected: Boolean = false, animate: Boolean = false): android.graphics.drawable.Drawable =
-        object : android.graphics.drawable.Drawable() {
-            private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
-            private val icon = CompanionIcons.drawable(this@MainActivity, when (tab) {
-                TAB_OVERVIEW -> "pair"
-                TAB_PERSONALITY -> "spark"
-                TAB_UPDATE -> "download"
-                else -> "settings"
-            }, if (selected) INK else MUTED)
-            private var reveal = if (animate) 0f else 1f
-            private val rect = android.graphics.RectF()
-            init {
-                if (animate) android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
-                    duration = 240; interpolator = CompanionDesign.emphasized()
-                    addUpdateListener { reveal = it.animatedValue as Float; invalidateSelf() }
-                    start()
-                }
-            }
-            override fun getIntrinsicWidth() = dp(56)
-            override fun getIntrinsicHeight() = dp(32)
-            override fun setAlpha(alpha: Int) { paint.alpha = alpha; icon.alpha = alpha }
-            override fun setColorFilter(filter: android.graphics.ColorFilter?) { icon.colorFilter = filter }
-            @Deprecated("Drawable contract")
-            override fun getOpacity() = android.graphics.PixelFormat.TRANSLUCENT
-            override fun draw(canvas: android.graphics.Canvas) {
-                if (selected) {
-                    paint.color = design.selected
-                    val half = bounds.width() / 2f * (0.45f + 0.55f * reveal)
-                    rect.set(bounds.exactCenterX() - half, bounds.top.toFloat(), bounds.exactCenterX() + half, bounds.bottom.toFloat())
-                    canvas.drawRoundRect(rect, bounds.height() / 2f, bounds.height() / 2f, paint)
-                }
-                val cx = bounds.centerX(); val cy = bounds.centerY(); val half = dp(12)
-                icon.setBounds(cx - half, cy - half, cx + half, cy + half)
-                icon.draw(canvas)
-            }
-        }
-
-    /** Page entrance on navigation only; status refreshes never animate. */
-    private fun revealPage() {
-        content.animate().cancel()
-        content.alpha = 0f
-        content.translationY = dp(12).toFloat()
-        content.animate().alpha(1f).translationY(0f).setDuration(260)
-            .setInterpolator(CompanionDesign.emphasized()).start()
-    }
-
-    private fun sectionTitle(title: String) = CompanionPage(this, content).sectionTitle(title)
-
-    private fun addCard(title: String, body: String) = CompanionPage(this, content).addCard(title, body)
-
-    private fun addMuted(message: String) = CompanionPage(this, content).addMuted(message)
-
-    private fun editField(
-        hintText: String,
-        initial: String,
-        secret: Boolean = false,
-        multiline: Boolean = false,
-    ): EditText = EditText(this).apply {
-        hint = hintText
-        setText(initial)
-        setTextColor(INK)
-        setHintTextColor(MUTED)
-        inputType = when {
-            secret -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-            multiline -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
-            else -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
-        }
-        if (multiline) minLines = 2
-        content.addView(
-            this,
-            LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-            ).apply { setMargins(0, 0, 0, dp(8)) },
-        )
-    }
-
-    private fun actionButton(label: String, enabled: Boolean = true, action: () -> Unit) {
-        content.addView(
-            compactButton(label, enabled, action),
-            LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-            ).apply { setMargins(0, dp(3), 0, dp(3)) },
-        )
-    }
-
-    private fun compactButton(label: String, enabled: Boolean, action: () -> Unit): Button =
-        CompanionPage(this, content).button(label, enabled, primary = false, action = action)
-
-    private fun confirm(title: String, message: String, consent: String? = null, confirmed: () -> Unit) {
-        val builder = AlertDialog.Builder(this)
-            .setTitle(title)
-            .setNegativeButton("取消", null)
-            .setPositiveButton("确认") { _, _ -> confirmed() }
-        if (consent == null) { builder.setMessage(message).show(); return }
-        showCompanionSheet(title, "清除设备上的用户配置，\n并撤销现有手机的控制凭据。", done = false) { body, dialog ->
-            val page = CompanionPage(this, body)
-            body.addView(TextView(this).apply {
-                text = "此操作无法撤销。请先确认设备与清理范围。"
-                design.style(this, CompanionDesign.Type.CALLOUT, design.warning)
-                setPadding(dp(16), dp(14), dp(16), dp(14))
-                background = design.shape(design.warningSurface, dp(CompanionDesign.RADIUS_CONTROL.toInt()).toFloat())
-            }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(14) })
-            page.informationRow("将清除", "当前归属、Wi-Fi、云服务凭据、记忆、偏好和显示选择")
-            page.informationRow("将保留", "当前固件；本机旧凭据保留至设备回执确认完成")
-            val acknowledgment = CheckBox(this).apply {
-                text = consent; design.style(this, CompanionDesign.Type.CALLOUT, INK); minHeight = dp(56)
-                buttonTintList = android.content.res.ColorStateList.valueOf(design.ink)
-                setPadding(dp(8), dp(8), 0, dp(8))
-            }
-            body.addView(acknowledgment, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12); bottomMargin = dp(4) })
-            val submit = page.button("恢复出厂", false, primary = true) { dialog.dismiss(); confirmed() }.apply {
-                backgroundTintList = android.content.res.ColorStateList.valueOf(design.selected)
-            }
-            body.addView(submit, LinearLayout.LayoutParams(-1, -2))
-            acknowledgment.setOnCheckedChangeListener { _, checked ->
-                submit.isEnabled = checked
-                submit.backgroundTintList = android.content.res.ColorStateList.valueOf(if (checked) design.danger else design.selected)
-                submit.setTextColor(if (checked) (if (design.dark) Color.parseColor("#2A0B08") else Color.WHITE) else MUTED)
-            }
-            page.secondaryButton("保留我的设置", true) { dialog.dismiss() }
-        }
-    }
-
-    private fun personaLabel(mode: PersonaMode): String = when (mode) {
-        PersonaMode.GENTLE -> "温柔"
-        PersonaMode.PLAYFUL -> "活泼"
-        PersonaMode.QUIET -> "安静"
-        PersonaMode.SERIOUS -> "认真"
-        PersonaMode.TSUNDERE_LITE -> "轻傲娇"
-    }
-
-    private fun turnLabel(phase: TurnPhase): String = when (phase) {
-        TurnPhase.IDLE -> "等待你说话"
-        TurnPhase.LISTENING -> "正在听你说"
-        TurnPhase.THINKING -> "正在思考"
-        TurnPhase.SPEAKING -> "正在回答"
-        TurnPhase.CANCELLING -> "正在停止"
-        TurnPhase.CANCEL_UNCONFIRMED -> "停止结果待确认"
-        TurnPhase.PLAYBACK_UNCONFIRMED -> "播放结果待确认"
-        TurnPhase.OFFLINE -> "设备离线"
-        TurnPhase.ERROR -> "对话出现异常"
-    }
-
-    private fun emotionLabel(emotion: Emotion): String = when (emotion) {
-        Emotion.UNKNOWN -> "未知"
-        Emotion.NEUTRAL -> "平静"
-        Emotion.HAPPY -> "开心"
-        Emotion.SHY -> "害羞"
-        Emotion.SAD -> "难过"
-        Emotion.SURPRISED -> "惊讶"
-        Emotion.THINKING -> "思考中"
-    }
-
-    private fun permissionStateLabel(state: PermissionState): String = when (state) {
-        PermissionState.NOT_GRANTED -> "尚未选择"
-        PermissionState.ALLOWED -> "已允许"
-        PermissionState.DENIED -> "已拒绝"
-    }
-
-    private fun updatePhaseLabel(phase: UpdatePhase): String = when (phase) {
-        UpdatePhase.UNKNOWN -> "更新状态未知"
-        UpdatePhase.IDLE -> "暂无更新任务"
-        UpdatePhase.AWAITING_LOCAL_CONFIRMATION -> "等待设备确认"
-        UpdatePhase.DOWNLOADING -> "正在下载"
-        UpdatePhase.VERIFYING -> "正在验证"
-        UpdatePhase.STAGED -> "已准备安装"
-        UpdatePhase.REBOOTING -> "正在重启"
-        UpdatePhase.TRIAL -> "正在试运行"
-        UpdatePhase.CONFIRMED -> "更新已完成"
-        UpdatePhase.ROLLED_BACK -> "已恢复旧版本"
-        UpdatePhase.FAILED -> "更新失败"
-    }
-
-    private fun updateErrorLabel(error: ConsoleErrorCode): String = when (error) {
-        ConsoleErrorCode.UPDATE_MANIFEST_INVALID -> "发布清单无效或不适用于当前设备"
-        ConsoleErrorCode.UPDATE_SIGNATURE_INVALID -> "签名校验失败"
-        ConsoleErrorCode.UPDATE_PAIR_MISMATCH -> "CP/AP 固件配对不匹配"
-        ConsoleErrorCode.UPDATE_TRIAL_FAILED -> "新固件试运行失败"
-        ConsoleErrorCode.UPDATE_DEVICE_ERROR -> "设备执行更新失败"
-        else -> error.wireValue
-    }
-
-    private fun capabilityLabel(capability: PrivacyCapability): String = when (capability) {
-        PrivacyCapability.MICROPHONE -> "麦克风"
-        PrivacyCapability.CAMERA -> "摄像头"
-        PrivacyCapability.LOCATION -> "位置"
-        PrivacyCapability.LONG_TERM_MEMORY -> "长期记忆"
-        PrivacyCapability.AUTHORIZED_VOICE -> "授权声音"
-    }
-
-    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
-
-    private val design get() = CompanionDesign(this)
+    internal val design get() = CompanionDesign(this)
     private val BACKGROUND get() = design.background
-    private val INK get() = design.ink
-    private val MUTED get() = design.muted
+    internal val INK get() = design.ink
+    internal val MUTED get() = design.muted
 
     override fun onSaveInstanceState(outState: Bundle) {
         nfcDraftCapture?.invoke()
@@ -5341,7 +4204,7 @@ class MainActivity : Activity() {
         private const val KEY_OTA_EXPECTED_COUNTER = "ota_expected_counter"
         private const val KEY_OTA_EXPECTED_CATALOG = "ota_expected_catalog"
         private const val KEY_OTA_EXPECTED_DEVICE = "ota_expected_device"
-        private const val KEY_OTA_EXPECTED_PENDING = "ota_expected_pending"
+        internal const val KEY_OTA_EXPECTED_PENDING = "ota_expected_pending"
         private const val DEVICE_BOARD = "aidk_ai_toy"
         private const val PROVISION_REQUEST = 41
         private const val CONSOLE_ENROLLMENT_REQUEST = 42
@@ -5350,22 +4213,23 @@ class MainActivity : Activity() {
         private val RECONNECT_DELAYS_MS = longArrayOf(1_000L, 2_000L, 4_000L, 8_000L, 16_000L, 30_000L)
 
         private const val MAX_CONTENT_WIDTH_DP = 560
-        private const val TAB_OVERVIEW = 0
-        private const val TAB_INTERACTION = 1
-        private const val TAB_PERSONALITY = 2
-        private const val TAB_PRIVACY = 3
-        private const val TAB_UPDATE = 4
-        private const val FIRMWARE_PACKAGE_REQUEST = 6043
-        private const val WAKE_MODEL_REQUEST = 6044
-        private const val EYE_PACK_REQUEST = 6045
+        private const val RAIL_MIN_WIDTH_DP = 600
+        internal const val TAB_OVERVIEW = 0
+        internal const val TAB_INTERACTION = 1
+        internal const val TAB_PERSONALITY = 2
+        internal const val TAB_PRIVACY = 3
+        internal const val TAB_UPDATE = 4
+        internal const val FIRMWARE_PACKAGE_REQUEST = 6043
+        internal const val WAKE_MODEL_REQUEST = 6044
+        internal const val EYE_PACK_REQUEST = 6045
         private const val PC_PAIR_REQUEST = 6046
         private const val PC_PAIR_RESPONSE = 6047
         private const val AGENT_IMPORT_REQUEST = 6048
-        private const val TAB_SETTINGS = 5
-        private const val TAB_SERVICES = 6
-        private const val TAB_RESOURCES = 7
-        private const val TAB_PERSONA = 8
-        private const val TAB_ADVANCED = 9
+        internal const val TAB_SETTINGS = 5
+        internal const val TAB_SERVICES = 6
+        internal const val TAB_RESOURCES = 7
+        internal const val TAB_PERSONA = 8
+        internal const val TAB_ADVANCED = 9
         private val TABS = listOf(TAB_OVERVIEW to "设备", TAB_PERSONALITY to "定制", TAB_UPDATE to "更新", TAB_SETTINGS to "设置")
         private val TOP_LEVEL_TABS = setOf(TAB_OVERVIEW, TAB_PERSONALITY, TAB_UPDATE, TAB_SETTINGS)
         private val DETAIL_TABS = setOf(TAB_SERVICES, TAB_ADVANCED, TAB_RESOURCES, TAB_PERSONA, TAB_PRIVACY)

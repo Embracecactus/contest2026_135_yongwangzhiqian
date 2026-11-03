@@ -1,5 +1,52 @@
 # BK7258 CP/AP configuration seeds
 
+## Current verification status (2026-10-25)
+
+This is the single current board/profile acceptance summary. Product goals
+remain in `goal-objective.md` and the
+[desktop companion contract](../../docs/platforms/bk7258/shaniu-desktop-companion.md).
+Dated verification records retain their original version and evidence scope.
+
+- The reviewed team source is `930d75ae`. Its recorded validation covers
+  three boards' CP/AP and unsigned BL1 builds, five SDK profiles, host checks,
+  33 Android unit tests and debug/application-test APK assembly. That pass did
+  not run physical boards, phone instrumentation, real cloud, signing or
+  flashing; it is not a new verified product firmware generation.
+- Published dependency identities are owned by the team manifest and
+  [source provenance](../../SOURCE_PROVENANCE.md#2026-10-21-评审修复依赖).
+  The local NuttX and SDK checkouts have now been synchronized to those pins;
+  NuttX HEAD and all 18 source hashes pass the unchanged compatibility gate.
+  The [dependency synchronization record](../../docs/verification/bk7258/2026-10-25-dependency-sync.md)
+  separates this source check from builds and device acceptance. Never bypass
+  `kernel_compat` to build or flash a mismatched checkout.
+- AIDK's last identified device generation in the retained feature evidence
+  is `0.7.124+770`; this was not read back again on 2026-10-25. Generation 770
+  failed automatic reconnection after OTA, and long-term stability remains
+  unaccepted. CPU1 heartbeat failures in 755/756/757/759 and a later 770
+  `PRIMARY_TIMEOUT` have no established common root cause. Earlier bounded
+  healthy windows do not close those failures.
+
+The N1–N4 evidence below comes from the
+[2026-10-18 record, including its later sections](../../docs/verification/bk7258/2026-10-18-stability-and-phone-hil.md)
+and the separate
+[2026-10-20 camera candidate record](../../docs/verification/bk7258/2026-10-20-workbench-camera-lifecycle.md).
+It does not establish physical acceptance of `930d75ae`.
+
+| Goal | Existing source / version-bound evidence | Acceptance still missing |
+|---|---|---|
+| N1 motion, expression, haptics | Single motion worker, 100 ms sampling lease and admission generation; the later 770 session has real sensor samples and the owner's confirmation of an expression change | Correlated pickup/putdown events, human haptic experience and current-candidate device validation |
+| N2 scene cards | NFC service and eight-slot protocol; status readback and one no-card content load on 2026-10-18 | Physical-card scene/content triggering and its exception paths |
+| N3 computer tasks | The later 770 session preserves a real process exit code 0, a separate timeout cancellation, confirmed device results and corresponding LCD submissions | Full M3 resource workflow and current-candidate acceptance; the earlier session with a missing exit code remains a separate incomplete record |
+| N4 on-demand camera | Earlier 15,211 B / 76.6 s transfer; later 770 session decoded 13,575 B at 640×480 with 512 B chunks in 2.240 s frame transfer / 5.257 s total. Real browser capture, cancel and recapture also passed in that earlier feature session | The 2026-10-20 preview/save candidate has host/browser-fixture checks only: both device attempts stopped at TLS before a camera command. Current lifecycle changes, local save on a real device, concurrency, long-term stability and human image-quality review remain unaccepted |
+
+The 2026-10-18 decision still places OTA and post-upgrade reconnection after
+the desktop features. Historical 634 and later 767 successes retain their own
+scope; neither overrides 770's reconnection failure or validates later source.
+The 637/638 voice and 641 resource results remain dated historical evidence,
+not the current firmware acceptance label.
+
+## Configuration ownership
+
 Each maintained role seed contains only:
 
 - `defconfig`: one complete openvela role/capability/system-policy seed;
@@ -62,13 +109,75 @@ logical base pair, not two product variants.
 |---|---|---|---|
 | T5-Board | `app` | `openvela_ap` | `xts`, `perf` |
 | T5AI-Core | `app` | `openvela_ap` | `xts`; paired `drivercheck_cp` / `drivercheck_ap` |
-| AIDK AI Toy | `app` | `openvela_ap` | None; product-local `xts` and `drivercheck` configurations retired, source retained |
+| AIDK AI Toy | `app` | `openvela_ap` | Paired `csi_cp` / `csi_ap` for bounded raw CSI; `app` + `openvela_ap_native_test` for bounded native ELF loader checks; product-local `xts` and `drivercheck` configurations retired, source retained |
+
+`openvela_ap_native_test` is a diagnostic profile. It independently compiles
+the fixed breathing example into an ELF fixture. The accepted ownership split
+runs all filesystem, RPMsg and ELF lifecycle work on CPU0. One phase executes
+the already-loaded import-free callback on CPU1 before CPU0 unloads it. It
+also proves that a CPU1 loader attempt is rejected with `-EXDEV` before file
+or OpenAMP work. The product native manager applies the same CPU0 gate to
+initialize, install, start, step, stop and readback entry points.
+The profile neither configures a module publisher nor installs a persistent
+feature or starts a remote execution service. It is not a product release
+profile; build
+success alone does not accept the loader. The normal `openvela_ap` profile
+does not launch this automatic test.
+
+Further same-day isolation passed CPU1 thread/yield, CPU0-load/CPU1-call,
+and a single CPU1 load/unload. Ordinary CPU1 file I/O also reproduced the
+failure, including before any ELF load in the task-mutex comparison; ELF
+execution is therefore not required. Frozen RPMsg traces observed premature
+loss of ownership of the same `rdev` lock and recursive-count underflow.
+The task-mutex comparison also failed and was removed. These are diagnostic
+findings, not a fix or permission for CPU1 to perform filesystem or RPMsg
+work. A trace-off profile passed 100 CPU0 load/call/unload cycles, plus 100
+CPU0-load/CPU1-call/CPU0-unload cycles without a fault or supervisor stall.
+The later CPU0-gate candidate additionally rejected the native manager and ELF
+loader entry points on CPU1 with `-EXDEV`, then passed the same two 100-cycle
+paths. Its serial wrapper reported an evidence-check error only because one
+requested expression omitted the intervening `observed=0` field; the complete
+capture contains all three PASS records and no configured failure expression.
+
+A separate transport-diagnostic run passed the dedicated-region lock and then
+timed out an ordinary internal-SRAM lock while its word read as unlocked. This
+is evidence that the lower-layer cross-core lock problem remains intermittent;
+it does not establish the exact hardware mechanism. Lock-placement and direct
+CPU1 RPMsg probes therefore run only with
+`CONFIG_TESTS_BK7258_NATIVE_TRANSPORT`, never in the acceptance or product
+profile. No OpenAMP or NuttX upstream source was patched.
+
+Both AP profiles use
+`CONFIG_SMP_DEFAULT_CPUSET=0x1`, so ordinary product tasks inherit CPU0 unless
+code explicitly opts into CPU1. Failure evidence remains under
+`out/native-cpu1-20261102/`; the CPU0-gate acceptance, download logs and normal
+boot evidence are under `out/native-cpu0-guard-20261102/`. The restored normal
+candidate is `0.24.2+2026110203`, full-image SHA-256
+`82a34fcf2e16432f257384ffef167320297b34733d40836ff884162f34d53812`.
+Its publisher fingerprint remains intentionally empty, so it does not accept
+module trust or installation until an approved first-party public-key
+fingerprint is configured; no test signing identity was promoted.
+
+`CONFIG_TESTS_BK7258_NATIVE_TRACE` is an optional, default-off diagnostic.
+It instruments the OpenAMP/RPMsg call path and raises SysTick priority to
+sample masked waits. It changes timing and may drop ticks: results with it
+enabled cannot serve as normal-priority acceptance. The test's ordinary
+thread, file and ELF phases remain available without this instrumentation.
 
 The SDK pair is selected by the two role profile files, not inferred from the
 word "AP": T5AI-Core and T5-Board use `cp + ap`, while AIToyBoard uses
 `cp-aidk + ap-aidk`. Install/rebuild and verify the exact pair before building.
-The root README contains all three normal build commands. The existing Agent
-extensions are published as fork `add0db19` and pinned by the manifest.
+The root README contains all three normal build commands. Agent source
+identity is owned by the team manifest and `SOURCE_PROVENANCE.md`.
+
+The AIDK `csi_cp` / `csi_ap` diagnostic pair uses compatibility group
+`aidk_ai_toy_csi_v1`, SDK `cp-aidk-csi + ap-aidk`, and the existing fixed-block
+partition CSV. It enables CSI on both roles; the AP starts networking without
+the voice/media product. Normal board presets are unchanged. The CP SDK variant
+keeps the AIDK internal ROSC selection and adds `CONFIG_WIFI_CSI_EN=y`.
+This profile is an acquisition experiment, not a claim of presence accuracy or
+board acceptance. Its data and experiment contract is
+[documented separately](../../docs/chips/bk7258/wifi-csi.md).
 
 T5-Board's Dolphin recording and WAV storage on SD have passed owner-operated
 hardware verification; the existing `0.1.0+13` record identifies its image.
@@ -80,9 +189,8 @@ a running Media service. Recorder application and capture function bodies are
 unchanged from the earlier Dolphin publication. T5 CP/AP builds, existing host
 checks and ELF/map linkage passed; the new build was not flashed or board-tested. See
 [the Dolphin record](../../docs/platforms/bk7258/dolphin-master-plan.md).
-AIToyBoard's verified firmware has since advanced to `18.6.401+638` (same-unit
-recovery image, byte-identical CP/AP payloads to 637); the earlier 635/637
-records stay historical per version.
+AIDK's current acceptance summary is maintained at the top of this file;
+older firmware records retain their own version boundaries.
 
 Each physical board owns exactly one normal application entry at
 `configs/app/defconfig`. It is a complete CP configuration, not a shared

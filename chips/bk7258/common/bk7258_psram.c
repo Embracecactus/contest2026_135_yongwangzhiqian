@@ -29,6 +29,7 @@
 #include <nuttx/spinlock.h>
 
 #include <arch/chip/bk7258_psram.h>
+#include <arch/chip/bk7258_smp_placement.h>
 #ifdef CONFIG_BK7258_AP_CORE
 #  include <arch/chip/bk7258_amp.h>
 #endif
@@ -153,7 +154,7 @@ static size_t g_bk7258_psram_system_heap_size;
 #ifdef CONFIG_BK7258_PSRAM_EXT_SYSTEM_HEAP
 static bool g_bk7258_psram_extended_heap;
 #endif
-static spinlock_t g_bk7258_psram_lock = SP_UNLOCKED;
+static spinlock_t g_bk7258_psram_lock BK7258_SMP_LOCK_BSS = SP_UNLOCKED;
 static struct bk7258_psram_info_s g_bk7258_psram_info;
 #ifdef CONFIG_BK7258_PSRAM_MEDIA
 static mutex_t g_bk7258_psram_media_lock = NXMUTEX_INITIALIZER;
@@ -943,6 +944,13 @@ int bk7258_psram_add_system_heap(size_t size)
    */
 
   kumm_addregion(memory, size);
+#ifdef CONFIG_MM_KERNEL_HEAP
+  /* With a split kernel heap, PSRAM must reach only the user heap so no
+   * kmm_*() TCB, task group or kernel lock can be placed there.
+   */
+
+  DEBUGASSERT(!kmm_heapmember(memory));
+#endif
   g_bk7258_psram_system_heap = memory;
   g_bk7258_psram_system_heap_size = size;
   return OK;
@@ -970,6 +978,9 @@ int bk7258_psram_add_extended_system_heap(void)
 
       kumm_addregion((void *)BK7258_PSRAM_AP_EXT_HEAP_BASE,
                      CONFIG_BK7258_PSRAM_EXT_SYSTEM_HEAP_SIZE);
+#ifdef CONFIG_MM_KERNEL_HEAP
+      DEBUGASSERT(!kmm_heapmember((void *)BK7258_PSRAM_AP_EXT_HEAP_BASE));
+#endif
       g_bk7258_psram_extended_heap = true;
     }
 

@@ -194,7 +194,13 @@ static int bk7258_aidk_deferred_worker(int argc, FAR char *argv[])
 {
   clock_t started = clock_systime_ticks();
   unsigned int failures = 0;
+#if defined(CONFIG_BK7258_SDIO) || defined(CONFIG_BK7258_AIDK_DUAL_LCD) || \
+    defined(CONFIG_BK7258_AIDK_CAMERA) || \
+    defined(CONFIG_BK7258_AIDK_SC7A20) || \
+    defined(CONFIG_BK7258_AIDK_MFRC522) || \
+    defined(CONFIG_BK7258_AIDK_BATTERY)
   int ret;
+#endif
 
   (void)argc;
   (void)argv;

@@ -51,6 +51,7 @@ struct bk7258_wifi_driver_s
 struct bk7258_wifi_control_dev_s
 {
   bool native_link_valid;
+  volatile bool native_link_ready;
   struct bk7258_wifi_result_s native_link;
 };
 
@@ -138,6 +139,7 @@ static void reset_connected(void)
   g_bk7258_wifi.dev.d_netmask = g_current_link.netmask;
   g_bk7258_wifi.dev.d_draddr = g_current_link.router;
   g_bk7258_wifi_control.native_link_valid = true;
+  g_bk7258_wifi_control.native_link_ready = true;
   g_bk7258_wifi_control.native_link = g_current_link;
   g_apply_calls = 0;
   g_clear_calls = 0;
@@ -153,6 +155,7 @@ int main(void)
   assert(!bk7258_wifi_native_lease_matches(NULL));
   assert(bk7258_wifi_native_lease_matches(&g_current_link));
   assert(bk7258_wifi_sync_native_link(&result) == OK);
+  assert(bk7258_wifi_native_link_ready());
   assert(g_apply_calls == 0 && g_clear_calls == 0 && g_warning_calls == 0);
 
   /* Vendor stop retired its private state and carrier, while the CP lease
@@ -166,6 +169,7 @@ int main(void)
   assert(bk7258_wifi_sync_native_link(&result) == OK);
   assert(g_apply_calls == 1 && g_clear_calls == 0 && g_warning_calls == 1);
   assert(bk7258_wifi_native_lease_matches(&g_current_link));
+  assert(bk7258_wifi_native_link_ready());
 
   reset_connected();
   g_bk7258_wifi.dev.d_flags &= ~IFF_RUNNING;
@@ -180,6 +184,7 @@ int main(void)
   assert(bk7258_wifi_sync_native_link(&result) == OK);
   assert(g_apply_calls == 0 && g_clear_calls == 1);
   assert(g_bk7258_wifi_control.native_link.link_state == 0);
+  assert(!bk7258_wifi_native_link_ready());
   assert(bk7258_wifi_sync_native_link(&result) == OK);
   assert(g_clear_calls == 1);
 
@@ -189,6 +194,7 @@ int main(void)
   assert(bk7258_wifi_sync_native_link(&result) == -EIO);
   assert(g_apply_calls == 1);
   assert(g_bk7258_wifi_control.native_link.ipaddr != g_current_link.ipaddr);
+  assert(!bk7258_wifi_native_link_ready());
   assert(g_net_lock_depth == 0);
   return 0;
 }

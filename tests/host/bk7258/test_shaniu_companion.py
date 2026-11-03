@@ -33,7 +33,10 @@ HARNESS = r"""
 static struct bkmotion_rpc_response_s sample;
 static struct bk7258_health_service_snapshot_s health;
 static int sample_error, display_error, pulse_error, async_fault;
-static unsigned visual, displays, pulses, stops, snapshots;
+static int pause_error, rearm_error, g_product_error;
+static unsigned visual, displays, pulses, stops, snapshots, pauses, rearms;
+static unsigned pulse_duration;
+static bool g_trigger_started = true;
 static bool polling;
 static int bk7258_motion_service_poll(bool active)
 { polling=active; return 0; }
@@ -46,9 +49,13 @@ static int bk7258_display_companion(unsigned v, unsigned duration)
 { assert(duration<=1000); if(v) displays++; visual=v; return display_error; }
 int bkhaptic_service_product_status(struct bkhaptic_product_status_s *status)
 { memset(status,0,sizeof(*status)); status->fault=async_fault; return 0; }
-int bkhaptic_service_pulse(unsigned duration)
-{ assert(duration==40); pulses++; return pulse_error; }
+int bkhaptic_service_pulse_wait(unsigned duration)
+{ assert(duration==40 || duration==60); pulse_duration=duration; pulses++; return pulse_error; }
 int bkhaptic_service_stop_product(void) { stops++; return 0; }
+static int bk7258_agent_trigger_pause_local(void)
+{ pauses++; return pause_error; }
+static int bk7258_agent_trigger_rearm(void)
+{ rearms++; return rearm_error; }
 #include "bk7258_agent_companion.inc"
 static void feed(uint64_t now, int x, int z, bool admitted, bool idle, bool done)
 {
@@ -106,13 +113,16 @@ int main(int argc,char **argv)
     assert(displays==1);
   } else if(!strcmp(argv[1],"completion")) {
     feed(200,0,10000,true,true,true);
-    assert(displays==1 && pulses==1);
+    assert(displays==1 && pulses==1 && pauses==1 && rearms==1);
     feed(250,0,10000,true,true,true);
-    assert(pulses==1); /* finite event budget, no retry queue */
+    assert(pulses==1 && pauses==1); /* finite event budget, no retry queue */
     feed(300,4000,10000,true,true,false);
     assert(displays==1); /* motor/table vibration guard */
     feed(2300,0,10000,true,true,true);
-    assert(pulses==2);
+    assert(pulses==2 && pauses==2 && rearms==2);
+  } else if(!strcmp(argv[1],"approval-alert")) {
+    product_companion_alert(200);
+    assert(pulses==1 && pulse_duration==60 && pauses==1 && rearms==1);
   } else if(!strcmp(argv[1],"low-battery")) {
     health.battery_voltage_mv=3200; health.sequence++;
     feed(200,0,10000,true,true,true);
@@ -135,7 +145,17 @@ int main(int argc,char **argv)
     pulse_error=-EIO;
     feed(200,0,10000,true,true,true);
     feed(2300,0,10000,true,true,true);
-    assert(pulses==1 && stops>0); /* no repeated hardware fault */
+    assert(pulses==1 && pauses==1 && rearms==1 && stops>0); /* no repeated hardware fault */
+  } else if(!strcmp(argv[1],"pause-error")) {
+    pause_error=-EIO;
+    feed(200,0,10000,true,true,true);
+    assert(pulses==0 && pauses==1 && rearms==0 && stops==0 &&
+           g_product_error==-EIO);
+  } else if(!strcmp(argv[1],"rearm-error")) {
+    rearm_error=-EIO;
+    feed(200,0,10000,true,true,true);
+    assert(pulses==1 && pauses==1 && rearms==1 && stops==0 &&
+           g_product_error==-EIO);
   } else if(!strcmp(argv[1],"async-motor-error")) {
     feed(200,0,10000,true,true,true);
     async_fault=-EIO;
@@ -210,11 +230,14 @@ for variant in (
     "freshness",
     "duplicate",
     "completion",
+    "approval-alert",
     "low-battery",
     "invalid-battery",
     "stale-battery",
     "display-rejected",
     "motor-error",
+    "pause-error",
+    "rearm-error",
     "async-motor-error",
     "battery-transition",
 ):

@@ -96,14 +96,20 @@ python3 tools/bk7258/bk7258.py native-app catalog-entry \
   --output /tmp/native-catalog.json
 ```
 
-ABI 2 receives product motion-classifier events and may request one arbitrated
-haptic pulse or completion cue. Pack with `--abi 2` and canonical permissions,
-for example `--permissions display,motion,haptic`.
+ABI 2 apps (for example `app/bk7258/native-apps/shake_decide.c`) receive
+product motion-classifier events and may request one arbitrated haptic pulse
+or a completion cue. Pack them with `--abi 2` and the canonical grant list,
+for example `--permissions display,motion,haptic`; `display` is always first,
+then any of `motion`, `haptic`, `sound` once each in that order. ABI 1 accepts
+only `display`. `pack` also reports `app_hash`, the FNV-1a ID hash that an NFC
+scene card (action 7) uses to start that app.
 
-ABI 3 adds `clock`, `storage` and optional completion labels, for example
-`--abi 3 --permissions display,motion,haptic,clock,storage --results 完成,错过`.
-The bundled ABI 3 examples are `shake_decide.c`, `nudge.c` and
-`sit_reminder.c`; their headers list the required permissions and labels.
+ABI 3 adds `clock` and `storage` (after `sound`) and optional completion
+labels: `--abi 3 --permissions display,motion,haptic,clock,storage
+--results 完成,错过` (1–4 labels, each at most 16 UTF-8 bytes). The bundled
+ABI 3 examples are `shake_decide.c` (install with ID `shake` so the local
+phrase "帮我做个决定" finds it), `nudge.c` and `sit_reminder.c`; their source
+headers list the exact permissions and labels to pack.
 
 These commands neither generate identities nor publish/install anything.
 `pack` exports `publisher.der`, the exact signed manifest, ELF and JSON package.
@@ -128,9 +134,9 @@ The App reads back the result and never automatically replays an interrupted
 write. Package format `shaniu.native/1` has exact fields `format`, `manifest`,
 `signature`, `image`. The last three are base64; ECDSA P-256/SHA-256 signs the
 exact manifest bytes. Manifest fields are `id`, `name`, `description`, `version`,
-`abi`, `target`, `sha256`, `image_size`, `permissions` and optional ABI 3
-`results`. ABI is 1..3 and target is `bk7258-ap-armv8m`; permissions must use
-canonical order `display,motion,haptic,sound,clock,storage`, limited by ABI.
+`abi`, `target`, `sha256`, `image_size`, `permissions`. ABI is 1 or 2, target is
+`bk7258-ap-armv8m`; ABI 1 accepts `display`, while ABI 2 additionally supports
+the declared `motion`, `haptic`, and `sound` permissions described above.
 
 Limits: 16 KiB ELF, 24 KiB package, 1 KiB manifest, four installed features,
 32 KiB combined persistent record, and one running feature. Updates must
@@ -142,11 +148,15 @@ reboot leave every feature stopped. There is no automatic old-version rollback
 or automatic restart after a module crash.
 
 The ABI is cooperative: `shaniu_native_entry()` returns a versioned descriptor;
-ABI 1 uses `step`, ABI 2 adds bounded input/output, and ABI 3 adds result, clock
-and up to 32 bytes of saved state. The host owns state, module allocation and
-display cancellation. Modules have no imported symbols, constructors, worker
-threads, timers or callbacks. The product loop steps at most every 100 ms and
-stops a feature for voice, OTA, power, reset or a superseding display owner.
+ABI 1 uses `start` and `step`, while ABI 2 adds bounded input and feedback output.
+State is at most 256 bytes and display output is a bounded frame intent. The host
+owns the state, module allocation and exact-ID display cancellation. Modules
+have no imported symbols, constructors, worker threads, timers or registered
+callbacks. The product loop steps at most every 100 ms and stops a feature for
+voice, OTA, power, reset or a superseding display owner. The breathing sample
+alternates happy/thinking every four seconds, defaults to 60 seconds, and accepts
+a duration argument of 1..3600 seconds. This is a display pacing example, not an
+audio metronome or a timing-accuracy claim.
 
 The current NuttX build is flat: these restrictions are an ABI contract,
 **not a security sandbox**. A trusted module can still corrupt memory or fault
@@ -169,10 +179,33 @@ Android `:app:testDebugUnitTest :app:assembleDebug` tasks. Host tests sign real
 cross-compiled ELF using published upstream fixtures, exercise rejected
 signatures/ELF links, transactions, recovery and repeated manager lifecycle,
 and execute the sample's C logic through an explicitly stubbed loader.
-Real-board checks covered a signed ABI 3 install/start, rendered output,
-automatic stop, reboot restore, 100 cross-core executions and 100 PSRAM
-load/unload cycles. They do **not** yet prove physical motion/haptic behavior,
-voice triggering, scheduled launch, NFC launch or production-key operation.
+Selected real-board checks additionally covered signed install/start, repeated
+fault blocking, undeclared-permission rejection and the product haptic/capture
+handoff. They do **not** yet prove physical motion classification, NFC card
+launch, arbitrary module safety or production publisher-key operation.
+
+## Phone-owner approval for PC agents
+
+An independently paired PC with the existing `tasks` grant can ask the phone
+owner to approve one exact operation. The device binds the decision to the
+request ID, displayed bytes, expiry and the PC grant key; timeout, replacement,
+authentication failure or any non-approved result is a denial. Only the
+authenticated phone-owner session can submit the decision.
+
+Use `workbench approval-request` to request a decision without executing,
+`approval-run --exec ...` to execute an argument list only after approval, or
+`approval-hook` from a Claude Code `PreToolUse` hook. For example:
+
+```bash
+python3 tools/bk7258/bk7258.py workbench approval-run \
+  --port /dev/ttyACM0 --profile /path/to/pc-profile \
+  --agent codex --target /path/to/repository --approval-timeout 120 \
+  --exec git push fork HEAD:refs/heads/topic
+```
+
+`approval-run` executes the approved argument list directly, without a shell.
+Exit code 2 means the phone owner did not approve. Hook errors produce an
+explicit deny rather than falling through to allow.
 
 ## Independent factory software and target-bound complete flash
 
@@ -294,26 +327,34 @@ scan `--threshold-percent 50..90` within the existing App range. Frozen test
 bindings include startup, policy and runtime source hashes; re-evaluate an
 older binding before testing. Optional verified session `word_end_ms` values
 enable signed first-event latency without relabeling misses or outside events.
-`--post-target-negative-weight` adds non-target suffixes
+See the [wakeword audit and reproducible comparison](../../docs/verification/bk7258/2026-10-26-wakeword/wakeword-benchmark.md)
+for data limitations, collection format and physical board steps.
+The [actual training iteration](../../docs/verification/bk7258/2026-10-26-wakeword/wakeword-training.md)
+provides paired experiments, an INT8/WKM2 candidate and a frozen independent
+test comparison. `--post-target-negative-weight` adds non-target suffixes
 after intact target history. Pair it with `--streaming-fresh-positives` to
 avoid contradictory stale-positive time labels; both are train-time changes.
 `--positive-speaker-balance` balances original voices before recording sources
 so repeated TTS generations do not dominate. These options do not change the
 device threshold, cooldown or builtin model. Failed experiments remain in the
 local output tree alongside the selected candidate.
-`--tempo-rates`
+The [fast-speech follow-up](../../docs/verification/bk7258/2026-10-26-wakeword/wakeword-speed-training.md)
+records per-frame failures and paired multi-speed experiments. `--tempo-rates`
 sets explicit train-only speed factors; `--streaming-positive-hold-ms` changes
 the fresh-positive supervision interval (default 600 ms). The latter requires
 `--streaming-fresh-positives`; neither option changes device timing or policy.
 Keep the previous test as regression after inspecting it, and freeze new
 source/voice holdouts before selecting another model.
+第三轮 [开源训练技术迁移与消融](../../docs/verification/bk7258/2026-10-26-wakeword/wakeword-round3-training.md)
+比较了速度权重、SpecAugment、正例逐帧监督和难负例损失。
 `--positive-speed-balance` 保持来源总权重并均衡快、中、慢语速；
 `--feature-augmentation specaugment` 仅遮挡有效训练帧，需启用正例时间元数据。
 `--streaming-positive-final-only` 只用于关闭正例逐帧损失的消融，仍保留有效长度与负例帧监督；
 `--hard-negative-weight` 调整已标记部分词/相似词的惩罚。
 `--checkpoint-selection last` 用于与默认验证损失选点作对照，不代表最后一轮更好。
 这些选项不改变音频前端或设备触发策略；失败模型和未入选候选均保留。
-`--streaming-negative-pair-weight` 和 `--streaming-positive-confirmation`：
+第四轮 [时间损失、来源权重与连续确认实验](../../docs/verification/bk7258/2026-10-26-wakeword/wakeword-round4-training.md)
+新增 `--streaming-negative-pair-weight` 和 `--streaming-positive-confirmation`：
 前者保留原负例帧损失并惩罚相隔 300 ms 的高分对，后者只在完整音频结束后的有效区间监督确认对。
 两者需要 `torch-cuda`、流式新鲜正例和正负帧监督；本轮显式使用 `--streaming-positive-reduction max`。
 `--positive-speed-balance-strength` 在原权重与等语速权重之间插值，需配合 `--positive-speed-balance`。

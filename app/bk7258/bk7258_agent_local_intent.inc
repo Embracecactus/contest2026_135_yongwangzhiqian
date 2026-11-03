@@ -108,7 +108,7 @@ static int product_local_text(uint64_t request, const char *text,
     {
 #ifdef CONFIG_BK7258_NATIVE_APPS
       /* Installed-app phrases come after the built-in vocabulary, so an
-       * app name cannot shadow focus, volume, eyes or stop.
+       * app name can never shadow focus, volume, eyes or stop.
        */
 
       if (request && request_status)
@@ -126,6 +126,7 @@ static int product_local_text(uint64_t request, const char *text,
               return ret;
             }
         }
+
 #endif
       syslog(LOG_INFO,
         "BKLOCAL request=%llu kind=0 route=agent elapsed_ms=%llu\n",

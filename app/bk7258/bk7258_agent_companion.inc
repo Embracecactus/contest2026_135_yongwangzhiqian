@@ -20,7 +20,7 @@ static unsigned g_companion_battery;
 
 /* One coalesced native-app pulse hint, consumed by the next companion step
  * under the same cooldown, quiet window, battery and motor gates as task
- * completion. It is never queued beyond that step.
+ * completion.  It is never queued beyond that step.
  */
 
 #ifdef CONFIG_BK7258_NATIVE_APPS
@@ -33,10 +33,10 @@ static void product_companion_request_pulse(uint64_t now)
 }
 #endif
 
-/* The board motor is interlocked while the wake recorder owns the MIC. A
+/* The board motor is interlocked while the wake recorder owns the MIC.  A
  * product pulse therefore uses the same bounded capture handoff as local
- * content: close capture, finish the pulse, then restore the wake model.
- */
+ * content: close capture, finish the pulse, then restore the existing wake
+ * model.  Direct CP haptic requests remain blocked by the MIC interlock. */
 
 #ifdef CONFIG_BK7258_HAPTIC_SERVICE
 static int product_companion_pulse(unsigned int duration_ms)
@@ -150,6 +150,11 @@ static void product_companion_step(uint64_t now, bool admitted,
     {
       g_companion_pulsed = true;
       g_companion_pulse_at = now;
+
+      /* A native app owns its own expression; only completion keeps the
+       * product's celebratory visual in front of the pulse.
+       */
+
       ret = completed ? bk7258_display_companion(2, 800) : 0;
 #if defined(CONFIG_BK7258_HEALTH_SERVICE) && \
     defined(CONFIG_BK7258_HAPTIC_SERVICE)
@@ -216,5 +221,46 @@ static void product_companion_step(uint64_t now, bool admitted,
   (void)admitted;
   (void)voice_idle;
   (void)completed;
+#endif
+}
+
+/* PC approval alert: one bounded pulse through the same motor, battery and
+ * fault gates as completion feedback. The display owns the visual; this only
+ * adds the physical cue and briefly mutes motion feedback after it.
+ */
+
+static void product_companion_alert(uint64_t now)
+{
+#if defined(CONFIG_BK7258_MOTION_SERVICE) && \
+    defined(CONFIG_BK7258_DISPLAY_SERVICE) && \
+    defined(CONFIG_BK7258_HEALTH_SERVICE) && \
+    defined(CONFIG_BK7258_HAPTIC_SERVICE)
+  struct bk7258_health_service_snapshot_s health;
+  int ret;
+
+  if (g_companion_motor_fault || g_companion_battery_low ||
+      bk7258_health_service_snapshot(&health) != 0 ||
+      health.sampled_ms > now || now - health.sampled_ms > 120000 ||
+      !(health.flags & BK7258_HEALTH_SNAPSHOT_BATTERY_VOLTAGE_VALID) ||
+      health.battery_voltage_mv <= 3400)
+    {
+      syslog(LOG_INFO, "BKAPPROVAL alert haptic=suppressed\n");
+      return;
+    }
+
+  ret = product_companion_pulse(60);
+  if (ret == 0)
+    {
+      g_companion_quiet_until = now + 500;
+    }
+  else if (ret != -EBUSY && ret != -EAGAIN)
+    {
+      g_companion_motor_fault = true;
+      (void)bkhaptic_service_stop_product();
+    }
+
+  syslog(LOG_INFO, "BKAPPROVAL alert haptic=%d\n", ret);
+#else
+  (void)now;
 #endif
 }

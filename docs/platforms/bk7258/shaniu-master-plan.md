@@ -1,8 +1,12 @@
 # 傻妞 AIDK AI Toy 全项目 Master Plan
 
-状态：`IN_PROGRESS`
+本文件保留历史计划、决策和分版本证据，不再维护当前状态或下一阶段入口。
+正文中的“当前”“待办”和优先级均属于各节当时的快照。
+板级当前事实与验收边界统一见 `boards/bk7258/CONFIGS.md`（可从
+[平台入口](README.md#事实所有权)进入）；当前目标由 `goal-objective.md` 和
+[桌面伙伴行为合同](shaniu-desktop-companion.md)约束。
 
-## 2026-09-20 晚：637/638 签名全镜像与实机验收（当前结论：638）
+## 2026-09-20 晚：637/638 签名全镜像与实机验收（历史结论）
 
 - F01–F12 整改的 13 个提交已合入官方主仓 `dev-ai-contest-2026`
   （rebase 后 `b72b8bbb..daacdc75`，对应 rebase 前 `0eb0f779..204aa4f8`），

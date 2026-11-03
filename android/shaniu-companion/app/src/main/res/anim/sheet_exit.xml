@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- System response to a dismissal: snap away with ease-out, never ease-in. -->
 <set xmlns:android="http://schemas.android.com/apk/res/android"
-    android:interpolator="@android:interpolator/accelerate_cubic">
-    <translate android:duration="220" android:fromYDelta="0" android:toYDelta="100%" />
+    android:interpolator="@android:interpolator/decelerate_cubic">
+    <translate android:duration="180" android:fromYDelta="0" android:toYDelta="100%" />
 </set>

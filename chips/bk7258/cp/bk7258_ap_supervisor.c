@@ -33,6 +33,7 @@
 #include <arch/chip/bk7258_amp.h>
 #include <arch/chip/bk7258_rptun.h>
 
+#include "bk7258_ap_recovery_policy.h"
 #include "bk7258_rpmsg_health.h"
 
 /****************************************************************************
@@ -44,6 +45,26 @@
 #define BK7258_AP_TRANSPORT_AP_RX  (1u << 1)
 #define BK7258_AP_TRANSPORT_BIDIR  (BK7258_AP_TRANSPORT_CP_RX | \
                                     BK7258_AP_TRANSPORT_AP_RX)
+
+/* Automatic recovery is an engineering-only gate.  Product images keep the
+ * same evidence counters with a zero budget, so a confirmed fault stays
+ * FAULTED until an operator runs the manual apctl recovery.
+ */
+
+#ifdef CONFIG_BK7258_AP_SUPERVISOR_AUTO_RECOVER
+#  define BK7258_AP_SUPERVISOR_AUTO_ENABLED  true
+#  define BK7258_AP_SUPERVISOR_WINDOW_MS \
+     CONFIG_BK7258_AP_SUPERVISOR_RETRY_WINDOW_MS
+#  define BK7258_AP_SUPERVISOR_WINDOW_BUDGET \
+     CONFIG_BK7258_AP_SUPERVISOR_MAX_RECOVERIES
+#  define BK7258_AP_SUPERVISOR_LIFETIME_BUDGET \
+     CONFIG_BK7258_AP_SUPERVISOR_LIFETIME_RECOVERIES
+#else
+#  define BK7258_AP_SUPERVISOR_AUTO_ENABLED  false
+#  define BK7258_AP_SUPERVISOR_WINDOW_MS     0u
+#  define BK7258_AP_SUPERVISOR_WINDOW_BUDGET 0u
+#  define BK7258_AP_SUPERVISOR_LIFETIME_BUDGET 0u
+#endif
 
 /****************************************************************************
  * Private Types
@@ -73,6 +94,7 @@ struct bk7258_ap_supervisor_s
   clock_t last_probe_tick;
   clock_t healthy_tick;
   clock_t sample_tick;
+  struct bk7258_ap_recovery_policy_s policy;
   struct bk7258_ap_supervisor_status_s status;
 };
 
@@ -97,6 +119,31 @@ static uint32_t bk7258_ap_supervisor_age_ms(clock_t now, clock_t then)
   return age > UINT32_MAX ? UINT32_MAX : (uint32_t)age;
 }
 
+static uint32_t bk7258_ap_supervisor_now_ms(void)
+{
+  return (uint32_t)TICK2MSEC(clock_systime_ticks());
+}
+
+/* Mirror the policy evidence into the versioned status.  Lifetime counters
+ * only grow; consecutive_failures is the live rolling-window budget use.
+ */
+
+static void bk7258_ap_supervisor_publish_policy_locked(
+  struct bk7258_ap_supervisor_s *priv, uint32_t now_ms)
+{
+  priv->status.fault_count = priv->policy.lifetime_faults;
+  priv->status.recovery_count = priv->policy.lifetime_recoveries;
+  priv->status.auto_recovery_attempts = priv->policy.lifetime_auto_attempts;
+  priv->status.recurring_faults = priv->policy.recurring_faults;
+  priv->status.lockout_count = priv->policy.lockouts;
+  priv->status.consecutive_failures =
+    bk7258_ap_recovery_window_count(&priv->policy, now_ms);
+  if (priv->policy.recurring_faults != 0u)
+    {
+      priv->status.flags |= BK7258_AP_SUPERVISOR_FLAG_RECURRING;
+    }
+}
+
 static bool bk7258_ap_supervisor_injects(
   const struct bk7258_ap_supervisor_s *priv, uint32_t injection)
 {
@@ -119,13 +166,23 @@ static void bk7258_ap_supervisor_status_initialize(
 #ifdef CONFIG_BK7258_AP_SUPERVISOR_AUTO_RECOVER
   priv->status.flags |= BK7258_AP_SUPERVISOR_FLAG_AUTO_RECOVER;
 #endif
+  bk7258_ap_recovery_policy_init(&priv->policy,
+                                 BK7258_AP_SUPERVISOR_WINDOW_MS,
+                                 BK7258_AP_SUPERVISOR_WINDOW_BUDGET,
+                                 BK7258_AP_SUPERVISOR_LIFETIME_BUDGET);
+  priv->status.retry_window_ms = BK7258_AP_SUPERVISOR_WINDOW_MS;
+  priv->status.retry_budget = BK7258_AP_SUPERVISOR_WINDOW_BUDGET;
+  priv->status.lifetime_budget = BK7258_AP_SUPERVISOR_LIFETIME_BUDGET;
+  priv->status.worker_stack_size =
+    CONFIG_BK7258_AP_SUPERVISOR_WORKER_STACKSIZE;
 }
 
 static void bk7258_ap_supervisor_set_offline_locked(
   struct bk7258_ap_supervisor_s *priv, uint32_t generation)
 {
   uint32_t saved = priv->status.flags &
-                   BK7258_AP_SUPERVISOR_FLAG_FAULT_SAVED;
+                   (BK7258_AP_SUPERVISOR_FLAG_FAULT_SAVED |
+                    BK7258_AP_SUPERVISOR_FLAG_RECURRING);
 
 #ifdef CONFIG_BK7258_AP_SUPERVISOR_AUTO_RECOVER
   saved |= BK7258_AP_SUPERVISOR_FLAG_AUTO_RECOVER;
@@ -158,7 +215,8 @@ static void bk7258_ap_supervisor_disarm_locked(
   uint32_t state)
 {
   uint32_t saved = priv->status.flags &
-                   BK7258_AP_SUPERVISOR_FLAG_FAULT_SAVED;
+                   (BK7258_AP_SUPERVISOR_FLAG_FAULT_SAVED |
+                    BK7258_AP_SUPERVISOR_FLAG_RECURRING);
 
 #ifdef CONFIG_BK7258_AP_SUPERVISOR_AUTO_RECOVER
   saved |= BK7258_AP_SUPERVISOR_FLAG_AUTO_RECOVER;
@@ -190,7 +248,8 @@ static void bk7258_ap_supervisor_arm_locked(
   clock_t now)
 {
   uint32_t saved = priv->status.flags &
-                   BK7258_AP_SUPERVISOR_FLAG_FAULT_SAVED;
+                   (BK7258_AP_SUPERVISOR_FLAG_FAULT_SAVED |
+                    BK7258_AP_SUPERVISOR_FLAG_RECURRING);
 
 #ifdef CONFIG_BK7258_AP_SUPERVISOR_AUTO_RECOVER
   saved |= BK7258_AP_SUPERVISOR_FLAG_AUTO_RECOVER;
@@ -341,34 +400,37 @@ static void bk7258_ap_supervisor_fault_locked(
   const struct bk7258_ap_fault_state_s *fault,
   const struct bk7258_cpu2_probe_state_s *cpu2)
 {
+  enum bk7258_ap_recovery_decision_e decision;
+  uint32_t now_ms;
+
   if (priv->status.state == BK7258_AP_SUPERVISOR_FAULTED ||
       priv->status.state == BK7258_AP_SUPERVISOR_LOCKOUT)
     {
       return;
     }
 
+  now_ms = bk7258_ap_supervisor_now_ms();
   priv->status.state = BK7258_AP_SUPERVISOR_FAULTED;
   priv->status.reason = reason;
   priv->status.last_error = error;
-  priv->status.fault_count++;
-  priv->status.consecutive_failures++;
   priv->healthy_tick = 0;
   priv->status.healthy_age_ms = 0;
   bk7258_ap_supervisor_capture_fault_locked(
     priv, fault, cpu2, priv->status.generation);
   bk7258_ap_supervisor_mark_rptun_fault(priv->status.generation, error);
 
-#ifdef CONFIG_BK7258_AP_SUPERVISOR_AUTO_RECOVER
-  if (priv->status.consecutive_failures >
-      CONFIG_BK7258_AP_SUPERVISOR_MAX_RECOVERIES)
+  decision = bk7258_ap_recovery_on_fault(&priv->policy, now_ms,
+                                         BK7258_AP_SUPERVISOR_AUTO_ENABLED);
+  if (decision == BK7258_AP_RECOVERY_LOCKOUT)
     {
       priv->status.state = BK7258_AP_SUPERVISOR_LOCKOUT;
     }
-  else
+  else if (decision == BK7258_AP_RECOVERY_RESTART)
     {
       priv->auto_recover_pending = true;
     }
-#endif
+
+  bk7258_ap_supervisor_publish_policy_locked(priv, now_ms);
 }
 
 static void bk7258_ap_supervisor_evaluate_locked(
@@ -448,13 +510,13 @@ static void bk7258_ap_supervisor_evaluate_locked(
         }
       priv->status.healthy_age_ms =
         bk7258_ap_supervisor_age_ms(now, priv->healthy_tick);
-#ifdef CONFIG_BK7258_AP_SUPERVISOR_AUTO_RECOVER
-      if (priv->status.healthy_age_ms >=
-          CONFIG_BK7258_AP_SUPERVISOR_STABLE_MS)
-        {
-          priv->status.consecutive_failures = 0;
-        }
-#endif
+
+      /* A healthy interval never resets the retry budget or lifetime
+       * evidence; only the rolling window decays with time.
+       */
+
+      bk7258_ap_supervisor_publish_policy_locked(
+        priv, (uint32_t)TICK2MSEC(now));
     }
   else
     {
@@ -609,7 +671,8 @@ static void bk7258_ap_supervisor_stale_locked(
   priv->status.healthy_age_ms = 0;
   priv->status.flags &= ~(BK7258_AP_SUPERVISOR_FLAG_PRIMARY |
                           BK7258_AP_SUPERVISOR_FLAG_SECONDARY |
-                          BK7258_AP_SUPERVISOR_FLAG_RPMSG_OK);
+                          BK7258_AP_SUPERVISOR_FLAG_RPMSG_OK |
+                          BK7258_AP_SUPERVISOR_PRODUCT_HEALTH_FLAGS);
   if (priv->status.state != BK7258_AP_SUPERVISOR_FAULTED &&
       priv->status.state != BK7258_AP_SUPERVISOR_LOCKOUT &&
       priv->status.state != BK7258_AP_SUPERVISOR_RECOVERING)
@@ -856,7 +919,8 @@ static bool bk7258_ap_supervisor_monitor(void)
   else
     {
       priv->status.flags &= ~(BK7258_AP_SUPERVISOR_FLAG_RPMSG_READY |
-                              BK7258_AP_SUPERVISOR_FLAG_RPMSG_OK);
+                              BK7258_AP_SUPERVISOR_FLAG_RPMSG_OK |
+                              BK7258_AP_SUPERVISOR_PRODUCT_HEALTH_FLAGS);
       transport_active = false;
     }
 
@@ -925,6 +989,10 @@ static bool bk7258_ap_supervisor_monitor(void)
         }
       else if (ret >= 0 && probe.generation == probe_generation)
         {
+          priv->status.flags &=
+            ~BK7258_AP_SUPERVISOR_PRODUCT_HEALTH_FLAGS;
+          priv->status.flags |= probe.product_flags &
+                                BK7258_AP_SUPERVISOR_PRODUCT_HEALTH_FLAGS;
           if (!transport_active)
             {
               priv->transport_tick = now;
@@ -942,15 +1010,27 @@ static bool bk7258_ap_supervisor_monitor(void)
             __ATOMIC_ACQUIRE);
           priv->transport_activity = 0;
         }
-      else if (!transport_active)
+      else
         {
+          /* Product health is valid only when the dedicated probe has
+           * returned it for this generation.  Unrelated bidirectional
+           * traffic can preserve RPMsg transport health, but must not keep a
+           * stale product-readiness token alive.
+           */
+
+          priv->status.flags &=
+            ~BK7258_AP_SUPERVISOR_PRODUCT_HEALTH_FLAGS;
+
           /* Application traffic completing in both directions while the
            * best-effort probe is pending is stronger evidence than a
            * transient probe allocation timeout.  Only record the probe
            * error when no such traffic was observed.
            */
 
-          priv->status.last_error = ret < 0 ? ret : -ESTALE;
+          if (!transport_active)
+            {
+              priv->status.last_error = ret < 0 ? ret : -ESTALE;
+            }
         }
 
       bk7258_ap_supervisor_evaluate_locked(priv, now, &fault, &cpu2);
@@ -1031,16 +1111,12 @@ static int bk7258_ap_supervisor_recover_internal(uint32_t timeout_ms,
   priv->invalid_seen = false;
   priv->healthy_tick = 0;
   priv->status.healthy_age_ms = 0;
+  bk7258_ap_recovery_on_result(&priv->policy, ret >= 0, manual);
   if (ret >= 0)
     {
-      priv->status.recovery_count++;
       priv->status.state = BK7258_AP_SUPERVISOR_ARMING;
       priv->status.reason = BK7258_AP_SUPERVISOR_REASON_NONE;
       priv->status.last_error = 0;
-      if (manual)
-        {
-          priv->status.consecutive_failures = 0;
-        }
     }
   else
     {
@@ -1049,6 +1125,8 @@ static int bk7258_ap_supervisor_recover_internal(uint32_t timeout_ms,
       priv->status.last_error = ret;
     }
 
+  bk7258_ap_supervisor_publish_policy_locked(
+    priv, bk7258_ap_supervisor_now_ms());
   nxmutex_unlock(&priv->lock);
   return ret;
 }
@@ -1124,7 +1202,7 @@ int bk7258_ap_supervisor_initialize(void)
   priv->initialized = true;
   priv->worker = kthread_create(
     BK7258_AP_SUPERVISOR_NAME, CONFIG_BK7258_AP_SUPERVISOR_PRIORITY,
-    CONFIG_BK7258_AP_SUPERVISOR_STACKSIZE,
+    CONFIG_BK7258_AP_SUPERVISOR_WORKER_STACKSIZE,
     bk7258_ap_supervisor_worker, NULL);
   if (priv->worker < 0)
     {

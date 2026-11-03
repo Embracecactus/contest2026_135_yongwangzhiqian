@@ -1164,6 +1164,9 @@ class ControlClient:
                 # replay candidate. The descriptor remains the final owner.
                 pass
             finally:
+                retained = getattr(self, "pc_key_copy", None)
+                if retained is not None:
+                    retained[:] = bytes(len(retained))
                 self.closed = True
                 self.authenticated = False
                 self._tls = None
@@ -1258,6 +1261,9 @@ def add_arguments(parser):
             "resource-upload",
             "resource-resume",
             "resource-cancel",
+            "approval-request",
+            "approval-run",
+            "approval-hook",
         ),
     )
     parser.add_argument(
@@ -1356,6 +1362,21 @@ def add_arguments(parser):
         default=0,
         help="Loopback port; 0 chooses a free port",
     )
+    parser.add_argument(
+        "--agent", help="approval-*: requesting agent name shown on the phone"
+    )
+    parser.add_argument(
+        "--target", help="approval-*: repository, directory or resource affected"
+    )
+    parser.add_argument(
+        "--approval-operation", help="approval-request: exact operation text"
+    )
+    parser.add_argument(
+        "--approval-timeout",
+        type=float,
+        default=120,
+        help="approval-*: seconds the phone owner has to decide, 5..300",
+    )
     add_connection_arguments(parser)
     parser.add_argument("--request", type=Path)
     parser.add_argument("--pending", type=Path)
@@ -1407,7 +1428,7 @@ def _credentials(args):
 
 
 @contextmanager
-def authorized_client(args):
+def authorized_client(args, *, retain_key=False):
     client = None
     try:
         with _credentials(args) as (certificate, pin, key):
@@ -1455,6 +1476,10 @@ def authorized_client(args):
                             raise ControlError("Authentication deadline elapsed")
                 else:
                     raise ControlError("Authentication retry exhausted")
+                if retain_key:
+                    # Approval receipts are verified with this PC's own key;
+                    # the copy lives only as long as the client.
+                    client.pc_key_copy = bytearray(key)
                 key[:] = bytes(len(key))
                 yield client
             finally:
@@ -1464,7 +1489,62 @@ def authorized_client(args):
             client.close()
 
 
+def _approval(args, cancel_requested):
+    import json
+
+    from . import workbench_approval as approval
+
+    command = None
+    if args.operation == "approval-hook":
+        raw = sys.stdin.buffer.read(1 << 20)
+        payload = json.loads(raw.decode("utf-8"))
+        if not isinstance(payload, dict):
+            raise approval.ApprovalError("Invalid hook payload")
+        operation = approval.hook_operation(payload)
+        agent = args.agent or "claude-code"
+        cwd = payload.get("cwd")
+        target = cwd if isinstance(cwd, str) else approval.current_target()
+    elif args.operation == "approval-run":
+        command = list(args.task_command or [])
+        operation = approval.command_text(command)
+        agent = args.agent or "agent"
+        target = args.target if args.target is not None else approval.current_target()
+    else:
+        if args.task_command:
+            raise ControlError("approval-request does not run a process")
+        operation = args.approval_operation or ""
+        agent = args.agent or "agent"
+        target = args.target or ""
+    timeout = args.approval_timeout
+    if not math.isfinite(timeout) or not 5 <= timeout <= 300:
+        raise approval.ApprovalError("Approval timeout must be 5..300 seconds")
+    # Validate the exact text before opening the device or borrowing a key.
+    approval.encode_request(b"\x01" * 16, int(round(timeout * 1000)),
+                            agent, target, operation)
+    with authorized_client(args, retain_key=True) as client:
+        result = approval.request(
+            client, client.pc_key_copy, agent, target, operation, timeout,
+            cancel_requested=cancel_requested,
+        )
+    if args.operation == "approval-hook":
+        allowed = approval.approved(result)
+        return approval.hook_output(
+            allowed,
+            "Approved on Shaniu by the phone owner"
+            if allowed
+            else f"Shaniu approval {result['decision']}; the user did not approve "
+            "this exact operation. Do not retry it without asking the user.",
+        )
+    if command is not None:
+        result["process_returncode"] = (
+            approval.run_command(command) if approval.approved(result) else None
+        )
+    return result
+
+
 def run(args, *, observe=None, cancel_requested=None):
+    if args.operation.startswith("approval-"):
+        return _approval(args, cancel_requested)
     task_plan = None
     if args.operation == "task-run":
         from . import workbench_task_runner

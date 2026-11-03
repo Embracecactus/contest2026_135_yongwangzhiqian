@@ -3,7 +3,7 @@
     {
       "path": "chips/bk7258/ap/bk7258_ble_gatt.c",
       "reason": "Legacy N13 validation service. It remains disabled in AIDK profiles and must move to app before feature work.",
-      "sha256": "a1d12979324f7c3f3476d2061ae27b8464939f1b93df6cfa50ab493095e34f54"
+      "sha256": "f3cb85f49e2e281f601d791f373a8255b4a07a079ff1b0f0d8ec8589b031cf49"
     },
     {
       "path": "chips/bk7258/include/bk7258_ble_gatt.h",

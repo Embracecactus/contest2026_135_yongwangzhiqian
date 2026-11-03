@@ -37,6 +37,7 @@
 #include <arch/chip/bk7258_amp.h>
 #include <arch/chip/bk7258_ota_rpmsg.h>
 #include <arch/chip/bk7258_rptun.h>
+#include <arch/chip/bk7258_smp_placement.h>
 #ifdef CONFIG_BK7258_USBMODE_RPMSG
 #  include <arch/chip/bk7258_usbmode_rpmsg.h>
 #endif
@@ -113,6 +114,8 @@ static void bk7258_rptun_proof_device_created(
   struct rpmsg_device *rdev, void *arg);
 static void bk7258_rptun_proof_device_destroyed(
   struct rpmsg_device *rdev, void *arg);
+static bool bk7258_rptun_proof_generation_valid(
+  struct bk7258_rptun_dev_s *priv);
 #ifndef CONFIG_BK7258_AP_CORE
 static bool bk7258_rptun_proof_ns_match(struct rpmsg_device *rdev,
                                         void *arg, const char *name,
@@ -141,8 +144,36 @@ static const struct rptun_ops_s g_bk7258_rptun_ops =
 
 static struct bk7258_rptun_dev_s g_bk7258_rptun;
 static mutex_t g_bk7258_rptun_registration = NXMUTEX_INITIALIZER;
-static spinlock_t g_bk7258_rptun_callback_lock = SP_UNLOCKED;
+static spinlock_t g_bk7258_rptun_callback_lock BK7258_SMP_LOCK_BSS =
+  SP_UNLOCKED;
 static sem_t g_bk7258_rptun_callback_done = SEM_INITIALIZER(0);
+
+#if defined(CONFIG_TESTS_BK7258_NATIVE_TRACE) || \
+    defined(CONFIG_TESTS_BK7258_NATIVE_TRANSPORT)
+const volatile uint32_t *bk7258_rptun_native_lock_word(void)
+{
+  struct rpmsg_device *rdev = g_bk7258_rptun.proof_ept.rdev;
+  return rdev != NULL ?
+         (const volatile uint32_t *)&rdev->lock.lock.val : NULL;
+}
+#endif
+
+#ifdef CONFIG_TESTS_BK7258_NATIVE_TRANSPORT
+int bk7258_rptun_native_direct_probe(uint32_t sequence)
+{
+  struct bk7258_rptun_dev_s *priv = &g_bk7258_rptun;
+  int ret;
+
+  if (!bk7258_rptun_proof_generation_valid(priv) ||
+      !is_rpmsg_ept_ready(&priv->proof_ept))
+    {
+      return -ENOTCONN;
+    }
+
+  ret = rpmsg_trysend(&priv->proof_ept, &sequence, sizeof(sequence));
+  return ret < 0 ? ret : OK;
+}
+#endif
 
 /****************************************************************************
  * Private Functions

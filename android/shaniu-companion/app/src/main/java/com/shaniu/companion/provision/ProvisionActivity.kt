@@ -168,11 +168,18 @@ class ProvisionActivity : Activity() {
                 })
             }
         }
-        form.addView(stepBar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(4)).apply { topMargin = dp(8) })
-        stepLabel = text("扫码认领 → 设置网络 → 开始陪伴", 12).apply {
+        // The step caption belongs to the progress bar, not above the title.
+        val progress = LinearLayout(this).apply { gravity = android.view.Gravity.CENTER_VERTICAL }
+        progress.addView(stepBar, LinearLayout.LayoutParams(0, dp(4), 1f))
+        stepLabel = TextView(this).apply {
+            text = "扫码认领 → 设置网络 → 开始陪伴"
             design.style(this, com.shaniu.companion.CompanionDesign.Type.LABEL, MUTED)
-            setPadding(0, dp(12), 0, 0)
+            setPadding(dp(12), 0, 0, 0)
         }
+        progress.addView(stepLabel)
+        form.addView(progress, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            topMargin = dp(8)
+        })
         titleLabel = text("添加傻妞", 28)
         status = text("保持傻妞开机，扫描圆屏上的认领码。认领不需要互联网；相机仅用于扫码，蓝牙用于安全连接设备。", 15).apply {
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
@@ -339,7 +346,7 @@ class ProvisionActivity : Activity() {
         titleLabel.text = listOf("添加傻妞", "连接 Wi-Fi", "正在连接傻妞")[value]
         for (index in 0 until stepBar.childCount) stepBar.getChildAt(index).background =
             design.shape(if (index <= value) design.ink else design.divider, dp(2).toFloat())
-        stepLabel.text = "${value + 1} / 3  ·  " + listOf("找到设备", "连接 Wi-Fi", "确认结果")[value]
+        stepLabel.text = "${value + 1}/3 " + listOf("找到设备", "连接 Wi-Fi", "确认结果")[value]
         revealStatus()
     }
     private fun revealStatus() {

@@ -46,7 +46,7 @@ config BK7258_NATIVE_UTC_OFFSET_MINUTES
 	depends on BK7258_NATIVE_APPS
 	help
 		Fixed offset applied to trusted UTC before native apps see the local
-		minute/day and before scheduled launches are evaluated. There is no
+		minute/day and before scheduled launches are evaluated.  There is no
 		daylight-saving rule; the default 480 is China Standard Time.
 
 config BK7258_PROVISION_NATIVE

@@ -26,6 +26,7 @@
 
 #include <arch/barriers.h>
 #include <arch/irq.h>
+#include <arch/chip/bk7258_smp_placement.h>
 
 #include <driver/int.h>
 
@@ -84,7 +85,7 @@ _Static_assert(BK7258_SDK_IRQ_LCD_PRIORITY <=
  * Private Data
  ****************************************************************************/
 
-static spinlock_t g_bk7258_sdk_irq_lock = SP_UNLOCKED;
+static spinlock_t g_bk7258_sdk_irq_lock BK7258_SMP_LOCK_BSS = SP_UNLOCKED;
 static int_group_isr_t g_bk7258_sdk_irq_handlers[BK7258_SDK_IRQ_COUNT];
 #ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
 static bool g_bk7258_sdk_irq_secondary_ready;

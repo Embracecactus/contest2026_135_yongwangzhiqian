@@ -7,6 +7,7 @@ profile is a tracked SDK config with one accepted bundle-tree hash comment:
 sdk-profiles/<manifest-version>/
   cp.config
   cp-aidk.config   # AIDK internal-ROSC overlay; no external 32.768 kHz crystal
+  cp-aidk-csi.config # optional AIDK raw CSI diagnostic; separate bundle
   ap.config
   ap-aidk.config  # normal AIDK AP profile; selected by openvela_ap/profile.conf
   ap-sdio4.config  # optional four-line AP capability; install/rebuild on demand

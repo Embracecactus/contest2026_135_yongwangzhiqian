@@ -55,7 +55,8 @@ struct bkpc_control_s
  * RESOURCE_JOB installation and DEFAULT_SELECTION jobs. Legacy HTTPS import
  * is not the USB file installer.
  * All other config/basic mutations are denied, no OTA handler or SPV1 entry
- * is installed. TASKS permits PTE1/PTS1 only. DIAGNOSTICS remains unbound in
+ * is installed. TASKS permits PTE1/PTS1 and APR1/APC1/APS1 approval
+ * requests only; it never permits the owner decision kind. DIAGNOSTICS remains unbound in
  * production; an engineering build may bind only config kind 19.
  */
 

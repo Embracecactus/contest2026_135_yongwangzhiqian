@@ -37,6 +37,7 @@
 #include <nuttx/wireless/bluetooth/bt_uuid.h>
 
 #include <arch/chip/bk7258_ble_gatt.h>
+#include <arch/chip/bk7258_smp_placement.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -295,7 +296,7 @@ static const struct bt_eir_s g_scan_response_data[] =
 
 static sem_t g_event_sem;
 static sem_t g_init_sem;
-static spinlock_t g_lock = SP_UNLOCKED;
+static spinlock_t g_lock BK7258_SMP_LOCK_BSS = SP_UNLOCKED;
 static struct bk7258_ble_gatt_event_s
   g_events[BK7258_BLE_GATT_EVENT_QUEUE_DEPTH];
 static struct bk7258_ble_gatt_frame_s g_control_frame;

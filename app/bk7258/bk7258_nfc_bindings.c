@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 /* SPDX-License-Identifier: Apache-2.0 */
 #include "bk7258_nfc_bindings.h"
+#include "bk7258_native_intent.h"
 #include "bk7258_nfc_core.h"
 #include <errno.h>
 #include <string.h>
@@ -104,6 +105,10 @@ bool bknfc_binding_action_valid(unsigned int action, uint64_t argument)
 {
   if (action == 1) return argument > 0;
   if (action == 5) return argument == 1;
+  /* 7: start an installed native app (hash:u32 << 32 | seconds:u32). */
+  if (action == 7)
+    return (argument >> 32) != 0 &&
+           (uint32_t)argument <= BKNATIVE_INTENT_SECONDS_MAX;
   return (action >= 2 && action <= 6) && argument == 0;
 }
 

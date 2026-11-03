@@ -15,6 +15,7 @@
 #include <nuttx/wireless/bluetooth/bt_hci.h>
 #include <arch/chip/bk7258_ble_scan.h>
 #include <arch/chip/bk7258_radio_mode.h>
+#include <arch/chip/bk7258_smp_placement.h>
 
 /* Current NuttX declares these Host entry points in bt_hcicore.h (internal).
  * Keep the version-specific declarations at this chip boundary, not in UI. */
@@ -23,7 +24,7 @@ extern int bt_start_scanning(uint8_t, void (*)(const bt_addr_le_t *, int8_t,
 extern int bt_stop_scanning(void);
 extern int bt_le_scan_update(void);
 
-static spinlock_t g_lock = SP_UNLOCKED;
+static spinlock_t g_lock BK7258_SMP_LOCK_BSS = SP_UNLOCKED;
 static struct bk7258_ble_scan_snapshot_s g_snapshot;
 static bool g_worker;
 static bool g_stop_pending;

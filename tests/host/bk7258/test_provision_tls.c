@@ -97,9 +97,11 @@ ssize_t bkprov_gatt_read(uint32_t gen, void *data, size_t size)
 
 ssize_t bkprov_gatt_send(uint32_t gen, const void *data, size_t size)
 {
-  assert(size <= 20);
+  assert(size <= BKPROV_GATT_MAX_PAYLOAD_SIZE);
   if (gen != generation) return -ESTALE;
   if (congested) return -ENOMEM;
+  size = size < BKPROV_GATT_LEGACY_PAYLOAD_SIZE ?
+         size : BKPROV_GATT_LEGACY_PAYLOAD_SIZE;
   int ret = put(&outbound, data, size);
   if (ret > 0) fragments++;
   return ret;

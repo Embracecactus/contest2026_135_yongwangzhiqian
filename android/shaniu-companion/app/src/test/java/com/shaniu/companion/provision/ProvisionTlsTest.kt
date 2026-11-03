@@ -94,9 +94,11 @@ class ProvisionTlsTest {
             }, output, input)
         }, { serverPlain.write(it) }, { now })
         var maximumPayload = 20
+        var observedPayload = 0
         fun deliver(from: ProvisionGattSession, to: ProvisionGattSession): Boolean {
             val write = from.nextWrite() ?: return false
             assertTrue(write.value.size in 1..maximumPayload)
+            observedPayload = maxOf(observedPayload, write.value.size)
             assertNull(from.nextWrite())
             // Stale-generation and duplicate-token callbacks cannot consume it.
             from.writeCompleted(from.generation + 100, write.token, false)
@@ -131,15 +133,21 @@ class ProvisionTlsTest {
             client.promoteToControl()
             client.negotiatedMtu(client.generation, 70)
             server.negotiatedMtu(server.generation, 70)
+            maximumPayload = 67
+            observedPayload = 0
             val message = ByteArray(4096) { (it % 251).toByte() }
             client.send(message)
             drain()
             assertArrayEquals(message, serverPlain.toByteArray())
+            assertEquals(67, observedPayload)
             client.negotiatedMtu(client.generation, 185)
             server.negotiatedMtu(server.generation, 185)
+            maximumPayload = 182
+            observedPayload = 0
             client.send(message)
             drain()
             assertArrayEquals(message + message, serverPlain.toByteArray())
+            assertEquals(182, observedPayload)
             /* Valid control responses renew only a promoted control lease. Two
              * activity periods exceed the former absolute 120s lifetime. */
             now += 119_999

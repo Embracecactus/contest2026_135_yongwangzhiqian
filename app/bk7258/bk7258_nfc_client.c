@@ -415,7 +415,7 @@ int bknfc_rpc_exchange(struct bknfc_rpc_request_s *request,
   struct bknfc_client_s *client = &g_bknfc_client;
   irqstate_t flags;
   unsigned int attempt;
-  uint32_t epoch;
+  uint32_t epoch = 0;
   int ret;
 
   if (request == NULL || response == NULL || timeout_ms == 0)

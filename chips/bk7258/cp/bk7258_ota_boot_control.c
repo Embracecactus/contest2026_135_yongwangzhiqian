@@ -13,6 +13,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <errno.h>
+#include <syslog.h>
 
 #include <arch/chip/bk7258_boot_slot.h>
 #include <arch/chip/bk7258_amp.h>
@@ -29,11 +30,22 @@
 
 #define BK7258_OTA_CONFIRM_LOCK_TIMEOUT_MS 5000u
 
+/* The trailer writer exists only where a caller can reach it: the
+ * health-token path (Supervisor builds) or the engineering-only override.
+ */
+
+#if defined(CONFIG_BK7258_AP_SUPERVISOR) || \
+    defined(CONFIG_BK7258_OTA_ENGINEERING_UNSAFE_CONFIRM)
+#  define BK7258_OTA_CONFIRM_WRITER 1
+#endif
+
 static const uint8_t
   g_bk7258_ota_magic[BK7258_MCUBOOT_TRAILER_MAGIC_SIZE] =
     BK7258_MCUBOOT_TRAILER_MAGIC_INIT;
 
+#ifdef BK7258_OTA_CONFIRM_WRITER
 static uint8_t g_bk7258_ota_confirm_sector[BK7258_OTA_ERASE_SIZE];
+#endif /* BK7258_OTA_CONFIRM_WRITER */
 
 struct bk7258_ota_trailer_s
 {
@@ -123,8 +135,18 @@ static int bk7258_ota_trailer(uint32_t xip, uint32_t size,
   return 0;
 }
 
+#ifdef BK7258_OTA_CONFIRM_WRITER
+static int bk7258_ota_confirm_health(
+  const struct bk7258_ap_supervisor_health_token_s *expected,
+  uint32_t max_age_ms, bool engineering_override);
+
 static int bk7258_ota_confirm_image(uint32_t raw_base, uint32_t raw_size,
                                     uint32_t logical_size,
+                                    const struct
+                                    bk7258_ap_supervisor_health_token_s
+                                    *health,
+                                    uint32_t health_max_age_ms,
+                                    bool engineering_override,
                                     bool *mutation_started)
 {
   uint32_t logical_offset =
@@ -136,6 +158,7 @@ static int bk7258_ota_confirm_image(uint32_t raw_base, uint32_t raw_size,
   uint32_t packet = raw_base + raw_offset - sector;
   uint8_t *data;
   uint16_t crc;
+  int ret;
 
   if (raw_offset + BK7258_OTA_CRC_TOTAL_SIZE > raw_size ||
       packet + BK7258_OTA_CRC_TOTAL_SIZE >
@@ -164,6 +187,19 @@ static int bk7258_ota_confirm_image(uint32_t raw_base, uint32_t raw_size,
       return -EILSEQ;
     }
 
+  /* Revalidate every required readiness token as the last step before this
+   * trailer is erased.  A failure here leaves this image untouched; if the
+   * other image of the pair was already mutated, the caller resets so BL2
+   * resolves the mismatched pair to the confirmed fallback.
+   */
+
+  ret = bk7258_ota_confirm_health(health, health_max_age_ms,
+                                  engineering_override);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
   data[in_group] = 1u;
   crc = bk7258_ota_flash_crc16(data);
   data[BK7258_OTA_CRC_DATA_SIZE] = (uint8_t)(crc >> 8);
@@ -181,6 +217,7 @@ static int bk7258_ota_confirm_image(uint32_t raw_base, uint32_t raw_size,
   return bk7258_ota_flash_verify(sector, g_bk7258_ota_confirm_sector,
                                  sizeof(g_bk7258_ota_confirm_sector));
 }
+#endif /* BK7258_OTA_CONFIRM_WRITER */
 
 int bk7258_ota_get_active_pair(struct bk7258_ota_pair_snapshot_s *snapshot)
 {
@@ -264,6 +301,7 @@ int bk7258_ota_get_active_pair(struct bk7258_ota_pair_snapshot_s *snapshot)
   return 0;
 }
 
+#ifdef BK7258_OTA_CONFIRM_WRITER
 static bool bk7258_ota_pair_snapshot_equal(
   const struct bk7258_ota_pair_snapshot_s *left,
   const struct bk7258_ota_pair_snapshot_s *right)
@@ -275,10 +313,63 @@ static bool bk7258_ota_pair_snapshot_equal(
          left->security_counter == right->security_counter &&
          bk7258_mcuboot_version_equal(&left->version, &right->version);
 }
+#endif /* BK7258_OTA_CONFIRM_WRITER */
+
+uint32_t bk7258_ota_confirm_policy_flags(uint32_t policy)
+{
+  switch (policy)
+    {
+      case BK7258_OTA_CONFIRM_POLICY_NETWORK:
+#ifdef CONFIG_BK7258_OTA_CONFIRM_REQUIRE_PRODUCT_READY
+        return BK7258_AP_SUPERVISOR_FLAG_WIFI_READY |
+               BK7258_AP_SUPERVISOR_FLAG_PRODUCT_READY;
+#else
+        return BK7258_AP_SUPERVISOR_FLAG_WIFI_READY;
+#endif
+
+      case BK7258_OTA_CONFIRM_POLICY_OFFLINE:
+
+        /* Without network evidence, an offline/file update must carry an
+         * explicit product readiness result published by the running AP
+         * generation over the generation-bound health channel.
+         */
+
+        return BK7258_AP_SUPERVISOR_FLAG_PRODUCT_READY;
+
+      default:
+        return 0u;
+    }
+}
+
+#ifdef BK7258_OTA_CONFIRM_WRITER
+#ifdef CONFIG_BK7258_AP_SUPERVISOR
+/* Product policies accepted by the token path.  The engineering override is
+ * never representable as a token; it exists only as a separately named,
+ * Kconfig-gated entry point.
+ */
+
+static bool bk7258_ota_confirm_token_valid(
+  const struct bk7258_ap_supervisor_health_token_s *token)
+{
+  uint32_t minimum;
+
+  if (token->policy != BK7258_OTA_CONFIRM_POLICY_NETWORK &&
+      token->policy != BK7258_OTA_CONFIRM_POLICY_OFFLINE)
+    {
+      return false;
+    }
+
+  minimum = bk7258_ota_confirm_policy_flags(token->policy);
+  return minimum != 0u &&
+         (token->required_flags & minimum) == minimum &&
+         (token->required_flags &
+          ~BK7258_AP_SUPERVISOR_PRODUCT_HEALTH_FLAGS) == 0u;
+}
+#endif
 
 static int bk7258_ota_confirm_health(
   const struct bk7258_ap_supervisor_health_token_s *expected,
-  uint32_t max_age_ms)
+  uint32_t max_age_ms, bool engineering_override)
 {
 #ifdef CONFIG_BK7258_AP_SUPERVISOR
   volatile struct bk7258_ap_boot_state_s *boot = bk7258_ap_boot_state();
@@ -286,13 +377,25 @@ static int bk7258_ota_confirm_health(
   uint32_t generation;
   uint32_t state;
   int ret;
+#endif
 
   if (expected == NULL)
     {
-      return OK;
+      /* A null token is accepted only by the explicitly named engineering
+       * override.  Product callers cannot reach this with override true.
+       */
+
+#ifdef CONFIG_BK7258_OTA_ENGINEERING_UNSAFE_CONFIRM
+      return engineering_override ? OK : -EPERM;
+#else
+      (void)engineering_override;
+      return -EPERM;
+#endif
     }
 
-  if (max_age_ms == 0u)
+  (void)engineering_override;
+#ifdef CONFIG_BK7258_AP_SUPERVISOR
+  if (max_age_ms == 0u || !bk7258_ota_confirm_token_valid(expected))
     {
       return -EINVAL;
     }
@@ -305,6 +408,12 @@ static int bk7258_ota_confirm_health(
       return ret < 0 ? ret : -ESTALE;
     }
 
+  if ((current.flags & expected->required_flags) !=
+      expected->required_flags)
+    {
+      return -EHOSTDOWN;
+    }
+
   generation = __atomic_load_n(
                  (uint32_t *)(uintptr_t)&boot->generation,
                  __ATOMIC_ACQUIRE);
@@ -314,14 +423,14 @@ static int bk7258_ota_confirm_health(
          state == BK7258_AP_STATE_READY ? OK : -ESTALE;
 #else
   (void)max_age_ms;
-  return expected == NULL ? OK : -ENOSYS;
+  return -ENOSYS;
 #endif
 }
 
 static int bk7258_ota_confirm_pair_internal(
   const struct bk7258_ota_pair_snapshot_s *expected,
   const struct bk7258_ap_supervisor_health_token_s *health,
-  uint32_t health_max_age_ms)
+  uint32_t health_max_age_ms, bool engineering_override)
 {
   struct bk7258_ota_pair_snapshot_s current;
   const struct bk7258_ota_layout_s *layout;
@@ -399,20 +508,13 @@ static int bk7258_ota_confirm_pair_internal(
     }
   if (ret == 0)
     {
-      ret = bk7258_ota_confirm_health(health, health_max_age_ms);
-    }
-  if (ret == 0)
-    {
       ret = bk7258_ota_confirm_image(
         ap_raw,
         locked_layout->slot[expected->active_slot]
                            [BK7258_OTA_IMAGE_AP].raw_size,
         locked_layout->active_logical_size[BK7258_OTA_IMAGE_AP],
-                                     &mutation_started);
-    }
-  if (ret == 0)
-    {
-      ret = bk7258_ota_confirm_health(health, health_max_age_ms);
+        health, health_max_age_ms, engineering_override,
+        &mutation_started);
     }
   if (ret == 0)
     {
@@ -421,7 +523,8 @@ static int bk7258_ota_confirm_pair_internal(
         locked_layout->slot[expected->active_slot]
                            [BK7258_OTA_IMAGE_CP].raw_size,
         locked_layout->active_logical_size[BK7258_OTA_IMAGE_CP],
-                                     &mutation_started);
+        health, health_max_age_ms, engineering_override,
+        &mutation_started);
     }
 
   bk7258_storage_unlock();
@@ -435,12 +538,25 @@ static int bk7258_ota_confirm_pair_internal(
 
   return ret;
 }
+#endif /* BK7258_OTA_CONFIRM_WRITER */
 
-int bk7258_ota_confirm_pair(
+#ifdef CONFIG_BK7258_OTA_ENGINEERING_UNSAFE_CONFIRM
+int bk7258_ota_confirm_pair_unsafe_engineering(
   const struct bk7258_ota_pair_snapshot_s *expected)
 {
-  return bk7258_ota_confirm_pair_internal(expected, NULL, 0u);
+  /* Engineering-only: confirms without any CP/AP health or readiness
+   * token.  Log loudly before and after so the bypass is never silent.
+   */
+
+  int ret;
+
+  syslog(LOG_WARNING,
+         "BOTA UNSAFE ENGINEERING CONFIRM begin: no health token\n");
+  ret = bk7258_ota_confirm_pair_internal(expected, NULL, 0u, true);
+  syslog(LOG_WARNING, "BOTA UNSAFE ENGINEERING CONFIRM result=%d\n", ret);
+  return ret;
 }
+#endif
 
 int bk7258_ota_confirm_pair_health(
   const struct bk7258_ota_pair_snapshot_s *expected,
@@ -456,8 +572,13 @@ int bk7258_ota_confirm_pair_health(
   (void)expected;
   return -ENOSYS;
 #else
+  if (!bk7258_ota_confirm_token_valid(health))
+    {
+      return -EINVAL;
+    }
+
   return bk7258_ota_confirm_pair_internal(
-           expected, health, health_max_age_ms);
+           expected, health, health_max_age_ms, false);
 #endif
 }
 

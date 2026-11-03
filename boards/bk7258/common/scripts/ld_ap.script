@@ -187,9 +187,16 @@ SECTIONS
     } > SPINLOCK AT > FLASH
     _lspinlock_data = LOADADDR(.spinlock_data);
 
+    /* Team-owned cross-core locks are tagged explicitly with
+     * BK7258_SMP_LOCK_BSS (input section .bss.bk7258_smp_lock).  The
+     * .bss.g_*lock* glob remains only for official NuttX/OpenAMP statics
+     * such as g_schedlock that the team does not annotate in place.
+     */
+
     .spinlock_bss (NOLOAD) : ALIGN(4)
     {
         _sspinlock_bss = ABSOLUTE(.);
+        *(.bss.bk7258_smp_lock)
         *(.bss.g_*lock*)
         *(.bss.g_bk7258_ap_smp_pending)
         . = ALIGN(4);

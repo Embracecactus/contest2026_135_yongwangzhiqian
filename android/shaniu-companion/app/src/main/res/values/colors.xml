@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Shaniu design tokens; see android/shaniu-companion/DESIGN.md. CompanionDesign reads these. -->
+<resources>
+    <color name="shaniu_background">#F4F1EC</color>
+    <color name="shaniu_surface">#FFFDFA</color>
+    <color name="shaniu_ink">#17161B</color>
+    <color name="shaniu_muted">#6A6670</color>
+    <color name="shaniu_on_accent">#FFFFFF</color>
+    <color name="shaniu_selected">#EBE6DF</color>
+    <color name="shaniu_divider">#E2DDD5</color>
+    <color name="shaniu_outline">#C9C3BA</color>
+    <color name="shaniu_warning">#8F5200</color>
+    <color name="shaniu_warning_surface">#FAEFD9</color>
+    <color name="shaniu_danger">#B3261E</color>
+    <color name="shaniu_danger_surface">#FBE9E7</color>
+    <color name="shaniu_scrim">#6617161B</color>
+    <color name="shaniu_eye">#4FD8A0</color>
+    <color name="shaniu_eye_ink">#127A56</color>
+    <color name="shaniu_bezel">#1D1D22</color>
+</resources>

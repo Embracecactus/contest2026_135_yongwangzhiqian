@@ -1,20 +1,20 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <resources>
-    <!-- Mirrors CompanionDesign: porcelain and ink; colour is reserved for her eyes. -->
+    <!-- Material roles resolve to the Shaniu tokens; values-night/colors.xml supplies dark. -->
     <style name="Theme.Shaniu" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="colorPrimary">#17161B</item>
-        <item name="colorOnPrimary">#FFFFFF</item>
-        <item name="colorSecondaryContainer">#EBE6DF</item>
-        <item name="colorOnSecondaryContainer">#17161B</item>
-        <item name="colorSurface">#FFFDFA</item>
-        <item name="colorOnSurface">#17161B</item>
-        <item name="colorOnSurfaceVariant">#6A6670</item>
-        <item name="colorOutline">#C9C3BA</item>
-        <item name="colorError">#B3261E</item>
+        <item name="colorPrimary">@color/shaniu_ink</item>
+        <item name="colorOnPrimary">@color/shaniu_on_accent</item>
+        <item name="colorSecondaryContainer">@color/shaniu_selected</item>
+        <item name="colorOnSecondaryContainer">@color/shaniu_ink</item>
+        <item name="colorSurface">@color/shaniu_surface</item>
+        <item name="colorOnSurface">@color/shaniu_ink</item>
+        <item name="colorOnSurfaceVariant">@color/shaniu_muted</item>
+        <item name="colorOutline">@color/shaniu_outline</item>
+        <item name="colorError">@color/shaniu_danger</item>
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#17161B</item>
-        <item name="android:windowBackground">#F4F1EC</item>
-        <item name="android:navigationBarColor">#F4F1EC</item>
+        <item name="android:colorAccent">@color/shaniu_ink</item>
+        <item name="android:windowBackground">@color/shaniu_background</item>
+        <item name="android:navigationBarColor">@color/shaniu_background</item>
     </style>
 
     <style name="ShaniuSheetAnimation">

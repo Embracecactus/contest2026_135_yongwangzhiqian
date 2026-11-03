@@ -151,6 +151,7 @@ endif
 
 ifeq ($(CONFIG_BK7258_AP_SUPERVISOR),y)
 BK7258_CP_CSRCS += bk7258_ap_supervisor.c
+BK7258_CP_CSRCS += bk7258_ap_recovery_policy.c
 endif
 
 ifneq ($(filter y,$(CONFIG_BK7258_BT_IPC) $(CONFIG_BK7258_WIFI_VNET)),)
@@ -163,6 +164,10 @@ BK7258_CP_CSRCS += bk7258_wifi_control.c
 ifneq ($(CONFIG_BK7258_AP_CORE),y)
 LDFLAGS += --wrap=malloc
 endif
+endif
+
+ifeq ($(CONFIG_BK7258_WIFI_RF_CAPTURE),y)
+BK7258_CP_CSRCS += bk7258_wifi_rf_capture.c
 endif
 
 ifeq ($(CONFIG_BK7258_WIFI_PACKET_DIAG),y)
@@ -389,6 +394,9 @@ endif
 
 ifeq ($(CONFIG_BK7258_WIFI_VNET),y)
 BK7258_AP_BASE_CSRCS += bk7258_wifi.c
+ifeq ($(CONFIG_BK7258_WIFI_CSI),y)
+BK7258_AP_BASE_CSRCS += bk7258_wifi_csi.c
+endif
 BK7258_AP_BASE_CSRCS += bk7258_wifi_control.c
 INCLUDES += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)include
 endif
@@ -646,6 +654,9 @@ BK7258_AP_UP_CSRCS += $(wordlist 6,8,$(BK7258_COMMON_CSRCS))
 BK7258_AP_SMP_CSRCS  = $(BK7258_AP_BASE_CSRCS)
 BK7258_AP_SMP_CSRCS += bk7258_ap_smp.c
 BK7258_AP_SMP_CSRCS += bk7258_ap_smp_advanced.c
+ifeq ($(CONFIG_BK7258_AP_SMP_DIAG),y)
+BK7258_AP_SMP_CSRCS += bk7258_ap_smp_diag.c
+endif
 # N8-B2 activates the same common SDK IRQ bridge for AP mailbox source 63.
 ifeq ($(CONFIG_BK7258_AP_IPI),y)
 BK7258_AP_SMP_CSRCS += bk7258_sdk_irq.c

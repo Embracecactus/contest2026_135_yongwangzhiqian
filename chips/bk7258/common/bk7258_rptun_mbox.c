@@ -33,6 +33,7 @@
 
 #include <arch/chip/bk7258_amp.h>
 #include <arch/chip/bk7258_rptun.h>
+#include <arch/chip/bk7258_smp_placement.h>
 
 #include <common/bk_err.h>
 #include <driver/mailbox_channel.h>
@@ -80,7 +81,8 @@ struct bk7258_rptun_mbox_message_s
 
 static sem_t g_bk7258_rptun_mbox_sem;
 static sem_t g_bk7258_rptun_probe_sem;
-static spinlock_t g_bk7258_rptun_mbox_lock = SP_UNLOCKED;
+static spinlock_t g_bk7258_rptun_mbox_lock BK7258_SMP_LOCK_BSS =
+  SP_UNLOCKED;
 static struct bk7258_rptun_mbox_message_s
   g_bk7258_rptun_mbox_messages[BK7258_RPTUN_MBOX_TYPE_COUNT];
 static uint32_t g_bk7258_rptun_mbox_pending;

@@ -322,6 +322,59 @@ config BK7258_AP_SMP_SCHED_ONLINE
 		Graceful CPU hot-unplug is not provided; stop/restart/cycle are rejected
 		while this scheduler-online mode is active.
 
+config BK7258_AP_SMP_DIAG
+	bool "AP SMP exclusive-access and placement diagnostics"
+	default n
+	depends on BK7258_AP_CORE && SMP && BK7258_AP_SMP_SCHED_ONLINE
+	---help---
+		Diagnostic-only.  Runs bounded atomic-add and recursive-lock stress on
+		both AP logical CPUs against the official lock window, ordinary SRAM
+		near 0x2806xxxx and 0x2809xxxx, and PSRAM; records an acquire-witness
+		ring, NVIC IPR/SHPR/BASEPRI/PRIMASK on each CPU and a TCB/task-group/
+		stack placement audit.  Never enable in a product configuration.
+
+if BK7258_AP_SMP_DIAG
+
+config BK7258_AP_SMP_DIAG_OPS
+	int "Default operations per CPU per address class"
+	default 10000000
+	range 10000000 1000000000
+	---help---
+		Kconfig target is at least 10^7.  A smaller runtime override is
+		reported with target_met=0.
+
+config BK7258_AP_SMP_DIAG_WITNESS_ENTRIES
+	int "Acquire-witness ring entries (split across both CPUs)"
+	default 256
+	range 16 4096
+
+config BK7258_AP_SMP_DIAG_PRIORITY
+	int "Stress worker priority"
+	default 100
+	range 1 199
+	---help---
+		Keep below the AP Supervisor heartbeat tasks so liveness evidence is
+		still produced while both CPUs execute exclusive loops.
+
+config BK7258_AP_SMP_DIAG_STACKSIZE
+	int "Stress worker stack size"
+	default 2048
+	range 1024 8192
+
+config BK7258_AP_SMP_DIAG_DMA_LOAD
+	bool "Optional DMA known-pattern load"
+	default n
+	depends on BK7258_DMA
+
+config BK7258_AP_SMP_DIAG_RPMSG_LOAD
+	bool "Optional RPMsg ping load to CP"
+	default n
+	depends on RPMSG_PING
+	---help---
+		Requires the matching CP diagnostic image to enable RPMSG_PING.
+
+endif # BK7258_AP_SMP_DIAG
+
 config BK7258_AP_SMP_CPU1_AFFINITY
 	bool "N8-C2 AP explicit CPU1 affinity one-task gate"
 	default n
@@ -870,10 +923,21 @@ config BK7258_AP_SUPERVISOR_PRIORITY
 		ordinary application and board-test tasks.
 
 config BK7258_AP_SUPERVISOR_STACKSIZE
-	int "N10 AP supervisor/heartbeat thread stack size"
+	int "N10 AP heartbeat and RPMsg health thread stack size"
 	default 2048
 	range 1024 8192
 	depends on BK7258_AP_SUPERVISOR
+
+config BK7258_AP_SUPERVISOR_WORKER_STACKSIZE
+	int "N10 CP supervisor worker and AP restart path stack size"
+	default 4096
+	range 2048 16384
+	depends on BK7258_AP_SUPERVISOR && !BK7258_AP_CORE
+	---help---
+		Stack for the CP supervisor kthread, which also executes the
+		automatic AP restart path (bk7258_ap_restart()).  Kept separate from
+		the AP heartbeat stack so it can be sized from a measured high-water
+		mark; the configured value is reported in supervisor status.
 
 config BK7258_AP_HEARTBEAT_PERIOD_MS
 	int "N10 AP heartbeat period (milliseconds)"
@@ -911,14 +975,27 @@ config BK7258_AP_HEALTH_PROBE_TIMEOUT_MS
 	range 100 10000
 	depends on BK7258_AP_SUPERVISOR && !BK7258_AP_CORE
 
+config BK7258_ENGINEERING_CONTROLS
+	bool "Engineering-only unsafe controls"
+	default n
+	---help---
+		Gate for controls that are valid only on engineering or diagnostic
+		images: automatic AP restart before fault-injection/soak acceptance,
+		and the explicitly named unsafe OTA confirmation override.  Product
+		configurations must leave this disabled.
+
 config BK7258_AP_SUPERVISOR_AUTO_RECOVER
-	bool "N10 automatically restart a faulted AP"
+	bool "N10 automatically restart a faulted AP (engineering only)"
 	default n
 	depends on BK7258_AP_SUPERVISOR && !BK7258_AP_CORE
+	depends on BK7258_ENGINEERING_CONTROLS
 	---help---
 		Automatically invoke the existing generation-safe AP restart path after
-		a confirmed supervisor fault.  Keep this disabled until passive fault
-		detection and manual recovery have completed board fault-injection soak.
+		a confirmed supervisor fault.  Engineering-only until passive fault
+		detection and manual recovery have completed board fault-injection
+		and soak acceptance.  Restarts are bounded per retry window and per
+		CP boot; exhausting either budget enters LOCKOUT, which only a manual
+		apctl recovery leaves.  A healthy interval never resets the budget.
 
 config BK7258_AP_SUPERVISOR_FAULT_INJECTION
 	bool "N10 synthetic supervisor fault injection"
@@ -933,16 +1010,28 @@ config BK7258_AP_SUPERVISOR_FAULT_INJECTION
 		profiles.
 
 config BK7258_AP_SUPERVISOR_MAX_RECOVERIES
-	int "N10 automatic recovery budget"
+	int "N10 automatic recoveries per retry window"
 	default 3
 	range 1 10
 	depends on BK7258_AP_SUPERVISOR_AUTO_RECOVER
 
-config BK7258_AP_SUPERVISOR_STABLE_MS
-	int "N10 healthy interval before recovery budget reset (milliseconds)"
-	default 60000
-	range 5000 600000
+config BK7258_AP_SUPERVISOR_RETRY_WINDOW_MS
+	int "N10 automatic recovery retry window (milliseconds)"
+	default 600000
+	range 60000 86400000
 	depends on BK7258_AP_SUPERVISOR_AUTO_RECOVER
+	---help---
+		Rolling window in which at most MAX_RECOVERIES automatic restarts may
+		start.  It decays only with time, not with a healthy interval.
+
+config BK7258_AP_SUPERVISOR_LIFETIME_RECOVERIES
+	int "N10 automatic recoveries per CP boot"
+	default 6
+	range 1 100
+	depends on BK7258_AP_SUPERVISOR_AUTO_RECOVER
+	---help---
+		Absolute per-boot cap so a fault recurring just outside each retry
+		window still reaches LOCKOUT instead of an unbounded restart loop.
 
 config BK7258_RPMSGFS
 	bool "N11 AP access to CP LittleFS through RPMsgFS"
@@ -1037,6 +1126,28 @@ config BK7258_WIFI_VNET
 		suspend STA and enter the SDK's passive monitor mode, but it does not
 		expose raw frame contents or transmission.  Wi-Fi initialization and
 		all AP-side SDK-facing workers are owned by AP logical CPU0.
+
+config BK7258_WIFI_CSI
+	bool "BK7258 bounded raw CSI capture over UDP"
+	default n
+	depends on BK7258_WIFI_VNET
+	depends on !BK7258_AP_CORE || NET_UDP
+	select NET_SOLINGER if BK7258_AP_CORE
+	---help---
+		Enable this on both roles of a CSI diagnostic pair. The CP SDK
+		profile must enable WIFI_CSI_EN. The AP logical-CPU0 Wi-Fi worker
+		owns raw CSI callbacks, a bounded queue and native NuttX UDP export.
+		Capture requires an associated STA and excludes radio scans and
+		Wi-Fi reconfiguration until stop or the bounded duration expires.
+
+config BK7258_WIFI_RF_CAPTURE
+	bool "CP bounded Wi-Fi PHY ADC diagnostic capture"
+	default n
+	depends on BK7258_WIFI_VNET && !BK7258_AP_CORE
+	---help---
+		Enable bounded raw PHY ADC debug sampling in a diagnostic image.
+		CP owns the LA DMA block and restores its setup after each capture.
+		This is not a proven monostatic sensing or IQ decoding interface.
 
 config BK7258_WIFI_PACKET_DIAG
 	bool "CP Wi-Fi DHCP packet boundary diagnostics"
@@ -1269,6 +1380,47 @@ config BK7258_SDK_SRAM_HEAP_SIZE
 	default 0x4000
 	range 0x1000 0x10000
 	depends on BK7258_SDK_SRAM_HEAP
+
+config BK7258_SMP_SYNC_POOL
+	bool "Keep SDK synchronization objects in the AP SMP lock window"
+	default y if BK7258_AP_CORE && SMP && BK7258_PSRAM_SYSTEM_HEAP
+	default n
+	help
+		Allocate SDK adapter control blocks that contain NuttX atomic or
+		spinlock state (rtos semaphores, mutexes, recursive mutexes, queue
+		control blocks and event groups) from fixed slots in the official
+		AP SMP lock window.  Queue payloads remain on the general heap.  On
+		AP SMP an overflow falls back to the kernel allocator and is refused
+		if that allocation is in PSRAM.  Size the slot counts from the
+		high-water counters reported by bk7258_os_sync_pool_get_stats().
+
+config BK7258_SMP_SYNC_POOL_SMALL_SLOTS
+	int "SDK synchronization pool 32-byte slots"
+	default 96
+	range 8 512
+	depends on BK7258_SMP_SYNC_POOL
+
+config BK7258_SMP_SYNC_POOL_LARGE_SLOTS
+	int "SDK synchronization pool 128-byte slots"
+	default 16
+	range 4 128
+	depends on BK7258_SMP_SYNC_POOL
+
+config BK7258_AP_SRAM_KERNEL_HEAP
+	bool "Split an SRAM-only NuttX kernel heap from the PSRAM user heap"
+	default n
+	depends on BK7258_AP_CORE && SMP && BK7258_PSRAM_SYSTEM_HEAP
+	select MM_KERNEL_HEAP
+	help
+		Give kmm_*() allocations (TCBs, task groups, kernel-thread stacks,
+		OpenAMP/RPMsg device state and other kernel synchronization objects)
+		a dedicated internal-SRAM heap of MM_KERNEL_HEAPSIZE bytes, carved
+		from the top of the AP SRAM heap.  PSRAM system-heap regions are then
+		added only to the user heap.  This removes every kmm_*() path into
+		PSRAM but moves SDK kernel threads and os_malloc() into the small AP
+		SRAM budget; enable it only with a measured MM_KERNEL_HEAPSIZE.
+		User-task stacks and application heap objects remain eligible for
+		PSRAM.
 
 config BK7258_PSRAM_BOOT_TEST
 	bool "N14 destructive full-capacity PSRAM boot test"

@@ -1110,7 +1110,7 @@ int main(void)
         assert(planning_requests == 2 && registry_calls == 1 && final_requests == 1);
         assert(begin_events == 1 && delta_events == 1 && !strcmp(spoken, text));
         const char *const expected[] = {
-            "voice_stream_request", "voice_stream_response",
+            "voice_stream_request", "llm_complete", "voice_stream_response",
             "plan_request", "plan_response", "tool_args_complete",
             "tool_start", "tool_result", "tool_result_added",
             "tool_result_added", "plan_request", "plan_response",

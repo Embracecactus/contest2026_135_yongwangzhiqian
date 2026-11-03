@@ -31,6 +31,19 @@
 
 #define BK7258_OTA_TRIAL_NAME "bk7258-ota-trial"
 
+/* The board selects exactly one explicit confirmation policy; the chip
+ * defines which readiness flags that policy requires and revalidates them
+ * before each trailer mutation.
+ */
+
+#if defined(CONFIG_BK7258_OTA_CONFIRM_POLICY_NETWORK)
+#  define BK7258_OTA_TRIAL_POLICY BK7258_OTA_CONFIRM_POLICY_NETWORK
+#elif defined(CONFIG_BK7258_OTA_CONFIRM_POLICY_OFFLINE)
+#  define BK7258_OTA_TRIAL_POLICY BK7258_OTA_CONFIRM_POLICY_OFFLINE
+#else
+#  error "BK7258 OTA auto-confirm requires an explicit confirmation policy"
+#endif
+
 _Static_assert(CONFIG_BK7258_OTA_TRIAL_PRIORITY <
                CONFIG_BK7258_AP_SUPERVISOR_PRIORITY,
                "OTA trial policy must run below the AP Supervisor");
@@ -211,6 +224,19 @@ static int bk7258_ota_trial_worker(int argc, char *argv[])
       ret = bk7258_ap_supervisor_health_token(
               supervisor_generation,
               CONFIG_BK7258_OTA_TRIAL_HEALTH_MAX_AGE_MS, &token);
+      token.policy = BK7258_OTA_TRIAL_POLICY;
+      token.required_flags =
+        bk7258_ota_confirm_policy_flags(BK7258_OTA_TRIAL_POLICY);
+
+      /* Missing policy readiness restarts the stable interval; it is not a
+       * generation error and does not extend the trial deadline.
+       */
+
+      if (ret == 0 &&
+          (token.flags & token.required_flags) != token.required_flags)
+        {
+          ret = -EAGAIN;
+        }
       if (ret == 0)
         {
           if (supervisor_generation == 0u)

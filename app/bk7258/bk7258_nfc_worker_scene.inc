@@ -7,7 +7,9 @@ static void bknfc_scene_stop_locked(struct bknfc_server_s *s)
   s->scene.armed = false;
   if (s->scene_intent)
     {
-      if (s->scene.action >= 5) (void)bkcontent_cancel(s->scene_intent);
+      if (s->scene.action == 7)
+        (void)bknative_intent_cancel(s->scene_intent);
+      else if (s->scene.action >= 5) (void)bkcontent_cancel(s->scene_intent);
       else (void)bkfocus_intent_cancel(s->scene_intent);
     }
 }
@@ -47,7 +49,14 @@ void bk7258_nfc_scene_receipt(struct bknfc_scene_receipt_s *receipt)
   *receipt = s->scene_receipt;
   spin_unlock_irqrestore(&s->request_lock, flags);
   if (!receipt->intent) return;
-  if (receipt->action >= 5)
+  if (receipt->action == 7)
+    {
+      struct bknative_intent_status_s native;
+      bknative_intent_status(&native);
+      receipt->phase = native.id == receipt->intent ? native.phase : 5;
+      receipt->result = native.id == receipt->intent ? native.error : -ESTALE;
+    }
+  else if (receipt->action >= 5)
     {
       struct bkcontent_status_s content;
       bkcontent_status(&content);

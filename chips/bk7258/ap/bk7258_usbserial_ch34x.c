@@ -42,6 +42,7 @@
 #include <nuttx/wqueue.h>
 
 #include <arch/chip/bk7258_usbserial_ch34x.h>
+#include <arch/chip/bk7258_smp_placement.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -258,7 +259,8 @@ static const struct uart_ops_s g_bk7258_ch34x_uart_ops =
  * contract exposes only one fixed /dev/ttyUSB0 endpoint. */
 
 static struct bk7258_usbserial_ch34x_s g_bk7258_ch34x;
-static spinlock_t g_bk7258_ch34x_alloc_lock = SP_UNLOCKED;
+static spinlock_t g_bk7258_ch34x_alloc_lock BK7258_SMP_LOCK_BSS =
+  SP_UNLOCKED;
 static bool g_bk7258_ch34x_inuse;
 static mutex_t g_bk7258_ch34x_registry_lock = NXMUTEX_INITIALIZER;
 static bool g_bk7258_ch34x_registered;

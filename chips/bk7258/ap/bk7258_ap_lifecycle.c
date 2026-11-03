@@ -381,7 +381,15 @@ static int bk7258_ap_validate_runtime(void)
 
   memset(test, 0xa5, 64);
   state->heap_test = (uint32_t)(uintptr_t)test;
+#ifndef CONFIG_TESTS_BK7258_NATIVE_TRANSPORT
   kmm_free(test);
+#else
+  /* The transport diagnostic reuses this early internal-SRAM allocation as
+   * a lock-placement sample after PSRAM regions join the system heap.  Keep
+   * it owned for the lifetime of the diagnostic image so no later allocator
+   * can repurpose the address while both AP logical CPUs exercise it.
+   */
+#endif
   return BK7258_AP_ERROR_NONE;
 }
 

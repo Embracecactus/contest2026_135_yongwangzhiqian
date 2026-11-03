@@ -1,19 +1,128 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # 源码许可证与来源记录
 
-## 2026-11-02 语音与 Agent 依赖发布
+## 2026-11-03 第一方原生功能与电脑审批
 
-Agent 语音输入、取消租约、连续文本 TTS、有限双请求调度及可配置 PCM 队列
-沿用 `open-vela/packages_ai_agent` Apache-2.0 源码。扩展已发布到
-`Embracecactus/packages_ai_agent` 的 `feat/contest-voice-streaming-20261102`，
-提交 `2f1316a1d3c8e6750c1401d138ca2f95713d37bd`，由团队 manifest 固定。
-该分支基于官方比赛分支 `e65550f18759f086d7f544edcf17d1e31223244f`；
-保留既有依赖修复，不复制另一份 Agent 实现或在构建时应用补丁。
+`bk7258_native_*`、`native-apps/*.c`、`bk7258_pc_approval.[ch]`、Android
+控制器及 `tools/bk7258/_lib/{native_apps,workbench_approval}.py` 均为本项目
+Apache-2.0 实现。原生装载器调用 manifest 固定 NuttX 的 ELF 接口与数据结构；
+没有复制、覆盖或在构建时修改上游源码。它在调用方持有并释放装载分配，规避该
+固定版本已复现的注册表卸载泄漏和未定义符号空名称比较路径，具体边界记录在
+`tools/bk7258/README.md`。主机签名测试只使用固定 mbedTLS 发布的 P-256 测试
+fixture；该测试私钥、公钥指纹和实测包均不进入产品配置或提交。
 
-本次同步发布团队语音调度/本地意图、事实记忆与 Skill、Android 控制入口、
-唤醒帧调度和本地训练工具。私人的录音、微调模型与训练中间产物不发布；
-公开内置模型未替换。主机检查及 Android 构建不等于新的固件实机验收。
+## 2026-11-02 产品编译源码所有权核对
 
+- 本仓 `app/bk7258`、`app/testing/bk7258`、`chips/bk7258` 中尚未纳入版本管理的
+  产品/测试源码与 `.inc` 均已由对应 CMake/Make 规则或包含它们的已跟踪源码引用，
+  所有者为本仓（Apache-2.0）；发布前须由所有者将其加入本仓提交，不另建仓库。
+- `app/bk7258/bk7258_cloud_http.c` 使用的 HTTP/1.1 keep-alive 接口
+  （`WEBCLIENT_FLAG_KEEPALIVE`、`webclient_context.connection`、
+  `response_framed` 等）目前只存在于工作区官方 `apps` 检出
+  `include/netutils/webclient.h` 与 `netutils/webclient/webclient.c` 的未提交
+  修改中。manifest 尚无 `apps` 的授权 fork，因此该依赖**没有**可复现的所有者；
+  需由所有者决定发布 `apps` fork 并以 `extend-project` 固定，或改写本仓调用方，
+  在此之前干净 manifest 无法复现产品构建。
+- `packages/ai_agent` 检出在已固定的 `Embracecactus/packages_ai_agent`
+  提交之上仍有未提交修改；它们须先提交并发布到该授权 fork，再更新 manifest
+  固定值。本次未提交、未推送、未修改 manifest。
+
+## 2026-11-01 单板 PHY ADC 诊断适配
+
+`chips/bk7258/cp/bk7258_wifi_rf_capture.c`、对应公共头和 `bkwifi rf`
+为团队 Apache-2.0 诊断实现。寄存器事实和私有 CRM 函数表前缀核对了固定 SDK
+固定提交 `eb0d4252a83f0ba88f0eb947fcfa2e36cbcb9bb4`（`v3.1.1.9`）的
+`cp/include/soc/bk7258/reg_base.h`、`cp/components/bk_phy/src/cli_phy.c`、
+`cp/components/bk_wifi/include/bk_private/bk_phy.h`（Beken Apache-2.0），
+以及 `cp/components/bk_libs/bk7258/libs/libbk_phy.a` 中
+`la_driver.c.obj` 的指令与 DWARF。库 SHA-256 为
+`0def7fb82dc69463003a4c72f97be665a49563b51b11171d7d66fc1d07a43502`。
+只使用其接口布局和寄存器配置事实；没有复制库源码、反汇编或二进制到团队源码，
+也不为厂商二进制新增许可证或分发声明。有限长度、超时、恢复、缓存和边界检查
+由团队实现；原始字尚未被认定为 IQ 或环境反射。
+
+本机单帧发送复用 SDK 的 `alloc_skb_for_tx_mgmt` / `bmsg_tx_mgmt_sender`，
+私有 `sk_buff` 前缀核对了 `cp/components/bk_wifi/include/rw_msdu.h`、
+`src/skbuff.c`、`src/rw_task.c`、`src/rwnx_tx.c` 和当前链接 ELF。
+使用独立帧缓冲，最多一个在飞帧，完成回调不依赖广播 ACK；超时后未完成帧
+仍阻止新提交。此路径规避原 `bk_wifi_send_raw` 的 PBUF_RAM 失败清理中
+释放内部 payload 指针的问题，不修改厂商库，不覆盖功率或速率。`adctx` 的
+`0x00065952` 是根据原 RF ADC 与 FE DAC 选择组合出的实验配置，
+不是厂商承诺的雷达模式。`adctxon` 仅测试 TX 模式的 `enrxadc` 位：
+`rc_driver.c.obj` DWARF 的 `BK7011_RC_REG0x22_TypeDef` 给出 bit 7，
+同库 `bk7236_cal.c.obj::bk7011_cal_tx_start/stop` 和 `BK7236_RC_REG`
+表确认地址 `0x4980c088` 及对应 RAM 影子偏移 `0x78`。不调用校准流程；
+短时设置后恢复并校验寄存器及影子值。
+
+`rxhold` / `fehold` 另外从当前 RX 映射中提取 `0x0000bc80` 的接收子链路
+使能位，临时并入 TX 映射；保留 PA、两路天线开关、共享 LPF 选择和校准值。
+RC、AHB、active、DSSS RX 时钟的强制使能来自同库 DWARF 的 `crm_funcs_t`
+布局，以及当前 CSI bundle `libwifi_csi.a(bk_wifi_phy_api.c.obj)` 的实际
+实现；该库 SHA-256 为
+`6e875deea4f5d9dc58978cb9be8d6710a96270378ea02fb6505e04031d27b9f2`。
+所有修改都限于采样窗口并读回检查恢复。`fehold` 的 `0x00065954` 将厂商
+FE ADC 选择与 FE DAC 选择组合，接收触发掩码为 `0x1000`；RF ADC 为
+`0x400`。这些掩码仅是厂商调试触发条件，不构成完整 IQ 编码或回波有效性
+定义。没有调用内部 RF 校准、写入校准分区或修改射频输出功率。
+
+`rxforce` 的 RC 强制请求依据同库 `bk7011_cal_tx_filter_corner` 的指令，
+仅复用 `0x4980c004` 的 force_en/RX/TX 位及相同模式映射的控制关系。
+`BK7236_RC_REG` 指针表确认 `0x4980c07c/084/088` 对应 RAM 偏移
+`0x6c/74/78`；不可将影子偏移直接当成 MMIO 偏移。设置当前 TX 映射与
+RX 子链路使能后，保留天线开关、共享 LPF 和 PA 设置，退出时恢复所有
+映射、强制请求及影子。发送触发还要求 DAC 数据 bit 16，避免强制模式
+下 ready 位常高导致提前抓取。没有复制或调用整套滤波器校准程序。
+
+`tssi` / `tssip` 复用 SDK `<driver/adc.h>` 的 ADC8 连续读取及资源锁。
+输入名称依据 `cp/middleware/soc/bk7258/hal/adc_ll.h` 的 TSSIO 映射，
+配置参考 `cp/components/bk_phy/src/bk_phy_adapter.c::bk_cal_saradc_start`，
+32 点分块与中断生命周期核对 `cp/middleware/driver/saradc/adc_driver.c`。
+不改变 ADC 校准旁路；TX 模式临时开启 entssi/entssiadc 并恢复。
+`tssip` 另根据同库 DWARF 的 `BK7011_TRX_REG0x0_TypeDef` 选择 en_Pcal、
+清 en_IQcal、置 tssranges=3；`BK7236_TRX_RAM[0]` 与 `0x4980c200` 的
+关系由 `bk7011_cal_tx_start` 指令确认。此测量输入选择仍属待验证假设，
+不代表 TSSIO 已测到天线反射；PA 偏置/增益及 RF 开关位保持原值。
+
+`tssii` 根据同一 `bk7011_cal_tx_start` 的输入选择，临时设置 en_IQcal、
+清 en_Pcal、置 tssranges=3，以及清 `0x4980c218` / `BK7236_TRX_RAM[6]`
+的 capcal_sel（bit 3）。调用公开 ADC 校准旁路 API，采样后关闭旁路并
+恢复输入选择与影子值。未复制工厂流程中的 PA、发射模式或校准操作。
+全程极值只覆盖已交付的 ADC 块；SDK 分块中断的重启间隙仍可能漏采。
+这是内部测量输入的验证，不将 IQ 校准输入命名解释为解码后的复数 IQ。
+
+TSSI 的时间关联复用上述 LA FEDAC 来源 `0x00065958`，同时要求 TX
+ready bit 28 与 DAC 数据 bit 16。采样块边界观察 LA enable 自动清零，
+保留首次观察到完成的 32 点 ADC 块，另外核对 DMA 内容与保护区。
+该标记只能证明发射端数字波形与 ADC 块的粗略时序关系，不证明实际
+射频功率、样点级同步或外部反射。LA 的配置保存与恢复复用同一实现。
+
+`tssic` 在 `tssii` 的输入配置上，仅临时置 RC0x19 (`0x4980c064`)
+的 `tssi_calc_en` bit 0，并观察 `tssi_est` bits 8–15；位定义来自同库
+`rc_driver.c.obj` DWARF，直接 MMIO 启停来自 `bk7011_cal_tx_start/stop`。
+结束时只恢复 bit 0，保留实时状态字段及其他控制位；不修改 packed
+RC shadow（该寄存器在指针表是 index 23，对应 RAM 偏移 `0x5c`）。
+厂商库未给出估计值的刷新时序或物理标定契约，因此只报告原始寄存器
+变化，不将其解释为 dBm、反射功率或人体信号。
+
+## 2026-10-31 原始 CSI 诊断适配
+
+新增芯片适配、BCSI 协议和主机记录/分析代码为团队 Apache-2.0 实现。
+SDK ABI 参考 manifest 固定的 `Embracecactus/bk_avdk_smp`，提交
+`eb0d4252a83f0ba88f0eb947fcfa2e36cbcb9bb4`（`v3.1.1.9`），具体为
+`ap/include/modules/wifi_types.h`、`ap/include/modules/wifi.h`、
+`ap/components/bk_wifi/src/wifi_api.c`、`cp/components/bk_wifi/src/wifi_v2.c`
+及 `cp/components/controller_if/cif_wifi_api.c`，保留其 Beken Apache-2.0 来源。
+原始模式 bit、len 单位和两个相邻 13 位分量也核对了同版本
+`cp/components/bk_libs/bk7258/libs/libwifi_csi.a` 的相关符号；库本身、反汇编及
+SDK bundle 均不作为新增可分发源文件提交。专用 bundle 由现有 SDK rebuild
+入口生成，摘要保存在 `cp-aidk-csi.config`，普通 profile 未被替换。
+
+主机 RuView 适配只参考 `ruvnet/RuView` 的 MIT 项目 ADR-018 线格式，
+来源为 `firmware/esp32-csi-node/main/csi_collector.c`
+（Git blob `791a5334083891f9c6518fdf01b018325c6e43e5`）与同目录
+`csi_collector.h`（blob `37934afa4c4b5512760be56a075612c8973c0621`），
+于 2026-10-31 读取。没有引入 ESP-IDF、RuView 固件、Rust runtime 或预训练模型。
+数据格式适配与主机测试不构成 BK7258 实板或 RuView 模型效果验证。
 
 ## 2026-10-21 评审修复依赖
 

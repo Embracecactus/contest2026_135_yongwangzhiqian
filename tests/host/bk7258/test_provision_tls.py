@@ -171,6 +171,9 @@ class ProvisionTlsTest(unittest.TestCase):
                 (chip_include / "bk7258_wifi.h").symlink_to(
                     ROOT / "chips/bk7258/include/bk7258_wifi.h"
                 )
+                (chip_include / "bk7258_wifi_csi.h").symlink_to(
+                    ROOT / "chips/bk7258/include/bk7258_wifi_csi.h"
+                )
                 run(
                     [
                         "cc",
