@@ -46,7 +46,7 @@ Earlier records retain their original limits.
 |---|---|---|
 | N1 motion, expression, haptics | 11-03: changing sensor samples, happy→neutral render/readback, and two product-feedback haptic calls returning 0 followed by capture rearm. The direct serial pulse returned `-16` under the expected MIC interlock. Historical 770 also has an owner-confirmed expression change | Correlated pickup/putdown events, visible expression mapping, human haptic experience and current-candidate device validation |
 | N2 scene cards | NFC service and eight-slot protocol; historical status/no-card content load. 11-03: App scene drafts pass in the emulator; board scan returns `-110` without a confirmed card in range | Physical-card scene/content triggering and its exception paths; no-card timeout is not proof of a broken module |
-| N3 computer tasks | 11-03: normal subprocess return 0; timeout has `reason=timeout`, subprocess return 1 and CLI exit 130; both device results confirmed. Unapproved single-use request expires without running a process | Phone approval and rejection, visible/audible feedback, full resource workflow and current-candidate acceptance; `feedback_verified=false` |
+| N3 computer tasks | 11-03: normal subprocess return 0; timeout has `reason=timeout`, subprocess return 1 and CLI exit 130; both device results confirmed. Unapproved single-use request expires without running a process. 11-04 firmware 775: one authenticated phone approval runs the test command successfully; the owner confirms both exclamation marks while pending and their removal after approval | Rejection and timeout on 775, repeated runs, other task-result feedback and full resource workflow. The 11-03 `feedback_verified=false` record retains its original scope |
 | N4 on-demand camera | 11-03: real browser capture, save with matching JPEG hash, cancel, recapture and cache release pass; 55 s recording retained. Two 640×480 frames, 8,583/11,767 B; frame transfer 1.413/2.020 s, backend capture/read 4.429/5.067 s (not click-to-display latency). This adds real save evidence to the older fixture-only candidate record | Running image correspondence, concurrency, long-term stability and human image-quality review; dark workbench recording still needs a well-lit object and physical-device shot |
 
 The earlier 11-03 afternoon snapshot has temporary Wi-Fi association but an
@@ -91,9 +91,14 @@ The late-night computer-approval check found a confirmed display defect:
 pending approval emits visual state 7, but the display ingress rejected states
 above 6, leaving vibration without the exclamation mark. The fix and regression
 in `c34135cb` pass the actual approval-to-ingress-to-both-framebuffers path and
-the AIDK incremental build. Firmware 774 still contains the defect; the 775
-candidate has not been flashed or physically accepted. Approval completion is
-supposed to clear this pending alert. See the
+the AIDK incremental build. Firmware 774 still contains the defect. Version
+`0.7.129+775`, built from `7364ac4f`, was then flashed to the same AIDK and
+read back over its authenticated PC connection. One approval completed with
+process return 0; the owner confirmed both pending exclamation marks and their
+removal after approval. No physical video was captured. The authorized historical
+base restored older settings; voice was initially not ready. After the owner
+saved network and cloud settings in the App, authenticated readback returned
+`ready=true` and `runtime_error=0`. This is readiness, not a new spoken-turn test. See the
 [dated follow-up](../../docs/verification/bk7258/2026-11-03-feature-validation/README.md#11-04-电脑审批感叹号缺失).
 
 ## Configuration ownership

@@ -1,0 +1,109 @@
+{
+  "source_commit": "7364ac4fe6fb0af69e553c27292460e93870b082",
+  "fix_commit": "c34135cbd4b501bdef98aff9b29d2439838af2b9",
+  "board": "aidk_ai_toy",
+  "board_identity_prefix": "571ab95e",
+  "firmware": {
+    "major": 0,
+    "minor": 7,
+    "revision": 129,
+    "build": 775,
+    "security_counter": 775
+  },
+  "full_bin_sha256": "5a6f5684cd99e74a88a51fae934f0410d4b15b330950698d9bb8a658e43a3899",
+  "flash": {
+    "status": "passed",
+    "ended_utc": "2026-11-03T16:23:02.671109+00:00",
+    "success_markers": [
+      "Gotten Bus",
+      "EraseFlash ->pass",
+      "WriteFlash ->pass",
+      "Writing Flash OK",
+      "{All Finished Successfully}"
+    ],
+    "failure_markers": [],
+    "same_unit_accepted_base_sha256": "776e5ff6545b3dd2866d67ac78e4877a94639bdfa58818d3aaed137c5e22406c",
+    "new_readback_used": false
+  },
+  "boot": {
+    "authenticated_version_readback": true,
+    "initial_display_render": "neutral, two screens, PASS",
+    "fatal_markers": []
+  },
+  "approval": {
+    "request_id": "d0f53362807923cece57ef4078e776af",
+    "operation_sha256": "7b9dc6a838abe9c96b17d083dc5185bf0ba55698e39fc6662578428723321d49",
+    "agent": "Codex",
+    "target": "approval-display-test",
+    "decision": "approved",
+    "authenticated": true,
+    "process_returncode": 0
+  },
+  "human_observation": {
+    "pending_both_eyes_show_exclamation": true,
+    "approval_clears_exclamation": true,
+    "samples": 1
+  },
+  "command_output": "APPROVAL_DISPLAY_OK",
+  "environment_video_recorded": false,
+  "limits": [
+    "Approval success and visible pending/clear path only; rejection, timeout and repeated runs not revalidated on 775.",
+    "Same-unit full image uses an accepted historical base; configuration rollback was authorized.",
+    "DUT timestamps were not synchronized; host flash time and this request ID correlate the run."
+  ],
+  "post_flash_status": {
+    "ready": false,
+    "busy": false,
+    "volume": 53,
+    "persona": 1,
+    "turn": 0,
+    "runtime_error": 0
+  },
+  "status_after_owner_saved_configuration": {
+    "ready": true,
+    "busy": false,
+    "volume": 53,
+    "persona": 1,
+    "turn": 0,
+    "runtime_error": 0
+  },
+  "software_verification": {
+    "host_checks": [
+      {
+        "check": "host-regression",
+        "exit_code": 0,
+        "seconds": 51.29
+      },
+      {
+        "check": "headers",
+        "exit_code": 0,
+        "seconds": 3.99
+      },
+      {
+        "check": "layers",
+        "exit_code": 0,
+        "seconds": 0.68
+      }
+    ],
+    "clean_builds": [
+      {
+        "board": "aidk_ai_toy",
+        "source_commit": "7364ac4fe6fb0af69e553c27292460e93870b082",
+        "exit_code": 0,
+        "seconds": 53.48
+      },
+      {
+        "board": "t5_board",
+        "source_commit": "7364ac4fe6fb0af69e553c27292460e93870b082",
+        "exit_code": 0,
+        "seconds": 36.05
+      },
+      {
+        "board": "t5ai_core",
+        "source_commit": "7364ac4fe6fb0af69e553c27292460e93870b082",
+        "exit_code": 0,
+        "seconds": 36.19
+      }
+    ]
+  }
+}
