@@ -1,0 +1,34 @@
+# Selected non-sensitive KWS / handoff / rearm markers only. Raw logs remain local.
+# Board clock resets before network synchronization; keep original times.
+
+# p5-install
+[03/11/26 17:15:32.661843] [CPU0] [163] [  INFO] [ap] BKVOICE KWS candidate hits=1/2 score=984
+[03/11/26 17:15:32.951875] [CPU0] [163] [  INFO] [ap] [audio_cap] handoff first_sample=47744000 queued_samples=7680
+[03/11/26 17:15:48.930031] [CPU0] [57] [  INFO] [ap] BKVOICE turn complete=0 interaction=active next=capture result=0
+[03/11/26 17:16:59.059843] [CPU0] [57] [  INFO] [ap] [voice-stage] request=2 mono_ms=3237187 stage=rearm value=1 result=0
+[03/11/26 17:16:59.060187] [CPU0] [57] [  INFO] [ap] BKVOICE turn complete=-110 interaction=exit next=wake result=0
+
+# p5-active
+[03/11/26 17:29:21.568937] [CPU0] [57] [  INFO] [ap] BKVOICE local wake active label=nihao_openvela frontend=2 sha256=5c82f8fe3752cb61134b15e0efe44d6d364a252f1f6cb2e846f1ed06786b4fdd bytes=26712
+[03/11/26 17:31:20.523656] [CPU0] [232] [  INFO] [ap] BKVOICE KWS candidate hits=1/5 score=851
+[03/11/26 17:31:20.546125] [CPU0] [232] [  INFO] [ap] BKVOICE KWS candidate released hits=1 scores=0/500/500
+[03/11/26 17:31:20.609562] [CPU0] [232] [  INFO] [ap] BKVOICE KWS candidate hits=1/5 score=906
+[03/11/26 17:31:20.625343] [CPU0] [232] [  INFO] [ap] BKVOICE KWS candidate released hits=1 scores=0/222/777
+[03/11/26 17:31:20.667062] [CPU0] [232] [  INFO] [ap] BKVOICE KWS candidate hits=1/5 score=882
+[03/11/26 17:31:20.683468] [CPU0] [232] [  INFO] [ap] BKVOICE KWS candidate hits=2/5 score=941
+[03/11/26 17:31:20.706093] [CPU0] [232] [  INFO] [ap] BKVOICE KWS candidate hits=3/5 score=941
+[03/11/26 17:31:20.723437] [CPU0] [232] [  INFO] [ap] BKVOICE KWS candidate hits=4/5 score=941
+[03/11/26 17:31:20.746312] [CPU0] [232] [  INFO] [ap] [audio_cap] handoff first_sample=1888000 queued_samples=6400
+[03/11/26 17:31:27.732343] [CPU0] [57] [  INFO] [ap] [voice-stage] request=3 mono_ms=4105859 stage=rearm value=1 result=0
+[03/11/26 17:31:27.733125] [CPU0] [57] [  INFO] [ap] BKVOICE turn complete=-61 interaction=exit next=wake result=0
+
+# p5-reboot
+[26/07/26 00:00:03.188281] [CPU0] [57] [  INFO] [ap] BKVOICE wake threshold restore=0 percent=85
+[26/07/26 00:00:04.611625] [CPU0] [57] [  INFO] [ap] BKVOICE local wake active label=nihao_openvela frontend=2 sha256=5c82f8fe3752cb61134b15e0efe44d6d364a252f1f6cb2e846f1ed06786b4fdd bytes=26712
+[26/07/26 00:00:04.613844] [CPU0] [57] [  WARN] [ap] BKVOICE wake threshold restore=-16 percent=85
+[26/07/26 00:00:05.175813] [CPU0] [57] [  WARN] [ap] BKVOICE wake threshold restore=-16 percent=85
+[26/07/26 00:00:06.113563] [CPU0] [57] [  WARN] [ap] BKVOICE wake threshold restore=-16 percent=85
+[26/07/26 00:00:07.486531] [CPU0] [57] [  WARN] [ap] BKVOICE wake threshold restore=-16 percent=85
+[26/07/26 00:00:08.493000] [CPU0] [57] [  WARN] [ap] BKVOICE wake threshold restore=-16 percent=85
+[26/07/26 00:00:09.491531] [CPU0] [57] [  WARN] [ap] BKVOICE wake threshold restore=-16 percent=85
+[26/07/26 00:00:10.511000] [CPU0] [57] [  INFO] [ap] BKVOICE wake threshold restore=0 percent=85

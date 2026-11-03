@@ -1,0 +1,169 @@
+{
+  "schema": "bk7258-wake-model-recovery-v1",
+  "date": "2026-11-04",
+  "scope": "same owner AIDK; restore a locally adapted model after historical-base recovery; not a new public firmware/model release",
+  "firmware": {
+    "major": 0,
+    "minor": 7,
+    "revision": 129,
+    "build": 775,
+    "security_counter": 775
+  },
+  "app": {
+    "version_code": 58,
+    "version_name": "0.7.28-shaniu-mimo-chat"
+  },
+  "before": {
+    "model_sha256": "922eba9175fcda60f7c8a4505ca4eb5a97c86ceb30fbe48c685fd612098ac910",
+    "frontend": 1,
+    "threshold_percent": 85,
+    "source": "builtin; no persistent selection at firmware 775 boot"
+  },
+  "after": {
+    "model_sha256": "5c82f8fe3752cb61134b15e0efe44d6d364a252f1f6cb2e846f1ed06786b4fdd",
+    "model_bytes": 26712,
+    "package_sha256": "4d41f3b4be85a239947d204470c1ee144b40ba2bb938fa84b03b30f69a8d3d99",
+    "package_bytes": 26852,
+    "frontend": 2,
+    "threshold_percent": 85,
+    "consecutive_fresh_frames": 5,
+    "frame_ms": 20,
+    "deployment": "existing companion App WKM2 import; acknowledged and read back",
+    "privacy": "personal candidate retained locally/on owner device; model and voice samples excluded from publication"
+  },
+  "offline": {
+    "kind": "file-input regression; actual current C frontend/trigger with TensorFlow 2.15.1 reference callback",
+    "startup": "product",
+    "split": "validation",
+    "results": {
+      "builtin": {
+        "model_sha256": "922eba9175fcda60f7c8a4505ca4eb5a97c86ceb30fbe48c685fd612098ac910",
+        "policy": {
+          "consecutive": 2,
+          "cooldown_ms": 1000,
+          "release_threshold": 0.20000000298023224,
+          "threshold": 0.8500000238418579
+        },
+        "report_sha256": "f3aef00dbc53e75303e3b6f7706f6954e0cadb082c5457ac78bc0ce90309274d",
+        "manifest_sha256": "e2f0e325c5c58d1acff5c745c71a6100e90ff6c185270c13472bf5c0b7e2c930",
+        "sessions": 709,
+        "listening_ms": 5305920,
+        "expected_wakes": 348,
+        "missed_wakes": 202,
+        "background_false_positives": 33,
+        "background_only_false_positives": 23,
+        "background_only_listening_ms": 2310640,
+        "repeated_wakes": 0
+      },
+      "H3": {
+        "model_sha256": "09e8401fc6dbf379133175b189ca9970a66088b75db7cbb5330984a4d733f759",
+        "policy": {
+          "consecutive": 5,
+          "cooldown_ms": 1000,
+          "release_threshold": 0.20000000298023224,
+          "threshold": 0.8500000238418579
+        },
+        "report_sha256": "f85518bcff478420a20c7b22e140d69de6db2bc2d90933e0afe3e5c7e88a98f9",
+        "manifest_sha256": "e2f0e325c5c58d1acff5c745c71a6100e90ff6c185270c13472bf5c0b7e2c930",
+        "sessions": 709,
+        "listening_ms": 5305920,
+        "expected_wakes": 348,
+        "missed_wakes": 3,
+        "background_false_positives": 7,
+        "background_only_false_positives": 0,
+        "background_only_listening_ms": 2310640,
+        "repeated_wakes": 0
+      },
+      "P5": {
+        "model_sha256": "5c82f8fe3752cb61134b15e0efe44d6d364a252f1f6cb2e846f1ed06786b4fdd",
+        "policy": {
+          "consecutive": 5,
+          "cooldown_ms": 1000,
+          "release_threshold": 0.20000000298023224,
+          "threshold": 0.8500000238418579
+        },
+        "report_sha256": "ef59e5f7a9bc0edd9e3ec619475364bca8d6019abbaca1b5b228a504ce4d18b9",
+        "manifest_sha256": "e2f0e325c5c58d1acff5c745c71a6100e90ff6c185270c13472bf5c0b7e2c930",
+        "sessions": 709,
+        "listening_ms": 5305920,
+        "expected_wakes": 348,
+        "missed_wakes": 17,
+        "background_false_positives": 0,
+        "background_only_false_positives": 0,
+        "background_only_listening_ms": 2310640,
+        "repeated_wakes": 0
+      }
+    },
+    "baseline_metadata_rebinding": "only local evaluation copy; current v1-compatible frontend C/H hashes rebound, original metadata retained; 39 other frontend inputs unchanged",
+    "baseline_provenance_receipt_sha256": "f63075cf9d9e25dcb417a46fcab0b88c74c777544aa4724b63fc85e78978d42d",
+    "limitations": [
+      "Shared-source variants; not independent people or a universal field false-wake rate.",
+      "Historical P5 exposed-negative regression retains one event in 1800.922 decoded seconds.",
+      "The existing final independent-negative manifest is empty; no independent-negative pass is claimed.",
+      "H3 missed the prior enrollment recording physically, so its higher public regression recall did not justify replacement."
+    ]
+  },
+  "physical": {
+    "route": "owner phone speaker",
+    "phone_media_volume": 80,
+    "phone_media_volume_range": [
+      0,
+      150
+    ],
+    "baseline_phone_volume_restored": 20,
+    "negative_replay_sha256": "811cc07a21692924dec46477f5d396d233323e7b79934ed001acc8329772930f",
+    "negative_replay_seconds": 34.28,
+    "negative_segments": 3,
+    "negative_source_scope": "previously evaluated public real-voice non-target sessions",
+    "builtin": {
+      "wake_handoffs": 1,
+      "candidate_score_per_1000": 984,
+      "scope": "observed during baseline phone playback; initial player redirected through a splash activity and playback was restarted in the local preview, so this is not a clean single-player paired trial"
+    },
+    "P5_negative": {
+      "wake_handoffs": 0,
+      "candidate_reports": 0,
+      "scope": "complete local-preview playback; playback activity and speaker route observed; microphone input present"
+    },
+    "P5_positive": {
+      "attempts": 1,
+      "wake_handoffs": 1,
+      "rearmed": true,
+      "scope": "existing authorized enrollment-exposed recording; no question appended; not independent human accuracy or a dialogue test"
+    },
+    "no_new_live_speech_requested": true,
+    "physical_video_captured": false
+  },
+  "reboot": {
+    "software_reset_command": "reset reboot",
+    "persistent_model_loaded": true,
+    "threshold_percent": 85,
+    "unexpected_wake_handoffs_in_90s_capture": 0,
+    "authenticated_status": {
+      "ready": true,
+      "busy": false,
+      "volume": 53,
+      "persona": 1,
+      "turn": 0,
+      "runtime_error": 0
+    }
+  },
+  "raw_evidence_sha256": {
+    "p5-install": "c04c3d4c39cc6282d3790a20fdcbbf524d78c1c792ee682f87364db341d91350",
+    "p5-active": "87c94b5138c1158a1fa03c35781ddfaad96b65420e69f30e0281c36d8ba408da",
+    "p5-reboot": "ba2edaeed31e2295142807b9fc1e524055891f6bfc913b277f845cdbcc5bf0a2"
+  },
+  "delivery_boundaries": [
+    "Firmware and App binaries were unchanged.",
+    "Public builtin model remains unchanged; this repair restores the owner unit personalization.",
+    "A later full recovery from an older base can restore old model selection again; read back the model and restore the retained private package after such recovery.",
+    "No private audio, transcripts, model binaries, credentials or raw device logs are included."
+  ],
+  "cleanup": {
+    "phone_replay_audio_files_checked": 2,
+    "phone_replay_audio_files_absent": 2,
+    "private_model_package_retained_on_owner_phone": true,
+    "phone_foreground": "com.shaniu.companion/.MainActivity",
+    "media_volume_restored": 20
+  }
+}
