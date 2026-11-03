@@ -101,6 +101,7 @@
 #include "bk7258_pc_tasks.h"
 #ifdef CONFIG_BK7258_NATIVE_APPS
 #include "bk7258_native_apps.h"
+#include "bk7258_native_intent.h"
 #endif
 #ifdef CONFIG_BK7258_USBCDC
 #include "bk7258_pc_usb.h"
@@ -528,6 +529,13 @@ static const struct bkengtest_ops_s g_engineering_test_ops =
 
 #ifdef CONFIG_BK7258_NATIVE_APPS
 #define PRODUCT_NATIVE_DISPLAY_RETRY_MS 10000u
+#ifndef CONFIG_BK7258_NATIVE_UTC_OFFSET_MINUTES
+#  define CONFIG_BK7258_NATIVE_UTC_OFFSET_MINUTES 480
+#endif
+
+/* Defined later with the companion feedback gates. */
+
+static void product_companion_request_pulse(uint64_t now);
 
 static uint32_t g_native_trial;
 static struct bknative_frame_s g_native_pending_frame;
@@ -598,15 +606,120 @@ static int product_native_submit_display(
   return ret;
 }
 
-static void product_native_step(uint64_t now, bool admitted)
+/* Completion feedback is requested after the module is unloaded. Each is
+ * one bounded intent through an existing owner.
+ */
+
+static void product_native_completion(uint64_t now,
+                                      const struct bknative_output_s *output)
+{
+  if (output->haptic)
+    {
+      product_companion_request_pulse(now);
+    }
+
+  if (output->cue == BKNATIVE_CUE_RHYTHM)
+    {
+      uint32_t intent;
+      int ret = bkcontent_submit(5, 1, &intent);
+      syslog(LOG_INFO, "BKNATIVE cue=%u intent=%lu result=%d\n",
+             (unsigned int)output->cue, (unsigned long)intent, ret);
+    }
+}
+
+/* Apply one request from the shared intent slot. START needs app admission;
+ * stop and schedule changes need only control admission.
+ */
+
+static void product_native_intent(bool admitted, bool control)
+{
+  struct bknative_intent_status_s intent;
+  int ret;
+
+  if (!bknative_intent_take(admitted, control, &intent))
+    {
+      return;
+    }
+
+  switch (intent.kind)
+    {
+      case BKNATIVE_INTENT_START:
+        ret = bknative_launch(intent.app_hash, intent.seconds);
+        break;
+      case BKNATIVE_INTENT_STOP:
+        ret = bknative_stop_app(intent.app_hash);
+        break;
+      case BKNATIVE_INTENT_SCHEDULE_SET:
+        ret = bknative_schedule_set(intent.app_hash, intent.minute,
+                                    intent.days, intent.seconds);
+        break;
+      case BKNATIVE_INTENT_SCHEDULE_CLEAR:
+        ret = bknative_schedule_clear(intent.app_hash);
+        break;
+      default:
+        ret = -EINVAL;
+        break;
+    }
+
+  bknative_intent_finish(intent.id, ret);
+  syslog(LOG_INFO, "BKNATIVE intent=%lu kind=%u result=%d\n",
+         (unsigned long)intent.id, intent.kind, ret);
+}
+
+/* Publish trusted local wall time once per second and evaluate due entries.
+ * Untrusted time pauses both clock input and schedules.
+ */
+
+static void product_native_clock(uint64_t now, bool admitted)
+{
+  static uint64_t checked_at;
+  static bool checked;
+  bool valid = false;
+  uint32_t minute = 0;
+  uint32_t day = 0;
+
+  if (checked && now >= checked_at && now - checked_at < 1000)
+    {
+      return;
+    }
+
+  checked = true;
+  checked_at = now;
+#ifdef CONFIG_BK7258_PROVISION_GATT
+  uint64_t utc;
+  if (bkprov_time_get(0, &utc) == 0)
+    {
+      int64_t local = (int64_t)utc +
+        (int64_t)CONFIG_BK7258_NATIVE_UTC_OFFSET_MINUTES * 60;
+      if (local >= 0)
+        {
+          valid = true;
+          minute = (uint32_t)((local / 60) % 1440);
+          day = (uint32_t)(local / 86400);
+        }
+    }
+#endif
+
+  bknative_set_clock(valid, minute, day);
+  (void)bknative_schedule_step(admitted);
+}
+
+static void product_native_step(uint64_t now, bool admitted, bool control)
 {
   const struct bknative_frame_s *display_frame;
+  struct bknative_output_s output;
   struct bknative_frame_s frame;
   int ret;
 
+  product_native_intent(admitted, control);
+  if (control)
+    {
+      product_native_clock(now, admitted);
+    }
+
   if (!admitted)
     {
-      ret = bknative_step(now, false, &frame);
+      ret = bknative_step(now, false, &output);
       if (ret <= 0)
         {
           product_native_release_display();
@@ -615,12 +728,24 @@ static void product_native_step(uint64_t now, bool admitted)
       return;
     }
 
-  ret = bknative_step(now, true, &frame);
+  ret = bknative_step(now, true, &output);
   if (ret <= 0)
     {
       product_native_release_display();
+      if (ret == 0)
+        {
+          product_native_completion(now, &output);
+        }
+
       return;
     }
+
+  if (output.haptic)
+    {
+      product_companion_request_pulse(now);
+    }
+
+  frame = output.frame;
 
   if (frame.expression)
     {
@@ -994,6 +1119,22 @@ static char *product_tools(void)
     "\"pause\",\"resume\",\"cancel\"]},\"seconds\":{\"type\":\"integer\","
     "\"minimum\":1,\"maximum\":4294967}},\"required\":[\"action\"],"
     "\"additionalProperties\":false}}"
+#ifdef CONFIG_BK7258_NATIVE_APPS
+    ",{\"name\":\"device_app\",\"description\":"
+    "\"Installed device apps (small games and reminders). list shows apps, "
+    "their result labels, the last result and schedules. Only on the user's "
+    "request: start an app (it begins after this reply finishes), stop the "
+    "running app, schedule at local HH:MM with repeat daily/weekdays/weekends, "
+    "or unschedule all times for an app. Use an exact id or name.\","
+    "\"input_schema\":{\"type\":\"object\",\"properties\":{"
+    "\"action\":{\"type\":\"string\",\"enum\":[\"list\",\"start\","
+    "\"stop\",\"schedule\",\"unschedule\"]},\"app\":{\"type\":"
+    "\"string\"},\"seconds\":{\"type\":\"integer\",\"minimum\":0,"
+    "\"maximum\":3600},\"time\":{\"type\":\"string\",\"pattern\":"
+    "\"^[0-2][0-9]:[0-5][0-9]$\"},\"repeat\":{\"type\":\"string\","
+    "\"enum\":[\"daily\",\"weekdays\",\"weekends\"]}},"
+    "\"required\":[\"action\"],\"additionalProperties\":false}}"
+#endif
     ",{\"name\":\"reply_expression\",\"description\":"
     "\"为本轮回复设置情绪元数据。仅影响开始播报后的临时表情，"
     "不改变用户默认表情；staged不表示已经渲染。根据回复内容选择情绪，"
@@ -1011,6 +1152,7 @@ static char *product_tools(void)
 }
 
 #include "bk7258_agent_device_control.inc"
+#include "bk7258_agent_native_tool.inc"
 #include "bk7258_agent_local_intent.inc"
 
 static int product_tool_execute(const char *name, const char *input,
@@ -1023,7 +1165,7 @@ static int product_tool_execute(const char *name, const char *input,
                 strcmp(name, "device_motion") &&
                 strcmp(name, "reply_expression") &&
                 strcmp(name, "device_control") && strcmp(name, "focus_timer") &&
-                strcmp(name, "read_file")))
+                strcmp(name, "device_app") && strcmp(name, "read_file")))
     {
       return ERROR;
     }
@@ -1090,6 +1232,16 @@ static int product_tool_execute(const char *name, const char *input,
   if (!strcmp(name, "focus_timer"))
     {
       ret = bkfocus_tool_execute(args, output, capacity, check, context);
+      goto out;
+    }
+
+  if (!strcmp(name, "device_app"))
+    {
+#ifdef CONFIG_BK7258_NATIVE_APPS
+      ret = product_native_tool(args, output, capacity, check, context);
+#else
+      ret = -ENOTSUP;
+#endif
       goto out;
     }
 
@@ -3546,7 +3698,8 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
         !content_busy && !voice_interaction_active &&
         (!atomic_load(&g_voice_initialized) || voice_channel_is_idle()) &&
         bkfocus_visual(now) == 0 &&
-        bkpc_tasks_visual(&g_pc_tasks, now, true, 0) == 0);
+        bkpc_tasks_visual(&g_pc_tasks, now, true, 0) == 0,
+        g_control_bound && !bkagent_ota_busy());
 #endif
       product_companion_step(now, !bkagent_ota_busy() && !content_busy,
         !atomic_load(&g_voice_initialized) || voice_channel_is_idle(),

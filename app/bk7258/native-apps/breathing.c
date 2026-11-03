@@ -62,10 +62,10 @@ const struct bknative_program_s *shaniu_native_entry(void)
 {
   static const struct bknative_program_s program =
   {
-    BKNATIVE_ABI,
-    sizeof(struct breathing_s),
-    breathing_start,
-    breathing_step
+    .abi = BKNATIVE_ABI,
+    .state_size = sizeof(struct breathing_s),
+    .start = breathing_start,
+    .step = breathing_step
   };
 
   return &program;

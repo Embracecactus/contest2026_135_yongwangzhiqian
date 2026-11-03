@@ -18,6 +18,58 @@ static bool g_companion_battery_low;
 static unsigned g_companion_battery;
 #endif
 
+/* One coalesced native-app pulse hint, consumed by the next companion step
+ * under the same cooldown, quiet window, battery and motor gates as task
+ * completion. It is never queued beyond that step.
+ */
+
+#ifdef CONFIG_BK7258_NATIVE_APPS
+static bool g_companion_app_pulse;
+
+static void product_companion_request_pulse(uint64_t now)
+{
+  (void)now;
+  g_companion_app_pulse = true;
+}
+#endif
+
+/* The board motor is interlocked while the wake recorder owns the MIC. A
+ * product pulse therefore uses the same bounded capture handoff as local
+ * content: close capture, finish the pulse, then restore the wake model.
+ */
+
+#ifdef CONFIG_BK7258_HAPTIC_SERVICE
+static int product_companion_pulse(unsigned int duration_ms)
+{
+  bool paused = false;
+  int ret;
+
+  if (g_trigger_started)
+    {
+      ret = bk7258_agent_trigger_pause_local();
+      if (ret < 0)
+        {
+          g_product_error = ret;
+          return -EBUSY;
+        }
+
+      paused = true;
+    }
+
+  ret = bkhaptic_service_pulse_wait(duration_ms);
+  if (paused)
+    {
+      int rearm = bk7258_agent_trigger_rearm();
+      if (rearm < 0)
+        {
+          g_product_error = rearm;
+        }
+    }
+
+  return ret;
+}
+#endif
+
 static void product_companion_step(uint64_t now, bool admitted,
                                    bool voice_idle, bool completed)
 {
@@ -40,6 +92,12 @@ static void product_companion_step(uint64_t now, bool admitted,
   bool enabled = admitted && voice_idle;
   bool quiet = now < g_companion_quiet_until;
   int ret;
+#ifdef CONFIG_BK7258_NATIVE_APPS
+  bool app_pulse = g_companion_app_pulse;
+  g_companion_app_pulse = false;
+#else
+  bool app_pulse = false;
+#endif
 #ifdef CONFIG_BK7258_HEALTH_SERVICE
   struct bk7258_health_service_snapshot_s health;
   bool health_valid = bk7258_health_service_snapshot(&health) == 0 &&
@@ -87,12 +145,12 @@ static void product_companion_step(uint64_t now, bool admitted,
    * battery or motor gate rejects it. There is no delayed notification queue.
    */
 
-  if (completed && (!g_companion_pulsed ||
+  if ((completed || app_pulse) && (!g_companion_pulsed ||
       (now >= g_companion_pulse_at && now - g_companion_pulse_at >= 2000)))
     {
       g_companion_pulsed = true;
       g_companion_pulse_at = now;
-      ret = bk7258_display_companion(2, 800);
+      ret = completed ? bk7258_display_companion(2, 800) : 0;
 #if defined(CONFIG_BK7258_HEALTH_SERVICE) && \
     defined(CONFIG_BK7258_HAPTIC_SERVICE)
       if ((ret == 0 || ret == -EALREADY) && !g_companion_motor_fault &&
@@ -100,7 +158,7 @@ static void product_companion_step(uint64_t now, bool admitted,
           (health.flags & BK7258_HEALTH_SNAPSHOT_BATTERY_VOLTAGE_VALID) &&
           !g_companion_battery_low)
         {
-          ret = bkhaptic_service_pulse(40);
+          ret = product_companion_pulse(40);
           if (ret == 0)
             {
               g_companion_quiet_until = now + 500;
@@ -134,6 +192,18 @@ static void product_companion_step(uint64_t now, bool admitted,
 
   ret = bkmotion_actions_step(&g_companion_motion, &config, &sample,
                               true, &action);
+#ifdef CONFIG_BK7258_NATIVE_APPS
+  if (ret == 0 && action != BKMOTION_ACTION_NONE && bknative_motion_owner())
+    {
+      /* A running app holding "motion" owns the reaction to this event. */
+
+      bknative_post_events(1u << ((unsigned int)action - 1u));
+      syslog(LOG_INFO, "BKCOMPANION motion=%u sample=%llu app=1\n",
+             (unsigned int)action,
+             (unsigned long long)sample.timestamp_us);
+    }
+  else
+#endif
   if (ret == 0 && action != BKMOTION_ACTION_NONE)
     {
       ret = bk7258_display_companion((unsigned int)action, 800);

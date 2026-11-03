@@ -30,7 +30,7 @@ class NativeAppPackageTest(unittest.TestCase):
         program = """#include "bk7258_native_abi.h"
 static int start(void *state, uint32_t argument) { (void)state; return (int)argument; }
 static int step(void *state, uint32_t elapsed, struct bknative_frame_s *frame) { (void)state; frame->expression = elapsed + 7; return 0; }
-const struct bknative_program_s *shaniu_native_entry(void) { static const struct bknative_program_s app = { BKNATIVE_ABI, 0, start, step }; return &app; }
+const struct bknative_program_s *shaniu_native_entry(void) { static const struct bknative_program_s app = { .abi = BKNATIVE_ABI, .state_size = 0, .start = start, .step = step }; return &app; }
 """
         undefined = program.replace(
             "return 0;", "extern int outside(void); return outside();"
@@ -122,6 +122,74 @@ const struct bknative_program_s *shaniu_native_entry(void) { static const struct
             self.assertEqual(
                 json.loads(catalog.read_text())["apps"][0]["id"], "breathing-demo"
             )
+
+    def test_permissions_follow_device_rules(self):
+        self.assertEqual(native_apps._permissions(1, "display"), ["display"])
+        self.assertEqual(
+            native_apps._permissions(2, "display,motion,haptic,sound"),
+            ["display", "motion", "haptic", "sound"],
+        )
+        for abi, value in (
+            (1, "display,motion"),
+            (2, "motion"),
+            (2, "display,haptic,motion"),
+            (2, "display,motion,motion"),
+            (2, "display,camera"),
+            (2, "display,clock"),
+            (3, "display,storage,clock"),
+            (4, "display"),
+        ):
+            with self.assertRaises(ValueError, msg=f"{abi}:{value}"):
+                native_apps._permissions(abi, value)
+
+    def test_abi3_grants_and_result_labels(self):
+        self.assertEqual(
+            native_apps._permissions(3, "display,motion,haptic,clock,storage"),
+            ["display", "motion", "haptic", "clock", "storage"],
+        )
+        self.assertEqual(native_apps._results(3, "去吧,再想想"), ["去吧", "再想想"])
+        self.assertEqual(native_apps._results(2, ""), [])
+        with self.assertRaises(ValueError):
+            native_apps._results(2, "去吧")
+        with self.assertRaises(ValueError):
+            native_apps._results(3, "a,b,c,d,e")
+        with self.assertRaises(ValueError):
+            native_apps._results(3, "超过十六个字节的标签")
+
+    def test_app_hash_matches_device_fnv1a(self):
+        # Pinned in test_bk7258_native_apps.c against bknative_app_hash().
+        self.assertEqual(native_apps.app_hash("shake"), 0xBD8BB2F5)
+        self.assertEqual(native_apps.app_hash(""), 2166136261)
+
+    def test_shake_decide_packs_as_abi3(self):
+        key = (
+            ROOT.parent
+            / "apps/crypto/mbedtls/mbedtls/tests/data_files/ecdsa_secp256r1.key"
+        )
+        with tempfile.TemporaryDirectory(prefix="native-app-v2-") as temporary:
+            output = Path(temporary) / "package"
+            result = native_apps.pack(
+                ROOT,
+                argparse.Namespace(
+                    id="shake",
+                    name="Shake to decide",
+                    description="Shake for a yes or no face with a short pulse.",
+                    version=1,
+                    abi=3,
+                    permissions="display,motion,haptic",
+                    results="去吧,再想想",
+                    signing_key=key,
+                    output=output,
+                    openssl=None,
+                    source=ROOT / "app/bk7258/native-apps/shake_decide.c",
+                ),
+            )
+            manifest = json.loads((output / "manifest.json").read_text())
+            self.assertEqual(manifest["abi"], 3)
+            self.assertEqual(manifest["results"], ["去吧", "再想想"])
+            self.assertEqual(manifest["permissions"], ["display", "motion", "haptic"])
+            self.assertEqual(result["app_hash"], "bd8bb2f5")
+            self.assertEqual(result["checks"]["undefined_symbols"], "0")
 
 
 if __name__ == "__main__":

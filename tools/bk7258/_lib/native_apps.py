@@ -22,6 +22,14 @@ PACKAGE_FORMAT = "shaniu.native/1"
 CATALOG_FORMAT = "shaniu.store/1"
 TARGET = "bk7258-ap-armv8m"
 ABI = 1
+ABI_V2 = 2
+ABI_V3 = 3
+# Device grant names in their canonical manifest order; "display" is always
+# first.  ABI 1 grants only display, ABI 2 up to sound, ABI 3 all.
+PERMISSIONS = ("display", "motion", "haptic", "sound", "clock", "storage")
+_PERMISSION_LIMIT = {ABI: 1, ABI_V2: 4, ABI_V3: 6}
+RESULT_MAX = 4
+RESULT_BYTES = 16
 PACKAGE_MAX = 24576
 IMAGE_MAX = 16384
 MANIFEST_MAX = 1024
@@ -46,6 +54,20 @@ def add_arguments(parser):
     pack.add_argument("--name", required=True)
     pack.add_argument("--description", required=True)
     pack.add_argument("--version", type=int, required=True)
+    pack.add_argument(
+        "--abi", type=int, choices=(ABI, ABI_V2, ABI_V3), default=ABI,
+        help="1: display frames only; 2: declared input and feedback; "
+        "3: adds result, clock and saved state",
+    )
+    pack.add_argument(
+        "--permissions", default="display",
+        help="comma-separated grants: "
+        "display[,motion][,haptic][,sound][,clock][,storage]",
+    )
+    pack.add_argument(
+        "--results", default="",
+        help="ABI 3 only: comma-separated completion result labels (1-4)",
+    )
     pack.add_argument("--signing-key", type=Path, required=True)
     pack.add_argument("--output", type=Path, required=True, help="new output directory")
     pack.add_argument("--openssl", type=Path)
@@ -92,9 +114,46 @@ def _text(value: str, label: str, limit: int) -> str:
     return value
 
 
+def _permissions(abi: int, value: str) -> list[str]:
+    names = [part.strip() for part in value.split(",") if part.strip()]
+    if abi not in _PERMISSION_LIMIT or not names or names[0] != "display":
+        raise ValueError("native app permissions must start with display")
+    if abi == ABI and names != ["display"]:
+        raise ValueError("ABI 1 native apps may only request display")
+    order = [PERMISSIONS.index(name) if name in PERMISSIONS else -1 for name in names]
+    if any(index >= _PERMISSION_LIMIT[abi] for index in order):
+        raise ValueError(f"ABI {abi} native apps cannot request these permissions")
+    if -1 in order or order != sorted(set(order)):
+        raise ValueError(
+            "native app permissions must be unique and ordered as "
+            + ",".join(PERMISSIONS)
+        )
+    return names
+
+
+def _results(abi: int, value: str) -> list[str]:
+    labels = [part.strip() for part in value.split(",") if part.strip()]
+    if not labels:
+        return []
+    if abi != ABI_V3:
+        raise ValueError("native app result labels require ABI 3")
+    if len(labels) > RESULT_MAX:
+        raise ValueError("native app may declare at most 4 result labels")
+    return [_text(label, "result label", RESULT_BYTES) for label in labels]
+
+
 def _manifest(
-    app_id: str, name: str, description: str, version: int, image: bytes
+    app_id: str,
+    name: str,
+    description: str,
+    version: int,
+    image: bytes,
+    abi: int = ABI,
+    permissions: list[str] | None = None,
+    results: list[str] | None = None,
 ) -> bytes:
+    permissions = _permissions(abi, ",".join(permissions or ["display"]))
+    results = _results(abi, ",".join(results or []))
     if not _ID.fullmatch(app_id):
         raise ValueError("invalid native app ID")
     if not isinstance(version, int) or not 1 <= version <= 0xFFFFFFFF:
@@ -104,16 +163,26 @@ def _manifest(
         "name": _text(name, "name", 64),
         "description": _text(description, "description", 160),
         "version": version,
-        "abi": ABI,
+        "abi": abi,
         "target": TARGET,
         "sha256": hashlib.sha256(image).hexdigest(),
         "image_size": len(image),
-        "permissions": ["display"],
+        "permissions": permissions,
     }
+    if results:
+        document["results"] = results
     encoded = _compact(document)
     if len(encoded) > MANIFEST_MAX:
         raise ValueError("native app manifest exceeds 1024 bytes")
     return encoded
+
+
+def app_hash(app_id: str) -> int:
+    """FNV-1a, matching bknative_app_hash(): the NFC action 7 app reference."""
+    value = 2166136261
+    for byte in app_id.encode("utf-8"):
+        value = ((value ^ byte) * 16777619) & 0xFFFFFFFF
+    return value
 
 
 def _run(command: list[str], label: str, *, cwd: Path | None = None) -> str:
@@ -313,7 +382,9 @@ def _parse_package(path: Path) -> tuple[dict[str, object], bytes, bytes]:
         "image_size",
         "permissions",
     }
-    if not isinstance(document, dict) or set(document) != expected:
+    if not isinstance(document, dict) or not (
+        set(document) == expected or set(document) == expected | {"results"}
+    ):
         raise ValueError("native package manifest fields are invalid")
     if document["sha256"] != hashlib.sha256(image).hexdigest() or document[
         "image_size"
@@ -331,7 +402,17 @@ def pack(repository: Path, args) -> dict[str, object]:
     key = _regular(args.signing_key, "native app signing key")
     public = _p256_private(key, openssl)
     image, checks = _build_image(repository, getattr(args, "source", None))
-    manifest = _manifest(args.id, args.name, args.description, args.version, image)
+    abi = getattr(args, "abi", ABI)
+    manifest = _manifest(
+        args.id,
+        args.name,
+        args.description,
+        args.version,
+        image,
+        abi,
+        _permissions(abi, getattr(args, "permissions", "display")),
+        _results(abi, getattr(args, "results", "")),
+    )
     signature = _sign(manifest, key, openssl)
     if not signature or len(signature) > 80:
         raise ValueError("native app signature exceeds device limit")
@@ -353,6 +434,8 @@ def pack(repository: Path, args) -> dict[str, object]:
     return {
         "format": PACKAGE_FORMAT,
         "id": args.id,
+        "abi": abi,
+        "app_hash": f"{app_hash(args.id):08x}",
         "output": str(args.output),
         "image_size": len(image),
         "package_size": len(package),

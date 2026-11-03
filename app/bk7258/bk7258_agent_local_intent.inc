@@ -106,6 +106,27 @@ static int product_local_text(uint64_t request, const char *text,
 
   if (!bklocal_intent_parse(text, &intent))
     {
+#ifdef CONFIG_BK7258_NATIVE_APPS
+      /* Installed-app phrases come after the built-in vocabulary, so an
+       * app name cannot shadow focus, volume, eyes or stop.
+       */
+
+      if (request && request_status)
+        {
+          ret = product_native_text(request, text, product_local_check,
+                                    &context);
+          if (ret)
+            {
+              atomic_store(&g_local_text_done, true);
+              syslog(LOG_INFO,
+                "BKLOCAL request=%llu kind=app result=%d elapsed_ms=%llu "
+                "llm=0 tts=0\n", (unsigned long long)request,
+                ret < 0 ? ret : 0,
+                (unsigned long long)(bkvoice_config_now_ms(NULL) - started));
+              return ret;
+            }
+        }
+#endif
       syslog(LOG_INFO,
         "BKLOCAL request=%llu kind=0 route=agent elapsed_ms=%llu\n",
         (unsigned long long)request,
