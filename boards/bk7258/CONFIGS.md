@@ -87,6 +87,15 @@ scope; neither overrides 770's reconnection failure or validates later source.
 The 637/638 voice and 641 resource results remain dated historical evidence,
 not the current firmware acceptance label.
 
+The late-night computer-approval check found a confirmed display defect:
+pending approval emits visual state 7, but the display ingress rejected states
+above 6, leaving vibration without the exclamation mark. The fix and regression
+in `c34135cb` pass the actual approval-to-ingress-to-both-framebuffers path and
+the AIDK incremental build. Firmware 774 still contains the defect; the 775
+candidate has not been flashed or physically accepted. Approval completion is
+supposed to clear this pending alert. See the
+[dated follow-up](../../docs/verification/bk7258/2026-11-03-feature-validation/README.md#11-04-电脑审批感叹号缺失).
+
 ## Configuration ownership
 
 Each maintained role seed contains only:
