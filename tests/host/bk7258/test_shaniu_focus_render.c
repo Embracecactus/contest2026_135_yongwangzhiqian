@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #include "bk7258_focus_pixels.h"
+#include "bk7258_pc_approval.h"
 #include <assert.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -19,12 +21,15 @@ struct bkdisplay_service_s {
   uint16_t *frames[1]; unsigned focus_painted; bool speaking_painted;
 };
 static int writes, fail_right, fallback;
-static uint16_t observed[160*160];
+static uint16_t observed[2][160*160];
 static int bkdisplay_framebuffer_write(const char *path, const uint16_t *pixels)
-{ assert(pixels); memcpy(observed, pixels, sizeof(observed)); writes++; return path[0]=='r' && fail_right ? -EIO : 0; }
+{ assert(pixels); memcpy(observed[path[0]=='r'], pixels, sizeof(observed[0])); writes++; return path[0]=='r' && fail_right ? -EIO : 0; }
 static int bkdisplay_builtin_locked(struct bkdisplay_service_s *s, bool b)
 { (void)s; assert(b); fallback++; return 0; }
 #include "bk7258_display_focus.inc"
+static atomic_uint g_focus_visual;
+#include "focus-command.inc"
+#include "approval-visual.inc"
 int main(void)
 {
   struct bkdisplay_service_s service = {0};
@@ -54,7 +59,36 @@ int main(void)
     }
   /* A current 65-second snapshot displays 1:05, through both framebuffers. */
   assert(bkdisplay_focus_present_locked(&service,0x81000041u)==0);
-  assert(observed[(80-5)*160+80-16]==0x07e0);
+  assert(observed[0][(80-5)*160+80-16]==0x07e0);
   assert(bkdisplay_focus_present_locked(&service,0)==0);
+
+  /* Exercise approval -> actual display admission -> both framebuffers. */
+  struct bkpc_approval_s approval = {
+    .state = BKPC_APPROVAL_PENDING, .deadline = 60000, .ttl = 60000
+  };
+  visual = bkpc_approval_visual(&approval, 0, true);
+  assert(visual == ((7u << 8) | 32));
+  bk7258_display_focus(visual);
+  assert(atomic_load(&g_focus_visual) == visual);
+  int before = writes;
+  assert(bkdisplay_focus_present_locked(&service,
+                                        atomic_load(&g_focus_visual)) == 0);
+  assert(writes == before + 2);
+  for (unsigned eye = 0; eye < 2; eye++)
+    {
+      assert(observed[eye][(80 - 16) * 160 + 80] == 0xfd20);
+      assert(observed[eye][(80 + 18) * 160 + 80] == 0xfd20);
+      assert(observed[eye][(80 + 10) * 160 + 80] == 0);
+    }
+
+  bk7258_display_focus((8u << 8) | 32);
+  assert(atomic_load(&g_focus_visual) == visual);
+  bk7258_display_focus((7u << 8) | 33);
+  assert(atomic_load(&g_focus_visual) == visual);
+  approval.state = BKPC_APPROVAL_APPROVED;
+  bk7258_display_focus(bkpc_approval_visual(&approval, 1, true));
+  assert(atomic_load(&g_focus_visual) == 0);
+  assert(bkdisplay_focus_present_locked(&service,
+                                        atomic_load(&g_focus_visual)) == 0);
   puts("CONTRACT_PASS");return 0;
 }

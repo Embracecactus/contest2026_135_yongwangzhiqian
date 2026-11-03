@@ -2298,8 +2298,10 @@ $(BUILD)/test_shaniu_focus_wire: test_shaniu_focus_wire.c $(VOICE_PACK_ROOT)/bk7
 $(BUILD)/test_shaniu_focus_pixels: test_shaniu_focus_pixels.c $(VOICE_PACK_ROOT)/bk7258_focus_pixels.h | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) $< -o $@
 
-$(BUILD)/test_shaniu_focus_render: test_shaniu_focus_render.c $(VOICE_PACK_ROOT)/bk7258_focus_pixels.h $(VOICE_PACK_ROOT)/bk7258_display_focus.inc | $(BUILD)
-	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) $< -o $@
+$(BUILD)/test_shaniu_focus_render: test_shaniu_focus_render.c $(VOICE_PACK_ROOT)/bk7258_focus_pixels.h $(VOICE_PACK_ROOT)/bk7258_display_focus.inc $(VOICE_PACK_ROOT)/bk7258_display_service.c $(VOICE_PACK_ROOT)/bk7258_pc_approval.c $(VOICE_PACK_ROOT)/bk7258_pc_approval.h | $(BUILD)
+	python3 -c 'from pathlib import Path; s=Path("$(VOICE_PACK_ROOT)/bk7258_display_service.c").read_text(); a=s.index("void bk7258_display_focus("); b=s.index("void bk7258_display_speaking(",a); Path("$(BUILD)/focus-command.inc").write_text(s[a:b])'
+	python3 -c 'from pathlib import Path; s=Path("$(VOICE_PACK_ROOT)/bk7258_pc_approval.c").read_text(); a=s.index("unsigned int bkpc_approval_visual("); b=s.index("bool bkpc_approval_take_alert(",a); Path("$(BUILD)/approval-visual.inc").write_text(s[a:b])'
+	$(CC) $(VOICE_PACK_CFLAGS) -I $(VOICE_PACK_ROOT) -I $(BUILD) $< -o $@
 
 $(BUILD)/test_shaniu_display_snapshot: test_shaniu_display_snapshot.c $(VOICE_PACK_ROOT)/bk7258_display_snapshot.inc $(VOICE_PACK_ROOT)/bk7258_display_service.h | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) -pthread -I $(MOCKS) -I $(VOICE_PACK_ROOT) $< -o $@

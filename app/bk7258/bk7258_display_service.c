@@ -88,7 +88,12 @@ static uint64_t g_companion_started;
 static uint64_t g_companion_deadline;
 void bk7258_display_focus(unsigned visual)
 {
-  if (!(visual & BKFOCUS_STATUS_VISUAL) && visual && ((visual >> 8) < 1 || (visual >> 8) > 6 || (visual & 255) > 32)) return;
+  if (!(visual & BKFOCUS_STATUS_VISUAL) && visual &&
+      ((visual >> 8) < 1 || (visual >> 8) > 7 || (visual & 255) > 32))
+    {
+      return;
+    }
+
   atomic_store(&g_focus_visual, visual);
 }
 
