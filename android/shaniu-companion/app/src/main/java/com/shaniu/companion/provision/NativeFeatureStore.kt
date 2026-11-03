@@ -31,21 +31,69 @@ internal object NativeFeatureStore {
         require(manifestBytes.size in 1..1024 && image.size in 1..16_384)
         require(Base64.getDecoder().decode(pack["signature"].asString).size in 1..80)
         val manifest = JsonParser.parseString(manifestBytes.toString(Charsets.UTF_8)).asJsonObject
-        require(manifest.keySet() == setOf("id", "name", "description", "version", "abi", "target", "sha256", "image_size", "permissions"))
+        val required = setOf("id", "name", "description", "version", "abi", "target", "sha256", "image_size", "permissions")
+        require(manifest.keySet() == required || manifest.keySet() == required + "results")
         require(manifest["id"].asString.matches(Regex("[a-z0-9][a-z0-9-]{0,30}")))
         text(manifest, "name", 64)
         text(manifest, "description", 160)
         integer(manifest, "version", 1, 0xffff_ffffL)
-        integer(manifest, "abi", 1, 1)
+        integer(manifest, "abi", 1, 3)
         require(manifest["target"].asString == "bk7258-ap-armv8m")
         integer(manifest, "image_size", image.size.toLong(), image.size.toLong())
         require(manifest["sha256"].asString == sha256(image))
-        require(manifest["permissions"].asJsonArray.asList().map { it.asString } == listOf("display"))
+        require(permissionsValid(manifest["abi"].asInt, manifest["permissions"].asJsonArray.asList().map { it.asString }))
+        if (manifest.has("results")) {
+            require(manifest["abi"].asInt == 3)
+            val results = manifest["results"].asJsonArray
+            require(results.size() in 1..4)
+            results.forEach { require(it.isJsonPrimitive && it.asJsonPrimitive.isString) }
+            for (i in 0 until results.size()) text(results, i, 16)
+        }
         if (expected != null) {
             require(manifest["id"].asString == expected.id && manifest["name"].asString == expected.name &&
                 manifest["description"].asString == expected.description && manifest["version"].asLong == expected.version)
         }
         return JsonObject().apply { addProperty("op", "install"); add("package", pack) }
+    }
+
+    /** Device grant names in canonical order; "display" always first, ABI 1 grants nothing else. */
+    val PERMISSIONS = listOf("display", "motion", "haptic", "sound", "clock", "storage")
+    private val PERMISSION_LIMIT = mapOf(1 to 1, 2 to 4, 3 to 6)
+    private val PERMISSION_LABELS = mapOf("display" to "显示表情", "motion" to "读取动作事件",
+        "haptic" to "请求短振动", "sound" to "结束时播放节律", "clock" to "读取本地时间",
+        "storage" to "保存少量进度")
+
+    fun permissionsValid(abi: Int, names: List<String>): Boolean {
+        val limit = PERMISSION_LIMIT[abi] ?: return false
+        if (names.isEmpty() || names.first() != "display") return false
+        val order = names.map { PERMISSIONS.indexOf(it) }
+        return -1 !in order && order.all { it < limit } && order == order.distinct().sorted()
+    }
+
+    /** Daily-schedule days mask (bit 0 Sunday) as a short Chinese label. */
+    fun repeatLabel(days: Int): String = when (days) {
+        0x7f -> "每天"; 0x3e -> "工作日"; 0x41 -> "周末"
+        else -> (0..6).filter { days and (1 shl it) != 0 }
+            .joinToString("、", prefix = "每周") { "日一二三四五六"[it].toString() }
+    }
+
+    fun permissionLabels(names: List<String>): String =
+        names.joinToString("、") { PERMISSION_LABELS[it] ?: it }
+
+    /** Permissions declared by a validated install request's signed manifest. */
+    fun requestPermissions(request: JsonObject): List<String> {
+        val manifest = Base64.getDecoder().decode(request["package"].asJsonObject["manifest"].asString)
+        return JsonParser.parseString(manifest.toString(Charsets.UTF_8)).asJsonObject["permissions"]
+            .asJsonArray.map { it.asString }
+    }
+
+    /** FNV-1a over the app ID, matching the device's bknative_app_hash(). */
+    fun appHash(id: String): Long {
+        var hash = 2166136261L
+        for (byte in id.toByteArray(Charsets.UTF_8)) {
+            hash = ((hash xor (byte.toLong() and 255)) * 16777619L) and 0xffff_ffffL
+        }
+        return hash
     }
 
     fun parseIndex(bytes: ByteArray): List<Entry> {
@@ -110,6 +158,11 @@ internal object NativeFeatureStore {
             }
             result.toByteArray().also { require(it.isNotEmpty()) }
         }} finally { connection.disconnect() }
+    }
+
+    private fun text(array: com.google.gson.JsonArray, index: Int, limit: Int) {
+        val value = array[index].asString
+        require(value.isNotEmpty() && value.toByteArray(Charsets.UTF_8).size <= limit && value.none { it.code < 32 })
     }
 
     private fun text(objectValue: JsonObject, name: String, limit: Int) {

@@ -39,6 +39,16 @@ config BK7258_NATIVE_PUBLISHER_SHA256
 		The authenticated phone supplies only the matching public key; it
 		cannot choose a different trust root. Changing this requires firmware.
 
+config BK7258_NATIVE_UTC_OFFSET_MINUTES
+	int "Local time offset from UTC for native app clock and schedule"
+	default 480
+	range -720 840
+	depends on BK7258_NATIVE_APPS
+	help
+		Fixed offset applied to trusted UTC before native apps see the local
+		minute/day and before scheduled launches are evaluated. There is no
+		daylight-saving rule; the default 480 is China Standard Time.
+
 config BK7258_PROVISION_NATIVE
 	bool "Device-generated identity and physical-screen QR onboarding"
 	default n

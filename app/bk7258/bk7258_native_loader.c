@@ -420,7 +420,8 @@ int bknative_loader_open(const char *path, void **handle,
   entry = (bknative_entry_t)address;
   bknative_loader_trace(170);
   candidate = entry();
-  if (candidate == NULL || candidate->abi != BKNATIVE_ABI ||
+  if (candidate == NULL ||
+      candidate->abi < BKNATIVE_ABI || candidate->abi > BKNATIVE_ABI_V3 ||
       candidate->state_size > BKNATIVE_STATE_MAX ||
       candidate->start == NULL || candidate->step == NULL)
     {

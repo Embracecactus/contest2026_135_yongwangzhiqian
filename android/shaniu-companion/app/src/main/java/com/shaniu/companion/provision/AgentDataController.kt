@@ -41,7 +41,8 @@ internal class AgentDataController(
             publish()
         }
     }
-    init { require(kind == 26 || kind == 27) }
+    init { require(kind in 26..28) }
+    fun kind() = kind
     fun current() = State(document, phase != Phase.IDLE, message)
     private fun publish() { if (active) changed(current()) }
     private fun clearBuffers() { header.fill(0); body.fill(0); request.fill(0); header = byteArrayOf(); body = byteArrayOf(); request = byteArrayOf() }
@@ -58,7 +59,7 @@ internal class AgentDataController(
         val next = value.deepCopy()
         next.addProperty(if (kind == 26) "expected_revision" else "revision", current["revision"].asString)
         request = next.toString().toByteArray(Charsets.UTF_8)
-        if (request.size !in 1..4095) { request.fill(0); return false }
+        if (request.size !in 1..if (kind == 28) 32768 else 4095) { request.fill(0); return false }
         requested = value.deepCopy(); sent = 0
         phase = Phase.BEGIN; ownsTransaction = true
         document = null; message = "正在提交，尚未确认生效"; publish()
@@ -130,7 +131,7 @@ internal class AgentDataController(
             header = chunk.bytes.copyOf()
             val input = ByteBuffer.wrap(header)
             val magic = input.int; val bytes = input.int
-            if (magic != 0x414a5631 || bytes !in 1..4095 || chunk.totalLength != 16 + bytes) {
+            if (magic != 0x414a5631 || bytes !in 1..8191 || chunk.totalLength != 16 + bytes) {
                 fail("设备数据格式不受支持"); return
             }
             body = ByteArray(bytes); offset = 0; phase = Phase.BODY; read(16); return
@@ -162,7 +163,7 @@ internal class AgentDataController(
             }?.asJsonObject
             if (wanted["op"].asString == "delete") require(item == null)
             else require(item?.get("value")?.asString == wanted["value"].asString)
-        } else {
+        } else if (kind == 27) {
             when (wanted.get("op")?.asString) {
                 "trust" -> {
                     val key = java.util.Base64.getDecoder().decode(wanted["public_key"].asString)
@@ -183,6 +184,29 @@ internal class AgentDataController(
             }
             val item = result["items"].asJsonArray.first { it.asJsonObject["id"].asString == wanted["id"].asString }.asJsonObject
             require(item["enabled"].asBoolean == wanted["enabled"].asBoolean)
+        } else {
+            when (wanted.get("op")?.asString) {
+                "trust" -> {
+                    val key = java.util.Base64.getDecoder().decode(wanted["public_key"].asString)
+                    val hash = java.security.MessageDigest.getInstance("SHA-256").digest(key)
+                        .joinToString("") { "%02x".format(it.toInt() and 255) }
+                    require(result["trusted_key_sha256"].asString == hash)
+                }
+                "install" -> {
+                    val pack = wanted["package"].asJsonObject
+                    val manifest = JsonParser.parseString(String(java.util.Base64.getDecoder()
+                        .decode(pack["manifest"].asString), Charsets.UTF_8)).asJsonObject
+                    val item = result["items"].asJsonArray.first {
+                        it.asJsonObject["id"].asString == manifest["id"].asString
+                    }.asJsonObject
+                    require(item["version"].asLong == manifest["version"].asLong)
+                }
+                "start" -> require(result["running"].asString == wanted["id"].asString)
+                "stop" -> require(result["running"].asString.isEmpty())
+                "uninstall" -> require(result["items"].asJsonArray.none {
+                    it.asJsonObject["id"].asString == wanted["id"].asString
+                })
+            }
         }
     }
     override fun close() {

@@ -96,6 +96,15 @@ python3 tools/bk7258/bk7258.py native-app catalog-entry \
   --output /tmp/native-catalog.json
 ```
 
+ABI 2 receives product motion-classifier events and may request one arbitrated
+haptic pulse or completion cue. Pack with `--abi 2` and canonical permissions,
+for example `--permissions display,motion,haptic`.
+
+ABI 3 adds `clock`, `storage` and optional completion labels, for example
+`--abi 3 --permissions display,motion,haptic,clock,storage --results 完成,错过`.
+The bundled ABI 3 examples are `shake_decide.c`, `nudge.c` and
+`sit_reminder.c`; their headers list the required permissions and labels.
+
 These commands neither generate identities nor publish/install anything.
 `pack` exports `publisher.der`, the exact signed manifest, ELF and JSON package.
 The approved public key's DER SHA-256 must be compiled into
@@ -119,8 +128,9 @@ The App reads back the result and never automatically replays an interrupted
 write. Package format `shaniu.native/1` has exact fields `format`, `manifest`,
 `signature`, `image`. The last three are base64; ECDSA P-256/SHA-256 signs the
 exact manifest bytes. Manifest fields are `id`, `name`, `description`, `version`,
-`abi`, `target`, `sha256`, `image_size`, `permissions`. ABI is 1, target is
-`bk7258-ap-armv8m`, and the only supported permission is `display`.
+`abi`, `target`, `sha256`, `image_size`, `permissions` and optional ABI 3
+`results`. ABI is 1..3 and target is `bk7258-ap-armv8m`; permissions must use
+canonical order `display,motion,haptic,sound,clock,storage`, limited by ABI.
 
 Limits: 16 KiB ELF, 24 KiB package, 1 KiB manifest, four installed features,
 32 KiB combined persistent record, and one running feature. Updates must
@@ -131,22 +141,19 @@ uncertain durability blocks further operations until reload. Installation and
 reboot leave every feature stopped. There is no automatic old-version rollback
 or automatic restart after a module crash.
 
-ABI v1 is cooperative: `shaniu_native_entry()` returns a versioned descriptor
-with `start` and `step`; state is at most 256 bytes and display output is a
-bounded frame intent. The host owns the state, module allocation and exact-ID
+The ABI is cooperative: `shaniu_native_entry()` returns a versioned descriptor;
+ABI 1 uses `step`, ABI 2 adds bounded input/output, and ABI 3 adds result, clock
+and up to 32 bytes of saved state. The host owns state, module allocation and
 display cancellation. Modules have no imported symbols, constructors, worker
-threads, timers or registered callbacks. The product loop steps at most every
-100 ms and stops a feature for voice, OTA, power, reset or a superseding display
-owner. The sample alternates happy/thinking every four seconds, defaults to
-60 seconds, and accepts a duration argument of 1..3600 seconds. This is a
-display pacing example, not an audio metronome or a timing-accuracy claim.
+threads, timers or callbacks. The product loop steps at most every 100 ms and
+stops a feature for voice, OTA, power, reset or a superseding display owner.
 
 The current NuttX build is flat: these restrictions are an ABI contract,
 **not a security sandbox**. A trusted module can still corrupt memory or fault
 the device. Only reviewed first-party code belongs here. New drivers, IRQs,
 cross-core protocols, partition layouts, low-level audio or a new host ABI
 require firmware changes. Arbitrary third-party uploads, WASM isolation,
-dynamic Agent tool registration and audio arbitration are outside ABI v1.
+dynamic Agent tool registration and unrestricted audio access are outside this ABI.
 
 The loader reuses pinned NuttX `libelf_initialize/load/bind/unload` and owns
 their allocations directly. It avoids two observed paths in
@@ -162,9 +169,10 @@ Android `:app:testDebugUnitTest :app:assembleDebug` tasks. Host tests sign real
 cross-compiled ELF using published upstream fixtures, exercise rejected
 signatures/ELF links, transactions, recovery and repeated manager lifecycle,
 and execute the sample's C logic through an explicitly stubbed loader.
-They do **not** prove ARM execution, PSRAM executable attributes, both AP
-cores' cache visibility, real ELF heap stability or phone-to-device behavior.
-Those require board and real-phone acceptance before a signed product release.
+Real-board checks covered a signed ABI 3 install/start, rendered output,
+automatic stop, reboot restore, 100 cross-core executions and 100 PSRAM
+load/unload cycles. They do **not** yet prove physical motion/haptic behavior,
+voice triggering, scheduled launch, NFC launch or production-key operation.
 
 ## Independent factory software and target-bound complete flash
 
