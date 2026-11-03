@@ -74,6 +74,7 @@
 
 #include <arch/chip/bk7258_console.h>
 #include <arch/chip/bk7258_os_adapt.h>
+#include <arch/chip/bk7258_smp_placement.h>
 
 #ifdef CONFIG_BK7258_PSRAM
 #  include <arch/chip/bk7258_psram.h>
@@ -252,12 +253,46 @@ struct bk7258_os_sdk_lock_s
 };
 
 static volatile struct bk7258_os_sdk_lock_s
-  g_bk7258_sdk_critical_lock =
+  g_bk7258_sdk_critical_lock BK7258_SMP_LOCK_DATA =
 {
   .owner = BK7258_OS_SDK_LOCK_FREE,
   .count = 0
 };
 #endif
+
+/* SDK synchronization adapters (counting semaphores, mutexes, recursive
+ * mutexes, queue control blocks and event groups) hold NuttX atomic state:
+ * sem_t counts/holders and spinlock_t words updated with LDREX/STREX from
+ * both AP logical CPUs.  On AP SMP with a PSRAM-extended system heap,
+ * kmm_*() may return PSRAM, which is not a valid exclusive-access target.
+ * Serve these small control blocks from fixed slots in the official AP SMP
+ * lock window instead.  Queue message payloads stay on the general heap so
+ * large non-synchronization buffers may still use PSRAM.  A pool overflow
+ * falls back to kmm_*() but fails closed when that returns PSRAM.
+ */
+
+#ifdef CONFIG_BK7258_SMP_SYNC_POOL
+#  define BK7258_SYNC_POOL_SMALL_SIZE  32u
+#  define BK7258_SYNC_POOL_LARGE_SIZE  128u
+#  define BK7258_SYNC_POOL_SMALL_SLOTS CONFIG_BK7258_SMP_SYNC_POOL_SMALL_SLOTS
+#  define BK7258_SYNC_POOL_LARGE_SLOTS CONFIG_BK7258_SMP_SYNC_POOL_LARGE_SLOTS
+#  define BK7258_SYNC_POOL_WORDS(n)    (((n) + 31u) / 32u)
+
+static uint8_t g_bk7258_sync_pool_small
+  [BK7258_SYNC_POOL_SMALL_SLOTS][BK7258_SYNC_POOL_SMALL_SIZE]
+  BK7258_SMP_LOCK_BSS aligned_data(8);
+static uint8_t g_bk7258_sync_pool_large
+  [BK7258_SYNC_POOL_LARGE_SLOTS][BK7258_SYNC_POOL_LARGE_SIZE]
+  BK7258_SMP_LOCK_BSS aligned_data(8);
+static uint32_t g_bk7258_sync_pool_small_map
+  [BK7258_SYNC_POOL_WORDS(BK7258_SYNC_POOL_SMALL_SLOTS)];
+static uint32_t g_bk7258_sync_pool_large_map
+  [BK7258_SYNC_POOL_WORDS(BK7258_SYNC_POOL_LARGE_SLOTS)];
+#endif
+
+static spinlock_t g_bk7258_sync_pool_lock BK7258_SMP_LOCK_BSS = SP_UNLOCKED;
+static struct bk7258_os_sync_pool_stats_s g_bk7258_sync_pool_stats;
+static bool g_bk7258_sync_pool_reject_logged;
 
 /****************************************************************************
  * Private Functions
@@ -268,6 +303,178 @@ static sq_queue_t g_bk7258_timer_queue;
 static sem_t g_bk7258_timer_sem = SEM_INITIALIZER(0);
 static mutex_t g_bk7258_timer_init_lock = NXMUTEX_INITIALIZER;
 static pid_t g_bk7258_timer_service_pid = -1;
+
+#ifdef CONFIG_BK7258_SMP_SYNC_POOL
+static FAR void *bk7258_os_sync_pool_take(FAR uint8_t *base,
+                                          FAR uint32_t *bitmap,
+                                          uint32_t slots,
+                                          uint32_t slot_size,
+                                          FAR uint32_t *in_use,
+                                          FAR uint32_t *high_water)
+{
+  uint32_t index;
+
+  for (index = 0; index < slots; index++)
+    {
+      uint32_t bit = 1u << (index % 32u);
+
+      if ((bitmap[index / 32u] & bit) == 0u)
+        {
+          bitmap[index / 32u] |= bit;
+          if (++*in_use > *high_water)
+            {
+              *high_water = *in_use;
+            }
+
+          return base + index * slot_size;
+        }
+    }
+
+  return NULL;
+}
+
+static bool bk7258_os_sync_pool_give(FAR void *object, FAR uint8_t *base,
+                                     FAR uint32_t *bitmap, uint32_t slots,
+                                     uint32_t slot_size,
+                                     FAR uint32_t *in_use)
+{
+  uintptr_t address = (uintptr_t)object;
+  uintptr_t start = (uintptr_t)base;
+  uint32_t index;
+  uint32_t bit;
+
+  if (address < start || address >= start + slots * slot_size)
+    {
+      return false;
+    }
+
+  /* A pointer inside the pool but not at a slot boundary, or a slot that is
+   * already free, is SDK heap corruption.  Keep it visible in debug images
+   * and never clear an unrelated slot.
+   */
+
+  DEBUGASSERT((address - start) % slot_size == 0u);
+  index = (uint32_t)((address - start) / slot_size);
+  bit = 1u << (index % 32u);
+  DEBUGASSERT((bitmap[index / 32u] & bit) != 0u);
+  if ((address - start) % slot_size == 0u &&
+      (bitmap[index / 32u] & bit) != 0u)
+    {
+      bitmap[index / 32u] &= ~bit;
+      (*in_use)--;
+    }
+
+  return true;
+}
+#endif
+
+/* Allocate one SDK synchronization control block from storage that is
+ * valid for cross-core exclusive access.
+ */
+
+static FAR void *bk7258_os_sync_zalloc(size_t size)
+{
+  FAR void *object = NULL;
+  irqstate_t flags;
+  bool rejected = false;
+
+#ifdef CONFIG_BK7258_SMP_SYNC_POOL
+  flags = spin_lock_irqsave(&g_bk7258_sync_pool_lock);
+  if (size <= BK7258_SYNC_POOL_SMALL_SIZE)
+    {
+      object = bk7258_os_sync_pool_take(
+                 &g_bk7258_sync_pool_small[0][0],
+                 g_bk7258_sync_pool_small_map,
+                 BK7258_SYNC_POOL_SMALL_SLOTS, BK7258_SYNC_POOL_SMALL_SIZE,
+                 &g_bk7258_sync_pool_stats.small_in_use,
+                 &g_bk7258_sync_pool_stats.small_high_water);
+    }
+
+  if (object == NULL && size <= BK7258_SYNC_POOL_LARGE_SIZE)
+    {
+      object = bk7258_os_sync_pool_take(
+                 &g_bk7258_sync_pool_large[0][0],
+                 g_bk7258_sync_pool_large_map,
+                 BK7258_SYNC_POOL_LARGE_SLOTS, BK7258_SYNC_POOL_LARGE_SIZE,
+                 &g_bk7258_sync_pool_stats.large_in_use,
+                 &g_bk7258_sync_pool_stats.large_high_water);
+    }
+
+  if (object == NULL)
+    {
+      if (size > BK7258_SYNC_POOL_LARGE_SIZE)
+        {
+          g_bk7258_sync_pool_stats.oversize_requests++;
+        }
+
+      g_bk7258_sync_pool_stats.fallback_allocations++;
+    }
+
+  spin_unlock_irqrestore(&g_bk7258_sync_pool_lock, flags);
+  if (object != NULL)
+    {
+      memset(object, 0, size);
+      return object;
+    }
+#endif
+
+  object = kmm_zalloc(size);
+#if BK7258_SMP_PLACEMENT_ENFORCED
+  if (object != NULL && !bk7258_smp_object_placement_valid(object))
+    {
+      kmm_free(object);
+      object = NULL;
+      rejected = true;
+    }
+#endif
+
+  if (rejected)
+    {
+      flags = spin_lock_irqsave(&g_bk7258_sync_pool_lock);
+      g_bk7258_sync_pool_stats.psram_rejections++;
+      spin_unlock_irqrestore(&g_bk7258_sync_pool_lock, flags);
+      if (!g_bk7258_sync_pool_reject_logged)
+        {
+          g_bk7258_sync_pool_reject_logged = true;
+          wlerr("ERROR: Refusing SDK sync object in PSRAM size=%zu\n",
+                size);
+        }
+    }
+
+  return object;
+}
+
+static void bk7258_os_sync_free(FAR void *object)
+{
+#ifdef CONFIG_BK7258_SMP_SYNC_POOL
+  irqstate_t flags;
+  bool pooled;
+
+  if (object == NULL)
+    {
+      return;
+    }
+
+  flags = spin_lock_irqsave(&g_bk7258_sync_pool_lock);
+  pooled = bk7258_os_sync_pool_give(
+             object, &g_bk7258_sync_pool_small[0][0],
+             g_bk7258_sync_pool_small_map, BK7258_SYNC_POOL_SMALL_SLOTS,
+             BK7258_SYNC_POOL_SMALL_SIZE,
+             &g_bk7258_sync_pool_stats.small_in_use) ||
+           bk7258_os_sync_pool_give(
+             object, &g_bk7258_sync_pool_large[0][0],
+             g_bk7258_sync_pool_large_map, BK7258_SYNC_POOL_LARGE_SLOTS,
+             BK7258_SYNC_POOL_LARGE_SIZE,
+             &g_bk7258_sync_pool_stats.large_in_use);
+  spin_unlock_irqrestore(&g_bk7258_sync_pool_lock, flags);
+  if (pooled)
+    {
+      return;
+    }
+#endif
+
+  kmm_free(object);
+}
 
 #ifdef CONFIG_BK7258_BT_IPC
 /* The immutable CP and AP BT IPC objects each create one long-lived binary
@@ -1265,7 +1472,7 @@ bk_err_t rtos_init_semaphore(beken_semaphore_t *semaphore, int max_count)
       return semaphore == NULL ? BK_ERR_NULL_PARAM : BK_ERR_PARAM;
     }
 
-  adapter = kmm_zalloc(sizeof(*adapter));
+  adapter = bk7258_os_sync_zalloc(sizeof(*adapter));
   if (adapter == NULL)
     {
       wlerr("ERROR: Failed to malloc semaphore\n");
@@ -1282,7 +1489,7 @@ bk_err_t rtos_init_semaphore(beken_semaphore_t *semaphore, int max_count)
   else
     {
       wlerr("ERROR: Failed to create semaphore:%d\n", ret);
-      kmm_free(adapter);
+      bk7258_os_sync_free(adapter);
     }
 
   return beken_errno_trans(ret);
@@ -1318,7 +1525,7 @@ bk_err_t rtos_init_semaphore_ex(beken_semaphore_t *semaphore,
 
   if (adapter == NULL)
     {
-      adapter = kmm_zalloc(sizeof(*adapter));
+      adapter = bk7258_os_sync_zalloc(sizeof(*adapter));
     }
 
   if (adapter == NULL)
@@ -1352,7 +1559,7 @@ bk_err_t rtos_init_semaphore_ex(beken_semaphore_t *semaphore,
       else
 #endif
         {
-          kmm_free(adapter);
+          bk7258_os_sync_free(adapter);
         }
     }
 
@@ -1528,7 +1735,7 @@ bk_err_t rtos_deinit_semaphore(beken_semaphore_t *semaphore)
   else
 #endif
     {
-      kmm_free(adapter);
+      bk7258_os_sync_free(adapter);
     }
 
   *semaphore = NULL;
@@ -1628,7 +1835,7 @@ bk_err_t rtos_init_mutex(beken_mutex_t *mtx)
   int ret;
   mutex_t *mutex;
 
-  mutex = kmm_malloc(sizeof(mutex_t));
+  mutex = bk7258_os_sync_zalloc(sizeof(mutex_t));
   if (!mutex)
     {
       wlerr("ERROR: Failed to kmm_malloc\n");
@@ -1643,7 +1850,7 @@ bk_err_t rtos_init_mutex(beken_mutex_t *mtx)
   else
     {
       wlerr("ERROR: Failed to create mutex, ret:%d\n", ret);
-      kmm_free(mutex);
+      bk7258_os_sync_free(mutex);
     }
 
   return beken_errno_trans(ret);
@@ -1716,7 +1923,7 @@ bk_err_t rtos_deinit_mutex(beken_mutex_t *mtx)
   mutex_t *mutex = (mutex_t *)*mtx;
 
   nxmutex_destroy(mutex);
-  kmm_free(mutex);
+  bk7258_os_sync_free(mutex);
 
   return BK_OK;
 }
@@ -1731,7 +1938,7 @@ bk_err_t rtos_init_recursive_mutex(beken_mutex_t *mtx)
       return BK_ERR_NULL_PARAM;
     }
 
-  mutex = kmm_malloc(sizeof(*mutex));
+  mutex = bk7258_os_sync_zalloc(sizeof(*mutex));
   if (mutex == NULL)
     {
       return BK_FAIL;
@@ -1740,7 +1947,7 @@ bk_err_t rtos_init_recursive_mutex(beken_mutex_t *mtx)
   ret = nxrmutex_init(mutex);
   if (ret < 0)
     {
-      kmm_free(mutex);
+      bk7258_os_sync_free(mutex);
       return beken_errno_trans(ret);
     }
 
@@ -1785,7 +1992,7 @@ bk_err_t rtos_deinit_recursive_mutex(beken_mutex_t *mtx)
       return beken_errno_trans(ret);
     }
 
-  kmm_free(mutex);
+  bk7258_os_sync_free(mutex);
   *mtx = NULL;
   return BK_OK;
 }
@@ -1914,18 +2121,22 @@ bk_err_t rtos_init_queue(beken_queue_t *queue, const char *name,
       return BK_ERR_PARAM;
     }
 
-  adapter = kmm_zalloc(sizeof(*adapter));
+  adapter = bk7258_os_sync_zalloc(sizeof(*adapter));
   if (adapter == NULL)
     {
       wlerr("ERROR: Failed to kmm_malloc\n");
       return BK_FAIL;
     }
 
+  /* The message payload is not synchronization state; keep it on the
+   * general heap, which may place large queues in PSRAM.
+   */
+
   bytes = (size_t)message_size * number_of_messages;
   adapter->messages = kmm_malloc(bytes);
   if (adapter->messages == NULL)
     {
-      kmm_free(adapter);
+      bk7258_os_sync_free(adapter);
       return BK_FAIL;
     }
 
@@ -1954,7 +2165,7 @@ bk_err_t rtos_init_queue(beken_queue_t *queue, const char *name,
     {
       wlerr("ERROR: Failed to create queue semaphores: %d\n", ret);
       kmm_free(adapter->messages);
-      kmm_free(adapter);
+      bk7258_os_sync_free(adapter);
       return beken_errno_trans(ret);
     }
 
@@ -2089,7 +2300,7 @@ bk_err_t rtos_deinit_queue(beken_queue_t *queue)
     }
 
   kmm_free(adapter->messages);
-  kmm_free(adapter);
+  bk7258_os_sync_free(adapter);
   *queue = NULL;
 
   return BK_OK;
@@ -2183,7 +2394,7 @@ bk_err_t rtos_init_event_flags(beken_event_t *event_flags)
       return BK_ERR_PARAM;
     }
 
-  event = kmm_malloc(sizeof(*event));
+  event = bk7258_os_sync_zalloc(sizeof(*event));
   if (event == NULL)
     {
       return BK_FAIL;
@@ -2335,7 +2546,7 @@ bk_err_t rtos_deinit_event_flags(beken_event_t *event_flags)
       return BK_FAIL;
     }
 
-  kmm_free(event);
+  bk7258_os_sync_free(event);
   *event_flags = NULL;
 
   return BK_OK;
@@ -2826,6 +3037,28 @@ int bk7258_os_sram_heap_initialize(void)
 }
 #endif
 
+int bk7258_os_sync_pool_get_stats(
+  FAR struct bk7258_os_sync_pool_stats_s *stats)
+{
+  irqstate_t flags;
+
+  if (stats == NULL)
+    {
+      return -EINVAL;
+    }
+
+  flags = spin_lock_irqsave(&g_bk7258_sync_pool_lock);
+  memcpy(stats, &g_bk7258_sync_pool_stats, sizeof(*stats));
+  spin_unlock_irqrestore(&g_bk7258_sync_pool_lock, flags);
+#ifdef CONFIG_BK7258_SMP_SYNC_POOL
+  stats->small_slots = BK7258_SYNC_POOL_SMALL_SLOTS;
+  stats->large_slots = BK7258_SYNC_POOL_LARGE_SLOTS;
+  stats->small_base = (uint32_t)(uintptr_t)&g_bk7258_sync_pool_small[0][0];
+  stats->large_base = (uint32_t)(uintptr_t)&g_bk7258_sync_pool_large[0][0];
+#endif
+  return OK;
+}
+
 /* Memory functions — provided here for NuttX (libbk_rtos.a excluded to
  * avoid FreeRTOS-based implementations conflicting with ours). */
 
@@ -2997,7 +3230,12 @@ void os_free(void *ptr)
 
       if (bk7258_psram_system_heap_contains(ptr))
         {
-          kmm_free(ptr);
+          /* bk7258_psram_add_system_heap() donates PSRAM with
+           * kumm_addregion().  Free it through the same heap so a split
+           * MM_KERNEL_HEAP build never returns user memory to kmm.
+           */
+
+          kumm_free(ptr);
         }
       else if (bk7258_psram_heap_contains(ptr))
         {
@@ -3093,7 +3331,7 @@ void *os_realloc(void *ptr, size_t size)
     {
       if (bk7258_psram_system_heap_contains(ptr))
         {
-          return kmm_realloc(ptr, size);
+          return kumm_realloc(ptr, size);
         }
 
       return bk7258_psram_realloc(ptr, size);

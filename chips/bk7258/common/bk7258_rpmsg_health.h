@@ -25,6 +25,7 @@ struct bk7258_rpmsg_health_result_s
   uint32_t sequence;
   uint32_t primary_heartbeat;
   uint32_t secondary_heartbeat;
+  uint32_t product_flags;
 };
 
 /****************************************************************************
@@ -32,6 +33,14 @@ struct bk7258_rpmsg_health_result_s
  ****************************************************************************/
 
 int bk7258_rpmsg_health_initialize(void);
+
+#ifdef CONFIG_BK7258_AP_CORE
+/* Publish or withdraw the AP product-level readiness result reported to the
+ * CP Supervisor (BK7258_AP_SUPERVISOR_FLAG_PRODUCT_READY).
+ */
+
+void bk7258_rpmsg_health_set_product_ready(bool ready);
+#endif
 
 #ifndef CONFIG_BK7258_AP_CORE
 bool bk7258_rpmsg_health_ready(void);

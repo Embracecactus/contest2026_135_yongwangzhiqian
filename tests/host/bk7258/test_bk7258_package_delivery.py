@@ -439,6 +439,38 @@ class ProductDeliveryTest(unittest.TestCase):
         expected[24:28] = b"\xff" * 4
         self.assertEqual(operator, bytes(expected))
 
+    def test_delivery_accepts_device_firstboot_factory_status(self) -> None:
+        policy_path = self.root / "device-firstboot-release.csv"
+        policy_path.write_text(
+            self.policy.source.read_text(encoding="utf-8").replace(
+                "# FACTORY_MODE=provision-required",
+                "# FACTORY_MODE=device-firstboot",
+            ),
+            encoding="utf-8",
+        )
+        policy = product_domain.load_policy(policy_path, self.layout)
+        package, manifest = self._inputs("device-firstboot")
+        recovery = product_domain.materialize_recovery(
+            package, policy, self.base, self.base_evidence
+        )
+        output = self.root / "device-firstboot.zip"
+
+        report = product_domain.create_delivery(
+            package=package,
+            build_manifest=manifest,
+            policy=policy,
+            recovery=recovery,
+            base_evidence=self.base_evidence,
+            version="1.2.3+4",
+            output=output,
+        )
+
+        self.assertEqual(report["factory"], "requires-device-firstboot")
+        self.assertEqual(
+            product_domain.verify_delivery(output)["factory"],
+            "requires-device-firstboot",
+        )
+
     def test_operation_impact_distinguishes_full_flash_and_ota(self) -> None:
         package, _ = self._inputs("impact-full")
 

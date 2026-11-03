@@ -89,7 +89,8 @@ static int config(void *context, enum bkcontrol_command_e command,
               kind == BKCONTROL_CONFIG_DEFAULT_SELECTION ||
               kind == BKCONTROL_CONFIG_RESOURCE_CATALOG);
   allowed |= (state->capabilities & BKPC_CAP_TASKS) != 0 &&
-             kind == BKCONTROL_CONFIG_PC_TASK;
+             (kind == BKCONTROL_CONFIG_PC_TASK ||
+              kind == BKCONTROL_CONFIG_PC_APPROVAL);
   allowed |= (state->capabilities & BKPC_CAP_CAMERA) != 0 &&
              (kind == BKCONTROL_CONFIG_CAMERA ||
               ((kind == BKCONTROL_CONFIG_CAMERA_FRAME ||

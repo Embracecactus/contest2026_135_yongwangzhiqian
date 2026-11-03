@@ -150,4 +150,16 @@ class AgentDataControllerTest {
         f.read("""{"revision":"2","items":[{"id":"fixture","signed":false,"enabled":false}]}""", 2)
         assertNull(f.controller.current().document)
     }
+    @Test fun nativeInstallUsesRevisionAndPublishesOnlyAfterReadback() {
+        val f = Fixture(28)
+        fun state(revision: Int, items: String) = """{"revision":"$revision","abi":1,"target":"bk7258-ap-armv8m","trusted_key_sha256":"a","capacity":4,"max_package_bytes":24576,"storage_limit":32768,"running":"","last_result":0,"items":$items}"""
+        f.controller.refresh(); f.read(state(1, "[]"), 1)
+        val manifest = java.util.Base64.getEncoder().encodeToString("""{"id":"breath-coach","version":1}""".toByteArray())
+        assertTrue(f.controller.apply(JsonObject().apply {
+            addProperty("op", "install"); add("package", JsonObject().apply { addProperty("manifest", manifest) })
+        }))
+        assertTrue(f.acceptMutation().contains("\"revision\":\"1\""))
+        f.read(state(2, """[{"id":"breath-coach","version":1,"name":"呼吸练习","description":"提示","sha256":"a","permissions":["display"]}]"""), 2)
+        assertNotNull(f.controller.current().document)
+    }
 }

@@ -33,6 +33,7 @@ N15/N17 文档恢复旧地址、旧脚本或旧信任设计。
 |---|---|
 | 板型名、引脚、极性、外设实例 | `boards/bk7258/README.md` 与对应物理板目录 |
 | CP/AP profile、分区和 release-policy 选择 | `boards/bk7258/CONFIGS.md`、各板 `openvela.conf` 和所选 CSV |
+| 板级当前支持与验收边界 | `boards/bk7258/CONFIGS.md`；仓库 README 的“板级配置与当前验收”链接直达 |
 | SoC IRQ、clock、PM、SDK ABI、控制器机制 | [BK7258 chip 文档](../../chips/bk7258/README.md)与 `chips/bk7258/` |
 | 公共构建、签名、包、发布和部署命令 | `tools/bk7258/bk7258.py --help` 与上述 SOP |
 | 某次构建或板测是否通过 | [日期化 verification](../../verification/bk7258/)中的匹配记录 |
@@ -40,18 +41,13 @@ N15/N17 文档恢复旧地址、旧脚本或旧信任设计。
 
 ## 平台文档
 
-- [参赛技术报告](../../contest/技术报告-BK7258三核适配与傻妞AI伴侣.md)：当前作品、量化结果和分版本验收；
+- [参赛技术报告](../../contest/技术报告-BK7258三核适配与傻妞AI伴侣.md)：赛事材料快照、量化结果和分版本验收；
 - 视频与三板构建入口见仓库 README；三板共享 SoC 实现，T5-Board 运行 Dolphin，
-  AIToyBoard 运行傻妞。638 语音全链路（唤醒→“我在”→ASR→LLM→TTS→播放→免唤醒
-  追问→回待机）已由用户实测，见
-  [638 验收摘要](../../verification/bk7258/2026-09-20-shaniu-638-full-image.md)；
-  App OTA 引用 634。
-  Agent 既有扩展已发布并由 manifest 固定到 fork `add0db19`；干净复现结果与
-  fork 发布、官方合入及实板验收分别报告，见来源记录与 Master Plan。
+  AIToyBoard 运行傻妞。板级现状只在 `boards/bk7258/CONFIGS.md` 汇总；
+  固定依赖及发布证据见团队 manifest 与 `SOURCE_PROVENANCE.md`。
 
 - [桌面伙伴行为合同](shaniu-desktop-companion.md)：动作候选、缓存表情、有限触觉及资源预算；
-- [傻妞 AIDK AI Toy 全项目 Master Plan](shaniu-master-plan.md)：统一产品目标、官方框架/
-  设备适配、控制 App、模型资产、实际里程碑与验收结果；
+- [傻妞 AIDK AI Toy 全项目 Master Plan](shaniu-master-plan.md)：历史目标、设计决策与分版本证据；
 - [BKVoice 历史方案](bkvoice-authorized-voice-app.md)：已退出当前主线的 Gateway/音色探索
   及复现来源，不作为当前开发或恢复旧运行时的入口；
 - [傻妞 Android companion 范围](shaniu-android-companion-plan.md)：现役 BLE 控制 App 与明确标记的历史方案；

@@ -10,6 +10,9 @@ internal class DeviceControlSession(
     private val post: ((() -> Unit) -> Unit),
     private val schedule: (Long, () -> Unit) -> Cancel,
     private val pollCommand: () -> DeviceControlProtocol.Command = { DeviceControlProtocol.Command.STATUS },
+    private val idlePollMs: Long = 2_000L,
+    private val confirmationPollMs: Long = 200L,
+    private val confirmationTimeoutMs: Long = 3_000L,
 ) {
     interface Cancel { fun cancel() }
     interface Transport {
@@ -41,14 +44,17 @@ internal class DeviceControlSession(
         val generation: Long = 0,
         val peerIdentity: ProvisionPeerIdentity? = null,
     )
+    private enum class Origin { USER, POLL, CONFIRMATION, SYSTEM }
     private data class Request(val command: DeviceControlProtocol.Command, val value: Int = 0,
-                               val payload: ByteArray? = null, val verification: Boolean = false) {
+                               val payload: ByteArray? = null, val verification: Boolean = false,
+                               val origin: Origin = Origin.USER) {
         val read get() = command == DeviceControlProtocol.Command.STATUS ||
             command == DeviceControlProtocol.Command.INFO || command == DeviceControlProtocol.Command.OTA_STATUS ||
             command == DeviceControlProtocol.Command.CONFIG_READ
         fun clear() { payload?.fill(0) }
     }
-    private data class Confirmation(val command: DeviceControlProtocol.Command, val expected: Int?)
+    private data class Confirmation(val command: DeviceControlProtocol.Command, val expected: Int?,
+                                    val deadlineMs: Long)
     private val observers = LinkedHashSet<(State) -> Unit>()
     private val resultObservers = LinkedHashSet<(DeviceControlProtocol.Command, DeviceControlProtocol.Snapshot) -> Unit>()
     private var factory: Factory? = null
@@ -59,6 +65,7 @@ internal class DeviceControlSession(
     private var reconnectAttempts = 0
     private var reconnect: Cancel? = null
     private var poll: Cancel? = null
+    private var confirmationExpiry: Cancel? = null
     private var grace: Cancel? = null
     private var queued: Request? = null
     private var inFlight: Request? = null
@@ -71,6 +78,10 @@ internal class DeviceControlSession(
     private var otaConfirmed = false
     private var configTransaction = false
     private var configCancelRequested = false
+
+    init {
+        require(idlePollMs > 0 && confirmationPollMs > 0 && confirmationTimeoutMs > 0)
+    }
 
     fun observe(observer: (State) -> Unit): Cancel {
         observers += observer
@@ -166,15 +177,29 @@ internal class DeviceControlSession(
         pump()
     }
     private fun enqueue(request: Request): Boolean {
-        if (!foreground || !state.authenticated || transport == null || queued != null ||
-            confirmation != null || inFlight?.read == false) {
+        val active = inFlight
+        if (!foreground || !state.authenticated || transport == null || confirmation != null ||
+            active?.read == false) {
+            request.clear()
+            return false
+        }
+        // An explicit refresh can share the result of the same passive poll;
+        // there is still only one wire request and the caller is not told busy.
+        if (request.read && request.payload == null && active?.origin == Origin.POLL &&
+            active.command == request.command) {
+            request.clear()
+            return true
+        }
+        if (queued != null) {
             request.clear()
             return false
         }
         // Coalesce polling; an explicit config read may use the one queued
-        // slot behind the current read so a foreground editor is not blocked
-        // by STATUS. It still cannot create a second queue or pass a write.
+        // slot behind the current read so a foreground editor or explicit
+        // refresh is not blocked by passive STATUS. It still cannot create a
+        // second queue or pass a write.
         if (request.read && inFlight != null &&
+            active?.origin != Origin.POLL &&
             request.command != DeviceControlProtocol.Command.CONFIG_READ) {
             request.clear(); return false
         }
@@ -225,15 +250,29 @@ internal class DeviceControlSession(
                     error = "读取状态失败（${snapshot.error}），正在重试")
                 if (request?.verification == true) {
                     val expected = confirmation
-                    if (snapshot.error == 0) {
-                        val confirmed = when (expected?.command) {
-                            DeviceControlProtocol.Command.VOLUME -> snapshot.volume != null && snapshot.volume == expected.expected
-                            DeviceControlProtocol.Command.PERSONA -> snapshot.persona != null && snapshot.persona == expected.expected
-                            else -> true
-                        }
-                        next = next.copy(operationMessage = if (confirmed) "设备已回读确认" else "设备回读未确认设置，请重试")
-                        confirmation = null
-                    } else next = next.copy(operationMessage = "设置结果未确认，正在重新读取")
+                    // A deadline may expire while STATUS is in flight. In that
+                    // case expected is null and the timeout message is retained.
+                    if (expected != null) {
+                        if (snapshot.error == 0) {
+                            val confirmed = when (expected.command) {
+                                DeviceControlProtocol.Command.VOLUME -> snapshot.volume != null && snapshot.volume == expected.expected
+                                DeviceControlProtocol.Command.PERSONA -> snapshot.persona != null && snapshot.persona == expected.expected
+                                else -> true
+                            }
+                            if (confirmed) {
+                                next = next.copy(operationMessage = "设备已回读确认")
+                                clearConfirmation()
+                            } else if (nowMs() >= expected.deadlineMs) {
+                                next = next.copy(operationMessage = "设备回读超时，已保留最后确认状态")
+                                clearConfirmation()
+                            } else {
+                                next = next.copy(operationMessage = "设备尚未回读新值，正在确认")
+                            }
+                        } else if (nowMs() >= expected.deadlineMs) {
+                            next = next.copy(operationMessage = "设备回读超时，已保留最后确认状态")
+                            clearConfirmation()
+                        } else next = next.copy(operationMessage = "设置结果未确认，正在重新读取")
+                    }
                 }
             }
             DeviceControlProtocol.Command.INFO -> {
@@ -261,14 +300,14 @@ internal class DeviceControlSession(
                 }
             } else if (!isOta(command)) {
                 if (snapshot.error == 0) {
-                    confirmation = Confirmation(command, when (command) {
+                    beginConfirmation(command, when (command) {
                         DeviceControlProtocol.Command.VOLUME -> snapshot.volume ?: request?.value
                         DeviceControlProtocol.Command.PERSONA -> snapshot.persona ?: request?.value
                         else -> null
                     })
                     next = next.copy(operationMessage = "设备已接受，正在回读确认", error = null)
                 } else {
-                    confirmation = null
+                    clearConfirmation()
                     next = next.copy(operationMessage = operationError(snapshot.error))
                 }
             }
@@ -277,21 +316,24 @@ internal class DeviceControlSession(
         publish(next)
         // OTA upload may enqueue its next fragment here. It shares this same scheduler.
         resultObservers.toList().forEach { it(command, snapshot) }
-        if (snapshot.error != 0 && request?.verification == true) armPoll()
-        else pump()
+        pump()
     }
     private fun pump() {
         if (transport == null || !state.authenticated || inFlight != null) { publish(state); return }
         poll?.cancel(); poll = null
+        if (confirmation != null) {
+            publish(state)
+            armPoll()
+            return
+        }
         val next = when {
             configCancelRequested -> {
                 configCancelRequested = false
                 queued?.clear(); queued = null
                 Request(DeviceControlProtocol.Command.CONFIG_CANCEL)
             }
-            confirmation != null -> Request(DeviceControlProtocol.Command.STATUS, verification = true)
             queued != null -> queued.also { queued = null }
-            infoReady() -> { infoNeeded = false; Request(DeviceControlProtocol.Command.INFO) }
+            infoReady() -> { infoNeeded = false; Request(DeviceControlProtocol.Command.INFO, origin = Origin.SYSTEM) }
             else -> null
         }
         if (next == null) { publish(state); armPoll(); return }
@@ -309,6 +351,26 @@ internal class DeviceControlSession(
         }
     }
     private fun infoReady(): Boolean = foreground && infoNeeded && !configTransaction && nowMs() >= infoRetryAt
+
+    private fun beginConfirmation(command: DeviceControlProtocol.Command, expected: Int?) {
+        clearConfirmation()
+        val pending = Confirmation(command, expected, nowMs() + confirmationTimeoutMs)
+        confirmation = pending
+        val generation = state.generation
+        confirmationExpiry = schedule(confirmationTimeoutMs) { post {
+            confirmationExpiry = null
+            if (generation != state.generation || confirmation !== pending) return@post
+            confirmation = null
+            publish(state.copy(operationMessage = "设备回读超时，已保留最后确认状态"))
+            if (inFlight == null) pump()
+        } }
+    }
+
+    private fun clearConfirmation() {
+        confirmation = null
+        confirmationExpiry?.cancel()
+        confirmationExpiry = null
+    }
 
     private fun send(request: Request) {
         val target = transport ?: return
@@ -329,7 +391,7 @@ internal class DeviceControlSession(
                 }
                 inFlight = null
                 request.clear()
-                if (!request.read) confirmation = null
+                if (!request.read) clearConfirmation()
                 if (request.command == DeviceControlProtocol.Command.INFO) retryInfo()
                 val next = when {
                     !request.read -> state.copy(operationMessage = "设备正在处理其他请求，请重试")
@@ -355,11 +417,29 @@ internal class DeviceControlSession(
         poll?.cancel(); poll = null
         if (!foreground || transport == null || !state.authenticated || inFlight != null) return
         val generation = state.generation
-        poll = schedule(2_000) { post {
+        val confirmationDelay = confirmation?.let {
+            (it.deadlineMs - nowMs()).coerceAtLeast(0).coerceAtMost(confirmationPollMs)
+        }
+        val infoDelay = if (infoNeeded && !configTransaction)
+            (infoRetryAt - nowMs()).coerceAtLeast(0).coerceAtMost(idlePollMs) else null
+        val delay = confirmationDelay ?: infoDelay ?: idlePollMs
+        poll = schedule(delay) { post {
             poll = null
             if (generation != state.generation || !foreground || inFlight != null || transport == null) return@post
-            if (confirmation != null || queued != null || infoReady()) pump()
-            else send(Request(pollCommand()))
+            val expected = confirmation
+            if (expected != null) {
+                if (nowMs() >= expected.deadlineMs) {
+                    clearConfirmation()
+                    publish(state.copy(operationMessage = "设备回读超时，已保留最后确认状态"))
+                    pump()
+                } else {
+                    send(Request(DeviceControlProtocol.Command.STATUS, verification = true,
+                        origin = Origin.CONFIRMATION))
+                }
+                return@post
+            }
+            if (queued != null || infoReady()) pump()
+            else send(Request(pollCommand(), origin = Origin.POLL))
         } }
     }
     private fun lost(generation: Long, reason: String) {
@@ -382,6 +462,7 @@ internal class DeviceControlSession(
     }
     private fun closeTransport(connection: Connection) {
         poll?.cancel(); poll = null
+        confirmationExpiry?.cancel(); confirmationExpiry = null
         reconnect?.cancel(); reconnect = null
         grace?.cancel(); grace = null
         queued?.clear(); queued = null
@@ -399,8 +480,10 @@ internal class DeviceControlSession(
         old?.close()
     }
     private fun publish(next: State) {
-        state = next.copy(readPending = inFlight?.read == true,
+        val updated = next.copy(readPending = inFlight?.read == true,
             writePending = queued?.read == false || inFlight?.read == false || confirmation != null)
+        if (updated == state) return
+        state = updated
         observers.toList().forEach { it(state) }
     }
     companion object {

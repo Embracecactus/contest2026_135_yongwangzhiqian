@@ -63,6 +63,48 @@ static unsigned int g_cp_erase_calls;
 static unsigned int g_ap_erase_calls;
 static unsigned int g_cp_write_calls;
 static unsigned int g_ap_write_calls;
+static unsigned int g_fail_write_call;
+
+/* A product image must not export the removed null-token confirm entry nor
+ * the engineering override.  Weak references resolve to NULL when absent.
+ */
+
+int bk7258_ota_confirm_pair(const struct bk7258_ota_pair_snapshot_s *expected)
+  __attribute__((weak));
+int bk7258_ota_confirm_pair_unsafe_engineering(
+  const struct bk7258_ota_pair_snapshot_s *expected) __attribute__((weak));
+
+#ifdef CONFIG_BK7258_AP_SUPERVISOR
+static void reset_counters(void)
+{
+  g_storage_layout_calls = 0u;
+  g_storage_lock_calls = 0u;
+  g_storage_unlock_calls = 0u;
+  g_boot_active_calls = 0u;
+  g_flash_initialize_calls = 0u;
+  g_flash_read_calls = 0u;
+  g_flash_erase_calls = 0u;
+  g_flash_write_calls = 0u;
+  g_cp_erase_calls = 0u;
+  g_ap_erase_calls = 0u;
+  g_cp_write_calls = 0u;
+  g_ap_write_calls = 0u;
+  g_fail_write_call = 0u;
+}
+
+static void assert_no_flash_mutation(void)
+{
+  assert(g_flash_erase_calls == 0u);
+  assert(g_flash_write_calls == 0u);
+}
+
+#endif
+
+static void test_bypass_entry_points_absent(void)
+{
+  assert(bk7258_ota_confirm_pair == NULL);
+  assert(bk7258_ota_confirm_pair_unsafe_engineering == NULL);
+}
 
 static uint8_t *test_sector(uint32_t address)
 {
@@ -255,6 +297,13 @@ int bk7258_flash_write(uint32_t address, const void *buffer, size_t nbytes)
     }
 
   g_flash_write_calls++;
+  if (g_fail_write_call != 0u && g_flash_write_calls == g_fail_write_call)
+    {
+      /* Simulated interruption: the sector was erased, the write fails. */
+
+      return -EIO;
+    }
+
   if (sector == g_cp_sector)
     {
       g_cp_write_calls++;
@@ -301,25 +350,29 @@ volatile struct bk7258_ap_boot_state_s *bk7258_ap_boot_state(void)
 static jmp_buf g_reset_env;
 static unsigned int g_reset_calls;
 static unsigned int g_health_calls;
-static uint32_t g_health_max_age[2];
+static uint32_t g_health_max_age[4];
+static uint32_t g_health_flags[4];
+static int g_health_result[4];
 static uint8_t g_xip[TEST_LOGICAL_SIZE * 2u];
 
 int bk7258_ap_supervisor_health_token(
   uint32_t expected_generation, uint32_t max_age_ms,
   struct bk7258_ap_supervisor_health_token_s *token)
 {
+  unsigned int call = g_health_calls++;
+
   assert(expected_generation == TEST_GENERATION);
   assert(token != NULL);
-  assert(g_health_calls < 2u);
-  g_health_max_age[g_health_calls] = max_age_ms;
-  if (g_health_calls++ == 1u)
+  assert(call < 4u);
+  g_health_max_age[call] = max_age_ms;
+  if (g_health_result[call] < 0)
     {
-      return -EHOSTDOWN;
+      return g_health_result[call];
     }
 
+  token->flags = g_health_flags[call];
   token->generation = TEST_GENERATION;
   token->sample_sequence = TEST_SAMPLE_SEQUENCE + 1u;
-  token->flags = 0u;
   token->healthy_age_ms = 0u;
   token->sample_age_ms = 0u;
   return 0;
@@ -343,52 +396,250 @@ static void setup_supervisor_xip(void)
     (uint32_t)(uintptr_t)&g_xip[TEST_LOGICAL_SIZE];
 }
 
-static void test_supervisor_confirmation(void)
+static const struct bk7258_ota_pair_snapshot_s g_expected =
 {
-  struct bk7258_ota_pair_snapshot_s expected =
-  {
-    .active_slot = BK7258_BOOT_SLOT_PRIMARY,
-    .state = BK7258_OTA_PAIR_PENDING,
-    .version = {1u, 2u, 3u, 4u},
-    .security_counter = 9u,
-    .security_counter_present = true,
-  };
+  .active_slot = BK7258_BOOT_SLOT_PRIMARY,
+  .state = BK7258_OTA_PAIR_PENDING,
+  .version = {1u, 2u, 3u, 4u},
+  .security_counter = 9u,
+  .security_counter_present = true,
+};
+
+static struct bk7258_ap_supervisor_health_token_s network_token(void)
+{
   struct bk7258_ap_supervisor_health_token_s health =
   {
     .generation = TEST_GENERATION,
     .sample_sequence = TEST_SAMPLE_SEQUENCE,
+    .flags = BK7258_AP_SUPERVISOR_FLAG_WIFI_READY,
+    .policy = BK7258_OTA_CONFIRM_POLICY_NETWORK,
+    .required_flags = BK7258_AP_SUPERVISOR_FLAG_WIFI_READY,
   };
 
+  return health;
+}
+
+/* Prepare one scenario: pending pair, healthy AP, and per-call readiness. */
+
+static void setup_scenario(uint32_t first_flags, uint32_t second_flags)
+{
+  reset_counters();
   setup_layout();
   setup_supervisor_xip();
   g_boot_state.generation = TEST_GENERATION;
   g_boot_state.state = BK7258_AP_STATE_READY;
+  g_reset_calls = 0u;
+  g_health_calls = 0u;
+  memset(g_health_result, 0, sizeof(g_health_result));
+  memset(g_health_max_age, 0, sizeof(g_health_max_age));
+  g_health_flags[0] = first_flags;
+  g_health_flags[1] = second_flags;
+  g_health_flags[2] = 0u;
+  g_health_flags[3] = 0u;
+}
 
+static int confirm_expect_reset(
+  const struct bk7258_ap_supervisor_health_token_s *health)
+{
   if (setjmp(g_reset_env) == 0)
     {
       int ret = bk7258_ota_confirm_pair_health(
-        &expected, &health, TEST_HEALTH_MAX_AGE_MS);
-      assert(ret == -EHOSTDOWN);
-      assert(0);
+        &g_expected, health, TEST_HEALTH_MAX_AGE_MS);
+
+      return ret;
     }
 
+  return INT32_MIN;
+}
+
+static void test_policy_flags(void)
+{
+  assert(bk7258_ota_confirm_policy_flags(
+           BK7258_OTA_CONFIRM_POLICY_NETWORK) ==
+         BK7258_AP_SUPERVISOR_FLAG_WIFI_READY);
+  assert(bk7258_ota_confirm_policy_flags(
+           BK7258_OTA_CONFIRM_POLICY_OFFLINE) ==
+         BK7258_AP_SUPERVISOR_FLAG_PRODUCT_READY);
+  assert(bk7258_ota_confirm_policy_flags(
+           BK7258_OTA_CONFIRM_POLICY_NONE) == 0u);
+  assert(bk7258_ota_confirm_policy_flags(
+           BK7258_OTA_CONFIRM_POLICY_ENGINEERING_OVERRIDE) == 0u);
+}
+
+/* Null product health is rejected before any lock or Flash access. */
+
+static void test_null_health_rejected(void)
+{
+  setup_scenario(BK7258_AP_SUPERVISOR_FLAG_WIFI_READY,
+                 BK7258_AP_SUPERVISOR_FLAG_WIFI_READY);
+  assert(bk7258_ota_confirm_pair_health(
+           &g_expected, NULL, TEST_HEALTH_MAX_AGE_MS) == -EINVAL);
+  assert(g_health_calls == 0u);
+  assert(g_storage_lock_calls == 0u);
+  assert_no_flash_mutation();
+}
+
+/* Manual-confirm bypass attempts: removed entry points, override or empty
+ * policies and a weakened required-flag set are all refused untouched.
+ */
+
+static void test_manual_bypass_rejected(void)
+{
+  struct bk7258_ap_supervisor_health_token_s health;
+
+  test_bypass_entry_points_absent();
+  setup_scenario(BK7258_AP_SUPERVISOR_FLAG_WIFI_READY,
+                 BK7258_AP_SUPERVISOR_FLAG_WIFI_READY);
+
+  health = network_token();
+  health.policy = BK7258_OTA_CONFIRM_POLICY_ENGINEERING_OVERRIDE;
+  assert(bk7258_ota_confirm_pair_health(
+           &g_expected, &health, TEST_HEALTH_MAX_AGE_MS) == -EINVAL);
+
+  health = network_token();
+  health.policy = BK7258_OTA_CONFIRM_POLICY_NONE;
+  assert(bk7258_ota_confirm_pair_health(
+           &g_expected, &health, TEST_HEALTH_MAX_AGE_MS) == -EINVAL);
+
+  health = network_token();
+  health.required_flags = 0u;
+  assert(bk7258_ota_confirm_pair_health(
+           &g_expected, &health, TEST_HEALTH_MAX_AGE_MS) == -EINVAL);
+
+  health = network_token();
+  health.policy = BK7258_OTA_CONFIRM_POLICY_OFFLINE;
+  assert(bk7258_ota_confirm_pair_health(
+           &g_expected, &health, TEST_HEALTH_MAX_AGE_MS) == -EINVAL);
+
+  assert(bk7258_ota_confirm_pair_health(
+           &g_expected, &health, 0u) == -EINVAL);
+  assert(g_health_calls == 0u);
+  assert(g_storage_lock_calls == 0u);
+  assert_no_flash_mutation();
+  assert(g_reset_calls == 0u);
+}
+
+/* Readiness lost before the AP trailer write: nothing is mutated and no
+ * reset is needed because the pair is still consistently pending.
+ */
+
+static void test_readiness_lost_before_ap(void)
+{
+  struct bk7258_ap_supervisor_health_token_s health = network_token();
+
+  setup_scenario(0u, BK7258_AP_SUPERVISOR_FLAG_WIFI_READY);
+  assert(confirm_expect_reset(&health) == -EHOSTDOWN);
+  assert(g_reset_calls == 0u);
+  assert(g_health_calls == 1u);
+  assert(g_storage_lock_calls == 1u);
+  assert(g_storage_unlock_calls == 1u);
+  assert_no_flash_mutation();
+  assert(g_ap_sector[TEST_CONFIRM_PACKET_OFFSET +
+                     TEST_CONFIRM_DATA_OFFSET] == 0xffu);
+
+  /* A Supervisor error before AP has the same fail-closed result. */
+
+  setup_scenario(BK7258_AP_SUPERVISOR_FLAG_WIFI_READY, 0u);
+  g_health_result[0] = -ESTALE;
+  assert(confirm_expect_reset(&health) == -ESTALE);
+  assert(g_reset_calls == 0u);
+  assert_no_flash_mutation();
+}
+
+/* Readiness lost between the AP and CP trailer writes: AP is confirmed, CP
+ * is untouched and the SoC resets so BL2 selects the confirmed fallback.
+ */
+
+static void test_readiness_lost_between_ap_and_cp(void)
+{
+  struct bk7258_ap_supervisor_health_token_s health = network_token();
+
+  setup_scenario(BK7258_AP_SUPERVISOR_FLAG_WIFI_READY, 0u);
+  assert(confirm_expect_reset(&health) == INT32_MIN);
   assert(g_reset_calls == 1u);
   assert(g_health_calls == 2u);
   assert(g_health_max_age[0] == TEST_HEALTH_MAX_AGE_MS);
   assert(g_health_max_age[1] == TEST_HEALTH_MAX_AGE_MS);
   assert(g_storage_lock_calls == 1u);
   assert(g_storage_unlock_calls == 1u);
-  assert(g_boot_active_calls != 0u);
-  assert(g_flash_initialize_calls == 1u);
-  assert(g_flash_read_calls == 1u);
-  assert(g_flash_erase_calls == 1u);
-  assert(g_flash_write_calls == 1u);
   assert(g_ap_erase_calls == 1u);
   assert(g_ap_write_calls == 1u);
   assert(g_cp_erase_calls == 0u);
   assert(g_cp_write_calls == 0u);
   assert(g_cp_sector[TEST_CONFIRM_PACKET_OFFSET +
                      TEST_CONFIRM_DATA_OFFSET] == 0xffu);
+  assert(g_ap_sector[TEST_CONFIRM_PACKET_OFFSET +
+                     TEST_CONFIRM_DATA_OFFSET] == 1u);
+}
+
+/* Interrupted trailer writes: a failure after the AP or CP erase resets
+ * immediately rather than returning with a half-written pair.
+ */
+
+static void test_interrupted_trailer_write(void)
+{
+  struct bk7258_ap_supervisor_health_token_s health = network_token();
+
+  setup_scenario(BK7258_AP_SUPERVISOR_FLAG_WIFI_READY,
+                 BK7258_AP_SUPERVISOR_FLAG_WIFI_READY);
+  g_fail_write_call = 1u;
+  assert(confirm_expect_reset(&health) == INT32_MIN);
+  assert(g_reset_calls == 1u);
+  assert(g_ap_erase_calls == 1u);
+  assert(g_cp_erase_calls == 0u);
+
+  setup_scenario(BK7258_AP_SUPERVISOR_FLAG_WIFI_READY,
+                 BK7258_AP_SUPERVISOR_FLAG_WIFI_READY);
+  g_fail_write_call = 2u;
+  assert(confirm_expect_reset(&health) == INT32_MIN);
+  assert(g_reset_calls == 1u);
+  assert(g_ap_write_calls == 1u);
+  assert(g_cp_erase_calls == 1u);
+}
+
+/* After a reboot that interrupted confirmation, the next attempt observes
+ * the persisted trailers: a mismatched pair fails closed without writes,
+ * and a fully confirmed pair reports -EALREADY without writes.
+ */
+
+static void test_reboot_after_trailer_mutation(void)
+{
+  struct bk7258_ap_supervisor_health_token_s health = network_token();
+
+  setup_scenario(BK7258_AP_SUPERVISOR_FLAG_WIFI_READY,
+                 BK7258_AP_SUPERVISOR_FLAG_WIFI_READY);
+  g_xip[TEST_LOGICAL_SIZE +
+        BK7258_MCUBOOT_IMAGE_OK_OFFSET(TEST_LOGICAL_SIZE)] = 1u;
+  assert(confirm_expect_reset(&health) == -EILSEQ);
+  assert(g_reset_calls == 0u);
+  assert(g_health_calls == 0u);
+  assert_no_flash_mutation();
+
+  setup_scenario(BK7258_AP_SUPERVISOR_FLAG_WIFI_READY,
+                 BK7258_AP_SUPERVISOR_FLAG_WIFI_READY);
+  g_xip[BK7258_MCUBOOT_IMAGE_OK_OFFSET(TEST_LOGICAL_SIZE)] = 1u;
+  g_xip[TEST_LOGICAL_SIZE +
+        BK7258_MCUBOOT_IMAGE_OK_OFFSET(TEST_LOGICAL_SIZE)] = 1u;
+  assert(confirm_expect_reset(&health) == -EALREADY);
+  assert(g_reset_calls == 0u);
+  assert_no_flash_mutation();
+}
+
+/* Positive control: both readiness checks pass and both trailers change. */
+
+static void test_supervisor_confirmation(void)
+{
+  struct bk7258_ap_supervisor_health_token_s health = network_token();
+
+  setup_scenario(BK7258_AP_SUPERVISOR_FLAG_WIFI_READY,
+                 BK7258_AP_SUPERVISOR_FLAG_WIFI_READY);
+  assert(confirm_expect_reset(&health) == 0);
+  assert(g_reset_calls == 0u);
+  assert(g_health_calls == 2u);
+  assert(g_ap_write_calls == 1u);
+  assert(g_cp_write_calls == 1u);
+  assert(g_cp_sector[TEST_CONFIRM_PACKET_OFFSET +
+                     TEST_CONFIRM_DATA_OFFSET] == 1u);
   assert(g_ap_sector[TEST_CONFIRM_PACKET_OFFSET +
                      TEST_CONFIRM_DATA_OFFSET] == 1u);
 }
@@ -416,6 +667,7 @@ static void test_no_supervisor_confirmation(void)
   };
   struct bk7258_ap_supervisor_health_token_s health = {0};
 
+  test_bypass_entry_points_absent();
   assert(bk7258_ota_confirm_pair_health(
            &expected, NULL, TEST_HEALTH_MAX_AGE_MS) == -EINVAL);
   assert(bk7258_ota_confirm_pair_health(
@@ -438,6 +690,13 @@ static void test_no_supervisor_confirmation(void)
 int main(void)
 {
 #ifdef CONFIG_BK7258_AP_SUPERVISOR
+  test_policy_flags();
+  test_null_health_rejected();
+  test_manual_bypass_rejected();
+  test_readiness_lost_before_ap();
+  test_readiness_lost_between_ap_and_cp();
+  test_interrupted_trailer_write();
+  test_reboot_after_trailer_mutation();
   test_supervisor_confirmation();
   puts("bk7258 OTA health-confirm supervisor test: PASS");
 #else

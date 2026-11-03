@@ -125,9 +125,10 @@ class ProvisionGattSession internal constructor(
         if (closed || pending != null || outbound.isEmpty()) return null
         val head = outbound.peek()
         check(token != Long.MAX_VALUE)
-        // Conservative interoperability cap: negotiated MTU is an upper bound,
-        // not a required write size.
-        val length = minOf(mtu - 3, MAX_COMPATIBLE_ATT_WRITE_BYTES, head.size - offset)
+        // The peer sees the same negotiated ATT MTU before TLS starts.  MTU 23
+        // therefore remains the legacy 20-byte path, while a larger negotiated
+        // MTU avoids fragmenting every TLS record into 20-byte writes.
+        val length = minOf(mtu - 3, MAX_ATT_WRITE_BYTES, head.size - offset)
         return Write(generation, ++token, head.copyOfRange(offset, offset + length)).also {
             pending = it
             pendingAt = lastNow
@@ -233,6 +234,8 @@ class ProvisionGattSession internal constructor(
         private val generations = AtomicLong()
         private const val LIMIT = 64 * 1024
         private const val MAX_RX_PACKETS = 256
-        private const val MAX_COMPATIBLE_ATT_WRITE_BYTES = 20
+        // AndroidProvisionGatt requests MTU 185. Keep this explicit upper bound
+        // even if a platform reports a larger value in a future release.
+        private const val MAX_ATT_WRITE_BYTES = 182
     }
 }

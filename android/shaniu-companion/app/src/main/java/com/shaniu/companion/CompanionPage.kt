@@ -11,7 +11,6 @@ import android.graphics.drawable.ClipDrawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
 import android.graphics.drawable.RippleDrawable
-import android.os.SystemClock
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -200,25 +199,20 @@ internal class CompanionPage(private val context: Context, private val content: 
         setOnClickListener { action() }
     }
 
-    /** Home top bar: eyebrow + wordmark with one circular action. */
-    fun homeHeader(eyebrow: String, title: String, actionLabel: String?, action: (() -> Unit)?) {
+    /** Home top bar: the wordmark carries the screen alone, with one circular action. */
+    fun homeHeader(title: String, actionLabel: String?, action: (() -> Unit)?) {
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
             setPadding(0, dp(12), 0, dp(4))
         }
-        val labels = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            addView(text(eyebrow, Type.CAPTION, MUTED))
-            addView(text(title, Type.TITLE).apply { isAccessibilityHeading = true; setPadding(0, dp(2), 0, 0) })
-        }
-        row.addView(labels, LinearLayout.LayoutParams(0, -2, 1f))
+        row.addView(text(title, Type.TITLE).apply { isAccessibilityHeading = true }, LinearLayout.LayoutParams(0, -2, 1f))
         if (action != null) row.addView(circleButton("plus", actionLabel, true, action),
             LinearLayout.LayoutParams(dp(48), dp(48)).apply { leftMargin = dp(12) })
         content.addView(row, LinearLayout.LayoutParams(-1, -2))
     }
 
     fun header(title: String, subtitle: String = "", actionLabel: String? = null, back: (() -> Unit)? = null, action: (() -> Unit)? = null) {
-        if (back != null) pageTitle(title, subtitle, back) else homeHeader(subtitle.ifBlank { "SHANIU" }, title, actionLabel, action)
+        if (back != null) pageTitle(title, subtitle, back) else homeHeader(title, actionLabel, action)
     }
 
     fun pageTitle(title: String, subtitle: String, back: (() -> Unit)? = null) {
@@ -295,11 +289,14 @@ internal class CompanionPage(private val context: Context, private val content: 
             })
             column.addView(text(node.detail, Type.CAPTION, MUTED).apply {
                 gravity = Gravity.CENTER; setPadding(0, dp(2), 0, 0)
+                // Never strand a single character on its own line.
+                breakStrategy = android.graphics.text.LineBreaker.BREAK_STRATEGY_BALANCED
             })
             chain.addView(column, LinearLayout.LayoutParams(0, -2, 1f))
             if (index < nodes.size - 1) {
+                // Large text needs the room more than the link needs length.
                 chain.addView(LinkView(context, links.getOrElse(index) { Link.UNKNOWN }),
-                    LinearLayout.LayoutParams(0, dp(40), 0.55f))
+                    LinearLayout.LayoutParams(0, dp(40), if (context.resources.configuration.fontScale > 1.15f) 0.25f else 0.55f))
             }
         }
         box.addView(chain, LinearLayout.LayoutParams(-1, -2))
@@ -322,8 +319,8 @@ internal class CompanionPage(private val context: Context, private val content: 
         content.addView(box, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8); bottomMargin = dp(4) })
     }
 
-    /** A link between two chain nodes. A live link carries a slow travelling
-     * glint; the frame loop runs only while it is visible and animations are on. */
+    /** A link between two chain nodes. Static on purpose: her eyes are the one
+     * moving signature on Home, so a live link is marked by colour, not motion. */
     private class LinkView(context: Context, private val link: Link) : View(context) {
         private val design = CompanionDesign(context)
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.ROUND; style = Paint.Style.STROKE }
@@ -336,7 +333,7 @@ internal class CompanionPage(private val context: Context, private val content: 
             paint.strokeWidth = design.dp(2f)
             paint.pathEffect = null
             when (link) {
-                Link.LIVE -> paint.color = design.ink
+                Link.LIVE -> paint.color = design.eyeInk
                 Link.PENDING -> { paint.color = design.muted; paint.pathEffect = DashPathEffect(floatArrayOf(design.dp(6f), design.dp(5f)), 0f) }
                 Link.BROKEN -> paint.color = design.warning
                 Link.UNKNOWN -> { paint.color = design.muted; paint.pathEffect = DashPathEffect(floatArrayOf(0.1f, design.dp(5f)), 0f) }
@@ -350,11 +347,11 @@ internal class CompanionPage(private val context: Context, private val content: 
                 paint.strokeWidth = design.dp(1.6f)
                 canvas.drawLine(mid - design.dp(3f), y - design.dp(5f), mid + design.dp(3f), y + design.dp(5f), paint)
             } else canvas.drawLine(inset, y, width - inset, y, paint)
-            if (link == Link.LIVE && android.animation.ValueAnimator.areAnimatorsEnabled()) {
-                val p = (SystemClock.uptimeMillis() % 2400L) / 2400f
-                dot.color = design.eye
-                canvas.drawCircle(inset + (width - 2 * inset) * p, y, design.dp(3f), dot)
-                postInvalidateDelayed(40L)
+            if (link == Link.LIVE) {
+                // Endpoints anchor the link to both nodes.
+                dot.color = design.eyeInk
+                canvas.drawCircle(inset + design.dp(2f), y, design.dp(3f), dot)
+                canvas.drawCircle(width - inset - design.dp(2f), y, design.dp(3f), dot)
             }
         }
     }
@@ -400,16 +397,17 @@ internal class CompanionPage(private val context: Context, private val content: 
     }
 
     fun updateIntroduction(version: String, source: String) {
-        val card = panel()
-        card.addView(text("当前设备版本", Type.OVERLINE, MUTED))
-        card.addView(text(version, Type.TITLE).apply { setPadding(0, dp(8), 0, 0) })
-        card.addView(View(context).apply { setBackgroundColor(design.divider) },
-            LinearLayout.LayoutParams(-1, 1).apply { topMargin = dp(18); bottomMargin = dp(14) })
-        val sourceRow = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL }
-        sourceRow.addView(icon("download", 18, MUTED), LinearLayout.LayoutParams(dp(18), dp(18)).apply { rightMargin = dp(10) })
-        sourceRow.addView(text("更新来源", Type.CALLOUT, MUTED), LinearLayout.LayoutParams(0, -2, 1f))
-        sourceRow.addView(text(source, Type.CALLOUT, INK).apply { gravity = Gravity.END })
-        card.addView(sourceRow)
+        // Two labelled facts, label and value side by side: no kicker above a heading.
+        val card = panel().apply { setPadding(dp(20), dp(6), dp(20), dp(6)) }
+        listOf(Triple("device", "设备版本", version), Triple("download", "更新来源", source)).forEachIndexed { index, (iconName, label, value) ->
+            if (index > 0) card.addView(View(context).apply { setBackgroundColor(design.divider) },
+                LinearLayout.LayoutParams(-1, 1).apply { leftMargin = dp(32) })
+            val row = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL; minimumHeight = dp(56) }
+            row.addView(icon(iconName, 18, MUTED), LinearLayout.LayoutParams(dp(18), dp(18)).apply { rightMargin = dp(14) })
+            row.addView(text(label, Type.CALLOUT, MUTED), LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(16) })
+            row.addView(text(value, Type.HEADLINE, INK).apply { gravity = Gravity.END }, LinearLayout.LayoutParams(0, -2, 1f))
+            card.addView(row)
+        }
         content.addView(card, LinearLayout.LayoutParams(-1, -2))
         sectionTitle("更新会这样进行")
         val steps = panel().apply { setPadding(dp(20), dp(8), dp(20), dp(8)) }
@@ -477,11 +475,11 @@ internal class CompanionPage(private val context: Context, private val content: 
         }, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, dp(8), 0, dp(4)) })
     }
 
-    fun hero(title: String, subtitle: String) {
+    fun hero(title: String, subtitle: String, warning: Boolean = false) {
         content.addView(text(title, Type.TITLE).apply {
             gravity = Gravity.CENTER; isAccessibilityHeading = true
         })
-        content.addView(text(subtitle, Type.CALLOUT, MUTED).apply {
+        content.addView(text(subtitle, Type.CALLOUT, if (warning) design.warning else MUTED).apply {
             gravity = Gravity.CENTER
             setPadding(dp(8), dp(8), dp(8), dp(16))
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
@@ -569,15 +567,21 @@ internal class CompanionPage(private val context: Context, private val content: 
         card.addView(View(context).apply {
             background = design.shape(design.divider, dp(2).toFloat())
         }, LinearLayout.LayoutParams(dp(36), dp(4)).apply { gravity = Gravity.CENTER_HORIZONTAL; bottomMargin = dp(8) })
-        val top = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL }
-        top.addView(text(title, Type.LABEL, MUTED).apply { isAccessibilityHeading = true }, LinearLayout.LayoutParams(0, -2, 1f))
+        // The hero below names the state; the top row holds only the dismiss control.
+        val top = LinearLayout(context).apply { gravity = Gravity.END or Gravity.CENTER_VERTICAL }
         if (dismiss != null) top.addView(circleButton("close", dismissDescription ?: dismissLabel ?: "关闭连接卡片", true, dismiss).apply {
             background = RippleDrawable(ColorStateList.valueOf(design.divider),
                 design.shape(design.background, dp(24).toFloat()), null)
         }, LinearLayout.LayoutParams(dp(48), dp(48)))
         card.addView(top)
         val page = CompanionPage(context, card)
-        page.presence(mood, if (largeText) 120 else 150)
+        // With candidates on screen the list is the task; her eyes step back so
+        // every device stays above the fold.
+        page.presence(mood, when {
+            candidates.isNotEmpty() -> if (largeText) 72 else 96
+            largeText -> 120
+            else -> 150
+        })
         card.addView(View(context), LinearLayout.LayoutParams(-1, dp(12)))
         page.hero(if (candidates.isNotEmpty()) "认识一下，傻妞。" else title, summary)
         candidates.forEach { candidate ->

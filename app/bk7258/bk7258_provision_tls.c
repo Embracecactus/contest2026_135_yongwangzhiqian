@@ -176,7 +176,8 @@ int bkprov_tls_start(struct bkprov_tls_s *tls, uint32_t generation,
                      uint64_t (*now_ms)(void *), void *clock_context)
 {
   const struct bkprov_tls_transport_s transport =
-    { NULL, gatt_generation, gatt_read, gatt_send, 20, SEND_INTERVAL_MS };
+    { NULL, gatt_generation, gatt_read, gatt_send,
+      BKPROV_GATT_MAX_PAYLOAD_SIZE, SEND_INTERVAL_MS };
 
   return bkprov_tls_start_transport(tls, generation, certificate, key, now_ms,
                                     clock_context, &transport);

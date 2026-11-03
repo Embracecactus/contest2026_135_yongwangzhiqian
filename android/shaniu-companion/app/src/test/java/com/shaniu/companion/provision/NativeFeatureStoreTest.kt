@@ -66,6 +66,10 @@ class NativeFeatureStoreTest {
         // Pinned against bknative_app_hash() in the host firmware test.
         assertEquals(0xbd8bb2f5L, NativeFeatureStore.appHash("shake"))
         assertEquals(2166136261L, NativeFeatureStore.appHash(""))
+        assertEquals((0xbd8bb2f5L shl 32) or 30L, NfcBindingController.nativeArgument("shake", 30))
+        assertFalse(NfcBindingController.nativeArgumentValid(30))
+        assertFalse(NfcBindingController.nativeArgumentValid((0xbd8bb2f5L shl 32) or 3601L))
+        assertThrows(IllegalArgumentException::class.java) { NfcBindingController.nativeArgument("Shake", 30) }
     }
     @Test fun storeDirectoryAcceptsOnlyHttpsAndBoundedExactRecords() {
         val hash = "a".repeat(64)

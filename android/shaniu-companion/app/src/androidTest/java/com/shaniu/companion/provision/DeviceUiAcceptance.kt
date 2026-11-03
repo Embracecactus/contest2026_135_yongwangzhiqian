@@ -33,6 +33,32 @@ import java.util.concurrent.atomic.AtomicReference
  * mutation. Reflection keeps fixture injection out of the production APK API.
  */
 internal object DeviceUiAcceptance {
+    /** Exercise the emulator's real Bluetooth facade without claiming radio or board interoperability. */
+    fun runBluetoothScanFacade(instrumentation: Instrumentation): String {
+        check(android.os.Build.FINGERPRINT.contains("generic") || android.os.Build.MODEL.contains("sdk"))
+        val manager = checkNotNull(instrumentation.targetContext.getSystemService(
+            android.bluetooth.BluetoothManager::class.java,
+        )) { "BluetoothManager unavailable" }
+        val adapter = checkNotNull(manager.adapter) { "BluetoothAdapter unavailable" }
+        check(adapter.isEnabled) { "BluetoothAdapter is off" }
+        checkNotNull(adapter.bluetoothLeScanner) { "BLE scanner unavailable" }
+        var apiFailed = false
+        var matches = 0
+        lateinit var scanner: DeviceControlScanner
+        onUi(instrumentation) {
+            scanner = DeviceControlScanner(instrumentation.targetContext,
+                { _, _ -> matches++ },
+                { failed -> apiFailed = failed },
+            )
+            scanner.start()
+        }
+        Thread.sleep(2_500)
+        onUi(instrumentation) { scanner.close() }
+        instrumentation.waitForIdleSync()
+        check(!apiFailed) { "emulator BLE scan API failed" }
+        return "adapter_on=true; filtered_scan_ms=2500; matches=$matches"
+    }
+
     /** RES-01: real Activity/session lifecycle with an in-memory transport. */
     fun runEyeBackgroundCancel(instrumentation: Instrumentation) {
         check(android.os.Build.FINGERPRINT.contains("generic") || android.os.Build.MODEL.contains("sdk"))
@@ -1062,7 +1088,10 @@ internal object DeviceUiAcceptance {
             }
         }
         fun capture(name: String, root: () -> View = { activity.window.decorView }) {
-            instrumentation.waitForIdleSync()
+            // The presence eyes intentionally animate continuously. Scene setup
+            // already runs synchronously on the main thread, so waiting for a
+            // globally idle queue here would turn a valid animation into a
+            // multi-second stall.
             Thread.sleep(250)
             onUi(instrumentation) {
                 val view = root()
@@ -1337,7 +1366,6 @@ internal object DeviceUiAcceptance {
                         })
                         check(button.performClick())
                     }
-                    instrumentation.waitForIdleSync()
                 }
             }
             check(session.current().generation == generation)
@@ -1431,8 +1459,10 @@ internal object DeviceUiAcceptance {
                 }) as EditText
                 activity.getSystemService(InputMethodManager::class.java).showSoftInput(chat, InputMethodManager.SHOW_IMPLICIT)
             }
-            Thread.sleep(600)
-            instrumentation.waitForIdleSync()
+            awaitUi(instrumentation, activity) {
+                activity.window.decorView.rootWindowInsets
+                    ?.isVisible(WindowInsets.Type.ime()) == true
+            }
             capture("cloud-inline-keyboard")
             onUi(instrumentation) {
                 val decor = activity.window.decorView
@@ -1486,17 +1516,41 @@ internal object DeviceUiAcceptance {
                                 })
                                 check(reveal.performClick())
                             }
-                            input.requestFocus(); input.setSelection(input.length())
+                            check(input.requestFocus()) { "editor input could not receive focus" }
+                            input.setSelection(input.length())
                             activity.getSystemService(InputMethodManager::class.java).showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
                     }
                     Thread.sleep(500)
-                    instrumentation.uiAutomation.executeShellCommand("input text _draft").use { descriptor ->
-                        android.os.ParcelFileDescriptor.AutoCloseInputStream(descriptor).use { it.readBytes() }
+                    onUi(instrumentation) {
+                        check(dialog.window!!.decorView.hasWindowFocus() && input.hasFocus()) {
+                            "editor lost focus before keyboard input"
+                        }
                     }
-                    instrumentation.waitForIdleSync()
+                    onUi(instrumentation) {
+                        val connection = checkNotNull(input.onCreateInputConnection(
+                            android.view.inputmethod.EditorInfo(),
+                        )) { "editor did not expose an input connection" }
+                        check(connection.commitText("_draft", 1)) {
+                            "input connection rejected fixture text"
+                        }
+                    }
+                    // The IME may finish its composing update after the key
+                    // events return. Keep this wait bounded and require the
+                    // exact final text before testing draft preservation.
+                    val inputDeadline = android.os.SystemClock.uptimeMillis() + 2_000
+                    var delivered = false
+                    do {
+                        instrumentation.waitForIdleSync()
+                        onUi(instrumentation) {
+                            delivered = input.text.toString().endsWith("_draft")
+                        }
+                        if (!delivered) Thread.sleep(50)
+                    } while (!delivered && android.os.SystemClock.uptimeMillis() < inputDeadline)
                     onUi(instrumentation) {
                         if (!cloud) {
-                            check(input.text.toString().endsWith("_draft")) { "keyboard input not delivered" }
+                            check(input.text.toString().endsWith("_draft")) {
+                                "keyboard input not delivered: value=${input.text}"
+                            }
                             render.invoke(activity)
                             check(input.text.toString().endsWith("_draft")) { "status render overwrote draft" }
                         }
@@ -1605,7 +1659,7 @@ internal object DeviceUiAcceptance {
                 block()
                 results += "$name=PASS"
             } catch (error: Throwable) {
-                val detail = "$name=FAIL ${error.javaClass.simpleName}: ${error.message}"
+                val detail = "$name=FAIL ${error.javaClass.simpleName}: ${error.message} at ${error.stackTrace.firstOrNull()}"
                 failures += detail; results += detail
             }
         }
@@ -1868,8 +1922,14 @@ internal object DeviceUiAcceptance {
                 awaitUi(instrumentation, activity) {
                     activity.window.decorView.rootWindowInsets?.isVisible(WindowInsets.Type.ime()) == true
                 }
-                instrumentation.sendStringSync("ime-wifi")
                 onUi(instrumentation) {
+                    val input = field(activity, "ssid", EditText::class.java)
+                    val connection = checkNotNull(input.onCreateInputConnection(
+                        android.view.inputmethod.EditorInfo(),
+                    )) { "SSID field did not expose an input connection" }
+                    check(connection.commitText("ime-wifi", 1)) {
+                        "SSID input connection rejected fixture text"
+                    }
                     val scroll = findView(activity.window.decorView) { it is ScrollView } as ScrollView
                     scroll.smoothScrollTo(0, scroll.getChildAt(0).height)
                 }

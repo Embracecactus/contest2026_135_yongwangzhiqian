@@ -60,6 +60,8 @@ struct bt_conn_cb_s {
 };
 struct bt_eir_s { uint8_t len, type, data[29]; };
 #define BKPROV_GATT_LOCATOR_SIZE 8u
+#define BKPROV_GATT_LEGACY_PAYLOAD_SIZE 20u
+#define BKPROV_GATT_MAX_PAYLOAD_SIZE 182u
 #define GRND_RANDOM 2
 #define GRND_NONBLOCK 1
 static bool random_missing;
@@ -103,6 +105,7 @@ struct bt_gatt_ccc_cfg_s {int unused;};
 #define BT_GATT_CCC(h,v,c,f) {h,c,NULL,f}
 static int registrations, notifications;
 static struct bt_conn_s *notified;
+static size_t notified_size;
 static void bt_gatt_notify(uint16_t h,const void *v,size_t n);
 static int bt_gatt_attr_read(struct bt_conn_s *c,const struct bt_gatt_attr_s *a,
  void *out,uint8_t n,uint16_t off,const void *in,uint8_t size) {
@@ -118,12 +121,12 @@ static void bt_gatt_register(const struct bt_gatt_attr_s *a,size_t n) {
 TEST = r"""
 /* The manifest-pinned NuttX interface is CCC-routed and returns void. */
 static void bt_gatt_notify(uint16_t h,const void *v,size_t n) {
- assert(h==0x14 && v && n<=20 && g_peer && g_peer->live);
- notified=g_peer;notifications++;
+ assert(h==0x14 && v && n<=BKPROV_GATT_MAX_PAYLOAD_SIZE && g_peer && g_peer->live);
+ notified=g_peer;notified_size=n;notifications++;
 }
 int main(void) {
  struct bt_conn_s a={1,true}, b={1,true};
- uint8_t data[64], out[4096]; memset(data,42,sizeof(data));
+ uint8_t data[256], out[4096]; memset(data,42,sizeof(data));
  assert(bkprov_gatt_register()==0 && registrations==1);
  assert(bkprov_gatt_register()==-EALREADY);
  assert(g_advertising && !g_window && starts==0 && stops==0);
@@ -145,6 +148,11 @@ int main(void) {
  assert(trace_lines==stable_lines);
  ccc_changed(1);
  uint32_t first=bkprov_gatt_generation();assert(first!=0);
+ assert(write_tls(&a,NULL,data,20,0)==20);
+ assert(bkprov_gatt_send(first,data,182)==20 && notified_size==20);
+ assert(write_tls(&a,NULL,data,182,0)==182);
+ assert(bkprov_gatt_send(first,data,182)==182 && notified_size==182);
+ assert(bkprov_gatt_read(first,out,202)==202);
  for(int i=0;i<64;i++)assert(write_tls(&a,NULL,data,64,0)==64);
  assert(a.refs==3 && write_tls(&a,NULL,data,1,0)==-ENOBUFS);
  assert(bkprov_gatt_read(first+1,out,sizeof(out))==-ESTALE);
@@ -154,8 +162,8 @@ int main(void) {
  for(int i=0;i<2160;i++)assert(out[i]==42);
  assert(bkprov_gatt_read(first,out,1)==-EAGAIN);
  assert(write_tls(&b,NULL,data,1,0)==-EACCES);
- assert(bkprov_gatt_send(first,data,20)==20 && notified==&a && a.refs==3 && notifications==1);
- assert(bkprov_gatt_send(first,data,20)==20 && a.refs==3 && notifications==2);
+ assert(bkprov_gatt_send(first,data,20)==20 && notified==&a && a.refs==3 && notifications==3);
+ assert(bkprov_gatt_send(first,data,20)==20 && a.refs==3 && notifications==4);
  ccc_changed(0);assert(a.refs==2 && bkprov_gatt_generation()==0);
  before_callback=trace_lines;
  callbacks->disconnected(&a,NULL);
@@ -166,7 +174,8 @@ int main(void) {
  ccc_changed(1);uint32_t second=bkprov_gatt_generation();assert(second>first);
  assert(write_tls(&b,NULL,data,1,0)==1);
  assert(bkprov_gatt_send(first,data,1)==-ESTALE);
- assert(bkprov_gatt_send(second,data,1)==1 && notified==&b && notifications==3);
+ assert(bkprov_gatt_send(second,data,182)==20 && notified_size==20);
+ assert(bkprov_gatt_send(second,data,1)==1 && notified==&b && notifications==6);
  assert(bkprov_gatt_window(false)==0 && b.refs==2 && disconnects==1);
  callbacks->disconnected(&b,NULL);assert(b.refs==1);
  assert(bkprov_gatt_read(second,out,1)==-ESTALE);

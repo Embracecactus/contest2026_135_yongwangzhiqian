@@ -43,6 +43,7 @@
 
 #include <arch/chip/bk7258_wifi.h>
 #include <arch/chip/bk7258_os_adapt.h>
+#include <arch/chip/bk7258_smp_placement.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -201,7 +202,7 @@ uint8_t pbuf_free(FAR struct pbuf *p);
  * Private Data
  ****************************************************************************/
 
-static spinlock_t g_bk7258_wifi_pbuf_lock;
+static spinlock_t g_bk7258_wifi_pbuf_lock BK7258_SMP_LOCK_BSS;
 static uint16_t g_bk7258_wifi_pktbuf[(BK7258_WIFI_PKTBUF_SIZE + 1) / 2];
 static struct bk7258_wifi_driver_s g_bk7258_wifi;
 

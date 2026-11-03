@@ -3,6 +3,7 @@
 #include "bk7258_nfc_core.h"
 #include "bk7258_focus_intent.h"
 #include "bk7258_local_content.h"
+#include "bk7258_native_intent.h"
 #include <errno.h>
 #include <string.h>
 int bknfc_scene_init(struct bknfc_scene_s *state, uint64_t generation)
@@ -41,6 +42,14 @@ int bknfc_scene_observe(struct bknfc_scene_s *state,
   int ret = bknfc_bindings_lookup_action(bindings, card, &action, &duration);
   if (ret < 0) return ret;
   state->action = action;
+  if (action == 7)
+    {
+#ifdef CONFIG_BK7258_NATIVE_APPS
+      return bknative_intent_submit(duration, intent);
+#else
+      return -ENOTSUP;
+#endif
+    }
   if (action >= 5) return bkcontent_submit(action, duration, intent);
   return bkfocus_intent_submit(action, duration, intent);
 }

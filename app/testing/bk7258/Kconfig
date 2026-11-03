@@ -24,6 +24,41 @@ config TESTS_BK7258_RPMSG_EXEC
 		UART console.  This belongs only in explicit drivercheck profiles;
 		it does not start an IPv4/IPv6 listener or run tests automatically.
 
+config TESTS_BK7258_NATIVE_APPS
+	bool "BK7258 AP native ELF loader smoke test"
+	default n
+	depends on ARCH_CHIP_BK7258 && BK7258_AP_CORE && BK7258_NATIVE_APPS
+	select LIBC_ELF
+	help
+		Build one firmware-owned ARM ET_REL fixture and, when explicitly
+		started by the AP lifecycle, load and release it 100 times on the AP
+		transport-owner CPU. On SMP builds, also execute an already loaded,
+		import-free callback on CPU1 and verify that CPU1 cannot enter the ELF
+		or native-manager lifecycle. This is a bounded hardware-component
+		check, not an application marketplace or package-install test.
+
+config TESTS_BK7258_NATIVE_TRACE
+	bool "BK7258 native-test RPMsg lock diagnostics"
+	default n
+	depends on TESTS_BK7258_NATIVE_APPS
+	help
+		Instrument OpenAMP and the RPMsg notification path, keeping a bounded
+		per-core call ring for CP readback. Raise SysTick priority to sample
+		masked lock waits without entering the kernel. This changes timing
+		and can drop ticks; use only for diagnosis, never acceptance results.
+		It does not modify upstream source files.
+
+config TESTS_BK7258_NATIVE_TRANSPORT
+	bool "BK7258 native-test CPU1 transport isolation"
+	default n
+	depends on TESTS_BK7258_NATIVE_APPS && BK7258_RPTUN && SMP
+	help
+		Run a bounded diagnostic that compares CPU0 and CPU1 local-file work,
+		then calls the existing RPTUN proof endpoint directly from each AP
+		logical CPU.  This deliberately bypasses the product CPU0 transport
+		ownership rule and may fault the diagnostic image.  Never enable it in
+		a product or acceptance configuration.
+
 config TESTS_BK7258_CMOCKA
 	tristate "BK7258 CP/AP lifecycle contract tests"
 	default n
@@ -47,6 +82,27 @@ config TESTS_BK7258_CMOCKA_PRIORITY
 
 config TESTS_BK7258_CMOCKA_STACKSIZE
 	int "BK7258 CMocka task stack size"
+	default 4096
+
+endif
+
+config TESTS_BK7258_SMP_DIAG
+	tristate "BK7258 AP SMP exclusive-access diagnostic command"
+	default n
+	depends on BK7258_AP_SMP_DIAG
+	help
+		Build "bksmpdiag", a diagnostic-only command that runs the chip
+		AP SMP stress and prints machine-readable BKSMPDIAG records.
+		Never enable in a product or acceptance configuration.
+
+if TESTS_BK7258_SMP_DIAG
+
+config TESTS_BK7258_SMP_DIAG_PRIORITY
+	int "bksmpdiag task priority"
+	default 100
+
+config TESTS_BK7258_SMP_DIAG_STACKSIZE
+	int "bksmpdiag task stack size"
 	default 4096
 
 endif

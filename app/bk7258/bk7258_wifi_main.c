@@ -21,6 +21,9 @@
 #include <unistd.h>
 
 #include <arch/chip/bk7258_wifi.h>
+#ifdef CONFIG_BK7258_WIFI_RF_CAPTURE
+#  include <arch/chip/bk7258_wifi_rf_capture.h>
+#endif
 
 #define BKWIFI_IPV4_TEXT_LEN 16
 
@@ -175,6 +178,18 @@ static void bkwifi_usage(void)
          BK7258_WIFI_MONITOR_DEFAULT_MS,
          BK7258_WIFI_MONITOR_DEFAULT_MS,
          BK7258_WIFI_MONITOR_DEFAULT_MS);
+#ifdef CONFIG_BK7258_WIFI_CSI
+  printf("  bkwifi csi start <ipv4> <port> <duration_ms> "
+         "[interval_ms=40] [format=1]\n"
+         "  bkwifi csi status\n"
+         "  bkwifi csi stop\n");
+#endif
+#ifdef CONFIG_BK7258_WIFI_RF_CAPTURE
+  printf("  bkwifi rf "
+         "<rf40|rf80|feadc|fedac|adctx|adctxon|rxhold|fehold|tssi|tssip|"
+         "tssii|tssic|rxforce> "
+         "[words=256] [timeout_ms=100] [tx]\n");
+#endif
 }
 
 static void bkwifi_format_ipv4(uint32_t address, char *buffer,
@@ -380,6 +395,269 @@ static int bkwifi_scan_main(int argc, char *argv[])
  * Public Functions
  ****************************************************************************/
 
+#ifdef CONFIG_BK7258_WIFI_CSI
+static int bkwifi_csi_main(int argc, char *argv[])
+{
+  struct bk7258_wifi_csi_config_s config;
+  struct bk7258_wifi_csi_result_s result;
+  enum bk7258_wifi_operation_e operation;
+  uint32_t port;
+  uint32_t interval = BK7258_CSI_DEFAULT_MS;
+  uint32_t format = 1;
+  int ret;
+
+  memset(&config, 0, sizeof(config));
+  memset(&result, 0, sizeof(result));
+  if (argc >= 3 && strcmp(argv[2], "start") == 0)
+    {
+      if (argc < 6 || argc > 8 ||
+          bkwifi_ipv4(argv[3], &config.address) < 0 ||
+          bkwifi_u32(argv[4], &port) < 0 || port == 0 ||
+          port > UINT16_MAX ||
+          bkwifi_u32(argv[5], &config.duration_ms) < 0 ||
+          config.duration_ms < 1000 ||
+          config.duration_ms > BK7258_CSI_MAX_DURATION ||
+          (argc >= 7 && bkwifi_u32(argv[6], &interval) < 0) ||
+          (argc == 8 && bkwifi_u32(argv[7], &format) < 0) ||
+          interval < 10 || interval > 1000 || format < 1 || format > 3)
+        {
+          bkwifi_usage();
+          return EXIT_FAILURE;
+        }
+
+      config.port = (uint16_t)port;
+      config.interval_ms = (uint16_t)interval;
+      config.format = (uint8_t)format;
+      operation = BK7258_WIFI_OPERATION_CSI_START;
+    }
+  else if (argc == 3 && strcmp(argv[2], "stop") == 0)
+    {
+      operation = BK7258_WIFI_OPERATION_CSI_STOP;
+    }
+  else if (argc == 3 && strcmp(argv[2], "status") == 0)
+    {
+      operation = BK7258_WIFI_OPERATION_CSI_STATUS;
+    }
+  else
+    {
+      bkwifi_usage();
+      return EXIT_FAILURE;
+    }
+
+  ret = bk7258_wifi_csi_request(operation,
+    operation == BK7258_WIFI_OPERATION_CSI_START ? &config : NULL, &result);
+  printf("BKWIFI CSI operation=%s status=%d active=%" PRIu32
+         " session=%" PRIu32 " callbacks=%" PRIu32
+         " invalid=%" PRIu32 " queue_drops=%" PRIu32
+         " sent=%" PRIu32 " send_errors=%" PRIu32
+         " last_len=%" PRIu32 " last_type=%" PRIu32
+         " queued=%" PRIu32 " last_error=%" PRId32 "\n",
+         argv[2], ret, result.active, result.session, result.callbacks,
+         result.invalid, result.queue_drops, result.sent, result.send_errors,
+         result.last_len, result.last_type, result.queued,
+         result.last_error);
+  return ret < 0 ? EXIT_FAILURE : EXIT_SUCCESS;
+}
+#endif
+
+#ifdef CONFIG_BK7258_WIFI_RF_CAPTURE
+static int bkwifi_rf_main(int argc, char *argv[])
+{
+  struct bk7258_rf_capture_result_s result;
+  struct bk7258_wifi_monitor_result_s monitor;
+  enum bk7258_rf_capture_source_e source;
+  uint32_t count = 256;
+  uint32_t timeout_ms = 100;
+  uint32_t *words;
+  uint32_t i;
+  bool self_tx = argc == 6;
+  int ret;
+
+  memset(&result, 0, sizeof(result));
+  if (argc < 3 || argc > 6 ||
+      (argc >= 4 && bkwifi_u32(argv[3], &count) < 0) ||
+      (argc >= 5 && bkwifi_u32(argv[4], &timeout_ms) < 0) ||
+      (argc == 6 && strcmp(argv[5], "tx") != 0) ||
+      count == 0 || count > BK7258_RF_CAPTURE_MAX_WORDS ||
+      timeout_ms < 10 || timeout_ms > 500)
+    {
+      bkwifi_usage();
+      return EXIT_FAILURE;
+    }
+
+  if (strcmp(argv[2], "rf40") == 0)
+    {
+      source = BK7258_RF_CAPTURE_ADC40;
+    }
+  else if (strcmp(argv[2], "rf80") == 0)
+    {
+      source = BK7258_RF_CAPTURE_ADC80;
+    }
+  else if (strcmp(argv[2], "feadc") == 0)
+    {
+      source = BK7258_RF_CAPTURE_FEADC;
+    }
+  else if (strcmp(argv[2], "fedac") == 0)
+    {
+      source = BK7258_RF_CAPTURE_FEDAC;
+    }
+  else if (strcmp(argv[2], "adctx") == 0)
+    {
+      source = BK7258_RF_CAPTURE_ADC_TX;
+    }
+  else if (strcmp(argv[2], "adctxon") == 0 && self_tx)
+    {
+      source = BK7258_RF_CAPTURE_ADC_TX_POWER;
+    }
+  else if (strcmp(argv[2], "rxhold") == 0 && self_tx)
+    {
+      source = BK7258_RF_CAPTURE_RX_HOLD;
+    }
+  else if (strcmp(argv[2], "fehold") == 0 && self_tx)
+    {
+      source = BK7258_RF_CAPTURE_FE_TX_HOLD;
+    }
+  else if (strcmp(argv[2], "tssi") == 0 && (count % 32) == 0)
+    {
+      source = BK7258_RF_CAPTURE_TSSI;
+    }
+  else if (strcmp(argv[2], "rxforce") == 0 && self_tx)
+    {
+      source = BK7258_RF_CAPTURE_RX_FORCE;
+    }
+  else if (strcmp(argv[2], "tssip") == 0 && (count % 32) == 0)
+    {
+      source = BK7258_RF_CAPTURE_TSSI_POWER;
+    }
+  else if (strcmp(argv[2], "tssii") == 0 && (count % 32) == 0)
+    {
+      source = BK7258_RF_CAPTURE_TSSI_IQ;
+    }
+  else if (strcmp(argv[2], "tssic") == 0 && (count % 32) == 0)
+    {
+      source = BK7258_RF_CAPTURE_TSSI_CALC;
+    }
+  else
+    {
+      bkwifi_usage();
+      return EXIT_FAILURE;
+    }
+
+  if (self_tx)
+    {
+      ret = bk7258_wifi_monitor_request(
+        BK7258_WIFI_OPERATION_MONITOR_STATUS, 0,
+        BK7258_WIFI_MONITOR_DEFAULT_MS, &monitor);
+      if (ret < 0 || monitor.active == 0)
+        {
+          printf("BKRF rejected: self TX requires active monitor mode\n");
+          return EXIT_FAILURE;
+        }
+    }
+
+  words = malloc(count * sizeof(*words));
+  if (words == NULL)
+    {
+      return EXIT_FAILURE;
+    }
+
+  printf("BKRF BEGIN source=%s count=%" PRIu32 " tx=%u\n",
+         argv[2], count, self_tx);
+  ret = bk7258_wifi_rf_capture(source, count, timeout_ms, self_tx,
+                             words, &result);
+  for (i = 0; i < result.count; i++)
+    {
+      if ((i % 8) == 0)
+        {
+          printf("BKRF DATA offset=%" PRIu32, i);
+        }
+
+      printf(" %08" PRIx32, words[i]);
+      if ((i % 8) == 7 || i + 1 == result.count)
+        {
+          printf("\n");
+        }
+    }
+
+  printf("BKRF END status=%d count=%" PRIu32 " elapsed_ms=%" PRIu32
+         " before=%08" PRIx32 " completed=%08" PRIx32
+         " restored=%" PRIu32 " guard_ok=%" PRIu32
+         " tx_submit=%" PRId32 " txmap_before=%08" PRIx32
+         " txmap_during=%08" PRIx32 "\n",
+         ret, result.count, result.elapsed_ms, result.control_before,
+         result.control_completed, result.restored, result.guard_ok,
+         result.tx_submit, result.txmap_before, result.txmap_during);
+  printf("BKRF INPUT status=%" PRId32 " tx_trigger=%" PRIu32
+         " rx_trigger=%" PRIu32 " rx_mask=%08" PRIx32
+         " rx_changes=%" PRIu32
+         " rxmap=%08" PRIx32 " force0=%08" PRIx32 "/%08" PRIx32
+         " force1=%08" PRIx32 "/%08" PRIx32 "\n",
+         result.rx_status, result.tx_trigger_words, result.rx_trigger_words,
+         result.rx_trigger_mask, result.rx_changes, result.rxmap,
+         result.force0_before, result.force0_during,
+         result.force1_before, result.force1_during);
+  if (self_tx || source == BK7258_RF_CAPTURE_TSSI ||
+      source == BK7258_RF_CAPTURE_TSSI_POWER ||
+      source == BK7258_RF_CAPTURE_TSSI_IQ ||
+      source == BK7258_RF_CAPTURE_TSSI_CALC)
+    {
+      printf("BKRF TX adc_error=%" PRId32 " adc_samples=%" PRIu32
+             " queued=%" PRIu32
+             " completed=%" PRIu32 "\n",
+             result.adc_error, result.adc_samples, result.tx_frames,
+             result.tx_completed);
+    }
+
+  if (source == BK7258_RF_CAPTURE_TSSI ||
+      source == BK7258_RF_CAPTURE_TSSI_POWER ||
+      source == BK7258_RF_CAPTURE_TSSI_IQ ||
+      source == BK7258_RF_CAPTURE_TSSI_CALC)
+    {
+      printf("BKRF ADC min=%" PRIu32 " max=%" PRIu32 " peak_index=%" PRIu32
+             "\n", result.adc_min, result.adc_max, result.adc_peak_index);
+      printf("BKRF ALIGN seen=%" PRIu32 " block_min=%" PRIu32
+             " block_max=%" PRIu32 "\n", result.adc_tx_seen,
+             result.adc_tx_min, result.adc_tx_max);
+      printf("BKRF EST before=%08" PRIx32 " during=%08" PRIx32
+             " after=%08" PRIx32 " min=%" PRIu32 " max=%" PRIu32
+             " at_tx=%" PRIu32 "\n", result.calc_before, result.calc_during,
+             result.calc_after, result.estimate_min, result.estimate_max,
+             result.estimate_at_tx);
+      if (result.adc_tx_seen != 0)
+        {
+          printf("BKRF TXDATA");
+          for (i = 0; i < 32; i++)
+            {
+              printf(" %04x", result.adc_tx_block[i]);
+            }
+
+          printf("\n");
+        }
+    }
+
+  if (source == BK7258_RF_CAPTURE_TSSI_POWER ||
+      source == BK7258_RF_CAPTURE_TSSI_IQ ||
+      source == BK7258_RF_CAPTURE_TSSI_CALC)
+    {
+      printf("BKRF TAP before=%08" PRIx32 " during=%08" PRIx32
+             " filter=%08" PRIx32 "/%08" PRIx32 "\n",
+             result.trx_before, result.trx_during,
+             result.filter_before, result.filter_during);
+    }
+
+  if (source == BK7258_RF_CAPTURE_RX_FORCE)
+    {
+      printf("BKRF FORCE before=%08" PRIx32 " during=%08" PRIx32
+             " rxmap=%08" PRIx32 " map=%08" PRIx32 "/%08" PRIx32 "\n",
+             result.rc_before, result.rc_during, result.rxmap_during,
+             result.map_before, result.map_during);
+    }
+
+  free(words);
+  return ret < 0 ? EXIT_FAILURE : EXIT_SUCCESS;
+}
+#endif
+
 int main(int argc, char *argv[])
 {
   struct bk7258_wifi_result_s result;
@@ -407,6 +685,20 @@ int main(int argc, char *argv[])
     {
       return bkwifi_monitor_main(argc, argv);
     }
+
+#ifdef CONFIG_BK7258_WIFI_RF_CAPTURE
+  if (strcmp(argv[1], "rf") == 0)
+    {
+      return bkwifi_rf_main(argc, argv);
+    }
+#endif
+
+#ifdef CONFIG_BK7258_WIFI_CSI
+  if (strcmp(argv[1], "csi") == 0)
+    {
+      return bkwifi_csi_main(argc, argv);
+    }
+#endif
 
   if (strcmp(argv[1], "scan") == 0)
     {

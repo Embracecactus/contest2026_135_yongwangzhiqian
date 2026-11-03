@@ -1,5 +1,7 @@
 # Build artifacts (see .gitignore.example)
 build/
+# Variant host-test output trees (make BUILD=build-<variant>).
+/tests/host/bk7258/build-*/
 !boards/bk7258/build/
 !boards/bk7258/build/vendorsetup.sh
 out/

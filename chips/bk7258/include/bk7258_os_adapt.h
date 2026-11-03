@@ -24,8 +24,33 @@
 
 #include <nuttx/config.h>
 
+#include <stdint.h>
+
+/* Machine-readable counters for SDK synchronization control blocks.  A
+ * non-zero psram_rejections count means an SDK semaphore/mutex/queue/event
+ * would otherwise have been placed in PSRAM on AP SMP and was refused.
+ */
+
+struct bk7258_os_sync_pool_stats_s
+{
+  uint32_t small_slots;
+  uint32_t large_slots;
+  uint32_t small_in_use;
+  uint32_t large_in_use;
+  uint32_t small_high_water;
+  uint32_t large_high_water;
+  uint32_t fallback_allocations;
+  uint32_t oversize_requests;
+  uint32_t psram_rejections;
+  uint32_t small_base;
+  uint32_t large_base;
+};
+
 #ifdef CONFIG_BK7258_SDK_SRAM_HEAP
 int bk7258_os_sram_heap_initialize(void);
 #endif
+
+int bk7258_os_sync_pool_get_stats(
+  struct bk7258_os_sync_pool_stats_s *stats);
 
 #endif /* __ARCH_ARM_SRC_BK7258_BK7258_OS_ADAPT_H */

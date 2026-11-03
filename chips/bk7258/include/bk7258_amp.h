@@ -340,7 +340,7 @@ enum bk7258_ap_error_e
  * tail at shared offset 0x700.
  */
 
-#define BK7258_AP_SUPERVISOR_STATUS_VERSION 3u
+#define BK7258_AP_SUPERVISOR_STATUS_VERSION 4u
 
 #define BK7258_AP_SUPERVISOR_FLAG_ARMED       (1u << 0)
 #define BK7258_AP_SUPERVISOR_FLAG_PRIMARY     (1u << 1)
@@ -350,6 +350,23 @@ enum bk7258_ap_error_e
 #define BK7258_AP_SUPERVISOR_FLAG_FAULT_SAVED (1u << 5)
 #define BK7258_AP_SUPERVISOR_FLAG_AUTO_RECOVER (1u << 6)
 #define BK7258_AP_SUPERVISOR_FLAG_INJECTED     (1u << 7)
+#define BK7258_AP_SUPERVISOR_FLAG_WIFI_READY   (1u << 8)
+
+/* AP product application published an authenticated readiness result for
+ * this generation over the generation-bound RPMsg health channel.
+ */
+
+#define BK7258_AP_SUPERVISOR_FLAG_PRODUCT_READY (1u << 9)
+
+/* Sticky for the CP boot: a fault was confirmed after at least one
+ * successful AP restart, so recovery is masking a recurring defect.
+ */
+
+#define BK7258_AP_SUPERVISOR_FLAG_RECURRING    (1u << 10)
+
+#define BK7258_AP_SUPERVISOR_PRODUCT_HEALTH_FLAGS \
+  (BK7258_AP_SUPERVISOR_FLAG_WIFI_READY | \
+   BK7258_AP_SUPERVISOR_FLAG_PRODUCT_READY)
 
 enum bk7258_ap_supervisor_state_e
 {
@@ -411,6 +428,31 @@ struct bk7258_ap_supervisor_status_s
   uint32_t fault_lr;
   uint32_t sample_sequence;
   uint32_t sample_age_ms;
+
+  /* Version 4.  fault_count and recovery_count above are lifetime counters
+   * for the CP boot; consecutive_failures is the rolling automatic-restart
+   * budget currently consumed within the retry window.
+   */
+
+  uint32_t auto_recovery_attempts;   /* lifetime automatic restarts started */
+  uint32_t recurring_faults;         /* faults after a successful restart */
+  uint32_t lockout_count;
+  uint32_t retry_window_ms;
+  uint32_t retry_budget;             /* automatic restarts per window */
+  uint32_t lifetime_budget;          /* automatic restarts per CP boot */
+  uint32_t worker_stack_size;
+};
+
+/* Confirmation policy carried by a health token.  The policy selects which
+ * product readiness flags must remain present at every trailer mutation.
+ */
+
+enum bk7258_ota_confirm_policy_e
+{
+  BK7258_OTA_CONFIRM_POLICY_NONE = 0,
+  BK7258_OTA_CONFIRM_POLICY_NETWORK,    /* platform + Wi-Fi/native lease */
+  BK7258_OTA_CONFIRM_POLICY_OFFLINE,    /* platform + product readiness */
+  BK7258_OTA_CONFIRM_POLICY_ENGINEERING_OVERRIDE
 };
 
 struct bk7258_ap_supervisor_health_token_s
@@ -420,6 +462,8 @@ struct bk7258_ap_supervisor_health_token_s
   uint32_t flags;
   uint32_t healthy_age_ms;
   uint32_t sample_age_ms;
+  uint32_t policy;                   /* enum bk7258_ota_confirm_policy_e */
+  uint32_t required_flags;           /* product flags revalidated per write */
 };
 
 enum bk7258_cpu2_probe_command_e

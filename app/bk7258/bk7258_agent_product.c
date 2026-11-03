@@ -99,6 +99,7 @@
 #include "bk7258_provision_settings.h"
 #include "bk7258_focus.h"
 #include "bk7258_pc_tasks.h"
+#include "bk7258_pc_approval.h"
 #ifdef CONFIG_BK7258_NATIVE_APPS
 #include "bk7258_native_apps.h"
 #include "bk7258_native_intent.h"
@@ -533,7 +534,7 @@ static const struct bkengtest_ops_s g_engineering_test_ops =
 #  define CONFIG_BK7258_NATIVE_UTC_OFFSET_MINUTES 480
 #endif
 
-/* Defined later with the companion feedback gates. */
+/* Defined with the other companion feedback gates. */
 
 static void product_companion_request_pulse(uint64_t now);
 
@@ -606,8 +607,9 @@ static int product_native_submit_display(
   return ret;
 }
 
-/* Completion feedback is requested after the module is unloaded. Each is
- * one bounded intent through an existing owner.
+/* Completion feedback is requested after the module is unloaded.  Each is
+ * one bounded intent through an existing owner: the haptic gate drops it
+ * when busy, and local content arbitrates its own capture/voice admission.
  */
 
 static void product_native_completion(uint64_t now,
@@ -627,8 +629,8 @@ static void product_native_completion(uint64_t now,
     }
 }
 
-/* Apply one request from the shared intent slot. START needs app admission;
- * stop and schedule changes need only control admission.
+/* Applies one request from the shared intent slot (NFC card, Agent tool or
+ * recognized text).  START needs app admission; the others only control.
  */
 
 static void product_native_intent(bool admitted, bool control)
@@ -666,8 +668,8 @@ static void product_native_intent(bool admitted, bool control)
          (unsigned long)intent.id, intent.kind, ret);
 }
 
-/* Publish trusted local wall time once per second and evaluate due entries.
- * Untrusted time pauses both clock input and schedules.
+/* Publishes trusted local wall time to the manager once per second and lets
+ * it evaluate due schedule entries.  Untrusted time pauses both.
  */
 
 static void product_native_clock(uint64_t now, bool admitted)
@@ -1121,11 +1123,13 @@ static char *product_tools(void)
     "\"additionalProperties\":false}}"
 #ifdef CONFIG_BK7258_NATIVE_APPS
     ",{\"name\":\"device_app\",\"description\":"
-    "\"Installed device apps (small games and reminders). list shows apps, "
-    "their result labels, the last result and schedules. Only on the user's "
-    "request: start an app (it begins after this reply finishes), stop the "
-    "running app, schedule at local HH:MM with repeat daily/weekdays/weekends, "
-    "or unschedule all times for an app. Use an exact id or name.\","
+    "\"Installed device apps (small games, reminders). list shows apps, "
+    "their result labels, the last result and daily schedules. Only on the "
+    "user's request: start an app (it begins after this reply finishes, so "
+    "it is not running yet and its result is unknown now), stop the "
+    "running app, schedule an app at a local time (HH:MM) with repeat "
+    "daily/weekdays/weekends, or unschedule all times of an app. Use the "
+    "exact app id or name from list. Report errors honestly.\","
     "\"input_schema\":{\"type\":\"object\",\"properties\":{"
     "\"action\":{\"type\":\"string\",\"enum\":[\"list\",\"start\","
     "\"stop\",\"schedule\",\"unschedule\"]},\"app\":{\"type\":"
@@ -1908,6 +1912,52 @@ static int product_pc_task_step(uint64_t now, bool admitted)
   return ret;
 }
 
+/* One volatile PC approval request; the PC requests, only the phone owner
+ * decides. Losing admission or the TASKS principal cancels/wipes it.
+ */
+static struct bkpc_approval_s g_pc_approval;
+
+static int product_pc_approval_step(uint64_t now, bool admitted,
+                                    uint8_t key[32])
+{
+  struct bkprov_pc_snapshot_s view;
+  uint64_t binding = 0;
+  int ret;
+
+  if (!admitted)
+    {
+      bkpc_approval_cancel(&g_pc_approval);
+      bkpc_approval_step(&g_pc_approval, now);
+      return -EBUSY;
+    }
+
+  ret = bkpc_authorization_snapshot(NULL, &binding, &view);
+  if (ret == -EAGAIN)
+    {
+      mbedtls_platform_zeroize(&view, sizeof(view));
+      bkpc_approval_step(&g_pc_approval, now);
+      return ret;
+    }
+
+  if (ret == 0 && (view.capabilities & BKPC_CAP_TASKS) != 0)
+    {
+      bkpc_approval_bind(&g_pc_approval, binding, view.revision, view.client);
+      if (key != NULL)
+        {
+          memcpy(key, view.key, sizeof(view.key));
+        }
+    }
+  else
+    {
+      bkpc_approval_bind(&g_pc_approval, 0, 0, NULL);
+      ret = ret < 0 ? ret : -EACCES;
+    }
+
+  mbedtls_platform_zeroize(&view, sizeof(view));
+  bkpc_approval_step(&g_pc_approval, now);
+  return ret;
+}
+
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
 static struct bkselection_control_s g_phone_selection;
 
@@ -1980,6 +2030,25 @@ static int product_config(void *context, enum bkcontrol_command_e command,
                                               size, status);
     }
 #endif
+
+  if (kind == BKCONTROL_CONFIG_PC_APPROVAL)
+    {
+      /* PC requests arrive only through product_pc_config. */
+      return -EACCES;
+    }
+
+  if (kind == BKCONTROL_CONFIG_PC_APPROVAL_DECISION)
+    {
+      uint64_t now = bkvoice_config_now_ms(NULL);
+      int ret = product_pc_approval_step(now, g_control_bound, NULL);
+      if (ret == -EAGAIN && command != BKCONTROL_CONFIG_READ)
+        {
+          return ret;
+        }
+
+      return bkpc_approval_owner_control(&g_pc_approval, command, offset,
+                                          record, size, status, now);
+    }
 
   if (kind == BKCONTROL_CONFIG_PC_TASK && command == BKCONTROL_CONFIG_READ)
     {
@@ -2363,6 +2432,34 @@ static int product_pc_config(void *context, enum bkcontrol_command_e command,
                                    bkvoice_config_now_ms(NULL));
     }
 #endif
+  if (kind == BKCONTROL_CONFIG_PC_APPROVAL)
+    {
+      const struct bkpc_control_s *lease = &g_pc_usb_owner.usb.lease;
+      uint64_t now = bkvoice_config_now_ms(NULL);
+      uint8_t key[32] = {0};
+      int ret;
+
+      if (!lease->open || (lease->capabilities & BKPC_CAP_TASKS) == 0)
+        return -EACCES;
+      ret = product_pc_approval_step(now, g_identity_bound &&
+                                     g_control_bound && !bkagent_ota_busy(),
+                                     key);
+      if (ret == 0 && (g_pc_approval.binding != lease->binding ||
+                       g_pc_approval.grant != lease->revision ||
+                       memcmp(g_pc_approval.client, lease->client,
+                              sizeof(lease->client))))
+        ret = -ESTALE;
+      if (ret == 0)
+        ret = bkpc_approval_pc_control(&g_pc_approval, command, offset,
+                                       record, size, status, key, now);
+      mbedtls_platform_zeroize(key, sizeof(key));
+      if (ret == 0 && command == BKCONTROL_CONFIG_APPLY)
+        syslog(LOG_INFO, "BKAPPROVAL pc request state=%u bytes=%u\n",
+               (unsigned int)g_pc_approval.state,
+               (unsigned int)g_pc_approval.size);
+      return ret;
+    }
+
   return product_config(context, command, kind, offset, record, size, status);
 }
 
@@ -3154,6 +3251,7 @@ static int product_reset_step(void)
   g_control_bound = false;
   bkpc_authorization_unbind();
   bkpc_tasks_bind(&g_pc_tasks, 0, 0);
+  bkpc_approval_bind(&g_pc_approval, 0, 0, NULL);
   g_configured = false;
   g_cloud_loaded = false;
   g_config_revision = 0;
@@ -3577,6 +3675,7 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
 #endif
           product_nfc_scene_gate(false);
           product_pc_task_step(now, false);
+          (void)product_pc_approval_step(now, false, NULL);
           if (reset > 0 || g_reset_phase != PRODUCT_RESET_IDLE)
             {
               /* Do this before TURN_COMPLETE or preference recovery can
@@ -3617,6 +3716,7 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
           bkcontent_step(false);
           product_nfc_scene_gate(false);
           product_pc_task_step(now, false);
+          (void)product_pc_approval_step(now, false, NULL);
           bkfocus_cancel();
           bkfocus_intent_step(now, false);
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
@@ -3632,6 +3732,8 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
 
 #endif
       product_pc_task_step(now, g_control_bound && !bkagent_ota_busy());
+      (void)product_pc_approval_step(now, g_identity_bound &&
+        g_control_bound && !bkagent_ota_busy(), NULL);
       PRODUCT_LOOP_CHECKPOINT(4);
 #ifdef CONFIG_BK7258_ENGINEERING_TEST
       product_benchmark_step();
@@ -3652,7 +3754,10 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
 #ifdef CONFIG_BK7258_DISPLAY_SERVICE
       bool focus_idle = !atomic_load(&g_voice_initialized) ||
                         voice_channel_is_idle();
-      bk7258_display_focus(product_focus_visual(now, focus_idle,
+      unsigned int approval_visual =
+        bkpc_approval_visual(&g_pc_approval, now, focus_idle);
+      bk7258_display_focus(approval_visual ? approval_visual :
+        product_focus_visual(now, focus_idle,
         bkpc_tasks_visual(&g_pc_tasks, now, focus_idle, bkfocus_visual(now))));
 #endif
 #ifdef BKPRODUCT_PC_CAMERA
@@ -3698,12 +3803,19 @@ static int bk7258_agent_config_task(int argc, FAR char *argv[])
         !content_busy && !voice_interaction_active &&
         (!atomic_load(&g_voice_initialized) || voice_channel_is_idle()) &&
         bkfocus_visual(now) == 0 &&
-        bkpc_tasks_visual(&g_pc_tasks, now, true, 0) == 0,
+        bkpc_tasks_visual(&g_pc_tasks, now, true, 0) == 0 &&
+        !bkpc_approval_pending(&g_pc_approval),
         g_control_bound && !bkagent_ota_busy());
 #endif
       product_companion_step(now, !bkagent_ota_busy() && !content_busy,
         !atomic_load(&g_voice_initialized) || voice_channel_is_idle(),
         focus_completed || task_completed || content_completed);
+      if (bkpc_approval_take_alert(&g_pc_approval, now,
+            !bkagent_ota_busy() && !content_busy &&
+            (!atomic_load(&g_voice_initialized) || voice_channel_is_idle())))
+        {
+          product_companion_alert(now);
+        }
       PRODUCT_LOOP_CHECKPOINT(8);
       if (now >= voice_cleanup_at)
         {
@@ -4227,6 +4339,15 @@ static const char g_product_skill_device_assistant[] =
   "4. Focus: use focus_timer only on the user's request. Start requires "
   "seconds. Accepted is queued, not running; status reports the device "
   "owner's last observation. Never promise a completion sound from it.\n"
+#ifdef CONFIG_BK7258_NATIVE_APPS
+  "5. Apps: call device_app list to learn installed apps and their result "
+  "labels. start only on request; the app begins after your reply ends, "
+  "so never announce its outcome in the same answer. The app shows its "
+  "result on the eyes; a later device_app list reports last_result. "
+  "schedule needs time HH:MM in local time and needs trusted device time "
+  "(clock_valid). A scheduled launch is skipped, not queued, when voice "
+  "or another app is busy at that minute.\n"
+#endif
   "\n"
   "## Example\n"
   "User asks about the battery in Chinese -> device_status -> answer with "

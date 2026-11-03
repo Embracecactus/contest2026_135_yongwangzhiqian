@@ -18,6 +18,8 @@ int bkprov_gatt_register(void);
  * presence/credential checks are the product owner's responsibility.
  */
 #define BKPROV_GATT_LOCATOR_SIZE 8u
+#define BKPROV_GATT_LEGACY_PAYLOAD_SIZE 20u
+#define BKPROV_GATT_MAX_PAYLOAD_SIZE 182u
 /* Ephemeral discovery hint for the NFC worker. Available only while an
  * unconnected physical-presence window advertises. Never an owner credential.
  * Failure clears the supplied buffer.
@@ -29,9 +31,14 @@ bool bkprov_gatt_open(void);
 bool bkprov_gatt_idle(void);
 uint32_t bkprov_gatt_generation(void);
 ssize_t bkprov_gatt_read(uint32_t generation, void *data, size_t size);
-/* Send at most 20 ciphertext bytes on the retained connection. Positive bytes
- * mean passed to L2CAP, not peer receipt. Worker must pace sends and bound
- * retries of -ENOMEM. Never call this from ATT/CCC or under a product lock.
+
+/* Accept at most BKPROV_GATT_MAX_PAYLOAD_SIZE ciphertext bytes and send no
+ * more than the largest peer write observed on this connection. Until the
+ * peer proves a larger negotiated ATT MTU, the legacy 20-byte limit remains.
+ * A positive result is the bytes passed to L2CAP, not peer receipt. Worker
+ * must pace sends and bound retries of -ENOMEM. Never call this from ATT/CCC
+ * or under a product lock.
  */
+
 ssize_t bkprov_gatt_send(uint32_t generation, const void *data, size_t size);
 #endif

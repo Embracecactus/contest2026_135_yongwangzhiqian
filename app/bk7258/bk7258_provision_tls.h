@@ -63,12 +63,17 @@ struct bkprov_tls_s
  * Any terminal error closes and wipes the session. Owner closes the transport
  * window/disconnects too; it must not reopen TLS on the same generation.
  */
+
 int bkprov_tls_start(struct bkprov_tls_s *tls, uint32_t generation,
                      mbedtls_x509_crt *certificate, mbedtls_pk_context *key,
                      uint64_t (*now_ms)(void *), void *clock_context);
-/* Explicit transport does not authorize a peer or select application services.
- * The original start wrapper retains GATT's 20-byte/10-ms pacing.
+
+/* Explicit transport does not authorize a peer or select application
+ * services. The original start wrapper retains 10-ms GATT pacing and lets
+ * the GATT owner select 20-byte legacy or negotiated larger fragments per
+ * connection.
  */
+
 int bkprov_tls_start_transport(struct bkprov_tls_s *tls, uint32_t generation,
                               mbedtls_x509_crt *certificate,
                               mbedtls_pk_context *key,

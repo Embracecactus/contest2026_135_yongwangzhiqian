@@ -14,7 +14,7 @@ if(CONFIG_BK7258_PROVISION_GATT)
                               bk7258_provision_storage.c bk7258_provision_owner.c
                               bk7258_provision_identity.c bk7258_provision_network.c
                               bk7258_provision_time.c bk7258_control_session.c
-                              bk7258_control_pair.c bk7258_control_serial.c bk7258_pc_grants.c bk7258_pc_control.c bk7258_pc_usb.c bk7258_pc_tasks.c bk7258_pc_authorization.c bk7258_pc_authorization_owner.c bk7258_control_ota_request.c
+                              bk7258_control_pair.c bk7258_control_serial.c bk7258_pc_grants.c bk7258_pc_control.c bk7258_pc_usb.c bk7258_pc_tasks.c bk7258_pc_approval.c bk7258_pc_authorization.c bk7258_pc_authorization_owner.c bk7258_control_ota_request.c
                               bk7258_prov_service.c)
 endif()
 
@@ -53,8 +53,7 @@ if(CONFIG_BK7258_APP_AGENT)
 endif()
 
 if(CONFIG_BK7258_NATIVE_APPS)
-  target_sources(apps PRIVATE bk7258_native_apps.c bk7258_native_loader.c
-                              bk7258_native_intent.c)
+  target_sources(apps PRIVATE bk7258_native_apps.c bk7258_native_loader.c)
 endif()
 
 if(CONFIG_BK7258_ENGINEERING_TEST)
@@ -196,6 +195,11 @@ if(CONFIG_BK7258_NFC_SERVICE)
   target_include_directories(apps PRIVATE
       ${NUTTX_DIR}/../vendor/beken/nuttx/include)
   target_sources(apps PRIVATE bk7258_nfc_service.c bk7258_nfc_core.c)
+endif()
+
+# NFC scene action 7 producer and native-app consumer share one intent slot.
+if(CONFIG_BK7258_NFC_SERVICE OR CONFIG_BK7258_NATIVE_APPS)
+  target_sources(apps PRIVATE bk7258_native_intent.c)
 endif()
 
 if(CONFIG_BK7258_VISION_SERVICE)

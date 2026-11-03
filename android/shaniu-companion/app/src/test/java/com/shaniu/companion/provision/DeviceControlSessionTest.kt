@@ -29,11 +29,16 @@ class DeviceControlSessionTest {
     }
     private class Sent(val command: DeviceControlProtocol.Command, val value: Int,
                        val accepted: (Boolean) -> Unit, val payload: ByteArray? = null)
-    private inner class Fixture {
+    private inner class Fixture(
+        idlePollMs: Long = 2_000L,
+        confirmationPollMs: Long = 200L,
+        confirmationTimeoutMs: Long = 3_000L,
+    ) {
         val clock = Clock()
         val peers = mutableListOf<Peer>()
         var poll = DeviceControlProtocol.Command.STATUS
-        val session = DeviceControlSession({ clock.now }, { it() }, clock::schedule, { poll })
+        val session = DeviceControlSession({ clock.now }, { it() }, clock::schedule, { poll },
+            idlePollMs, confirmationPollMs, confirmationTimeoutMs)
         inner class Peer(val events: DeviceControlSession.Events) : DeviceControlSession.Transport {
             val sent = mutableListOf<Sent>()
             var closed = false
@@ -79,6 +84,25 @@ class DeviceControlSessionTest {
         assertTrue(f.peer.sent.count { it.command == DeviceControlProtocol.Command.STATUS } >= 60)
         assertTrue(f.session.current().snapshotFresh)
     }
+    @Test fun explicitRefreshSharesAnInFlightPassivePoll() {
+        val f = Fixture(); f.connect(); f.clock.advance(2_000)
+        assertEquals(listOf(DeviceControlProtocol.Command.STATUS), f.peer.sent.map { it.command })
+        assertTrue(f.session.request(DeviceControlProtocol.Command.STATUS))
+        assertEquals(1, f.peer.sent.size)
+        f.peer.reply(DeviceControlProtocol.Command.STATUS, status)
+        assertTrue(f.session.current().snapshotFresh)
+    }
+    @Test fun completedPollDoesNotRepublishAnUnchangedState() {
+        val f = Fixture(); f.connect()
+        var updates = 0
+        val observer = f.session.observe { updates++ }
+        assertEquals(1, updates)
+        f.clock.advance(2_000)
+        assertEquals(2, updates)
+        f.peer.reply(DeviceControlProtocol.Command.STATUS, status)
+        assertEquals(3, updates)
+        observer.cancel()
+    }
     @Test fun writeWaitsBehindReadAndRequiresQuantizedReadback() {
         val f = Fixture(); f.connect(); f.clock.advance(2000)
         assertTrue(f.session.current().readPending)
@@ -92,6 +116,7 @@ class DeviceControlSessionTest {
         f.peer.reply(DeviceControlProtocol.Command.VOLUME, status.copy(volume = 67))
         assertEquals(53, f.session.current().snapshot?.volume)
         assertTrue(f.session.current().writePending)
+        f.clock.advance(200)
         assertEquals(DeviceControlProtocol.Command.STATUS, f.peer.sent.last().command)
         f.peer.reply(DeviceControlProtocol.Command.STATUS, status.copy(volume = 67))
         assertEquals(67, f.session.current().snapshot?.volume)
@@ -119,6 +144,7 @@ class DeviceControlSessionTest {
         val f = Fixture(); f.connect()
         f.session.request(DeviceControlProtocol.Command.VOLUME, 60)
         f.peer.reply(DeviceControlProtocol.Command.VOLUME, status.copy(volume = 60))
+        f.clock.advance(200)
         f.peer.reply(DeviceControlProtocol.Command.STATUS, failure)
         assertTrue(f.session.current().authenticated)
         assertEquals(53, f.session.current().snapshot?.volume)
@@ -128,6 +154,50 @@ class DeviceControlSessionTest {
         f.peer.reply(DeviceControlProtocol.Command.STATUS, status.copy(volume = 60))
         assertEquals(60, f.session.current().snapshot?.volume)
         assertFalse(f.session.current().writePending)
+    }
+    @Test fun confirmationRetriesUntilTheReportedValueMatches() {
+        val f = Fixture(); f.connect()
+        assertTrue(f.session.request(DeviceControlProtocol.Command.VOLUME, 60))
+        f.peer.reply(DeviceControlProtocol.Command.VOLUME, status.copy(volume = 60))
+        f.clock.advance(199)
+        assertEquals(DeviceControlProtocol.Command.VOLUME, f.peer.sent.last().command)
+        f.clock.advance(1)
+        f.peer.reply(DeviceControlProtocol.Command.STATUS, status)
+        assertTrue(f.session.current().writePending)
+        assertEquals("设备尚未回读新值，正在确认", f.session.current().operationMessage)
+        f.clock.advance(200)
+        f.peer.reply(DeviceControlProtocol.Command.STATUS, status.copy(volume = 60))
+        assertFalse(f.session.current().writePending)
+        assertEquals("设备已回读确认", f.session.current().operationMessage)
+    }
+    @Test fun confirmationTimeoutKeepsTheLastReportedValue() {
+        val f = Fixture(confirmationTimeoutMs = 500); f.connect()
+        assertTrue(f.session.request(DeviceControlProtocol.Command.VOLUME, 60))
+        f.peer.reply(DeviceControlProtocol.Command.VOLUME, status.copy(volume = 60))
+        f.clock.advance(200)
+        f.peer.reply(DeviceControlProtocol.Command.STATUS, status)
+        f.clock.advance(200)
+        f.peer.reply(DeviceControlProtocol.Command.STATUS, status)
+        f.clock.advance(99)
+        assertTrue(f.session.current().writePending)
+        f.clock.advance(1)
+        assertFalse(f.session.current().writePending)
+        assertEquals(53, f.session.current().snapshot?.volume)
+        assertEquals("设备回读超时，已保留最后确认状态", f.session.current().operationMessage)
+    }
+    @Test fun confirmationDeadlineAlsoBoundsAStuckStatusRead() {
+        val f = Fixture(confirmationTimeoutMs = 500); f.connect()
+        assertTrue(f.session.request(DeviceControlProtocol.Command.VOLUME, 60))
+        f.peer.reply(DeviceControlProtocol.Command.VOLUME, status.copy(volume = 60))
+        f.clock.advance(200)
+        assertTrue(f.session.current().readPending)
+        f.clock.advance(300)
+        assertFalse(f.session.current().writePending)
+        assertTrue(f.session.current().readPending)
+        assertEquals("设备回读超时，已保留最后确认状态", f.session.current().operationMessage)
+        f.peer.reply(DeviceControlProtocol.Command.STATUS, status.copy(volume = 60))
+        assertEquals(60, f.session.current().snapshot?.volume)
+        assertEquals("设备回读超时，已保留最后确认状态", f.session.current().operationMessage)
     }
     @Test fun transportRejectedStatusMarksSnapshotStaleAndRetriesWithoutDisconnecting() {
         val f = Fixture(); f.connect(); f.peer.acceptRequests = false
@@ -181,8 +251,9 @@ class DeviceControlSessionTest {
         f.peer.reply(DeviceControlProtocol.Command.INFO, failure.copy(error = -11))
         assertEquals(DeviceControlProtocol.Command.VOLUME, f.peer.sent.last().command)
         f.peer.reply(DeviceControlProtocol.Command.VOLUME, status.copy(volume = 60))
+        f.clock.advance(200)
         f.peer.reply(DeviceControlProtocol.Command.STATUS, status.copy(volume = 60))
-        f.clock.advance(1_999)
+        f.clock.advance(1_799)
         assertEquals(1, f.peer.sent.count { it.command == DeviceControlProtocol.Command.INFO })
         f.clock.advance(1)
         assertEquals(DeviceControlProtocol.Command.INFO, f.peer.sent.last().command)

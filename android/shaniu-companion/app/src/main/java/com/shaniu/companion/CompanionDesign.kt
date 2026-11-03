@@ -21,29 +21,33 @@ internal class CompanionDesign(context: Context) {
     val dark = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
     private val density = context.resources.displayMetrics.density
 
-    val background = Color.parseColor(if (dark) "#0E0E11" else "#F4F1EC")
-    val surface = Color.parseColor(if (dark) "#18181C" else "#FFFDFA")
-    val ink = Color.parseColor(if (dark) "#F2EFEA" else "#17161B")
-    val muted = Color.parseColor(if (dark) "#A29EA7" else "#6A6670")
+    private val source = context
+    private fun token(id: Int) = source.getColor(id)
+
+    // Single source: res/values[-night]/colors.xml, which the Material theme roles also use.
+    val background = token(R.color.shaniu_background)
+    val surface = token(R.color.shaniu_surface)
+    val ink = token(R.color.shaniu_ink)
+    val muted = token(R.color.shaniu_muted)
     /** Primary action fill. Ink in light mode, porcelain in dark mode. */
     val accent = ink
-    val onAccent = Color.parseColor(if (dark) "#121215" else "#FFFFFF")
+    val onAccent = token(R.color.shaniu_on_accent)
     /** Soft fill for icon wells, selected rows and secondary actions. */
-    val selected = Color.parseColor(if (dark) "#26262C" else "#EBE6DF")
-    val divider = Color.parseColor(if (dark) "#2B2B31" else "#E2DDD5")
-    val warning = Color.parseColor(if (dark) "#F2C27B" else "#8F5200")
-    val warningSurface = Color.parseColor(if (dark) "#2E2416" else "#FAEFD9")
-    val danger = Color.parseColor(if (dark) "#FFB4AB" else "#B3261E")
-    val dangerSurface = Color.parseColor(if (dark) "#3A1F1D" else "#FBE9E7")
-    val scrim = Color.parseColor(if (dark) "#B3000000" else "#6617161B")
+    val selected = token(R.color.shaniu_selected)
+    val divider = token(R.color.shaniu_divider)
+    val warning = token(R.color.shaniu_warning)
+    val warningSurface = token(R.color.shaniu_warning_surface)
+    val danger = token(R.color.shaniu_danger)
+    val dangerSurface = token(R.color.shaniu_danger_surface)
+    val scrim = token(R.color.shaniu_scrim)
 
     /** Device display glow. Fill/glow only; never used for body text. */
-    val eye = Color.parseColor(if (dark) "#7CF0BF" else "#4FD8A0")
-    /** Contrast-safe variant of [eye] for small live labels and dots. */
-    val eyeInk = Color.parseColor(if (dark) "#7CF0BF" else "#127A56")
+    val eye = token(R.color.shaniu_eye)
+    /** Contrast-safe variant of [eye] for small live marks and labels. */
+    val eyeInk = token(R.color.shaniu_eye_ink)
     /** The display glass is black on both themes, exactly like the hardware. */
     val glass = Color.parseColor("#09090B")
-    val bezel = Color.parseColor(if (dark) "#2A2A30" else "#1D1D22")
+    val bezel = token(R.color.shaniu_bezel)
     val sleepingEye = Color.parseColor("#3A3A42")
     val stage = Color.parseColor("#0C0C0F")
     val stageInk = Color.parseColor("#F2EFEA")

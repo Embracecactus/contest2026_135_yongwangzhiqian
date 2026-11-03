@@ -1480,7 +1480,12 @@ def verify_delivery(
         or recovery_row.get("security") not in {"unsigned", "signed"}
         or not isinstance(factory_row, dict)
         or set(factory_row) != {"mode", "status"}
-        or factory_row.get("status") not in {"requires-provisioning", "not-included"}
+        or factory_row.get("status")
+        not in {
+            "requires-provisioning",
+            "requires-device-firstboot",
+            "not-included",
+        }
         or not isinstance(ota_row, dict)
         or ota_row.get("status") not in {"included", "not-included"}
     ):

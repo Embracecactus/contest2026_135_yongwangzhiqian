@@ -318,6 +318,111 @@ void __wrap_nxsched_resume_scheduler(struct tcb_s *tcb)
 
 extern uint32_t *__real_arm_doirq(int irq, uint32_t *regs);
 
+#ifdef CONFIG_TESTS_BK7258_NATIVE_TRACE
+extern const volatile uint32_t *bk7258_rptun_native_lock_word(void);
+extern void __real___cyg_profile_func_enter(void *function, void *caller);
+extern void __real___cyg_profile_func_exit(void *function, void *caller);
+
+static const volatile uint32_t *g_bknative_trace_lock;
+static volatile uint32_t g_bknative_trace_meta[4];
+static volatile uint32_t g_bknative_trace_busy[2];
+static volatile uint32_t g_bknative_trace_calls[2][64][8];
+
+static void bknative_trace_call(void *function, void *caller, uint32_t event,
+                                uint32_t reg4, uint32_t reg5)
+{
+  unsigned int cpu;
+  uint32_t sequence;
+  uint32_t word;
+  uint32_t mask;
+  uint32_t context;
+  volatile uint32_t *row;
+
+  if (g_bknative_trace_meta[0] != 1 || g_bknative_trace_lock == NULL)
+    {
+      return;
+    }
+
+  cpu = *(volatile uint32_t *)BK7258_LOCAL_CORE_ID_ADDR;
+  if (cpu > 1 || g_bknative_trace_busy[cpu] != 0)
+    {
+      return;
+    }
+
+  g_bknative_trace_busy[cpu] = 1;
+  sequence = g_bknative_trace_meta[1 + cpu]++;
+  word = *g_bknative_trace_lock;
+  __asm volatile ("mrs %0, basepri" : "=r" (mask));
+  __asm volatile ("mrs %0, ipsr" : "=r" (context));
+  mask |= context << 8;
+  __asm volatile ("mrs %0, primask" : "=r" (context));
+  mask |= context << 20;
+  row = g_bknative_trace_calls[cpu][sequence % 64];
+  row[0] = sequence;
+  row[1] = event;
+  row[2] = (uintptr_t)function;
+  row[3] = (uintptr_t)caller;
+  row[4] = word;
+  row[5] = mask;
+  row[6] = reg4;
+  row[7] = reg5;
+  __asm volatile ("dmb sy" ::: "memory");
+  if (word == 0xffff0000u)
+    {
+      g_bknative_trace_meta[3] = cpu + 1;
+      g_bknative_trace_meta[0] = 2;
+    }
+
+  g_bknative_trace_busy[cpu] = 0;
+}
+
+static void __attribute__((noinline, used))
+bknative_trace_enter(void *function, void *caller, uint32_t reg4,
+                      uint32_t reg5)
+{
+  bknative_trace_call(function, caller, 1, reg4, reg5);
+  __real___cyg_profile_func_enter(function, caller);
+}
+
+static void __attribute__((noinline, used))
+bknative_trace_exit(void *function, void *caller, uint32_t reg4,
+                     uint32_t reg5)
+{
+  bknative_trace_call(function, caller, 2, reg4, reg5);
+  __real___cyg_profile_func_exit(function, caller);
+}
+
+void __attribute__((naked))
+__wrap___cyg_profile_func_enter(void *function, void *caller)
+{
+  __asm volatile ("mov r2, r4\n"
+                  "mov r3, r5\n"
+                  "b bknative_trace_enter\n");
+}
+
+void __attribute__((naked))
+__wrap___cyg_profile_func_exit(void *function, void *caller)
+{
+  __asm volatile ("mov r2, r4\n"
+                  "mov r3, r5\n"
+                  "b bknative_trace_exit\n");
+}
+
+void bk7258_native_trace_enable(int enable)
+{
+  g_bknative_trace_lock = bk7258_rptun_native_lock_word();
+  g_bknative_trace_meta[0] = enable && g_bknative_trace_lock != NULL ? 1 : 0;
+}
+
+static volatile uint32_t g_bknative_irq_sample[2][8];
+
+int bk7258_native_irq_sample_enable(int enable)
+{
+  return up_prioritize_irq(NVIC_IRQ_SYSTICK,
+                            enable ? 0x40 : NVIC_SYSH_PRIORITY_DEFAULT);
+}
+#endif
+
 uint32_t *__wrap_arm_doirq(int irq, uint32_t *regs)
 {
   uint32_t basepri = NVIC_SYSH_DISABLE_PRIORITY;
@@ -327,6 +432,36 @@ uint32_t *__wrap_arm_doirq(int irq, uint32_t *regs)
     {
       bk7258_ap_doirq_fail(cpu);
     }
+
+#ifdef CONFIG_TESTS_BK7258_NATIVE_TRACE
+  if (irq == NVIC_IRQ_SYSTICK)
+    {
+      volatile uint32_t *sample = g_bknative_irq_sample[cpu];
+      uint32_t primask;
+
+      /* Diagnostic-only high-priority sampling. Never re-enter the kernel
+       * from a masked or nested context. Losing a tick in this diagnostic
+       * build is intentional; this is not a scheduler repair.
+       */
+
+      __asm volatile ("mrs %0, primask" : "=r" (primask));
+      sample[0]++;
+      sample[1] = regs[REG_BASEPRI];
+      sample[2] = primask;
+      sample[3] = regs[REG_PC];
+      sample[4] = regs[REG_XPSR];
+      sample[5] = regs[REG_EXC_RETURN];
+      sample[6] = g_bk7258_ap_doirq_active[cpu];
+      __asm volatile ("dmb sy" ::: "memory");
+      sample[0]++;
+
+      if (regs[REG_BASEPRI] != 0 || (regs[REG_XPSR] & 0x1ffu) != 0 ||
+          g_bk7258_ap_doirq_active[cpu] != 0)
+        {
+          return regs;
+        }
+    }
+#endif
 
   /* exception_common restores the original BASEPRI from the saved frame. */
 

@@ -603,7 +603,12 @@ int bkhaptic_service_pulse_wait(unsigned int duration_ms)
   if (duration_ms == 0 || duration_ms > 100u) return -EINVAL;
   ret = bkhaptic_product_queue(duration_ms, &sequence);
   if (ret < 0) return ret;
-  deadline = clock_systime_ticks() + MSEC2TICK(duration_ms + 100u);
+  /* The product owner runs above the haptic worker.  A sub-tick sleep can
+   * return without blocking on the board's 100 Hz scheduler and starve the
+   * worker until this deadline expires.  Sleep for one full tick and keep a
+   * bounded scheduling margin before restoring MIC capture. */
+
+  deadline = clock_systime_ticks() + MSEC2TICK(duration_ms + 500u);
   for (;;)
     {
       irqstate_t flags = spin_lock_irqsave(&s->lock);
@@ -612,7 +617,7 @@ int bkhaptic_service_pulse_wait(unsigned int duration_ms)
       spin_unlock_irqrestore(&s->lock, flags);
       if (done) return ret;
       if ((sclock_t)(clock_systime_ticks() - deadline) >= 0) break;
-      (void)usleep(2000);
+      (void)usleep(10000);
     }
   (void)bkhaptic_service_stop_product();
   return -ETIMEDOUT;

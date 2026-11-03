@@ -26,6 +26,7 @@ class ControlKeyInstrumentation : Instrumentation() {
     private var pcAuthorizationProbe = false
     private var nfcDraftProbe = false
     private var uiGallery = false
+    private var bluetoothScanProbe = false
     private var provisionInputProbe = false
     private var emulatorFlowProbe = false
     private var emulatorFlowCase: String? = null
@@ -44,6 +45,7 @@ class ControlKeyInstrumentation : Instrumentation() {
         pcAuthorizationProbe = arguments?.getString("pc_authorization_probe") == "1"
         nfcDraftProbe = arguments?.getString("nfc_draft_probe") == "1"
         uiGallery = arguments?.getString("ui_gallery") == "1"
+        bluetoothScanProbe = arguments?.getString("bluetooth_scan_probe") == "1"
         provisionInputProbe = arguments?.getString("provision_input_probe") == "1"
         emulatorFlowProbe = arguments?.getString("emulator_flow_probe") == "1"
         emulatorFlowCase = arguments?.getString("emulator_flow_case")
@@ -157,6 +159,20 @@ class ControlKeyInstrumentation : Instrumentation() {
             val report = try {
                 DeviceUiAcceptance.runGallery(this)
                 "PASS: instrumented UI gallery and 20 navigation rounds; explicitly simulated device states, no BLE or board mutation"
+            } catch (error: Throwable) {
+                "FAIL: " + generateSequence(error) { it.cause }.take(5).joinToString(" <- ") {
+                    "${it.javaClass.simpleName}: ${it.message} at ${it.stackTrace.firstOrNull()}"
+                }
+            }
+            finish(if (report.startsWith("PASS:")) Activity.RESULT_OK else Activity.RESULT_CANCELED,
+                Bundle().apply { putString("stream", report) })
+            return
+        }
+        if (bluetoothScanProbe) {
+            val report = try {
+                val evidence = DeviceUiAcceptance.runBluetoothScanFacade(this)
+                "PASS: emulator Bluetooth facade accepted a real filtered BLE scan and stop; " +
+                    "no physical peripheral or board acceptance; $evidence"
             } catch (error: Throwable) {
                 "FAIL: " + generateSequence(error) { it.cause }.take(5).joinToString(" <- ") {
                     "${it.javaClass.simpleName}: ${it.message} at ${it.stackTrace.firstOrNull()}"

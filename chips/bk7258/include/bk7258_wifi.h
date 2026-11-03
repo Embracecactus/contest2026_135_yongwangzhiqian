@@ -9,6 +9,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <arch/chip/bk7258_wifi_csi.h>
 #ifdef __cplusplus
 extern "C"
 {
@@ -54,7 +55,10 @@ enum bk7258_wifi_operation_e
   BK7258_WIFI_OPERATION_MONITOR_STOP,
   BK7258_WIFI_OPERATION_MONITOR_STATUS,
   BK7258_WIFI_OPERATION_MONITOR_CHANNEL,
-  BK7258_WIFI_OPERATION_SCAN
+  BK7258_WIFI_OPERATION_SCAN,
+  BK7258_WIFI_OPERATION_CSI_START,
+  BK7258_WIFI_OPERATION_CSI_STOP,
+  BK7258_WIFI_OPERATION_CSI_STATUS
 };
 
 enum bk7258_wifi_link_state_e
@@ -171,6 +175,7 @@ int bk7258_wifi_initialize(void);
 int bk7258_wifi_read_link(struct bk7258_wifi_result_s *result);
 int bk7258_wifi_refresh_carrier(void);
 int bk7258_wifi_retire_link(void);
+bool bk7258_wifi_native_link_ready(void);
 bool bk7258_wifi_native_lease_matches(
   const struct bk7258_wifi_result_s *result);
 int bk7258_wifi_set_native_lease(
@@ -236,6 +241,11 @@ int bk7258_wifi_monitor_request(enum bk7258_wifi_operation_e operation,
                                 struct bk7258_wifi_monitor_result_s *result);
 int bk7258_wifi_scan_request(uint32_t timeout_ms,
                              struct bk7258_wifi_scan_result_s *result);
+#    ifdef CONFIG_BK7258_WIFI_CSI
+int bk7258_wifi_csi_request(enum bk7258_wifi_operation_e operation,
+                            const struct bk7258_wifi_csi_config_s *config,
+                            struct bk7258_wifi_csi_result_s *result);
+#    endif
 #  endif
 #endif
 

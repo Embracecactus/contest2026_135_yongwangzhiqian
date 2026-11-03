@@ -141,22 +141,38 @@ int bk7258_ota_inactive_geometry(struct bk7258_ota_geometry_s *geometry);
 int bk7258_ota_get_active_pair(struct bk7258_ota_pair_snapshot_s *snapshot);
 int bk7258_ota_stage_pair(const struct bk7258_ota_source_ops_s *ops,
                           void *context);
-/* Call only after the product's external CP/AP health policy has accepted the
- * running pair.  The expected snapshot binds the decision to one pending
- * active slot/version/counter; this primitive validates pair state again
- * under the Flash guard, not service health. */
-int bk7258_ota_confirm_pair(
-  const struct bk7258_ota_pair_snapshot_s *expected);
 void bk7258_ota_system_reset(void) noreturn_function;
 struct bk7258_ap_supervisor_health_token_s;
-/* Confirm with generation-bound Supervisor evidence.  The caller owns the
- * product freshness policy and supplies its maximum accepted sample age;
- * chip code revalidates that evidence before each trailer mutation.
+
+/* Product readiness flags (BK7258_AP_SUPERVISOR_FLAG_*) that a token with
+ * the given enum bk7258_ota_confirm_policy_e must require.  Returns 0 for a
+ * policy that cannot be expressed as a product token.
  */
+
+uint32_t bk7258_ota_confirm_policy_flags(uint32_t policy);
+
+/* The only product confirmation path.  The token must name an explicit
+ * NETWORK or OFFLINE policy and require at least that policy's readiness
+ * flags.  A null token is rejected.  The expected snapshot binds the
+ * decision to one pending active slot/version/counter; chip code revalidates
+ * the full token immediately before each AP and CP trailer mutation and
+ * resets the SoC if a pair is left half-confirmed.
+ */
+
 int bk7258_ota_confirm_pair_health(
   const struct bk7258_ota_pair_snapshot_s *expected,
   const struct bk7258_ap_supervisor_health_token_s *health,
   uint32_t health_max_age_ms);
+
+#ifdef CONFIG_BK7258_OTA_ENGINEERING_UNSAFE_CONFIRM
+/* Engineering-only, disabled by default and logged: confirms the pending
+ * pair without any health or readiness token.  Never present in product
+ * images (requires BK7258_ENGINEERING_CONTROLS).
+ */
+
+int bk7258_ota_confirm_pair_unsafe_engineering(
+  const struct bk7258_ota_pair_snapshot_s *expected);
+#endif
 #endif
 
 #ifdef __cplusplus

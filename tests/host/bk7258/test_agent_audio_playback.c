@@ -166,6 +166,18 @@ int main(int argc, char **argv)
       assert(audio_playback_drain(p, 2000) == 0 && peer.completions == 1);
       assert(audio_playback_close(p) == 0);
     }
+  else if (!strcmp(argv[1], "request-cancel"))
+    {
+      /* Publishing cancellation while the voice state lock is held must not
+       * call into Media. The playback owner performs that work after unlock. */
+      audio_playback_request_stop(p);
+      assert(peer.stops == 0 && !peer.eof);
+      assert(audio_playback_write(p, input, 2) == -ECANCELED);
+      assert(audio_playback_drain(p, 2000) == -ECANCELED);
+      assert(peer.stops == 0);
+      assert(audio_playback_close(p) == 0);
+      assert(peer.stops == 1);
+    }
   else if (!strcmp(argv[1], "close-failure"))
     {
       peer.failed_close = 1;

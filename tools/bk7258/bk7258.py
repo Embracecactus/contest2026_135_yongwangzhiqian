@@ -21,6 +21,7 @@ REPOSITORY = TOOLS.parents[1]
 sys.path.insert(0, str(TOOLS))
 
 from _lib import build as build_domain  # noqa: E402
+from _lib import csi as csi_domain  # noqa: E402
 from _lib import deploy as deploy_domain  # noqa: E402
 from _lib import display_assets as display_assets_domain  # noqa: E402
 from _lib import factory as factory_domain  # noqa: E402
@@ -47,6 +48,10 @@ def _parser() -> argparse.ArgumentParser:
     )
     native_apps_domain.add_arguments(
         commands.add_parser("native-app", help="build and sign constrained native app packages")
+    )
+
+    csi_domain.add_arguments(
+        commands.add_parser("csi", help="record and analyze real BK7258 CSI")
     )
 
     workbench_domain.add_arguments(
@@ -1258,6 +1263,11 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(skills_domain.run(args), indent=2))
         elif args.command == "native-app":
             print(json.dumps(native_apps_domain.run(REPOSITORY, args), indent=2))
+        elif args.command == "csi":
+            result = csi_domain.run(args)
+            print(json.dumps(result, indent=2))
+            if args.csi_command == "receive" and not result["has_csi_frames"]:
+                return 3
         elif args.command == "build":
             _build(args)
         elif args.command == "deploy":
@@ -1272,9 +1282,27 @@ def main(argv: list[str] | None = None) -> int:
             _release(args)
         elif args.command == "voice":
             print(json.dumps(voice_domain.run(args), indent=2))
+        elif args.command == "workbench" and args.operation == "approval-hook":
+            # A hook error must never fall through to "allow": every failure
+            # becomes an explicit deny on stdout.
+            try:
+                result = workbench_domain.run(args)
+            except Exception as error:
+                from _lib import workbench_approval
+
+                result = workbench_approval.hook_output(
+                    False, f"Shaniu approval unavailable: {error}"
+                )
+            print(json.dumps(result, ensure_ascii=False))
         elif args.command == "workbench":
             result = workbench_domain.run(args)
             print(json.dumps(result, indent=2))
+            if args.operation in ("approval-request", "approval-run"):
+                if result["decision"] != "approved" or not result["authenticated"]:
+                    return 2
+                if args.operation == "approval-run":
+                    code = result["process_returncode"]
+                    return code if isinstance(code, int) and 0 <= code < 126 else 1
             if args.operation == "task-run":
                 if result["process_state"] == "canceled":
                     return 130

@@ -30,6 +30,7 @@
 #include <arch/irq.h>
 #include <arch/chip/bk7258_amp.h>
 #include <arch/chip/irq.h>
+#include <arch/chip/bk7258_smp_placement.h>
 #include "bk7258_sdk_abi.h"
 
 #include "bk7258_sdk_irq.h"
@@ -71,7 +72,8 @@ extern bool bk7258_pm_ap_ipi_kick(int cpu) weak_function;
  ****************************************************************************/
 
 #ifdef CONFIG_BK7258_AP_SMP_SCHED_ONLINE
-static atomic_t g_bk7258_ap_smp_pending[CONFIG_SMP_NCPUS];
+static atomic_t g_bk7258_ap_smp_pending[CONFIG_SMP_NCPUS]
+  BK7258_SMP_LOCK_BSS;
 #endif
 
 /****************************************************************************

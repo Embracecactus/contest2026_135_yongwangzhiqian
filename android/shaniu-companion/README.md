@@ -1,15 +1,23 @@
 # 傻妞 Android 控制 App
 
-[项目与视频](../../README.md) · [技术报告](../../docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md) · [实际验收](../../docs/platforms/bk7258/shaniu-master-plan.md)
+[项目与视频](../../README.md) · [技术报告](../../docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md) · [当前板级验收](../../boards/bk7258/CONFIGS.md) · [历史记录](../../docs/platforms/bk7258/shaniu-master-plan.md)
 
 原生 Kotlin 工程，包名 `com.shaniu.companion`。当前源码版本
-`0.7.26-shaniu-ota-retry`（versionCode 56），Android 10+（minSdk 29），
+`0.7.27-shaniu-wake-import`（versionCode 57），Android 10+（minSdk 29），
 compile/target SDK 35。App 只承担配置和控制：设备完成配置后独立运行语音，
 关闭 App 不等于结束设备端交互会话。
 
 [![App 操作演示](../../docs/contest/assets/app-demo-cover.jpg)](https://github.com/Embracecactus/contest2026_135_yongwangzhiqian/releases/download/shaniu-demo-20260920/shaniu-app-demo.mp4)
 
 补充演示 1 分 26 秒，包含认领配网、设置和 OTA 入口；不冒充完整升级录像。
+
+## 当前界面
+
+主导航为“设备、定制、更新、设置”。暖瓷白/墨色构成界面底色，设备眼睛是正常
+状态下唯一彩色元素；只有认证会话和新鲜设备状态才能让眼睛呈现已连接。设备页显示
+手机、傻妞和语音服务的链路；定制页集中外观、声音、唤醒及陪伴功能；电脑授权与
+审批位于设置页。内容在平板和横屏中限制为 560dp 居中列，系统关闭动画时不播放
+页面、导航和弹层动效。设计约束见 [DESIGN.md](DESIGN.md)。
 
 ## 默认表情
 
@@ -34,7 +42,7 @@ JVM/模拟器验证与实际 BLE/板端流程分开；当前页面没有已安�
 
 ```bash
 cd android/shaniu-companion
-./gradlew :app:assembleDebug
+./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :app:testDebugUnitTest
 ```
 
 产物：`app/build/outputs/apk/debug/app-debug.apk`。
@@ -56,6 +64,12 @@ adb -s <手机序列号> install -r app/build/outputs/apk/debug/app-debug.apk
 现有单元检查可用 `:app:testDebugUnitTest`，不是正常安装的强制前置，
 也不代表射频、音频或烧录成功。
 
+2026-11-03 当前源码完成 debug App/测试 APK 构建和 345 个 JVM 用例（9 个跳过、
+0 失败），Android lint 为 0 error / 95 warning。Android 模拟器的浅色、深色图库
+各覆盖 30 个公开模拟状态和 20 轮导航，安全探针与 BLE 扫描 API 探针通过；模拟器
+没有发现真实外设，也不能透传电脑蓝牙，因此这些结果不是手机连接实板的证据。
+完整边界见[综合软件验证记录](../../docs/verification/bk7258/2026-11-03-comprehensive-software-validation.md)。
+
 ## 操作顺序
 
 1. 打开蓝牙并授予系统要求的权限。导入**该设备**由所有者提供的授权资料，
@@ -69,8 +83,22 @@ adb -s <手机序列号> install -r app/build/outputs/apk/debug/app-debug.apk
 5. 重启/短暂断连后重新认证并读取设备当前状态；超时的写操作不自动重发。
    删除手机绑定仅清除手机持有的连接资料，不能清除设备数据来冒充重新认证。
 
-NFC 芯片驱动已有适配，但未接入当前板端产品流程；本次演示使用 BLE 与授权文件，
-不把“碰一碰”列为已完成入口。
+NFC 场景动作 7 已在 App 和板端源码中接入，可把卡片映射为按 App ID 哈希启动一个
+已安装原生功能；它不取代 BLE 认领、owner 认证或签名安装。本轮仅完成主机、JVM
+与构建检查，尚未用真实卡片、手机和板子验证，不把“碰一碰启动”列为实板通过。
+
+## 原生功能与电脑审批
+
+- 原生功能页读取设备目录、展示 ABI/权限/故障和上次结果，经临时 HTTPS 来源安装
+  第一方签名包；设备仍独立验签、检查防回滚并回读终态。ABI 3 在 ABI 1/2 兼容基础
+  上增加可信时间、保存进度、结果标签、语音/Agent 启停和每日定时。
+- 正式产品配置的发布者指纹当前为空，因此安装会被设备拒绝；诊断构建和主机测试
+  使用的测试密钥不是产品密钥。选择发布密钥前，App 界面存在不等于商店已开放。
+- “电脑审批”只允许已有 `tasks` grant 的电脑发起，只有手机 owner 能决定。手机
+  显示 Agent、目标与操作原文；超时、请求变化、授权变化和无效签名一律按拒绝处理。
+
+以上链路的软件测试通过，但当前手机已断开，本轮没有完成真实 BLE 安装、动作 7
+刷卡启动或 PC → USB → 板子 → 手机 → PC 的审批闭环。
 
 ## 连接与安全边界
 

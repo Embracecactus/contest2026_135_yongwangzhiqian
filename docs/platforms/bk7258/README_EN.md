@@ -35,6 +35,7 @@ addresses, scripts, or trust policy from historical N15/N17 documents.
 |---|---|
 | Board name, pinout, polarity, and attached-device instance | `boards/bk7258/README.md` and the selected board directory |
 | CP/AP profiles, partition, and release-policy selection | `boards/bk7258/CONFIGS.md`, each board's `openvela.conf`, and selected CSV files |
+| Current board support and acceptance boundaries | `boards/bk7258/CONFIGS.md`, linked from the root README |
 | SoC IRQ, clock, PM, SDK ABI, and controller mechanism | [BK7258 SoC documentation](../../chips/bk7258/README.md) and `chips/bk7258/` |
 | Public build, signing, package, release, and deployment commands | `tools/bk7258/bk7258.py --help` and the maintained SOP |
 | Acceptance of one build or board run | Matching [dated verification record](../../verification/bk7258/) |
@@ -42,12 +43,14 @@ addresses, scripts, or trust policy from historical N15/N17 documents.
 
 ## Platform documents
 
-- [Contest report](../../contest/技术报告-BK7258三核适配与傻妞AI伴侣.md) and the root README
-  contain the videos and build guide. Existing Agent changes are published in
-  fork commit `add0db19` and pinned by the manifest; publication, clean-build
-  verification and board acceptance remain separate claims.
-- [Shaniu Master Plan](shaniu-master-plan.md) separates 635 Skill/voice/display
-  acceptance from the 634 App control/OTA results.
+- [Contest report](../../contest/技术报告-BK7258三核适配与傻妞AI伴侣.md) retains the
+  contest snapshot; the root README contains videos and the build guide.
+  Current board acceptance is summarized only in `boards/bk7258/CONFIGS.md`.
+  Published dependency identities belong to the team manifest and
+  `SOURCE_PROVENANCE.md`.
+- [Shaniu Master Plan](shaniu-master-plan.md) retains historical decisions and
+  version-bound evidence; the [desktop companion contract](shaniu-desktop-companion.md)
+  defines product behavior.
 
 - [RF calibration and factory-provisioning contract](rf-calibration-and-factory-provisioning.md):
   the maintained Chinese product contract for device-unique RF state, Beken

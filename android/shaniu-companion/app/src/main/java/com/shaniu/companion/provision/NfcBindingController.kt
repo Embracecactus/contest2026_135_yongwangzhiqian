@@ -65,9 +65,10 @@ internal class NfcBindingController(
         val value = snapshot ?: return false
         if (!active || phase != Phase.IDLE || !session.current().authenticated ||
             generation != session.current().generation || action !in 1..4 || slot !in 0..7 ||
-            (action == 2 && (sceneAction !in 1..6 ||
+            (action == 2 && (sceneAction !in 1..7 ||
                 (sceneAction == 1 && durationMs <= 0) ||
                 (sceneAction == 5 && durationMs != 1L) ||
+                (sceneAction == 7 && !nativeArgumentValid(durationMs)) ||
                 (sceneAction in listOf(2,3,4,6) && durationMs != 0L) ||
                 (!value.extended && sceneAction != 1))) ||
             (action != 2 && (durationMs != 0L || sceneAction != 0)) ||
@@ -185,7 +186,8 @@ internal class NfcBindingController(
         }
         if (actions.indices.any { i ->
             val a = actions[i]; val arg = durations[i]
-            a !in 0..6 || (a == 1 && arg <= 0) || (a == 5 && arg != 1L) ||
+            a !in 0..7 || (a == 1 && arg <= 0) || (a == 5 && arg != 1L) ||
+                (a == 7 && !nativeArgumentValid(arg)) ||
                 (a in listOf(0,2,3,4,6) && arg != 0L)
         }) { fail("不支持的卡片场景，不能提交操作"); return }
         if (state !in 0..7 || error > 0 || reserved != 0 || reservedTail != 0L ||
@@ -271,20 +273,29 @@ internal class NfcBindingController(
         if (sceneTotal == 48) {
             val event = data.long; val action = data.int; val intent = data.int
             val phase = data.int; val result = data.int; val reserved = data.long
-            if (event < 0 || action !in 0..6 || intent < 0 || phase !in 0..5 || result > 0 || reserved != 0L ||
+            if (event < 0 || action !in 0..7 || intent < 0 || phase !in 0..5 || result > 0 || reserved != 0L ||
                 (phase == 2 && result != 0)) {
                 finishCapability(null, "场景回执格式未知，请重新读取"); return
             }
             receipt = when (phase) {
                 0 -> "尚无本轮刷卡结果"
                 1 -> "场景已受理，尚未确认完成"
-                2 -> if (action == 5) "本地内容播放已结束" else "卡片操作已执行"
+                2 -> when (action) { 5 -> "本地内容播放已结束"; 7 -> "原生功能已启动"; else -> "卡片操作已执行" }
                 3 -> "卡片操作失败（$result）"
                 4 -> "卡片操作已取消"
                 else -> "卡片结果未知，请重新读取"
             }
         }
         finishCapability(Scene(caps,flags,error), summary + if (receipt.isEmpty()) "" else "\n$receipt")
+    }
+    companion object {
+        /** Scene action 7 argument: device app-ID hash << 32 | run seconds (0 = app default). */
+        fun nativeArgument(appId: String, seconds: Long): Long {
+            require(appId.matches(Regex("[a-z0-9][a-z0-9-]{0,30}")) && seconds in 0..3600)
+            return (NativeFeatureStore.appHash(appId) shl 32) or seconds
+        }
+        fun nativeArgumentValid(argument: Long): Boolean =
+            (argument ushr 32) != 0L && (argument and 0xffff_ffffL) <= 3600L
     }
     override fun close() {
         active = false; results.cancel(); connection.cancel()

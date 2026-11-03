@@ -104,8 +104,11 @@ static void reply_wake(void) {}
 static int voice_asr_cancel(void) { return 0; }
 static int voice_tts_cancel(void) { return 0; }
 static int llm_cancel_request(void) { return 0; }
-static int audio_playback_stop(void *pb) { (void)pb; return 0; }
+static void audio_playback_request_stop(void *pb) { (void)pb; }
 static int audio_playback_cleanup(unsigned ms) { (void)ms; return 0; }
+static int audio_capture_request_abort(audio_capture_t *cap) {
+ assert(cap==&capture); return 0;
+}
 static int audio_capture_abort(audio_capture_t *cap) {
  assert(cap==&capture); aborts++; return 0;
 }
@@ -244,9 +247,9 @@ int main(void) {
         """Run the production voice callers against the real capture producer.
 
         A first abort is observed while its socket-backed producer is blocked
-        in poll.  Cancel begins only after that call entered.  The fixture does
-        not require overlap: the desired caller fix serializes it under the
-        voice lock, while the old caller lets both reach pthread_join.
+        in poll.  Cancel begins only after that call entered.  The desired
+        caller publishes a bounded stop request while the sole owner remains
+        the only thread allowed to join the producer.
         """
         source = voice_source()
         code = r"""
@@ -306,7 +309,7 @@ static void reply_wake(void) {}
 static int voice_asr_cancel(void) { return 0; }
 static int voice_tts_cancel(void) { return 0; }
 static int llm_cancel_request(void) { return 0; }
-static int audio_playback_stop(void *pb) { (void)pb; return 0; }
+static void audio_playback_request_stop(void *pb) { (void)pb; }
 static int audio_playback_cleanup(unsigned ms) { (void)ms; return 0; }
 static int voice_test_abort(audio_capture_t *cap) {
  pthread_mutex_lock(&observer_lock);
@@ -406,9 +409,9 @@ int main(void) {
 
         The old fixture replaced pthread_join with a boolean and could not
         observe a cancel arriving while stop owns the pre-close capture.  This
-        peer releases the stop abort after observing it, then permits cancel
-        to be serialized by the production owner lock. It still requires the
-        worker join and detached owner before heap capture release.
+        peer releases the stop abort only after cancel returns. It therefore
+        proves the state lock is not held across the owner's blocking abort,
+        while still requiring join and detach before heap capture release.
         """
         source = voice_source()
         code = r"""
@@ -465,8 +468,11 @@ static void reply_wake(void) {}
 static int voice_asr_cancel(void) { return 0; }
 static int voice_tts_cancel(void) { return 0; }
 static int llm_cancel_request(void) { return 0; }
-static int audio_playback_stop(void *pb) { (void)pb; return 0; }
+static void audio_playback_request_stop(void *pb) { (void)pb; }
 static int audio_playback_cleanup(unsigned ms) { (void)ms; return 0; }
+static int audio_capture_request_abort(audio_capture_t *cap) {
+ assert(cap && cap->magic == 0xcafef00dU); return 0;
+}
 static int audio_capture_abort(audio_capture_t *cap) {
  assert(cap && cap->magic == 0xcafef00dU);
  pthread_mutex_lock(&peer_lock);
@@ -475,6 +481,7 @@ static int audio_capture_abort(audio_capture_t *cap) {
   stop_abort_entered = 1;
   pthread_cond_broadcast(&peer_ready);
  }
+ while (!cancel_finished) pthread_cond_wait(&peer_ready, &peer_lock);
  pthread_mutex_unlock(&peer_lock);
  return 0;
 }
@@ -681,8 +688,11 @@ static int audio_capture_abort(audio_capture_t *cap) {
 }
 static int audio_capture_close(audio_capture_t *cap) { assert(cap == &capture); closes++; return 0; }
 static int audio_capture_cleanup(unsigned ms) { (void)ms; return 0; }
-static int audio_playback_stop(void *p) { (void)p; return 0; }
+static void audio_playback_request_stop(void *p) { (void)p; }
 static int audio_playback_cleanup(unsigned ms) { (void)ms; return 0; }
+static int audio_capture_request_abort(audio_capture_t *cap) {
+ assert(cap == &capture); return 0;
+}
 static int voice_asr_cancel(void) { return 0; }
 static int voice_tts_cancel(void) { return 0; }
 static int llm_cancel_request(void) { return 0; }

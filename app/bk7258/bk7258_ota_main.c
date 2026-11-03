@@ -193,7 +193,9 @@ static int bkota_status(FAR const char *request)
 
 int main(int argc, char *argv[])
 {
+#ifdef CONFIG_BK7258_OTA_ENGINEERING_UNSAFE_CONFIRM
   struct bk7258_ota_pair_snapshot_s pair;
+#endif
   int ret;
 
   if ((argc == 2 || argc == 3) && strcmp(argv[1], "status") == 0)
@@ -212,8 +214,16 @@ int main(int argc, char *argv[])
       return bkota_status(argc == 3 ? argv[2] : "manual");
     }
 
-  if (argc == 2 && strcmp(argv[1], "confirm") == 0)
+  /* Product images have no manual confirmation: only the CP trial policy
+   * may confirm, with a generation-bound health/readiness token.  The
+   * explicitly named override below exists only in engineering images.
+   */
+
+#ifdef CONFIG_BK7258_OTA_ENGINEERING_UNSAFE_CONFIRM
+  if (argc == 2 && strcmp(argv[1], "confirm-unsafe-engineering") == 0)
     {
+      fprintf(stderr, "bkota: WARNING unsafe engineering confirm without "
+                      "CP/AP health or readiness evidence\n");
       ret = bk7258_ota_get_active_pair(&pair);
       if (ret == 0 && pair.state == BK7258_OTA_PAIR_CONFIRMED)
         {
@@ -222,7 +232,7 @@ int main(int argc, char *argv[])
         }
       if (ret == 0)
         {
-          ret = bk7258_ota_confirm_pair(&pair);
+          ret = bk7258_ota_confirm_pair_unsafe_engineering(&pair);
         }
       if (ret == -EALREADY)
         {
@@ -234,9 +244,10 @@ int main(int argc, char *argv[])
           return EXIT_FAILURE;
         }
 
-      printf("bkota: active CP/AP pair confirmed\n");
+      printf("bkota: active CP/AP pair confirmed (UNSAFE ENGINEERING)\n");
       return EXIT_SUCCESS;
     }
+#endif
 
   if (argc == 2 && strcmp(argv[1], "reboot") == 0)
     {
@@ -289,6 +300,10 @@ int main(int argc, char *argv[])
 
   fprintf(stderr, "usage: bkota status | bkota apply-file <AP-path> | "
                   "bkota apply-http <catalog-url> [AP-ca-path] | "
-                  "bkota cancel | bkota confirm | bkota reboot\n");
+                  "bkota cancel | bkota reboot"
+#ifdef CONFIG_BK7258_OTA_ENGINEERING_UNSAFE_CONFIRM
+                  " | bkota confirm-unsafe-engineering"
+#endif
+                  "\n");
   return EXIT_FAILURE;
 }

@@ -44,6 +44,7 @@ static int g_radio_error;
 static uint8_t g_input[RX_BYTES];
 static size_t g_head;
 static size_t g_count;
+static uint8_t g_payload_limit = BKPROV_GATT_LEGACY_PAYLOAD_SIZE;
 static uint32_t g_generation;
 static bool g_registered;
 static bool g_window;
@@ -141,6 +142,7 @@ static void ccc_changed(uint16_t value)
   g_ccc_value = value;
   g_head = 0;
   g_count = 0;
+  g_payload_limit = BKPROV_GATT_LEGACY_PAYLOAD_SIZE;
   memset(g_input, 0, sizeof(g_input));
   g_ready = false;
   if (g_ccc_value == BT_GATT_CCC_NOTIFY && g_window &&
@@ -168,6 +170,7 @@ static void connected(struct bt_conn_s *conn, void *context)
     {
       g_connected_count++;
       g_connection = bt_conn_addref(conn);
+      g_payload_limit = BKPROV_GATT_LEGACY_PAYLOAD_SIZE;
       g_locator_valid = false;
       memset(g_locator, 0, sizeof(g_locator));
       if (g_ccc_value == BT_GATT_CCC_NOTIFY && g_window &&
@@ -269,6 +272,11 @@ static int write_tls(struct bt_conn_s *conn, const struct bt_gatt_attr_s *attr,
           g_input[(g_head + g_count + i) % RX_BYTES] = bytes[i];
         }
       g_count += len;
+      if (len > g_payload_limit)
+        {
+          g_payload_limit = len < BKPROV_GATT_MAX_PAYLOAD_SIZE ?
+                            len : BKPROV_GATT_MAX_PAYLOAD_SIZE;
+        }
     }
   spin_unlock_irqrestore(&g_lock, flags);
   return ret;
@@ -505,13 +513,15 @@ ssize_t bkprov_gatt_send(uint32_t generation, const void *data, size_t size)
 {
   struct bt_conn_s *peer;
   irqstate_t flags;
-  if (data == NULL || size == 0 || size > 20)
+  size_t chunk;
+  if (data == NULL || size == 0 || size > BKPROV_GATT_MAX_PAYLOAD_SIZE)
     {
       return -EINVAL;
     }
   flags = spin_lock_irqsave(&g_lock);
   peer = g_ready && generation == g_generation && g_peer != NULL ?
          bt_conn_addref(g_peer) : NULL;
+  chunk = size < g_payload_limit ? size : g_payload_limit;
   spin_unlock_irqrestore(&g_lock, flags);
   if (peer == NULL)
     {
@@ -520,7 +530,7 @@ ssize_t bkprov_gatt_send(uint32_t generation, const void *data, size_t size)
   /* This fixed NuttX release exposes only the CCC-routed notification API.
    * CONFIG_BLUETOOTH_MAX_CONN=1 and the generation/ref checks above bind the
    * send to the authenticated product peer before the public call. */
-  bt_gatt_notify(0x14, data, size);
+  bt_gatt_notify(0x14, data, chunk);
   bt_conn_release(peer);
-  return (ssize_t)size;
+  return (ssize_t)chunk;
 }

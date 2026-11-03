@@ -36,6 +36,9 @@
 
 #include <arch/chip/bk7258_amp.h>
 #include <arch/chip/bk7258_rptun.h>
+#if defined(CONFIG_BK7258_AP_CORE) && defined(CONFIG_BK7258_WIFI_VNET)
+#  include <arch/chip/bk7258_wifi.h>
+#endif
 
 #include "bk7258_rpmsg_health.h"
 
@@ -80,7 +83,7 @@ struct bk7258_rpmsg_health_wire_s
   uint32_t primary_heartbeat;
   uint32_t secondary_heartbeat;
   int32_t status;
-  uint32_t reserved;
+  uint32_t product_flags;
 };
 
 struct bk7258_rpmsg_health_dev_s
@@ -103,6 +106,16 @@ struct bk7258_rpmsg_health_dev_s
   struct bk7258_rpmsg_health_result_s reply;
 #endif
 };
+
+#ifdef CONFIG_BK7258_AP_CORE
+/* Product readiness published by the AP product application.  It travels
+ * only in replies to generation-bound CP probes, so the CP accepts it as a
+ * result of the running signed AP generation without a second
+ * authentication scheme.  A new AP generation starts with it cleared.
+ */
+
+static volatile uint32_t g_bk7258_rpmsg_health_product_ready;
+#endif
 
 static_assert(sizeof(struct bk7258_rpmsg_health_wire_s) == 32u,
               "BK7258 RPMsg health wire ABI must remain 32 bytes");
@@ -347,6 +360,17 @@ static int bk7258_rpmsg_health_ept_cb(FAR struct rpmsg_endpoint *ept,
       reply.sequence = msg->sequence;
       reply.primary_heartbeat = boot->heartbeat;
       reply.secondary_heartbeat = cpu2->heartbeat;
+#ifdef CONFIG_BK7258_WIFI_VNET
+      if (bk7258_wifi_native_link_ready())
+        {
+          reply.product_flags |= BK7258_AP_SUPERVISOR_FLAG_WIFI_READY;
+        }
+#endif
+      if (__atomic_load_n(&g_bk7258_rpmsg_health_product_ready,
+                          __ATOMIC_ACQUIRE) != 0u)
+        {
+          reply.product_flags |= BK7258_AP_SUPERVISOR_FLAG_PRODUCT_READY;
+        }
       reply.status = OK;
       ret = rpmsg_trysend(&priv->ept, &reply, sizeof(reply));
       if (ret >= 0 || (ret != -ENOMEM && ret != -EAGAIN))
@@ -374,6 +398,7 @@ static int bk7258_rpmsg_health_ept_cb(FAR struct rpmsg_endpoint *ept,
       priv->reply.sequence = msg->sequence;
       priv->reply.primary_heartbeat = msg->primary_heartbeat;
       priv->reply.secondary_heartbeat = msg->secondary_heartbeat;
+      priv->reply.product_flags = msg->product_flags;
       priv->connection_error = msg->status;
       __asm volatile ("dmb sy" ::: "memory");
       priv->reply_valid = msg->status >= 0;
@@ -472,6 +497,14 @@ static void bk7258_rpmsg_health_device_destroy(FAR struct rpmsg_device *rdev,
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
+
+#ifdef CONFIG_BK7258_AP_CORE
+void bk7258_rpmsg_health_set_product_ready(bool ready)
+{
+  __atomic_store_n(&g_bk7258_rpmsg_health_product_ready, ready ? 1u : 0u,
+                   __ATOMIC_RELEASE);
+}
+#endif
 
 int bk7258_rpmsg_health_initialize(void)
 {

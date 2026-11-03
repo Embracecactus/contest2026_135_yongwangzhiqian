@@ -1,13 +1,23 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-/* Native-app intent, catalog and recognized-text routing contracts. */
+/* NFC action 7 → native-app intent slot.  Built with native apps enabled;
+ * focus and content owners are stubs because only routing is under test.
+ */
 #define _POSIX_C_SOURCE 200809L
 #include "bk7258_native_intent.h"
+#include "bk7258_nfc_scene.h"
 #include <assert.h>
 #include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
+static unsigned int g_other_owner;
+int bkcontent_submit(unsigned int action, uint64_t content, uint32_t *id)
+{ (void)action; (void)content; *id = 0; g_other_owner++; return -ENOTSUP; }
+int bkfocus_intent_submit(unsigned int action, uint64_t duration, uint32_t *id)
+{ (void)action; (void)duration; *id = 0; g_other_owner++; return -ENOTSUP; }
 
 #define HASH UINT64_C(0xbd8bb2f5)
 
@@ -107,6 +117,25 @@ int main(void)
   copy.apps[0].hash = 1; strcpy(copy.apps[0].id, "other");
   assert(!bknative_text_match("帮我做个决定", &copy, &hash));    /* needs "shake" */
 
+  /* The scene routes action 7 to this slot and nowhere else. */
+  struct bknfc_bindings_s bindings = {0};
+  struct bknfc_scene_s scene;
+  const struct bknfc_card_s card = {.size = 4, .uid = {1, 2, 3, 4}};
+  char root[] = "/tmp/shaniu-native-intent-XXXXXX";
+  assert(mkdtemp(root));
+  assert(bknfc_bindings_open(&bindings, root) == 0);
+  assert(bknfc_bindings_set_action(&bindings, 0, 1, 0, &card, 7,
+                                   (HASH << 32) | 45) == 0);
+  assert(bknfc_scene_init(&scene, 7) == 0);
+  assert(bknfc_scene_observe(&scene, &bindings, 7, 1, BKNFC_SCENE_PRESENT,
+                             &card, true, &id) == 0 && id != 0);
+  assert(scene.action == 7 && g_other_owner == 0);
+  bknative_intent_status(&status);
+  assert(status.id == id && status.phase == 1 && status.seconds == 45);
+  /* Dwell does not replay; a trusted removal re-arms the card. */
+  assert(bknfc_scene_observe(&scene, &bindings, 7, 2, BKNFC_SCENE_PRESENT,
+                             &card, true, &second) == -EALREADY && !second);
+  assert(bknfc_bindings_reset(root) == 0);
   puts("NATIVE_INTENT_PASS");
   return 0;
 }

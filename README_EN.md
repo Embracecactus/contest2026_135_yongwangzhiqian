@@ -14,8 +14,19 @@ Use the [official-source build instructions](README.md#官方源码构建当前�
 and [scoped integration evidence](docs/verification/bk7258/2026-10-09-finals-integration.md).
 The team project defaults to the official repository; CI pins manifest and team source
 to the same event candidate before syncing. PR runs verify the exact merge commit,
-base and head. Agent remains pinned to `20890a97b9515cce3de34006ad7a9b1746a109ed`.
-A draft PR, a build and engineering HIL are separate from product acceptance.
+base and head. Published NuttX, Agent and SDK dependency identities are recorded in
+[source provenance](SOURCE_PROVENANCE.md#2026-10-21-评审修复依赖).
+The single current board acceptance summary is [CONFIGS.md](boards/bk7258/CONFIGS.md).
+Dependency publication, a full manifest reproduction and device acceptance
+require separate evidence.
+
+The 2026-11-03 workspace candidate passes its software gates and three AIDK
+direct builds. The `packages_ai_agent` streaming/audio changes are fixed at fork
+commit [`76c65bc6`](https://github.com/Embracecactus/packages_ai_agent/commit/76c65bc6231a7eeb49c32f8938a3d005a4221776).
+The tested `nuttx-apps` webclient keep-alive change is fixed at fork commit
+[`d529ec81`](https://github.com/Embracecactus/nuttx-apps/commit/d529ec814bc11a4e76954a8dfb903c55e1eca4f3).
+The team manifest pins both identities; clean synchronization and physical-device
+acceptance still require separate evidence.
 
 ## Real-device videos
 
@@ -56,6 +67,30 @@ provisioning and settings, plus Wi-Fi HTTPS delivery of eye assets and signed
 OTA packages. It does not relay conversation audio. Camera access uses the
 existing single owner; native tools expose bounded device actions.
 Optional persistent memory is encrypted and restored into official Sessions.
+
+The current Android source is `0.7.27-shaniu-wake-import` (version code 57).
+Its porcelain-and-ink UI uses the device eyes as the only normal-state colour;
+the eyes reflect only an authenticated, fresh device state. Native features
+support ABI 1/2 compatibility plus ABI 3 motion, bounded feedback, trusted time,
+small persistent state, result labels, voice/Agent control and schedules. The
+normal product publisher fingerprint is intentionally empty, so installation
+remains disabled until an approved first-party key is configured. PC approval
+requests bind the agent, target, operation, request ID and expiry; only the
+phone owner can decide. See the
+[2026-11-03 software validation](docs/verification/bk7258/2026-11-03-comprehensive-software-validation.md)
+for host, build and emulator evidence and the remaining physical-device scope.
+
+After ASR, explicit Chinese volume, expression, stop and focus-timer commands
+use a local intent route before Agent dispatch. Volume changes reuse Media
+readback and persistence; expressions enter the existing queue (acceptance is
+not rendering). Repeated requests cannot apply a relative volume change twice.
+Tool denial and execution errors do not fall through to the cloud. Other text,
+including camera requests, retains the original Agent path. `BKLOCAL` and
+`BKFOCUS` logs expose request IDs, results and routing time without transcripts.
+This still requires the configured ASR backend and does not implement acoustic
+barge-in. Parser and Voice-dispatch host checks and the AIDK firmware build pass;
+the added commands have not yet been validated on the board. Run
+`make -C tests/host/bk7258 run-agent-local-intent` for the host checks.
 
 ## Boards and build entry points
 
@@ -141,11 +176,11 @@ candidate was later traced to card contact and recovered by re-seating; physical
 touch and recording-to-SD with the new build remain unverified, and the recovery
 does not prove recording passed.
 See the [Dolphin record](docs/platforms/bk7258/dolphin-master-plan.md).
-Firmware 638 is the current verified Shaniu build (see the verification status
-above); the 634/635/637 records stay as history for their versions.
+See [CONFIGS.md](boards/bk7258/CONFIGS.md) for current Shaniu acceptance;
+the 634/635/637/638 records retain their historical version boundaries.
 Keep the team checkout directory name specified by the manifest; SDK tools read
 its same-named XML. AIToyBoard requires both `cp-aidk` and `ap-aidk`.
-The manifest pins the SDK to `cb080de1655d579c7593ecf504c440997c4c137b`.
+The team manifest owns the SDK identity; see [source provenance](SOURCE_PROVENANCE.md).
 Outputs and source/configuration hashes are recorded in the emitted build manifest.
 `direct` is unsigned bring-up, **not** an update for a provisioned secure device.
 For signed builds and device-safe deployment, use the
@@ -154,8 +189,9 @@ Private keys and device-specific recovery images are not public build dependenci
 
 ## Verification status (2026-09-20)
 
-Every claim names its version and evidence layer; "the current HEAD passes" is
-not used as a permanent statement.
+This section retains the 2026-09-20 historical snapshot. Current acceptance
+is maintained only in [CONFIGS.md](boards/bk7258/CONFIGS.md); these version-bound
+results do not establish acceptance of current source.
 
 - **Source-layer gate** (static, not board evidence): `bk7258.py verify layers`
   PASS (500 sources / 252 Kconfig / 2 hash-bound legacy exceptions); the Agent
@@ -269,7 +305,7 @@ still predate the 637/638 updates.
   must materialize it from their own board's readback, as the quick-start
   chapter requires.
 - [Android project](android/shaniu-companion/README.md): JDK 17, SDK 35,
-  Android 10+, source version `0.5.23-shaniu-rebind` / code 28.
+  Android 10+, source version `0.7.27-shaniu-wake-import` / code 57.
 - [Model tools](tools/bk7258/README.md): existing `voice kws` commands.
   Training dependencies are not required for a normal firmware build.
   The public builtin model is 23,640 B / SHA prefix `922eba91`;
@@ -282,13 +318,13 @@ still predate the 637/638 updates.
   Runtime `device-assistant.md` was verified on firmware `18.6.399+635`:
   installation log, a 2,012-byte tool table, user-confirmed voice and display.
   See the [635 evidence](docs/verification/bk7258/2026-09-20-shaniu-runtime-skill-635.md).
-- [Master Plan and exact board evidence](docs/platforms/bk7258/shaniu-master-plan.md).
+- [Historical Master Plan and board evidence](docs/platforms/bk7258/shaniu-master-plan.md).
   Actual App OTA to `18.6.398+634` was confirmed after reboot (counter 634,
   slot B, confirmed trial). Reinstalled eyes persisted across reset.
   App controls and App OTA were not rerun on 635; their unchanged source paths
   do not constitute new acceptance. Deploying the 635 full package raises its
   bootloader floor to 635; the OTA-only package does not replace BL1/BL2.
-  The current build is `18.6.401+638` (floor 638, same-unit recovery image,
+  The historical 638 build is `18.6.401+638` (floor 638, same-unit recovery image,
   byte-identical CP/AP payloads to 637); its App OTA path was not retested
   either.
   Historical upgrade paths, storage faults and independent human wake-word
