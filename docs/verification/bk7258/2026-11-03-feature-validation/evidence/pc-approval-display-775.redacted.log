@@ -1,0 +1,10 @@
+[26/07/26 00:00:10.652438] [CPU0] [55] [  INFO] [ap] BKDISPLAY RENDER PASS expression=neutral pack=shaniu-cyan-v3 revision=3 screens=2 mapping=unverified fallback=0 sequence=1
+[26/07/26 00:02:01.068844] [CPU0] [57] [  INFO] [ap] BKAPPROVAL pc request state=1 bytes=168
+[26/07/26 00:02:01.340406] [CPU0] [48] [  INFO] [ap] BKHAPTIC product sequence=1 result=0
+[26/07/26 00:02:01.408500] [CPU0] [57] [  INFO] [ap] BKAPPROVAL alert haptic=0
+[26/07/26 00:02:16.370813] [CPU0] [48] [  INFO] [ap] BKHAPTIC product sequence=2 result=0
+[26/07/26 00:02:16.439125] [CPU0] [57] [  INFO] [ap] BKAPPROVAL alert haptic=0
+[26/07/26 00:02:31.410219] [CPU0] [48] [  INFO] [ap] BKHAPTIC product sequence=3 result=0
+[26/07/26 00:02:31.483125] [CPU0] [57] [  INFO] [ap] BKAPPROVAL alert haptic=0
+[26/07/26 00:02:46.410813] [CPU0] [48] [  INFO] [ap] BKHAPTIC product sequence=4 result=0
+[26/07/26 00:02:46.479063] [CPU0] [57] [  INFO] [ap] BKAPPROVAL alert haptic=0
