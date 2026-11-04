@@ -84,13 +84,17 @@ python3 tools/bk7258/bk7258.py workbench task-run \
   --port <native-type-c-port> --profile <pc-profile> --run-timeout 120 \
   --exec python3 -c "print('SHANIU_TASK_OK')"
 
-# 浏览器工作台采一帧；保存/取消/重拍均应从返回的 job/receipt 继续查询
-python3 tools/bk7258/bk7258.py workbench camera-capture \
+# 启动浏览器工作台；打开输出的本地地址后采一帧、保存、取消或重拍
+python3 tools/bk7258/bk7258.py workbench serve \
   --port <native-type-c-port> --profile <pc-profile> --workbench-dir <new-empty-dir>
 ```
 
-任务以 `device_result=confirmed` 为送达条件；超时或 Ctrl+C 应明确返回取消。采一帧
-只保存已显示的那一帧，保存、取消、重拍后都要查询回执。11-03 实板记录了任务成功/
+任务以 `device_result=confirmed` 为送达条件；超时或 Ctrl+C 触发取消。若主机清理
+未确认，返回 `failure` / `cleanup_unconfirmed`，不能当作取消完成。浏览器
+工作台只保存已显示的那一帧，保存、取消、重拍后检查页面的作业状态与结果。
+独立的 `camera-capture` CLI 是一次性取帧，结束时尝试释放本次相机作业；
+须以 `release_confirmed=true` 判断释放确认。它不提供可续查的工作台 job/receipt，
+也不使用 `--workbench-dir`。11-03 实板记录了任务成功/
 超时与两帧的哈希一致性；[55 秒取景录屏](../../verification/bk7258/2026-11-03-feature-validation/videos/board/camera-capture-cancel-recapture.mp4)
 画面偏暗但为原速实录。作者另有 31 秒粗剪展示浏览器采一帧，未作为公开版本/身份
 证据发布。

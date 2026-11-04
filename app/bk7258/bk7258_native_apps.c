@@ -791,14 +791,25 @@ static int state_load(const char *id, uint8_t *out, uint32_t size)
   return ret;
 }
 
-static void state_remove_directory(const char *path)
+static int state_remove_directory(const char *path)
 {
   char file[128];
+  int ret;
+
   snprintf(file, sizeof(file), "%s/config.bin", path);
-  (void)unlink(file);
+  if (unlink(file) < 0 && errno != ENOENT)
+    {
+      return -errno;
+    }
+
   snprintf(file, sizeof(file), "%s/config.pending", path);
-  (void)unlink(file);
-  (void)rmdir(path);
+  if (unlink(file) < 0 && errno != ENOENT)
+    {
+      return -errno;
+    }
+
+  ret = rmdir(path);
+  return ret < 0 && errno != ENOENT ? -errno : 0;
 }
 
 static int state_save(const char *id, const uint8_t *data, uint32_t size)
@@ -853,23 +864,32 @@ static int state_save(const char *id, const uint8_t *data, uint32_t size)
 
       snprintf(path, sizeof(path), BKNATIVE_ROOT BKPROV_NATIVE_LEGACY_STATE
                "%.31s", id);
-      state_remove_directory(path);
+      (void)state_remove_directory(path);
     }
 
   return ret;
 }
 
-static void state_remove(const char *id)
+static int state_remove(const char *id)
 {
   char path[96];
+  int ret;
+
   state_path(id, path, sizeof(path));
-  state_remove_directory(path);
+  ret = state_remove_directory(path);
+  if (ret)
+    {
+      return ret;
+    }
+
   if (strlen(id) <= 25)
     {
       snprintf(path, sizeof(path), BKNATIVE_ROOT BKPROV_NATIVE_LEGACY_STATE
                "%.31s", id);
-      state_remove_directory(path);
+      ret = state_remove_directory(path);
     }
+
+  return ret;
 }
 
 static int schedule_commit_locked(const struct native_schedule_s *next)
@@ -1252,6 +1272,49 @@ static int commit(cJSON *next)
       goto done;
     }
 
+  /* State directories are independent from the catalog, so retiring one is
+   * deliberately a pre-publication step like schedule_prune_locked().  A
+   * later catalog failure can leave its app installed after its state was
+   * removed; no rollback is promised for either independent store.
+   */
+
+  for (unsigned int old = 0; old < g_count && !ret; old++)
+    {
+      bool kept = false;
+      for (unsigned int index = 0; index < count; index++)
+        {
+          kept = kept || !strcmp(g_apps[old].id, infos[index].id);
+        }
+
+      if (!kept)
+        {
+          ret = state_remove(g_apps[old].id);
+        }
+    }
+
+  /* A fresh ID must not inherit a state directory orphaned by older
+   * firmware.  An upgrade has the same ID already and keeps its state.
+   */
+
+  for (unsigned int index = 0; index < count && !ret; index++)
+    {
+      bool existed = false;
+      for (unsigned int old = 0; old < g_count; old++)
+        {
+          existed = existed || !strcmp(infos[index].id, g_apps[old].id);
+        }
+
+      if (!existed)
+        {
+          ret = state_remove(infos[index].id);
+        }
+    }
+
+  if (ret)
+    {
+      goto done;
+    }
+
   if (mkdir(BKNATIVE_ROOT, 0700) < 0 && errno != EEXIST)
     {
       ret = -errno;
@@ -1288,24 +1351,6 @@ static int commit(cJSON *next)
                 {
                   infos[index].faults = g_apps[old].faults;
                 }
-            }
-        }
-
-      /* An uninstalled app's saved state goes with it; an update keeps
-       * its state so a new version can continue a streak or counter.
-       */
-
-      for (unsigned int old = 0; old < g_count; old++)
-        {
-          bool kept = false;
-          for (unsigned int index = 0; index < count; index++)
-            {
-              kept = kept || !strcmp(g_apps[old].id, infos[index].id);
-            }
-
-          if (!kept)
-            {
-              state_remove(g_apps[old].id);
             }
         }
 
