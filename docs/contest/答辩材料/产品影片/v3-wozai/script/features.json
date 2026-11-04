@@ -111,7 +111,7 @@
    "id": "F08",
    "group": "语音",
    "name": "预置唤醒应答“我在”",
-   "action": "唤醒且语音服务就绪时，设备播放内置“我在”PCM（WAKE_ACK_REQUEST，播放时麦克风数据被清空）；App 中不能修改应答语",
+   "action": "唤醒且语音服务就绪时，设备播放内置“我在”PCM（WAKE_ACK_REQUEST，播放时麦克风数据被清空）；App 中不能修改应答语。最新交付的片中 9 处“我在”为授权板载同源 PCM 后处理替换，非扬声器实录",
    "refs": [
     "app/bk7258/bk7258_agent_trigger.c（bk7258_agent_trigger_reply）",
     "app/bk7258/bk7258_agent_product.c（VOICE_CHANNEL_EVENT_WAKE_ACK_REQUEST）",
@@ -119,7 +119,7 @@
     "boards/bk7258/aidk_ai_toy/Kconfig（PUBLIC / PRIVATE / TONE 三选一）",
     "apk/CustomizePage.kt"
    ],
-   "status": "实板：638 播放（验证配置使用私有授权素材）；片中使用公开默认素材 wake_reply_public.pcm（Kokoro v1.1-zh sid 0，非克隆），不是板子扬声器录音",
+   "status": "实板：638 播放（验证配置使用私有授权素材）；旧版片中使用公开默认素材 wake_reply_public.pcm（Kokoro v1.1-zh sid 0，非克隆）。最新交付的 9 处“我在”替换为授权板载同源 PCM（SHA-256 772a8aa9…，源音频不公开）；两者均不是板子扬声器录音，也不构成新的实机验收",
    "availability": "shipping"
   },
   {

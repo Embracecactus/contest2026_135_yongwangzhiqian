@@ -29,17 +29,12 @@ class CiContractGateTest(unittest.TestCase):
         path = runner.ROOT / ".github/workflows/shaniu-source-checks.yml"
         return yaml.load(path.read_text(), Loader=yaml.BaseLoader)
 
-    def test_contract_inputs_trigger_formal_workflow(self):
-        import fnmatch
-        paths = self.workflow()["on"]["push"]["paths"]
-        for relative in (
-            "tests/host/bk7258/acceptance/contracts.md",
-            "tests/host/bk7258/acceptance/required-units.v1.json",
-            "tests/host/bk7258/test_shaniu_contracts.py",
-            "tests/host/bk7258/test_shaniu_runner_gate.py",
-            "tests/host/bk7258/mocks/nuttx/config.h",
-        ):
-            self.assertTrue(any(fnmatch.fnmatchcase(relative, p) for p in paths), relative)
+    def test_official_pushes_trigger_formal_workflow_without_path_filters(self):
+        push = self.workflow()["on"]["push"]
+        self.assertEqual(push["branches"], ["dev-ai-contest-2026"])
+        # Every official update, including docs and contract inputs, must run.
+        self.assertNotIn("paths", push)
+        self.assertNotIn("paths-ignore", push)
 
     def test_contract_artifact_keeps_junit_evidence(self):
         import fnmatch
