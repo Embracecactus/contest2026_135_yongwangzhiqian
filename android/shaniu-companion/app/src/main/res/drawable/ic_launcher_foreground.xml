@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Fractional insets preserve the normalized 64/108 portrait size at different
+     launcher render resolutions. Fixed dp insets shrink it on smaller canvases. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:insetLeft="20.37037%"
+    android:insetTop="20.37037%"
+    android:insetRight="20.37037%"
+    android:insetBottom="20.37037%">
+    <bitmap
+        android:src="@drawable/shaniu_launcher_response"
+        android:gravity="fill"
+        android:filter="true" />
+</inset>

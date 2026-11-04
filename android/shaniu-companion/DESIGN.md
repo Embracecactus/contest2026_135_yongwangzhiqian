@@ -51,6 +51,23 @@ broken = amber gap, unknown = dotted), `volumeCard`, `segments`,
 candidates are listed, so the list stays above the fold), `hero` (subtitle in
 warning tone when verification failed).
 
+## Launcher icon
+
+`res/mipmap-anydpi/ic_launcher.xml` uses the fictional short-haired companion
+selected by the owner on 2026-11-04. The warm expression carries the story's
+“我在” motif; dark blue hair, ivory clothing and a seafoam ground replace the
+earlier ruby launcher artwork. This illustration is a brand
+character, not a live device-state indicator or a portrait of a real person.
+
+The foreground is a 512px transparent WebP inside a normalized 64/108 box.
+Each inset is 20.37037% (22/108), so smaller launcher render targets preserve
+the composition. Its strong-alpha silhouette stays inside the 66dp safe circle
+of the 108dp design grid. The background is a fixed `#F0F6E8` → `#A6CCC2` gradient. Android
+themed mode uses an original vector bob-hair and collar silhouette at 78% scale.
+The UI's verified-state mint eyes remain the operational signature described
+above. Sources, prompts and previews are in
+`design/launcher-20261104/`.
+
 ## Code layout
 
 `MainActivity` owns state, lifecycle and device/gateway protocol. Page
