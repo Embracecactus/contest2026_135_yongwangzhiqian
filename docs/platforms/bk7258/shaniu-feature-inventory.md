@@ -4,9 +4,9 @@
 本清单把每项产品能力连到它的使用方式、运行位置、实现位置和最高证据。
 板级当前验收结论只在 [CONFIGS.md](../../../boards/bk7258/CONFIGS.md) 维护；
 行为合同见[桌面伙伴合同](shaniu-desktop-companion.md)，具体数据以日期化
-[verification 记录](../../verification/bk7258/)为准。本文于 2026-11-04 核对：
-官方分支头为 `906a38d3`（[官方 build/verify-delivery push 运行成功](https://github.com/open-vela/contest2026_135_yongwangzhiqian/actions/runs/41676359713)），PR #140 已合入，合并后 `b21fa804`
-的 build 与 verify-delivery 均成功；所选提交的 Actions 结果仍须在下载或演示前复核。
+[verification 记录](../../verification/bk7258/)为准。下载、演示或评审时先记录所用提交，
+再核对该提交在[官方 Actions 工作流](https://github.com/open-vela/contest2026_135_yongwangzhiqian/actions/workflows/shaniu-source-checks.yml)
+中的构建与独立交付校验；不以本文创建时的分支头或 PR 编号代替该核对。
 
 **证据层级**：实现（代码存在）→ 构建（固件/APK 可编译链接）→ 主机测试 →
 模拟器 → 实板观察（串口/回执）→ 真机手机 → 人工确认（看到、听到、摸到）。
@@ -14,14 +14,16 @@
 
 缩写：`app/` 指 `app/bk7258/`；`tools/` 指 `tools/bk7258/`；`apk/` 指
 `android/shaniu-companion/app/src/main/java/com/shaniu/companion/`；Agent 指
-manifest 固定的 `packages/ai_agent`（`76c65bc6`）。
+manifest 固定的 `packages/ai_agent`（`76c65bc6`）。Session 历史读取安全修复是
+唯一现役构建副本补丁：仅对原始 SHA-256 匹配的 `session_mgr.c` 应用，详情见
+[来源记录](../../../SOURCE_PROVENANCE.md)；它不改共享依赖 checkout。
 
 ## 语音与智能
 
 | 能力 | 使用与反馈 | 运行位置与依赖 | 实现 | 最高证据 | 剩余边界 |
 | --- | --- | --- | --- | --- | --- |
-| 本地唤醒 | 说“你好，openvela”；眼睛转为聆听，可播放预置“我在” | AP 上的 TFLM，32 通道 INT8 DS-CNN 23,640 B；不需网络 | `app/bk7258_voice_kws*.c`、`bk7258_agent_trigger.c`、`app/models/` | 实板：638 完整链路；11-03 真人唤醒两次本地命中（976/1000、859/1000） | 无真人多人误/漏唤醒统计；手机外放两次未触发（11-01） |
-| 连续问答与追问 | 唤醒后提问；播放排空后免唤醒追问；静默超时回待机 | 云端 ASR → Agent/LLM → 流式 TTS；需 Wi-Fi 与云配置 | Agent Session/Voice；`app/bk7258_agent_product.c`、`bk7258_cloud_*.c`、`bk7258_agent_media_*.c` | 实板：638（09-20）。11-03 缺网络与云配置时按设计不启动（`ENETDOWN`），非模型故障 | 当前版本完整语音未实板验收；真实云时延与首声未测 |
+| 本地唤醒 | 说“你好，openvela”；眼睛转为聆听，可播放预置“我在” | 公开源码基线为 AP 上的 TFLM 32 通道 INT8 DS-CNN 23,640 B；设备实际所选模型以当次设备回读为准，不从源码推定 | `app/bk7258_voice_kws*.c`、`bk7258_agent_trigger.c`、`app/models/` | 实板：638 完整链路；11-03 真人唤醒两次本地命中（976/1000、859/1000） | 无真人多人误/漏唤醒统计；当前板端模型身份与性能未在本轮公开验收 |
+| 连续问答与追问 | 唤醒后提问；播放排空后免唤醒追问；静默超时回待机 | 云端 ASR → Agent/LLM → 流式 TTS；需 Wi-Fi 与云配置 | Agent Session/Voice；`app/bk7258_agent_product.c`、`bk7258_cloud_*.c`、`bk7258_agent_media_*.c` | 实板：638（09-20）。11-03 缺网络与云配置时按设计不启动（`ENETDOWN`）；11-04 778/App 59 用户确认对话成功 | 11-04 用户确认不是自动化声学/云时延测试；真实云时延、首声和完整追问链路仍未量化 |
 | 流式首句与取消 | 首句可先播；内部取消路径可停止播放器，但播放期间不接收 MIC，不能宣称语音打断 | 同上 | Agent 流式路由、`bk7258_agent_final_stream`、`bk7258_agent_trigger_reply_cancel` | 工程 HIL（701，固定响应）正常/取消/下一轮；主机测试 | 真实云性能、取消总耗时上界、可面向用户操作的播放中取消尚未证明 |
 | 本地固定指令 | 音量、表情、停止、专注、启动小功能；命中后不请求 LLM/TTS | 仍需云端 ASR；执行在设备上；播报排空后才会恢复采集 | `app/bk7258_local_intent.c`、`bk7258_agent_local_intent.inc` | 主机测试（`run-agent-local-intent`）+ AIDK 构建 | 新指令未实板验收；不是离线语音或播放中语音打断 |
 | 拍照识物 | “看看这个”；LLM 选择 `camera_capture`，640×480 JPEG 进入同一会话 | AP 相机单所有者；云端多模态 | `app/bk7258_agent_vision.c`、`bk7258_vision_*.c` | 实板：639 用户确认；历史 20,251 B 帧 | 有颜色识别错例；无准确率统计 |
@@ -47,8 +49,8 @@ manifest 固定的 `packages/ai_agent`（`76c65bc6`）。
 
 | 能力 | 使用与反馈 | 运行位置与依赖 | 实现 | 最高证据 | 剩余边界 |
 | --- | --- | --- | --- | --- | --- |
-| 发现与认领 | 未认领设备自动开放首认领窗口后扫屏幕认领码；广播候选不等于已认证；结果不确定时“核对认领结果” | BLE GATT 上 TLS 1.2（证书 pin），无需互联网；普通按键是 PTT，旧 8 秒按住/松开仅回执恢复 | `app/bk7258_provision_*.c`；`apk/provision/` | 真机：637 认领、641 清除后重新认领；10-18、11-01 Mi 10 | 新板工厂首启 + 新版 App 首认领完整路径未验收 |
-| 配网与云服务 | 板子扫描 Wi-Fi，填写密码与云服务；保存后回读；当前默认聊天模型 `mimo-v2.6-flash` | 认证 BLE；密码与 Key 不回读 | `apk/provision/DeviceSettingsEditor.kt` | 真机历史记录；模拟器 11 个配网异常场景；11-04 Mi 10 上 `0.7.28-shaniu-mimo-chat` / code 58 云配置保存并回读、设备报告 Wi-Fi 就绪 | 11-04 只是设置状态；不证明当前语音、真实 BLE 生命周期或 OTA |
+| 发现与认领 | 未认领设备自动开放首认领窗口后扫屏幕认领码；广播候选不等于已认证；结果不确定时“核对认领结果” | BLE GATT 上 TLS 1.2（证书 pin），无需互联网；普通按键是 PTT，旧 8 秒按住/松开仅回执恢复 | `app/bk7258_provision_*.c`；`apk/provision/` | 历史：637 认领、641 清除后重新认领、10-18/11-01 Mi 10；当前：11-04 778/App 59 完成发现、初始化后重新认领、认证控制连接与状态回读 | 新板出厂首启、多轮断连恢复和长期 BLE 生命周期未验收 |
+| 配网与云服务 | 板子扫描 Wi-Fi，填写密码与云服务；保存后回读；源码默认聊天模型为 `mimo-v2.6-flash` | 认证 BLE；密码与 Key 不回读；实际板端模型以当次设备回读为准 | `apk/provision/DeviceSettingsEditor.kt` | 历史：App 58 云配置保存/回读、设备 Wi-Fi 就绪；当前：11-04 778/App 59 认证连接和状态回读，用户确认对话、拍照成功 | 用户确认不证明当前模型身份、时延、BLE 长稳或 OTA |
 | 定制页 | 眼睛资源、默认表情、限时试用、唤醒模型、回答与唤醒 | 资源经局域网 HTTPS；模型经认证 BLE | `apk/`；`app/bk7258_display_*`、`bk7258_voice_wake_package.c` | 实板：641 资源安装；模拟器草稿/取消/默认选择 | 新版本实机安装与回读未做 |
 | 固件更新 | 选择 `.bkpack`，保持前台；重连核对版本/计数才显示完成；中断后先查询结果 | 局域网 HTTPS + 签名、防回滚 | `apk/ota/OtaPackageServer.kt`；`app/bk7258_agent_ota.c`、`bk7258_voice_ota_*.c` | 实板：634 首次 OTA；767 升级与自动重连通过；770 升级成功但自动重连失败 | 来源上传期取消未实测；OTA 后重连仍为专项 |
 | 电脑授权 | 导入电脑配对请求，核对摘要，授予权限，导出加密响应 | 认证 BLE；电脑端 DPAPI 保存 | `apk/`；`app/bk7258_pc_authorization*.c` | 主机测试 + 模拟器文件确认/取消 | 手机→电脑完整导出导入的实机纵向验收未做 |
@@ -76,7 +78,7 @@ manifest 固定的 `packages/ai_agent`（`76c65bc6`）。
 | 唤醒模型训练 | 审计、训练、量化、TFLM 对齐、来源隔离评测 | `tools/_lib/voice_kws*.py` | 本地研究：多轮候选，合成留出测试有提升也有退步 | 无候选进入产品；真人与板端验收缺失；研究记录未公开 |
 | TTS 供应商对比 | MiMo SSE 对比腾讯云 WebSocket，同板同输入 | `app/bk7258_tencent_tts.c`（仅测试配置） | 本地研究 R7：5 次小样本，保留 MiMo | 不是普遍排名 |
 | Wi-Fi CSI | 独立诊断配置采集原始 CSI 并导出到电脑 | `csi_cp`/`csi_ap`；`tools/_lib/csi.py` | [实板 60 s 1,379 帧无缺帧](../../verification/bk7258/2026-10-31-wifi-csi.md) | 只有采集，没有存在/动作识别结论 |
-| 云端冷构建 | 干净 manifest 同步、开发身份签名构建、App、回归、独立复核 | `.github/workflows/shaniu-source-checks.yml` | PR #140 合并后 `b21fa804`：build 与 verify-delivery 成功 | artifact 只保留 7 天；开发身份包不等于作者签名发布，也不证明实板 |
+| 云端冷构建 | 干净 manifest 同步、开发身份签名构建、App、回归、独立复核 | `.github/workflows/shaniu-source-checks.yml` | 对下载或提交所选 commit 核对其对应 Actions 结果 | artifact 只保留 7 天；开发身份包不等于作者签名发布，也不证明实板 |
 
 ## 失败与修复
 
@@ -94,11 +96,12 @@ manifest 固定的 `packages/ai_agent`（`76c65bc6`）。
 | 11-03 | 真人唤醒命中但对话 `ENETDOWN` | 设备只保存了 owner，缺网络与云配置；需手机补齐后再验 |
 | 11-03 | 录音正常结束误报错误 | 媒体依赖 `eee16420` 修复并固定到 manifest；906 官方冷构建通过，当前整机语音回归仍待完成 |
 | 11-03 | 模拟器配网异常组合超时 | 定位到模拟器图形层，软件渲染重启后完整通过；失败录像保留 |
-| 11-03 | CI 合同步骤 `SETUP_ERROR` | GCC 13 `-Waddress` 与测试 `-Werror` 组合；测试编译选项已修复，`b21fa804` 及 `906a38d3` 官方 CI 均通过 |
+| 11-03 | CI 合同步骤 `SETUP_ERROR` | GCC 13 `-Waddress` 与测试 `-Werror` 组合；测试编译选项已修复。对当前提交应以对应 Actions 结果复核 |
+| 11-04 · 778/App 59 | 初次下载后发现失败，原因为数据卷未初始化 | 使用既有工厂初始化路径后，发现、重新认领、认证控制连接与状态回读成功；用户确认对话、拍照成功，不外推为 OTA、断电恢复、长稳或当前模型身份验收 |
 
 ## 需要人工配合的验收
 
-按优先级：已绑定手机补齐网络与云服务配置后，验证唤醒、追问、停止和识物；
-手机拒绝一次；兼容 NFC 卡登记与触发；拿起/倾斜与完成振感；资源授权后
-装包与回读；最后单独安排 OTA 与升级后重连。逐条步骤见本地答辩材料中的拍摄与
-验证清单。
+当前 778/App 59 已完成发现、重新认领、认证状态回读，并有用户确认的对话、拍照。
+按优先级仍须独立验证：唤醒、追问、停止的可重复声学链路和时延；手机拒绝一次；
+兼容 NFC 卡登记与触发；拿起/倾斜与完成振感；资源授权后装包与回读；最后单独安排
+OTA、升级后重连和断电恢复。逐条步骤见本地答辩材料中的拍摄与验证清单。

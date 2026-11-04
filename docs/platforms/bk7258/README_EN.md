@@ -42,7 +42,7 @@ Paths below are relative to the contest repository root.
 | Firmware products | `app/bk7258/`, `app/dolphin/` | Shaniu product services and the separate Dolphin product |
 | Phone | `android/shaniu-companion/` | Native Android claim, authenticated BLE/TLS, settings, approvals and OTA |
 | Computer and maintenance | `tools/bk7258/bk7258.py`, `tools/bk7258/_lib/` | One CLI with build, resource, workbench, signing and delivery domains |
-| Build integration | `contest2026_135_yongwangzhiqian.xml`, `frameworks/cmake/` | Pinned dependencies, directory mappings and existing framework integration |
+| Build integration | `contest2026_135_yongwangzhiqian.xml`, `frameworks/cmake/` | Pinned dependencies, directory mappings and existing framework integration; the Agent Session history safety patch applies only to a SHA-256-pinned build copy |
 | Verification | `tests/host/bk7258/`, `app/testing/bk7258/`, `tests/pytest/test_bk7258/` | Host regressions, target tests and controlled hardware automation |
 
 See the [project architecture](../../../README_EN.md#architecture) for runtime
@@ -68,8 +68,9 @@ history; historical evidence links to a fixed source version.
 - [Contest report](../../contest/技术报告-BK7258三核适配与傻妞AI伴侣.md) retains the
   contest snapshot; the root README contains videos and the build guide.
   Current board acceptance is summarized only in `boards/bk7258/CONFIGS.md`.
-  Published dependency identities belong to the team manifest and
-  `SOURCE_PROVENANCE.md`.
+  Published dependency identities belong to the team manifest and the
+  [source record](../../../SOURCE_PROVENANCE.md), which also records the sole active Agent Session
+  build-copy patch and its source-hash constraint.
 - [November 3 feature checks and recordings](../../verification/bk7258/2026-11-03-feature-validation/README.md)
   retain the dated board, emulator and logging-fix build evidence; they do not
   replace the current acceptance entry.

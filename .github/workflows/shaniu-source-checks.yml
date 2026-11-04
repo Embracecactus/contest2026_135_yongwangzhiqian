@@ -4,19 +4,6 @@ name: Shaniu cold delivery
 on:
   push:
     branches: [dev-ai-contest-2026]
-    paths:
-      - '.github/workflows/shaniu-source-checks.yml'
-      - '.github/scripts/shaniu_source.py'
-      - 'app/bk7258/**'
-      - 'boards/bk7258/**'
-      - 'chips/bk7258/**'
-      - 'frameworks/**'
-      - 'nuttx/**'
-      - 'android/shaniu-companion/**'
-      - 'tools/bk7258/**'
-      - 'tests/host/bk7258/**'
-      - 'contest2026_135_yongwangzhiqian.xml'
-      - 'openvela.xml'
   pull_request:
     branches: [dev-ai-contest-2026]
     types: [opened, synchronize, reopened]
@@ -39,7 +26,9 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ github.sha }}
-          fetch-depth: 2
+          # The verified checkout serves repo sync locally; a shallow server
+          # would make Git reject updates to newly fetched refs.
+          fetch-depth: 0
           persist-credentials: false
       - name: Resolve the immutable event candidate
         run: |
@@ -60,12 +49,24 @@ jobs:
           mkdir -p "$cold"
           cd "$cold"
           candidate_url=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["repository_url"])' "$RUNNER_TEMP/source-inputs.json")
+          # The checkout already proved the Actions candidate and its PR
+          # parents. Mirror it locally so a just-merged PR's ephemeral
+          # refs/pull/N/merge is never fetched again. Git rewrites transport
+          # only: the manifest still declares the public URL and exact SHA.
+          candidate_mirror="$RUNNER_TEMP/shaniu-candidate.git"
+          candidate_git_config="$RUNNER_TEMP/shaniu-candidate.gitconfig"
+          python3 "$GITHUB_WORKSPACE/.github/scripts/shaniu_source.py" prepare-mirror \
+            --inputs "$RUNNER_TEMP/source-inputs.json" \
+            --event-checkout "$GITHUB_WORKSPACE" --mirror "$candidate_mirror" \
+            --git-config "$candidate_git_config"
+          export GIT_CONFIG_GLOBAL="$candidate_git_config"
+          export GIT_CONFIG_NOSYSTEM=1
           repo init -u "$candidate_url" \
-            -b "$GITHUB_REF" \
+            -b "$GITHUB_SHA" \
             -m contest2026_135_yongwangzhiqian.xml \
             -g default,bk7258-sdk,platform-linux
-          # The distro launcher bootstraps from a full ref. Fail closed if it
-          # moved; no dependency sync/build occurs until the exact SHA matches.
+          # No dependency sync/build occurs until the manifest matches the
+          # immutable event candidate.
           test "$(git -C .repo/manifests rev-parse HEAD)" = "$GITHUB_SHA"
           # Override only team source BEFORE sync; dependencies retain their pins/remotes.
           python3 "$GITHUB_WORKSPACE/.github/scripts/shaniu_source.py" override \

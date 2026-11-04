@@ -84,6 +84,26 @@ def git(directory, *args):
     return subprocess.check_output(['git', '-C', str(directory), *args], text=True).strip()
 
 
+def prepare_candidate_mirror(identity, event_checkout, mirror_path, git_config):
+    """Expose the verified checkout through a fixed local ref for repo sync."""
+    candidate = sha(identity['candidate_sha'])
+    event_checkout = Path(event_checkout)
+    if git(event_checkout, 'rev-parse', 'HEAD') != candidate:
+        raise ValueError('event checkout differs from candidate SHA')
+    mirror_path = Path(mirror_path)
+    git_config = Path(git_config)
+    subprocess.run(['git', 'clone', '--bare', str(event_checkout), str(mirror_path)], check=True)
+    subprocess.run(['git', '--git-dir', str(mirror_path), 'update-ref', identity['fetch_ref'], candidate],
+                   check=True)
+    mirror_url = mirror_path.resolve().as_uri()
+    git_config.parent.mkdir(parents=True, exist_ok=True)
+    if git_config.exists():
+        git_config.unlink()
+    for url in (identity['repository_url'], identity['repository_url'].removesuffix('.git')):
+        subprocess.run(['git', 'config', '--file', str(git_config), '--add',
+                        f'url.{mirror_url}.insteadOf', url], check=True)
+
+
 def verify_checkouts(identity, manifest_dir, source_dir, event_dir):
     result = dict(identity)
     candidate = sha(identity['candidate_sha'])
@@ -201,12 +221,14 @@ def verify_delivery(identity, delivery):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=('resolve', 'override', 'verify', 'delivery', 'stage-evidence'))
+    parser.add_argument('action', choices=('resolve', 'override', 'prepare-mirror', 'verify', 'delivery', 'stage-evidence'))
     parser.add_argument('--inputs', type=Path, required=True)
     parser.add_argument('--output', type=Path)
     parser.add_argument('--manifest', type=Path)
     parser.add_argument('--source', type=Path)
     parser.add_argument('--event-checkout', type=Path)
+    parser.add_argument('--mirror', type=Path)
+    parser.add_argument('--git-config', type=Path)
     args = parser.parse_args()
     if args.action == 'stage-evidence':
         stage_build_evidence(args.inputs, args.source, args.output)
@@ -223,6 +245,10 @@ def main():
         args.inputs.write_text(json.dumps(identity, indent=2) + '\n')
     elif args.action == 'override':
         write_override(identity, args.output)
+    elif args.action == 'prepare-mirror':
+        if args.event_checkout is None or args.mirror is None or args.git_config is None:
+            raise ValueError('prepare-mirror requires an event checkout, mirror, and Git config')
+        prepare_candidate_mirror(identity, args.event_checkout, args.mirror, args.git_config)
     elif args.action == 'verify':
         identity = verify_checkouts(identity, args.manifest, args.source, args.event_checkout)
         args.inputs.write_text(json.dumps(identity, indent=2) + '\n')
