@@ -162,4 +162,28 @@ class AgentDataControllerTest {
         f.read(state(2, """[{"id":"breath-coach","version":1,"name":"呼吸练习","description":"提示","sha256":"a","permissions":["display"]}]"""), 2)
         assertNotNull(f.controller.current().document)
     }
+    @Test fun nativeDirectoryReads8191ByteBodyWithoutClosingTheSession() {
+        val f = Fixture(28)
+        val prefix = "{\"revision\":\"1\",\"items\":[],\"pad\":\""
+        val suffix = "\"}"
+        val document = prefix + "x".repeat(8191 - prefix.toByteArray().size - suffix.toByteArray().size) + suffix
+        assertEquals(8191, document.toByteArray().size)
+        assertTrue(f.controller.refresh())
+        f.read(document, 1)
+        assertNotNull(f.controller.current().document)
+        assertTrue(f.session.current().authenticated)
+        assertTrue(f.sent.any { (command, payload) ->
+            command == DeviceControlProtocol.Command.CONFIG_READ &&
+                ByteBuffer.wrap(payload).int == ((28 shl 16) or 8192)
+        })
+    }
+    @Test fun nonNativeDirectoryRetains4095ByteReadLimit() {
+        val f = Fixture(27)
+        assertTrue(f.controller.refresh())
+        val oversizedHeader = ByteBuffer.allocate(16).put("AJV1".toByteArray()).putInt(4096).putLong(1).array()
+        f.reply(total = 4112, bytes = oversizedHeader)
+        assertNull(f.controller.current().document)
+        assertTrue(f.controller.current().message.contains("格式"))
+        assertTrue(f.session.current().authenticated)
+    }
 }

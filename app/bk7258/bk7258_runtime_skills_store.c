@@ -69,6 +69,15 @@ int bkruntime_skills_store_load(void *buffer, size_t capacity,
     }
 
   ret = bkprov_store_load(&store, buffer, capacity, actual, revision, NULL);
+  if (ret == -ENOENT)
+    {
+      /* mkdir and staging precede the first atomic publication. A leftover
+       * config.pending was never committed and cannot activate a Skill.
+       */
+
+      return 0;
+    }
+
   if (ret == -ENOSPC)
     {
       return -EBADMSG;

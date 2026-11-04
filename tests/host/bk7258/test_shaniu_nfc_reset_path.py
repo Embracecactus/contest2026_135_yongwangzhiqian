@@ -20,6 +20,7 @@ def run(code):
                 "-Wextra",
                 "-Werror",
                 "-Wno-unused-function",
+                "-I" + str(ROOT / "app/bk7258"),
                 str(p / "test.c"),
                 "-o",
                 str(p / "test"),
@@ -32,15 +33,16 @@ def run(code):
 class NfcResetPathTest(unittest.TestCase):
     def test_filesystem(self):
         source = (ROOT / "app/bk7258/bk7258_provision_store.c").read_text()
-        source = source.replace(
-            "int bkprov_store_check_filesystem(",
-            "static int bkprov_store_check_filesystem(",
-        )
+        source = source.replace("int bkprov_store_check_filesystem(",
+                                "static int bkprov_store_check_filesystem(")
         code = (
             r"""
 #include <assert.h>
 #include <errno.h>
 #include <string.h>
+#define bkprov_store_check_filesystem unused_store_declaration
+#include "bk7258_provision_store.h"
+#undef bkprov_store_check_filesystem
 #define __NuttX__ 1
 #define CONFIG_BK7258_RPMSGFS 1
 #define CONFIG_BK7258_AP_CORE 1
@@ -61,7 +63,57 @@ int main(void) {
  assert(bkprov_store_check_filesystem("/cpdata/shaniu/pc-grants/../identity")==-EXDEV);
  assert(bkprov_store_check_filesystem("/cpdata/shaniu/nfc-cards-evil")==-EXDEV);
  assert(bkprov_store_check_filesystem("/cpdata/shaniu/nfc-cards/../identity")==-EXDEV);
+ assert(bkprov_store_check_filesystem(BKPROV_NATIVE_ROOT)==0);
+ assert(bkprov_store_check_filesystem(BKPROV_NATIVE_ROOT BKPROV_NATIVE_SCHEDULE)==0);
+ assert(bkprov_store_check_filesystem(BKPROV_NATIVE_ROOT BKPROV_NATIVE_STATE "app-1")==0);
+ assert(bkprov_store_check_filesystem(BKPROV_NATIVE_ROOT BKPROV_NATIVE_STATE "1234567890123456789012345678901")==0);
+ assert(bkprov_store_check_filesystem(BKPROV_NATIVE_ROOT BKPROV_NATIVE_LEGACY_STATE "app-1")==0);
+ assert(bkprov_store_check_filesystem(BKPROV_NATIVE_ROOT BKPROV_NATIVE_LEGACY_STATE "12345678901234567890123456")==-EXDEV);
+ assert(bkprov_store_check_filesystem(BKPROV_NATIVE_ROOT "/schedule/../identity")==-EXDEV);
+ assert(bkprov_store_check_filesystem(BKPROV_NATIVE_ROOT "/schedule-extra")==-EXDEV);
+ assert(bkprov_store_check_filesystem(BKPROV_NATIVE_ROOT BKPROV_NATIVE_STATE)==-EXDEV);
+ assert(bkprov_store_check_filesystem(BKPROV_NATIVE_ROOT BKPROV_NATIVE_STATE "-bad")==-EXDEV);
+ assert(bkprov_store_check_filesystem(BKPROV_NATIVE_ROOT BKPROV_NATIVE_STATE "../identity")==-EXDEV);
+ assert(bkprov_store_check_filesystem(BKPROV_NATIVE_ROOT BKPROV_NATIVE_STATE "app/nested")==-EXDEV);
+ assert(bkprov_store_check_filesystem(BKPROV_NATIVE_ROOT BKPROV_NATIVE_STATE "12345678901234567890123456789012")==-EXDEV);
  blocks=0;assert(bkprov_store_check_filesystem("/cpdata/shaniu/nfc-cards")==-ENODEV);
+ assert(bkprov_store_check_filesystem(BKPROV_NATIVE_ROOT BKPROV_NATIVE_SCHEDULE)==-ENODEV);
+ return 0;
+}
+"""
+        )
+        run(code)
+
+    def test_native_state_path_fits_target_inode(self):
+        native = (ROOT / "app/bk7258/bk7258_native_apps.c").read_text()
+        inode = (ROOT.parent / "nuttx/fs/inode/fs_inodesearch.c").read_text()
+        code = (
+            r"""
+#include <assert.h>
+#include <errno.h>
+#include <stdio.h>
+#include <string.h>
+#include "bk7258_provision_store.h"
+#define BKNATIVE_ROOT BKPROV_NATIVE_ROOT
+#define NAME_MAX 32
+#define PATH_MAX 256
+#define OK 0
+"""
+            + function(native, "state_path")
+            + function(inode, "_inode_checkpath")
+            + r"""
+int main(void) {
+ char id[32], path[96], file[128], other[96];
+ for (size_t n=25; n<=31; n++) {
+   memset(id, 'a', n); id[n]=0;
+   state_path(id, path, sizeof(path));
+   snprintf(file, sizeof(file), "%s/config.bin", path);
+   assert(_inode_checkpath(path)==0 && _inode_checkpath(file)==0);
+ }
+ id[30]='b'; state_path(id, other, sizeof(other));
+ assert(strcmp(path, other)!=0);
+ snprintf(file, sizeof(file), BKNATIVE_ROOT "/state-%s/config.bin", id);
+ assert(_inode_checkpath(file)==-ENAMETOOLONG);
  return 0;
 }
 """

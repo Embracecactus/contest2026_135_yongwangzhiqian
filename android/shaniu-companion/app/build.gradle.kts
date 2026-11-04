@@ -13,8 +13,8 @@ android {
         applicationId = "com.shaniu.companion"
         minSdk = 29
         targetSdk = 35
-        versionCode = 58
-        versionName = "0.7.28-shaniu-mimo-chat"
+        versionCode = 59
+        versionName = "0.7.29-shaniu-finals-fixes"
         testInstrumentationRunner = "com.shaniu.companion.provision.ControlKeyInstrumentation"
     }
 

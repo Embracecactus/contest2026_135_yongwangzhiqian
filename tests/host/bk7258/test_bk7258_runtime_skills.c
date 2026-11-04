@@ -10,6 +10,7 @@
 #include "bk7258_provision_store.h"
 #include <unistd.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 
 static int g_commit_failure;
 int __real_bkprov_store_commit(struct bkprov_store_s *store, uint64_t expected,
@@ -67,6 +68,32 @@ int main(int argc, char **argv)
  (void)unlink("/tmp/bk7258-runtime-skills/config.pending");
  (void)rmdir("/tmp/bk7258-runtime-skills/config.pending");
  (void)rmdir("/tmp/bk7258-runtime-skills");
+ /* First-save interruption leaves an empty directory, not a corrupt store. */
+ assert(mkdir("/tmp/bk7258-runtime-skills", 0700) == 0);
+ for (int attempt = 0; attempt < 2; attempt++)
+   {
+     char reply[4096];
+     assert(bk7258_runtime_skills_init() == 0);
+     g_commit_failure = attempt ? -EINPROGRESS : -EIO;
+     assert(bk7258_runtime_skills_app_apply(
+       "{\"revision\":\"1\",\"id\":\"focus-coach\",\"enabled\":false}",
+       reply, sizeof(reply)) == g_commit_failure);
+     g_commit_failure = 0;
+     assert(bk7258_runtime_skills_init() == 0);
+     assert(bk7258_runtime_skills_begin(1, "ordinary conversation") == 0);
+     bk7258_runtime_skills_end(1);
+   }
+ {
+   char reply[4096];
+   const char *edit = "{\"revision\":\"1\",\"id\":\"focus-coach\",\"enabled\":false}";
+   assert(bk7258_runtime_skills_app_apply(edit, reply, sizeof(reply)) == 0);
+   FILE *file = fopen("/tmp/bk7258-runtime-skills/config.bin", "wb");
+   assert(file && fputs("corrupt committed record", file) >= 0 && fclose(file) == 0);
+   assert(bk7258_runtime_skills_init() == -EBADMSG);
+   assert(bk7258_runtime_skills_begin(2, "ordinary conversation") == -EINPROGRESS);
+   assert(bk7258_runtime_skills_app_apply(edit, reply, sizeof(reply)) == -EINPROGRESS);
+   assert(unlink("/tmp/bk7258-runtime-skills/config.bin") == 0);
+ }
  assert(bk7258_runtime_skills_init() == 0);
  assert(bk7258_runtime_skills_begin(1,"专注助手：开始") == 1);
  assert(bk7258_runtime_skills_begin(1,"识物解说：这个") == 1);

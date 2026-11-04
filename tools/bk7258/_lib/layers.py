@@ -22,7 +22,7 @@ SDK_INCLUDE_ROOTS = {
     "soc",
 }
 SDK_PRIVATE_INCLUDE_ROOTS = {"armino_as_lib", "bk_avdk", "bk_idk"}
-SOURCE_SUFFIXES = {".c", ".h", ".cc", ".cpp"}
+SOURCE_SUFFIXES = {".c", ".h", ".cc", ".cpp", ".inc"}
 BUILD_FILENAMES = {"CMakeLists.txt", "Makefile", "Make.defs"}
 BUILD_SUFFIXES = {".cmake", ".defs", ".mk", ".sh", ".py"}
 EXCEPTIONS = Path("tools/bk7258/layer_exceptions.json")

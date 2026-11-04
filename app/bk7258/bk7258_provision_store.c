@@ -68,6 +68,34 @@ int bkprov_store_check_filesystem(const char *root)
   if (statfs(root, &fs) < 0) return -errno;
   if (fs.f_type == LITTLEFS_SUPER_MAGIC) return 0;
 #if defined(CONFIG_BK7258_RPMSGFS) && defined(CONFIG_BK7258_AP_CORE)
+  const char *state = BKPROV_NATIVE_ROOT BKPROV_NATIVE_STATE;
+  size_t prefix = strlen(state);
+  size_t id_length = strlen(root);
+  size_t id_max = 31;
+  int native_state = 0;
+  if (strncmp(root, state, prefix))
+    {
+      state = BKPROV_NATIVE_ROOT BKPROV_NATIVE_LEGACY_STATE;
+      prefix = strlen(state);
+      id_max = 25;
+    }
+
+  if (id_length > prefix && id_length <= prefix + id_max &&
+      !strncmp(root, state, prefix))
+    {
+      const char *id = root + prefix;
+      native_state = *id != '-';
+      for (; native_state && *id; id++)
+        {
+          if (!(*id >= 'a' && *id <= 'z') &&
+              !(*id >= '0' && *id <= '9') && *id != '-')
+            {
+              native_state = 0;
+              break;
+            }
+        }
+    }
+
   /* The chip binding mounts cpu=cp,fs=/data at /cpdata. CP alone mounts
    * LittleFS there. Stock RPMsgFS replaces f_type, but retains the remote
    * geometry. An unmounted CP pseudo-directory has zero blocks. Do not
@@ -83,7 +111,10 @@ int bkprov_store_check_filesystem(const char *root)
        !strcmp(root, "/cpdata/shaniu/cloud-models") ||
        !strcmp(root, "/cpdata/shaniu/response-length") ||
        !strcmp(root, "/cpdata/shaniu/runtime-skills") ||
-       !strcmp(root, "/cpdata/shaniu/native-apps") ||
+       !strcmp(root, BKPROV_NATIVE_ROOT) ||
+       !strcmp(root, BKPROV_NATIVE_ROOT BKPROV_NATIVE_SCHEDULE) ||
+       !strcmp(root, BKPROV_NATIVE_ROOT BKPROV_NATIVE_STATE_DIRECTORY) ||
+       native_state ||
        !strcmp(root, "/cpdata/shaniu/wake-models") ||
        !strcmp(root, "/cpdata/shaniu/nfc-cards") ||
        !strcmp(root, "/cpdata/shaniu/pc-grants")))
