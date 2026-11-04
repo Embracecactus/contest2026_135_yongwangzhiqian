@@ -12,7 +12,7 @@
 | F05 | 连接链与帮助诊断 | 已实现 | s04 认领与配网 · 1:11.0–1:12.2<br>s11 天亮 · 7:09.8–7:12.0 | 连接链：手机 ↔ 傻妞 ↔ 语音服务<br>改名后连接链断开一段：设备未联网 | apk/DevicePage.kt<br>apk/SettingsPage.kt（帮助与诊断）<br>android/shaniu-companion/DESIGN.md（connectionChain） | 模拟器两主题各 30 场景；真机历史 |
 | F06 | 更换 Wi-Fi（不必重新认领） | 已实现 | s11 天亮 · 7:09.8–7:15.0 | “连接还在，不必重新认领” → 更换 Wi-Fi → 屿的家 | apk/DevicePage.kt（更换 Wi-Fi）<br>apk/SettingsPage.kt | 实现 + 模拟器；真机配网历史记录 |
 | F07 | 本地唤醒“你好，openvela” | 已实现 | s05 我在 · 1:18.2–1:21.4 | 第一次说“你好，openvela”，本地唤醒 | app/bk7258_voice_kws.c<br>app/bk7258_agent_trigger.c<br>app/models/nihao_openvela.tflite | 实板：638 完整链路；11-03 真人唤醒两次本地命中；无真人多人统计 |
-| F08 | 预置唤醒应答“我在” | 已实现 | s05 我在 · 1:20.8–1:21.4<br>s06 把她调成晴 · 2:23.4–2:31.0 | 预置“我在”（公开内置素材）<br>App：当前固件未提供独立的唤醒应答设置 | app/bk7258/bk7258_agent_trigger.c（bk7258_agent_trigger_reply）<br>app/bk7258/bk7258_agent_product.c（VOICE_CHANNEL_EVENT_WAKE_ACK_REQUEST）<br>app/bk7258/assets/WAKE_REPLY_PUBLIC.md<br>boards/bk7258/aidk_ai_toy/Kconfig（PUBLIC / PRIVATE / TONE 三选一）<br>apk/CustomizePage.kt | 实板：638 播放（验证配置使用私有授权素材）；片中使用公开默认素材 wake_reply_public.pcm（Kokoro v1.1-zh sid 0，非克隆），不是板子扬声器录音 |
+| F08 | 预置唤醒应答“我在” | 已实现 | s05 我在 · 1:20.8–1:21.4<br>s06 把她调成晴 · 2:23.4–2:31.0 | 预置“我在”（最新交付为授权板载同源 PCM 的 9 处后处理替换，非扬声器实录）<br>App：当前固件未提供独立的唤醒应答设置 | app/bk7258/bk7258_agent_trigger.c（bk7258_agent_trigger_reply）<br>app/bk7258/bk7258_agent_product.c（VOICE_CHANNEL_EVENT_WAKE_ACK_REQUEST）<br>app/bk7258/assets/WAKE_REPLY_PUBLIC.md<br>boards/bk7258/aidk_ai_toy/Kconfig（PUBLIC / PRIVATE / TONE 三选一）<br>apk/CustomizePage.kt | 实板：638 播放（验证配置使用私有授权素材）；旧版片中使用公开默认素材 wake_reply_public.pcm（Kokoro v1.1-zh sid 0，非克隆）。最新交付的 9 处“我在”替换为授权板载同源 PCM（SHA-256 772a8aa9…，源音频不公开）；两者均不是板子扬声器录音，也不构成新的实机验收 |
 | F09 | 聆听 / 思考 / 说话状态眼 | 已实现 | s05 我在 · 1:20.6–1:29.7 | 唤醒 look_left → 思考 blink_half → 说话 speaking | app/bk7258/bk7258_agent_product.c（bk7258_display_activity / bk7258_display_speaking）<br>app/bk7258/bk7258_display_companion.inc（frames[]）<br>app/bk7258/bk7258_display_service.c | 实板：638/641；11-03 渲染回读 |
 | F10 | 云端对话（ASR → Agent/LLM → 流式 TTS） | 已实现 | s05 我在 · 1:24.3–1:29.7<br>s05 我在 · 1:33.8–1:50.8 | 云端对话（片中回答为动画演绎）<br>插段：本地认出唤醒词，其余经 CP 出门到云端听/想/说，再流回来 | packages/ai_agent（官方 Agent，manifest 固定 76c65bc6）<br>app/bk7258_agent_product.c<br>app/bk7258_cloud_*.c<br>app/bk7258_agent_media_*.c | 实板：638 完整链路；11-03 夜间一次真人问答听到回答；当前 775 未重做真人问答 |
 | F11 | 免唤醒追问与静默回待机 | 已实现 | s05 我在 · 1:29.8–1:33.6<br>s07 日子 · 2:55.0–2:58.6 | 免唤醒追问<br>唤醒后不说话，静默回待机 | app/bk7258_agent_product.c<br>guide §B | 实板：638 |
@@ -68,6 +68,6 @@
 
 ## 声音的来源
 
-- “我在”：项目公开内置素材 `app/bk7258/assets/wake_reply_public.pcm`（Kokoro-82M v1.1-zh，sid 0，非克隆），只做重采样，不是板子扬声器录音。私有授权素材 `wake_reply.pcm` 不用于本片。
-- 傻妞的其他台词：同一模型、以“我在”的音色为主（0.8·sid0 + 0.2·sid8）的合成演绎；真实设备上的回答来自用户配置的云端语音合成，音色可能不同。
+- “我在”：旧版工程使用项目公开内置素材 `app/bk7258/assets/wake_reply_public.pcm`（Kokoro-82M v1.1-zh，sid 0，非克隆）。最新交付的 9 处“我在”替换为授权板载同源 PCM（SHA-256 `772a8aa9…`，源音频不公开）；两者都不是板子扬声器录音，也不构成新的实机验收。
+- 傻妞的其他台词：沿用原版 Kokoro 合成（0.8·sid0 + 0.2·sid8），与公开默认“我在”配套；不是从替换后的授权 PCM 克隆或重生成。真实设备上的回答来自用户配置的云端语音合成，音色可能不同。
 - 周屿（旁白与对白）：剪映 SAMI 配音“温柔男主”（zh_male_iclvop_chenxuanqinggan），见 `audio/voice/audition/REPORT.md`。

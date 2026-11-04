@@ -21,8 +21,9 @@
 
 | 内容 | 来源 | 说明 |
 | --- | --- | --- |
-| 旧“我在”W.wav 的生成流程 | 项目公开内置素材 `app/bk7258/assets/wake_reply_public.pcm`（SHA-256 62091092…；Kokoro-82M v1.1-zh int8，sid 0，非克隆，来源见 `WAKE_REPLY_PUBLIC.md`） | 旧 WAV 不随源码入仓；其生成时只重采样，且不是板子扬声器录音。私有授权素材 `wake_reply.pcm` 不用于本片 |
-| 傻妞其他台词 S01–S07 | 同一 Kokoro 固定文件（`csukuangfj/kokoro-int8-multi-lang-v1_1` @ 155831f1，sherpa-onnx 1.13.8），0.8·sid0 + 0.2·sid8 的风格向量混合 | Kokoro Apache-2.0；不模仿真人 |
+| 旧“我在”W.wav 的生成流程 | 项目公开内置素材 `app/bk7258/assets/wake_reply_public.pcm`（SHA-256 `62091092ee2cde223e43a8a5364a5769620dbb2be903801ebcdfe16975b351ae`；Kokoro-82M v1.1-zh int8，sid 0，非克隆，来源见 `WAKE_REPLY_PUBLIC.md`） | 旧 WAV 不随源码入仓；其生成时只重采样，且不是板子扬声器录音 |
+| 最新交付的 9 处“我在”替换 | 授权板载同源 PCM16LE，16 kHz 单声道、31,208 字节、SHA-256 `772a8aa9841a96bf96acdce733e4e6a67c2b46968333edb51fedc7511e3cc42f` | 通过后处理替换既有成片的 9 个音频区间；不是扬声器实录、源音频不公开。作者已授权公开替换后的成片；该记录不构成新的实机验收 |
+| 傻妞其他台词 S01–S07 | 原版 Kokoro 固定文件（`csukuangfj/kokoro-int8-multi-lang-v1_1` @ 155831f1，sherpa-onnx 1.13.8），0.8·sid0 + 0.2·sid8 的风格向量混合 | 沿用原版、与公开默认“我在”配套；不是从替换后的授权 PCM 克隆或重生成。Kokoro Apache-2.0；不模仿真人 |
 | 四拍节律 `audio/sfx/local_rhythm.pcm` | 项目固件素材 `app/bk7258/assets/local_rhythm.pcm` | 项目素材 |
 | 周屿（旁白与对白） | 剪映 SAMI 配音“温柔男主”（`zh_male_iclvop_chenxuanqinggan`，资源 7372406447696515584），经调用方显式指定的配音工具生成 | 资源元数据：is_vip 0、business_scope UNLIMITED、extra_is_vip true、entitlement_verified false。权益未核验；音频不随源码入仓，公开或商用前请在剪映中确认 |
 | 上一版 GG侠 配音 | 剪映 SAMI `ICL_zh_male_zhuzhuxia` | 历史资料，不用于 v3.1，也不随本工程源码入仓 |
@@ -33,7 +34,7 @@
 
 ## 仓库同步边界
 
-本目录提交可编辑的画面源码、剧本、文本清单、字幕、生成工具和具有已列明来源的最小画面资产。生成的音频、试听、旧 GG侠配音、外部配音输入与后处理输出、分轨、母带、渲染缓存、剪映草稿和成片均不入仓。旧 `W.wav` 的生成流程仍对应上表所列公开音源版本；最新交付的实板“我在”替换及中文字幕 9 处替换，按 `verification/20261104-board-wake/` 中的校验元数据复核，不在此处重述为重新制作。
+本目录提交可编辑的画面源码、剧本、文本清单、字幕、生成工具和具有已列明来源的最小画面资产。生成的音频、试听、旧 GG侠配音、外部配音输入与后处理输出、分轨、母带、渲染缓存、剪映草稿和成片均不入仓。旧 `W.wav` 的生成流程仍对应上表所列公开音源版本；最新交付的授权板载同源 PCM 9 处替换及中文字幕，按 `verification/20261104-board-wake/` 中的校验元数据复核，不在此处重述为重新制作。
 
 ## 只用于分析（不进入成片）
 
