@@ -119,7 +119,7 @@
     "boards/bk7258/aidk_ai_toy/Kconfig（PUBLIC / PRIVATE / TONE 三选一）",
     "apk/CustomizePage.kt"
    ],
-   "status": "实板：638 播放（验证配置使用私有授权素材）；旧版片中使用公开默认素材 wake_reply_public.pcm（Kokoro v1.1-zh sid 0，非克隆）。最新交付的 9 处“我在”替换为授权板载同源 PCM（SHA-256 772a8aa9…，源音频不公开）；两者均不是板子扬声器录音，也不构成新的实机验收",
+   "status": "实板：638 播放（验证配置使用私有授权素材）；旧版片中使用公开默认素材 wake_reply_public.pcm（Kokoro v1.1-zh sid 0，非克隆）。最新交付的 9 处“我在”替换为授权板载同源 PCM（SHA-256 772a8aa9…，该短 PCM 已按比赛期间授权入库）；两者均不是板子扬声器录音，也不构成新的实机验收",
    "availability": "shipping"
   },
   {
