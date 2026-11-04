@@ -4,9 +4,11 @@
 import argparse
 import importlib
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -84,6 +86,49 @@ class RunnerTest(unittest.TestCase):
         self.assertEqual(result["reason"], "timeout")
         self.assertIsNotNone(result["process_returncode"])
         self.assertEqual(link.events[-1][2], "canceled")
+
+    @unittest.skipUnless(os.name == "posix", "process groups are POSIX-specific")
+    def test_cancel_and_timeout_reap_group_after_parent_exits(self):
+        def gone(pid):
+            deadline = time.monotonic() + 3
+            while time.monotonic() < deadline:
+                try:
+                    os.kill(pid, 0)
+                except ProcessLookupError:
+                    return
+                time.sleep(0.05)
+            self.fail(f"child process {pid} survived task cleanup")
+
+        with tempfile.TemporaryDirectory() as directory:
+            marker = Path(directory) / "child.pid"
+            child = (
+                "import os,pathlib,signal,time;"
+                "signal.signal(signal.SIGTERM,signal.SIG_IGN);"
+                f"pathlib.Path({str(marker)!r}).write_text(str(os.getpid()));"
+                "time.sleep(30)"
+            )
+            parent = (
+                "import pathlib,subprocess,sys,time;"
+                f"child=subprocess.Popen([sys.executable,'-c',{child!r}]);"
+                f"\nwhile not pathlib.Path({str(marker)!r}).exists():\n"
+                " time.sleep(0.01)\n"
+                "time.sleep(30)"
+            )
+            exited_parent = parent.removesuffix("time.sleep(30)")
+            result, _ = self.run_child(exited_parent)
+            self.assertEqual(result["process_state"], "success")
+            self.assertTrue(marker.exists())
+            gone(int(marker.read_text()))
+            for extra, cancel in (
+                ((), lambda: marker.exists()),
+                (("--run-timeout", "0.2"), None),
+            ):
+                marker.unlink(missing_ok=True)
+                result, link = self.run_child(parent, *extra, cancel_requested=cancel)
+                self.assertEqual(result["process_state"], "canceled")
+                self.assertEqual(link.events[-1][2], "canceled")
+                self.assertTrue(marker.exists())
+                gone(int(marker.read_text()))
 
     def test_explicit_cancel_and_spawn_error(self):
         result, link = self.run_child(

@@ -73,23 +73,67 @@ def read_progress(path, task):
     return None
 
 
-def _stop(process):
-    if process.poll() is not None:
-        return
+def _wait_parent(process, timeout):
     try:
-        if os.name == "posix":
-            os.killpg(process.pid, signal.SIGTERM)
-        else:
-            process.terminate()
-        process.wait(timeout=2)
+        process.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
-        if os.name == "posix":
-            os.killpg(process.pid, signal.SIGKILL)
-        else:
-            process.kill()
-        process.wait(timeout=2)
+        return False
+    return True
+
+
+def _wait_group(process, timeout):
+    group = process.pid
+    deadline = time.monotonic() + timeout
+    while True:
+        # Reap the direct child before testing its group.  killpg(..., 0)
+        # otherwise sees that exited leader as a zombie and calls a clean
+        # cancellation uncertain even though no worker remains.
+        process.poll()
+        try:
+            os.killpg(group, 0)
+        except ProcessLookupError:
+            return True
+        except PermissionError:
+            return False
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.05)
+
+
+def _stop(process):
+    """Stop the started process and, on POSIX, its whole dedicated group."""
+    if os.name != "posix":
+        if process.poll() is None:
+            try:
+                process.terminate()
+            except ProcessLookupError:
+                pass
+            if not _wait_parent(process, 2):
+                try:
+                    process.kill()
+                except ProcessLookupError:
+                    pass
+        return _wait_parent(process, 2)
+
+    group = process.pid
+    stopped = True
+    try:
+        os.killpg(group, signal.SIGTERM)
     except ProcessLookupError:
-        process.wait(timeout=2)
+        pass
+    except PermissionError:
+        stopped = False
+    if stopped:
+        stopped = _wait_group(process, 2)
+    if not stopped:
+        try:
+            os.killpg(group, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        except PermissionError:
+            return False
+        stopped = _wait_group(process, 2)
+    return _wait_parent(process, 2) and stopped
 
 
 def perform(client, plan, *, cancel_requested=None):
@@ -110,6 +154,8 @@ def perform(client, plan, *, cancel_requested=None):
     process = None
     state, reason, code = "failure", "spawn_failed", None
     connected = True
+    cleanup_confirmed = True
+    cleanup_attempted = False
     progress = None
     environment = os.environ.copy()
     environment["SHANIU_TASK_ID"] = task
@@ -141,7 +187,10 @@ def perform(client, plan, *, cancel_requested=None):
                     if now < last
                     else ("timeout" if now - started >= plan.timeout else "requested")
                 )
-                _stop(process)
+                cleanup_attempted = True
+                cleanup_confirmed = _stop(process)
+                if not cleanup_confirmed:
+                    state, reason = "failure", "cleanup_unconfirmed"
                 break
             last = now
             if connected and now >= next_event:
@@ -159,23 +208,33 @@ def perform(client, plan, *, cancel_requested=None):
                 # No catch-up burst and no reconnect/replay after uncertainty.
                 next_event = time.monotonic() + HEARTBEAT_SECONDS
             time.sleep(0.05)
-        code = process.wait(timeout=2)
-        if state != "canceled":
+        code = process.returncode
+        if reason != "cleanup_unconfirmed" and state != "canceled":
             state = "success" if code == 0 else "failure"
             reason = "exited"
     except KeyboardInterrupt:
         state, reason = "canceled", "interrupted"
         if process is not None:
-            _stop(process)
+            cleanup_attempted = True
+            cleanup_confirmed = _stop(process)
             code = process.returncode
+            if not cleanup_confirmed:
+                state, reason = "failure", "cleanup_unconfirmed"
     except OSError:
         if process is not None:
-            _stop(process)
+            cleanup_attempted = True
+            cleanup_confirmed = _stop(process)
             code = process.returncode
-        state, reason = "failure", "spawn_failed" if process is None else "host_error"
+        state, reason = "failure", (
+            "spawn_failed"
+            if process is None
+            else "host_error" if cleanup_confirmed else "cleanup_unconfirmed"
+        )
     finally:
-        if process is not None and process.poll() is None:
-            _stop(process)
+        if process is not None and not cleanup_attempted:
+            cleanup_confirmed = _stop(process) and cleanup_confirmed
+    if not cleanup_confirmed:
+        state, reason = "failure", "cleanup_unconfirmed"
     confirmed = False
     if connected:
         sequence += 1

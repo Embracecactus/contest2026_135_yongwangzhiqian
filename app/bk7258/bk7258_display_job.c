@@ -351,8 +351,15 @@ int bkdisplay_job_step(struct bkdisplay_job_s *job, uint64_t now_ms)
     {
       ret = job->ops->acquire(job->context);
       if (ret == 0)
-        ret = bkdisplay_upload_begin(&job->upload, job->root,
-                                      job->status.total);
+        {
+          /* The lease is exclusive and this newly admitted job owns no
+           * descriptor, so only here may a prior-process staging remnant be
+           * recovered before its O_EXCL create. */
+          ret = bkdisplay_upload_recover(&job->upload, job->root);
+          if (ret == 0)
+            ret = bkdisplay_upload_begin(&job->upload, job->root,
+                                          job->status.total);
+        }
       if (ret < 0) final = BKDISPLAY_JOB_FAILED;
     }
   else if (operation == BKDISPLAY_JOB_WRITING)
