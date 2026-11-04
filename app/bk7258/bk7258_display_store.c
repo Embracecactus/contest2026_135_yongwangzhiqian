@@ -1081,6 +1081,37 @@ int bkdisplay_upload_quiesced(const struct bkdisplay_upload_s *upload)
   return 0;
 }
 
+int bkdisplay_upload_recover(struct bkdisplay_upload_s *upload,
+                             const char *root)
+{
+  char temporary[BKDISPLAY_PACK_PATH_SIZE];
+  struct stat statbuf;
+  int ret;
+
+  if (upload == NULL || root == NULL) return -EINVAL;
+  if (upload->state == BKUPLOAD_RECEIVING) return -EBUSY;
+  if (upload->state == BKUPLOAD_CLOSE_UNKNOWN) return upload->error;
+  if (upload->state != BKUPLOAD_EMPTY) return -EALREADY;
+  ret = bkdisplay_store_path(temporary, sizeof(temporary), root,
+                             BKDISPLAY_STORE_STAGING "/.upload.bkep");
+  if (ret < 0) return ret;
+  if (lstat(temporary, &statbuf) < 0)
+    {
+      return errno == ENOENT ? 0 : bkdisplay_store_errno();
+    }
+  if (!S_ISREG(statbuf.st_mode)) return -EPERM;
+  if (unlink(temporary) < 0)
+    {
+      return bkdisplay_store_errno();
+    }
+  /* This caller owns the mounted volume and has proved that its upload
+   * object has no descriptor. Only that abandoned fixed staging name is
+   * removed; packs and another live upload remain outside this recovery. */
+  ret = bkdisplay_store_path(temporary, sizeof(temporary), root,
+                             BKDISPLAY_STORE_STAGING);
+  return ret < 0 ? ret : bkdisplay_store_sync_directory_strict(temporary);
+}
+
 int bkdisplay_upload_begin(struct bkdisplay_upload_s *upload,
                            const char *root, size_t size)
 {
@@ -1116,10 +1147,6 @@ int bkdisplay_upload_begin(struct bkdisplay_upload_s *upload,
     {
       return ret;
     }
-
-  /* Do not truncate or clean another job's staging file, including an
-   * unreviewed remnant from a previous boot.
-   */
 
   upload->fd = open(upload->temporary, O_WRONLY | O_CREAT | O_EXCL, 0600);
   if (upload->fd < 0)

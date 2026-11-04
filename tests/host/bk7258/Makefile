@@ -271,7 +271,7 @@ MEDIA_INCLUDE := $(OPENVELA_ROOT)/apps/frameworks/multimedia/media/include
 			run-voice-media-recorder \
 		ota-confirmation run-provision
 
-.PHONY: run-media-audio-session run-wifi-native-lease run-pm-replay
+.PHONY: run-media-audio-session run-wifi-native-lease run-pm-replay run-display-upload
 .PHONY: run-motion-rpc run-nfc-rpc
 
 check:
@@ -305,7 +305,7 @@ check-package-tools:
 # These regressions consume the manifest-pinned dependency sources. A stale
 # NuttX or SDK checkout must not silently exercise an obsolete implementation.
 
-check-review-regressions: run-agent-session-history-memory
+check-review-regressions: run-agent-session-history-memory run-display-upload
 	python3 -m unittest test_kernel_compat test_bk7258_sdk_manifest \
 		test_bk7258_build_workspace test_deploy_confirmation
 	python3 ./test_audio_close_lifecycle.py --nuttx $(OPENVELA_ROOT)/nuttx
@@ -386,6 +386,10 @@ $(BUILD)/test_display_upload: test_display_upload.c \
 	$(CC) $(VOICE_PACK_CFLAGS) test_display_upload.c \
 		$(VOICE_PACK_ROOT)/bk7258_display_pack.c $(VOICE_PACK_ROOT)/bk7258_display_store.c \
 		-I $(VOICE_PACK_ROOT) -Wl,--wrap=write,--wrap=fsync,--wrap=close -o $@
+
+run-display-upload: $(BUILD)/test_display_upload
+	./$(BUILD)/test_display_upload $(DISPLAY_PACK_FIXTURE) interrupted-recover
+	./$(BUILD)/test_display_upload $(DISPLAY_PACK_FIXTURE) active-recover
 
 $(BUILD)/test_display_selection: test_display_selection.c \
 	$(VOICE_PACK_ROOT)/bk7258_display_store.c $(VOICE_PACK_ROOT)/bk7258_display_store.h \

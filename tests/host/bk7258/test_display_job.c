@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include "bk7258_display_job.h"
 
@@ -74,6 +75,21 @@ int main(int argc, char **argv)
   size = info.st_size;
   bytes = malloc(size);
   assert(bytes && read(fd, bytes, size) == (ssize_t)size && close(fd) == 0);
+  if (!strcmp(argv[2], "interrupted-recover"))
+    {
+      pid_t child = fork();
+      int child_status;
+      assert(child >= 0);
+      if (child == 0)
+        {
+          struct bkdisplay_upload_s interrupted = {0};
+          assert(bkdisplay_upload_begin(&interrupted, root, size) == 0);
+          assert(bkdisplay_upload_append(&interrupted, 0, bytes, 3) == 0);
+          _exit(0);
+        }
+      assert(waitpid(child, &child_status, 0) == child &&
+             WIFEXITED(child_status));
+    }
   assert(bkdisplay_job_begin(&job, 7, size, 100, 1000, &id) == -EACCES);
   assert(bkdisplay_job_gate(&job, true) == 0);
   assert(bkdisplay_job_begin(&job, 7, size, 100, 1000, &id) == 0);
@@ -175,7 +191,9 @@ int main(int argc, char **argv)
   else
     {
       assert(!leased && bkdisplay_job_quiesced(&job) == 0);
-      assert(status.state == ((!strcmp(argv[2], "success") || !strcmp(argv[2], "commit-busy")) ? BKDISPLAY_JOB_DONE :
+      assert(status.state == ((!strcmp(argv[2], "success") ||
+                              !strcmp(argv[2], "commit-busy") ||
+                              !strcmp(argv[2], "interrupted-recover")) ? BKDISPLAY_JOB_DONE :
                               !strcmp(argv[2], "cleanup-failure") ? BKDISPLAY_JOB_UNKNOWN : BKDISPLAY_JOB_CANCELED));
       if (!strcmp(argv[2], "cleanup-failure")) assert(status.error == -EIO);
       assert(bkdisplay_job_append(&job, 7, id, 0, bytes, 1) == -EALREADY);

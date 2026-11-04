@@ -108,6 +108,13 @@ int bkdisplay_upload_append(struct bkdisplay_upload_s *upload, size_t offset,
 int bkdisplay_upload_finish(struct bkdisplay_upload_s *upload,
                             struct bkdisplay_store_selection_s *selection);
 int bkdisplay_upload_cancel(struct bkdisplay_upload_s *upload);
+/* Remove only the fixed staging remnant after the caller holds the exclusive
+ * mounted-volume resource lease and this owner has no live descriptor. An
+ * EMPTY object alone does not prove there is no other job. A receiving or
+ * close-uncertain object is never recovered.
+ */
+int bkdisplay_upload_recover(struct bkdisplay_upload_s *upload,
+                             const char *root);
 /* Zero confirms no live or uncertain descriptor owned by this upload. */
 
 int bkdisplay_upload_quiesced(const struct bkdisplay_upload_s *upload);

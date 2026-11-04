@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include "bk7258_display_store.h"
 
@@ -127,9 +128,33 @@ int main(int argc, char **argv)
           assert(bytes != NULL && read(fd, bytes, size) == (ssize_t)size);
           assert(close(fd) == 0);
         }
+      if (strcmp(argv[2], "interrupted-recover") == 0)
+        {
+          pid_t child = fork();
+          int status;
+          assert(child >= 0);
+          if (child == 0)
+            {
+              struct bkdisplay_upload_s interrupted = {0};
+              assert(bkdisplay_upload_begin(&interrupted, root, size) == 0);
+              assert(bkdisplay_upload_append(&interrupted, 0, bytes, 3) == 0);
+              _exit(0); /* Deliberately leave only the fixed staging remnant. */
+            }
+          assert(waitpid(child, &status, 0) == child && WIFEXITED(status));
+          assert(access(path, F_OK) == 0);
+          assert(bkdisplay_upload_recover(&upload, root) == 0);
+          assert(access(path, F_OK) < 0 && errno == ENOENT);
+        }
       assert(bkdisplay_upload_begin(&upload, root, size) == 0);
       assert(bkdisplay_upload_begin(&competitor, root, size) == -EEXIST);
-      if (strcmp(argv[2], "write-failure") == 0)
+      if (strcmp(argv[2], "active-recover") == 0)
+        {
+          assert(bkdisplay_upload_recover(&upload, root) == -EBUSY);
+          assert(access(path, F_OK) == 0);
+          assert(bkdisplay_upload_cancel(&upload) == 0);
+          /* The live owner kept its staging file; no second cleanup occurs. */
+        }
+      else if (strcmp(argv[2], "write-failure") == 0)
         {
           fault_fd = upload.fd; /* External syscall fault boundary only. */
           write_fault = 1;
