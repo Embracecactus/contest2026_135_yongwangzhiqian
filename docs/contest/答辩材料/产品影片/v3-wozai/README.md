@@ -21,7 +21,7 @@ PCM16LE 源为 31,208 字节、SHA-256 `772a8aa9841a96bf96acdce733e4e6a67c2b4696
 | [SCREENPLAY.md](SCREENPLAY.md) | 定稿剧本（与成片一致） |
 | [STORYBOARD.md](STORYBOARD.md) | 159 个镜头：成片时间、画面、声音（由影片自身导出） |
 | [FEATURE_MAP.md](FEATURE_MAP.md) | 53 项功能 × 片中位置（成片时间）× 实现 × 证据，含不出现的 5 项及原因 |
-| [REVIEW.md](REVIEW.md) | 成片检查记录与仍存在的问题 |
+| [最新交付检查](verification/20261104-board-wake/README.md) | 应答音替换、字幕、整片解码与音量检查的范围 |
 | [SOURCES.md](SOURCES.md) | 素材、模型、字体、声音的来源与许可 |
 
 ## 结构

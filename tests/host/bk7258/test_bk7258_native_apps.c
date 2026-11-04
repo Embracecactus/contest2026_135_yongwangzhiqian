@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
 #include "bk7258_native_intent.h"
@@ -36,6 +37,8 @@ static int g_loader_mode;
 static int g_commit_failure;
 static int g_schedule_commit_failure;
 static int g_catalog_commit_failure;
+static int g_state_unlink_failure;
+static int g_state_rmdir_failure;
 int __real_bkprov_store_commit(struct bkprov_store_s *store, uint64_t expected,
                                const uint8_t transaction[16], const void *bundle,
                                size_t size);
@@ -49,6 +52,29 @@ int __wrap_bkprov_store_commit(struct bkprov_store_s *store, uint64_t expected,
     return g_catalog_commit_failure;
   return g_commit_failure ? g_commit_failure :
     __real_bkprov_store_commit(store, expected, transaction, bundle, size);
+}
+int __real_unlink(const char *path);
+int __wrap_unlink(const char *path)
+{
+  if (g_state_unlink_failure && strstr(path, "/state/") &&
+      !strcmp(path + strlen(path) - strlen("/config.bin"), "/config.bin"))
+    {
+      errno = -g_state_unlink_failure;
+      return -1;
+    }
+
+  return __real_unlink(path);
+}
+int __real_rmdir(const char *path);
+int __wrap_rmdir(const char *path)
+{
+  if (g_state_rmdir_failure && strstr(path, "/state/"))
+    {
+      errno = -g_state_rmdir_failure;
+      return -1;
+    }
+
+  return __real_rmdir(path);
 }
 extern const struct bknative_program_s *shaniu_native_entry(void);
 extern const struct bknative_program_s *shaniu_decide_entry(void);
@@ -622,6 +648,26 @@ int main(void)
         g_schedule_commit_failure = 0;
         assert(bknative_init() == 0);
       }
+    /* State deletion is also a pre-publication step: a failure retains the
+     * catalog entry.  It may already have canceled this app's schedules.
+     */
+    g_state_unlink_failure = -EIO;
+    assert(bknative_read(state, sizeof(state)) == 0 &&
+           apply("uninstall", "\"id\":\"nudge\"", state, sizeof(state)) == -EIO);
+    g_state_unlink_failure = 0;
+    assert(bknative_read(state, sizeof(state)) == 0 &&
+           strstr(app_json(state, "nudge", entry, sizeof(entry)), "nudge"));
+    assert(access("/tmp/bk7258-native-apps/state/nudge/config.bin", F_OK) == 0);
+    /* A later rmdir failure can follow successful file deletion.  The catalog
+     * still remains unchanged; state cleanup is not a rollback transaction.
+     */
+    g_state_rmdir_failure = -EIO;
+    assert(bknative_read(state, sizeof(state)) == 0 &&
+           apply("uninstall", "\"id\":\"nudge\"", state, sizeof(state)) == -EIO);
+    g_state_rmdir_failure = 0;
+    assert(bknative_read(state, sizeof(state)) == 0 &&
+           strstr(app_json(state, "nudge", entry, sizeof(entry)), "nudge"));
+    assert(access("/tmp/bk7258-native-apps/state/nudge/config.bin", F_OK) != 0);
     assert(bknative_read(state, sizeof(state)) == 0 && apply("uninstall", "\"id\":\"nudge\"", state, sizeof(state)) == 0);
     assert(access("/tmp/bk7258-native-apps/state/nudge", F_OK) != 0);
     bknative_catalog_read(&catalog);
@@ -639,6 +685,23 @@ int main(void)
         for (unsigned int slot = 0; slot < BKNATIVE_SCHEDULE_MAX; slot++)
           assert(catalog.schedule[slot].app_hash != nudge);
       }
+    /* A fresh ID clears an old orphan before publishing its first catalog
+     * entry, so it cannot inherit an earlier app's saved state.
+     */
+    assert(mkdir("/tmp/bk7258-native-apps/state/orphan", 0700) == 0);
+    saved = fopen("/tmp/bk7258-native-apps/state/orphan/config.bin", "wb");
+    assert(saved && fwrite("old", 1, 3, saved) == 3 && fclose(saved) == 0);
+    g_state_unlink_failure = -EIO;
+    assert(install_with(&key, &random, "orphan", 1, 3,
+      "\"display\",\"storage\"", image, image_size, state, sizeof(state)) == -EIO);
+    g_state_unlink_failure = 0;
+    assert(bknative_read(state, sizeof(state)) == 0 &&
+           !strstr(state, "\"id\":\"orphan\""));
+    assert(access("/tmp/bk7258-native-apps/state/orphan/config.bin", F_OK) == 0);
+    assert(install_with(&key, &random, "orphan", 1, 3,
+      "\"display\",\"storage\"", image, image_size, state, sizeof(state)) == 0);
+    assert(access("/tmp/bk7258-native-apps/state/orphan", F_OK) != 0);
+    assert(apply("uninstall", "\"id\":\"orphan\"", state, sizeof(state)) == 0);
     assert(install_with(&key, &random, "nudge", 3, 3, "\"display\",\"clock\",\"storage\"", image, image_size, state, sizeof(state)) == 0);
     bknative_catalog_read(&catalog);
     for (unsigned int slot = 0; slot < BKNATIVE_SCHEDULE_MAX; slot++)
