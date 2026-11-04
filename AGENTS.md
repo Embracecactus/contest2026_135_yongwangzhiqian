@@ -47,8 +47,8 @@
   still match. Use the existing CP/AP OTA signing path without re-signing BL1/BL2.
   A changed version, counter, TLV or pair dependency invalidates the affected
   signed artifact; a matching raw payload alone does not establish reuse.
-- Before any full download, the target preflight must match its accepted base generation and the signed package must pass its own trust and rollback checks. Record the signer reference and public identity in release evidence, never a private path or value. The apps-only path remains bound to its installed public trust contract and exact target fingerprint.
-- Backup scope follows the actual erase/write or migration scope. The current AIDK 8-MiB full-image path needs trusted same-device base material, but may reuse an accepted historical full-device readback when its hash and device identity match. The CLI requiring a complete base file is an interface condition, not a demand to reacquire it for every write. A configuration rollback needs explicit owner authorization; if non-reconstructible data has no trustworthy same-device material, refuse the operation. Never copy a target-bound image or device-unique data to another unit.
+- Before any full download, validate the selected signed package's board identity, signer reference, rollback counter, declared Flash size and protected tail against the retained accepted image input. Do not require or perform a new device Flash readback/backup as a preflight gate. The apps-only path remains bound to its installed public trust contract and exact target fingerprint.
+- The AIDK 8-MiB full-image path reuses the owner's retained factory image only when its size, hash, same-board binding and protected tail match. This is image-input integrity, not a demand to reacquire a backup. Do not ask again for configuration-rollback approval; never copy target-bound image or device-unique data to another unit.
 
 ## BK7258 hardware-first debugging
 
@@ -99,7 +99,7 @@
   checks, why existing coverage is insufficient, and how its result changes the
   next action. Reuse the existing harness; stop expansion at the acceptance point.
 - Boot/trust/layout change: run the dedicated clean, package, signature,
-  rollback, readback and boot evidence path. This is an explicit specialist
+  rollback and boot evidence path. This is an explicit specialist
   workflow, not a gate for ordinary app or driver increments.
 - Documentation-only changes need format and affected-link review, not firmware
   builds or application tests. Reuse passing checks while their inputs remain

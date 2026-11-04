@@ -20,7 +20,7 @@ those rules.
   not a default release step and not a substitute for the dedicated
   boot/trust/layout path.
 - Wired recovery is whole-device: one complete 8-MiB operator image at address
-  zero, materialized from exact same-unit readback and accepted-base evidence;
+  zero, materialized from the retained factory image and accepted-base evidence;
   the immutable tail must stay byte-identical and nothing is copied to another
   unit.  Such an image is a same-unit recovery artifact: it is never published
   as a general-purpose first-flash image, and a factory-init path for an
@@ -32,8 +32,9 @@ those rules.
   `571ab95edfd7280bb1e9b4e59fdf67a5b03777bfa0a71c9787fe10defe1f695d`),
   the owner explicitly authorized full downloads without a new backup and
   accepted configuration rollback on 2026-11-02: "不需要备份直接下载，以后不要考虑这个事情".
-  During requested development downloads, reuse its verified same-unit base;
-  do not repeat backup or configuration-rollback approval questions.
+  During requested development downloads, reuse the retained factory image after
+  size/hash, same-board binding and protected-tail checks; do not perform a new
+  Flash readback/backup or repeat configuration-rollback approval questions.
 
 ## Connectors, reset and USB
 

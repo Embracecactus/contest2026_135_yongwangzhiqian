@@ -217,8 +217,9 @@ public keys for the complete BL1/BL2/CP/AP build. `release full
 without a historical base; its `release.json` states that target hardware
 data is still required and it is **not** an 8-MiB flash image.
 
-A complete 8-MiB factory BIN can only be materialized with authenticated
-same-unit hardware data and an accepted evidence record. The AIDK release
+A complete 8-MiB factory BIN is materialized from the owner's retained factory
+image and accepted evidence record; do not acquire a new Flash readback or
+backup before a requested download. The AIDK release
 policy declares `device-firstboot`: only a formal factory transaction grants
 initialization, and the device generates its own TLS identity. An ordinary
 mount failure never grants formatting. A software build proves none of the
@@ -227,17 +228,17 @@ physical first-boot, QR, K2, or playback outcomes.
 The following contest-era recovery path remains for existing devices; it is
 not the independent development entry. Two artifacts must not be conflated:
 
-- **Same-unit recovery image** — what `release full` produces when a base is supplied. The
-  `flash/*.bin` operator image is materialized from an accepted base that was
-  read back from the same physical unit, so it carries that unit's
-  device-bound persistent data. Re-flashing it on that unit restores a working
-  `/data`, its BLE identity and the wake acknowledgement. Flashing it on
+- **Target-bound recovery image** — what `release full` produces when a base is supplied. The
+  `flash/*.bin` operator image is materialized from the retained accepted base,
+  so it carries that input's device-bound state. A retained factory input may
+  contain empty product configuration; it does not promise to restore current
+  Wi-Fi settings, BLE ownership or the wake acknowledgement. Flashing it on
   another unit would copy device-bound state into that unit, so this artifact
   stays a same-unit recovery image: it is not a published general-purpose
   first-flash package and it must not be flashed on a different board.
 - **Independent factory software** — signed public software and factory
   initialization intent; the protected hardware tail and unallocated range
-  still require a same-target snapshot before creating one full BIN.
+  still require the retained accepted image before creating one full BIN.
 
 The maintained paths are:
 
