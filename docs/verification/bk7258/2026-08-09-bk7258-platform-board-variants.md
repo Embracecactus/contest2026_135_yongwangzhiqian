@@ -42,4 +42,4 @@ GPIO, TF, RGB LCD and DVP validation must be performed independently with
 pin-compatible profiles.
 
 The durable naming and ownership decision is recorded in
-`memory/decisions/ADR-023-bk7258-platform-board-variants.md`.
+[memory/decisions/ADR-023-bk7258-platform-board-variants.md](https://github.com/open-vela/contest2026_135_yongwangzhiqian/blob/e4f2df717defab9f6ad02adc662acd8cba086cf2/memory/decisions/ADR-023-bk7258-platform-board-variants.md).

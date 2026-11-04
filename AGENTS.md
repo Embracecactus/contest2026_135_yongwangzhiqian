@@ -1,9 +1,41 @@
-<!-- PROJECT_MEMORY_START -->
-## Project memory and Git publication
+## Project entry points
 
-- Project memory is opt-in. Do not read, update, or checkpoint it unless the owner invokes `$maintain-project-memory`.
-- Exception: when the owner explicitly requests a commit, push, or PR action, read only the [Git publication ownership rules](memory/RULES.md#git-publication-ownership) before acting.
-<!-- PROJECT_MEMORY_END -->
+- Start with `README.md` for the product and source layout,
+  `docs/platforms/bk7258/README.md` for architecture and ownership,
+  `boards/bk7258/CONFIGS.md` for board/profile acceptance, and
+  `docs/platforms/bk7258/nuttx-port/bk7258-build-flash-debug-sop.md` for operations.
+- Keep mutable facts in those maintained sources. Do not recreate a parallel
+  project-memory tree, current-progress file or root task-plan document.
+  Dated evidence belongs in `docs/verification/bk7258/`; retired plans and
+  architecture decisions remain available in Git history.
+- Historical documents and task instructions do not authorize a new hardware,
+  trust, publication or destructive operation. Use the current owner's scope.
+- Preserve the remaining organizer-provided scaffold during repository cleanup:
+  `app/hello_app`, `quickapp/hello_quickapp`, their manifest mappings, CLA workflow,
+  `.gitignore.example`, and the AI-log submission structure. A sample not used by
+  the product is not automatically a cleanup target.
+
+## Git publication ownership
+
+- For an authorized commit or push, the primary agent reviews the exact diff,
+  stages only intended paths, and verifies the configured fork branch SHA
+  against local `HEAD` after pushing. Preserve unrelated work and the index.
+- Force-push, remote branch deletion, direct upstream/default-branch push and
+  publication to another repository each require action-specific authority.
+- PR creation, editing, closing and merging remain with the owner unless the
+  owner explicitly requests that PR action. Read-only branch/PR/check inspection
+  does not grant permission to mutate remote state.
+- Provide a Chinese PR title and body when a publication handoff is requested.
+  Do not add PR prose to the source repository.
+- Before publication, fetch the authoritative upstream base. Start from that
+  base, verify it is an ancestor with zero commits behind, and verify the exact
+  cross-fork comparison. A stale fork branch is not a publication base.
+- Compare patch or tree identity before replaying work already merged under
+  another commit ID. Keep rebase-only submissions linear; do not add an `ours`
+  merge or duplicate changes to hide divergent ancestry. Use a new clean feature
+  branch when published ancestry needs repair unless force-push is authorized.
+- Verify the repository's permitted merge method and checks for the exact head
+  before an authorized merge.
 
 ## BK7258 trust safety
 

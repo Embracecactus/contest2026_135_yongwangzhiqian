@@ -120,8 +120,9 @@ NFC 场景动作 7 已在 App 和板端源码中接入，可把卡片映射为�
   已保存认领凭据不等于设备当前在线。
 - 控制凭据由 Android Keystore 保护的 AES-GCM 存储保存，不硬编码进 APK；
   云凭据不明文回读，不输出到日志。UI 明确区分未就绪、忙、失败与断连。
-- 默认不需要 Gateway。历史 console-v1 类和测试夹具不构成当前产品交互路径。
-  不启用它们来解决编译或连接问题。
+- Gateway 已退役，不是 App 的构建或连接依赖。其历史源码和验收记录固定在
+  [e4f2df71 快照](https://github.com/open-vela/contest2026_135_yongwangzhiqian/blob/e4f2df717defab9f6ad02adc662acd8cba086cf2/gateway/shaniu/README.md)，
+  不作为当前问题的解决路径。
 - 可选持久记忆由设备加密存储并投影回官方 Session；手机不托管对话历史。
   删除/禁用需设备完成并确认，收到请求不等于已经持久化。
 

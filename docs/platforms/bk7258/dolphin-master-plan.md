@@ -446,7 +446,7 @@ Flipper Zero 官方源码包含其 Furi、平台和应用层，使用 GPL-3.0；
 源码与构建分层检查覆盖 Dolphin，正反例通过。实板仍为旧 411；新固件未部署，
 三板运行、触摸、SDIO 回归未完成，不能作为产品验收。
 详细命令、哈希索引、实际阻塞和恢复顺序见
-[chip-board 整改报告](chip-board-wrapper-review-20260910.md#整改实施检查点2026-09-10)。
+[chip-board 整改报告](https://github.com/open-vela/contest2026_135_yongwangzhiqian/blob/e4f2df717defab9f6ad02adc662acd8cba086cf2/docs/platforms/bk7258/chip-board-wrapper-review-20260910.md#整改实施检查点2026-09-10)。
 本轮未提交或推送，保留原有工作区成果。
 
 

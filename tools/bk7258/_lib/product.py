@@ -31,10 +31,8 @@ DELIVERY_FORMAT = "bk7258.product-delivery/1"
 DELIVERY_MANIFEST = "release.json"
 DELIVERY_CHECKSUMS = "SHA256SUMS"
 DELIVERY_FLASHING = "FLASHING.md"
-GATEWAY_RELEASE_REGISTRY_FORMAT = "shaniu.firmware-release-registry/1"
-MAX_GATEWAY_RELEASES = 32
-MAX_GATEWAY_PACKAGE_SIZE = 64 * 1024 * 1024
 MAX_DELIVERY_SIZE = 128 * 1024 * 1024
+MAX_DELIVERY_OTA_PACKAGE_SIZE = 64 * 1024 * 1024
 VERSION_RE = re.compile(
     r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\." r"(0|[1-9][0-9]*)\+([1-9][0-9]*)$"
 )
@@ -1802,8 +1800,12 @@ def verify_delivery(
             "required_source_version": ota_row["required_source_version"],
             "target_version": document["version"],
         }
-        if not 0 < gateway_release["package_size_bytes"] <= MAX_GATEWAY_PACKAGE_SIZE:
-            raise ProductError("OTA package exceeds the Gateway release limit")
+        if (
+            not 0
+            < gateway_release["package_size_bytes"]
+            <= MAX_DELIVERY_OTA_PACKAGE_SIZE
+        ):
+            raise ProductError("OTA package exceeds the product delivery limit")
     elif set(ota_row) != {"status"}:
         raise ProductError("absent OTA component has unexpected metadata")
 
@@ -1824,94 +1826,6 @@ def verify_delivery(
         "physical_board": target["physical_board"],
         "sha256": _digest(path.read_bytes()),
         "version": document["version"],
-    }
-
-
-def create_gateway_release_registry(
-    deliveries: tuple[Path, ...],
-    output: Path,
-    *,
-    package_verifier: Callable[[Path], object],
-) -> dict[str, object]:
-    """Verify product deliveries and publish a metadata-only Gateway registry."""
-
-    if not callable(package_verifier):
-        raise ProductError(
-            "Gateway release registry requires cryptographic verification"
-        )
-    if not 1 <= len(deliveries) <= MAX_GATEWAY_RELEASES:
-        raise ProductError(
-            f"Gateway release registry requires 1-{MAX_GATEWAY_RELEASES} deliveries"
-        )
-
-    releases: list[dict[str, object]] = []
-    for delivery in deliveries:
-        report = verify_delivery(delivery, package_verifier=package_verifier)
-        release = report.get("firmware_release")
-        if not isinstance(release, dict):
-            raise ProductError(f"delivery has no verified OTA component: {delivery}")
-        package_size = release.get("package_size_bytes")
-        if (
-            type(package_size) is not int
-            or not 0 < package_size <= MAX_GATEWAY_PACKAGE_SIZE
-        ):
-            raise ProductError("OTA package exceeds the Gateway release limit")
-        releases.append(dict(release))
-
-    identities = [(row["device_id"], row["manifest_sha256"]) for row in releases]
-    targets = [(row["device_id"], row["target_version"]) for row in releases]
-    if len(set(identities)) != len(identities):
-        raise ProductError("duplicate device/release manifest in Gateway registry")
-    if len(set(targets)) != len(targets):
-        raise ProductError("duplicate device/target version in Gateway registry")
-
-    releases.sort(
-        key=lambda row: (
-            str(row["device_id"]),
-            version_generation(str(row["target_version"])),
-            str(row["target_version"]),
-            str(row["manifest_sha256"]),
-        )
-    )
-    data = _canonical(
-        {
-            "format": GATEWAY_RELEASE_REGISTRY_FORMAT,
-            "releases": releases,
-        }
-    )
-
-    output = output.absolute()
-    if output.suffix.lower() != ".json":
-        raise ProductError("Gateway release registry output must use the .json suffix")
-    if output.exists() or output.is_symlink():
-        raise ProductError(f"Gateway release registry output already exists: {output}")
-    output.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(
-        prefix=f".{output.name}.", dir=output.parent
-    )
-    temporary = Path(temporary_name)
-    try:
-        os.fchmod(descriptor, 0o600)
-        with os.fdopen(descriptor, "wb") as stream:
-            stream.write(data)
-            stream.flush()
-            os.fsync(stream.fileno())
-        package_domain._publish_no_replace(
-            temporary, output, "Gateway release registry"
-        )
-        if hasattr(os, "O_DIRECTORY"):
-            directory = os.open(output.parent, os.O_RDONLY | os.O_DIRECTORY)
-            try:
-                os.fsync(directory)
-            finally:
-                os.close(directory)
-    finally:
-        temporary.unlink(missing_ok=True)
-
-    return {
-        "output": str(output),
-        "releases": len(releases),
-        "sha256": _digest(data),
     }
 
 

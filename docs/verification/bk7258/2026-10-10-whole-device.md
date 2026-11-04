@@ -24,7 +24,7 @@ PR126—132 均未合入。126→127→128、129→130→132 是两组依赖，1
 
 713 实际构建、烧板源码是 `80455f84417c557cc99710721ce3356cf64aa306`；
 后续工具说明/错误分类提交 `ff82faa52f87ec077224d9941ae7b66a9bde69cc` 没有改变板端生产源码、配置或 Agent。
-构建范围无未提交差异；范围外原有 `goal-objective.md` 保持原字节，SHA256
+构建范围无未提交差异；范围外原有 [goal-objective.md](https://github.com/open-vela/contest2026_135_yongwangzhiqian/blob/e4f2df717defab9f6ad02adc662acd8cba086cf2/goal-objective.md) 保持原字节，SHA256
 `9a0cef421e84804ae1936b047a27d49eeaabc768d7aa8aa93b2a149ccfdbe378`。
 NuttX `76354c637858ecb0aa4601629327acb6f44a26bb`、apps
 `550cd3ba60a03f8ebf9ac7b72f6eed6aea3bedbe` 使用既有覆盖层；输入摘要分别为

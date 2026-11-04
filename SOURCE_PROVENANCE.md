@@ -597,8 +597,10 @@ BK7258 主机测试的更细分类见
 
 ## 历史 Gateway 语音服务（非现役产品路径）
 
-Gateway 的自有协议、MiMo 适配、外部依赖及测试来源独立维护于
-[Gateway 来源说明](gateway/shaniu/SOURCE_PROVENANCE.md)；模型协议适配不包含第三方源代码副本。
+Gateway 服务、旧 Android 控制台及其专用交付目录工具已退出当前源码树。
+其自有协议、MiMo 适配、外部依赖及测试来源保留在
+[历史 Gateway 来源说明](https://github.com/open-vela/contest2026_135_yongwangzhiqian/blob/e4f2df717defab9f6ad02adc662acd8cba086cf2/gateway/shaniu/SOURCE_PROVENANCE.md)；
+模型协议适配不包含第三方源代码副本。删除已退役实现不改变历史版本的来源与许可声明。
 
 ## KVDB 适配与历史构建接入
 

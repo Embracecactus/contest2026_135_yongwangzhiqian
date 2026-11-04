@@ -121,7 +121,7 @@ Wi-Fi-active `-EBUSY` boundary.
 ## Evidence locations
 
 - Architecture decision:
-  `memory/decisions/ADR-025-bk7258-radio-lifecycle-boundary.md`
+  [memory/decisions/ADR-025-bk7258-radio-lifecycle-boundary.md](https://github.com/open-vela/contest2026_135_yongwangzhiqian/blob/e4f2df717defab9f6ad02adc662acd8cba086cf2/memory/decisions/ADR-025-bk7258-radio-lifecycle-boundary.md)
 - Validation RTT captures were retained during the run under
   `/tmp/bk7258-bt-lifecycle-validation.rA5t4C/`; this record contains the
   durable hashes, addresses and decoded acceptance values.

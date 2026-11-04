@@ -596,7 +596,7 @@ UIKit 的完整 video/media 组合在独立 Media profile 通过后再启用。�
 8. 当前基线只有 standalone BKVoice 会话/audio owner，断网回退固定 voice pack。优先验证
    AI Agent 的替代 profile，通过清理、资源和实板门后切换，不能并存第二套状态机。
 
-BKVoice 的 `companion-v1` 协议以 [Gateway 说明](../../../gateway/shaniu/README.md) 和其源码为准，
+历史 BKVoice 的 `companion-v1` 协议见 [当时的 Gateway 说明及源码](https://github.com/open-vela/contest2026_135_yongwangzhiqian/blob/e4f2df717defab9f6ad02adc662acd8cba086cf2/gateway/shaniu/README.md)，
 执行顺序以 [主计划第 17.5 节](shaniu-master-plan.md#openvela-mimo-execution) 为准，
 不重复已经完成的 host 纵切。产品 UART/串口功能明确不实现；只保留通用 provider seam，
 串口不进入运行路径、回退路径或验收门。

@@ -208,4 +208,4 @@ set.
   `boot_ota_select.c`, `boot_sha256.c`, and
   `board/bk7258/scripts/verify_bk7258_ota_boot.py`.
 - Architecture decision:
-  `memory/decisions/ADR-005-n15-boot-selector-metadata-v1.md`.
+  [memory/decisions/ADR-005-n15-boot-selector-metadata-v1.md](https://github.com/open-vela/contest2026_135_yongwangzhiqian/blob/e4f2df717defab9f6ad02adc662acd8cba086cf2/memory/decisions/ADR-005-n15-boot-selector-metadata-v1.md).

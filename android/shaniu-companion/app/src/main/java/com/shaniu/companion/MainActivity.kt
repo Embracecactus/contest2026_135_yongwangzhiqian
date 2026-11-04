@@ -31,35 +31,6 @@ import com.shaniu.companion.provision.ImportedFileOwner
 import com.shaniu.companion.provision.DeviceControlProtocol
 import com.shaniu.companion.provision.ResponseLengthPreference
 import com.shaniu.companion.provision.DeviceControlScanner
-import com.shaniu.companion.gateway.AndroidKeystoreTokenStore
-import com.shaniu.companion.gateway.ConsoleGatewayClient
-import com.shaniu.companion.gateway.ConsoleEnrollment
-import com.shaniu.companion.gateway.GatewayCallResult
-import com.shaniu.companion.gateway.GatewayEventConnection
-import com.shaniu.companion.gateway.GatewayEventObserver
-import com.shaniu.companion.gateway.GatewayFailureReason
-import com.shaniu.companion.gateway.GatewayTokenPolicy
-import com.shaniu.companion.gateway.GatewayTransportException
-import com.shaniu.companion.gateway.GatewayTransportConfiguration
-import com.shaniu.companion.gateway.OkHttpConsoleGatewaySession
-import com.shaniu.companion.protocol.CompanionState
-import com.shaniu.companion.protocol.CompanionStore
-import com.shaniu.companion.protocol.ConsoleEventEnvelope
-import com.shaniu.companion.protocol.ConsoleMutation
-import com.shaniu.companion.protocol.ConsoleMutationArguments
-import com.shaniu.companion.protocol.ConsoleOperation
-import com.shaniu.companion.protocol.ConsoleErrorCode
-import com.shaniu.companion.protocol.ConsolePolicy
-import com.shaniu.companion.protocol.EventDisposition
-import com.shaniu.companion.protocol.FirmwareReleaseCatalog
-import com.shaniu.companion.protocol.GatewayConnection
-import com.shaniu.companion.protocol.MutationContext
-import com.shaniu.companion.protocol.MutationDecision
-import com.shaniu.companion.protocol.MutationReceiptStatus
-import com.shaniu.companion.protocol.MemoryDeleteScope
-import com.shaniu.companion.protocol.PermissionLevel
-import com.shaniu.companion.protocol.PermissionState
-import com.shaniu.companion.protocol.PrivacyCapability
 import com.shaniu.companion.provision.ProvisionActivity
 import com.shaniu.companion.provision.ProvisionBindingStore
 import com.shaniu.companion.provision.ProvisionBootstrap
@@ -72,27 +43,12 @@ import com.shaniu.companion.ota.OtaSourceLease
 import com.shaniu.companion.ota.OtaStartGate
 import com.shaniu.companion.ota.OtaUpdatePolicy
 import java.util.concurrent.Executors
-import java.util.concurrent.RejectedExecutionException
-import java.util.concurrent.atomic.AtomicLong
 
 /**
- * Production console-v1 entry point.
- *
- * Endpoint metadata is stored in ordinary preferences. The bearer credential is
- * handled only by [AndroidKeystoreTokenStore] and is never rendered or logged.
- * Device state is reported-state only: accepted mutations are not applied
- * optimistically and must be confirmed by a later snapshot/event.
+ * Direct companion application entry point.
  */
 class MainActivity : Activity() {
-    internal data class GatewayRuntime(
-        val epoch: Long,
-        val deviceId: String,
-        val session: OkHttpConsoleGatewaySession,
-        val client: ConsoleGatewayClient,
-    )
-
     internal lateinit var preferences: SharedPreferences
-    private lateinit var tokenStore: AndroidKeystoreTokenStore
     private lateinit var provisionBindingStore: ProvisionBindingStore
     internal lateinit var content: LinearLayout
     private lateinit var contentScroll: ScrollView
@@ -114,7 +70,6 @@ class MainActivity : Activity() {
     // A worker owns imported files until the main-thread completion callback
     // explicitly transfers them to the selected-file fields.
     private val importedFileOwner = ImportedFileOwner()
-    private val requestCounter = AtomicLong()
     internal var inspectedFirmware: BkpackInspector.Metadata? = null
     internal var selectedFirmwareFile: java.io.File? = null
     internal var firmwareInspectionPending = false
@@ -130,12 +85,6 @@ class MainActivity : Activity() {
     private var otaVerificationPending = false
     private val otaStartGate = OtaStartGate()
 
-    internal var runtime: GatewayRuntime? = null
-    private var eventConnection: GatewayEventConnection? = null
-    internal var store: CompanionStore? = null
-    internal var releaseCatalog: FirmwareReleaseCatalog? = null
-    private var connectionEpoch = 0L
-    private var eventStreamEpoch = 0L
     internal var currentTab = TAB_OVERVIEW
     internal var expressionPreview = 0
     internal var updateResources = false
@@ -146,14 +95,8 @@ class MainActivity : Activity() {
     internal var companionSheet: android.app.Dialog? = null
     internal var refreshCompanionSheet: (() -> Unit)? = null
     internal var busy = false
-    internal var eventConnected = false
     private var foreground = false
-    internal var autoReconnectAllowed = true
-    private var reconnectAttempt = 0
-    private var reconnectTicket = 0L
     internal var destroyed = false
-    internal var developerPanel = false
-    private var legacyConsoleMode = false
     // Reflected by the UI acceptance probe as getDirectSession(); keep the JVM name.
     @get:JvmName("getDirectSession")
     internal val directSession by lazy {
@@ -299,13 +242,8 @@ class MainActivity : Activity() {
     private var eyeApplySent = false
     private var eyeReadDeferred = false
     private val navigation = mutableMapOf<Int, TextView>()
-    internal var lastAction = "请配置 HTTPS Gateway、设备 ID 和访问令牌"
-
-    internal var draftOrigin = ""
-    internal var draftDeviceId = ""
-    internal var draftPins = ""
+    internal var lastAction = ""
     internal var provisionedDeviceId = ""
-    internal var controlCredentialRequired = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -337,11 +275,7 @@ class MainActivity : Activity() {
             detailStack.clear(); detailStack.addAll(saved.filter { it in TOP_LEVEL_TABS || it in DETAIL_TABS })
         }
         preferences = getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
-        tokenStore = AndroidKeystoreTokenStore(applicationContext)
         provisionBindingStore = ProvisionBindingStore(applicationContext)
-        legacyConsoleMode = BuildConfig.LEGACY_SERVICE_DEMO &&
-            (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
-            intent.getBooleanExtra("legacy_console", false)
         reloadLocalConfiguration()
         setContentView(buildRoot().apply { applySystemInsets() })
         installSystemBack { navigateBack() }
@@ -405,7 +339,6 @@ class MainActivity : Activity() {
     fun navigateBack() {
         when {
             directDiscoveryVisible -> dismissDirectDiscovery()
-            developerPanel -> developerPanel = false
             currentTab in DETAIL_TABS -> {
                 val previous = detailStack.removeLastOrNull() ?: defaultParent(currentTab)
                 // Popping must not push the page being left back onto the stack.
@@ -430,10 +363,7 @@ class MainActivity : Activity() {
             // APPLY/read already in flight keeps its own completion callback.
             requestEyeRead(eyeOffset)
         }
-        if (legacyConsoleMode && autoReconnectAllowed && !busy && runtime == null && !controlCredentialRequired &&
-            draftOrigin.isNotBlank() && draftDeviceId.isNotBlank()) {
-            connect(draftOrigin, draftDeviceId, draftPins, "", automatic = true)
-        } else render()
+        render()
     }
 
     override fun onStop() {
@@ -459,7 +389,6 @@ class MainActivity : Activity() {
         clearDirectDiscovery()
         directDialog?.dismiss(); directDialog = null
         directConnecting = false
-        closeRuntime(clearReportedState = true)
         super.onStop()
     }
 
@@ -486,34 +415,16 @@ class MainActivity : Activity() {
                 }
                 if (durableDeviceId != deviceId) {
                     provisionedDeviceId = ""
-                    controlCredentialRequired = true
                     lastAction = "设备已返回认领结果，但本机没有对应的持久化回执；请重新打开认领核对结果"
                     selectTab(TAB_OVERVIEW)
                     render()
                     return
                 }
                 provisionedDeviceId = durableDeviceId
-                if (!legacyConsoleMode) {
-                    lastAction = "设备已确认保存设置，可在首页查看连接和语音服务状态。"
-                    selectTab(TAB_OVERVIEW)
-                    render()
-                    return
-                }
-                controlCredentialRequired = true
-                if (preferences.edit()
-                        .putString(KEY_PROVISIONED_DEVICE_ID, deviceId)
-                        .putBoolean(KEY_CONTROL_CREDENTIAL_REQUIRED, true)
-                        .commit()) {
-                    lastAction = "傻妞已保存网络设置；请绑定 App 控制凭据"
-                } else {
-                    // The canonical binding is already durable. Reopening the App
-                    // restores it even if this compatibility mirror could not be saved.
-                    lastAction = "傻妞已保存网络设置；本机状态将在重新打开后恢复，请再绑定 App 控制凭据"
-                }
+                lastAction = "设备已确认保存设置，可在首页查看连接和语音服务状态。"
                 selectTab(TAB_OVERVIEW)
                 render()
             }
-            CONSOLE_ENROLLMENT_REQUEST -> importConsoleEnrollment(data)
         }
     }
 
@@ -532,76 +443,20 @@ class MainActivity : Activity() {
         directSubscriptions.forEach { it.cancel() }
         directSubscriptions.clear()
         closeDirect()
-        closeRuntime(clearReportedState = true)
         importedFileOwner.close()
-        // Let the queued TLS/session close finish off the main thread.
         ioExecutor.shutdown()
         mainHandler.removeCallbacksAndMessages(null)
         super.onDestroy()
     }
 
-    /**
-     * Restores the canonical provisioning outcome before deciding whether an
-     * existing console credential may reconnect. The old App preference is a
-     * compatibility mirror only; new commits come from ProvisionBindingStore.
-     */
+    /** Restores the canonical direct-device provisioning outcome. */
     private fun reloadLocalConfiguration() {
-        if (!legacyConsoleMode) {
-            try {
-                provisionedDeviceId = provisionBindingStore.boundDeviceId().orEmpty()
-                lastAction = ""
-            } catch (_: Exception) {
-                provisionedDeviceId = ""
-                lastAction = "读取设备资料失败，请重新核对认领结果。"
-            }
-            return
-        }
         try {
-            draftOrigin = preferences.getString(KEY_ORIGIN, "").orEmpty()
-            draftDeviceId = preferences.getString(KEY_DEVICE_ID, "").orEmpty()
-            draftPins = preferences.getString(KEY_PINS, "").orEmpty()
-            val legacyDeviceId = ProvisionBootstrap.validDeviceId(
-                preferences.getString(KEY_PROVISIONED_DEVICE_ID, ""),
-            )
-            val durableDeviceId = provisionBindingStore.boundDeviceId()
-            // The old preference was written after the receipt had already
-            // been removed, so it cannot prove the atomic durable outcome.
-            // Keep it only as a migration warning, never as a bound locator.
-            provisionedDeviceId = durableDeviceId.orEmpty()
-            controlCredentialRequired = preferences.getBoolean(
-                KEY_CONTROL_CREDENTIAL_REQUIRED,
-                false,
-            )
-            if (durableDeviceId != null) {
-                val needsFreshCredential = draftDeviceId != durableDeviceId
-                controlCredentialRequired = controlCredentialRequired || needsFreshCredential
-                if (legacyDeviceId != durableDeviceId || needsFreshCredential) {
-                    val mirrored = preferences.edit()
-                        .putString(KEY_PROVISIONED_DEVICE_ID, durableDeviceId)
-                        .putBoolean(KEY_CONTROL_CREDENTIAL_REQUIRED, controlCredentialRequired)
-                        .commit()
-                    if (!mirrored) {
-                        lastAction = "已恢复设备认领结果，但本机控制状态未能持久化"
-                    }
-                }
-            } else if (legacyDeviceId != null) {
-                controlCredentialRequired = true
-                val blocked = preferences.edit()
-                    .putBoolean(KEY_CONTROL_CREDENTIAL_REQUIRED, true)
-                    .commit()
-                lastAction = if (blocked) {
-                    "检测到旧版认领记录；请重新核对设备，或导入 App 控制凭据"
-                } else {
-                    "旧版认领记录无法核对；已停止自动连接"
-                }
-            }
+            provisionedDeviceId = provisionBindingStore.boundDeviceId().orEmpty()
+            lastAction = ""
         } catch (_: Exception) {
-            draftOrigin = ""
-            draftDeviceId = ""
-            draftPins = ""
             provisionedDeviceId = ""
-            controlCredentialRequired = true
-            lastAction = "本机认领状态无法读取；已停止自动连接以避免绑定错误"
+            lastAction = "读取设备资料失败，请重新核对认领结果。"
         }
     }
 
@@ -676,7 +531,6 @@ class MainActivity : Activity() {
                     navigation[tab] = this
                     setOnClickListener {
                         selectTab(tab)
-                        developerPanel = false
                         render()
                     }
                 },
@@ -763,7 +617,7 @@ class MainActivity : Activity() {
                     navigationIcon(tab, chosen, animate = chosen && animateFrom != null), null, null)
             }
         }
-        if (!legacyConsoleMode && currentTab == TAB_SERVICES &&
+        if (currentTab == TAB_SERVICES &&
             (cloudEditorEmbedded || cloudEditorOpening)) {
             contentScroll.visibility = View.GONE
             cloudEditorHost.visibility = View.VISIBLE
@@ -774,21 +628,8 @@ class MainActivity : Activity() {
         cloudEditorHost.visibility = View.GONE
         content.removeAllViews()
         if (pageChanged) revealPage(navDirection)
-        if (!legacyConsoleMode) {
-            renderStatusBanner(lastAction)
-            renderDirectCompanion()
-            return
-        }
-        if (developerPanel) statusStrip()
-        when (currentTab) {
-            TAB_OVERVIEW -> renderOverview()
-            TAB_INTERACTION -> renderInteraction()
-            TAB_PERSONALITY -> renderPersonality()
-            TAB_PRIVACY -> renderPrivacy()
-            TAB_UPDATE -> renderUpdate()
-            TAB_SETTINGS -> renderSettings()
-        }
-        if (!developerPanel && lastAction.contains("失败")) addMuted(lastAction)
+        renderStatusBanner(lastAction)
+        renderDirectCompanion()
     }
 
     internal val directPersonas = listOf("温柔陪伴", "活泼俏皮", "安静倾听", "认真交流", "轻轻嘴硬")
@@ -3330,433 +3171,6 @@ class MainActivity : Activity() {
         render()
     }
 
-    internal fun connect(
-        originValue: String,
-        deviceId: String,
-        pinsValue: String,
-        token: String,
-        automatic: Boolean = false,
-    ) {
-        if (!automatic) {
-            autoReconnectAllowed = true
-            reconnectAttempt = 0
-        }
-        val pins = try {
-            parsePins(pinsValue)
-        } catch (_: IllegalArgumentException) {
-            lastAction = "连接失败：证书 pin 格式无效"
-            render()
-            return
-        }
-        val configuration = try {
-            GatewayTransportConfiguration.fromExplicit(originValue, pins)
-                ?: throw IllegalArgumentException()
-        } catch (_: IllegalArgumentException) {
-            lastAction = "连接失败：必须填写合法的 HTTPS Gateway 根地址"
-            render()
-            return
-        }
-        try {
-            CompanionStore(deviceId)
-            if (token.isNotEmpty()) GatewayTokenPolicy.requireValid(token)
-        } catch (_: IllegalArgumentException) {
-            lastAction = "连接失败：设备 ID 或访问令牌格式无效"
-            render()
-            return
-        }
-
-        closeRuntime(clearReportedState = true, resetReconnectAttempt = !automatic)
-        busy = true
-        lastAction = "正在认证并获取设备快照"
-        render()
-        val epoch = connectionEpoch
-        ioExecutor.execute {
-            var sessionForCleanup: OkHttpConsoleGatewaySession? = null
-            try {
-                val provider = if (token.isNotEmpty())
-                    com.shaniu.companion.gateway.GatewayAccessTokenProvider { token }
-                else tokenStore.providerFor(configuration.origin.toString(), deviceId)
-                val candidateSession = OkHttpConsoleGatewaySession(configuration, provider)
-                sessionForCleanup = candidateSession
-                val candidateClient = ConsoleGatewayClient(configuration.origin, candidateSession)
-                val snapshot = when (val result = candidateClient.fetchSnapshot(deviceId)) {
-                    is GatewayCallResult.Failure -> {
-                        sessionForCleanup = null
-                        candidateSession.close()
-                        postToMain {
-                            if (!isCurrent(epoch)) return@postToMain
-                            busy = false
-                            handleGatewayFailure("连接失败", result, token.isNotEmpty())
-                            render()
-                            if (token.isEmpty() && result.retryable) {
-                                scheduleGatewayReconnect(epoch)
-                            }
-                        }
-                        return@execute
-                    }
-                    is GatewayCallResult.Success -> result.value
-                }
-
-                val newStore = CompanionStore(deviceId)
-                val disposition = newStore.apply(snapshot)
-                if (disposition != EventDisposition.APPLIED) {
-                    sessionForCleanup = null
-                    postConnectionFailure(
-                        epoch, candidateSession, "连接失败：快照未通过状态校验",
-                    )
-                    return@execute
-                }
-
-                var activeSession = candidateSession
-                var activeClient = candidateClient
-                if (token.isNotEmpty()) {
-                    // Persist endpoint metadata in a fail-closed state before replacing
-                    // the scoped credential. Keystore and disk work stays off the UI thread.
-                    val pendingSaved = preferences.edit()
-                        .putString(KEY_ORIGIN, configuration.origin.toString())
-                        .putString(KEY_DEVICE_ID, deviceId)
-                        .putString(KEY_PINS, pinsValue)
-                        .putBoolean(KEY_CONTROL_CREDENTIAL_REQUIRED, true)
-                        .commit()
-                    if (!pendingSaved) {
-                        sessionForCleanup = null
-                        postConnectionFailure(
-                            epoch, candidateSession,
-                            "连接失败：无法保存设备资料，请重试",
-                        )
-                        return@execute
-                    }
-                    try {
-                        tokenStore.storeFor(configuration.origin.toString(), deviceId, token)
-                    } catch (_: Exception) {
-                        sessionForCleanup = null
-                        postConnectionFailure(
-                            epoch, candidateSession,
-                            "连接失败：无法保存设备凭据，请重新导入",
-                            requireControlCredential = true,
-                        )
-                        return@execute
-                    }
-                    if (!preferences.edit()
-                            .putBoolean(KEY_CONTROL_CREDENTIAL_REQUIRED, false)
-                            .commit()) {
-                        sessionForCleanup = null
-                        postConnectionFailure(
-                            epoch, candidateSession,
-                            "凭据已安全写入，但绑定事务未完成；请重新导入",
-                            requireControlCredential = true,
-                        )
-                        return@execute
-                    }
-                    candidateSession.close()
-                    activeSession = OkHttpConsoleGatewaySession(
-                        configuration,
-                        tokenStore.providerFor(configuration.origin.toString(), deviceId),
-                    )
-                    activeClient = ConsoleGatewayClient(configuration.origin, activeSession)
-                } else {
-                    val saved = preferences.edit()
-                        .putString(KEY_ORIGIN, configuration.origin.toString())
-                        .putString(KEY_DEVICE_ID, deviceId)
-                        .putString(KEY_PINS, pinsValue)
-                        .putBoolean(KEY_CONTROL_CREDENTIAL_REQUIRED, false)
-                        .commit()
-                    if (!saved) {
-                        sessionForCleanup = null
-                        postConnectionFailure(
-                            epoch, candidateSession,
-                            "连接失败：无法保存设备资料，请重试",
-                        )
-                        return@execute
-                    }
-                }
-
-                sessionForCleanup = null
-                val preparedSession = activeSession
-                val preparedClient = activeClient
-                mainHandler.post {
-                    if (!isCurrent(epoch)) {
-                        closeSession(preparedSession)
-                        return@post
-                    }
-                    controlCredentialRequired = false
-                    draftOrigin = configuration.origin.toString()
-                    draftDeviceId = deviceId
-                    draftPins = pinsValue
-                    store = newStore
-                    runtime = GatewayRuntime(epoch, deviceId, preparedSession, preparedClient)
-                    releaseCatalog = null
-                    busy = false
-                    lastAction = "快照已同步，正在建立事件流"
-                    render()
-                    openEventStream(epoch)
-                }
-            } catch (_: Exception) {
-                sessionForCleanup?.close()
-                postToMain {
-                    if (!isCurrent(epoch)) return@postToMain
-                    busy = false
-                    lastAction = "连接失败：凭据不可用或本机安全存储异常"
-                    render()
-                }
-            }
-        }
-    }
-
-    private fun postConnectionFailure(
-        epoch: Long,
-        session: OkHttpConsoleGatewaySession,
-        message: String,
-        requireControlCredential: Boolean = false,
-    ) {
-        session.close()
-        postToMain {
-            if (!isCurrent(epoch)) return@postToMain
-            busy = false
-            if (requireControlCredential) controlCredentialRequired = true
-            lastAction = message
-            render()
-        }
-    }
-
-    private fun openEventStream(epoch: Long) {
-        val active = runtime ?: return
-        if (active.epoch != epoch) return
-        val state = store?.state ?: return
-        val streamEpoch = ++eventStreamEpoch
-        ioExecutor.execute {
-            try {
-                val connection = active.session.openEventStream(
-                    active.deviceId,
-                    state.generation,
-                    state.lastSequence,
-                    object : GatewayEventObserver {
-                        override fun onOpen() = postToMain {
-                            if (!isCurrentStream(epoch, streamEpoch)) return@postToMain
-                            eventConnected = true
-                            reconnectAttempt = 0
-                            lastAction = "事件流已连接"
-                            render()
-                        }
-
-                        override fun onEvent(event: ConsoleEventEnvelope) = postToMain {
-                            if (!isCurrentStream(epoch, streamEpoch)) return@postToMain
-                            val disposition = store?.apply(event) ?: return@postToMain
-                            lastAction = "事件 ${event.sequence}：$disposition"
-                            render()
-                            if (disposition == EventDisposition.NEEDS_SNAPSHOT) refreshSnapshot()
-                        }
-
-                        override fun onClosed() = postToMain {
-                            if (!retireEventStream(epoch, streamEpoch)) return@postToMain
-                            lastAction = "事件流已关闭，正在自动恢复"
-                            render()
-                            scheduleGatewayReconnect(epoch)
-                        }
-
-                        override fun onFailure(failure: GatewayCallResult.Failure) = postToMain {
-                            if (!retireEventStream(epoch, streamEpoch)) return@postToMain
-                            handleGatewayFailure("事件流中断", failure)
-                            render()
-                            if (failure.retryable) scheduleGatewayReconnect(epoch)
-                        }
-                    },
-                )
-                postToMain {
-                    if (!isCurrentStream(epoch, streamEpoch)) {
-                        connection.close()
-                    } else {
-                        eventConnection?.close()
-                        eventConnection = connection
-                    }
-                }
-            } catch (error: GatewayTransportException) {
-                postToMain {
-                    if (!retireEventStream(epoch, streamEpoch)) return@postToMain
-                    val failure = GatewayCallResult.Failure(error.reason, error.retryable)
-                    handleGatewayFailure("事件流失败", failure)
-                    render()
-                    if (failure.retryable) scheduleGatewayReconnect(epoch)
-                }
-            } catch (_: Exception) {
-                postToMain {
-                    if (!retireEventStream(epoch, streamEpoch)) return@postToMain
-                    lastAction = "事件流失败：凭据或传输不可用"
-                    render()
-                }
-            }
-        }
-    }
-
-    internal fun refreshSnapshot() {
-        val active = runtime ?: return
-        if (busy) return
-        busy = true
-        lastAction = "正在刷新设备快照"
-        render()
-        ioExecutor.execute {
-            val result = active.client.fetchSnapshot(active.deviceId)
-            postToMain {
-                if (!isCurrent(active.epoch)) return@postToMain
-                busy = false
-                when (result) {
-                    is GatewayCallResult.Success -> {
-                        val refreshed = CompanionStore(active.deviceId)
-                        if (refreshed.apply(result.value) == EventDisposition.APPLIED) {
-                            store = refreshed
-                            releaseCatalog = null
-                            lastAction = "设备快照已刷新"
-                            eventConnection?.close()
-                            eventConnection = null
-                            eventConnected = false
-                            render()
-                            openEventStream(active.epoch)
-                        } else {
-                            lastAction = "刷新失败：快照未通过状态校验"
-                            render()
-                        }
-                    }
-                    is GatewayCallResult.Failure -> {
-                        handleGatewayFailure("刷新失败", result)
-                        render()
-                    }
-                }
-            }
-        }
-    }
-
-    internal fun fetchReleases() {
-        val active = runtime ?: return
-        val state = store?.state ?: return
-        if (busy || state.generation <= 0) return
-        busy = true
-        lastAction = "正在获取固件发布列表"
-        render()
-        ioExecutor.execute {
-            val result = active.client.fetchFirmwareReleases(active.deviceId, state.generation)
-            postToMain {
-                if (!isCurrent(active.epoch)) return@postToMain
-                busy = false
-                when (result) {
-                    is GatewayCallResult.Success -> {
-                        releaseCatalog = result.value
-                        lastAction = "已获取 ${result.value.releases.size} 个已验证发布"
-                    }
-                    is GatewayCallResult.Failure -> handleGatewayFailure("发布列表失败", result)
-                }
-                render()
-            }
-        }
-    }
-
-    internal fun submitMutation(
-        operation: ConsoleOperation,
-        arguments: ConsoleMutationArguments = ConsoleMutationArguments.None,
-        locallyConfirmed: Boolean = false,
-    ) {
-        val active = runtime ?: return
-        val state = store?.state ?: return
-        if (busy) return
-        val now = System.currentTimeMillis()
-        val mutation = try {
-            ConsoleMutation(
-                requestId = "android-$now-${requestCounter.incrementAndGet()}",
-                deviceId = active.deviceId,
-                generation = state.generation,
-                expectedRevision = state.revision,
-                issuedAtEpochMs = now,
-                expiresAtEpochMs = now + MUTATION_TTL_MS,
-                operation = operation,
-                arguments = arguments,
-            )
-        } catch (_: IllegalArgumentException) {
-            lastAction = "请求未发送：当前设备状态不可用于该操作"
-            render()
-            return
-        }
-        val decision = ConsolePolicy.evaluate(
-            mutation,
-            MutationContext(
-                nowEpochMs = now,
-                deviceId = active.deviceId,
-                claimed = state.claimed,
-                gatewayOnline = state.gateway == GatewayConnection.ONLINE,
-                generation = state.generation,
-                revision = state.revision,
-                grantedLevels = setOf(
-                    PermissionLevel.L1_PREFERENCE,
-                    PermissionLevel.L2_PRIVACY,
-                    PermissionLevel.L3_ADMIN,
-                ),
-                locallyConfirmed = locallyConfirmed,
-            ),
-        )
-        if (decision is MutationDecision.Rejected) {
-            lastAction = "请求未发送：${decision.code.wireValue}"
-            render()
-            return
-        }
-        busy = true
-        lastAction = "正在提交 ${operation.name}"
-        render()
-        ioExecutor.execute {
-            val result = active.client.submitMutation(mutation)
-            postToMain {
-                if (!isCurrent(active.epoch)) return@postToMain
-                busy = false
-                when (result) {
-                    is GatewayCallResult.Success -> {
-                        lastAction = if (result.value.status == MutationReceiptStatus.ACCEPTED) {
-                            if (operation == ConsoleOperation.CANCEL_TURN) {
-                                "取消已发送；尚未确认板端停止播放"
-                            } else if (operation == ConsoleOperation.SET_VOLUME) {
-                                "板端已确认运行期音量；重启仍使用已保存的偏好"
-                            } else if (operation == ConsoleOperation.CONFIGURE_PERMISSION &&
-                                arguments == ConsoleMutationArguments.ConfigurePermission(
-                                    PrivacyCapability.LONG_TERM_MEMORY,
-                                    PermissionState.DENIED,
-                                )
-                            ) {
-                                "关闭长期记忆已受理，等待傻妞确认并同步状态"
-                            } else if (operation == ConsoleOperation.DELETE_MEMORY &&
-                                arguments == ConsoleMutationArguments.DeleteMemory(
-                                    MemoryDeleteScope.CONVERSATIONS,
-                                )
-                            ) {
-                                "清除对话记忆已受理，等待傻妞确认"
-                            } else if (operation == ConsoleOperation.REQUEST_FIRMWARE_UPDATE) {
-                                releaseCatalog = null
-                                "设备已接受更新请求；等待下载和签名验证状态"
-                            } else {
-                                "${operation.name} 已受理，等待设备上报确认"
-                            }
-                        } else {
-                            when (result.value.error) {
-                                ConsoleErrorCode.VOLUME_TIMEOUT -> "音量确认超时，生效结果未知；请刷新设备状态"
-                                ConsoleErrorCode.VOLUME_DEVICE_ERROR -> "板端音量操作失败，当前音量未知；请刷新设备状态"
-                                ConsoleErrorCode.VOLUME_BUSY -> "正在处理音量请求，请稍后刷新"
-                                ConsoleErrorCode.VOLUME_NOT_SUPPORTED -> "当前固件不支持远程音量控制"
-                                ConsoleErrorCode.UPDATE_MANIFEST_INVALID -> "更新请求被拒绝：发布清单无效或不适用于当前设备"
-                                ConsoleErrorCode.UPDATE_SIGNATURE_INVALID -> "更新请求被拒绝：签名校验失败"
-                                ConsoleErrorCode.UPDATE_PAIR_MISMATCH -> "更新请求被拒绝：CP/AP 固件配对不匹配"
-                                ConsoleErrorCode.UPDATE_TRIAL_FAILED -> "新固件试运行失败，设备将恢复旧版本"
-                                ConsoleErrorCode.UPDATE_DEVICE_ERROR -> "设备未能启动更新，请刷新设备状态"
-                                ConsoleErrorCode.UNSUPPORTED_OPERATION -> when (operation) {
-                                    ConsoleOperation.CONFIGURE_PERMISSION -> "当前 Gateway 尚不支持关闭长期记忆"
-                                    ConsoleOperation.DELETE_MEMORY -> "当前 Gateway 尚不支持清除对话记忆"
-                                    ConsoleOperation.REQUEST_FIRMWARE_UPDATE -> "当前 Gateway 或设备固件不支持受控更新"
-                                    else -> "${operation.name} 被拒绝：${result.value.error.wireValue}"
-                                }
-                                else -> "${operation.name} 被拒绝：${result.value.error?.wireValue ?: "unknown"}"
-                            }
-                        }
-                    }
-                    is GatewayCallResult.Failure -> handleGatewayFailure("请求失败", result)
-                }
-                render()
-            }
-        }
-    }
 
     // Public: the UI acceptance probe opens this sheet reflectively.
     fun confirmFactoryReset() {
@@ -3827,8 +3241,6 @@ class MainActivity : Activity() {
 
     private fun clearProvisioning() {
         closeDirect()
-        closeRuntime(clearReportedState = true)
-        val epoch = connectionEpoch
         busy = true
         lastAction = "正在清除本机绑定资料"
         render()
@@ -3840,90 +3252,29 @@ class MainActivity : Activity() {
                 if (durableDeviceId != null &&
                     !provisionBindingStore.clearBound(durableDeviceId)) {
                     false
-                } else if (!preferences.edit().clear().commit()) {
-                    false
-                } else {
-                    tokenStore.clearAccessToken()
-                    true
-                }
+                } else preferences.edit().clear().commit()
             } catch (_: Exception) {
                 false
             }
-            postToMain {
-                if (!isCurrent(epoch)) return@postToMain
+            mainHandler.post {
+                if (destroyed) return@post
                 busy = false
                 if (cleared) {
-                    draftOrigin = ""
-                    draftDeviceId = ""
-                    draftPins = ""
                     provisionedDeviceId = ""
-                    controlCredentialRequired = false
                     lastAction = "本机绑定资料已清除"
                 } else {
                     reloadLocalConfiguration()
-                    lastAction = "清除未完成：已停止自动连接，请重试"
+                    lastAction = "清除未完成，请重试"
                 }
                 render()
             }
         }
     }
 
-    internal fun closeRuntime(
-        clearReportedState: Boolean,
-        resetReconnectAttempt: Boolean = true,
-    ) {
-        cancelGatewayReconnect(resetReconnectAttempt)
-        connectionEpoch += 1
-        eventStreamEpoch += 1
-        eventConnection?.close()
-        eventConnection = null
-        runtime?.session?.let(::closeSession)
-        runtime = null
-        eventConnected = false
-        busy = false
-        releaseCatalog = null
-        if (clearReportedState) store = null
-    }
-
-    private fun closeSession(session: OkHttpConsoleGatewaySession) {
-        // Connection-pool eviction may close a live TLS socket. Android treats
-        // that as network I/O, so lifecycle and button callbacks must not run it
-        // on the main thread.
-        try {
-            ioExecutor.execute { session.close() }
-        } catch (_: RejectedExecutionException) {
-            Thread({ session.close() }, "shaniu-session-close").apply {
-                isDaemon = true
-                start()
-            }
-        }
-    }
-
-    internal fun canMutate(): Boolean =
-        runtime != null && eventConnected && !busy && store?.state?.needsSnapshot == false
-
-    internal fun requireReportedState(action: String = "查看和调整设置"): CompanionState? {
-        val state = store?.state
-        if (state == null) {
-            val needsControlBinding = expectedControlDeviceId().isNotBlank() &&
-                (draftDeviceId.isBlank() || controlCredentialRequired)
-            addMuted(if (needsControlBinding) "傻妞已完成网络设置；绑定 App 控制凭据后即可$action。"
-                     else if (draftDeviceId.isBlank()) "连接你的傻妞后，就能在这里$action。"
-                     else "暂时没有连上傻妞，重新连接后即可$action。")
-            actionButton(if (needsControlBinding) "绑定 App 控制" else if (draftDeviceId.isBlank()) "添加傻妞" else "重新连接", !busy) {
-                if (needsControlBinding) startConsoleEnrollmentImport()
-                else if (draftDeviceId.isBlank()) startProvisioning()
-                else connect(draftOrigin, draftDeviceId, draftPins, "")
-            }
-        }
-        return state
-    }
-
-    private fun isCurrent(epoch: Long): Boolean = !destroyed && epoch == connectionEpoch
 
     internal fun startProvisioning(developerMode: Boolean = false) {
-        // 认领可能更换身份，不能在返回前台时复用旧身份的重连工厂。
-        // 保留持久凭据；返回后由用户选择设备，按最新认领结果重新认证。
+        // Claiming may change identity; reconnect only after the provisioned
+        // result returns and the direct control session authenticates it.
         closeDirect()
         directSession.releaseIdentity()
         startActivityForResult(
@@ -3931,211 +3282,6 @@ class MainActivity : Activity() {
                 .putExtra("developer_mode", developerMode),
             PROVISION_REQUEST,
         )
-    }
-
-    internal fun startConsoleEnrollmentImport() {
-        if (busy) return
-        startActivityForResult(
-            Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                type = "application/json"
-                addCategory(Intent.CATEGORY_OPENABLE)
-            },
-            CONSOLE_ENROLLMENT_REQUEST,
-        )
-    }
-
-    private fun importConsoleEnrollment(data: Intent?) {
-        val expectedDevice = expectedControlDeviceId()
-        val uri = data?.data
-        if (uri == null) {
-            lastAction = "控制凭据导入失败：未选择文件"
-            render()
-            return
-        }
-
-        closeRuntime(clearReportedState = true)
-        busy = true
-        lastAction = "正在导入并验证 App 控制凭据"
-        render()
-        val epoch = connectionEpoch
-        ioExecutor.execute {
-            var bytes: ByteArray? = null
-            var input: CharArray? = null
-            try {
-                bytes = contentResolver.openInputStream(uri)?.use { stream ->
-                    val buffer = ByteArray(ConsoleEnrollment.MAX_BYTES + 1)
-                    try {
-                        var count = 0
-                        while (count < buffer.size) {
-                            val read = stream.read(buffer, count, buffer.size - count)
-                            if (read < 0) break
-                            require(read > 0)
-                            count += read
-                        }
-                        require(count in 1..ConsoleEnrollment.MAX_BYTES)
-                        buffer.copyOf(count)
-                    } finally {
-                        buffer.fill(0)
-                    }
-                } ?: throw IllegalArgumentException()
-                val chars = Charsets.UTF_8.newDecoder().decode(java.nio.ByteBuffer.wrap(bytes))
-                val decoded = CharArray(chars.remaining()).also { chars.get(it) }
-                input = decoded
-                try {
-                    ConsoleEnrollment.parse(
-                        decoded,
-                        expectedDeviceId = expectedDevice.takeIf { it.isNotBlank() },
-                    ).use { enrollment ->
-                        val origin = enrollment.gatewayOrigin.toString()
-                        val deviceId = enrollment.deviceId
-                        val pins = enrollment.certificatePins.joinToString("\n")
-                        enrollment.useAccessToken { token ->
-                            val suppliedToken = token.concatToString()
-                            postToMain {
-                                if (!isCurrent(epoch)) return@postToMain
-                                busy = false
-                                connect(origin, deviceId, pins, suppliedToken)
-                            }
-                        }
-                    }
-                } finally {
-                    if (chars.hasArray()) chars.array().fill('\u0000')
-                }
-            } catch (_: Exception) {
-                postToMain {
-                    if (!isCurrent(epoch)) return@postToMain
-                    busy = false
-                    lastAction = "控制凭据导入失败：文件无效、已过期或不属于这台设备"
-                    render()
-                }
-            } finally {
-                input?.fill('\u0000')
-                bytes?.fill(0)
-            }
-        }
-    }
-
-    internal fun expectedControlDeviceId(): String =
-        provisionedDeviceId.ifBlank { draftDeviceId }
-
-    private fun isCurrentStream(epoch: Long, streamEpoch: Long): Boolean =
-        isCurrent(epoch) && streamEpoch == eventStreamEpoch
-
-    private fun retireEventStream(epoch: Long, streamEpoch: Long): Boolean {
-        if (!isCurrentStream(epoch, streamEpoch)) return false
-        eventStreamEpoch += 1
-        eventConnection = null
-        eventConnected = false
-        return true
-    }
-
-    private fun cancelGatewayReconnect(resetAttempt: Boolean) {
-        reconnectTicket += 1
-        if (resetAttempt) reconnectAttempt = 0
-    }
-
-    private fun scheduleGatewayReconnect(epoch: Long) {
-        if (!isCurrent(epoch) || !foreground || !autoReconnectAllowed ||
-            controlCredentialRequired || draftOrigin.isBlank() || draftDeviceId.isBlank()) {
-            return
-        }
-        val attempt = reconnectAttempt.coerceAtMost(RECONNECT_DELAYS_MS.lastIndex)
-        val delayMs = RECONNECT_DELAYS_MS[attempt]
-        reconnectAttempt += 1
-        val ticket = ++reconnectTicket
-        val seconds = (delayMs + 999L) / 1_000L
-        lastAction = "连接中断，${seconds} 秒后自动恢复"
-        render()
-        mainHandler.postDelayed(
-            { runGatewayReconnect(ticket, epoch) },
-            delayMs,
-        )
-    }
-
-    private fun runGatewayReconnect(ticket: Long, epoch: Long) {
-        if (ticket != reconnectTicket || !isCurrent(epoch) || !foreground ||
-            !autoReconnectAllowed || controlCredentialRequired) {
-            return
-        }
-        if (busy) {
-            mainHandler.postDelayed(
-                { runGatewayReconnect(ticket, epoch) },
-                RECONNECT_BUSY_WAIT_MS,
-            )
-            return
-        }
-        connect(draftOrigin, draftDeviceId, draftPins, "", automatic = true)
-    }
-
-    private fun postToMain(block: () -> Unit) {
-        if (!destroyed) mainHandler.post { if (!destroyed) block() }
-    }
-
-    private fun parsePins(value: String): Set<String> {
-        if (value.isBlank()) return emptySet()
-        val pins = value.split(Regex("[\\s,]+"))
-            .filter { it.isNotBlank() }
-            .toSet()
-        require(pins.size <= GatewayTransportConfiguration.MAX_CERTIFICATE_PINS)
-        return pins
-    }
-
-    private fun failureText(prefix: String, failure: GatewayCallResult.Failure): String =
-        "$prefix：${failure.reason.label()}${if (failure.retryable) "（可重试）" else ""}"
-
-    private fun handleGatewayFailure(
-        prefix: String,
-        failure: GatewayCallResult.Failure,
-        credentialWasSupplied: Boolean = false,
-    ) {
-        val credentialUnavailable = failure.reason == GatewayFailureReason.AUTHORIZATION_REVOKED ||
-            failure.reason == GatewayFailureReason.CREDENTIALS_UNAVAILABLE
-        if (!credentialUnavailable || credentialWasSupplied) {
-            lastAction = failureText(prefix, failure)
-            return
-        }
-
-        closeRuntime(clearReportedState = true)
-        controlCredentialRequired = true
-        val markerSaved = preferences.edit()
-            .putBoolean(KEY_CONTROL_CREDENTIAL_REQUIRED, true)
-            .commit()
-        val reason = if (failure.reason == GatewayFailureReason.AUTHORIZATION_REVOKED) {
-            "授权已失效"
-        } else {
-            "本机控制凭据不可用"
-        }
-        lastAction = if (markerSaved) {
-            "$reason；请重新导入 App 控制凭据"
-        } else {
-            "$reason；本机未能保存停用状态，请重新导入控制凭据"
-        }
-        val epoch = connectionEpoch
-        ioExecutor.execute {
-            val cleared = try {
-                tokenStore.clearAccessToken()
-                true
-            } catch (_: Exception) {
-                false
-            }
-            if (!cleared) postToMain {
-                if (!isCurrent(epoch)) return@postToMain
-                lastAction = "$reason；旧凭据已停用，但安全存储清理失败"
-                render()
-            }
-        }
-    }
-
-    private fun GatewayFailureReason.label(): String = when (this) {
-        GatewayFailureReason.CREDENTIALS_UNAVAILABLE -> "凭据不可用"
-        GatewayFailureReason.TRANSPORT_UNAVAILABLE -> "网络不可用"
-        GatewayFailureReason.AUTHORIZATION_REVOKED -> "授权已失效"
-        GatewayFailureReason.DEVICE_NOT_FOUND -> "设备不存在"
-        GatewayFailureReason.REVISION_CONFLICT -> "状态修订冲突"
-        GatewayFailureReason.RATE_LIMITED -> "请求过于频繁"
-        GatewayFailureReason.SERVER_ERROR -> "Gateway 服务异常"
-        GatewayFailureReason.REQUEST_REJECTED -> "请求被拒绝"
-        GatewayFailureReason.PROTOCOL_ERROR -> "协议校验失败"
     }
 
     internal val design get() = CompanionDesign(this)
@@ -4195,11 +3341,6 @@ class MainActivity : Activity() {
 
     companion object {
         private const val PREFERENCES_NAME = "shaniu_gateway_configuration_v1"
-        private const val KEY_ORIGIN = "origin"
-        private const val KEY_DEVICE_ID = "device_id"
-        private const val KEY_PINS = "certificate_pins"
-        private const val KEY_PROVISIONED_DEVICE_ID = "provisioned_device_id"
-        private const val KEY_CONTROL_CREDENTIAL_REQUIRED = "control_credential_required"
         private const val KEY_OTA_EXPECTED_VERSION = "ota_expected_version"
         private const val KEY_OTA_EXPECTED_COUNTER = "ota_expected_counter"
         private const val KEY_OTA_EXPECTED_CATALOG = "ota_expected_catalog"
@@ -4207,10 +3348,6 @@ class MainActivity : Activity() {
         internal const val KEY_OTA_EXPECTED_PENDING = "ota_expected_pending"
         private const val DEVICE_BOARD = "aidk_ai_toy"
         private const val PROVISION_REQUEST = 41
-        private const val CONSOLE_ENROLLMENT_REQUEST = 42
-        private const val MUTATION_TTL_MS = 30_000L
-        private const val RECONNECT_BUSY_WAIT_MS = 500L
-        private val RECONNECT_DELAYS_MS = longArrayOf(1_000L, 2_000L, 4_000L, 8_000L, 16_000L, 30_000L)
 
         private const val MAX_CONTENT_WIDTH_DP = 560
         private const val RAIL_MIN_WIDTH_DP = 600

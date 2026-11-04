@@ -18,13 +18,12 @@ openvela CP 实例，CPU1/CPU2 以 SMP 方式运行负责语音、显示和 Agen
 
 参赛方向：**新硬件平台适配 + AI 硬件产品创新**，与[技术报告](docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md)中的作品范围一致。
 
-> **现在的状态（2026-11-04）。** 源码在官方赛事分支 `dev-ai-contest-2026` 维护。
-> PR #140 已合入，合并提交的构建与独立交付校验均通过；它证明 GitHub 干净环境能
-> 按固定 manifest 构建开发身份签名固件与 App，但**当前源码还没有作者签名发布，
-> 也未完成整机全功能验收**。`0.7.129+775` 已完成审批显示修复的同板限定验收；其余
-> 11 月 3 日的实板观察来自一台完整版本未能读回的设备，
-> 不代表当前源码。逐项能力的证据层级见下表和[功能与证据清单](docs/platforms/bk7258/shaniu-feature-inventory.md)；
-> 板级结论只在 [CONFIGS.md](boards/bk7258/CONFIGS.md) 维护。
+> **复现与验收边界。** 先用 `git rev-parse HEAD` 核对下载的源码提交，再在官方
+> [Actions 工作流](https://github.com/open-vela/contest2026_135_yongwangzhiqian/actions/workflows/shaniu-source-checks.yml)
+> 中核对同一提交的构建与独立交付校验。它们证明固定 manifest 能在干净环境构建开发身份
+> 签名固件与 App，不等同于作者签名发布或整机验收。逐项能力的证据层级见下表和
+> [功能与证据清单](docs/platforms/bk7258/shaniu-feature-inventory.md)；板级结论只在
+> [CONFIGS.md](boards/bk7258/CONFIGS.md) 维护。
 
 官方模板要求 README 说明作品、方向、目录、运行方式与 AI Coding 使用；规则见[大赛总览](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/contest_overview.md)、[代码提交指南](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/code_submission_guide.md)和[AI 日志手册](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/ai_coding_log_guide.md)。本项目以 Claude Code/Codex 协助需求拆解、实现、诊断与文档；日志入口为 [`logs/README.md`](logs/README.md)。历史导出保留 collector 标签 `lijian`，本轮脱敏增量在 `logs/Embracecactus/`；两者不因当前 GitHub 用户名不同而改写身份字段。内部推理、上下文、媒体及敏感载荷不公开或脱敏/哈希，归集工具不会自动 push。211 份会话、113,146 条事件通过官方格式校验，公开快照的完整性限制见日志入口。
 
@@ -489,7 +488,7 @@ python3 tools/bk7258/bk7258.py verify delivery \
 
 ```bash
 python3 -m pip install --index-url https://pypi.org/simple \
-  -r gateway/shaniu/requirements.txt -r tests/host/bk7258/python-requirements.txt pyserial==3.5
+  -r tests/host/bk7258/python-requirements.txt pyserial==3.5
 make -C tests/host/bk7258 check              # 主机测试门禁，结束标记 BK7258_HOST_TEST_PASS
 make -C tests/host/bk7258 run-shaniu-contracts  # 产品行为合同
 python3 tools/bk7258/bk7258.py verify layers    # 芯片/板/应用分层门禁
@@ -498,26 +497,26 @@ python3 tools/bk7258/bk7258.py verify layers    # 芯片/板/应用分层门禁
 测试说明见 [`tests/host/bk7258/README.md`](tests/host/bk7258/README.md)。主机测试证明逻辑与
 协议，不证明射频、声音或实板行为。
 
-### CI 当前状态
+### CI 复核
 
 `Shaniu cold delivery` 在 GitHub 托管的 Ubuntu 24.04 上从空目录按 manifest 同步，
 用临时开发身份构建签名 BL1/BL2/CP/AP、生成工厂软件包并验签，构建 App、运行
 单元测试与固件回归，最后在独立 job 下载并复核交付物与 `SHA256SUMS.txt`
 （产物保留 7 天，下载需登录 GitHub）。
 
-2026-11-04 核对时，PR #140 已合入；合并后的 `b21fa804` 在官方仓库的 build 和
-verify-delivery 检查均为成功。该工作流以临时开发身份构建和验签，不生成能被作者板
-或任意既有设备接受的发布镜像。最新分支头 [`906a38d3` 的官方 push 运行](https://github.com/open-vela/contest2026_135_yongwangzhiqian/actions/runs/41676359713) 的 build/verify-delivery 也成功；下载/复现前仍请打开
-[Actions 工作流](https://github.com/open-vela/contest2026_135_yongwangzhiqian/actions/workflows/shaniu-source-checks.yml)，
-核对所选提交的运行结论与 7 天 artifact 保留期。fork 的运行不能替代官方仓库运行。
+该工作流以临时开发身份构建和验签，不生成能被作者板或任意既有设备接受的发布镜像。
+下载或复现前，记录 `git rev-parse HEAD` 的结果，并在
+[Actions 工作流](https://github.com/open-vela/contest2026_135_yongwangzhiqian/actions/workflows/shaniu-source-checks.yml)
+中核对该提交的 build 与 verify-delivery 结论及 artifact 保留期。fork 的运行不能替代
+官方仓库运行。
 
 ### 作者签名的版本
 
-当前源码还没有作者签名发布。已有的
+是否已有与所选提交对应的作者签名版本，以 Release 页面、`SHA256SUMS` 与
+`source-inputs.json` 的源码提交核对为准。已有的
 [2026-09-20 固件对比包](https://github.com/open-vela/contest2026_135_yongwangzhiqian/releases/tag/shaniu-firmware-20260920)
 （`18.6.401+641` 去设备数据镜像与 APK `0.5.23`）是历史版本，只用于对比；它不含
-`persistent_data`，也不是任意板可刷的整机包。新的签名发布出现后，以 Release
-页面及其 `SHA256SUMS` 为准，并核对 `source-inputs.json` 中的源码提交。
+`persistent_data`，也不是任意板可刷的整机包。
 
 ### 用你自己的板
 
@@ -561,9 +560,15 @@ verify-delivery 检查均为成功。该工作流以临时开发身份构建和�
 | `tools/bk7258/` | 唯一的构建/发布/工作台 CLI |
 | `tests/host/bk7258/` · `app/testing/` | 主机测试 · 目标板测试 |
 | `nuttx/` · `frameworks/` | 上游形态的驱动覆盖 · 构建接线 |
-| `gateway/shaniu/` | 冻结的历史 Gateway，仅供协议对照与测试夹具 |
+| `docs/platforms/bk7258/` · `docs/chips/bk7258/` | 平台分层、板级流程与芯片机制；当前板级结论见 `boards/bk7258/CONFIGS.md` |
+| `app/hello_app/` · `quickapp/hello_quickapp/` | 主办方初始 App/QuickApp scaffold，保留为赛事仓库基线 |
+| `contest2026_135_yongwangzhiqian.xml` · `.github/workflows/cla.yml` | 团队 manifest 与主办方 CLA scaffold |
 | `docs/` | [文档导航](docs/README.md)：芯片契约、平台 SOP、日期化验收记录、比赛材料 |
 | `logs/` | [AI Coding 日志入口](logs/README.md)：历史 collector 标签与本轮脱敏增量均保留原始身份字段 |
+
+Gateway 已退役，不是当前构建、安装或产品入口；其历史源码和验收记录固定在
+[e4f2df71 快照](https://github.com/open-vela/contest2026_135_yongwangzhiqian/blob/e4f2df717defab9f6ad02adc662acd8cba086cf2/gateway/shaniu/README.md)，
+不以当前文档重述或更新。
 
 原创代码采用 [Apache-2.0](LICENSE)；第三方代码、SDK、模型与生成资源的来源和许可见
 [SOURCE_PROVENANCE.md](SOURCE_PROVENANCE.md)。云凭据、私钥、私人语音和设备绑定

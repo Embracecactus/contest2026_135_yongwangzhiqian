@@ -2,9 +2,9 @@
 
 ## Current verification status (2026-11-03)
 
-This is the single current board/profile acceptance summary. Product goals
-remain in `goal-objective.md` and the
-[desktop companion contract](../../docs/platforms/bk7258/shaniu-desktop-companion.md).
+This is the single current board/profile acceptance summary. Product behavior
+is described by the [feature inventory](../../docs/platforms/bk7258/shaniu-feature-inventory.md)
+and the [desktop companion contract](../../docs/platforms/bk7258/shaniu-desktop-companion.md).
 Dated verification records retain their original version and evidence scope.
 
 - The 2026-10-25 reviewed team source was `930d75ae`. Its recorded validation covers

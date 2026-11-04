@@ -14,13 +14,6 @@ import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
-import com.shaniu.companion.protocol.ConsoleErrorCode
-import com.shaniu.companion.protocol.Emotion
-import com.shaniu.companion.protocol.TurnPhase
-import com.shaniu.companion.protocol.PermissionState
-import com.shaniu.companion.protocol.PersonaMode
-import com.shaniu.companion.protocol.PrivacyCapability
-import com.shaniu.companion.protocol.UpdatePhase
 
 // Small view builders and label helpers used across MainActivity pages.
 // Moved verbatim from MainActivity; state and protocol ownership stay there.
@@ -166,73 +159,6 @@ internal fun MainActivity.confirm(title: String, message: String, consent: Strin
         }
         page.secondaryButton("保留我的设置", true) { dialog.dismiss() }
     }
-}
-
-internal fun MainActivity.personaLabel(mode: PersonaMode): String = when (mode) {
-    PersonaMode.GENTLE -> "温柔"
-    PersonaMode.PLAYFUL -> "活泼"
-    PersonaMode.QUIET -> "安静"
-    PersonaMode.SERIOUS -> "认真"
-    PersonaMode.TSUNDERE_LITE -> "轻傲娇"
-}
-
-internal fun MainActivity.turnLabel(phase: TurnPhase): String = when (phase) {
-    TurnPhase.IDLE -> "等待你说话"
-    TurnPhase.LISTENING -> "正在听你说"
-    TurnPhase.THINKING -> "正在思考"
-    TurnPhase.SPEAKING -> "正在回答"
-    TurnPhase.CANCELLING -> "正在停止"
-    TurnPhase.CANCEL_UNCONFIRMED -> "停止结果待确认"
-    TurnPhase.PLAYBACK_UNCONFIRMED -> "播放结果待确认"
-    TurnPhase.OFFLINE -> "设备离线"
-    TurnPhase.ERROR -> "对话出现异常"
-}
-
-internal fun MainActivity.emotionLabel(emotion: Emotion): String = when (emotion) {
-    Emotion.UNKNOWN -> "未知"
-    Emotion.NEUTRAL -> "平静"
-    Emotion.HAPPY -> "开心"
-    Emotion.SHY -> "害羞"
-    Emotion.SAD -> "难过"
-    Emotion.SURPRISED -> "惊讶"
-    Emotion.THINKING -> "思考中"
-}
-
-internal fun MainActivity.permissionStateLabel(state: PermissionState): String = when (state) {
-    PermissionState.NOT_GRANTED -> "尚未选择"
-    PermissionState.ALLOWED -> "已允许"
-    PermissionState.DENIED -> "已拒绝"
-}
-
-internal fun MainActivity.updatePhaseLabel(phase: UpdatePhase): String = when (phase) {
-    UpdatePhase.UNKNOWN -> "更新状态未知"
-    UpdatePhase.IDLE -> "暂无更新任务"
-    UpdatePhase.AWAITING_LOCAL_CONFIRMATION -> "等待设备确认"
-    UpdatePhase.DOWNLOADING -> "正在下载"
-    UpdatePhase.VERIFYING -> "正在验证"
-    UpdatePhase.STAGED -> "已准备安装"
-    UpdatePhase.REBOOTING -> "正在重启"
-    UpdatePhase.TRIAL -> "正在试运行"
-    UpdatePhase.CONFIRMED -> "更新已完成"
-    UpdatePhase.ROLLED_BACK -> "已恢复旧版本"
-    UpdatePhase.FAILED -> "更新失败"
-}
-
-internal fun MainActivity.updateErrorLabel(error: ConsoleErrorCode): String = when (error) {
-    ConsoleErrorCode.UPDATE_MANIFEST_INVALID -> "发布清单无效或不适用于当前设备"
-    ConsoleErrorCode.UPDATE_SIGNATURE_INVALID -> "签名校验失败"
-    ConsoleErrorCode.UPDATE_PAIR_MISMATCH -> "CP/AP 固件配对不匹配"
-    ConsoleErrorCode.UPDATE_TRIAL_FAILED -> "新固件试运行失败"
-    ConsoleErrorCode.UPDATE_DEVICE_ERROR -> "设备执行更新失败"
-    else -> error.wireValue
-}
-
-internal fun MainActivity.capabilityLabel(capability: PrivacyCapability): String = when (capability) {
-    PrivacyCapability.MICROPHONE -> "麦克风"
-    PrivacyCapability.CAMERA -> "摄像头"
-    PrivacyCapability.LOCATION -> "位置"
-    PrivacyCapability.LONG_TERM_MEMORY -> "长期记忆"
-    PrivacyCapability.AUTHORIZED_VOICE -> "授权声音"
 }
 
 internal fun MainActivity.dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()

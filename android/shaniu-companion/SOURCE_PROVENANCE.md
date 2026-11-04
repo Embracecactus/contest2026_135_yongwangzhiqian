@@ -2,7 +2,7 @@
 
 ## Project code
 
-The application, protocol, Gateway-client, resource and unit-test sources in
+The application, protocol, resource and unit-test sources in
 this directory are native Kotlin/Android project code authored for Shaniu and
 carry `SPDX-License-Identifier: Apache-2.0` markers. No third-party source
 trees, credentials or private device captures are included here.

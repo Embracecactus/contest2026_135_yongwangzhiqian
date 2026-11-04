@@ -146,4 +146,4 @@ bk7258_agent_media_recorder.c.o`，open/prepare/read/start/stop/close 各只有�
 
 AIDK/COM8 只执行现有 635 的 shell reset 和只读外设查询，不使用 RTS/DTR，
 不重刷同包；结果见 [635 补验](2026-09-20-shaniu-runtime-skill-635.md#同日-codex-串口补验)。
-8 个开发期 Skill 与 HIL 工具的实际覆盖见[能力索引](../../platforms/bk7258/shaniu-skill-capability-map.md#2026-09-20-补验覆盖)。
+8 个开发期 Skill 与 HIL 工具的实际覆盖见[能力索引](https://github.com/open-vela/contest2026_135_yongwangzhiqian/blob/e4f2df717defab9f6ad02adc662acd8cba086cf2/docs/platforms/bk7258/shaniu-skill-capability-map.md#2026-09-20-补验覆盖)。

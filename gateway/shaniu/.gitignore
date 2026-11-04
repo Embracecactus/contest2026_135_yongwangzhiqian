@@ -1,6 +1,0 @@
-# SPDX-License-Identifier: Apache-2.0
-__pycache__/
-*.py[cod]
-.venv/
-cert.pem
-key.pem

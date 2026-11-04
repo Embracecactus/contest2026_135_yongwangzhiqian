@@ -14,7 +14,7 @@
 - `git rev-parse HEAD^{tree}` = `1583e0ddc43aac58ebe2a1da49720809f1c3cd5c`,
   identical to the canonical upstream tree (no source drift).
 - The only tracked diff vs upstream is the documentation-only handoff patch
-  (`memory/ARCHITECTURE.md`, `memory/decisions/ADR-026-...md`,
+  ([memory/ARCHITECTURE.md](https://github.com/open-vela/contest2026_135_yongwangzhiqian/blob/e4f2df717defab9f6ad02adc662acd8cba086cf2/memory/ARCHITECTURE.md), [memory/decisions/ADR-026-...md](https://github.com/open-vela/contest2026_135_yongwangzhiqian/blob/e4f2df717defab9f6ad02adc662acd8cba086cf2/memory/decisions/ADR-026-bk7258-platform-v2-configuration-and-isolation.md),
   `progress/CURRENT.md`, `docs/verification/bk7258/2026-08-16-bk7258-four-role-isolated-build.md`).
 - Four untracked exclusions preserved untouched:
   `board/bk7258/bootloader/bl2/bl2_crc.bin.json`,

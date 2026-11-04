@@ -23,16 +23,14 @@ T5-Board runs the Dolphin graphical tool.
 
 Competition scope: **new hardware platform adaptation + AI hardware product innovation**, matching the [technical report](docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md).
 
-> **Status (2026-11-04).** Source is maintained on the official contest branch
-> `dev-ai-contest-2026`. PR #140 was merged with its build and independent delivery
-> verification checks passing. This proves a clean GitHub environment can build
-> development-identity-signed firmware and the App from the pinned manifest; it
-> does not prove a release image works on a board. **The current source has no
-> author-signed release and no whole-device, all-feature acceptance yet.** `0.7.129+775`
-> has a bounded same-board approval-display acceptance; the November 3 board
-> observations come from a device whose full firmware version could not be read
-> back. Per-feature evidence is listed below and in the inventory; board-level
-> conclusions live only in [CONFIGS.md](boards/bk7258/CONFIGS.md).
+> **Reproduction and acceptance boundary.** First compare `git rev-parse HEAD`
+> with the commit you downloaded, then check the build and independent delivery
+> verification for that same commit in the official [Actions workflow](https://github.com/open-vela/contest2026_135_yongwangzhiqian/actions/workflows/shaniu-source-checks.yml).
+> Those checks show that the pinned manifest builds development-identity-signed
+> firmware and the App in a clean environment; they are neither an author-signed
+> release nor whole-device acceptance. Per-feature evidence is listed below and
+> in the inventory; board-level conclusions live only in
+> [CONFIGS.md](boards/bk7258/CONFIGS.md).
 
 The official template requires the project, direction, layout, run steps and AI Coding explanation; see the [contest overview](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/contest_overview.md), [submission guide](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/code_submission_guide.md), and [AI-log guide](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/ai_coding_log_guide.md). Claude Code and Codex assisted design, implementation, diagnosis and documentation. Use [`logs/README.md`](logs/README.md) as the entry: historical exports retain collector label `lijian`, while this review's redacted additions are under `logs/Embracecactus/`; neither identity field is rewritten merely because the current GitHub username differs. Internal reasoning/context, media and sensitive payloads are excluded or redacted/hashed. The collector does not push automatically. All 211 sessions and 113,146 events pass the official schema validator; the log entry explains the public snapshots' completeness limits.
 
@@ -301,13 +299,15 @@ voice, BLE, OTA, or whole-device acceptance. The official CI separately verifies
 source/manifest identity using its GitHub event context; do not fabricate that event
 locally.
 
-**CI status (2026-11-04).** PR #140 was merged. Its post-merge `b21fa804` build
-and `verify-delivery` checks succeeded in the official repository. They use an
-ephemeral development identity and do not create a package trusted by the
-author's board or any existing device. The visible branch head [`906a38d3` also has a successful official build/verify-delivery push run](https://github.com/open-vela/contest2026_135_yongwangzhiqian/actions/runs/41676359713); before using an artifact, check the [official workflow](https://github.com/open-vela/contest2026_135_yongwangzhiqian/actions/workflows/shaniu-source-checks.yml)
-for the exact selected commit. Artifacts expire after seven days.
+**CI review.** The workflow uses an ephemeral development identity and does not
+create a package trusted by the author's board or any existing device. Before
+using an artifact, record `git rev-parse HEAD` and check the build and
+`verify-delivery` conclusion for that exact commit in the [official workflow](https://github.com/open-vela/contest2026_135_yongwangzhiqian/actions/workflows/shaniu-source-checks.yml).
+Artifacts expire after seven days.
 
-**Author-signed release.** None exists for the current source. The
+**Author-signed release.** Determine whether one corresponds to the selected
+commit from the Release page, `SHA256SUMS`, and the source commit in
+`source-inputs.json`. The
 [2026-09-20 firmware comparison package](https://github.com/open-vela/contest2026_135_yongwangzhiqian/releases/tag/shaniu-firmware-20260920)
 (`18.6.401+641` images without device data and APK `0.5.23`) is historical. The
 old serial provisioning and same-device recovery flow is preserved in the
@@ -330,9 +330,18 @@ collect human wake data, then power, enclosure and production provisioning.
 `chips/bk7258/` and `boards/bk7258/` (chip mechanisms, three boards) ·
 `app/bk7258/` and `app/dolphin/` (product services, Dolphin) ·
 `android/shaniu-companion/` · `tools/bk7258/` (the only build/release/workbench
-CLI) · `tests/host/bk7258/` · `nuttx/`, `frameworks/` · `gateway/shaniu/`
-(frozen historical gateway) · [`docs/`](docs/README_EN.md) · [`logs/`](logs/README.md)
-(AI Coding log entry and identity/privacy boundary).
+CLI) · `tests/host/bk7258/` · `nuttx/`, `frameworks/` ·
+[`docs/platforms/bk7258/`](docs/platforms/bk7258/README_EN.md) and
+[`docs/chips/bk7258/`](docs/chips/bk7258/README.md) (platform layers and chip
+mechanisms) · `app/hello_app/`, `quickapp/hello_quickapp/` (organizer starter
+scaffolds) · `contest2026_135_yongwangzhiqian.xml`, `.github/workflows/cla.yml`
+(manifest and CLA scaffolds) · [`docs/`](docs/README_EN.md) ·
+[`logs/`](logs/README.md) (AI Coding log entry and identity/privacy boundary).
+
+Gateway is retired and is not a current build, installation, or product entry.
+Its historical source and acceptance record remain at the fixed
+[e4f2df71 snapshot](https://github.com/open-vela/contest2026_135_yongwangzhiqian/blob/e4f2df717defab9f6ad02adc662acd8cba086cf2/gateway/shaniu/README.md),
+which this documentation does not restate or update.
 
 Original code is [Apache-2.0](LICENSE); third-party code, SDK, models and
 generated assets are listed in [SOURCE_PROVENANCE.md](SOURCE_PROVENANCE.md).
