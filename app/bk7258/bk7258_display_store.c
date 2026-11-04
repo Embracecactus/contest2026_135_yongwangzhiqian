@@ -940,7 +940,7 @@ int bkdisplay_store_activate_checked(
 }
 
 static int bkdisplay_store_publish(
-  const char *root, const char *filename,
+  const char *root, const char *filename, const char *staged_filename,
   struct bkdisplay_store_selection_s *selection)
 {
   char staging_dir[BKDISPLAY_PACK_PATH_SIZE];
@@ -975,7 +975,8 @@ static int bkdisplay_store_publish(
       return ret;
     }
 
-  if (snprintf(staging, sizeof(staging), "%s/%s", staging_dir, filename) >=
+  if (snprintf(staging, sizeof(staging), "%s/%s", staging_dir,
+               staged_filename) >=
       (int)sizeof(staging) ||
       snprintf(installed, sizeof(installed), "%s/%s", packs_dir, filename) >=
       (int)sizeof(installed))
@@ -1021,7 +1022,7 @@ static int bkdisplay_store_publish(
 int bkdisplay_store_install(const char *root, const char *filename,
                             struct bkdisplay_store_selection_s *selection)
 {
-  int ret = bkdisplay_store_publish(root, filename, NULL);
+  int ret = bkdisplay_store_publish(root, filename, filename, NULL);
 
   return ret < 0 ? ret : bkdisplay_store_activate(root, filename, selection);
 }
@@ -1223,11 +1224,9 @@ int bkdisplay_upload_cancel(struct bkdisplay_upload_s *upload)
 int bkdisplay_upload_finish(struct bkdisplay_upload_s *upload,
                             struct bkdisplay_store_selection_s *selection)
 {
-  char staged[BKDISPLAY_PACK_PATH_SIZE];
   char filename[BKDISPLAY_STORE_FILENAME_SIZE];
   struct bkdisplay_pack_info_s info;
   struct bkdisplay_pack_s *pack = NULL;
-  struct stat statbuf;
   uint16_t *pixels;
   int ret;
 
@@ -1275,27 +1274,15 @@ int bkdisplay_upload_finish(struct bkdisplay_upload_s *upload,
     }
 
   snprintf(filename, sizeof(filename), "%s.bkep", info.pack_id);
-  if (snprintf(staged, sizeof(staged), "%s/" BKDISPLAY_STORE_STAGING
-               "/%s", upload->root, filename) >= (int)sizeof(staged))
-    {
-      return bkdisplay_upload_fail(upload, -ENAMETOOLONG);
-    }
 
-  if (stat(staged, &statbuf) == 0)
-    {
-      return bkdisplay_upload_fail(upload, -EEXIST);
-    }
+  /* One rename publishes the upload. Before it, recovery owns .upload.bkep;
+   * after it, the validated file is visible in packs. Legacy named staging
+   * files can also belong to local installs, so leave them untouched.
+   */
 
-  if (errno != ENOENT || rename(upload->temporary, staged) < 0)
-    {
-      return bkdisplay_upload_fail(upload, bkdisplay_store_errno());
-    }
-
-  ret = bkdisplay_store_publish(upload->root, filename, selection);
-
-  /* Only this upload's renamed file is eligible for cleanup. */
-
-  if (unlink(staged) < 0 && errno != ENOENT && ret == 0)
+  ret = bkdisplay_store_publish(upload->root, filename, ".upload.bkep",
+                                 selection);
+  if (unlink(upload->temporary) < 0 && errno != ENOENT && ret == 0)
     {
       ret = bkdisplay_store_errno();
     }

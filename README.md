@@ -25,8 +25,9 @@ openvela CP 实例，CPU1/CPU2 以 SMP 方式运行负责语音、显示和 Agen
 > [功能与证据清单](docs/platforms/bk7258/shaniu-feature-inventory.md)；板级结论只在
 > [CONFIGS.md](boards/bk7258/CONFIGS.md) 维护。
 
-11 月 4 日三轮源码评审的 11 项缺陷已修复，回归、App 59 与 777 固件编译和签名包校验通过。
-实机已通过 777 全量烧录和启动确认，CPU2 在线、Supervisor 故障为 0；语音配置当前不可用，完整功能尚未实机验收。
+11 月 4 日三轮源码评审的 11 项缺陷及历史导出、资源发布中断两项补充问题已修复，
+回归、App 59 与 778 固件编译和签名包校验通过。实机设备发现、重新认领、蓝牙认证及状态回读通过；
+用户随后确认对话、拍照成功，并确认本轮验收通过。
 详见[修复、产物哈希与验收边界](docs/verification/bk7258/2026-11-04-finals-review-repairs.md)。
 
 官方模板要求 README 说明作品、方向、目录、运行方式与 AI Coding 使用；规则见[大赛总览](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/contest_overview.md)、[代码提交指南](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/code_submission_guide.md)和[AI 日志手册](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/ai_coding_log_guide.md)。本项目以 Claude Code/Codex 协助需求拆解、实现、诊断与文档；日志入口为 [`logs/README.md`](logs/README.md)。历史导出保留 collector 标签 `lijian`，本轮脱敏增量在 `logs/Embracecactus/`；两者不因当前 GitHub 用户名不同而改写身份字段。内部推理、上下文、媒体及敏感载荷不公开或脱敏/哈希，归集工具不会自动 push。211 份会话、113,146 条事件通过官方格式校验，公开快照的完整性限制见日志入口。
