@@ -329,7 +329,8 @@ class SourceResolutionTest(unittest.TestCase):
         self.assertIn('shaniu_source.py" prepare-mirror', workflow)
         self.assertIn('export GIT_CONFIG_GLOBAL="$candidate_git_config"', workflow)
         self.assertIn('export GIT_CONFIG_NOSYSTEM=1', workflow)
-        self.assertIn('-b "$GITHUB_SHA"', workflow)
+        self.assertIn('-b "$GITHUB_REF"', workflow)
+        self.assertIn('fetch-depth: 0', workflow)
         self.assertNotIn("--manifest-upstream-branch", workflow)
         self.assertLess(workflow.index('test "$(git -C .repo/manifests rev-parse HEAD)" = "$GITHUB_SHA"'),
                         workflow.index("repo sync -j4"))
@@ -355,6 +356,7 @@ class SourceResolutionTest(unittest.TestCase):
             event = root / "event"
             git(root, "clone", "-q", source.as_uri(), str(event))
             git(event, "checkout", "-q", candidate)
+            git(event, "update-ref", "-d", "refs/heads/master")
             # Match actions/checkout fetch-depth=0, then remove the remote ref.
             self.assertFalse((event / ".git/shallow").exists())
             git(source, "update-ref", "-d", event_ref)
