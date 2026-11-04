@@ -7,7 +7,7 @@
 
 | 层级 | 目录 | 内容与边界 |
 |---|---|---|
-| Contest delivery | [`contest/`](contest/) | 当前发布的技术报告快照与照片；[决赛提交与初赛后更新](contest/决赛提交与初赛后更新.md)；[答辩与影片源码](contest/答辩材料/README.md)随仓库发布；PPT/PDF、官方模板与成片留在本地，经表单上传；成品和视频入口见仓库 README |
+| Contest delivery | [`contest/`](contest/) | 当前发布的技术报告快照与照片；[决赛提交与初赛后更新](contest/决赛提交与初赛后更新.md)；[答辩与影片源码](contest/答辩材料/README.md)随仓库发布；PPT/PDF 与成片以 Release 附件交付，官方模板、原始实拍与分轨仍留本地；表单状态以交付清单为准 |
 | Chip / SoC | [`chips/<soc>/`](chips/) | 不依赖具体板卡的寄存器、启动、IRQ、时钟、PM、SDK ABI 和通用调试契约 |
 | Platform integration | [`platforms/<soc>/`](platforms/) | 跨板构建、启动与更新模型、交付方法、符合性说明，以及明确标为历史的工程记录 |
 | Verification | [`verification/<soc>/`](verification/) | 带日期、构建身份和适用边界的不可变主机/实板验收记录 |
@@ -25,7 +25,7 @@
 | 查构建、部署、硬件与产品合同 | [平台入口](platforms/bk7258/README.md) / [芯片契约](chips/bk7258/README.md) |
 | 跟做傻妞认领、语音、资源、电脑工作台、OTA 与评委复现 | [上手与评委复核](platforms/bk7258/shaniu-user-guide.md) / [功能与证据清单](platforms/bk7258/shaniu-feature-inventory.md) |
 | 决赛提交清单、答辩安排与初赛后更新 | [决赛提交与初赛后更新](contest/决赛提交与初赛后更新.md) |
-| 查看本轮实测、录像和缺陷处理 | [11-03 功能复测](verification/bk7258/2026-11-03-feature-validation/README.md) |
+| 查看本轮实测、录像和缺陷处理 | [11-04 修复、778/App 59 下载与验收边界](verification/bk7258/2026-11-04-finals-review-repairs.md)；[11-03 功能复测](verification/bk7258/2026-11-03-feature-validation/README.md)保留为历史录像证据 |
 | 查来源和许可证 | [SOURCE_PROVENANCE.md](../SOURCE_PROVENANCE.md) |
 
 历史资料：[日期化验收记录](verification/bk7258/) ·

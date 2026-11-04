@@ -36,7 +36,10 @@ The `frameworks` link is current: `app/bk7258/CMakeLists.txt` includes
 The `external` link is retired and no longer exists in the manifest; do not
 restore it, and do not add a placeholder directory for it.
 The historical framework/FFmpeg patch and generated-source replacement chain
-is retired; do not recreate it to satisfy a stale instruction.
+is retired; do not recreate it to satisfy a stale instruction. This does not
+retire the active Agent Session history safety patch: CMake applies that
+checked-in patch only to a SHA-256-pinned build-directory copy; see the root
+[`SOURCE_PROVENANCE.md`](../../SOURCE_PROVENANCE.md).
 For the explicit development remote override and official delivery distinction,
 see the root [README](../../README.md).
 

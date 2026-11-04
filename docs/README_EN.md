@@ -8,7 +8,7 @@ source, configuration, or build artifacts.
 
 | Layer | Directory | Content and boundary |
 |---|---|---|
-| Contest delivery | [`contest/`](contest/) | Published technical-report snapshot and photos; [finals submission and updates](contest/决赛提交与初赛后更新.md); [presentation and film sources](contest/答辩材料/README.md) are committed; PPT/PDF, the official template and finished videos remain local and are supplied through the contest form; products and videos are linked from the repository README |
+| Contest delivery | [`contest/`](contest/) | Published technical-report snapshot and photos; [finals submission and updates](contest/决赛提交与初赛后更新.md); [presentation and film sources](contest/答辩材料/README.md) are committed; PPT/PDF and finished videos are delivered as Release assets, while the official template, raw footage and stems remain local; the delivery manifest states the contest-form boundary |
 | Chip / SoC | [`chips/<soc>/`](chips/) | Board-independent register, startup, IRQ, clock, PM, SDK ABI, and shared-debug contracts |
 | Platform integration | [`platforms/<soc>/`](platforms/) | Cross-board build, boot/update model, delivery method, compliance notes, and explicitly historical engineering records |
 | Verification | [`verification/<soc>/`](verification/) | Immutable, dated host/board acceptance records with build identity and applicability |
@@ -27,7 +27,7 @@ facts and are not duplicated under `docs/`. For BK7258, use
 | Find build, deployment and hardware contracts | [Platform entry](platforms/bk7258/README_EN.md) / [chip contracts](chips/bk7258/README.md) |
 | Follow onboarding, voice, resources, desktop, OTA and reviewer reproduction | [Hands-on guide (Chinese)](platforms/bk7258/shaniu-user-guide.md) / [feature inventory (Chinese)](platforms/bk7258/shaniu-feature-inventory.md) |
 | Finals submission checklist, defense logistics and post-preliminary updates | [Finals submission (Chinese)](contest/决赛提交与初赛后更新.md) |
-| Review the latest recorded feature run | [November 3 evidence and videos](verification/bk7258/2026-11-03-feature-validation/README.md) |
+| Review the latest recorded feature run | [November 4 repairs, 778/App 59 deployment and acceptance boundary](verification/bk7258/2026-11-04-finals-review-repairs.md); [November 3 evidence and videos](verification/bk7258/2026-11-03-feature-validation/README.md) remain historical video evidence |
 | Check licensing and source origins | [SOURCE_PROVENANCE.md](../SOURCE_PROVENANCE.md) |
 
 Historical sources: [dated evidence](verification/bk7258/),

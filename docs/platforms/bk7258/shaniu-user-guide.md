@@ -21,15 +21,15 @@ Wi-Fi、自己的云服务凭据；电脑工作台还需要已配对的电脑与
 1. 对**未认领**设备，打开 App，授予蓝牙和附近设备所需系统权限，选择“添加傻妞 · 扫码连接”。
 2. 等设备双眼显示认领码后扫描，保持设备通电直到 App 显示认证结果。当前源码中，已证明无 owner 的首认领窗口会自动开放；它不是“按键打开”的流程。按键普通短按仍是 PTT，旧的按住约 8 秒再松开只打开只读回执恢复窗口，不能用来重新认领。
 3. 认证结果不确定时，选择“核对认领结果”，读取设备状态；不要反复提交认领。
-4. 在“设置”让设备扫描 Wi-Fi，输入密码、云端地址/API Key 和模型（当前聊天默认
-   `mimo-v2.6-flash`），保存后等设备
+4. 在“设置”让设备扫描 Wi-Fi，输入密码、云端地址/API Key 和模型（源码默认聊天模型为
+   `mimo-v2.6-flash`；实际板端以设备回读为准），保存后等设备
    回读。密码与 Key 不会回读；若 App 只显示本地草稿，不代表设备已配置。
 
-预期结果是 App 读到已认领和已保存的设置。若没有码，先确认设备确为未认领且处于空闲，不要靠反复按键或重复认领来“刷新”窗口；已有绑定设备应直接连接认证。11-04 只读 Mi 10 现场状态为实际安装
-`0.7.28-shaniu-mimo-chat` / code 58，云配置已保存并回读，设备报告 Wi-Fi 就绪；这不是
-当前语音、BLE 生命周期或 OTA 的验收。认领、配网的真机历史记录见
-[637/641 与 11-01 记录](../../verification/bk7258/)；当前 `0.7.27` App 的 BLE 连板与
-新板首启尚未验收。换手机、清 App 数据或卸载会丢失 Android Keystore 中的认领凭据，
+预期结果是 App 读到已认领和已保存的设置。若没有码，先确认设备确为未认领且处于空闲，不要靠反复按键或重复认领来“刷新”窗口；已有绑定设备应直接连接认证。11-04 当前
+`0.7.132+778` 与 App 59（`0.7.29-shaniu-finals-fixes`）已完成数据卷初始化后的发现、
+重新认领、认证控制连接和状态回读；用户确认对话、拍照成功。这不构成 App OTA、
+断电恢复、长期 BLE 生命周期或当前模型身份验收。认领、配网的真机历史记录见
+[637/641 与 11-01 记录](../../verification/bk7258/)。换手机、清 App 数据或卸载会丢失 Android Keystore 中的认领凭据，
 先按 [App 的认领与设备身份说明](../../../android/shaniu-companion/README.md#认领与设备身份)
 处理，不能把 debug APK 覆盖到作者签名 App 上。安装或演示时从 App 的“设备信息”和
 设备回读记录版本；不要把仓库源码的 Gradle 版本、历史模拟器版本或别人的 APK 版本
@@ -45,8 +45,9 @@ Wi-Fi、自己的云服务凭据；电脑工作台还需要已配对的电脑与
 6. 举起明亮物体说“看看这个，这是什么？”，设备拍一帧并把图像交给云端模型。
 
 离线时本地唤醒、眼睛、按键、动作、NFC、本地内容和专注计时仍可运行；ASR、回答、
-TTS 和识物必须如实失败，不能以本地占位话术冒充回答。完整语音链路的最高实板证据是
-`18.6.401+638`；11-03 设备因缺少网络/云配置报 `ENETDOWN`，只证明失败边界。
+TTS 和识物必须如实失败，不能以本地占位话术冒充回答。完整语音链路的历史实板证据是
+`18.6.401+638`；11-03 设备因缺少网络/云配置报 `ENETDOWN`，只证明当时失败边界。11-04
+778/App 59 的对话成功为用户确认，不替代可重复的声学/时延验收，也不识别当前板端模型。
 
 ## C. 外观、专注、NFC 与小功能
 
@@ -122,12 +123,9 @@ App OTA 只接受信任根、目标板和回滚计数都匹配的 `.bkpack`。�
 ## F. 评委从官方仓库复现
 
 1. 访问官方仓库的 `dev-ai-contest-2026`，记录目标 commit；不要把 fork 的 Actions
-   结果当作官方结果。PR #140 已合入，其
-   [`b21fa804` build/verify-delivery](https://github.com/open-vela/contest2026_135_yongwangzhiqian/actions/runs/41639066312)
-   均成功；2026-11-04 可见分支头
-   [`906a38d3` push 运行](https://github.com/open-vela/contest2026_135_yongwangzhiqian/actions/runs/41676359713)
-   也成功。仍应为实际选择的提交重新核对
-   [Shaniu cold delivery](https://github.com/open-vela/contest2026_135_yongwangzhiqian/actions/workflows/shaniu-source-checks.yml)。
+   结果当作官方结果。为该实际提交重新核对
+   [Shaniu cold delivery](https://github.com/open-vela/contest2026_135_yongwangzhiqian/actions/workflows/shaniu-source-checks.yml)
+   与独立交付校验的结果；不要用本文创建时的 PR、分支头或旧运行编号代替该核对。
 2. 在全新空目录按项目 [README 的固定 manifest 命令](../../../README.md#获取固定版本的源码)
    `repo init` 和 bounded `repo sync`；保存 `declared-manifest.xml` 与团队项目 HEAD。
 3. 安装 Python 3.10、JDK 17、Android SDK 35、`repo`、`openssl` 等前置条件，运行

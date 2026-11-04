@@ -3,6 +3,7 @@
 import importlib.util
 import hashlib
 import json
+import os
 import subprocess
 import tempfile
 import unittest
@@ -36,9 +37,9 @@ def env(**extra):
     return value
 
 
-def git(directory, *args):
+def git(directory, *args, environment=None):
     return subprocess.run(["git", "-C", str(directory), *args], check=True,
-                          capture_output=True, text=True).stdout.strip()
+                          capture_output=True, text=True, env=environment).stdout.strip()
 
 
 def commit(directory, name):
@@ -149,7 +150,8 @@ class SourceResolutionTest(unittest.TestCase):
             self.assertEqual(extends[0].attrib, {
                 "name": "contest2026_135_yongwangzhiqian",
                 "path": "contest2026_135_yongwangzhiqian",
-                "remote": "shaniu-candidate", "revision": SHA, "upstream": "refs/heads/dev-ai-contest-2026",
+                "remote": "shaniu-candidate", "revision": SHA,
+                "upstream": "refs/heads/dev-ai-contest-2026",
             })
 
     def test_team_project_resolves_to_explicit_official_remote(self):
@@ -323,13 +325,58 @@ class SourceResolutionTest(unittest.TestCase):
         self.assertIn("permissions:\n  contents: read\n", workflow)
         self.assertNotIn("pull_request_target", workflow)
         self.assertNotIn("heads/$GITHUB_REF_NAME", workflow)
-        self.assertIn('-b "$GITHUB_REF"', workflow)
+        self.assertNotIn("    paths:\n", workflow)
+        self.assertIn('shaniu_source.py" prepare-mirror', workflow)
+        self.assertIn('export GIT_CONFIG_GLOBAL="$candidate_git_config"', workflow)
+        self.assertIn('export GIT_CONFIG_NOSYSTEM=1', workflow)
+        self.assertIn('-b "$GITHUB_SHA"', workflow)
         self.assertNotIn("--manifest-upstream-branch", workflow)
         self.assertLess(workflow.index('test "$(git -C .repo/manifests rev-parse HEAD)" = "$GITHUB_SHA"'),
                         workflow.index("repo sync -j4"))
         self.assertNotIn("${{ secrets.", workflow)
         self.assertLess(workflow.index("shaniu_source.py\" override"),
                         workflow.index("repo sync -j4"))
+
+    def test_local_candidate_mirror_fetches_pr_candidate_after_ref_disappears(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "source"; source.mkdir()
+            git(source, "init", "-q", "-b", "master")
+            git(source, "config", "user.name", "ci")
+            git(source, "config", "user.email", "ci@example.invalid")
+            base = commit(source, "base")
+            git(source, "checkout", "-qb", "topic")
+            commit(source, "head")
+            git(source, "checkout", "-q", "master")
+            git(source, "merge", "--no-ff", "topic", "-m", "merge")
+            candidate = git(source, "rev-parse", "HEAD")
+            event_ref = "refs/pull/149/merge"
+            git(source, "update-ref", event_ref, candidate)
+            event = root / "event"
+            git(root, "clone", "-q", source.as_uri(), str(event))
+            git(event, "checkout", "-q", candidate)
+            # Match actions/checkout fetch-depth=0, then remove the remote ref.
+            self.assertFalse((event / ".git/shallow").exists())
+            git(source, "update-ref", "-d", event_ref)
+            git(source, "reset", "--hard", "-q", base)
+            public_url = "https://github.com/open-vela/contest2026_135_yongwangzhiqian.git"
+            config = root / "gitconfig"
+            identity = {"candidate_sha": candidate, "repository_url": public_url,
+                        "fetch_ref": event_ref}
+            source_module().prepare_candidate_mirror(identity, event, root / "candidate.git", config)
+            environment = {**os.environ, "GIT_CONFIG_GLOBAL": str(config),
+                           "GIT_CONFIG_NOSYSTEM": "1"}
+            for index, url in enumerate((public_url, public_url.removesuffix(".git"))):
+                with self.subTest(url=url):
+                    checkout = root / f"checkout-{index}"
+                    git(root, "init", "-q", str(checkout))
+                    git(checkout, "remote", "add", "origin", url, environment=environment)
+                    git(checkout, "fetch", "-q", "origin", event_ref,
+                        environment=environment)
+                    git(checkout, "checkout", "-q", "FETCH_HEAD", environment=environment)
+                    self.assertEqual(git(checkout, "rev-parse", "HEAD", environment=environment), candidate)
+                    self.assertEqual(git(checkout, "config", "--get", "remote.origin.url",
+                                         environment=environment), url)
 
     def test_verify_checkouts_requires_real_merge_parents_and_all_three_heads(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -28,6 +28,7 @@ make run-voice-tls-concurrency
 make run-provision
 make run-voice-kws
 make run-preferences
+make check-review-regressions
 ```
 
 `run-voice-kws` 直接编译已同步的 TFLM microfrontend 与固定点 KissFFT，检查
@@ -38,6 +39,11 @@ KVDB 后端和 RPC 传输在这些测试中为替身，不证明持久化或实�
 
 `run-voice-tls-concurrency` 编译实际 mbedTLS provider，以可控 SSL I/O 替身检查
 WANT_WRITE 重试期间的独占、空闲读允许上行，以及故障/取消后的双向停止。
+
+`check-review-regressions` 还运行 Agent Session 历史读取回归：测试在临时目录对与
+固件相同的已入仓补丁应用到 SHA-256 固定的 `session_mgr.c`，再链接真实
+`bkagent_memory_commit`。它覆盖缺失历史可视为空、已有历史读取失败不可覆盖旧快照；
+不修改共享 `packages/ai_agent` checkout，也不替代固件构建或实板验收。
 `run-provision` 先提取工作区固定 NuttX 的 ACL 接收路径，检查完整包、分片与池复用的
 引用所有权；缺少源码时明确失败。随后运行供应 helper、产品 GATT 窗口、队列和连接代际测试，以及使用实际 mbedTLS 的
 认领、本地按键 owner、Wi-Fi/云服务配置连通性、存储与回执、设置、身份、时间和 TLS 测试。

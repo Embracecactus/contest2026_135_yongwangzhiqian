@@ -37,7 +37,7 @@ N15/N17 文档恢复旧地址、旧脚本或旧信任设计。
 | 固件产品 | `app/bk7258/`、`app/dolphin/` | 傻妞的 Agent、语音、显示、配置与交互服务；Dolphin 独立产品 |
 | 手机 | `android/shaniu-companion/` | 原生 Android，认领、认证 BLE/TLS 会话、配置、审批和 OTA |
 | 电脑与维护 | `tools/bk7258/bk7258.py`、`tools/bk7258/_lib/` | 单一 CLI 入口；构建、资源、工作台、签名和交付的领域实现 |
-| 构建接线 | `contest2026_135_yongwangzhiqian.xml`、`frameworks/cmake/` | 固定依赖、目录映射及现有框架集成 |
+| 构建接线 | `contest2026_135_yongwangzhiqian.xml`、`frameworks/cmake/` | 固定依赖、目录映射及现有框架集成；Agent Session 历史读取安全补丁只对 SHA-256 固定输入的构建副本应用 |
 | 验证 | `tests/host/bk7258/`、`app/testing/bk7258/`、`tests/pytest/test_bk7258/` | 主机回归、板上应用与受控硬件自动化，分别报告证据层级 |
 
 设备、手机、电脑与云的运行关系见[项目架构](../../../README.md#系统架构)。
@@ -66,7 +66,8 @@ Gateway 不属于产品运行链路。团队源码通过 manifest 的目录级 `
 - [2026-11-03 功能复测与录像](../../verification/bk7258/2026-11-03-feature-validation/README.md)：对应日期的实板、模拟器与日志修复构建证据，不替代当前验收入口；
 - 视频与三板构建入口见仓库 README；三板共享 SoC 实现，T5-Board 运行 Dolphin，
   AIToyBoard 运行傻妞。板级现状只在 `boards/bk7258/CONFIGS.md` 汇总；
-  固定依赖及发布证据见团队 manifest 与 `SOURCE_PROVENANCE.md`。
+  固定依赖及发布证据见团队 manifest 与[来源记录](../../../SOURCE_PROVENANCE.md)；后者也记录唯一现役的
+  Agent Session 构建副本补丁及其源哈希约束。
 
 - [桌面伙伴行为合同](shaniu-desktop-companion.md)：动作候选、缓存表情、有限触觉及资源预算；
 - Android 操作与界面约束见仓库 `android/shaniu-companion/README.md` 及同目录 `DESIGN.md`；

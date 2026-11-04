@@ -11,15 +11,15 @@
       "role": "ppt",
       "file": "01_答辩PPT-勇往直前-傻妞.pptx",
       "release_asset": "shaniu-finals-20261104.pptx",
-      "bytes": 91573531,
-      "sha256": "3455958906b940105361e109711ae0d0aa8bb08d010d768f4ad0c6eeb8990953"
+      "bytes": 91574126,
+      "sha256": "41f7700b964570e37713e4d8ea84d3d84bb19d3c7d2646a14d4494d3d66ed21e"
     },
     {
       "role": "pdf",
       "file": "备份与核对/答辩PPT静态备份.pdf",
       "release_asset": "shaniu-finals-20261104.pdf",
-      "bytes": 2589330,
-      "sha256": "4c8190943e12d0152db707030dada2c9c53f305571dfb21fb87f6551e617ff0e"
+      "bytes": 2588502,
+      "sha256": "19831e6d48a5ef68b1cc1ea42edf1adcd2417d3f696f1b090fb6c16aa49e6ff7"
     },
     {
       "role": "film",
@@ -56,8 +56,13 @@
     "slides": 39,
     "appendix_q": 36,
     "relative_film_link_resolves": true,
-    "other_slides_revised": false
+    "other_slides_revised": true,
+    "embedded_videos_unchanged": 14,
+    "powerpoint_export_pages": 39,
+    "presentation_sequence_and_timing_unchanged": true
   },
   "contest_form_submission_confirmed": false,
-  "raw_sessions_and_private_audio_included": false
+  "raw_sessions_and_private_audio_included": false,
+  "proofread_utc": "2026-11-04T14:58:30.965000+00:00",
+  "proofread_base": "1058ef213ad5abc675de62176b7edce993e64851"
 }

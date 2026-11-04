@@ -27,10 +27,20 @@ Competition scope: **new hardware platform adaptation + AI hardware product inno
 > with the commit you downloaded, then check the build and independent delivery
 > verification for that same commit in the official [Actions workflow](https://github.com/open-vela/contest2026_135_yongwangzhiqian/actions/workflows/shaniu-source-checks.yml).
 > Those checks show that the pinned manifest builds development-identity-signed
-> firmware and the App in a clean environment; they are neither an author-signed
+> firmware and the App in a clean environment. The sole exception is the checked-in
+> Agent Session history safety patch: it is applied only to a build-directory copy
+> of a SHA-256-pinned upstream input, never to the shared checkout; see
+> `SOURCE_PROVENANCE.md`. These checks are neither an author-signed
 > release nor whole-device acceptance. Per-feature evidence is listed below and
 > in the inventory; board-level conclusions live only in
 > [CONFIGS.md](boards/bk7258/CONFIGS.md).
+
+The November 4 review repairs are built and package-verified in App 59 and
+firmware 778. The real board was then discovered, reclaimed and connected over
+authenticated BLE with state readback; the user confirmed dialogue and camera
+use. Those facts, hashes and limits are recorded in the
+[repair record](docs/verification/bk7258/2026-11-04-finals-review-repairs.md);
+they are not OTA or power-loss-recovery acceptance.
 
 The official template requires the project, direction, layout, run steps and AI Coding explanation; see the [contest overview](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/contest_overview.md), [submission guide](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/code_submission_guide.md), and [AI-log guide](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/ai_coding_log_guide.md). Claude Code and Codex assisted design, implementation, diagnosis and documentation. Use [`logs/README.md`](logs/README.md) as the entry: historical exports retain collector label `lijian`, while this review's redacted additions are under `logs/Embracecactus/`; neither identity field is rewritten merely because the current GitHub username differs. Internal reasoning/context, media and sensitive payloads are excluded or redacted/hashed. The collector does not push automatically. All 211 sessions and 113,146 events pass the official schema validator; the log entry explains the public snapshots' completeness limits.
 
@@ -55,7 +65,7 @@ not mean the current source passes.
 | PC task feedback | `workbench task-run` runs a real command; the result goes to Shaniu | Native USB; `tasks` grant from the phone | Board: Nov 3 success and timeout receipts confirmed; screen/buzz not confirmed by a person |
 | On-demand PC camera | Browser workbench: capture one frame, save, cancel, recapture | Native USB; `camera` grant | Board: Nov 3 two 640×480 frames, [55 s real-speed recording](docs/verification/bk7258/2026-11-03-feature-validation/videos/board/camera-capture-cancel-recapture.mp4) |
 | Single-use phone approval | The PC's AI assistant requests a command; Shaniu shows “!”; the phone owner approves or rejects | Claimed phone; PC already holds `tasks` | Host tests; Nov 3 board + phone: approved command ran (author's local screen recording; receipt approved, authenticated=true, exit code 0), unattended request expired and nothing ran; reject not yet tested |
-| Claim, Wi-Fi, settings | Scan the code on her screen; enter Wi-Fi and cloud settings over authenticated BLE | Phone; claiming needs no internet | Real phone: 637/641 claim, Oct 18 and Nov 1 Mi 10 sessions; Nov 4 read-only Mi 10: installed `0.7.28-shaniu-mimo-chat` / code 58 saved and read back cloud settings, device reported Wi-Fi ready. This is not a voice, BLE-lifecycle or OTA acceptance result |
+| Claim, Wi-Fi, settings | Scan the code on her screen; enter Wi-Fi and cloud settings over authenticated BLE | Phone; claiming needs no internet | Historical: 637/641 claim, Oct 18 and Nov 1 Mi 10 sessions, plus App 58 read-only cloud-setting readback. Current: `0.7.132+778` and App 59 completed discovery, reclaiming, authenticated control connection and state readback; the user confirmed dialogue and camera use. This excludes App OTA and board power-loss-recovery acceptance |
 | Resource and wake-model updates | Install eye packs (Wi-Fi) and switch/import wake models (BLE) from the App | Phone and device on the same LAN | Board: 641 install and reset persistence |
 | App firmware update (OTA) | Pick a `.bkpack`; the device pulls it over Wi-Fi and verifies after reboot | Matching signing trust and rollback counter | Board: 634 first real OTA; 767 reconnect after update passed; 770 updated but automatic reconnect failed |
 | Signed native features | “帮我做个决定” (“help me decide”); install first-party signed packages from the App | Product firmware needs a publisher key fingerprint | Host tests; **the product configuration's fingerprint is empty, so release firmware rejects installation** |
@@ -82,7 +92,7 @@ not mean the current source passes.
 
 <p align="center">
   <img src="docs/assets/readme/app-screens-emulator.jpg" width="760" alt="Android App emulator screenshots: connection state, settings, focus timer, initial claiming screen">
-  <br><sub>Android App <code>0.7.27</code> on the emulator (fixture state); the latest recorded real phone App is <code>0.7.28-shaniu-mimo-chat</code> / code 58.</sub>
+  <br><sub>Android App <code>0.7.27</code> on the emulator (fixture state); the latest recorded real phone App is <code>0.7.29-shaniu-finals-fixes</code> / code 59.</sub>
 </p>
 
 ## Finals presentation and film sources
@@ -229,18 +239,18 @@ and [dated verification records](docs/verification/bk7258/).
 
 | Layer | Entry | Latest result |
 | --- | --- | --- |
-| BK7258 host | `make -C tests/host/bk7258 check`, `run-shaniu-contracts` | Nov 3 local: 996 contract cases PASS (GCC 11); 104 headers × CP/AP × C11/C++17 |
-| Android | `./gradlew :app:testDebugUnitTest :app:lintDebug` | 345 distinct JVM cases passed (union of runs); lint 0 errors |
+| BK7258 host | `make -C tests/host/bk7258 check`, `run-shaniu-contracts` | Nov 3 local: 996 contract cases PASS (GCC 11); 104 headers × CP/AP × C11/C++17. The Nov 4 PR #148 cold build collected 999 PASS, a historical result of that CI run |
+| Android | `./gradlew :app:testDebugUnitTest :app:lintDebug` | 345 distinct JVM cases passed (union of runs); lint 0 errors. App 59 build, unit-test and installation boundaries are in the Nov 4 repair record |
 | Android emulator | instrumentation `ui_gallery` / `ui_probe` | 14 scenario groups, including 11 provisioning errors; fixture state |
 | Firmware build | `bk7258.py build --board aidk_ai_toy` | Product, native-loader and CSI diagnostic direct builds pass |
-| Cold CI | [`Shaniu cold delivery`](https://github.com/open-vela/contest2026_135_yongwangzhiqian/actions/workflows/shaniu-source-checks.yml) | See “CI status” below |
-| Board | [dated records](docs/verification/bk7258/) | Latest: [Nov 3 feature validation](docs/verification/bk7258/2026-11-03-feature-validation/README.md) |
+| Cold CI | [`Shaniu cold delivery`](https://github.com/open-vela/contest2026_135_yongwangzhiqian/actions/workflows/shaniu-source-checks.yml) | See “CI review” below |
+| Board | [dated records](docs/verification/bk7258/) | Latest: [Nov 4 repairs, 778/App 59 deployment and acceptance boundary](docs/verification/bk7258/2026-11-04-finals-review-repairs.md); the Nov 3 validation remains historical video evidence |
 
 ## Reproduce from source
 
 | Level | Guaranteed | Notes |
 | --- | --- | --- |
-| Same source and configuration | Yes | The team manifest pins every dependency, the SDK and the toolchain |
+| Same source and configuration | Yes | The team manifest pins dependencies, the SDK and the toolchain; the sole derived build input is the SHA-256-pinned Agent Session history safety patch |
 | Equivalent behavior | Expected | Still needs acceptance on your board |
 | Byte-identical unsigned payloads | Not verified | Raw image hashes from two independent environments have not been compared |
 | Byte-identical signed images | No | Different signing keys; private keys, device identity, calibration and cloud credentials are not public inputs |
@@ -314,7 +324,9 @@ voice, BLE, OTA, or whole-device acceptance. The official CI separately verifies
 source/manifest identity using its GitHub event context; do not fabricate that event
 locally.
 
-**CI review.** The workflow uses an ephemeral development identity and does not
+**CI review.** Every push to official `dev-ai-contest-2026`, including documentation, logs and materials, triggers cold delivery; PR and manual triggers remain. PR builds reuse the verified Actions candidate through a local Git mirror so merging the PR cannot remove the ref needed by the ongoing sync. The manifest retains the public repository URL and exact commit, and the candidate base/head parents are checked.
+
+The workflow uses an ephemeral development identity and does not
 create a package trusted by the author's board or any existing device. Before
 using an artifact, record `git rev-parse HEAD` and check the build and
 `verify-delivery` conclusion for that exact commit in the [official workflow](https://github.com/open-vela/contest2026_135_yongwangzhiqian/actions/workflows/shaniu-source-checks.yml).
@@ -330,10 +342,12 @@ old serial provisioning and same-device recovery flow is preserved in the
 
 ## Limits and roadmap
 
-Not yet done: whole-device, all-feature acceptance of the current source; `0.7.129+775`
-has only the bounded same-board approval-display acceptance. Still open: phone reject;
-real NFC cards; motion and haptic feel; real BLE and OTA reconnect with App
-`0.7.28-shaniu-mimo-chat` / code 58; native feature installation (publisher fingerprint). Unmeasured: power
+Not yet done: whole-device, all-feature acceptance of the current source. The
+`0.7.129+775` approval-display result is historical and bounded. `0.7.132+778`
+and App 59 completed download, initialization, discovery, reclaiming,
+authenticated control and state readback, and the user confirmed dialogue and
+camera use. Still open: phone reject; real NFC cards; motion and haptic feel;
+App OTA and board power-loss recovery; native feature installation (publisher fingerprint). Unmeasured: power
 and battery life, long-term stability, multi-speaker wake rate, acoustics (no
 echo cancellation; half-duplex), BOM cost. The enclosure is the kit's clear
 acrylic sandwich, a prototype. Next: complete the board checks above, choose the

@@ -21,7 +21,9 @@ openvela CP 实例，CPU1/CPU2 以 SMP 方式运行负责语音、显示和 Agen
 > **复现与验收边界。** 先用 `git rev-parse HEAD` 核对下载的源码提交，再在官方
 > [Actions 工作流](https://github.com/open-vela/contest2026_135_yongwangzhiqian/actions/workflows/shaniu-source-checks.yml)
 > 中核对同一提交的构建与独立交付校验。它们证明固定 manifest 能在干净环境构建开发身份
-> 签名固件与 App，不等同于作者签名发布或整机验收。逐项能力的证据层级见下表和
+> 签名固件与 App；Agent Session 历史读取的安全修复是唯一例外：对固定 SHA-256 的上游
+> 输入在构建目录应用已入仓补丁，不改共享 checkout，详情见 `SOURCE_PROVENANCE.md`。这些
+> 结论不等同于作者签名发布或整机验收。逐项能力的证据层级见下表和
 > [功能与证据清单](docs/platforms/bk7258/shaniu-feature-inventory.md)；板级结论只在
 > [CONFIGS.md](boards/bk7258/CONFIGS.md) 维护。
 
@@ -52,7 +54,7 @@ openvela CP 实例，CPU1/CPU2 以 SMP 方式运行负责语音、显示和 Agen
 | 电脑任务反馈 | 电脑用 `workbench task-run` 运行真实命令，结果交给傻妞 | 原生 USB；手机授予的 `tasks` 权限 | 实板：11-03 正常结束与超时取消回执均确认；屏幕与振感未人工确认 |
 | 电脑按需取景 | 浏览器工作台点“采一帧”、保存、取消后重拍 | 原生 USB；`camera` 权限 | 实板：11-03 两帧 640×480，[55 秒原速录屏](docs/verification/bk7258/2026-11-03-feature-validation/videos/board/camera-capture-cancel-recapture.mp4) |
 | 手机单次审批 | 电脑上的 AI 助手请求某条命令，等待批准时傻妞亮“!”，手机 owner 批准或拒绝 | 已认领的手机；电脑已有 `tasks` 权限 | 11-04 `0.7.129+775`：一次请求等待批准时双眼感叹号、批准后清除，`approved`、`authenticated=true`、返回 0；拒绝/超时/多轮未在 775 回归 |
-| 认领、配网、设置 | App 扫设备屏幕上的认领码，经认证蓝牙填写 Wi-Fi 与云服务 | 手机；认领本身不需要互联网 | 真机手机：637/641 认领、10-18 与 11-01 Mi 10 联调；11-04 只读 Mi 10：实际安装 `0.7.28-shaniu-mimo-chat` / code 58 的云配置保存并回读、设备报告 Wi-Fi 就绪；这不是语音、BLE 生命周期或 OTA 验收 |
+| 认领、配网、设置 | App 扫设备屏幕上的认领码，经认证蓝牙填写 Wi-Fi 与云服务 | 手机；认领本身不需要互联网 | 历史：637/641 认领、10-18 与 11-01 Mi 10 联调，及 11-04 App 58 只读云配置回读。当前：`0.7.132+778` 与 App 59 已完成发现、重新认领、认证控制连接和状态回读；用户确认对话、拍照成功。该记录不包含 App OTA 或实板断电恢复验收 |
 | 资源与唤醒模型更新 | App 安装眼睛资源包（Wi-Fi）、切换或导入唤醒模型（蓝牙） | 手机与设备同一局域网 | 实板：641 资源安装与复位保持；模型切换有历史激活记录 |
 | App 固件升级（OTA） | App 选择 `.bkpack`，设备经 Wi-Fi 拉取并重启校验 | 签名信任与防回滚计数匹配 | 实板：634 首次真实 OTA；767 升级后自动重连通过；770 升级成功但自动重连失败 |
 | 签名原生小功能 | “帮我做个决定”等；App 安装第一方签名包 | 产品固件需配置发布者公钥指纹 | 主机测试；**当前产品配置的指纹为空，正式固件会拒绝安装** |
@@ -202,7 +204,7 @@ K2 不承担恢复出厂；恢复出厂只能在已认证的 App 中操作。
 | --- | --- | --- | --- |
 | 眼睛表情资源 | `.bkep`（[生成方法](app/bk7258/assets/display/README.md)） | 手机临时 HTTPS，经 Wi-Fi 下载 | 设备回读 `pack_id`、`revision`、`source_sha256` 一致 |
 | 默认表情与限时试用 | 设备上已安装的资源 | 认证蓝牙或电脑工作台（`resources` 权限） | 设备回读 |
-| 唤醒模型 | `.wkm`（App 内置 3 个：你好 openvela / 你好冰冰 / 你好傻妞） | 认证蓝牙分块传输 | 回读当前模型的 SHA、标签和唤醒词 |
+| 唤醒模型 | `.wkm`（App 内置 3 个：你好 openvela / 你好冰冰 / 你好傻妞） | 认证蓝牙分块传输 | 回读当前模型的 SHA、标签和唤醒词；比赛演示统一使用指定唤醒词“你好，openvela”，其余为产品定制选项 |
 | Runtime Skill | 签名 JSON（[打包](tools/bk7258/README.md#runtime-skill-packages)） | App 导入发布者公钥与包 | 设备验签，安装后默认停用 |
 | 原生小功能 | 签名 `shaniu.native/1` 包 | App 安装 | 设备验签与防回滚；产品指纹配置前拒绝安装 |
 | 固件 | `.bkpack` 签名 OTA 包 | App 提交来源，设备经局域网 HTTPS 拉取 | 重启后版本、计数、活动槽与 `pair=confirmed` |
@@ -289,12 +291,12 @@ flowchart TB
 
 | 层级 | 入口 | 最近结果 |
 | --- | --- | --- |
-| BK7258 主机测试 | `make -C tests/host/bk7258 check` 与 `run-shaniu-contracts` | 11-03 本地：996 个合同用例 PASS（GCC 11）；104 个头文件 × CP/AP × C11/C++17 |
-| Android | `./gradlew :app:testDebugUnitTest :app:lintDebug` | 345 个不同 JVM 用例取得通过（多次运行并集）；lint 0 error |
+| BK7258 主机测试 | `make -C tests/host/bk7258 check` 与 `run-shaniu-contracts` | 11-03 本地：996 个合同用例 PASS（GCC 11）；104 个头文件 × CP/AP × C11/C++17。11-04 PR #148 冷构建实际收集 999 PASS，属该次 CI 的历史记录 |
+| Android | `./gradlew :app:testDebugUnitTest :app:lintDebug` | 345 个不同 JVM 用例取得通过（多次运行并集）；lint 0 error。App 59 的构建、单元测试和安装边界见 11-04 修复记录 |
 | Android 模拟器 | instrumentation `ui_gallery` / `ui_probe` | 14 组场景通过，含 11 个配网异常；均为夹具状态 |
 | 固件构建 | `bk7258.py build --board aidk_ai_toy` | 产品、原生加载诊断、CSI 诊断三组 direct 构建通过 |
-| 云端冷构建 | [`Shaniu cold delivery`](https://github.com/open-vela/contest2026_135_yongwangzhiqian/actions/workflows/shaniu-source-checks.yml) | 见下文“CI 当前状态” |
-| 实板 | [日期化记录](docs/verification/bk7258/) | 最近：[11-03 功能复测](docs/verification/bk7258/2026-11-03-feature-validation/README.md) |
+| 云端冷构建 | [`Shaniu cold delivery`](https://github.com/open-vela/contest2026_135_yongwangzhiqian/actions/workflows/shaniu-source-checks.yml) | 见下文“CI 复核” |
+| 实板 | [日期化记录](docs/verification/bk7258/) | 最近：[11-04 修复、778/App 59 下载与验收边界](docs/verification/bk7258/2026-11-04-finals-review-repairs.md)；11-03 功能复测仍保留为历史录像证据 |
 
 记录中的失败同样保留：11-03 配网异常组合首次在模拟器图形层超时、770 升级后
 自动重连失败、755/756 CPU1 心跳停止、639 显示卷 `EIO`（641 修复）。完整清单见
@@ -309,7 +311,7 @@ flowchart TB
 
 | 层次 | 是否可复现 | 说明 |
 | --- | --- | --- |
-| 相同源码与配置 | 是 | 团队 manifest 固定所有依赖提交、SDK 与工具链；CP/AP profile 由板目录决定 |
+| 相同源码与配置 | 是 | 团队 manifest 固定依赖提交、SDK 与工具链；唯一构建期派生输入是受原始 SHA-256 约束的 Agent Session 历史读取安全补丁，CP/AP profile 由板目录决定 |
 | 等价行为 | 预期是 | 同源码同配置；仍需在你的板上验收 |
 | 未签名载荷逐字节一致 | 未验证 | 尚未比对两个独立环境的原始镜像哈希 |
 | 签名镜像逐字节一致 | 否 | 签名密钥不同；作者私钥、设备身份、校准数据和云凭据都不是公开构建输入 |
@@ -517,6 +519,10 @@ python3 tools/bk7258/bk7258.py verify layers    # 芯片/板/应用分层门禁
 
 ### CI 复核
 
+官方 `dev-ai-contest-2026` 的每次 push（含文档、日志与材料）均触发冷构建，PR 和手动触发保留。
+PR 构建复用已校验的 Actions 候选提交作为本地 Git 来源，避免合并后临时 merge ref 消失；
+manifest 仍记录公开仓库 URL 与准确提交，并核对候选的 base/head 父提交。
+
 `Shaniu cold delivery` 在 GitHub 托管的 Ubuntu 24.04 上从空目录按 manifest 同步，
 用临时开发身份构建签名 BL1/BL2/CP/AP、生成工厂软件包并验签，构建 App、运行
 单元测试与固件回归，最后在独立 job 下载并复核交付物与 `SHA256SUMS.txt`
@@ -552,8 +558,7 @@ python3 tools/bk7258/bk7258.py verify layers    # 芯片/板/应用分层门禁
 
 **已知限制**
 
-- 当前源码未完成整机全功能验收；`0.7.129+775` 已完成审批显示修复的同板限定验收，手机拒绝审批、实卡触发、动作与振感、新版 App 的真实
-  蓝牙与 OTA 重连都还没有实测。
+- 当前源码未完成整机全功能验收；`0.7.129+775` 的审批显示是历史限定验收。`0.7.132+778` 与 App 59 已完成下载、初始化、发现、重新认领、认证控制连接和状态回读，且用户确认对话、拍照成功；手机拒绝审批、实卡触发、动作与振感、App OTA 与实板断电恢复仍未验收。
 - 原生小功能的产品发布者指纹未配置，正式固件不接受安装。
 - 未测量：功耗与续航、长期稳定性、真人多人唤醒率、整机声学（回声消除未实现，
   当前为半双工）、BOM 成本。770 的 OTA 后自动重连失败与 CPU1 心跳停止尚无共同根因。
