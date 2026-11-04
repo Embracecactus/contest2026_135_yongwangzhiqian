@@ -1,12 +1,18 @@
 # BK7258 CP/AP configuration seeds
 
-## Current verification status (2026-11-03)
+## Current verification status (2026-11-04)
 
 This is the single current board/profile acceptance summary. Product behavior
 is described by the [feature inventory](../../docs/platforms/bk7258/shaniu-feature-inventory.md)
 and the [desktop companion contract](../../docs/platforms/bk7258/shaniu-desktop-companion.md).
 Dated verification records retain their original version and evidence scope.
 
+- The owner AIDK now runs `0.7.131+777`, confirmed after a complete 8-MiB
+  download on 11-04. The image used the retained factory input, without a new
+  Flash readback or backup. CPU2 is online and the Supervisor reports zero
+  faults/recoveries in the captured window. Voice reports configuration
+  unavailable (`-11`); this is boot acceptance, not complete product acceptance.
+  See the [three-round repair and full-download record](../../docs/verification/bk7258/2026-11-04-finals-review-repairs.md).
 - The 2026-10-25 reviewed team source was `930d75ae`. Its recorded validation covers
   three boards' CP/AP and unsigned BL1 builds, five SDK profiles, host checks,
   33 Android unit tests and debug/application-test APK assembly. That pass did
