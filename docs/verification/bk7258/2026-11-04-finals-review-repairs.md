@@ -197,3 +197,17 @@ recoveries=0。App 第 6 次实际扫描首次匹配设备，结束时 `unique_m
 已知非阻断边界：功能商店下载与 OTA 临时 HTTPS 来源关闭仍共用后台工作队列，
 并发下载时实际关闭可能排队（单次下载有 30 秒期限）。此串行关闭行为在本次改动前
 已存在；BLE 控制已独立，不受该队列占用。本轮未验收这一 App OTA 并发场景。
+
+### CI 收集清单补充修正
+
+PR #148 的首次冷构建通过固件、Android 与配网回归，契约运行实际收集 999 PASS，
+断言失败、环境错误和未运行均为 0。收集门禁因新增的
+`RES-01.upload-interrupted-recover`、`RES-01.upload-active-recover` 与
+`RES-01.job-interrupted-recover` 未登记在固定清单而拒绝通过。
+
+已将这三项同时加入 `required-units.v1.json` 的 `ids` 和 `added_ids`；
+原有 63 项 `baseline_ids` 完全保留，未放宽收集门禁。使用该次 CI 的原始结果调用
+真实 `collection_errors`，修正前复现三项 unexpected，修正后为 0；
+999 项选择集恰为 63 项基线与 936 项新增项的互斥并集。
+`test_shaniu_runner_gate.py` 的 30 项自测通过。本次仅补充测试登记和验证记录，
+固件与 App 运行源码保持不变。
