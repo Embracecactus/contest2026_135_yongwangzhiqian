@@ -118,7 +118,7 @@ compiled rollback floor:
 ```bash
 tools/bk7258/bk7258.py package accept-base \
   --board "$BOARD" --base "$ACCEPTED_BASE" \
-  --device-id "$DEVICE_ID" --capture-method fixture-readback \
+  --device-id "$DEVICE_ID" --capture-method owner-retained-factory-image \
   --output "$ACCEPTED_BASE_EVIDENCE"
 
 tools/bk7258/bk7258.py release full \
@@ -129,17 +129,16 @@ tools/bk7258/bk7258.py release full \
   --openssl "$OPENSSL" --output-dir "$RELEASE_DIR"
 ```
 
-`$ACCEPTED_BASE` must be one exact complete-Flash readback from the device that
-will receive this recovery.  Its canonical evidence binds the hash/size to the
-board, layout, stable device ID and capture method; a raw caller-provided hash
-is not sufficient.  This is operator acceptance evidence rather than hardware
-attestation, so the operator/fixture owns proof that the named unit produced
-the readback.  When a reviewed layout change moves protected data, pass the
+`$ACCEPTED_BASE` is the owner's retained complete factory image for the board
+receiving this recovery; do not acquire a new Flash readback or backup before
+downloading. Its evidence and input checks bind hash/size, board/layout and
+protected tail; a raw caller-provided hash is not sufficient. When a reviewed
+layout change moves protected data, pass the
 snapshot's actual old CSV as `--source-partition` and the new private BIN as
 `--relocated-base` to the same `accept-base` command: it copies same-name
 protected partitions without changing size, permissions, policy or bytes,
-immutable partitions cannot move, and the evidence is marked as a same-device
-partition relocation rather than a new readback. A newly declared writable
+immutable partitions cannot move, and the evidence is marked as a retained-image
+partition relocation. A newly declared writable
 `preserve` data partition is allowed only in a range unallocated by the old
 layout; relocation carries that range's exact same-device bytes and reports it
 separately from moved partitions. Retain the printed
@@ -218,7 +217,7 @@ direct diagnostic handoff uses `package delivery`:
 ```bash
 tools/bk7258/bk7258.py package accept-base \
   --board "$BOARD" --base "$DEVICE_BASE" \
-  --device-id "$DEVICE_ID" --capture-method fixture-readback \
+  --device-id "$DEVICE_ID" --capture-method owner-retained-factory-image \
   --output "$DEVICE_BASE_EVIDENCE"
 
 tools/bk7258/bk7258.py package delivery \
@@ -372,9 +371,9 @@ in scope.
   pair is not a verified full package.
 - **Whole-device recovery:** supply one dense BIN for offset zero whose size
   equals the selected partition CSV's full Flash capacity. Preserve immutable,
-  factory-init, device-unique, preserve and unmapped bytes from the exact
-  accepted same-unit readback; reset only transactional state. Record
-  accepted-base hash/size, layout, stable device identity and capture method,
+  factory-init, device-unique, preserve and unmapped bytes from the retained
+  accepted same-board image; reset only transactional state. Record
+  accepted-base hash/size, layout, board binding and retained-image identity,
   and state that the image cannot be copied to another unit. A raw hash alone
   does not prove which device supplied the base. Do not assemble release bytes
   outside the maintained CLI.

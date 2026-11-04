@@ -378,9 +378,9 @@ recorded in
 Every full-flash acceptance run must reuse the compatible, approved installed
 BL1 and MCUboot identities, a strictly increasing version/counter, the
 Agent partition CSV, and one complete-Flash operator image at address zero.
-The accepted base must be one exact full-device readback whose canonical
-`package accept-base` evidence binds its hash/size to the board, selected
-layout, stable device ID and capture method.  Materialization
+Use the owner's retained full factory image; do not request or perform a new
+Flash readback or backup. `package accept-base` records the existing file's
+hash/size, board, selected layout and device binding. Materialization
 preserves `usr_config`, Agent persistent data and device-unique calibration/
 network state while resetting only declared transactional state; BK Loader
 must not chip-erase.  The resulting recovery is bound to that device and must
