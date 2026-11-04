@@ -68,7 +68,7 @@ def main():
             '- 不演签名原生小功能（F29 产品固件禁用），卡片操作里只显示为不可用。',
             '- 不出现指定唤醒词以外的唤醒词；不克隆、不模仿任何真实的人或前任的声音。', '',
             '## 声音的来源', '',
-            '- “我在”：旧版工程使用项目公开内置素材 `app/bk7258/assets/wake_reply_public.pcm`（Kokoro-82M v1.1-zh，sid 0，非克隆）。最新交付的 9 处“我在”替换为授权板载同源 PCM（SHA-256 `772a8aa9…`，源音频不公开）；两者都不是板子扬声器录音，也不构成新的实机验收。',
+            '- “我在”：旧版工程使用项目公开内置素材 `app/bk7258/assets/wake_reply_public.pcm`（Kokoro-82M v1.1-zh，sid 0，非克隆）。最新交付的 9 处“我在”替换为授权板载同源 PCM（SHA-256 `772a8aa9…`，该短 PCM 已按比赛期间授权入库）；两者都不是板子扬声器录音，也不构成新的实机验收。',
             '- 傻妞的其他台词：沿用原版 Kokoro 合成（0.8·sid0 + 0.2·sid8），与公开默认“我在”配套；不是从替换后的授权 PCM 克隆或重生成。真实设备上的回答来自用户配置的云端语音合成，音色可能不同。',
             '- 周屿（旁白与对白）：剪映 SAMI 配音“温柔男主”（zh_male_iclvop_chenxuanqinggan），见 `audio/voice/audition/REPORT.md`。', '']
     (ROOT / 'FEATURE_MAP.md').write_text('\n'.join(out), encoding='utf-8')
