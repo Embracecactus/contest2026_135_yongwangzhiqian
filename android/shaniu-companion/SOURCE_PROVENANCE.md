@@ -12,10 +12,16 @@ in the root `SOURCE_PROVENANCE.md` and `app/bk7258/models` metadata.
 
 ## Current artwork and demonstration
 
-The ruby-red companion launcher artwork is an original generated asset, not
-an actor portrait or a text-only icon. The exact prompt and SHA256 are in the
-root source record. Public video covers are supplied by the project author
-with the competition demonstration; they are not the generated launcher art.
+The launcher foreground is an original AI-generated fictional adult character.
+The built-in image generation tool created it from text without a reference
+photograph or a real person's likeness. The transparent original, exact prompt
+and SHA256 are preserved in `design/launcher-20261104/`. A 512px WebP export is
+packaged as `res/drawable-nodpi/shaniu_launcher_response.webp`; the adaptive
+insets, background and monochrome bob-hair silhouette are original Android XML
+resources (Apache-2.0). The earlier ruby portrait is retired from the APK; its
+historical prompt and SHA256 remain in the root source record.
+Public video covers are supplied by the project author with the competition
+demonstration; they are not launcher art.
 The App README links the full supplementary video and preserves the distinction
 between showing the OTA entry and recording an actual upgrade.
 

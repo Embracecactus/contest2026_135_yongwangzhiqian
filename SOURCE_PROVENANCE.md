@@ -1,6 +1,16 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # 源码许可证与来源记录
 
+## 2026-11-04 Android 启动图标：短发陪伴角色
+
+当前启动图标以虚构成年短发角色表达“我在”的陪伴主题。前景由内置图像生成工具按
+文字提示生成，未使用真人照片或指定真实人物身份。透明原图、完整提示词、SHA256
+及预览保存在 `android/shaniu-companion/design/launcher-20261104/`。App 打包其
+512px WebP 导出版 `res/drawable-nodpi/shaniu_launcher_response.webp`；比例留白、
+海盐绿背景和单色短发轮廓为团队原创 Android XML，沿用 Apache-2.0。图标不表示
+设备连接状态；应用内的双屏状态签名保留原有含义。旧红宝石 PNG 已退出 APK，
+下文的原始提示词与来源记录保留为历史。
+
 ## 2026-11-03 录音结束日志修正（依赖已固定）
 
 工作区依赖 `frameworks/multimedia/media/server/media_recorder.c` 的 Apache-2.0
