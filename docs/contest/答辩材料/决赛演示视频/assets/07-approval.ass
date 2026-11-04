@@ -1,0 +1,15 @@
+[Script Info]
+ScriptType: v4.00+
+PlayResX: 1920
+PlayResY: 1080
+WrapStyle: 2
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Guide,MiSans,34,&H00DCF5C6,&H00FFFFFF,&H0020180B,&H0020180B,0,0,0,0,100,100,0,0,3,11,0,9,70,70,60,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.10,0:00:05.80,Guide,,0,0,0,,{\an9\pos(1838,62)\fad(150,150)}03  决赛新增 · 手机审批
+Dialogue: 0,0:00:06.00,0:00:19.60,Guide,,0,0,0,,{\an9\pos(1838,150)\fad(150,150)}电脑发起请求，等待手机确认
+Dialogue: 0,0:00:19.70,0:00:31.20,Guide,,0,0,0,,{\an9\pos(1838,150)\fad(150,150)}在手机上查看操作并批准

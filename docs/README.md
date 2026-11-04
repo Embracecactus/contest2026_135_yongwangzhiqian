@@ -7,7 +7,7 @@
 
 | 层级 | 目录 | 内容与边界 |
 |---|---|---|
-| Contest delivery | [`contest/`](contest/) | 当前发布的技术报告快照与照片；[决赛提交与初赛后更新](contest/决赛提交与初赛后更新.md)；决赛答辩源文件和官方模板保留在工作区，经表单上传、不入仓；成品和视频入口见仓库 README |
+| Contest delivery | [`contest/`](contest/) | 当前发布的技术报告快照与照片；[决赛提交与初赛后更新](contest/决赛提交与初赛后更新.md)；[答辩与影片源码](contest/答辩材料/README.md)随仓库发布；PPT/PDF、官方模板与成片留在本地，经表单上传；成品和视频入口见仓库 README |
 | Chip / SoC | [`chips/<soc>/`](chips/) | 不依赖具体板卡的寄存器、启动、IRQ、时钟、PM、SDK ABI 和通用调试契约 |
 | Platform integration | [`platforms/<soc>/`](platforms/) | 跨板构建、启动与更新模型、交付方法、符合性说明，以及明确标为历史的工程记录 |
 | Verification | [`verification/<soc>/`](verification/) | 带日期、构建身份和适用边界的不可变主机/实板验收记录 |

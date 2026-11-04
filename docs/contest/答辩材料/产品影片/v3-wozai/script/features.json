@@ -1,0 +1,682 @@
+{
+ "schema": "shaniu-film-v3.features/1",
+ "source": {
+  "repository": "https://github.com/open-vela/contest2026_135_yongwangzhiqian",
+  "branch": "dev-ai-contest-2026",
+  "commit": "915a4739df6196a76ff69feb001979b29f7d5000",
+  "checked_at": "2026-11-04",
+  "evidence_order": "实现 → 构建 → 主机测试 → 模拟器 → 实板观察 → 真机手机 → 人工确认",
+  "abbrev": {
+   "app/": "app/bk7258/",
+   "apk/": "android/shaniu-companion/app/src/main/java/com/shaniu/companion/",
+   "tools/": "tools/bk7258/",
+   "inventory": "docs/platforms/bk7258/shaniu-feature-inventory.md",
+   "guide": "docs/platforms/bk7258/shaniu-user-guide.md",
+   "configs": "boards/bk7258/CONFIGS.md",
+   "v1103": "docs/verification/bk7258/2026-11-03-feature-validation/README.md"
+  }
+ },
+ "features": [
+  {
+   "id": "F01",
+   "group": "开箱与归属",
+   "name": "首启认领码与扫码认领",
+   "action": "设备首启在双眼屏幕显示认领码；App“添加傻妞 · 扫码连接”扫码，经认证蓝牙 TLS 完成认领，无需互联网",
+   "refs": [
+    "app/bk7258_provision_claim.c",
+    "app/bk7258_display_snapshot.inc（claim_qr）",
+    "apk/provision/ProvisionActivity.kt",
+    "apk/DevicePage.kt"
+   ],
+   "status": "真机：637 认领、641 清除后重新认领、10-18/11-01 Mi 10；新板工厂首启 + 新版 App 首认领完整路径未验收",
+   "availability": "shipping"
+  },
+  {
+   "id": "F02",
+   "group": "开箱与归属",
+   "name": "核对认领结果",
+   "action": "认证结果不确定时只查询设备状态，不重复认领",
+   "refs": [
+    "apk/DevicePage.kt（核对认领结果）",
+    "guide §A"
+   ],
+   "status": "实现 + 真机历史流程；本片不单独演示失败分支",
+   "availability": "shipping"
+  },
+  {
+   "id": "F03",
+   "group": "开箱与归属",
+   "name": "Wi-Fi 扫描与配网",
+   "action": "设备扫描附近 Wi-Fi，App 选网络、输入密码；保存后等待设备回读，密码不回读",
+   "refs": [
+    "apk/provision/DeviceSettingsEditor.kt",
+    "app/bk7258_provision_scan.c",
+    "app/bk7258_provision_network.c"
+   ],
+   "status": "真机历史记录；模拟器 11 个配网异常场景通过；11-04 Mi 10 设置保存并回读",
+   "availability": "shipping"
+  },
+  {
+   "id": "F04",
+   "group": "开箱与归属",
+   "name": "云服务与模型（听 / 想 / 说）",
+   "action": "分别设置语音识别、对话模型、语音合成：默认 mimo-v2.5-asr / mimo-v2.6-flash / mimo-v2.5-tts，Key 不回读",
+   "refs": [
+    "apk/SettingsPage.kt（云服务与模型）",
+    "apk/provision/CloudSettings.kt",
+    "README.md §第一次使用"
+   ],
+   "status": "11-04 App 0.7.28 / code 58 云配置保存并回读；设备报告就绪",
+   "availability": "shipping"
+  },
+  {
+   "id": "F05",
+   "group": "开箱与归属",
+   "name": "连接链与帮助诊断",
+   "action": "设备页显示 手机 ↔ 设备、设备 ↔ 网络、语音服务；蓝牙连通不代表已联网",
+   "refs": [
+    "apk/DevicePage.kt",
+    "apk/SettingsPage.kt（帮助与诊断）",
+    "android/shaniu-companion/DESIGN.md（connectionChain）"
+   ],
+   "status": "模拟器两主题各 30 场景；真机历史",
+   "availability": "shipping"
+  },
+  {
+   "id": "F06",
+   "group": "开箱与归属",
+   "name": "更换 Wi-Fi（不必重新认领）",
+   "action": "设备断网时经认证蓝牙重新配网：“连接还在，不必重新认领”",
+   "refs": [
+    "apk/DevicePage.kt（更换 Wi-Fi）",
+    "apk/SettingsPage.kt"
+   ],
+   "status": "实现 + 模拟器；真机配网历史记录",
+   "availability": "shipping"
+  },
+  {
+   "id": "F07",
+   "group": "语音",
+   "name": "本地唤醒“你好，openvela”",
+   "action": "说出指定唤醒词；AP 上的 TFLite Micro 模型（公开内置 INT8 DS-CNN 23,640 B）本地判定，不需要网络",
+   "refs": [
+    "app/bk7258_voice_kws.c",
+    "app/bk7258_agent_trigger.c",
+    "app/models/nihao_openvela.tflite"
+   ],
+   "status": "实板：638 完整链路；11-03 真人唤醒两次本地命中；无真人多人统计",
+   "availability": "shipping"
+  },
+  {
+   "id": "F08",
+   "group": "语音",
+   "name": "预置唤醒应答“我在”",
+   "action": "唤醒且语音服务就绪时，设备播放内置“我在”PCM（WAKE_ACK_REQUEST，播放时麦克风数据被清空）；App 中不能修改应答语",
+   "refs": [
+    "app/bk7258/bk7258_agent_trigger.c（bk7258_agent_trigger_reply）",
+    "app/bk7258/bk7258_agent_product.c（VOICE_CHANNEL_EVENT_WAKE_ACK_REQUEST）",
+    "app/bk7258/assets/WAKE_REPLY_PUBLIC.md",
+    "boards/bk7258/aidk_ai_toy/Kconfig（PUBLIC / PRIVATE / TONE 三选一）",
+    "apk/CustomizePage.kt"
+   ],
+   "status": "实板：638 播放（验证配置使用私有授权素材）；片中使用公开默认素材 wake_reply_public.pcm（Kokoro v1.1-zh sid 0，非克隆），不是板子扬声器录音",
+   "availability": "shipping"
+  },
+  {
+   "id": "F09",
+   "group": "语音",
+   "name": "聆听 / 思考 / 说话状态眼",
+   "action": "唤醒应答时显示 activity 1 帧（look_left），用户说完（capture quiescent）显示 activity 2 帧（blink_half），播放回答时显示 speaking 帧或回答表情，结束回到基础表情",
+   "refs": [
+    "app/bk7258/bk7258_agent_product.c（bk7258_display_activity / bk7258_display_speaking）",
+    "app/bk7258/bk7258_display_companion.inc（frames[]）",
+    "app/bk7258/bk7258_display_service.c"
+   ],
+   "status": "实板：638/641；11-03 渲染回读",
+   "availability": "shipping"
+  },
+  {
+   "id": "F10",
+   "group": "语音",
+   "name": "云端对话（ASR → Agent/LLM → 流式 TTS）",
+   "action": "唤醒后提问；云端识别、设备上的 openvela AI Agent 组织回答与工具，TTS 流式播放",
+   "refs": [
+    "packages/ai_agent（官方 Agent，manifest 固定 76c65bc6）",
+    "app/bk7258_agent_product.c",
+    "app/bk7258_cloud_*.c",
+    "app/bk7258_agent_media_*.c"
+   ],
+   "status": "实板：638 完整链路；11-03 夜间一次真人问答听到回答；当前 775 未重做真人问答",
+   "availability": "shipping"
+  },
+  {
+   "id": "F11",
+   "group": "语音",
+   "name": "免唤醒追问与静默回待机",
+   "action": "回答播完后在静默超时前直接追问；没有有效语音时回到待机",
+   "refs": [
+    "app/bk7258_agent_product.c",
+    "guide §B"
+   ],
+   "status": "实板：638",
+   "availability": "shipping"
+  },
+  {
+   "id": "F12",
+   "group": "语音",
+   "name": "半双工：播放中不能语音打断",
+   "action": "回答播放期间不接收麦克风；“停止 / 结束对话”只在重新聆听、取得文本后作为本地意图处理",
+   "refs": [
+    "guide §B 第 4–5 条",
+    "app/bk7258_local_intent.c（BKLOCAL_STOP）"
+   ],
+   "status": "产品边界（设计如此）；本地停止意图为主机测试 + 构建",
+   "availability": "shipping-limit"
+  },
+  {
+   "id": "F13",
+   "group": "语音",
+   "name": "App“停止这次对话”",
+   "action": "设备忙时 App 显示“停止这次对话”，发送 CANCEL",
+   "refs": [
+    "apk/DevicePage.kt",
+    "app/bk7258_agent_trigger.c（reply cancel 路径）"
+   ],
+   "status": "实现；工程 HIL（701 固定响应）有取消记录；面向用户的播放中取消未实机验收",
+   "availability": "unverified"
+  },
+  {
+   "id": "F14",
+   "group": "语音",
+   "name": "本地固定指令：音量、换表情、停止、专注",
+   "action": "“把音量调到百分之三十”“换成开心表情”“结束对话”“开始专注二十五分钟”：云端转文字后在设备上执行，不再请求大模型",
+   "refs": [
+    "app/bk7258_local_intent.c",
+    "app/bk7258_focus_intent.c",
+    "app/bk7258_agent_local_intent.inc"
+   ],
+   "status": "主机测试（run-agent-local-intent）+ AIDK 构建；新指令未实板验收",
+   "availability": "shipping"
+  },
+  {
+   "id": "F15",
+   "group": "语音",
+   "name": "回答长度与回答模式",
+   "action": "App：回答长度 简洁 / 标准 / 详细；回答模式 快速对话（关闭深度思考）/ 深度思考",
+   "refs": [
+    "apk/SettingsPage.kt",
+    "apk/MainActivity.kt（responseLengthLabel）",
+    "app/bk7258_agent_profile.inc"
+   ],
+   "status": "主机测试；11-01 真机读写与重连",
+   "availability": "shipping"
+  },
+  {
+   "id": "F16",
+   "group": "语音",
+   "name": "聊天风格（人格）",
+   "action": "温柔陪伴 / 活泼俏皮 / 安静倾听 / 认真交流 / 轻轻嘴硬；对话进行中不能切换",
+   "refs": [
+    "apk/MainActivity.kt（directPersonas）",
+    "apk/DevicePage.kt（renderPersona）"
+   ],
+   "status": "真机读写历史（9-19 实拍人格对话；11-01 读写）",
+   "availability": "shipping"
+  },
+  {
+   "id": "F17",
+   "group": "语音",
+   "name": "唤醒灵敏度与当前唤醒模型回读",
+   "action": "App 读取 / 修改设备唤醒门限（越低越易唤醒，也可能误唤醒）；回读当前唤醒词“你好，openvela”",
+   "refs": [
+    "apk/SettingsPage.kt（唤醒灵敏度）",
+    "apk/CustomizePage.kt（设备当前唤醒模型）",
+    "app/bk7258_voice_wake_package.c"
+   ],
+   "status": "实现 + 真机历史；11-04 同机门限 85% 回读",
+   "availability": "shipping"
+  },
+  {
+   "id": "F18",
+   "group": "语音",
+   "name": "唤醒模型导入 / 恢复上一模型",
+   "action": "App 内置 / 导入 .wkm 唤醒模型，可恢复上一模型",
+   "refs": [
+    "apk/CustomizePage.kt",
+    "app/bk7258_voice_wake_package.c"
+   ],
+   "status": "实板：历史激活记录；11-04 同机私有模型恢复",
+   "availability": "shipping"
+  },
+  {
+   "id": "F19",
+   "group": "语音",
+   "name": "扬声器音量（App / 按键 / 语音）",
+   "action": "App 扬声器音量；K1/K3 音量减/加；语音“音量小一点”",
+   "refs": [
+    "apk/SettingsPage.kt",
+    "app/bk7258_agent_keys.c",
+    "app/bk7258_product_keys.h"
+   ],
+   "status": "实板：638 音量键",
+   "availability": "shipping"
+  },
+  {
+   "id": "F20",
+   "group": "视觉",
+   "name": "拍照识物",
+   "action": "“看看这个，这是什么？”：Agent 调 camera_capture 拍一帧 640×480 JPEG，与问题一起交给云端多模态模型",
+   "refs": [
+    "app/bk7258_agent_vision.c",
+    "app/bk7258_vision_*.c"
+   ],
+   "status": "实板：639 用户确认；有颜色识别错例，无准确率统计",
+   "availability": "shipping"
+  },
+  {
+   "id": "F21",
+   "group": "视觉",
+   "name": "回答表情",
+   "action": "大模型调用 reply_expression 设定本轮表情，播报时显示",
+   "refs": [
+    "app/bk7258_reply_expression.c"
+   ],
+   "status": "主机测试 + 构建（11-01）",
+   "availability": "shipping"
+  },
+  {
+   "id": "F22",
+   "group": "实体交互",
+   "name": "动作联动表情",
+   "action": "拿起/移动、放稳、倾斜时，双眼显示 800 ms 的缓存帧：移动 look_left、放稳 blink_half、倾斜 look_right；说话、专注等状态优先",
+   "refs": [
+    "app/bk7258/bk7258_agent_companion.inc（bk7258_display_companion(action, 800)）",
+    "app/bk7258/bk7258_display_companion.inc（frames[] = {0,3,1,4,…}）",
+    "app/bk7258/bk7258_motion_core.c"
+   ],
+   "status": "实板：11-03 加速度样本持续更新；拿起与表情的关联未人工确认（作者粗剪有画面，版本未记录）",
+   "availability": "shipping"
+  },
+  {
+   "id": "F23",
+   "group": "实体交互",
+   "name": "完成触觉",
+   "action": "专注、电脑任务、本地内容完成时 40 ms 轻振，2 s 冷却；说话 / 收音时抑制",
+   "refs": [
+    "app/bk7258_haptic_*.c",
+    "app/bk7258_agent_companion.inc"
+   ],
+   "status": "实板：11-03 驱动返回 0；实际振感未确认",
+   "availability": "shipping"
+  },
+  {
+   "id": "F24",
+   "group": "实体交互",
+   "name": "按键：K2 软关机 / 开机",
+   "action": "K2 单独按住至少 3 秒并松手请求软关机；再按 K2 开机",
+   "refs": [
+    "app/bk7258_product_keys.h",
+    "app/bk7258_agent_product_power.inc"
+   ],
+   "status": "实现；K2 关机 / 开机未单独验收",
+   "availability": "shipping"
+  },
+  {
+   "id": "F25",
+   "group": "实体交互",
+   "name": "离线时的本地能力与如实失败",
+   "action": "断网时唤醒检测、双眼、按键、动作、NFC、本地内容、专注仍在设备上运行；识别、回答、合成和识物如实失败，服务未就绪时不播放唤醒应答；断网时本地唤醒命中被消费：不启动 ASR、不播放“我在”、双眼不变（trigger_process_locked 返回 -ENETDOWN）",
+   "refs": [
+    "README.md §日常使用（没有网络时）",
+    "v1103（当晚真人唤醒故障复现）",
+    "app/bk7258/bk7258_agent_trigger.c（trigger_process_locked）"
+   ],
+   "status": "实板：11-03 缺配置时本地命中、ENETDOWN、不启动对话",
+   "availability": "shipping"
+  },
+  {
+   "id": "F26",
+   "group": "专注与本地",
+   "name": "专注计时",
+   "action": "语音 / App / NFC / 电脑开始、暂停、继续、取消；双眼显示 32 格进度环与剩余时间，完成绿色对勾 + 轻振；重启不恢复",
+   "refs": [
+    "app/bk7258_focus*.c",
+    "app/bk7258_focus_pixels.h",
+    "app/bk7258_display_focus.inc"
+   ],
+   "status": "模拟器 + 主机测试；完整实板计时未做",
+   "availability": "shipping"
+  },
+  {
+   "id": "F27",
+   "group": "专注与本地",
+   "name": "NFC 场景卡",
+   "action": "App“场景卡片”为兼容 ISO14443A 卡登记一个明确操作（开始 / 暂停 / 继续 / 取消专注、播放四拍节律、取消本地内容、启动原生功能），碰卡执行，移开再碰",
+   "refs": [
+    "app/bk7258_nfc_*.c",
+    "apk/MainActivity.kt（场景卡片）"
+   ],
+   "status": "模拟器登记草稿；实卡登记与触发未实测（无卡扫描 -110）",
+   "availability": "shipping"
+  },
+  {
+   "id": "F28",
+   "group": "专注与本地",
+   "name": "本地内容“四拍节律”",
+   "action": "播放 ROMFS 中原创 4 秒四拍节律（SHA256 校验后由 Media 播放）",
+   "refs": [
+    "app/bk7258_local_content.c",
+    "app/assets/local_rhythm.pcm"
+   ],
+   "status": "主机测试 8 个场景；实板播放未实测。片中声音即该 PCM 文件",
+   "availability": "shipping"
+  },
+  {
+   "id": "F29",
+   "group": "专注与本地",
+   "name": "签名原生小功能（帮我做个决定）",
+   "action": "App 安装第一方签名包，语音“帮我做个决定”启动",
+   "refs": [
+    "app/bk7258_native_*.c",
+    "app/native-apps/shake_decide.c",
+    "boards/bk7258/aidk_ai_toy/configs/openvela_ap/defconfig（NATIVE_PUBLISHER_SHA256 为空）"
+   ],
+   "status": "产品固件发布者指纹为空，正式固件拒绝安装；仅诊断配置下测试签名实板安装",
+   "availability": "disabled"
+  },
+  {
+   "id": "F30",
+   "group": "记忆与定制",
+   "name": "跨重启记忆开关",
+   "action": "开启后设备 AES-GCM 加密保存最近三轮对话和明确表达的称呼、偏好、近期话题；关闭后不读取、不新增",
+   "refs": [
+    "app/bk7258_agent_memory*.c",
+    "apk/SettingsPage.kt（对话记忆）"
+   ],
+   "status": "真机 Mi 10 + 实板：11-01",
+   "availability": "shipping"
+  },
+  {
+   "id": "F31",
+   "group": "记忆与定制",
+   "name": "说出事实：称呼 / 偏好",
+   "action": "“记住我叫……”“我喜欢……”写入事实",
+   "refs": [
+    "app/bk7258_memory_facts.c"
+   ],
+   "status": "真机 + 实板：11-01 新增 / 纠正 / 删除 / 重启回读（虚构值）",
+   "availability": "shipping"
+  },
+  {
+   "id": "F32",
+   "group": "记忆与定制",
+   "name": "查看、纠正、删除事实",
+   "action": "App“查看与编辑事实”逐条纠正或删除",
+   "refs": [
+    "apk/SettingsPage.kt",
+    "apk/provision/AgentDataController.kt"
+   ],
+   "status": "真机 + 实板：11-01",
+   "availability": "shipping"
+  },
+  {
+   "id": "F33",
+   "group": "记忆与定制",
+   "name": "清空近期对话 / 删除设备记忆",
+   "action": "“清空近期对话：让下一次聊天从新的话题开始”；“删除设备记忆”使旧记忆失效并关闭跨重启记忆",
+   "refs": [
+    "apk/SettingsPage.kt"
+   ],
+   "status": "主机 / 模拟器；11-01 真机删除路径",
+   "availability": "shipping"
+  },
+  {
+   "id": "F34",
+   "group": "记忆与定制",
+   "name": "Runtime Skill",
+   "action": "“专注助手 / 设备体检 / 识物解说：……”按技能锁定可用工具；App 启停；外部包需 P-256 签名，安装后默认停用",
+   "refs": [
+    "app/bk7258_runtime_skills*.c",
+    "tools/ skill pack"
+   ],
+   "status": "真机 + 实板：11-01 启停重启保持；635 安装",
+   "availability": "shipping"
+  },
+  {
+   "id": "F35",
+   "group": "记忆与定制",
+   "name": "眼睛资源包导入、限时试用、设为默认",
+   "action": "导入 .bkep，设备回读 pack_id / revision / source_sha256；在设备上限时试用，到期恢复；再设为默认",
+   "refs": [
+    "app/bk7258_display_*",
+    "tools/_lib/workbench_resources.py",
+    "tools/_lib/workbench_trial.py",
+    "apk/CustomizePage.kt"
+   ],
+   "status": "实板：641 两套资源跨复位保持；模拟器草稿 / 取消 / 默认选择；工作台正向实板未做",
+   "availability": "shipping"
+  },
+  {
+   "id": "F36",
+   "group": "记忆与定制",
+   "name": "外观模式跟随系统",
+   "action": "App 浅色 / 深色跟随手机系统",
+   "refs": [
+    "apk/SettingsPage.kt（外观模式）",
+    "android/shaniu-companion/DESIGN.md"
+   ],
+   "status": "模拟器两主题",
+   "availability": "shipping"
+  },
+  {
+   "id": "F37",
+   "group": "电脑",
+   "name": "电脑授权（手机一次性授予权限）",
+   "action": "电脑 pair-start 生成请求 → App 导入、核对摘要、勾选 任务提醒 / 按需相机 / 资源管理 / 场景 / 有限诊断 → 导出加密响应 → 电脑 pair-finish；App 可查看或撤销",
+   "refs": [
+    "tools/_lib/workbench_pairing.py",
+    "app/bk7258_pc_authorization*.c",
+    "apk/MainActivity.kt（电脑授权）"
+   ],
+   "status": "主机测试 + 模拟器文件确认 / 取消；手机→电脑完整实机纵向验收未做",
+   "availability": "shipping"
+  },
+  {
+   "id": "F38",
+   "group": "电脑",
+   "name": "电脑任务 task-run",
+   "action": "电脑主动运行渲染 / 编译；进程退出码决定成功；结果交给傻妞：绿色对勾 + 轻振（失败红叉、取消横条）",
+   "refs": [
+    "tools/_lib/workbench_task_runner.py",
+    "app/bk7258_pc_tasks.c",
+    "app/bk7258_focus_pixels.h"
+   ],
+   "status": "实板：11-03 正常 0、超时 CLI 130，均 device_result=confirmed；屏幕与振感未人工确认",
+   "availability": "shipping"
+  },
+  {
+   "id": "F39",
+   "group": "电脑",
+   "name": "按需单帧取景（浏览器工作台）",
+   "action": "“傻妞 · 电脑工作台”点“采一帧”：明确授权后取一帧 640×480 JPEG 显示在本机，可保存、取消、重拍、释放缓存",
+   "refs": [
+    "tools/_lib/workbench_camera.py",
+    "tools/_lib/workbench_web/",
+    "app/bk7258_pc_camera.c"
+   ],
+   "status": "实板：11-03 两帧 8,583 / 11,767 B，保存哈希一致，55 秒原速录屏",
+   "availability": "shipping"
+  },
+  {
+   "id": "F40",
+   "group": "电脑",
+   "name": "单次审批：批准",
+   "action": "电脑上的 AI 助手请求一条命令 → 傻妞双眼琥珀“!”与倒计时环、轻振 → 手机逐字核对后批准 → 签名回执有效才执行，“!”清除",
+   "refs": [
+    "tools/_lib/workbench_approval.py（approval-run / approval-hook）",
+    "app/bk7258_pc_approval.c",
+    "apk/provision/PcApprovalController.kt"
+   ],
+   "status": "实板：11-04 0.7.129+775 一次批准，双眼感叹号、批准后清除（人工确认），返回 0",
+   "availability": "shipping"
+  },
+  {
+   "id": "F41",
+   "group": "电脑",
+   "name": "单次审批：拒绝",
+   "action": "手机拒绝 → 电脑退出码 2，命令不执行",
+   "refs": [
+    "tools/_lib/workbench_approval.py",
+    "apk/provision/PcApprovalController.kt"
+   ],
+   "status": "主机 C / Python / Android 测试；775 实板未复测",
+   "availability": "shipping"
+  },
+  {
+   "id": "F42",
+   "group": "电脑",
+   "name": "单次审批：过期",
+   "action": "无人决定，倒计时走完按拒绝处理，命令不执行",
+   "refs": [
+    "app/bk7258_pc_approval.c",
+    "v1103（approval-expired.json）"
+   ],
+   "status": "实板：11-03 无人批准返回 expired、process_returncode=null",
+   "availability": "shipping"
+  },
+  {
+   "id": "F43",
+   "group": "电脑",
+   "name": "电脑上的资源作业",
+   "action": "工作台导入眼睛包、读取目录、试用、设为默认（resources 权限）",
+   "refs": [
+    "tools/_lib/workbench_resources.py",
+    "tools/_lib/workbench_catalog.py",
+    "tools/_lib/workbench_selection.py"
+   ],
+   "status": "主机：HTTP → 真实客户端 TLS → 原生安装作业；11-03 未授权 profile 被拒 -13，正向实板未做",
+   "availability": "shipping"
+  },
+  {
+   "id": "F44",
+   "group": "电脑",
+   "name": "语音不能发起电脑操作",
+   "action": "电脑只能请求；傻妞不能用语音让电脑执行命令",
+   "refs": [
+    "README.md §设备、手机和电脑各做什么"
+   ],
+   "status": "产品边界（未实现）",
+   "availability": "not-implemented"
+  },
+  {
+   "id": "F45",
+   "group": "维护",
+   "name": "固件 OTA 与版本核对",
+   "action": "App 选 .bkpack，保持前台；设备经局域网 HTTPS 拉取签名镜像、重启试运行，重连核对版本与计数后显示完成",
+   "refs": [
+    "apk/ota/OtaPackageServer.kt",
+    "apk/UpdatePage.kt",
+    "app/bk7258_agent_ota.c",
+    "app/bk7258_voice_ota_*.c"
+   ],
+   "status": "实板：634 首次 OTA；767 升级与自动重连通过；770 升级成功但自动重连失败",
+   "availability": "shipping"
+  },
+  {
+   "id": "F46",
+   "group": "维护",
+   "name": "签名启动链与 A/B 回退",
+   "action": "自研 BL1 → MCUboot BL2 验签 → 同槽签名 CP/AP，A/B 试运行，失败回退；用户数据分区保留",
+   "refs": [
+    "boards/bk7258/",
+    "tools/_lib/image.py",
+    "tools/_lib/package.py",
+    "tools/_lib/trust.py"
+   ],
+   "status": "多次实板 OTA 与整机烧录；CI 冷构建验签",
+   "availability": "shipping"
+  },
+  {
+   "id": "F47",
+   "group": "维护",
+   "name": "转交或恢复出厂",
+   "action": "已认证 App 清除用户配置、撤销旧控制凭据；结果不明时只查询回执",
+   "refs": [
+    "apk/SettingsPage.kt（转交或恢复出厂）",
+    "app/bk7258_reset_main.c"
+   ],
+   "status": "主机 / 模拟器；实际多介质清理与重新扫码未验收",
+   "availability": "shipping"
+  },
+  {
+   "id": "F48",
+   "group": "维护",
+   "name": "移除本机连接资料 / 断开手机连接",
+   "action": "设备页移除本机保存的连接资料或断开管理连接",
+   "refs": [
+    "apk/DevicePage.kt"
+   ],
+   "status": "实现 + 模拟器",
+   "availability": "shipping"
+  },
+  {
+   "id": "F49",
+   "group": "平台",
+   "name": "三核分工：CP + AP SMP，两套 openvela",
+   "action": "CPU0 运行 CP（无线、存储、升级、监督）；CPU1 + CPU2 以 SMP 运行 AP（语音、显示、Agent、外设）；RPTUN / RPMsg 协作",
+   "refs": [
+    "chips/bk7258/",
+    "README.md §系统架构"
+   ],
+   "status": "多代实板；RPMsg 80 轮压力；CPU1 心跳停止（755/756/770）无共同根因",
+   "availability": "shipping"
+  },
+  {
+   "id": "F50",
+   "group": "平台",
+   "name": "复用的 openvela 能力",
+   "action": "NuttX、openvela AI Agent、Media、TFLite Micro、mbedTLS、MCUboot；团队负责 BK7258 适配、自研 BL1、产品服务、App 与电脑工作台",
+   "refs": [
+    "contest2026_135_yongwangzhiqian.xml",
+    "SOURCE_PROVENANCE.md"
+   ],
+   "status": "manifest 固定提交；CI 冷构建",
+   "availability": "shipping"
+  },
+  {
+   "id": "F51",
+   "group": "研究（非产品）",
+   "name": "Wi-Fi CSI 诊断采集",
+   "action": "独立诊断配置采集原始 CSI",
+   "refs": [
+    "docs/verification/bk7258/2026-10-31-wifi-csi.md"
+   ],
+   "status": "只有采集，没有存在 / 动作识别结论",
+   "availability": "research"
+  },
+  {
+   "id": "F52",
+   "group": "研究（非产品）",
+   "name": "三板复用（T5-Board Dolphin、T5AI-Core）",
+   "action": "同一芯片适配复用到另外两块板；不是傻妞的用户功能",
+   "refs": [
+    "boards/bk7258/"
+   ],
+   "status": "三板 direct 构建；Dolphin 录音落卡用户确认",
+   "availability": "platform"
+  },
+  {
+   "id": "F53",
+   "group": "开发与构建",
+   "name": "用自己的身份构建并刷入固件（开发板）",
+   "action": "README“用你自己的板”：python3 tools/bk7258/bk7258.py build --board aidk_ai_toy --boot mcuboot --development-identity …，再按 SOP 经 CH340 口下载与工厂初始化，首启显示认领码",
+   "refs": [
+    "README.md（构建固件 / 用你自己的板）",
+    "docs/platforms/bk7258/nuttx-port/bk7258-build-flash-debug-sop.md",
+    "tools/bk7258/bk7258.py（build）"
+   ],
+   "status": "片中只展示构建命令与构建清单输出；下载与工厂初始化由剪辑略过，不代表片中时长",
+   "availability": "platform"
+  }
+ ]
+}

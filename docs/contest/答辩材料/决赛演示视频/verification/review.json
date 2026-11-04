@@ -1,0 +1,32 @@
+{
+  "reviewed_file_sha256": "a36dae610daa1be2d7952810be325ff54f47aa629001cc72e71c7c5609990eeb",
+  "video_duration_seconds": 412.4,
+  "audio_duration_seconds": 412.4,
+  "integrated_loudness_lufs": -16.08,
+  "true_peak_dbtp": -1.99,
+  "loudness_range_lu": 5.6,
+  "visual_check_timestamps_seconds": [
+    1.5,
+    8,
+    90,
+    240,
+    275.6,
+    281,
+    335,
+    339,
+    354,
+    368,
+    376.5,
+    380,
+    389,
+    404,
+    407.8,
+    410
+  ],
+  "visual_result": "Chapter cards, source captions and guide overlays visible; calculator and camera result retained.",
+  "main_cut_seconds": 271.4,
+  "main_cut_evidence": "Source silence detected from 271.14417 to 271.42156 seconds at -30 dB, before the next sentence.",
+  "full_decode_errors": 0,
+  "jianying_ui_playback_checked": false,
+  "full_manual_audio_listening": false
+}

@@ -1,0 +1,17 @@
+# Local inputs, media renders and editor state are delivered separately.
+*.mp4
+*.mov
+*.MOV
+*.wav
+*.pcm
+*.aac
+*.pptx
+*.pdf
+__pycache__/
+render-cache/
+.hyperframes/
+jianying-draft/
+jianying-project.json
+素材/fonts/*.ttf
+
+!决赛演示视频/motion-4k/assets/approval-preview-with-sound-4k.mp4

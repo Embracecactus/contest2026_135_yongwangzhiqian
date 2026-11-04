@@ -85,6 +85,21 @@ not mean the current source passes.
   <br><sub>Android App <code>0.7.27</code> on the emulator (fixture state); the latest recorded real phone App is <code>0.7.28-shaniu-mimo-chat</code> / code 58.</sub>
 </p>
 
+## Finals presentation and film sources
+
+[PPT](https://github.com/open-vela/contest2026_135_yongwangzhiqian/releases/download/shaniu-finals-20261104/shaniu-finals-20261104.pptx) · [PDF](https://github.com/open-vela/contest2026_135_yongwangzhiqian/releases/download/shaniu-finals-20261104/shaniu-finals-20261104.pdf) · [4K 实录合集](https://github.com/open-vela/contest2026_135_yongwangzhiqian/releases/download/shaniu-finals-20261104/shaniu-finals-demo-4k-20261104.mp4) · [《我在》完整版](https://github.com/open-vela/contest2026_135_yongwangzhiqian/releases/download/shaniu-finals-20261104/我在-v3.1-板载应答音-中文字幕版.mp4)
+
+The [presentation workspace](docs/contest/答辩材料/README.md) contains the PPT generator,
+speaker notes, Q&A and source records. [Here I Am / 我在 v3.1](docs/contest/答辩材料/产品影片/v3-wozai/README.md)
+includes Claude's Three.js scenes, character models, screenplay, storyboard, feature map and subtitles.
+The latest 9:38 delivery preserves the picture and burned-in Chinese captions and replaces nine wake
+replies with the device's source audio; appendix Q links to this version. The
+[4K demonstration compilation](docs/contest/答辩材料/决赛演示视频/motion-4k/README.md) has editable sources too.
+
+The film is a fictional dramatization, not hardware acceptance evidence. Finished videos, PPT/PDF,
+the organizer's template and private audio are supplied through the official repository Release and the contest form.
+Exact delivered-file identities are in the [delivery manifest](docs/contest/答辩材料/delivery.json).
+
 ## Who does what: device, phone, computer
 
 ```mermaid

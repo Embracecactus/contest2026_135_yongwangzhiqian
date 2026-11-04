@@ -1,0 +1,27 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!doctype html>
+<html lang="zh-CN" data-resolution="landscape">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1920, height=1080" />
+<title>我在 · 傻妞叙事动画</title>
+<script type="importmap">{"imports":{"three":"./lib/three/build/three.module.js","three/addons/":"./lib/three/addons/"}}</script>
+<script src="lib/gsap.min.js"></script>
+<style>
+@font-face { font-family: "Noto Sans SC"; src: url("assets/fonts/NotoSansSC-VF.ttf") format("truetype"); font-weight: 100 900; }
+@font-face { font-family: "LXGW WenKai"; src: url("assets/fonts/LXGWWenKai-Regular-subset.ttf") format("truetype"); }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 1920px; height: 1080px; overflow: hidden; background: #000; }
+#root { position: relative; width: 100%; height: 100%; overflow: hidden; }
+#gl, #ui { position: absolute; inset: 0; width: 1920px; height: 1080px; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="577.98" data-width="1920" data-height="1080">
+  <canvas id="gl" width="1920" height="1080"></canvas>
+  <canvas id="ui" width="1920" height="1080"></canvas>
+</div>
+<script>window.__timelines = window.__timelines || {}; window.__timelines["main"] = gsap.timeline({ paused: true });</script>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

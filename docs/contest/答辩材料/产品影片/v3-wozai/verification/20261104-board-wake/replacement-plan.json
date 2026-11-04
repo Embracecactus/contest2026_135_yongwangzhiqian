@@ -1,0 +1,135 @@
+{
+  "source_asset_sha256": "772a8aa9841a96bf96acdce733e4e6a67c2b46968333edb51fedc7511e3cc42f",
+  "source_asset_bytes": 31208,
+  "source_rate": 16000,
+  "old_span": {
+    "dur": 0.747,
+    "on": 0.04,
+    "off": 0.56
+  },
+  "new_span": {
+    "dur": 0.975,
+    "on": 0.24,
+    "off": 0.7
+  },
+  "replacement_wav_sha256": "23d456981ada5b8f90f90acc0572d1801767548ff09c2a7961ed4b5815788eaa",
+  "placements": [
+    {
+      "tag": "w1",
+      "old_at": 80.85,
+      "new_at": 80.65,
+      "speech_start": 80.89,
+      "speech_end": 81.35,
+      "subtitle": [
+        80.89,
+        81.91
+      ],
+      "speech_inside_caption": true,
+      "gain_db": 0
+    },
+    {
+      "tag": "w2",
+      "old_at": 125.94000000000001,
+      "new_at": 125.74,
+      "speech_start": 125.98,
+      "speech_end": 126.44,
+      "subtitle": [
+        125.98,
+        127.0
+      ],
+      "speech_inside_caption": true,
+      "gain_db": 0
+    },
+    {
+      "tag": "w3",
+      "old_at": 175.24,
+      "new_at": 175.04,
+      "speech_start": 175.28,
+      "speech_end": 175.74,
+      "subtitle": [
+        175.28,
+        176.28
+      ],
+      "speech_inside_caption": true,
+      "gain_db": -6
+    },
+    {
+      "tag": "w4",
+      "old_at": 185.94,
+      "new_at": 185.74,
+      "speech_start": 185.98,
+      "speech_end": 186.44,
+      "subtitle": [
+        185.98,
+        187.0
+      ],
+      "speech_inside_caption": true,
+      "gain_db": 0
+    },
+    {
+      "tag": "w5",
+      "old_at": 217.24,
+      "new_at": 217.04,
+      "speech_start": 217.28,
+      "speech_end": 217.74,
+      "subtitle": [
+        217.28,
+        217.98
+      ],
+      "speech_inside_caption": true,
+      "gain_db": 0
+    },
+    {
+      "tag": "w6",
+      "old_at": 277.04,
+      "new_at": 276.84,
+      "speech_start": 277.08,
+      "speech_end": 277.54,
+      "subtitle": [
+        277.08,
+        278.08
+      ],
+      "speech_inside_caption": true,
+      "gain_db": 0
+    },
+    {
+      "tag": "w7",
+      "old_at": 317.94,
+      "new_at": 317.74,
+      "speech_start": 317.98,
+      "speech_end": 318.44,
+      "subtitle": [
+        317.98,
+        319.0
+      ],
+      "speech_inside_caption": true,
+      "gain_db": 0
+    },
+    {
+      "tag": "w8",
+      "old_at": 439.68,
+      "new_at": 439.48,
+      "speech_start": 439.72,
+      "speech_end": 440.18,
+      "subtitle": [
+        439.72,
+        440.4
+      ],
+      "speech_inside_caption": true,
+      "gain_db": 0
+    },
+    {
+      "tag": "w9",
+      "old_at": 482.88,
+      "new_at": 482.68,
+      "speech_start": 482.92,
+      "speech_end": 483.38,
+      "subtitle": [
+        482.92,
+        483.46
+      ],
+      "speech_inside_caption": true,
+      "gain_db": 0
+    }
+  ]
+}

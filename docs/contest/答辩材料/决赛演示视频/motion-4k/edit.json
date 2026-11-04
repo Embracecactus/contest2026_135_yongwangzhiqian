@@ -1,0 +1,247 @@
+{
+  "title": "傻妞 · 决赛演示 · 4K 动画版",
+  "draft_name": "傻妞-决赛演示-4K暖白朱红-20261104",
+  "output_name": "傻妞-决赛演示视频-4K动画版-20261104.mp4",
+  "width": 3840,
+  "height": 2160,
+  "fps": 30,
+  "palette": {
+    "paper": "#F5F0E8",
+    "ink": "#252A2D",
+    "red": "#CB4139",
+    "muted": "#8B8074",
+    "line": "#DCD2C6",
+    "mint": "#719B8E"
+  },
+  "sources": {
+    "main": {
+      "root": "workspace",
+      "path": "out/contest-submission-20260920-final/02_演示视频/shaniu-demo.mp4",
+      "srt": "out/contest-submission-20260920-final/02_演示视频/shaniu-demo.srt",
+      "period": "初赛成片 · 2026.09",
+      "gain_db": -2.31
+    },
+    "app": {
+      "root": "workspace",
+      "path": "out/contest-submission-20260920-final/02_演示视频/shaniu-app-demo.mp4",
+      "srt": "out/contest-submission-20260920-final/02_演示视频/shaniu-app-demo.srt",
+      "period": "初赛 App · 旧版界面",
+      "gain_db": -2.49
+    },
+    "approval": {
+      "root": "videos",
+      "path": "电脑授权/电脑授权.mp4",
+      "audio": "电脑授权/电脑授权.wav",
+      "srt": "电脑授权/电脑授权.srt",
+      "period": "电脑审批实录 · 2026.11.03",
+      "gain_db": -1.62
+    },
+    "workbench": {
+      "root": "videos",
+      "path": "傻妞电脑工作台/傻妞电脑工作台.mp4",
+      "srt": "傻妞电脑工作台/傻妞电脑工作台.srt",
+      "audio_decoder": "pcm_s16le",
+      "period": "决赛工作台实录 · 作者提供",
+      "gain_db": -2.85
+    }
+  },
+  "sections": {
+    "main": [
+      "01 / 相遇",
+      "初赛实拍回顾 · 2026.09",
+      "从一声「我在」开始"
+    ],
+    "app": [
+      "02 / 相识",
+      "初赛 App · 旧版界面",
+      "让陪伴，更懂你"
+    ],
+    "approval": [
+      "03 / 决定",
+      "决赛新增 · 电脑审批实录",
+      "每一步执行，先由你决定"
+    ],
+    "workbench": [
+      "04 / 延伸",
+      "决赛新增 · 工作台实录",
+      "陪伴，延伸到电脑桌面"
+    ]
+  },
+  "timeline": [
+    {
+      "id": "01-intro",
+      "scene": "intro",
+      "duration": 7.5,
+      "chapter": "相遇：初赛实机回顾"
+    },
+    {
+      "id": "02-main",
+      "source": "main",
+      "in": 0,
+      "out": 229,
+      "section": "main",
+      "guides": [
+        {
+          "start": 94.8,
+          "end": 99.3,
+          "title": "语音唤醒",
+          "detail": "一声呼唤，一个回应",
+          "icon": "voice"
+        },
+        {
+          "start": 111.3,
+          "end": 119.3,
+          "title": "看见此刻",
+          "detail": "语音请求 · 采图描述",
+          "icon": "camera"
+        },
+        {
+          "start": 128.0,
+          "end": 135.3,
+          "title": "把反馈变成表情",
+          "detail": "触觉反馈 · 双眼切换",
+          "icon": "eyes"
+        },
+        {
+          "start": 156,
+          "end": 164.3,
+          "title": "感知身边的变化",
+          "detail": "读取一次加速度数据",
+          "icon": "motion"
+        }
+      ]
+    },
+    {
+      "id": "03-architecture",
+      "source": "main",
+      "in": 229,
+      "out": 246.5,
+      "section": "main",
+      "scene": "architecture"
+    },
+    {
+      "id": "04-boot",
+      "source": "main",
+      "in": 246.5,
+      "out": 271.4,
+      "section": "main",
+      "guides": [
+        {
+          "start": 1,
+          "end": 9,
+          "title": "启动与交接",
+          "detail": "BL1 → MCUboot / BL2",
+          "icon": "chip"
+        },
+        {
+          "start": 16.8,
+          "end": 24.5,
+          "title": "CP + AP 双镜像",
+          "detail": "同槽配对 · 签名校验",
+          "icon": "chip"
+        }
+      ]
+    },
+    {
+      "id": "05-app-card",
+      "scene": "app",
+      "duration": 4.5,
+      "chapter": "相识：手机认领与设置"
+    },
+    {
+      "id": "06-app-setup",
+      "source": "app",
+      "in": 0,
+      "out": 48.2,
+      "section": "app"
+    },
+    {
+      "id": "07-app-openvela",
+      "source": "app",
+      "in": 60,
+      "out": 72.7,
+      "section": "app",
+      "guides": [
+        {
+          "start": 6.5,
+          "end": 12.7,
+          "title": "OTA 入口展示",
+          "detail": "本段未执行升级",
+          "icon": "chip"
+        }
+      ]
+    },
+    {
+      "id": "08-approval-card",
+      "scene": "approval",
+      "duration": 7,
+      "chapter": "决定：手机批准电脑操作"
+    },
+    {
+      "id": "09-approval",
+      "source": "approval",
+      "in": 0,
+      "out": 38.1,
+      "section": "approval",
+      "zoom": "approval",
+      "guides": [
+        {
+          "start": 8.9,
+          "end": 14,
+          "title": "01  电脑发起请求",
+          "detail": "由电脑提交本次操作",
+          "icon": "computer"
+        },
+        {
+          "start": 20,
+          "end": 29.2,
+          "title": "02  手机上确认",
+          "detail": "查看操作，再按批准",
+          "icon": "phone"
+        },
+        {
+          "start": 33.1,
+          "end": 38.1,
+          "title": "03  执行结果出现",
+          "detail": "批准之后，计算器打开",
+          "icon": "check"
+        }
+      ]
+    },
+    {
+      "id": "10-workbench-card",
+      "scene": "workbench",
+      "duration": 5,
+      "chapter": "延伸：桌面工作台"
+    },
+    {
+      "id": "11-workbench",
+      "source": "workbench",
+      "in": 0,
+      "out": 27,
+      "section": "workbench",
+      "zoom": "workbench",
+      "guides": [
+        {
+          "start": 5.2,
+          "end": 10.3,
+          "title": "换一双眼睛",
+          "detail": "导入表情资源包",
+          "icon": "eyes"
+        },
+        {
+          "start": 18,
+          "end": 26.9,
+          "title": "按需取景",
+          "detail": "采一帧，查看图像",
+          "icon": "camera"
+        }
+      ]
+    },
+    {
+      "id": "12-outro",
+      "scene": "outro",
+      "duration": 5.5
+    }
+  ]
+}

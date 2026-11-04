@@ -1,0 +1,158 @@
+{
+ "rate": 48000,
+ "generator": "tools/build_sfx.py (seed 1203)",
+ "sounds": {
+  "rain": {
+   "seconds": 11.5,
+   "peak": 0.5
+  },
+  "storm": {
+   "seconds": 13.5,
+   "peak": 0.6
+  },
+  "thunder": {
+   "seconds": 5.5,
+   "peak": 0.95
+  },
+  "typing": {
+   "seconds": 0.75,
+   "peak": 0.5
+  },
+  "backspace": {
+   "seconds": 0.31,
+   "peak": 0.5
+  },
+  "phone_down": {
+   "seconds": 0.3,
+   "peak": 0.8
+  },
+  "box_open": {
+   "seconds": 1.4,
+   "peak": 0.5
+  },
+  "drawer": {
+   "seconds": 0.9,
+   "peak": 0.6
+  },
+  "screw": {
+   "seconds": 1.8,
+   "peak": 0.5
+  },
+  "click": {
+   "seconds": 0.03,
+   "peak": 0.6
+  },
+  "usb": {
+   "seconds": 0.4,
+   "peak": 0.6
+  },
+  "tap": {
+   "seconds": 0.02,
+   "peak": 0.35
+  },
+  "confirm": {
+   "seconds": 0.3,
+   "peak": 0.35
+  },
+  "set_down": {
+   "seconds": 0.22,
+   "peak": 0.8
+  },
+  "lift": {
+   "seconds": 0.35,
+   "peak": 0.3
+  },
+  "whoosh_in": {
+   "seconds": 0.9,
+   "peak": 0.45
+  },
+  "whoosh_out": {
+   "seconds": 0.9,
+   "peak": 0.45
+  },
+  "send": {
+   "seconds": 0.5,
+   "peak": 0.45
+  },
+  "spoon": {
+   "seconds": 0.6,
+   "peak": 0.6
+  },
+  "card_place": {
+   "seconds": 0.03,
+   "peak": 0.5
+  },
+  "slider": {
+   "seconds": 0.5,
+   "peak": 0.3
+  },
+  "key": {
+   "seconds": 0.12,
+   "peak": 0.6
+  },
+  "pour": {
+   "seconds": 2.0,
+   "peak": 0.5
+  },
+  "switch": {
+   "seconds": 0.03,
+   "peak": 0.7
+  },
+  "morning": {
+   "seconds": 6.0,
+   "peak": 0.4
+  },
+  "birds": {
+   "seconds": 12.0,
+   "peak": 0.4
+  },
+  "haptic": {
+   "seconds": 0.09,
+   "peak": 0.7
+  },
+  "error": {
+   "seconds": 0.35,
+   "peak": 0.4
+  },
+  "expire": {
+   "seconds": 0.4,
+   "peak": 0.32
+  },
+  "power_cut": {
+   "seconds": 1.0,
+   "peak": 0.7
+  },
+  "power_on": {
+   "seconds": 3.0,
+   "peak": 0.4
+  },
+  "breath": {
+   "seconds": 1.2,
+   "peak": 0.35
+  },
+  "snip": {
+   "seconds": 0.3,
+   "peak": 0.5
+  },
+  "pencil": {
+   "seconds": 3.0,
+   "peak": 0.25
+  },
+  "enter": {
+   "seconds": 0.03,
+   "peak": 0.6
+  },
+  "phone_buzz": {
+   "seconds": 1.0,
+   "peak": 0.6
+  },
+  "clock": {
+   "seconds": 8.0,
+   "peak": 0.35
+  },
+  "haptic_alert": {
+   "seconds": 0.11,
+   "peak": 0.7
+  }
+ }
+}

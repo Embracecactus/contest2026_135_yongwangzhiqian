@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "forbidden_spoken": [],
+  "require_declared_latin_terms": true,
+  "terms": [
+    {
+      "display": "openvela",
+      "spoken": "open vela"
+    },
+    {
+      "display": "App",
+      "spoken": "App"
+    },
+    {
+      "display": "Wi-Fi",
+      "spoken": "WiFi"
+    },
+    {
+      "display": "Wi",
+      "spoken": "WiFi"
+    },
+    {
+      "display": "Fi",
+      "spoken": "WiFi"
+    }
+  ],
+  "note": "Wi/Fi entries declare the two tokens of the on-screen spelling Wi-Fi; both are read as one word WiFi."
+}

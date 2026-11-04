@@ -1,0 +1,42 @@
+{
+  "video_stream_identical": true,
+  "video_packet_hash": "SHA256=befea53cf833479ed91cd33b943288b81ab48817fc949d124599965a0d9d3669",
+  "probe": {
+    "programs": [],
+    "streams": [
+      {
+        "index": 0,
+        "codec_name": "h264",
+        "width": 1920,
+        "height": 1080,
+        "r_frame_rate": "30/1",
+        "duration": "578.000000",
+        "nb_frames": "17340"
+      },
+      {
+        "index": 1,
+        "codec_name": "aac",
+        "sample_rate": "48000",
+        "channels": 2,
+        "r_frame_rate": "0/0",
+        "duration": "577.979979",
+        "nb_frames": "27094"
+      }
+    ],
+    "format": {
+      "duration": "578.000000",
+      "size": "980179948"
+    }
+  },
+  "full_decode_passed": true,
+  "encoded_lufs": -16.1,
+  "encoded_true_peak_dbtp": -1.5,
+  "sha256": "ed9d0e3a0e9be3dd8ebd7167ddf435b53c45cb54bc827d7aa1879c62bdf15ed9",
+  "verification_unix": 1793799285.4788399,
+  "python_version": "3.10.12",
+  "delivered_path": "我在-v3.1-板载应答音-中文字幕版.mp4",
+  "delivered_sha256": "ed9d0e3a0e9be3dd8ebd7167ddf435b53c45cb54bc827d7aa1879c62bdf15ed9",
+  "copy_verified": true,
+  "finished_unix": 1793799292.5629406,
+  "elapsed_minutes": 12.79
+}

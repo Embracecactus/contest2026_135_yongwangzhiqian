@@ -86,6 +86,19 @@ openvela CP 实例，CPU1/CPU2 以 SMP 方式运行负责语音、显示和 Agen
   <br><sub>Android App <code>0.7.27</code> 模拟器截图（夹具状态）：设备连接状态、设置、专注计时、初始认领页。</sub>
 </p>
 
+## 决赛答辩与影片源码
+
+[PPT](https://github.com/open-vela/contest2026_135_yongwangzhiqian/releases/download/shaniu-finals-20261104/shaniu-finals-20261104.pptx) · [PDF](https://github.com/open-vela/contest2026_135_yongwangzhiqian/releases/download/shaniu-finals-20261104/shaniu-finals-20261104.pdf) · [4K 实录合集](https://github.com/open-vela/contest2026_135_yongwangzhiqian/releases/download/shaniu-finals-20261104/shaniu-finals-demo-4k-20261104.mp4) · [《我在》完整版](https://github.com/open-vela/contest2026_135_yongwangzhiqian/releases/download/shaniu-finals-20261104/我在-v3.1-板载应答音-中文字幕版.mp4)
+
+[答辩材料入口](docs/contest/答辩材料/README.md)集中提供 PPT 生成器、讲稿、问答与来源，
+[《我在》v3.1 完整动画工程](docs/contest/答辩材料/产品影片/v3-wozai/README.md)包含 Claude 制作的
+Three.js 场景、角色模型、剧本、分镜、功能对照与字幕。
+最新交付为 9 分 38 秒的板载应答音中文字幕版，9 处“我在”已替换；备查 Q 同步链接此版。
+另有[暖白朱红 4K 实录合集工程](docs/contest/答辩材料/决赛演示视频/motion-4k/README.md)。
+
+动画是虚构故事与交互演绎；实录保持各自版本边界。PPT/PDF、成片、官方模板和私人音频
+不进入 Git，通过本仓 Release、比赛表单及本地交付提供；精确文件身份见[交付清单](docs/contest/答辩材料/delivery.json)。
+
 ## 设备、手机和电脑各做什么
 
 ```mermaid

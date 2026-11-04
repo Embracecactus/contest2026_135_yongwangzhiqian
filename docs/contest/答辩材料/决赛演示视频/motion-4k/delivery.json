@@ -1,0 +1,16 @@
+{
+  "path": "傻妞-决赛演示视频-4K动画版-20261104.mp4",
+  "bytes": 1317242338,
+  "sha256": "85960626549543256687afae9d33248fce76142946b472f122d673e51cd46a78",
+  "duration": "426.922000",
+  "width": 3840,
+  "height": 2160,
+  "fps": 30,
+  "full_decode": "passed",
+  "native_4k_graphics": true,
+  "live_sources": "1080p / 720p, resized",
+  "animation_seconds": 47.0,
+  "new_voiceover": false,
+  "original_ui_sound_accents": true,
+  "normal_speed_manual_playback": false
+}

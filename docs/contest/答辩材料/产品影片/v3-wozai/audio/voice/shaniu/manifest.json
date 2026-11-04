@@ -1,0 +1,106 @@
+{
+  "rate": 48000,
+  "voice": "Kokoro-82M v1.1-zh int8, blend 0.80*sid0 (the public 我在 voice) + 0.20*sid8",
+  "lines": [
+    {
+      "id": "W",
+      "text": "我在。",
+      "file": "W.wav",
+      "duration_seconds": 0.747,
+      "sha256": "9f7fc3586157e924e7e56d68e9571c99acdd27048150f3d831d860440fb0be84",
+      "asset": "app/bk7258/assets/wake_reply_public.pcm",
+      "asset_sha256": "62091092ee2cde223e43a8a5364a5769620dbb2be903801ebcdfe16975b351ae",
+      "gain_db": 6.42,
+      "note": "public non-cloned project asset, resampled 16k→48k; not a board-speaker recording"
+    },
+    {
+      "id": "S01",
+      "text": "你好呀。听得见，你想聊点什么？",
+      "file": "S01.wav",
+      "duration_seconds": 3.064,
+      "sha256": "22671971ffa9bcdb4d90572551963a0c963f2af2d59041d55dd4246408cd87d8",
+      "engine": "kokoro-int8-multi-lang-v1_1 (same pinned files as the public asset)",
+      "voice": "blend 0.80*sid0 + 0.20*sid8",
+      "speed": 0.95,
+      "path": "24k → 16k PCM16 (linear) → 48k"
+    },
+    {
+      "id": "S02",
+      "text": "行吧。小鱼，记住了。",
+      "file": "S02.wav",
+      "duration_seconds": 1.741,
+      "sha256": "e47c7667d0aafdcce78785aa7ad971a4a27c57c824e422682fecb2dd38dbbefe",
+      "engine": "kokoro-int8-multi-lang-v1_1 (same pinned files as the public asset)",
+      "voice": "blend 0.80*sid0 + 0.20*sid8",
+      "speed": 0.95,
+      "path": "24k → 16k PCM16 (linear) → 48k"
+    },
+    {
+      "id": "S03",
+      "text": "两勺？好吧，记下了。",
+      "file": "S03.wav",
+      "duration_seconds": 1.697,
+      "sha256": "91fef3d15c60945218b9e2fed0279c7975dc5b3898f1551147ad6a1e36f78f62",
+      "engine": "kokoro-int8-multi-lang-v1_1 (same pinned files as the public asset)",
+      "voice": "blend 0.80*sid0 + 0.20*sid8",
+      "speed": 0.95,
+      "path": "24k → 16k PCM16 (linear) → 48k"
+    },
+    {
+      "id": "S04a",
+      "text": "灯塔最早可以追溯到两千多年前，亚历山大港的法罗斯灯塔，高一百多米。古人在塔顶点火，用镜子把光照到很远的海面上。",
+      "file": "S04a.wav",
+      "duration_seconds": 11.664,
+      "sha256": "6e34b654d97ae258cfafba31d3219220a35b2989885e095ff55e64c9b81a8b65",
+      "engine": "kokoro-int8-multi-lang-v1_1 (same pinned files as the public asset)",
+      "voice": "blend 0.80*sid0 + 0.20*sid8",
+      "speed": 0.95,
+      "path": "24k → 16k PCM16 (linear) → 48k"
+    },
+    {
+      "id": "S04b",
+      "text": "这就是灯塔的故事。",
+      "file": "S04b.wav",
+      "duration_seconds": 1.823,
+      "sha256": "426af25f1684976154dbb32720cbae18ab045190cea4da708f954ce1da7fbb44",
+      "engine": "kokoro-int8-multi-lang-v1_1 (same pinned files as the public asset)",
+      "voice": "blend 0.80*sid0 + 0.20*sid8",
+      "speed": 0.95,
+      "path": "24k → 16k PCM16 (linear) → 48k"
+    },
+    {
+      "id": "S05",
+      "text": "这是绿萝。叶子发黄，土也干了，该浇水了。",
+      "file": "S05.wav",
+      "duration_seconds": 4.545,
+      "sha256": "82662786477d4e38c65eb4323e717cf42dc103dc5b48a6c21f55c2370048356f",
+      "engine": "kokoro-int8-multi-lang-v1_1 (same pinned files as the public asset)",
+      "voice": "blend 0.80*sid0 + 0.20*sid8",
+      "speed": 0.95,
+      "path": "24k → 16k PCM16 (linear) → 48k"
+    },
+    {
+      "id": "S06",
+      "text": "我是傻妞啊。小鱼，你是不是，又想她了？",
+      "file": "S06.wav",
+      "duration_seconds": 4.064,
+      "sha256": "cf9ba9ea3f4083005df3213e539416c214ba067b0375c51426b74ee6c7c478d1",
+      "engine": "kokoro-int8-multi-lang-v1_1 (same pinned files as the public asset)",
+      "voice": "blend 0.80*sid0 + 0.20*sid8",
+      "speed": 0.95,
+      "path": "24k → 16k PCM16 (linear) → 48k"
+    },
+    {
+      "id": "S07",
+      "text": "网络正常，屏幕正常，加速度计也正常。小鱼，你呢？",
+      "file": "S07.wav",
+      "duration_seconds": 4.898,
+      "sha256": "a55ebeb4c79b559d6a62748a8f877981f3fdc917a4932d3af657867657cdcb8d",
+      "engine": "kokoro-int8-multi-lang-v1_1 (same pinned files as the public asset)",
+      "voice": "blend 0.80*sid0 + 0.20*sid8",
+      "speed": 0.95,
+      "path": "24k → 16k PCM16 (linear) → 48k"
+    }
+  ],
+  "audio_subjective": "not_checked"
+}

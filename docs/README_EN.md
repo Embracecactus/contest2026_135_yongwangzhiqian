@@ -8,7 +8,7 @@ source, configuration, or build artifacts.
 
 | Layer | Directory | Content and boundary |
 |---|---|---|
-| Contest delivery | [`contest/`](contest/) | Published technical-report snapshot and photos; [finals submission and updates](contest/决赛提交与初赛后更新.md); finals defense sources and the official template remain in the workspace, are uploaded through the contest form and are not committed; products and videos are linked from the repository README |
+| Contest delivery | [`contest/`](contest/) | Published technical-report snapshot and photos; [finals submission and updates](contest/决赛提交与初赛后更新.md); [presentation and film sources](contest/答辩材料/README.md) are committed; PPT/PDF, the official template and finished videos remain local and are supplied through the contest form; products and videos are linked from the repository README |
 | Chip / SoC | [`chips/<soc>/`](chips/) | Board-independent register, startup, IRQ, clock, PM, SDK ABI, and shared-debug contracts |
 | Platform integration | [`platforms/<soc>/`](platforms/) | Cross-board build, boot/update model, delivery method, compliance notes, and explicitly historical engineering records |
 | Verification | [`verification/<soc>/`](verification/) | Immutable, dated host/board acceptance records with build identity and applicability |

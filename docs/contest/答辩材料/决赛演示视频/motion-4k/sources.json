@@ -1,0 +1,55 @@
+{
+  "main": [
+    {
+      "path": "out/contest-submission-20260920-final/02_演示视频/shaniu-demo.mp4",
+      "bytes": 189161288,
+      "sha256": "9e02eb85eedaa4d895c2af8a3689f4283e9f761fa41e89a4eb89002a57e53e24"
+    },
+    {
+      "path": "out/contest-submission-20260920-final/02_演示视频/shaniu-demo.srt",
+      "bytes": 9043,
+      "sha256": "96fc45a92d3f4f423e4ad3fc3a1b54a35f971293e451b85d87451207fd2c780a"
+    }
+  ],
+  "app": [
+    {
+      "path": "out/contest-submission-20260920-final/02_演示视频/shaniu-app-demo.mp4",
+      "bytes": 56035396,
+      "sha256": "d44e022d3f9ab9f700ad58598931aaec577411df7f90ccfd23146ba2722e4a35"
+    },
+    {
+      "path": "out/contest-submission-20260920-final/02_演示视频/shaniu-app-demo.srt",
+      "bytes": 3004,
+      "sha256": "c6f6e9062ebf587c931376b081095b2f2d66de6f8b1564bf71dbb608bee758db"
+    }
+  ],
+  "approval": [
+    {
+      "path": "电脑授权/电脑授权.mp4",
+      "bytes": 28405680,
+      "sha256": "ce680907758f79703b1a85d0f917f78a597e98cf7a7bbdc01b90e9bcee45246f"
+    },
+    {
+      "path": "电脑授权/电脑授权.srt",
+      "bytes": 1303,
+      "sha256": "3ab8d8b5438e3a47273f2d68762085cd87b57fe03632ca7e494ed89ee96d3f1b"
+    },
+    {
+      "path": "电脑授权/电脑授权.wav",
+      "bytes": 7897166,
+      "sha256": "e9c267a6c979e42088935450e8b91dbc197a9ae0dbe5f36e20b9bfe78d3c6bd3"
+    }
+  ],
+  "workbench": [
+    {
+      "path": "傻妞电脑工作台/傻妞电脑工作台.mp4",
+      "bytes": 28967681,
+      "sha256": "066015d33a3b102c89ae67c29bbe898e30405bef5f0cd08868a4a9eb2035387d"
+    },
+    {
+      "path": "傻妞电脑工作台/傻妞电脑工作台.srt",
+      "bytes": 861,
+      "sha256": "62b3a8cd67b117112113589c5bc969dbc65f9bfadd6c7a6403c916c0e31b6207"
+    }
+  ]
+}

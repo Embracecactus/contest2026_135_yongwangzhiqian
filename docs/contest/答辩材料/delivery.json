@@ -1,0 +1,63 @@
+{
+  "recorded_utc": "2026-11-04T14:19:39.053971+00:00",
+  "sessions": [
+    "01a1a5e4-3a50-74c0-acdc-aaa276d70222",
+    "01a1a6ab-7c70-7511-8cad-320b289fe71d"
+  ],
+  "source_base": "b7b298d2f7ddcd0f60d6aef125537c23fc1df80a",
+  "film_source_branch": "film/shaniu-narrative-v3",
+  "files": [
+    {
+      "role": "ppt",
+      "file": "01_答辩PPT-勇往直前-傻妞.pptx",
+      "release_asset": "shaniu-finals-20261104.pptx",
+      "bytes": 91573531,
+      "sha256": "3455958906b940105361e109711ae0d0aa8bb08d010d768f4ad0c6eeb8990953"
+    },
+    {
+      "role": "pdf",
+      "file": "备份与核对/答辩PPT静态备份.pdf",
+      "release_asset": "shaniu-finals-20261104.pdf",
+      "bytes": 2589330,
+      "sha256": "4c8190943e12d0152db707030dada2c9c53f305571dfb21fb87f6551e617ff0e"
+    },
+    {
+      "role": "film",
+      "file": "我在-v3.1-板载应答音-中文字幕版.mp4",
+      "release_asset": "我在-v3.1-板载应答音-中文字幕版.mp4",
+      "bytes": 980179948,
+      "sha256": "ed9d0e3a0e9be3dd8ebd7167ddf435b53c45cb54bc827d7aa1879c62bdf15ed9"
+    },
+    {
+      "role": "captions",
+      "file": "备份与核对/我在-v3.1-字幕编辑用.srt",
+      "release_asset": "shaniu-wozai-v3.1.zh.srt",
+      "bytes": 4882,
+      "sha256": "f123c9a20fde9a6c184eae9ee80974002a3be729b1f9b62d8eafaf04ba448ee0"
+    },
+    {
+      "role": "live-demo-compilation",
+      "file": "02_演示视频-傻妞-4K动画版.mp4",
+      "release_asset": "shaniu-finals-demo-4k-20261104.mp4",
+      "bytes": 1317242338,
+      "sha256": "85960626549543256687afae9d33248fce76142946b472f122d673e51cd46a78"
+    }
+  ],
+  "release_url": "https://github.com/open-vela/contest2026_135_yongwangzhiqian/releases/tag/shaniu-finals-20261104",
+  "owner_confirmed_publication_rights": true,
+  "local_font": {
+    "file": "素材/fonts/MiSans-Medium.ttf",
+    "bytes": 7876052,
+    "sha256": "93528275ee67039c1daeb2ef700625bcf72abab2d3f97e1b6afae6273b579fc1",
+    "included_in_git": false
+  },
+  "ppt_checks": {
+    "zip_integrity": "passed",
+    "slides": 39,
+    "appendix_q": 36,
+    "relative_film_link_resolves": true,
+    "other_slides_revised": false
+  },
+  "contest_form_submission_confirmed": false,
+  "raw_sessions_and_private_audio_included": false
+}
