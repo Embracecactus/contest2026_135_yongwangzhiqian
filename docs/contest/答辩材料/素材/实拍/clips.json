@@ -1,0 +1,354 @@
+{
+  "schema": "shaniu-defense.clips/1",
+  "note": "Sources are the author's unedited iPhone originals of 2026-09-19 (HEVC 3840x2160 60 fps). Each segment is continuous and at original speed; a card states every omitted interval. Times are seconds in the original file. Firmware was the 638-era build of that week; exact version was not filmed.",
+  "clips": [
+    {
+      "key": "wake",
+      "title": "9/19 实拍：唤醒",
+      "source": "IMG_1822.MOV",
+      "file": "wake.mp4",
+      "poster": "wake.jpg",
+      "segments": [
+        [
+          14.3,
+          18.2
+        ]
+      ],
+      "poster_at": 16.9,
+      "scope": "固件 638 时期；手机原片，唤醒词与“我在”",
+      "start": 14.3,
+      "end": 18.2,
+      "omitted_seconds": 0,
+      "sha256": "8c66f69f0a231d9fb977c705234fa104a1f86a1405956a50b309633f40655243"
+    },
+    {
+      "key": "camera",
+      "title": "9/19 实拍：自拍识物",
+      "source": "IMG_1822.MOV",
+      "file": "camera.mp4",
+      "poster": "camera.jpg",
+      "segments": [
+        [
+          18.4,
+          22.3
+        ],
+        [
+          48.7,
+          64.4
+        ]
+      ],
+      "gap_notes": [
+        "拍照、上传与云端多模态理解"
+      ],
+      "poster_at": 52.0,
+      "scope": "问完到开口 27.2 s（中间等待已标注略去）",
+      "beats": [
+        [
+          "0:00",
+          "“给我拍张自拍，评价一下”",
+          "录音整段提交云端 ASR；Agent 判断需要看一眼",
+          "008FA8"
+        ],
+        [
+          "卡片",
+          "等待 27 秒（原片未加速）",
+          "camera_capture 取 640×480 JPEG → 与问题一起交给多模态模型",
+          "B45309"
+        ],
+        [
+          "0:05",
+          "“照片里的你戴着眼镜和帽子……”",
+          "流式 TTS：PCM 分块进入队列，边收边播",
+          "4D7CFE"
+        ],
+        [
+          "之后",
+          "播完才重新收音",
+          "同一会话免唤醒追问；静默超时回待机",
+          "A855F7"
+        ]
+      ],
+      "start": 18.4,
+      "end": 64.4,
+      "omitted_seconds": 26.4,
+      "sha256": "0af5afbc134dc54a382c391bb9475aade8857109cd3118a9c9010566f347bf1b"
+    },
+    {
+      "key": "control",
+      "title": "9/19 实拍：语音控制外设",
+      "source": "IMG_1822.MOV",
+      "file": "control.mp4",
+      "poster": "control.jpg",
+      "segments": [
+        [
+          65.0,
+          86.2
+        ],
+        [
+          110.3,
+          115.0
+        ]
+      ],
+      "gap_notes": [
+        "设置眼睛表情并生成回答"
+      ],
+      "poster_at": 112.0,
+      "scope": "振动等待 11.7 s 原速保留；眼睛等待 24.7 s 已标注略去",
+      "beats": [
+        [
+          "0:00",
+          "“你让马达震动一下”",
+          "device_control vibrate：1–100 ms，经触觉服务与共享供电投票",
+          "008FA8"
+        ],
+        [
+          "0:14",
+          "“马达已经抖了一下了”",
+          "工具真实执行后才回答；失败如实返回",
+          "4D7CFE"
+        ],
+        [
+          "0:18",
+          "“将眼睛调成困倦的状态”",
+          "eyes=sleepy：进入显示服务队列，双屏同帧",
+          "A855F7"
+        ],
+        [
+          "卡片后",
+          "“眼睛已经调成困倦状态了”",
+          "另录到：音量 100%→80%、读加速度（含重力约 9,800 mm/s²）",
+          "008FA8"
+        ]
+      ],
+      "start": 65.0,
+      "end": 115.0,
+      "omitted_seconds": 24.1,
+      "sha256": "1e179202412d663c2b09b53b7a2aba5c9a18ba97836934dfaf1ecaf7797d1001"
+    },
+    {
+      "key": "memory",
+      "title": "9/19 实拍：叫她冰冰",
+      "source": "IMG_1822.MOV",
+      "file": "memory.mp4",
+      "poster": "memory.jpg",
+      "segments": [
+        [
+          342.3,
+          353.4
+        ],
+        [
+          366.7,
+          379.2
+        ]
+      ],
+      "gap_notes": [
+        "生成回答"
+      ],
+      "poster_at": 346.0,
+      "scope": "“你能记住吗”到开口 14.0 s（已标注略去）；此前同一句问了 4 次未获回应",
+      "start": 342.3,
+      "end": 379.2,
+      "omitted_seconds": 13.3,
+      "sha256": "fb478768db31bd7c73c75d7c7f99e3b07fb695b5c9207b388cb8926e07c0e213"
+    },
+    {
+      "key": "app",
+      "title": "9/19 实拍：手机认领成功",
+      "source": "IMG_1852.MOV",
+      "file": "app-claim.mp4",
+      "poster": "app-claim.jpg",
+      "segments": [
+        [
+          84.6,
+          95.0
+        ]
+      ],
+      "poster_at": 92.5,
+      "scope": "真实手机 + 实板；App 0.5.x 时期",
+      "start": 84.6,
+      "end": 95.0,
+      "omitted_seconds": 0,
+      "sha256": "599175b88e703648a5b30255802633f425394875e769a0de7cdc6b8019df01e2"
+    },
+    {
+      "key": "dolphin",
+      "title": "9/19 实拍：T5-Board 上的 Dolphin",
+      "source": "IMG_1828.MOV",
+      "file": "dolphin.mp4",
+      "poster": "dolphin.jpg",
+      "segments": [
+        [
+          8.8,
+          22.0
+        ]
+      ],
+      "poster_at": 13.0,
+      "scope": "TF 卡文件浏览与网络功能入口",
+      "start": 8.8,
+      "end": 22.0,
+      "omitted_seconds": 0,
+      "sha256": "02b44ffbf5d7bbc64331618b95218ca06afc970815d9db07019caf477fe641ff"
+    },
+    {
+      "key": "goodnight",
+      "title": "9/19 实拍：晚安",
+      "source": "IMG_1822.MOV",
+      "file": "goodnight.mp4",
+      "poster": "goodnight.jpg",
+      "segments": [
+        [
+          476.5,
+          484.0
+        ],
+        [
+          492.2,
+          495.8
+        ]
+      ],
+      "gap_notes": [
+        "等待回答"
+      ],
+      "poster_at": 494.0,
+      "scope": "“那你退下吧”到开口 8.5 s（已标注略去）",
+      "start": 476.5,
+      "end": 495.8,
+      "omitted_seconds": 8.2,
+      "sha256": "e4408f3bfc4e97218ec2e8af4ae753837f14c2dd099bafbde9aa7caaa223ac08"
+    },
+    {
+      "key": "persona",
+      "title": "9/19 实拍：傲娇人格与笑话",
+      "source": "IMG_1822.MOV",
+      "file": "persona.mp4",
+      "poster": "persona.jpg",
+      "segments": [
+        [
+          413.9,
+          443.2
+        ]
+      ],
+      "poster_at": 425.0,
+      "scope": "同一请求在 383–405 s 已说过两次；此为第三次及回答，原速",
+      "start": 413.9,
+      "end": 443.2,
+      "omitted_seconds": 0,
+      "sha256": "5648d74fdf28439c1a7cb1888d409738766c1329f874d8fe4ad64c06cb483fdf"
+    },
+    {
+      "key": "app-voice",
+      "title": "9/19 实拍：手机旁的一次对话",
+      "source": "IMG_1852.MOV",
+      "file": "app-voice.mp4",
+      "poster": "app-voice.jpg",
+      "segments": [
+        [
+          209.8,
+          216.0
+        ],
+        [
+          226.4,
+          252.0
+        ]
+      ],
+      "gap_notes": [
+        "生成回答"
+      ],
+      "poster_at": 212.8,
+      "scope": "“你在干什么”到开口 11.1 s（已标注略去）",
+      "start": 209.8,
+      "end": 252.0,
+      "omitted_seconds": 10.4,
+      "sha256": "b84bb1a80509114d2f5bfa1aa62d68cefe351c5b4710ab5e9230eda0aec2607e"
+    },
+    {
+      "key": "wakeword",
+      "title": "9/19 实拍：App 切换唤醒词",
+      "source": "IMG_1852.MOV",
+      "file": "app-wakeword.mp4",
+      "poster": "app-wakeword.jpg",
+      "segments": [
+        [
+          136.9,
+          155.3
+        ]
+      ],
+      "poster_at": 150.0,
+      "scope": "三个唤醒模型的切换入口；手机屏幕曝光偏亮",
+      "start": 136.9,
+      "end": 155.3,
+      "omitted_seconds": 0,
+      "sha256": "2c4a7410aca4973f8c2fb1d9b2df1bbe98561ed129932e8302beb2ce8ad41bfe"
+    },
+    {
+      "key": "recording",
+      "title": "9/19 实拍：Dolphin 录音存 SD 卡",
+      "source": "IMG_1828.MOV",
+      "file": "dolphin-record.mp4",
+      "poster": "dolphin-record.jpg",
+      "segments": [
+        [
+          47.2,
+          67.8
+        ]
+      ],
+      "poster_at": 60.0,
+      "scope": "T5-Board 录音写入 TF 卡并在文件列表中出现",
+      "start": 47.2,
+      "end": 67.8,
+      "omitted_seconds": 0,
+      "sha256": "0746daf8b61b92d268ef7e0674f13e072aac7e8f00c09fa3c5105a5650d64534"
+    },
+    {
+      "key": "workbench",
+      "title": "作者工作台录屏：动作联动与按需取景",
+      "origin": "作者工作台录屏（11-04 接收）",
+      "source": "傻妞电脑工作台.mp4",
+      "source_path": "傻妞电脑工作台/傻妞电脑工作台.mp4",
+      "hdr": false,
+      "audio_decoder": "pcm_s16le",
+      "audio_filter": "loudnorm=I=-17:TP=-1.5:LRA=11",
+      "file": "workbench.mp4",
+      "poster": "workbench.jpg",
+      "segments": [
+        [
+          10.3,
+          26.0
+        ]
+      ],
+      "poster_at": 22.5,
+      "scope": "粗剪录屏：拿起时眼睛变化、浏览器按需取一帧并显示结果；非原始连续录音，完整固件与 App 版本未记录",
+      "beats": [],
+      "start": 10.3,
+      "end": 26.0,
+      "omitted_seconds": 0,
+      "cut_note": "粗剪中连续截取，未额外加速或拼接",
+      "sha256": "e535eccdf60e12ef593d795718e9acfdad667fd69561f9dcee8aa0ef292651ea"
+    },
+    {
+      "key": "pc-approve",
+      "title": "11-03 实录：手机批准电脑打开计算器",
+      "origin": "11-03 作者录屏",
+      "source": "电脑授权.mp4",
+      "source_path": "电脑授权/电脑授权.mp4",
+      "audio_source": "电脑授权/电脑授权.wav",
+      "hdr": false,
+      "audio_filter": "loudnorm=I=-17:TP=-1.5:LRA=11",
+      "file": "pc-approve.mp4",
+      "poster": "pc-approve.jpg",
+      "segments": [
+        [
+          8.8,
+          38.1
+        ]
+      ],
+      "poster_at": 36.5,
+      "scope": "实板 + 真机 + Windows 终端；作者剪映导出带口述字幕，可能删减过停顿",
+      "beats": [],
+      "start": 8.8,
+      "end": 38.1,
+      "omitted_seconds": 0,
+      "sha256": "dc3fb4090a5e0efdc9b65eab3c2798570f55e7f5d87e5f099aa4bed1997cf153",
+      "cut_note": "取自导出片，未再剪辑"
+    }
+  ]
+}

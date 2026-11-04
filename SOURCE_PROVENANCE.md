@@ -780,3 +780,11 @@ SHA-256 `c1340ef72dfbe56d6f17b58b3e4ba0f26f63d26ad3978f18285dfcfd96fa2bc4`.
 Each one-second beat uses frequencies 440, 523.25, 587.33 and 659.25 Hz,
 peak scale 2600, with a 25 ms attack and a squared decay ending at 550 ms.
 The content entry does not replace the existing wake reply asset.
+
+## 决赛答辩与影片工程（2026-11-04）
+
+`docs/contest/答辩材料/` 新增团队编写的 PPT 生成、实拍剪辑、4K Canvas 动效和《我在》Three.js 叙事源码（Apache-2.0）。Claude 原动画源码来自独立 `film/shaniu-narrative-v3` 工作树；Codex 的字幕/应答音与 PPT 备查 Q 更新同步归入同目录。可编辑源、角色模型、功能映射、字幕及文件哈希随仓库发布，原始外部输入和大媒体不重复入仓。
+
+第三方材料保留原许可证：Three.js 0.180.0（MIT）、GSAP 3.14.2（发行包原许可声明）、Noto Sans SC 与霞鹜文楷字体（OFL）。具体版本、路径与来源见 [影片 SOURCES](docs/contest/答辩材料/产品影片/v3-wozai/SOURCES.md)。MiSans 输入、官方 PPT 模板、SAMI 配音、私人板载应答音、完整分轨不在 Git 发布范围；完整成片经作者明确确认公开权利后以 Release 附件发布。源码发布不表示已确认第三方配音商业权益。
+
+公开验证 JSON 保留已完成处理的测量值；本机绝对交付路径在公开副本中改为文件名，原始记录保留在本地。动画中的产品行为是演绎，不是实板验收或时延依据。

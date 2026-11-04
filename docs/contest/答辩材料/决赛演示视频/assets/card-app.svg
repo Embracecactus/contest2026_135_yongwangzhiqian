@@ -1,0 +1,10 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+<defs><linearGradient id="bg" x2="0" y2="1"><stop stop-color="#0b1820"/><stop offset="1" stop-color="#132b2a"/></linearGradient></defs>
+<rect width="1920" height="1080" fill="url(#bg)"/><g font-family="MiSans, sans-serif">
+<rect x="104" y="140" width="66" height="8" rx="4" fill="#C6F5DC"/>
+<text x="104" y="212" font-size="29" fill="#C6F5DC">02  /  手机端 · 初赛版本界面</text>
+<text x="100" y="443" font-size="83" fill="#F5F8F5">先把傻妞，变成你的伙伴</text>
+<text x="104" y="550" font-size="44" fill="#C6F5DC">手机认领  ·  网络与云服务  ·  表情与设置</text>
+<path d="M104 742H1816" stroke="#33564e" stroke-width="2"/><text x="104" y="810" font-size="32" fill="#59736C">01  平台与实机</text><text x="536" y="810" font-size="32" fill="#C6F5DC">02  手机认领</text><text x="968" y="810" font-size="32" fill="#59736C">03  电脑审批</text><text x="1400" y="810" font-size="32" fill="#59736C">04  桌面工作台</text>
+<text x="104" y="998" font-size="27" fill="#A7BCB7">初赛演示节选  /  OTA 仅展示入口</text></g></svg>

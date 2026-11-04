@@ -1,0 +1,17 @@
+{
+  "replacement_count": 9,
+  "source_asset_sha256": "772a8aa9841a96bf96acdce733e4e6a67c2b46968333edb51fedc7511e3cc42f",
+  "sample_rate": 48000,
+  "frames": 27743039,
+  "old_premaster_peak": 0.832507848739624,
+  "new_premaster_peak": 0.832507848739624,
+  "other_premaster_and_dialogue_samples_identical": true,
+  "captions_preserved_and_speech_inside_all_nine_cues": true,
+  "master_gain_db": 5.8,
+  "master_ceiling_db": -1.5,
+  "integrated_lufs": -16.1,
+  "true_peak_dbtp": -1.4,
+  "loudness_range_lu": 15.9,
+  "finished_unix": 1793798925.1873598,
+  "subjective_listening": "not_claimed"
+}

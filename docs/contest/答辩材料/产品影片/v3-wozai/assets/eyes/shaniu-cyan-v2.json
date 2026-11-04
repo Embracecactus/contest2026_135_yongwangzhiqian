@@ -1,0 +1,36 @@
+{
+  "format": "shaniu-eye-source/1",
+  "pack_id": "shaniu-cyan-v2",
+  "revision": 2,
+  "renderer_api": 1,
+  "description": "Generic AI-generated cyan robot eyes; no personal likeness. Sixteen sprites plus offline alias.",
+  "canvas": {"width": 160, "height": 160},
+  "palette": [
+    "#000000", "#000818", "#001028", "#081838", "#102848", "#183858",
+    "#004058", "#005068", "#006078", "#007088", "#008098", "#0090A8",
+    "#00A0B8", "#00B0C8", "#00C0D8", "#00D0E8", "#10E0F0", "#30F0F8",
+    "#188898", "#28A0B0", "#40B8C8", "#60D0D8", "#80E0E8", "#A0F0F0",
+    "#101820", "#202830", "#303C44", "#48545C", "#606C74", "#78848C",
+    "#909CA4", "#A0ACB4", "#B0BCC4", "#C0CCD4", "#D0DCE4", "#DCE4EC",
+    "#E4ECF0", "#ECF4F8", "#F4F8FC", "#FFFFFF"
+  ],
+  "expressions": [
+    {"id":"neutral","side":"shared","mirror_for_right":false,"bitmap":{"path":"shaniu-cyan-v2.png","sha256":"10980433ca3c3063437dc113c22b5df2c3e865dee415593b5eb6ffe39ec5901a","crop":[10,25,300,300]}},
+    {"id":"blink_half","side":"shared","mirror_for_right":false,"bitmap":{"path":"shaniu-cyan-v2.png","sha256":"10980433ca3c3063437dc113c22b5df2c3e865dee415593b5eb6ffe39ec5901a","crop":[310,25,300,300]}},
+    {"id":"blink_closed","side":"shared","mirror_for_right":false,"bitmap":{"path":"shaniu-cyan-v2.png","sha256":"10980433ca3c3063437dc113c22b5df2c3e865dee415593b5eb6ffe39ec5901a","crop":[612,25,300,300]}},
+    {"id":"sleepy","side":"shared","mirror_for_right":false,"bitmap":{"path":"shaniu-cyan-v2.png","sha256":"10980433ca3c3063437dc113c22b5df2c3e865dee415593b5eb6ffe39ec5901a","crop":[916,25,300,300]}},
+    {"id":"look_left","side":"shared","mirror_for_right":false,"bitmap":{"path":"shaniu-cyan-v2.png","sha256":"10980433ca3c3063437dc113c22b5df2c3e865dee415593b5eb6ffe39ec5901a","crop":[10,308,300,300]}},
+    {"id":"look_right","side":"shared","mirror_for_right":false,"bitmap":{"path":"shaniu-cyan-v2.png","sha256":"10980433ca3c3063437dc113c22b5df2c3e865dee415593b5eb6ffe39ec5901a","crop":[310,308,300,300]}},
+    {"id":"look_up","side":"shared","mirror_for_right":false,"bitmap":{"path":"shaniu-cyan-v2.png","sha256":"10980433ca3c3063437dc113c22b5df2c3e865dee415593b5eb6ffe39ec5901a","crop":[612,308,300,300]}},
+    {"id":"look_down","side":"shared","mirror_for_right":false,"bitmap":{"path":"shaniu-cyan-v2.png","sha256":"10980433ca3c3063437dc113c22b5df2c3e865dee415593b5eb6ffe39ec5901a","crop":[916,308,300,300]}},
+    {"id":"happy","side":"shared","mirror_for_right":false,"bitmap":{"path":"shaniu-cyan-v2.png","sha256":"10980433ca3c3063437dc113c22b5df2c3e865dee415593b5eb6ffe39ec5901a","crop":[10,595,300,300]}},
+    {"id":"shy","side":"shared","mirror_for_right":false,"bitmap":{"path":"shaniu-cyan-v2.png","sha256":"10980433ca3c3063437dc113c22b5df2c3e865dee415593b5eb6ffe39ec5901a","crop":[310,595,300,300]}},
+    {"id":"sad","side":"shared","mirror_for_right":false,"bitmap":{"path":"shaniu-cyan-v2.png","sha256":"10980433ca3c3063437dc113c22b5df2c3e865dee415593b5eb6ffe39ec5901a","crop":[612,595,300,300]}},
+    {"id":"surprised","side":"shared","mirror_for_right":false,"bitmap":{"path":"shaniu-cyan-v2.png","sha256":"10980433ca3c3063437dc113c22b5df2c3e865dee415593b5eb6ffe39ec5901a","crop":[916,595,300,300]}},
+    {"id":"thinking","side":"shared","mirror_for_right":false,"bitmap":{"path":"shaniu-cyan-v2.png","sha256":"10980433ca3c3063437dc113c22b5df2c3e865dee415593b5eb6ffe39ec5901a","crop":[10,878,300,300]}},
+    {"id":"listening","side":"shared","mirror_for_right":false,"bitmap":{"path":"shaniu-cyan-v2.png","sha256":"10980433ca3c3063437dc113c22b5df2c3e865dee415593b5eb6ffe39ec5901a","crop":[310,878,300,300]}},
+    {"id":"speaking","side":"shared","mirror_for_right":false,"bitmap":{"path":"shaniu-cyan-v2.png","sha256":"10980433ca3c3063437dc113c22b5df2c3e865dee415593b5eb6ffe39ec5901a","crop":[612,878,300,300]}},
+    {"id":"error","side":"shared","mirror_for_right":false,"bitmap":{"path":"shaniu-cyan-v2.png","sha256":"10980433ca3c3063437dc113c22b5df2c3e865dee415593b5eb6ffe39ec5901a","crop":[916,878,300,300]}},
+    {"id":"offline","side":"shared","mirror_for_right":false,"bitmap":{"path":"shaniu-cyan-v2.png","sha256":"10980433ca3c3063437dc113c22b5df2c3e865dee415593b5eb6ffe39ec5901a","crop":[916,25,300,300]}}
+  ]
+}

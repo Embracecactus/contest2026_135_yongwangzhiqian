@@ -1,0 +1,737 @@
+{
+  "output": "2026 决赛答辩-勇往直前-傻妞-修订版.pptx",
+  "source": "2026 决赛答辩-勇往直前-傻妞.pptx",
+  "source_sha256": "aef904b52be430f97e95b08bccc8dff4c59a15b6901aa8db709d8a0621c2cd73",
+  "template_sha256": "05ef51df50ac54f2a1efc8e76e0b3e4ef513018e16cc27f7cdcd20c05ed44fa7",
+  "output_sha256": "3455958906b940105361e109711ae0d0aa8bb08d010d768f4ad0c6eeb8990953",
+  "main_slides": 19,
+  "hidden_appendices": 20,
+  "scheduled_seconds": 465,
+  "budget_seconds": 480,
+  "buffer_seconds": 15,
+  "video_seconds_in_main": 149,
+  "timing_is_estimate": true,
+  "media": [
+    {
+      "key": "wake",
+      "file": "docs/contest/答辩材料/素材/实拍/wake.mp4",
+      "seconds": 3.92,
+      "sha256": "8c66f69f0a231d9fb977c705234fa104a1f86a1405956a50b309633f40655243",
+      "source": "IMG_1822.MOV",
+      "start": 14.3,
+      "end": 18.2,
+      "segments": [
+        [
+          14.3,
+          18.2
+        ]
+      ],
+      "omitted_seconds": 0,
+      "scope": "固件 638 时期；手机原片，唤醒词与“我在”",
+      "embedded": true
+    },
+    {
+      "key": "camera",
+      "file": "docs/contest/答辩材料/素材/实拍/camera.mp4",
+      "seconds": 21.22,
+      "sha256": "0af5afbc134dc54a382c391bb9475aade8857109cd3118a9c9010566f347bf1b",
+      "source": "IMG_1822.MOV",
+      "start": 18.4,
+      "end": 64.4,
+      "segments": [
+        [
+          18.4,
+          22.3
+        ],
+        [
+          48.7,
+          64.4
+        ]
+      ],
+      "omitted_seconds": 26.4,
+      "scope": "问完到开口 27.2 s（中间等待已标注略去）",
+      "embedded": true
+    },
+    {
+      "key": "control",
+      "file": "docs/contest/答辩材料/素材/实拍/control.mp4",
+      "seconds": 27.56,
+      "sha256": "1e179202412d663c2b09b53b7a2aba5c9a18ba97836934dfaf1ecaf7797d1001",
+      "source": "IMG_1822.MOV",
+      "start": 65.0,
+      "end": 115.0,
+      "segments": [
+        [
+          65.0,
+          86.2
+        ],
+        [
+          110.3,
+          115.0
+        ]
+      ],
+      "omitted_seconds": 24.1,
+      "scope": "振动等待 11.7 s 原速保留；眼睛等待 24.7 s 已标注略去",
+      "embedded": true
+    },
+    {
+      "key": "memory",
+      "file": "docs/contest/答辩材料/素材/实拍/memory.mp4",
+      "seconds": 25.26,
+      "sha256": "fb478768db31bd7c73c75d7c7f99e3b07fb695b5c9207b388cb8926e07c0e213",
+      "source": "IMG_1822.MOV",
+      "start": 342.3,
+      "end": 379.2,
+      "segments": [
+        [
+          342.3,
+          353.4
+        ],
+        [
+          366.7,
+          379.2
+        ]
+      ],
+      "omitted_seconds": 13.3,
+      "scope": "“你能记住吗”到开口 14.0 s（已标注略去）；此前同一句问了 4 次未获回应",
+      "embedded": true
+    },
+    {
+      "key": "workbench",
+      "file": "docs/contest/答辩材料/素材/实拍/workbench.mp4",
+      "seconds": 15.72,
+      "sha256": "e535eccdf60e12ef593d795718e9acfdad667fd69561f9dcee8aa0ef292651ea",
+      "source": "傻妞电脑工作台.mp4",
+      "start": 10.3,
+      "end": 26.0,
+      "segments": [
+        [
+          10.3,
+          26.0
+        ]
+      ],
+      "omitted_seconds": 0,
+      "scope": "粗剪录屏：拿起时眼睛变化、浏览器按需取一帧并显示结果；非原始连续录音，完整固件与 App 版本未记录",
+      "embedded": true
+    },
+    {
+      "key": "pc-approve",
+      "file": "docs/contest/答辩材料/素材/实拍/pc-approve.mp4",
+      "seconds": 29.32,
+      "sha256": "dc3fb4090a5e0efdc9b65eab3c2798570f55e7f5d87e5f099aa4bed1997cf153",
+      "source": "电脑授权.mp4",
+      "start": 8.8,
+      "end": 38.1,
+      "segments": [
+        [
+          8.8,
+          38.1
+        ]
+      ],
+      "omitted_seconds": 0,
+      "scope": "实板 + 真机 + Windows 终端；作者剪映导出带口述字幕，可能删减过停顿",
+      "embedded": true
+    },
+    {
+      "key": "dolphin",
+      "file": "docs/contest/答辩材料/素材/实拍/dolphin.mp4",
+      "seconds": 13.22,
+      "sha256": "02b44ffbf5d7bbc64331618b95218ca06afc970815d9db07019caf477fe641ff",
+      "source": "IMG_1828.MOV",
+      "start": 8.8,
+      "end": 22.0,
+      "segments": [
+        [
+          8.8,
+          22.0
+        ]
+      ],
+      "omitted_seconds": 0,
+      "scope": "TF 卡文件浏览与网络功能入口",
+      "embedded": true
+    },
+    {
+      "key": "goodnight",
+      "file": "docs/contest/答辩材料/素材/实拍/goodnight.mp4",
+      "seconds": 12.72,
+      "sha256": "e4408f3bfc4e97218ec2e8af4ae753837f14c2dd099bafbde9aa7caaa223ac08",
+      "source": "IMG_1822.MOV",
+      "start": 476.5,
+      "end": 495.8,
+      "segments": [
+        [
+          476.5,
+          484.0
+        ],
+        [
+          492.2,
+          495.8
+        ]
+      ],
+      "omitted_seconds": 8.2,
+      "scope": "“那你退下吧”到开口 8.5 s（已标注略去）",
+      "embedded": true
+    },
+    {
+      "key": "board-camera",
+      "file": "docs/verification/bk7258/2026-11-03-feature-validation/videos/board/camera-capture-cancel-recapture.mp4",
+      "seconds": 55.0,
+      "sha256": "93d3265df96e9d96740319281f123c01e59b9f72bb69898f2aa66f0eb1c14d70",
+      "source": "11-03 工作台录屏",
+      "start": 0,
+      "end": 55.0,
+      "scope": "实板工作台原速录屏，无环境音；完整 CP/AP 版本未知",
+      "embedded": true
+    },
+    {
+      "key": "persona",
+      "file": "docs/contest/答辩材料/素材/实拍/persona.mp4",
+      "seconds": 29.36,
+      "sha256": "5648d74fdf28439c1a7cb1888d409738766c1329f874d8fe4ad64c06cb483fdf",
+      "source": "IMG_1822.MOV",
+      "start": 413.9,
+      "end": 443.2,
+      "segments": [
+        [
+          413.9,
+          443.2
+        ]
+      ],
+      "omitted_seconds": 0,
+      "scope": "同一请求在 383–405 s 已说过两次；此为第三次及回答，原速",
+      "embedded": true
+    },
+    {
+      "key": "app-voice",
+      "file": "docs/contest/答辩材料/素材/实拍/app-voice.mp4",
+      "seconds": 33.42,
+      "sha256": "b84bb1a80509114d2f5bfa1aa62d68cefe351c5b4710ab5e9230eda0aec2607e",
+      "source": "IMG_1852.MOV",
+      "start": 209.8,
+      "end": 252.0,
+      "segments": [
+        [
+          209.8,
+          216.0
+        ],
+        [
+          226.4,
+          252.0
+        ]
+      ],
+      "omitted_seconds": 10.4,
+      "scope": "“你在干什么”到开口 11.1 s（已标注略去）",
+      "embedded": true
+    },
+    {
+      "key": "wakeword",
+      "file": "docs/contest/答辩材料/素材/实拍/app-wakeword.mp4",
+      "seconds": 18.45,
+      "sha256": "2c4a7410aca4973f8c2fb1d9b2df1bbe98561ed129932e8302beb2ce8ad41bfe",
+      "source": "IMG_1852.MOV",
+      "start": 136.9,
+      "end": 155.3,
+      "segments": [
+        [
+          136.9,
+          155.3
+        ]
+      ],
+      "omitted_seconds": 0,
+      "scope": "三个唤醒模型的切换入口；手机屏幕曝光偏亮",
+      "embedded": true
+    },
+    {
+      "key": "recording",
+      "file": "docs/contest/答辩材料/素材/实拍/dolphin-record.mp4",
+      "seconds": 20.62,
+      "sha256": "0746daf8b61b92d268ef7e0674f13e072aac7e8f00c09fa3c5105a5650d64534",
+      "source": "IMG_1828.MOV",
+      "start": 47.2,
+      "end": 67.8,
+      "segments": [
+        [
+          47.2,
+          67.8
+        ]
+      ],
+      "omitted_seconds": 0,
+      "scope": "T5-Board 录音写入 TF 卡并在文件列表中出现",
+      "embedded": true
+    },
+    {
+      "key": "app",
+      "file": "docs/contest/答辩材料/素材/实拍/app-claim.mp4",
+      "seconds": 10.42,
+      "sha256": "599175b88e703648a5b30255802633f425394875e769a0de7cdc6b8019df01e2",
+      "source": "IMG_1852.MOV",
+      "start": 84.6,
+      "end": 95.0,
+      "segments": [
+        [
+          84.6,
+          95.0
+        ]
+      ],
+      "omitted_seconds": 0,
+      "scope": "真实手机 + 实板；App 0.5.x 时期",
+      "embedded": true
+    },
+    {
+      "key": "film",
+      "file": "我在-v3.1-板载应答音-中文字幕版.mp4",
+      "seconds": 578.0,
+      "sha256": "ed9d0e3a0e9be3dd8ebd7167ddf435b53c45cb54bc827d7aa1879c62bdf15ed9",
+      "source": "docs/contest/答辩材料/产品影片/v3-wozai",
+      "start": 0,
+      "end": 578.0,
+      "scope": "《我在》v3.1 板载应答音中文字幕版：Claude 辅助制作动画，Codex 更新字幕与应答音；全片 9 处应答音替换，画面沿用原版；人物情节虚构、产品交互为动画演绎，片中等待不代表实测时延；未嵌入 PPT，与 PPT 同目录单独播放",
+      "embedded": false
+    }
+  ],
+  "main_script_characters": 1373,
+  "slides": [
+    {
+      "title": "封面",
+      "seconds": 8,
+      "video_seconds": 0,
+      "script": "各位评委好，我是勇往直前的李健。今天讲一个晚上，和桌上的傻妞。",
+      "cue": "详版讲解（问答或时间富余时用）：各位评委老师好，我是勇往直前的李健。今天用一个晚上的故事，讲傻妞：一台放在桌上的 openvela AI 伴侣。",
+      "sources": []
+    },
+    {
+      "title": "序幕",
+      "seconds": 13,
+      "video_seconds": 4,
+      "script": "九月十九日的手机原片：“你好，openvela”，“我在”。今晚就把这一声拆开。",
+      "cue": "点击画面播放（约 4 秒），播完点击出现右侧说明。\n详版讲解（问答或时间富余时用）：这是九月十九日用手机实拍的原片：一句“你好，openvela”，她回答“我在”。看起来很简单，背后是本地唤醒、云端理解、流式播放和两套 openvela 同时协作。今天我按一个晚上的顺序，每一幕之后拆开一层技术。",
+      "sources": [
+        "实拍原片 IMG_1822.MOV",
+        "docs/verification/bk7258/2026-09-20-shaniu-638-full-image.md"
+      ]
+    },
+    {
+      "title": "她是谁",
+      "seconds": 18,
+      "video_seconds": 0,
+      "script": "她是官方 AIDK 主板，装在套件自带的透明外壳里，还是原型。三核 BK7258，两块圆屏当眼睛，摄像头、麦克风、扬声器，加速度计、NFC、马达和 SD NAND。",
+      "cue": "两次点击，各出现三行。接线细节见备查 K。\n详版讲解（问答或时间富余时用）：她就是这块官方 AIDK AI Toy 主板，装在开发套件自带的透明外壳里，目前是原型。主控 BK7258 有三个 Cortex-M33 核；两只眼睛是两块圆屏；有摄像头、麦克风和扬声器；还有加速度计、NFC、振动马达、SD NAND 和三颗按键。这些外设分别要在芯片层和板级层接起来，后面会讲。",
+      "sources": [
+        "docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md#344-硬件设计接线与关键-bom",
+        "boards/bk7258/aidk_ai_toy/"
+      ]
+    },
+    {
+      "title": "第一幕：对话与识物",
+      "seconds": 40,
+      "video_seconds": 21,
+      "script": "第一幕，请她拍自拍再评价。唤醒在本地，“我在”是预置音频；之后上云识别，Agent 调相机拍一张交给多模态模型，再流式播出。中间那张卡：原片等了二十七秒。",
+      "cue": "点击播放；播放结束后逐次点击右侧四步。\n详版讲解（问答或时间富余时用）：第一幕：叫醒她，请她拍张自拍再评价一下。这段是原速，等待时间都在里面。右边对应每一步：唤醒在本地，“我在”是预置音频；之后录音交给云端识别，Agent 判断需要看一眼，调用相机工具拍一张 640×480 的 JPEG，和问题一起交给多模态模型，回答以流式语音播出来。",
+      "sources": [
+        "实拍原片 IMG_1822.MOV",
+        "docs/verification/bk7258/2026-09-20-shaniu-639-full-image.md",
+        "app/bk7258/bk7258_agent_vision.c"
+      ]
+    },
+    {
+      "title": "一句话的旅程",
+      "seconds": 26,
+      "video_seconds": 0,
+      "script": "一句话分五步：本地唤醒；录音整段上云识别；固定指令先在本地匹配，命中就不问大模型；回答分块进 PSRAM 队列，由唯一播放器播；播完才再听，所以能追问。底下是九月原片的真实等待，十一到二十七秒，这是初赛后时延工作的起点。",
+      "cue": "六次点击：五个阶段依次出现，最后出现真实等待与优化。TTS 对照表见备查 D。\n详版讲解（问答或时间富余时用）：把刚才那一句拆开：第一步唤醒在 AP 上用 INT8 模型本地完成，每 300 毫秒判一次，连续两次才算；第二步录音整段交给云端识别；第三步进入官方 Agent，会先匹配音量、表情、停止这类固定指令，命中就不请求大模型；第四步合成的 PCM 分块进入 PSRAM 里的有界队列，由唯一的播放器输出；第五步真正播完才重新收音，所以能免唤醒追问。最下面是九月原片里的真实等待：问完到开口要 11 到 27 秒，这是初赛后我们做时延工作的起点——先分阶段埋点，发现大部分时间花在等网络和模型，再做流式分句和队列；TTS 供应商在同一块板上对照后保留 MiMo。当前版本的真实时延还要在补齐配置后复测。",
+      "sources": [
+        "app/bk7258/models/nihao_openvela.metadata.json",
+        "docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md#333-mimo-接入会话与资源调度",
+        "docs/verification/bk7258/2026-10-29-voice-latency-r7/voice-latency-r7.md（本地研究记录）"
+      ]
+    },
+    {
+      "title": "唤醒模型",
+      "seconds": 32,
+      "video_seconds": 0,
+      "script": "唤醒模型是我们自己训的：正例用多音色合成并校正发音，负例有近音词、半句话和噪声，按来源先切分再增强。训练直接调用设备上那份 C 前端提特征，训练和上板一致。INT8 只有 23 KB，约 80 毫秒一次。之后又做了九轮研究，候选在合成测试上更好，但没有真人多人验证，产品没换。",
+      "cue": "三次点击：数据/增强/特征 → 模型/量化/上板 → 9 轮研究。\n详版讲解（问答或时间富余时用）：唤醒模型是团队用自己的工具链训练的。数据 406 条：正例 62 条用 Kokoro 多音色合成，我们发现合成引擎把 vela 读成了 vɛlə，于是用分词器实际输出的 token 反解，改写成 open vila 后全部重新生成；负例包括近音词、半句、普通指令、公开语音和噪声，还有 72 条真实环境静音。先按来源切分训练、验证和测试，再做滑窗、难负例、电平和合成房间增强。关键一点：训练时在主机上编译设备的那份 C 前端代码来提特征，所以训练和上板看到的是同一种特征。模型是 32 通道 DS-CNN，频率步长 4 把理论运算量从 4.85M 降到 2.43M MAC；全 INT8 只有 23,640 字节，在 AP 上约 80 毫秒一次，arena 用了 40,692 字节。初赛后又做了九轮研究：两百多小时公开真人语料、真人预训练、困难负例、教师模型审计发音，合成测试命中从 127 提到 318/400，20.99 小时真人负流里 0 次误唤醒；但快语速、近音词有退步，也没有真人多人正例，所以没有替换产品模型，也不报唤醒率。",
+      "sources": [
+        "app/bk7258/models/nihao_openvela.metadata.json",
+        "tools/bk7258/_lib/voice_kws.py（audit / train / evaluate / package）",
+        "app/bk7258/bk7258_voice_wake_package.h（WKM1/WKM2）",
+        "docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md#331-端侧-ai以公开-32-通道模型为基线",
+        "docs/platforms/bk7258/shaniu-master-plan.md（v44–v46 训练记录）",
+        "docs/verification/bk7258/2026-10-26-wakeword/（本地研究记录，未发布）"
+      ]
+    },
+    {
+      "title": "第二幕：语音控制设备",
+      "seconds": 36,
+      "video_seconds": 28,
+      "script": "第二幕：振动、换眼睛、调音量、读加速度，都只是一句话。她怎么做到的，下一页拆开。",
+      "cue": "点击播放；播放结束后逐次点击右侧说明。\n详版讲解（问答或时间富余时用）：第二幕：让她动起来。我让她振一下马达、把眼睛调成困倦、把音量调小、读一下加速度。这些不是让大模型直接碰硬件：模型只能调用我们注册的设备工具，参数由 tool_guard 校验，比如振动只能 1 到 100 毫秒、音量 0 到 100；执行失败会如实返回，不会说“已经完成”。",
+      "sources": [
+        "实拍原片 IMG_1822.MOV",
+        "app/bk7258/bk7258_agent_device_control.inc"
+      ]
+    },
+    {
+      "title": "Agent 与工具",
+      "seconds": 26,
+      "video_seconds": 0,
+      "script": "大模型只能调用我们注册的八个工具，参数先过 tool_guard 校验，执行完把真实结果回填，失败也照实说。像“音量调小”这种固定指令，在本地就匹配执行，不用问大模型，更快也更省。",
+      "cue": "两次点击：工具表 → 一轮对话流程。\n详版讲解（问答或时间富余时用）：刚才那一段是怎么做到的：大模型不直接碰硬件，只能调用我们注册的 8 个工具，每个工具都有 JSON Schema 和上限，比如振动 1 到 100 毫秒、音量 0 到 100。一轮对话里，ASR 文本先过本地意图：只接受完整、明确的音量、换表情、停止这类指令，命中就直接执行，不请求大模型；没命中才进官方 Agent Session，调用 mimo-v2.5。模型发起工具调用后先过 tool_guard 校验，执行完把真实结果回填，忙或失败如实返回。回答时 reply_expression 只决定播报期间的临时表情。Runtime Skill 每轮锁定能用的工具，外部 Skill 需要 P-256 签名。",
+      "sources": [
+        "app/bk7258/bk7258_agent_product.c（product_tools / product_tool_execute）",
+        "app/bk7258/bk7258_local_intent.c",
+        "app/bk7258/bk7258_runtime_skills.c",
+        "docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md#333-mimo-接入会话与资源调度"
+      ]
+    },
+    {
+      "title": "第三幕：记忆",
+      "seconds": 36,
+      "video_seconds": 25,
+      "script": "第三幕。坦白说，这句我问了五次她才回应。初赛后我们把记忆真正做了出来：加密存储，手机可查可删。",
+      "cue": "点击播放；之后两次点击：右上“模型口述”→ 右下“11 月实现”。\n详版讲解（问答或时间富余时用）：第三幕：我问她可不可以叫她冰冰，她说能记住。但要诚实地讲：原片里这句话我问了五次才得到回答；而且“我会写进记忆”是模型自己说的，当时的记忆只是最近三轮对话的加密快照。所以初赛后我们把它真正做出来：称呼、偏好、近期话题各存一条，用 AES-256-GCM 加密保存，手机上可以查看、纠正、删除；十一月一日在真机和实板上验证了增删改和重启回读。",
+      "sources": [
+        "实拍原片 IMG_1822.MOV",
+        "docs/verification/bk7258/2026-11-01-agent-profile-skills-hil.md",
+        "app/bk7258/bk7258_memory_facts.c",
+        "app/bk7258/bk7258_agent_memory_codec.c"
+      ]
+    },
+    {
+      "title": "电脑工作台",
+      "seconds": 24,
+      "video_seconds": 16,
+      "script": "第四幕，动一动、采一帧。电脑执行任务，傻妞接收进度和结果。",
+      "cue": "点击播放（约 16 秒，视频有作者口述，演讲者不说话）；之后四次点击：动作 → 取景 → 边界。协议与运行细节见备查 S。\n详版讲解（问答或时间富余时用）：第四幕，动一动、采一帧。左边是作者交付的工作台粗剪：拿起时眼睛变化，浏览器请求一帧并显示结果。电脑执行任务，傻妞接收进度和结果；电脑只使用手机 owner 授予的权限，经原生 USB 和 TLS 通信。视频未记录完整固件和 App 版本，因此不把它当作当前源码的整机验收；眼睛包导入只在口述中出现，不作为安装成功证据。",
+      "sources": [
+        "作者工作台录屏 傻妞电脑工作台.mp4（本地，11-04 接收；粗剪）",
+        "docs/verification/bk7258/2026-11-03-feature-validation/README.md",
+        "docs/verification/bk7258/2026-11-03-feature-validation/evidence/pc-task-success.json",
+        "docs/verification/bk7258/2026-11-03-feature-validation/evidence/camera-events.json",
+        "tools/bk7258/README.md#run-one-real-computer-task"
+      ]
+    },
+    {
+      "title": "三端分工与审批",
+      "seconds": 44,
+      "video_seconds": 29,
+      "script": "手机是 owner：认领、配网、定制升级，一次性给电脑授权，日常对话不需要它。只有你想亲自把关的命令才走审批；拒绝分支还要补测。",
+      "cue": "点击播放（约 29 秒，视频里是作者口述，演讲者不说话）；之后四次点击：三端 → 审批。审批设计见备查 J；手机认领实拍见备查 P。\n详版讲解（问答或时间富余时用）：这段是十一月三日的实录：电脑上用 workbench approval-run 请求打开计算器，请求经原生 USB 送到傻妞，傻妞通知手机，手机上核对逐字命令后批准，电脑拿到签名回执才执行，计算器打开；终端里能读到 decision=approved、authenticated=true、返回码 0，上面几条历史记录是无人批准时的 expired。手机在这里是 owner：开箱认领、配网和云服务、定制升级，并一次性给电脑授权；之后的日常对话不需要它。单次审批是可选的，只给你想亲自把关的命令，比如 AI 助手要推代码。放在手机上，是因为手机持有 owner 凭据，也能完整显示命令。拒绝分支还要补测。",
+      "sources": [
+        "11-03 作者录屏 电脑授权.mp4（本地，未发布；剪映导出，带口述字幕）",
+        "tools/bk7258/README.md#phone-owner-approval-for-pc-agents",
+        "app/bk7258/bk7258_pc_approval.c",
+        "docs/verification/bk7258/2026-11-03-feature-validation/evidence/approval-expired.json"
+      ]
+    },
+    {
+      "title": "三端安全",
+      "seconds": 24,
+      "video_seconds": 0,
+      "script": "三端不靠同一个局域网互信：未认领设备自动开放有限时的 BLE 认领窗口，手机核对二维码证书指纹并证明一次性秘密；电脑用手机授予的独立密钥，在 USB 上跑 TLS；固件和小功能都要 P-256 签名，升级失败自动回退。",
+      "cue": "一次点击出现表格。\n详版讲解（问答或时间富余时用）：三端之间不靠“在同一个局域网”互信。未认领且空闲的设备会自动开放有限时的 BLE 认领窗口；手机先核对二维码里的设备证书指纹，再在 TLS 加密通道里证明持有一次性秘密。普通按键是 PTT，旧的八秒按住/松开仅用于只读回执恢复，并不打开首认领。电脑用手机授予的独立密钥，在原生 USB 上跑 TLS，只拿到被授予的权限，审批回执用这把密钥做 HMAC。云端走 HTTPS，证书校验不因性能关闭。固件由 MCUboot 用 ECDSA P-256 验签，CP 和 AP 成对试运行，失败自动回退；小功能和 Skill 也要签名。",
+      "sources": [
+        "docs/platforms/bk7258/shaniu-provision-security.md",
+        "tools/bk7258/README.md#pc-workbench-control-client-development",
+        "tools/bk7258/_lib/trust.py（ecdsa-p256-sha256, official imgtool）",
+        "app/bk7258/bk7258_display_pack.h"
+      ]
+    },
+    {
+      "title": "系统架构",
+      "seconds": 22,
+      "video_seconds": 0,
+      "script": "第五幕，她背后的芯片。CPU0 跑 CP，管无线、存储和升级；CPU1、CPU2 组成 AP，跑 Agent、语音和外设。两套 openvela 用 RPMsg 协作，每个资源只有一个主人。",
+      "cue": "五次点击：CP → AP → RPMsg → 外部通道 → 启动链。\n详版讲解（问答或时间富余时用）：第五幕，她背后的芯片。BK7258 三个核：CPU0 运行 CP 实例，管无线、存储、升级和系统监督；CPU1 和 CPU2 组成 AP 的 SMP 域，运行 Agent、语音、媒体、唤醒、屏幕和外设。两套 openvela 通过 RPTUN 和 RPMsg 协作，每个资源只有一个所有者。外面三条通道连手机、电脑和云；最底下是我们自己的签名启动链。",
+      "sources": [
+        "chips/bk7258/",
+        "boards/bk7258/CONFIGS.md",
+        "docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md#321-总体架构与数据流"
+      ]
+    },
+    {
+      "title": "技术栈",
+      "seconds": 24,
+      "video_seconds": 0,
+      "script": "用到的技术都钉在 manifest 里：NuttX，openvela 的 Agent、Media、TFLite Micro，加上 mbedTLS 和 MCUboot。对上游的修改都发布成 fork 的固定提交，构建时不打补丁。",
+      "cue": "一次点击出现表格。\n详版讲解（问答或时间富余时用）：这一页回答“用了什么技术”。内核是 NuttX，跨核用 RPTUN、OpenAMP 和 RPMsg，存储是 LittleFS 和 RPMsgFS；AI 和语音用 openvela 官方的 Agent、Voice 和 TFLite Micro；多媒体用 Media；安全用 mbedTLS 3.4；启动用官方 MCUboot；厂商 SDK 只用无线和控制器部分。我们对 NuttX、apps、Agent 和 Media 的修改都发布成 fork 的固定提交，manifest 钉住每一个依赖，构建时不打补丁。云端是 MiMo 的 ASR、LLM 和 TTS。手机 App 是 Kotlin，电脑是 Python 命令行加浏览器界面，工具链是锁定哈希的 Arm GCC 10.3。",
+      "sources": [
+        "contest2026_135_yongwangzhiqian.xml",
+        "openvela.xml",
+        "tools/bk7258/toolchain.json",
+        "android/shaniu-companion/app/build.gradle.kts",
+        "SOURCE_PROVENANCE.md"
+      ]
+    },
+    {
+      "title": "平台攻坚",
+      "seconds": 24,
+      "video_seconds": 0,
+      "script": "修过的坑：BL1 接 MCUboot，634 首次真实 OTA；串口能出不能进，查到三级中断门；SDK 标 320M 实测 160；RPMsg 第 53 轮内存耗尽，改常驻线程后 80 轮无失败。CPU1 心跳和 770 重连未解决。",
+      "cue": "四张卡逐次出现。失败记录见备查 H。\n详版讲解（问答或时间富余时用）：这一页是我们修过的坑。启动链：源码化 BL1，接入 MCUboot，CP 和 AP 成对升级、确认和回退，634 完成了第一次真实 App OTA。串口能输出不能输入，我们逐层查到位域、使能、中断门和 FIFO。SDK 标的 320M 在 CPU0 上其实只有 160 MHz。RPMsg 临时线程在第 53 轮内存耗尽，改成常驻 worker 后 80 轮无失败。还没解决的，比如 CPU1 心跳停止和 770 升级后重连失败，我们也写在这里。",
+      "sources": [
+        "docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md#345-驱动适配由真实故障形成的工程解法",
+        "docs/verification/bk7258/2026-08-27-bk7258-sdk-clock-240m-validation.md",
+        "boards/bk7258/CONFIGS.md",
+        "docs/verification/bk7258/2026-10-18-stability-and-phone-hil.md"
+      ]
+    },
+    {
+      "title": "三板复用",
+      "seconds": 20,
+      "video_seconds": 13,
+      "script": "同一套适配跑在三块板上，这是 T5-Board 的 Dolphin。",
+      "cue": "点击播放；播放后点击出现右侧三板说明。三板同框照片在备查 R。\n详版讲解（问答或时间富余时用）：同一套芯片适配复用到三块板：T5AI-Core 是最小系统基线，T5-Board 上跑 Dolphin 图形工具，这段实拍里能浏览 TF 卡、扫描 Wi-Fi、看信道；AIDK 就是傻妞。芯片机制和板级接线分开，新增板型只需要加板级描述。",
+      "sources": [
+        "实拍原片 IMG_1828.MOV",
+        "boards/bk7258/CONFIGS.md",
+        "docs/platforms/bk7258/dolphin-master-plan.md"
+      ]
+    },
+    {
+      "title": "证据与复现",
+      "seconds": 24,
+      "video_seconds": 0,
+      "script": "每条结论标证据层级：主机近千个合同用例，App 345 个单测加 14 组模拟器场景，实板、真机分开记录。CI 从空目录按 manifest 冷构建、签名、再独立验签；PR #140 合入后的构建和交付复核均通过。",
+      "cue": "两次点击：证据阶梯 → CI 与复现。复现层次见备查 I。\n详版讲解（问答或时间富余时用）：每条结论都带证据层级：从代码、主机测试、模拟器、实板、真机，到人工确认。主机测试用 CMocka 和 mock 隔离硬件寄存器和 SDK，pytest 有 996 个产品合同用例；App 有 345 个不同单测和 14 组模拟器场景；实板和真机分别有记录；人工观感还要补。复现上，CI 从空目录按 manifest 同步、锁定工具链、签名构建、跑回归，最后下载产物独立验签。PR #140 合入后，官方 b21fa804 的构建与独立交付复核均已成功；它仍只证明开发身份的可构建性，不替代作者签名发布或当前源码的实板验收。",
+      "sources": [
+        "docs/platforms/bk7258/shaniu-feature-inventory.md",
+        "README.md#从源码复现",
+        "tests/host/bk7258/README.md",
+        ".github/workflows/shaniu-source-checks.yml",
+        "https://github.com/open-vela/contest2026_135_yongwangzhiqian/actions/workflows/shaniu-source-checks.yml"
+      ]
+    },
+    {
+      "title": "下一步",
+      "seconds": 8,
+      "video_seconds": 0,
+      "script": "下一步：补齐实测，开放签名小功能，做重连长稳和多人唤醒，再做功耗和外壳。",
+      "cue": "详版讲解（问答或时间富余时用）：下一步：先在当前版本上补齐实机验证，再开放签名小功能，然后做升级后重连与长稳、真人多人唤醒，最后是功耗、外壳和生产。",
+      "sources": []
+    },
+    {
+      "title": "尾声",
+      "seconds": 16,
+      "video_seconds": 13,
+      "script": "谢谢各位评委老师，欢迎提问。",
+      "cue": "右上角小窗点击播放（约 13 秒，含一张“略去 8 秒”说明卡）。\n详版讲解（问答或时间富余时用）：故事的最后，像那天晚上一样：她嘴硬说“才不想跟你多待一会儿”，我说“那你退下吧”，她说“知道了啦，晚安”。谢谢各位评委老师，欢迎提问。",
+      "sources": [
+        "实拍原片 IMG_1822.MOV"
+      ]
+    },
+    {
+      "title": "备查 A｜功能与证据矩阵",
+      "seconds": 0,
+      "video_seconds": 0,
+      "script": "被问“这个功能真的跑过吗”时打开。",
+      "cue": "",
+      "sources": [
+        "docs/platforms/bk7258/shaniu-feature-inventory.md",
+        "boards/bk7258/CONFIGS.md"
+      ]
+    },
+    {
+      "title": "备查 B｜实板取景录像",
+      "seconds": 0,
+      "video_seconds": 0,
+      "script": "后端取景与读取 4.429 / 5.067 秒，不是点击到显示的端到端时延。",
+      "cue": "",
+      "sources": [
+        "docs/verification/bk7258/2026-11-03-feature-validation/README.md"
+      ]
+    },
+    {
+      "title": "备查 C｜唤醒研究",
+      "seconds": 0,
+      "video_seconds": 0,
+      "script": "被问“唤醒模型怎么训的、为什么没换”时打开。11-03 真人唤醒两次本地命中（976/1000、859/1000），不据此计算识别率。",
+      "cue": "",
+      "sources": [
+        "docs/verification/bk7258/2026-10-26-wakeword/（本地研究记录）",
+        ".agents/skills/edge-wakeword-training/SKILL.md"
+      ]
+    },
+    {
+      "title": "备查 D｜TTS 取舍",
+      "seconds": 0,
+      "video_seconds": 0,
+      "script": "被问为什么不用更快的 TTS 时打开。",
+      "cue": "",
+      "sources": [
+        "docs/verification/bk7258/2026-10-29-voice-latency-r7/voice-latency-r7.md（本地研究记录）"
+      ]
+    },
+    {
+      "title": "备查 E｜动作与触觉",
+      "seconds": 0,
+      "video_seconds": 0,
+      "script": "初赛之后，我们让她不只听指令。拿起、倾斜时她会短暂换表情；专注或电脑任务完成时会轻振一下。这里的难点是规则：采样多快、什么算移动、什么时候不能振——比如说话和收音时绝不振，否则麦克风会录进马达声。实板上采样和驱动都有记录，人眼和手感的确认还要补。",
+      "cue": "三次点击：动作 → 触觉 → 眼睛与证据。",
+      "sources": [
+        "docs/platforms/bk7258/shaniu-desktop-companion.md#n1-输入与反馈",
+        "docs/verification/bk7258/2026-11-03-feature-validation/README.md"
+      ]
+    },
+    {
+      "title": "备查 F｜卡片与小功能",
+      "seconds": 0,
+      "video_seconds": 0,
+      "script": "放到手边的东西：NFC 卡可以登记成“开始专注”、播一段本地内容或启动一个小功能；专注计时可以从四个入口开始，眼睛上显示进度环；小功能是第一方签名的原生模块，权限要显式声明，每步不超过二十毫秒。这三项目前是模拟器和主机测试，实卡和签名安装还没在实板上完成。",
+      "cue": "三张卡逐次出现。",
+      "sources": [
+        "docs/platforms/bk7258/shaniu-desktop-companion.md#n2-场景与本地内容",
+        "docs/platforms/bk7258/shaniu-desktop-companion.md#n5-语音启动定时与保存进度abi-3",
+        "tools/bk7258/README.md#first-party-native-feature-packages"
+      ]
+    },
+    {
+      "title": "备查 G｜定制",
+      "seconds": 0,
+      "video_seconds": 0,
+      "script": "她的性格和说话方式也可以定制：风格、回答长短、要不要深度思考，都由手机设置、设备保存。回答时她会配合表情；我们还做了三个场景技能，比如“专注助手”，每轮锁定能用的工具；唤醒词和眼睛外观也可以换，都以设备回读为准。",
+      "cue": "四张卡逐次出现。被问人格时可打开备查 L的实拍。",
+      "sources": [
+        "docs/verification/bk7258/2026-11-01-agent-profile-skills-hil.md",
+        "tools/bk7258/README.md#runtime-skill-packages",
+        "app/bk7258/assets/display/README.md"
+      ]
+    },
+    {
+      "title": "备查 H｜失败与修复",
+      "seconds": 0,
+      "video_seconds": 0,
+      "script": "被问稳定性时打开。未闭合的直接说未闭合。",
+      "cue": "",
+      "sources": [
+        "docs/platforms/bk7258/shaniu-feature-inventory.md#失败与修复",
+        "docs/platforms/bk7258/shaniu-master-plan.md（v45/v46 发音更正）"
+      ]
+    },
+    {
+      "title": "备查 I｜复现层次",
+      "seconds": 0,
+      "video_seconds": 0,
+      "script": "被问“评委能不能编出同样的固件”时打开。",
+      "cue": "",
+      "sources": [
+        "README.md#从源码复现"
+      ]
+    },
+    {
+      "title": "备查 J｜审批设计",
+      "seconds": 0,
+      "video_seconds": 0,
+      "script": "设备没有能逐字显示命令的屏幕，按键语义固定；owner 凭据在手机。第 11 页是批准分支的实录。",
+      "cue": "",
+      "sources": [
+        "tools/bk7258/README.md#phone-owner-approval-for-pc-agents",
+        "11-03 作者录屏 电脑授权.mp4（本地，未发布）"
+      ]
+    },
+    {
+      "title": "备查 K｜接线与 BOM",
+      "seconds": 0,
+      "video_seconds": 0,
+      "script": "被问硬件细节时打开。",
+      "cue": "",
+      "sources": [
+        "docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md#344-硬件设计接线与关键-bom"
+      ]
+    },
+    {
+      "title": "备查 L｜切换“傲娇”人格，讲个笑话",
+      "seconds": 0,
+      "video_seconds": 0,
+      "script": "问答时按需播放。",
+      "cue": "",
+      "sources": [
+        "实拍原片 IMG_1822.MOV"
+      ]
+    },
+    {
+      "title": "备查 M｜手机旁的一次对话",
+      "seconds": 0,
+      "video_seconds": 0,
+      "script": "问答时按需播放。",
+      "cue": "",
+      "sources": [
+        "实拍原片 IMG_1852.MOV"
+      ]
+    },
+    {
+      "title": "备查 N｜App 切换唤醒词",
+      "seconds": 0,
+      "video_seconds": 0,
+      "script": "问答时按需播放。",
+      "cue": "",
+      "sources": [
+        "实拍原片 IMG_1852.MOV"
+      ]
+    },
+    {
+      "title": "备查 O｜T5-Board 录音写入 TF 卡",
+      "seconds": 0,
+      "video_seconds": 0,
+      "script": "问答时按需播放。",
+      "cue": "",
+      "sources": [
+        "实拍原片 IMG_1828.MOV"
+      ]
+    },
+    {
+      "title": "备查 P｜真实手机认领傻妞",
+      "seconds": 0,
+      "video_seconds": 0,
+      "script": "问答时按需播放。",
+      "cue": "",
+      "sources": [
+        "实拍原片 IMG_1852.MOV"
+      ]
+    },
+    {
+      "title": "备查 Q｜产品动画《我在》v3.1（板载应答音·中文字幕版）",
+      "seconds": 0,
+      "video_seconds": 0,
+      "script": "按需单独播放完整产品故事（9 分 38 秒），不计入 8 分钟主讲。人物与情节虚构，产品交互为动画演绎，不能作为实机验收或时延证据。Claude 辅助制作原动画，Codex 更新字幕与应答音。全片 9 处“我在”替换为当前板载同源应答素材，沿用原片的空间音效处理；不是实板扬声器录音。画面与烧录中文字幕完整保留，编号 1203 未改。周屿旁白与对白仍为剪映 SAMI“温柔男主”，其余傻妞台词仍为 Kokoro 合成演绎。原工程 SOURCES.md 记载原始配音；本版替换与验证以成片同目录的《板载应答音版说明.txt》为准。",
+      "cue": "成片 我在-v3.1-板载应答音-中文字幕版.mp4 与 PPT 保持同目录；放映时点击封面，或手动打开成片。",
+      "sources": [
+        "docs/contest/答辩材料/产品影片/v3-wozai/README.md",
+        "docs/contest/答辩材料/产品影片/v3-wozai/FEATURE_MAP.md",
+        "docs/contest/答辩材料/产品影片/v3-wozai/SOURCES.md",
+        "外置成片同目录：板载应答音版说明.txt · SHA256SUMS-板载应答音.txt"
+      ]
+    },
+    {
+      "title": "备查 R｜三板与新界面",
+      "seconds": 0,
+      "video_seconds": 0,
+      "script": "被问“App 现在长什么样”或“三块板”时打开。",
+      "cue": "",
+      "sources": [
+        "docs/verification/bk7258/2026-11-03-feature-validation/README.md#手机模拟器录像",
+        "docs/contest/assets/report-v5/boards-in-context.jpg"
+      ]
+    },
+    {
+      "title": "备查 S｜工作台运行细节",
+      "seconds": 0,
+      "video_seconds": 0,
+      "script": "被问工作台怎样运行、采图是否会重复拍摄或资源安装怎样确认时打开。",
+      "cue": "",
+      "sources": [
+        "tools/bk7258/README.md#run-one-real-computer-task",
+        "docs/verification/bk7258/2026-11-03-feature-validation/evidence/pc-task-success.json",
+        "docs/verification/bk7258/2026-11-03-feature-validation/evidence/camera-events.json"
+      ]
+    },
+    {
+      "title": "备查 T｜证据索引",
+      "seconds": 0,
+      "video_seconds": 0,
+      "script": "语音时延与唤醒研究记录、原始实拍均在本地，未随仓库发布。",
+      "cue": "",
+      "sources": []
+    }
+  ]
+}

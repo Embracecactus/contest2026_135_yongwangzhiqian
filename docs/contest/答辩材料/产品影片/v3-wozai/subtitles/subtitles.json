@@ -1,0 +1,570 @@
+[
+ {
+  "start": 24.38,
+  "end": 28.98,
+  "text": "分手第三个月，苏晴七月订的生日礼物，到了。",
+  "kind": "narr",
+  "line": "N01",
+  "top": false
+ },
+ {
+  "start": 35.24,
+  "end": 40.06,
+  "text": "为了把晴留在身边，我做了一个小伙伴——傻妞。",
+  "kind": "narr",
+  "line": "N02",
+  "top": false
+ },
+ {
+  "start": 64.06,
+  "end": 66.66,
+  "text": "Wi-Fi 密码，还是她的生日。",
+  "kind": "narr",
+  "line": "N03",
+  "top": false
+ },
+ {
+  "start": 78.24,
+  "end": 79.96,
+  "text": "你好，openvela。",
+  "kind": "him",
+  "line": "D01",
+  "top": false
+ },
+ {
+  "start": 80.89,
+  "end": 81.91,
+  "text": "我在。",
+  "kind": "her",
+  "line": "W",
+  "top": false
+ },
+ {
+  "start": 84.7,
+  "end": 85.72,
+  "text": "……你好。",
+  "kind": "him",
+  "line": "D02",
+  "top": false
+ },
+ {
+  "start": 86.72,
+  "end": 89.82,
+  "text": "你好呀。听得见，你想聊点什么？",
+  "kind": "her",
+  "line": "S01",
+  "top": false
+ },
+ {
+  "start": 89.84,
+  "end": 92.28,
+  "text": "你……怎么听见我的？",
+  "kind": "him",
+  "line": "D03",
+  "top": false
+ },
+ {
+  "start": 94.26,
+  "end": 98.55,
+  "text": "后来我才知道：“你好，openvela”，",
+  "kind": "narr",
+  "line": "N04",
+  "top": false
+ },
+ {
+  "start": 98.64,
+  "end": 100.42,
+  "text": "是她自己在板子上听出来的；",
+  "kind": "narr",
+  "line": "N04",
+  "top": false
+ },
+ {
+  "start": 100.44,
+  "end": 104.55,
+  "text": "后面的话，要去云上转一圈，",
+  "kind": "narr",
+  "line": "N04",
+  "top": false
+ },
+ {
+  "start": 104.92,
+  "end": 110.2,
+  "text": "再回来。断了网，她还醒着，只是答不了话。",
+  "kind": "narr",
+  "line": "N04",
+  "top": false
+ },
+ {
+  "start": 115.1,
+  "end": 117.68,
+  "text": "晴说话，总有点嘴硬。",
+  "kind": "narr",
+  "line": "N05",
+  "top": false
+ },
+ {
+  "start": 123.1,
+  "end": 124.86,
+  "text": "你好，openvela！",
+  "kind": "him",
+  "line": "D04",
+  "top": false
+ },
+ {
+  "start": 125.98,
+  "end": 127.0,
+  "text": "我在。",
+  "kind": "her",
+  "line": "W",
+  "top": false
+ },
+ {
+  "start": 127.1,
+  "end": 128.92,
+  "text": "记住，我叫小鱼。",
+  "kind": "him",
+  "line": "D05",
+  "top": false
+ },
+ {
+  "start": 130.28,
+  "end": 132.08,
+  "text": "行吧。小鱼，记住了。",
+  "kind": "her",
+  "line": "S02",
+  "top": false
+ },
+ {
+  "start": 132.1,
+  "end": 133.7,
+  "text": "“小鱼”，是晴给我起的。",
+  "kind": "narr",
+  "line": "N06",
+  "top": false
+ },
+ {
+  "start": 136.72,
+  "end": 139.5,
+  "text": "还有，我喜欢加两勺糖的咖啡。",
+  "kind": "him",
+  "line": "D06",
+  "top": false
+ },
+ {
+  "start": 140.76,
+  "end": 142.54,
+  "text": "两勺？好吧，记下了。",
+  "kind": "her",
+  "line": "S03",
+  "top": false
+ },
+ {
+  "start": 143.7,
+  "end": 147.88,
+  "text": "我还想把那句“我在”，改成晴的“怎么啦”。",
+  "kind": "narr",
+  "line": "N07",
+  "top": false
+ },
+ {
+  "start": 147.9,
+  "end": 151.34,
+  "text": "翻遍了 App——改不了。",
+  "kind": "narr",
+  "line": "N07",
+  "top": false
+ },
+ {
+  "start": 160.7,
+  "end": 165.1,
+  "text": "晴回家，总要敲四下门。明明有卡。",
+  "kind": "narr",
+  "line": "N08",
+  "top": false
+ },
+ {
+  "start": 165.9,
+  "end": 166.98,
+  "text": "你好……openvela。",
+  "kind": "him",
+  "line": "D07",
+  "top": false
+ },
+ {
+  "start": 172.3,
+  "end": 173.38,
+  "text": "你好……openvela。",
+  "kind": "him",
+  "line": "D07",
+  "top": false
+ },
+ {
+  "start": 175.28,
+  "end": 176.28,
+  "text": "我在。",
+  "kind": "her",
+  "line": "W",
+  "top": false
+ },
+ {
+  "start": 176.3,
+  "end": 182.58,
+  "text": "后来，我常常半夜叫醒她。什么也不问，就为了听那一句。",
+  "kind": "narr",
+  "line": "N09",
+  "top": false
+ },
+ {
+  "start": 183.1,
+  "end": 184.86,
+  "text": "你好，openvela！",
+  "kind": "him",
+  "line": "D04",
+  "top": false
+ },
+ {
+  "start": 185.98,
+  "end": 187.0,
+  "text": "我在。",
+  "kind": "her",
+  "line": "W",
+  "top": false
+ },
+ {
+  "start": 187.08,
+  "end": 188.38,
+  "text": "你给我讲讲灯塔吧。",
+  "kind": "him",
+  "line": "D08",
+  "top": false
+ },
+ {
+  "start": 190.06,
+  "end": 193.54,
+  "text": "灯塔最早可以追溯到两千多年前，",
+  "kind": "her",
+  "line": "S04a",
+  "top": true
+ },
+ {
+  "start": 192.9,
+  "end": 193.92,
+  "text": "好了好了……",
+  "kind": "him",
+  "line": "D09",
+  "top": false
+ },
+ {
+  "start": 193.56,
+  "end": 198.12,
+  "text": "亚历山大港的法罗斯灯塔，高一百多米。",
+  "kind": "her",
+  "line": "S04a",
+  "top": true
+ },
+ {
+  "start": 195.8,
+  "end": 200.14,
+  "text": "她说话的时候，听不见我。只能等她说完。",
+  "kind": "narr",
+  "line": "N10",
+  "top": false
+ },
+ {
+  "start": 198.14,
+  "end": 201.64,
+  "text": "古人在塔顶点火，用镜子把光照到很远的海面上。",
+  "kind": "her",
+  "line": "S04a",
+  "top": true
+ },
+ {
+  "start": 201.66,
+  "end": 203.56,
+  "text": "这就是灯塔的故事。",
+  "kind": "her",
+  "line": "S04b",
+  "top": false
+ },
+ {
+  "start": 204.1,
+  "end": 205.12,
+  "text": "结束对话。",
+  "kind": "him",
+  "line": "D10",
+  "top": false
+ },
+ {
+  "start": 214.5,
+  "end": 216.26,
+  "text": "你好，openvela！",
+  "kind": "him",
+  "line": "D04",
+  "top": false
+ },
+ {
+  "start": 217.28,
+  "end": 217.98,
+  "text": "我在。",
+  "kind": "her",
+  "line": "W",
+  "top": false
+ },
+ {
+  "start": 218.0,
+  "end": 219.98,
+  "text": "看看这个，这是什么？",
+  "kind": "him",
+  "line": "D11",
+  "top": false
+ },
+ {
+  "start": 222.26,
+  "end": 226.88,
+  "text": "这是绿萝。叶子发黄，土也干了，该浇水了。",
+  "kind": "her",
+  "line": "S05",
+  "top": false
+ },
+ {
+  "start": 227.1,
+  "end": 231.84,
+  "text": "绿萝是晴留下的。我一直不知道，它也要喝水。",
+  "kind": "narr",
+  "line": "N11",
+  "top": false
+ },
+ {
+  "start": 235.84,
+  "end": 236.86,
+  "text": "……抱歉。",
+  "kind": "him",
+  "line": "D12",
+  "top": false
+ },
+ {
+  "start": 244.1,
+  "end": 250.9,
+  "text": "电脑也认了她。手机授权一次，渲染完了，结果就交给她。",
+  "kind": "narr",
+  "line": "N12",
+  "top": false
+ },
+ {
+  "start": 256.12,
+  "end": 258.04,
+  "text": "我怕升级会把她变成别人。",
+  "kind": "narr",
+  "line": "N13",
+  "top": false
+ },
+ {
+  "start": 274.2,
+  "end": 275.96,
+  "text": "你好，openvela！",
+  "kind": "him",
+  "line": "D04",
+  "top": false
+ },
+ {
+  "start": 277.08,
+  "end": 278.08,
+  "text": "我在。",
+  "kind": "her",
+  "line": "W",
+  "top": false
+ },
+ {
+  "start": 278.1,
+  "end": 279.12,
+  "text": "她还是她。",
+  "kind": "narr",
+  "line": "N14",
+  "top": false
+ },
+ {
+  "start": 315.08,
+  "end": 316.8,
+  "text": "你好，openvela。",
+  "kind": "him",
+  "line": "D01",
+  "top": false
+ },
+ {
+  "start": 317.98,
+  "end": 319.0,
+  "text": "我在。",
+  "kind": "her",
+  "line": "W",
+  "top": false
+ },
+ {
+  "start": 319.64,
+  "end": 321.32,
+  "text": "……晴，你在吗？",
+  "kind": "him",
+  "line": "D13",
+  "top": false
+ },
+ {
+  "start": 322.66,
+  "end": 326.8,
+  "text": "我是傻妞啊。小鱼，你是不是，又想她了？",
+  "kind": "her",
+  "line": "S06",
+  "top": false
+ },
+ {
+  "start": 339.3,
+  "end": 341.66,
+  "text": "那天晚上，我把她关了。",
+  "kind": "narr",
+  "line": "N16",
+  "top": false
+ },
+ {
+  "start": 362.78,
+  "end": 364.62,
+  "text": "你好，openvela？",
+  "kind": "him",
+  "line": "D14",
+  "top": false
+ },
+ {
+  "start": 369.18,
+  "end": 370.92,
+  "text": "……你好，openvela。",
+  "kind": "him",
+  "line": "D14b",
+  "top": false
+ },
+ {
+  "start": 411.34,
+  "end": 414.46,
+  "text": "那张卡片，我看了三个月。",
+  "kind": "narr",
+  "line": "N18",
+  "top": false
+ },
+ {
+  "start": 414.48,
+  "end": 418.42,
+  "text": "那天晚上，借着傻妞的光，我才看懂。",
+  "kind": "narr",
+  "line": "N18",
+  "top": false
+ },
+ {
+  "start": 431.44,
+  "end": 436.28,
+  "text": "我把 Wi-Fi 密码改了。这次，不是她的生日。",
+  "kind": "narr",
+  "line": "N19",
+  "top": false
+ },
+ {
+  "start": 436.84,
+  "end": 438.6,
+  "text": "你好，openvela！",
+  "kind": "him",
+  "line": "D04",
+  "top": false
+ },
+ {
+  "start": 439.72,
+  "end": 440.4,
+  "text": "我在。",
+  "kind": "her",
+  "line": "W",
+  "top": false
+ },
+ {
+  "start": 440.42,
+  "end": 444.06,
+  "text": "设备体检：昨晚停电，你还好吗？",
+  "kind": "him",
+  "line": "D15",
+  "top": false
+ },
+ {
+  "start": 445.8,
+  "end": 450.78,
+  "text": "网络正常，屏幕正常，加速度计也正常。小鱼，你呢？",
+  "kind": "her",
+  "line": "S07",
+  "top": false
+ },
+ {
+  "start": 452.84,
+  "end": 455.98,
+  "text": "“小鱼”，我还给晴了。",
+  "kind": "narr",
+  "line": "N20",
+  "top": false
+ },
+ {
+  "start": 462.04,
+  "end": 464.42,
+  "text": "咖啡……其实我一直不爱喝甜的。",
+  "kind": "narr",
+  "line": "N21",
+  "top": false
+ },
+ {
+  "start": 480.04,
+  "end": 481.8,
+  "text": "你好，openvela！",
+  "kind": "him",
+  "line": "D04",
+  "top": false
+ },
+ {
+  "start": 482.92,
+  "end": 483.46,
+  "text": "我在。",
+  "kind": "her",
+  "line": "W",
+  "top": false
+ },
+ {
+  "start": 483.48,
+  "end": 484.78,
+  "text": "换成开心表情。",
+  "kind": "him",
+  "line": "D16",
+  "top": false
+ },
+ {
+  "start": 486.66,
+  "end": 491.3,
+  "text": "我是做动画的。我给她画了一双新眼睛——",
+  "kind": "narr",
+  "line": "N22",
+  "top": false
+ },
+ {
+  "start": 491.32,
+  "end": 493.62,
+  "text": "不像谁，就像她自己。",
+  "kind": "narr",
+  "line": "N22",
+  "top": false
+ },
+ {
+  "start": 522.04,
+  "end": 526.08,
+  "text": "不删。只是，不再摆在桌面上了。",
+  "kind": "narr",
+  "line": "N23",
+  "top": false
+ },
+ {
+  "start": 550.24,
+  "end": 551.26,
+  "text": "早啊。",
+  "kind": "him",
+  "line": "D17b",
+  "top": false
+ }
+]

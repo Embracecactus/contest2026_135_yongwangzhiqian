@@ -1,0 +1,18 @@
+{
+  "final_sha256": "85960626549543256687afae9d33248fce76142946b472f122d673e51cd46a78",
+  "full_decode_errors": 0,
+  "animation_state_frames_checked": 16,
+  "final_video_frames_checked": 15,
+  "focus_checks": [
+    "phone remains visible during zoom",
+    "calculator result visible after approval",
+    "single captured image remains visible"
+  ],
+  "integrated_loudness_lufs": -16.08,
+  "true_peak_dbtp": -1.99,
+  "loudness_range_lu": 6,
+  "approval_guide_source_start_seconds": 8.9,
+  "jianying_ui_opened": false,
+  "normal_speed_full_manual_playback": false,
+  "full_manual_audio_listening": false
+}

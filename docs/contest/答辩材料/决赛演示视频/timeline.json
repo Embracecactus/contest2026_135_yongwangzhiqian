@@ -1,0 +1,143 @@
+[
+  {
+    "id": "01-intro",
+    "card": "intro",
+    "duration": 3.5,
+    "chapter": "平台与实机：初赛回顾",
+    "frames": 105,
+    "start": 0.0
+  },
+  {
+    "id": "02-main",
+    "source": "main",
+    "in": 0,
+    "out": 271.4,
+    "overlays": [
+      {
+        "start": 0.2,
+        "end": 8.2,
+        "text": "01  初赛实拍回顾 · 2026.09"
+      }
+    ],
+    "note": "保留平台、Dolphin、傻妞交互和技术讲解；在新一句致谢开始前结束，为新增演示留出自然衔接。原片已有剪辑，不作为响应时间测量。",
+    "frames": 8142,
+    "duration": 271.4,
+    "start": 3.5
+  },
+  {
+    "id": "03-app-card",
+    "card": "app",
+    "duration": 2.0,
+    "chapter": "手机认领与设置",
+    "frames": 60,
+    "start": 274.9
+  },
+  {
+    "id": "04-app-setup",
+    "source": "app",
+    "in": 0,
+    "out": 48.2,
+    "overlays": [
+      {
+        "start": 0.1,
+        "end": 7,
+        "text": "02  初赛 App 演示 · 旧版界面"
+      }
+    ],
+    "frames": 1446,
+    "duration": 48.2,
+    "start": 276.9
+  },
+  {
+    "id": "05-app-openvela",
+    "source": "app",
+    "in": 60,
+    "out": 72.7,
+    "overlays": [
+      {
+        "start": 6.5,
+        "end": 12.7,
+        "text": "OTA 入口展示 · 本段未执行升级"
+      }
+    ],
+    "note": "删除多唤醒词切换段，保留指定 openvela 唤醒词和 OTA 入口。两段之间为明确剪辑点，无变速。",
+    "frames": 381,
+    "duration": 12.7,
+    "start": 325.1
+  },
+  {
+    "id": "06-approval-card",
+    "card": "approval",
+    "duration": 3.0,
+    "chapter": "决赛新增：手机批准电脑操作",
+    "frames": 90,
+    "start": 337.8
+  },
+  {
+    "id": "07-approval",
+    "source": "approval",
+    "in": 0,
+    "out": 38.1,
+    "overlays": [
+      {
+        "start": 0.1,
+        "end": 5.8,
+        "text": "03  决赛新增 · 手机审批"
+      },
+      {
+        "start": 6,
+        "end": 19.6,
+        "text": "电脑发起请求，等待手机确认",
+        "y": 150
+      },
+      {
+        "start": 19.7,
+        "end": 31.2,
+        "text": "在手机上查看操作并批准",
+        "y": 150
+      }
+    ],
+    "note": "保留请求、手机操作、批准结果和计算器打开；不展示末尾尚属计划的 Agent 接入口述。",
+    "frames": 1143,
+    "duration": 38.1,
+    "start": 340.8
+  },
+  {
+    "id": "08-workbench-card",
+    "card": "workbench",
+    "duration": 2.5,
+    "chapter": "决赛新增：桌面工作台",
+    "frames": 75,
+    "start": 378.9
+  },
+  {
+    "id": "09-workbench",
+    "source": "workbench",
+    "in": 0,
+    "out": 27,
+    "overlays": [
+      {
+        "start": 0.1,
+        "end": 5,
+        "text": "04  决赛新增 · 电脑工作台"
+      },
+      {
+        "start": 5.2,
+        "end": 10.3,
+        "text": "导入表情资源包，更换双眼外观",
+        "y": 150
+      }
+    ],
+    "note": "保留资源、动作、采图实录及结果停留；移除未来规划尾句。",
+    "frames": 810,
+    "duration": 27.0,
+    "start": 381.4
+  },
+  {
+    "id": "10-outro",
+    "card": "outro",
+    "duration": 4.0,
+    "frames": 120,
+    "start": 408.4
+  }
+]

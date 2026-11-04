@@ -1,0 +1,14 @@
+# Generated or entitlement-bound local material; rebuild or supply outside Git.
+.hyperframes/
+audio/**/*.wav
+audio/**/*.pcm
+audio/**/*.bin
+audio/**/inputs/
+audio/**/directed/
+audio/**/work/
+audio/voice/audition/
+audio/voice/ggxia/
+audio/voice/shaniu/_superseded-*/
+audio/stems/
+audio/master/
+*.pre.wav

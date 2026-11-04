@@ -1,0 +1,30 @@
+{
+  "main": {
+    "input": "out/contest-submission-20260920-final/02_演示视频/shaniu-demo.mp4",
+    "sha256": "9e02eb85eedaa4d895c2af8a3689f4283e9f761fa41e89a4eb89002a57e53e24",
+    "bytes": 189161288,
+    "seconds": 287.905,
+    "period": "初赛成片 · 2026.09"
+  },
+  "app": {
+    "input": "out/contest-submission-20260920-final/02_演示视频/shaniu-app-demo.mp4",
+    "sha256": "d44e022d3f9ab9f700ad58598931aaec577411df7f90ccfd23146ba2722e4a35",
+    "bytes": 56035396,
+    "seconds": 85.612,
+    "period": "初赛 App · 旧版界面"
+  },
+  "approval": {
+    "input": "电脑授权/电脑授权.mp4",
+    "sha256": "ce680907758f79703b1a85d0f917f78a597e98cf7a7bbdc01b90e9bcee45246f",
+    "bytes": 28405680,
+    "seconds": 44.769,
+    "period": "电脑审批实录 · 2026.11.03"
+  },
+  "workbench": {
+    "input": "傻妞电脑工作台/傻妞电脑工作台.mp4",
+    "sha256": "066015d33a3b102c89ae67c29bbe898e30405bef5f0cd08868a4a9eb2035387d",
+    "bytes": 28967681,
+    "seconds": 31.185,
+    "period": "决赛工作台实录 · 作者提供"
+  }
+}

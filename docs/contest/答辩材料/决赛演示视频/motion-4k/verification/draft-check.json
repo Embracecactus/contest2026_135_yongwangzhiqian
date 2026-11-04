@@ -1,0 +1,45 @@
+{
+  "saved": true,
+  "duration_seconds": 426.9,
+  "canvas": [
+    3840,
+    2160
+  ],
+  "missing_media": [],
+  "materials": 36,
+  "tracks": [
+    {
+      "name": "原片与动态章节",
+      "type": "video",
+      "segments": 12,
+      "keyframe_groups": 8
+    },
+    {
+      "name": "原创轻音效",
+      "type": "audio",
+      "segments": 5,
+      "keyframe_groups": 0
+    },
+    {
+      "name": "暖白画框与章节",
+      "type": "video",
+      "segments": 6,
+      "keyframe_groups": 0
+    },
+    {
+      "name": "动态操作导读",
+      "type": "video",
+      "segments": 12,
+      "keyframe_groups": 24
+    },
+    {
+      "name": "架构原声",
+      "type": "audio",
+      "segments": 1,
+      "keyframe_groups": 0
+    }
+  ],
+  "ui_opened": false,
+  "draft_sha256": "8976028e111cad8c372fe4462740f98795fde1d9cb4c2f045fc7ee84aee61563",
+  "approval_guide_start_seconds": 360.2
+}

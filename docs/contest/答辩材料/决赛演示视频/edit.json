@@ -1,0 +1,33 @@
+{
+  "title": "傻妞 · 决赛作品演示",
+  "draft_name": "傻妞-决赛演示-20261104",
+  "output_name": "傻妞-决赛演示视频-20261104.mp4",
+  "width": 1920,
+  "height": 1080,
+  "fps": 30,
+  "sources": {
+    "main": {"root": "workspace", "path": "out/contest-submission-20260920-final/02_演示视频/shaniu-demo.mp4", "srt": "out/contest-submission-20260920-final/02_演示视频/shaniu-demo.srt", "period": "初赛成片 · 2026.09", "gain_db": -2.31},
+    "app": {"root": "workspace", "path": "out/contest-submission-20260920-final/02_演示视频/shaniu-app-demo.mp4", "srt": "out/contest-submission-20260920-final/02_演示视频/shaniu-app-demo.srt", "period": "初赛 App · 旧版界面", "gain_db": -2.49},
+    "approval": {"root": "videos", "path": "电脑授权/电脑授权.mp4", "audio": "电脑授权/电脑授权.wav", "srt": "电脑授权/电脑授权.srt", "period": "电脑审批实录 · 2026.11.03", "gain_db": -1.62},
+    "workbench": {"root": "videos", "path": "傻妞电脑工作台/傻妞电脑工作台.mp4", "srt": "傻妞电脑工作台/傻妞电脑工作台.srt", "audio_decoder": "pcm_s16le", "period": "决赛工作台实录 · 作者提供", "gain_db": -2.85}
+  },
+  "cards": {
+    "intro": {"kicker": "OPENVELA AI HARDWARE  /  FINALS", "title": "傻妞", "subtitle": "从一声「我在」，到桌面上的协作", "footer": "勇往直前  ·  初赛实拍回顾 + 决赛新增演示", "number": "01", "active": 0},
+    "app": {"kicker": "02  /  手机端 · 初赛版本界面", "title": "先把傻妞，变成你的伙伴", "subtitle": "手机认领  ·  网络与云服务  ·  表情与设置", "footer": "初赛演示节选  /  OTA 仅展示入口", "number": "02", "active": 1},
+    "approval": {"kicker": "03  /  决赛新增 · 电脑审批", "title": "电脑想执行，先由你决定", "subtitle": "发起请求  →  手机批准  →  计算器打开", "footer": "作者实录  /  2026.11.03", "number": "03", "active": 2},
+    "workbench": {"kicker": "04  /  决赛新增 · 电脑工作台", "title": "陪伴，延伸到电脑桌面", "subtitle": "表情资源  ·  动作反馈  ·  按需取景", "footer": "作者提供的工作台实录", "number": "04", "active": 3},
+    "outro": {"kicker": "SHANIU  /  傻妞", "title": "把回应带到桌面", "subtitle": "把决定留给你。", "footer": "勇往直前  ·  open-vela / contest2026_135_yongwangzhiqian", "number": "我在", "active": 3}
+  },
+  "timeline": [
+    {"id": "01-intro", "card": "intro", "duration": 3.5, "chapter": "平台与实机：初赛回顾"},
+    {"id": "02-main", "source": "main", "in": 0, "out": 271.4, "overlays": [{"start": 0.2, "end": 8.2, "text": "01  初赛实拍回顾 · 2026.09"}], "note": "保留平台、Dolphin、傻妞交互和技术讲解；在新一句致谢开始前结束，为新增演示留出自然衔接。原片已有剪辑，不作为响应时间测量。"},
+    {"id": "03-app-card", "card": "app", "duration": 2, "chapter": "手机认领与设置"},
+    {"id": "04-app-setup", "source": "app", "in": 0, "out": 48.2, "overlays": [{"start": 0.1, "end": 7, "text": "02  初赛 App 演示 · 旧版界面"}]},
+    {"id": "05-app-openvela", "source": "app", "in": 60, "out": 72.7, "overlays": [{"start": 6.5, "end": 12.7, "text": "OTA 入口展示 · 本段未执行升级"}], "note": "删除多唤醒词切换段，保留指定 openvela 唤醒词和 OTA 入口。两段之间为明确剪辑点，无变速。"},
+    {"id": "06-approval-card", "card": "approval", "duration": 3, "chapter": "决赛新增：手机批准电脑操作"},
+    {"id": "07-approval", "source": "approval", "in": 0, "out": 38.1, "overlays": [{"start": 0.1, "end": 5.8, "text": "03  决赛新增 · 手机审批"}, {"start": 6, "end": 19.6, "text": "电脑发起请求，等待手机确认", "y": 150}, {"start": 19.7, "end": 31.2, "text": "在手机上查看操作并批准", "y": 150}], "note": "保留请求、手机操作、批准结果和计算器打开；不展示末尾尚属计划的 Agent 接入口述。"},
+    {"id": "08-workbench-card", "card": "workbench", "duration": 2.5, "chapter": "决赛新增：桌面工作台"},
+    {"id": "09-workbench", "source": "workbench", "in": 0, "out": 27, "overlays": [{"start": 0.1, "end": 5, "text": "04  决赛新增 · 电脑工作台"}, {"start": 5.2, "end": 10.3, "text": "导入表情资源包，更换双眼外观", "y": 150}], "note": "保留资源、动作、采图实录及结果停留；移除未来规划尾句。"},
+    {"id": "10-outro", "card": "outro", "duration": 4}
+  ]
+}

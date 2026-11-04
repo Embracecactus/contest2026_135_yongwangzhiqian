@@ -1,0 +1,212 @@
+{
+ "generator": "tools/build_music.py (seed 20261104)",
+ "rate": 48000,
+ "motif": "F#4→D4 (我在), answer D–E–F#–A",
+ "cues": [
+  {
+   "cue": "rain",
+   "story": [
+    0,
+    19
+   ],
+   "film": [
+    0,
+    19
+   ],
+   "note": "sparse piano, Bm"
+  },
+  {
+   "cue": "gift",
+   "story": [
+    19,
+    40.4
+   ],
+   "film": [
+    19,
+    40.4
+   ],
+   "note": "Bm–G–D–A; motif at the decision"
+  },
+  {
+   "cue": "making",
+   "story": [
+    40.4,
+    74.0
+   ],
+   "film": [
+    40.4,
+    74.0
+   ],
+   "note": "plucks at 92 BPM; music box when her eyes open"
+  },
+  {
+   "cue": "first-wozai",
+   "story": [
+    74,
+    91.2
+   ],
+   "film": [
+    74,
+    93.76
+   ],
+   "note": "silence before and during 我在; pad after"
+  },
+  {
+   "cue": "cutaway-voice",
+   "story": [
+    91.2,
+    103.4
+   ],
+   "film": [
+    93.76,
+    110.84
+   ],
+   "note": "arpeggio, curiosity"
+  },
+  {
+   "cue": "make-her-qing",
+   "story": [
+    107,
+    145.6
+   ],
+   "film": [
+    114.44,
+    153.04
+   ],
+   "note": "G major staccato piano, low"
+  },
+  {
+   "cue": "knocks",
+   "story": [
+    145.6,
+    153.0
+   ],
+   "film": [
+    153.04,
+    160.44
+   ],
+   "note": "music out: the card plays her four beats"
+  },
+  {
+   "cue": "days",
+   "story": [
+    157.8,
+    248.0
+   ],
+   "film": [
+    165.24,
+    255.44
+   ],
+   "note": "02:13 near-silence; day piano; plant; render to dawn"
+  },
+  {
+   "cue": "update",
+   "story": [
+    248.0,
+    272.6
+   ],
+   "film": [
+    255.44,
+    280.04
+   ],
+   "note": "suspended chords; cutaway arpeggio; resolves on 她还是她"
+  },
+  {
+   "cue": "photos",
+   "story": [
+    272.6,
+    306.4
+   ],
+   "film": [
+    280.04,
+    314.64
+   ],
+   "note": "drone + pulse while the ring runs out; silence after"
+  },
+  {
+   "cue": "3am",
+   "story": [
+    306.4,
+    334.0
+   ],
+   "film": [
+    314.64,
+    343.14
+   ],
+   "note": "lone low notes; lone chord after N16"
+  },
+  {
+   "cue": "weeks",
+   "story": [
+    334.0,
+    342.0
+   ],
+   "film": [
+    343.14,
+    351.14
+   ],
+   "note": "repeating figure fading"
+  },
+  {
+   "cue": "blackout-silence",
+   "story": [
+    342.0,
+    370.8
+   ],
+   "film": [
+    351.14,
+    383.6
+   ],
+   "note": "no music: the calls, the knocks, the door"
+  },
+  {
+   "cue": "her-glance",
+   "story": [
+    370.8,
+    404.0
+   ],
+   "film": [
+    383.6,
+    421.38
+   ],
+   "note": "music box motif at her glance; pad for the card; piano for the choice; resolves with N18"
+  },
+  {
+   "cue": "dawn",
+   "story": [
+    404.0,
+    476.4
+   ],
+   "film": [
+    421.38,
+    493.78
+   ],
+   "note": "D major piano and strings; music box for the new eyes"
+  },
+  {
+   "cue": "lighthouse",
+   "story": [
+    476.4,
+    518.0
+   ],
+   "film": [
+    493.78,
+    535.38
+   ],
+   "note": "steady 8ths; thin for the request; resolve on the archive"
+  },
+  {
+   "cue": "ending",
+   "story": [
+    518.0,
+    557.0
+   ],
+   "film": [
+    535.38,
+    577.98
+   ],
+   "note": "light morning piano; out while he types; motif and answer; title chord; reprise"
+  }
+ ],
+ "audio_subjective": "not_checked"
+}
