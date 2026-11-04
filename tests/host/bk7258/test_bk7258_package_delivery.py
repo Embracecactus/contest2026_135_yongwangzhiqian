@@ -19,7 +19,6 @@ from unittest import mock
 
 REPOSITORY = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPOSITORY / "tools/bk7258"))
-sys.path.insert(0, str(REPOSITORY / "gateway/shaniu"))
 
 from _lib import build as build_domain  # noqa: E402
 from _lib import image as image_domain  # noqa: E402
@@ -27,7 +26,6 @@ from _lib import layout as layout_domain  # noqa: E402
 from _lib import package as package_domain  # noqa: E402
 from _lib import product as product_domain  # noqa: E402
 import bk7258 as bk7258_cli  # noqa: E402
-from shaniu_gateway.firmware import load_firmware_releases  # noqa: E402
 
 
 class ProductDeliveryTest(unittest.TestCase):
@@ -725,106 +723,6 @@ class ProductDeliveryTest(unittest.TestCase):
                 output=output,
             )
         self.assertEqual(output.read_bytes(), accepted)
-
-    def test_gateway_registry_projects_only_verified_ota_metadata(self) -> None:
-        delivery = self._ota_delivery("gateway")
-        output = self.root / "firmware-releases.json"
-        calls = []
-
-        def fixture_verifier(candidate: Path) -> object:
-            calls.append(hashlib.sha256(candidate.read_bytes()).hexdigest())
-            return package_domain.verify(candidate)
-
-        report = product_domain.create_gateway_release_registry(
-            (delivery,),
-            output,
-            package_verifier=fixture_verifier,
-        )
-        self.assertEqual(report["releases"], 1)
-        self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o600)
-        self.assertTrue(calls)
-        registry = json.loads(output.read_text(encoding="utf-8"))
-        self.assertEqual(set(registry), {"format", "releases"})
-        self.assertEqual(registry["format"], "shaniu.firmware-release-registry/1")
-        self.assertEqual(len(registry["releases"]), 1)
-        release = registry["releases"][0]
-        self.assertEqual(release["device_id"], "test-unit:0001")
-        self.assertEqual(release["target_version"], "1.2.4+5")
-        self.assertEqual(release["required_source_version"], "1.2.3+4")
-        self.assertEqual(release["physical_board"], "test_board")
-        self.assertNotIn("path", release)
-        self.assertNotIn("uri", release)
-
-        with zipfile.ZipFile(delivery) as outer:
-            delivery_manifest = json.loads(outer.read("release.json"))
-            ota_row = delivery_manifest["components"]["ota"]["package"]
-            ota_bytes = outer.read(ota_row["path"])
-        with zipfile.ZipFile(io.BytesIO(ota_bytes)) as ota_archive:
-            expected_manifest = hashlib.sha256(
-                ota_archive.read("catalog.json")
-            ).hexdigest()
-        self.assertEqual(release["manifest_sha256"], expected_manifest)
-        self.assertEqual(
-            release["package_sha256"], hashlib.sha256(ota_bytes).hexdigest()
-        )
-        self.assertEqual(release["package_size_bytes"], len(ota_bytes))
-        loaded = load_firmware_releases(output)
-        self.assertEqual(
-            loaded.compatible(
-                "test-unit:0001",
-                "1.2.3+4",
-                release["required_source_root_sha256"],
-            )[0].projection(),
-            {key: value for key, value in release.items() if key != "device_id"},
-        )
-
-        with self.assertRaises(product_domain.ProductError):
-            product_domain.create_gateway_release_registry(
-                (delivery,),
-                output,
-                package_verifier=fixture_verifier,
-            )
-
-    def test_gateway_registry_rejects_missing_ota_and_duplicates(self) -> None:
-        without_ota = self._delivery("without-ota")
-        with self.assertRaises(product_domain.ProductError):
-            product_domain.create_gateway_release_registry(
-                (without_ota,),
-                self.root / "missing.json",
-                package_verifier=lambda candidate: package_domain.verify(candidate),
-            )
-        delivery = self._ota_delivery("duplicate")
-        with self.assertRaises(product_domain.ProductError):
-            product_domain.create_gateway_release_registry(
-                (delivery, delivery),
-                self.root / "duplicate.json",
-                package_verifier=lambda candidate: package_domain.verify(candidate),
-            )
-        with self.assertRaises(product_domain.ProductError):
-            product_domain.create_gateway_release_registry(
-                (delivery,),
-                self.root / "unverified.json",
-                package_verifier=None,
-            )
-
-        verified = product_domain.verify_delivery(
-            delivery,
-            package_verifier=lambda candidate: package_domain.verify(candidate),
-        )
-        oversized = dict(verified)
-        oversized["firmware_release"] = dict(verified["firmware_release"])
-        oversized["firmware_release"]["package_size_bytes"] = (
-            product_domain.MAX_GATEWAY_PACKAGE_SIZE + 1
-        )
-        with mock.patch.object(
-            product_domain, "verify_delivery", return_value=oversized
-        ):
-            with self.assertRaises(product_domain.ProductError):
-                product_domain.create_gateway_release_registry(
-                    (delivery,),
-                    self.root / "oversized.json",
-                    package_verifier=lambda candidate: package_domain.verify(candidate),
-                )
 
     def test_release_directory_publish_never_replaces_existing_output(self) -> None:
         staging = self.root / "staging-release"

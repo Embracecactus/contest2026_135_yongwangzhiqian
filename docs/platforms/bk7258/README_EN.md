@@ -22,12 +22,34 @@ device population, or acceptance result to an SoC fact.
   signed same-slot CP/AP images in an A/B model.
 - Wired whole-device recovery and apps-only OTA are distinct. Ordinary builds
   and downloads reuse the approved trust identities; they do not authorize
-  generating or rotating BL1/MCUboot keys. The 635 full package has floor 635;
-  its OTA-only counterpart does not replace BL1/BL2.
+  generating or rotating BL1/MCUboot keys. Each full package carries the
+  rollback floor for its build generation; its OTA-only counterpart does not
+  replace BL1/BL2.
 
 The [build, release, and hardware-evidence SOP](nuttx-port/bk7258-build-flash-debug-sop.md)
 is the maintained command and safety reference. Do not recover current
 addresses, scripts, or trust policy from historical N15/N17 documents.
+
+## Source layers and change entry points
+
+Paths below are relative to the contest repository root.
+
+| Layer | Source | Responsibility |
+| --- | --- | --- |
+| SoC mechanisms | `chips/bk7258/{common,cp,ap,include}/` | CP/AP lifecycle, IRQ, clock, memory, radio proxy, controllers and cross-core transport |
+| Physical boards | `boards/bk7258/{aidk_ai_toy,t5_board,t5ai_core}/` | Wiring, components, electrical policy and profiles; each `openvela.conf` selects configuration and layout |
+| NuttX drivers | `nuttx/` | Standard device interfaces and generic driver overlays |
+| Firmware products | `app/bk7258/`, `app/dolphin/` | Shaniu product services and the separate Dolphin product |
+| Phone | `android/shaniu-companion/` | Native Android claim, authenticated BLE/TLS, settings, approvals and OTA |
+| Computer and maintenance | `tools/bk7258/bk7258.py`, `tools/bk7258/_lib/` | One CLI with build, resource, workbench, signing and delivery domains |
+| Build integration | `contest2026_135_yongwangzhiqian.xml`, `frameworks/cmake/` | Pinned dependencies, directory mappings and existing framework integration |
+| Verification | `tests/host/bk7258/`, `app/testing/bk7258/`, `tests/pytest/test_bk7258/` | Host regressions, target tests and controlled hardware automation |
+
+See the [project architecture](../../../README_EN.md#architecture) for runtime
+roles. The device's official AI Agent coordinates cloud conversation. Team code
+enters the official workspace through directory-level manifest `linkfile`
+mappings. Retired project memory, stage goals and old decisions remain in Git
+history; historical evidence links to a fixed source version.
 
 ## Fact ownership
 

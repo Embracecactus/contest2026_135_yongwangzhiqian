@@ -365,23 +365,22 @@ contest report for builtin-versus-App-activated model identities.
 
 ## Voice command support matrix
 
-The `voice` commands target different peers; only the KWS model tooling is on
-the current product path.
+The `voice` commands target different peers. Current product commands are
+listed here; retired Gateway commands are kept only in the fixed history link
+below.
 
 | Command | Peer / protocol | Current official firmware | Status |
 | --- | --- | --- | --- |
 | `voice kws audit` / `train` / `evaluate` | Host-side model tooling; the exported WKM1 package is consumed on the board by `app/bk7258/bk7258_voice_wake_package.c` and the trigger backend | Supported | Current |
-| `voice provision` | CP console command `bkvoice provision`, waiting for `BKVOICE PROVISION READY` | The console command is not present in the current firmware sources | Historical: kept to reproduce the recorded provisioning runs; not a current step |
 | `voice pairing --direct-cloud` / `--resume` | CP console `bkprov supply` (`bkprov-v1` RPC to the AP provisioning store); writes the owner activation file | Supported (added 2026-09-20) | Current |
-| `voice pairing` without `--direct-cloud` | The retired Gateway console protocol | The console command is gone | Historical |
-| `voice console-enrollment` | Host-only file writer for the retired Gateway console; it never opens a serial port | Not applicable | Historical Gateway-era utility |
 
 Current device identity and network provisioning use the BLE `provision-v1`
 service implemented by the Android companion App
 (`app/bk7258/bk7258_provision_gatt.c`, `app/bk7258/bk7258_provision_owner.c`,
-`docs/platforms/bk7258/shaniu-provision-security.md`). Do not restore the
-retired console runtime to make the historical commands work again, and do not
-present them as the current enrollment step.
+`docs/platforms/bk7258/shaniu-provision-security.md`). Gateway is retired;
+its catalog and enrollment history is retained at the fixed
+[e4f2df71 snapshot](https://github.com/open-vela/contest2026_135_yongwangzhiqian/blob/e4f2df717defab9f6ad02adc662acd8cba086cf2/gateway/shaniu/README.md),
+not as a current enrollment step.
 
 ## Source-layer gate
 
@@ -438,31 +437,6 @@ Use `--status-only` or `--reboot-only` with `--expected-version`,
 The signed catalog may be scoped with `--expected-board`; product automation
 must always supply its selected physical board.
 
-### Historical Gateway release catalog (not used by current Shaniu)
-
-After `release product` has produced one device-bound delivery ZIP, export the
-metadata consumed by the authenticated Android console with:
-
-```sh
-python3 tools/bk7258/bk7258.py release gateway-catalog \
-  --delivery /releases/aidk-v18.6.390+450.zip \
-  --openssl /usr/bin/openssl \
-  --output /private/shaniu/firmware-releases.json
-```
-
-Repeat `--delivery` for additional device releases. The command verifies each
-complete delivery and its embedded OTA signatures in the same process, then
-creates a new, fsynced mode-0600 `shaniu.firmware-release-registry/1` file. It
-refuses deliveries without a verified signed OTA component, duplicate releases,
-more than 32 entries, and an existing output path.
-
-The registry contains only the accepted device ID, target/source versions,
-board/layout identities, exact signed `catalog.json` SHA-256, and OTA package
-size/SHA-256. It contains no package path, URL, firmware bytes, credentials, or
-signing material. Supplying it to Gateway enables only release-list display;
-the firmware update mutation remains disabled until the board confirmation and
-progress protocol is implemented.
-
 ## Shaniu display assets
 
 `package eye-pack` turns the reviewable logical-eye JSON into one deterministic,
@@ -483,47 +457,6 @@ python3 tools/bk7258/bk7258.py verify eye-pack \
 
 The source, SD NAND layout contract, visual-state list, and binary format are
 documented under `app/bk7258/assets/display/`.
-
-## Shaniu owner console enrollment
-
-This section serves the historical Gateway console. Normal Shaniu setup uses
-the Android screen-QR claiming flow described in `android/shaniu-companion/README.md`;
-it does not require a Gateway enrollment document.
-
-`voice console-enrollment` only writes a private enrollment document for the
-owner's phone. It does not contact a board or Gateway and never mutates an
-existing Gateway registry. With `--access-output`, it also creates a matching
-single-grant registry for a new one-device Gateway setup. It never creates the
-independent device certificate binding. The bearer token is read only from an
-existing regular POSIX mode-0600 file, never from command arguments or
-environment. The command currently refuses Windows: it will remain unavailable
-there until an audited owner/DACL private-file implementation exists.
-
-```sh
-python3 tools/bk7258/bk7258.py voice console-enrollment \
-  --device-id aidk-1 --https-origin https://gateway.example:8443 \
-  --spki-pin 'sha256/BASE64_SPKI_SHA256' \
-  --token-file private/console-token --expires-at-ms 1893456000000 \
-  --access-output private/aidk-1-console-access.json \
-  --output private/aidk-1-console-enrollment.json
-```
-
-On POSIX, the output is an O_EXCL-created, flushed and fsynced mode-0600
-`shaniu.console-enrollment/1` JSON document with the device ID, HTTPS origin,
-one to eight canonical SPKI SHA-256 pins, expiry, and access token. Its exact
-fields are `protocol`, `device_id`, `gateway_origin`, `certificate_pins`,
-`access_token`, and `expires_at_ms`. Preserve it as private owner material;
-CLI status output deliberately omits the token. Both outputs are new,
-O_EXCL-created, fsynced mode-0600 files. If either target already exists, review it
-instead of overwriting it.
-
-Before using the pair, load the device's mTLS certificate binding into the
-Gateway `shaniu.device-bindings/1` registry, then start the Gateway with that
-registry and the generated `shaniu.console-access/1` file. The enrollment and
-access files contain the same `device_id` and future `expires_at_ms`; the latter
-stores only the SHA-256 digest of the former's token. For a multi-device or
-rotated deployment, merge reviewed grants into an operator-owned registry
-outside this command rather than asking it to overwrite live authorization.
 
 ## PC workbench control client (development)
 

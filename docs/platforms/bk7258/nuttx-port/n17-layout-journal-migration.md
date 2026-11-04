@@ -17,7 +17,7 @@
   model and host verification; no Bootloader format-3 implementation,
   firmware build, Flash write, OTP/eFuse operation, or board action is
   authorized
-- Historical prerequisite: `memory/decisions/ADR-008-n17-phased-ota-authentication.md`
+- Historical prerequisite: [memory/decisions/ADR-008-n17-phased-ota-authentication.md](https://github.com/open-vela/contest2026_135_yongwangzhiqian/blob/e4f2df717defab9f6ad02adc662acd8cba086cf2/memory/decisions/ADR-008-n17-phased-ota-authentication.md)
   and the frozen
   [512-byte signed Manifest ABI](n17-signed-manifest-abi.md)
 

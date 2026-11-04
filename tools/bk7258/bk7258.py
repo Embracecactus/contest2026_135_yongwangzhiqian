@@ -308,20 +308,6 @@ def _parser() -> argparse.ArgumentParser:
     product.add_argument("--ota-required-source-version")
     product.add_argument("--openssl", type=Path, required=True)
     product.add_argument("--output", type=Path, required=True)
-    gateway_catalog = release_commands.add_parser(
-        "gateway-catalog",
-        help="verify product deliveries and publish a metadata-only Gateway catalog",
-    )
-    gateway_catalog.add_argument(
-        "--delivery",
-        type=Path,
-        action="append",
-        required=True,
-        help="verified product delivery ZIP; repeat for each device release",
-    )
-    gateway_catalog.add_argument("--openssl", type=Path, required=True)
-    gateway_catalog.add_argument("--output", type=Path, required=True)
-
     verify = commands.add_parser("verify", help="perform read-only verification")
     verify_commands = verify.add_subparsers(dest="verify_command", required=True)
     verify_commands.add_parser(
@@ -532,20 +518,6 @@ def _release_product(args: argparse.Namespace) -> None:
 def _release(args: argparse.Namespace) -> None:
     if args.release_command == "product":
         _release_product(args)
-        return
-    if args.release_command == "gateway-catalog":
-        report = product_domain.create_gateway_release_registry(
-            tuple(args.delivery),
-            args.output,
-            package_verifier=lambda candidate: _verify_package_trust(
-                candidate, args.openssl
-            ),
-        )
-        print(
-            "bk7258 release gateway-catalog: PASS "
-            f"output={report['output']} releases={report['releases']} "
-            f"sha256={report['sha256']}"
-        )
         return
     development_identity = _development_inputs(args)
     for name in (

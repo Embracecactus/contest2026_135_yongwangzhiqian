@@ -9,7 +9,10 @@ CMake、Kconfig 和 Make 递归机制自动发现。
 
 当前产品通过官方 Agent/Session/Voice/Media 运行，Android 工程位于
 `android/shaniu-companion/`，不会在这里新增另一套对话运行时。
-现役接入、635 Skill 验证和 634 App OTA 见仓库 README 与 Master Plan。
+现役接入见仓库 README 与
+[上手指南](../../docs/platforms/bk7258/shaniu-user-guide.md)；各项能力的验收范围见
+[功能与证据清单](../../docs/platforms/bk7258/shaniu-feature-inventory.md)。
+历史固件记录不替代当前源码和板型配置。
 AIDK 的 xTS/drivercheck 配置已退役，相关源码保留，不属于产品启动或构建前置。
 
 源码中保留的可选 App 开关（不代表产品全部启用）：

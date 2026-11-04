@@ -15,7 +15,6 @@ android {
         targetSdk = 35
         versionCode = 58
         versionName = "0.7.28-shaniu-mimo-chat"
-        buildConfigField("boolean", "LEGACY_SERVICE_DEMO", "false")
         testInstrumentationRunner = "com.shaniu.companion.provision.ControlKeyInstrumentation"
     }
 
@@ -31,10 +30,6 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
-
-    sourceSets.getByName("test").resources.srcDir(
-        rootProject.projectDir.resolve("../../gateway/shaniu/tests/fixtures"),
-    )
 }
 
 dependencies {

@@ -6,7 +6,7 @@
 - SDK: official Beken v3.1.1.9 only
 - Board path: T5-AI, COM11 console at 460800 8N1, COM7 RTS reset,
   J-Link SWD
-- Architecture: `memory/decisions/ADR-006-n15-symmetric-dual-bank-ota.md`
+- Architecture: [memory/decisions/ADR-006-n15-symmetric-dual-bank-ota.md](https://github.com/open-vela/contest2026_135_yongwangzhiqian/blob/e4f2df717defab9f6ad02adc662acd8cba086cf2/memory/decisions/ADR-006-n15-symmetric-dual-bank-ota.md)
 
 ## Result
 

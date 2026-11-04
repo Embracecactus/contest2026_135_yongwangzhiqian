@@ -14,7 +14,7 @@ not physically present to reset the board into the BKFIL ROM handshake.
 
 ## Authorization and inputs
 
-- `memory/decisions/ADR-030-aidk-first-provision-project-boot-chain.md`
+- [memory/decisions/ADR-030-aidk-first-provision-project-boot-chain.md](https://github.com/open-vela/contest2026_135_yongwangzhiqian/blob/e4f2df717defab9f6ad02adc662acd8cba086cf2/memory/decisions/ADR-030-aidk-first-provision-project-boot-chain.md)
   authorizes replacing the AIDK factory chain with the project chain without
   matching the factory trust identity.
 - Layout: `bk7258-381e2cdd1286ac59` (`fixed-block`).

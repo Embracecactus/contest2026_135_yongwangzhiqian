@@ -70,12 +70,11 @@ above. Sources, prompts and previews are in
 
 ## Code layout
 
-`MainActivity` owns state, lifecycle and device/gateway protocol. Page
+`MainActivity` owns state, lifecycle and the device-control protocol. Page
 rendering lives in per-page files as `MainActivity` extensions:
 `DevicePage.kt`, `CustomizePage.kt`, `UpdatePage.kt`, `SettingsPage.kt`,
-`CompanionSheet.kt`, `LegacyConsolePages.kt` (legacy console mode) and
-`MainActivityViews.kt` (shared view builders and labels). Members that the
-instrumentation probes reach by reflection stay in `MainActivity` and are
+`CompanionSheet.kt` and `MainActivityViews.kt` (shared view builders and labels).
+Members reached by instrumentation probes through reflection stay in `MainActivity` and are
 public (not `internal`) so their JVM names are not mangled.
 
 ## Navigation

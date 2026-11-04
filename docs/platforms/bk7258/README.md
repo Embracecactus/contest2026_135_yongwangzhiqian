@@ -20,12 +20,33 @@ BK7258 是 SoC；T5AI-Core、T5-Board 和 AIDK AI Toy 是三块物理板。本�
   使用 A/B 分区模型。
 - 有线整机恢复与 apps-only OTA 是两条不同路径。普通构建/整机下载复用明确批准的
   同板信任关系，不自动生成或轮换 BL1/MCUboot 密钥；OTA 绑定目标已安装的信任契约。
-  full 包采用与自身代数相同的 floor（635/637/638），OTA-only 包不替换 BL1/BL2，
+  full 包的 floor 必须匹配本次包的代数，OTA-only 包不替换 BL1/BL2，
   不能混淆两种部署。
 
 完整命令、包格式、accepted-base、设备绑定恢复、密钥生命周期和硬件证据要求统一见
 [构建、发布与硬件证据 SOP](nuttx-port/bk7258-build-flash-debug-sop.md)。不要从历史
 N15/N17 文档恢复旧地址、旧脚本或旧信任设计。
+
+## 代码分层与改动入口
+
+| 层 | 代码入口（仓库根相对路径） | 负责的内容 |
+| --- | --- | --- |
+| 芯片机制 | `chips/bk7258/{common,cp,ap,include}/` | CP/AP 生命周期、IRQ、时钟、内存、无线代理、控制器和跨核通信 |
+| 物理板 | `boards/bk7258/{aidk_ai_toy,t5_board,t5ai_core}/` | 引脚、器件、电气策略、产品 profile；各板 `openvela.conf` 选择配置和分区 |
+| 上游形态驱动 | `nuttx/` | 标准 NuttX 设备接口与通用驱动覆盖，不承载产品 UI 或板卡分支 |
+| 固件产品 | `app/bk7258/`、`app/dolphin/` | 傻妞的 Agent、语音、显示、配置与交互服务；Dolphin 独立产品 |
+| 手机 | `android/shaniu-companion/` | 原生 Android，认领、认证 BLE/TLS 会话、配置、审批和 OTA |
+| 电脑与维护 | `tools/bk7258/bk7258.py`、`tools/bk7258/_lib/` | 单一 CLI 入口；构建、资源、工作台、签名和交付的领域实现 |
+| 构建接线 | `contest2026_135_yongwangzhiqian.xml`、`frameworks/cmake/` | 固定依赖、目录映射及现有框架集成 |
+| 验证 | `tests/host/bk7258/`、`app/testing/bk7258/`、`tests/pytest/test_bk7258/` | 主机回归、板上应用与受控硬件自动化，分别报告证据层级 |
+
+设备、手机、电脑与云的运行关系见[项目架构](../../../README.md#系统架构)。
+手机和电脑是管理与交互端；设备上的官方 AI Agent 组织云端对话，独立 Python
+Gateway 不属于产品运行链路。团队源码通过 manifest 的目录级 `linkfile` 接入官方
+工作区；芯片、板、产品代码分别维护，不在上游 checkout 留团队改动。
+
+架构与操作只在本页、对应层文档和 SOP 中维护。已退役的项目记忆、阶段目标及
+旧架构决策保存在 Git 历史，历史验收文档的引用固定到对应源码版本。
 
 ## 事实所有权
 

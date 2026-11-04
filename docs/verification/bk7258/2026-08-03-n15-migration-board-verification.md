@@ -6,7 +6,7 @@
 - Source base/HEAD before commit: `6de4962147e5ee180def704d219ace9ae11f6e4e`
 - SDK: official Beken v3.1.1.9 only
 - Profiles: `cp_nsh_psram + ap_smp_psram`
-- Architecture: `memory/decisions/ADR-004-n15-official-contiguous-ab-layout.md`
+- Architecture: [memory/decisions/ADR-004-n15-official-contiguous-ab-layout.md](https://github.com/open-vela/contest2026_135_yongwangzhiqian/blob/e4f2df717defab9f6ad02adc662acd8cba086cf2/memory/decisions/ADR-004-n15-official-contiguous-ab-layout.md)
 
 ## Result
 

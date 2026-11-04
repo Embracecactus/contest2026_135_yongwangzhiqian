@@ -661,7 +661,7 @@ CP/AP映到同尺寸连续`s_app`，并提供一次未确认trial回退语义。
 
 早期ADR-003尝试在N14分散布局上做journaled physical-sector swap。其read-only模型虽通过，
 但复杂度、启动写放大和scratch热点均不适合作为长期方案。owner在其上板前否决该路线，接受
-ADR-004 (`memory/decisions/ADR-004-n15-official-contiguous-ab-layout.md`)并允许一次性清空
+ADR-004 ([memory/decisions/ADR-004-n15-official-contiguous-ab-layout.md](https://github.com/open-vela/contest2026_135_yongwangzhiqian/blob/e4f2df717defab9f6ad02adc662acd8cba086cf2/memory/decisions/ADR-004-n15-official-contiguous-ab-layout.md))并允许一次性清空
 LittleFS的布局迁移。ADR-003代码和验证只保留为历史证据，不再进入active build。
 
 ADR-004冻结raw布局：boot `0..0x011000`、CP A `0x011000..0x165000`、AP A
@@ -699,7 +699,7 @@ mutation前绑定并验证完整physical/logical CP/AP pair；shared Flash guard
 closure均PASS。compile/runtime gate仍为零，最终ELF无enable setter/command，且未写板。完整证据见
 [N15-B verification](../../verification/bk7258/2026-08-04-n15-b-host-staging.md)。
 
-N15-C再由ADR-005 (`memory/decisions/ADR-005-n15-boot-selector-metadata-v1.md`)冻结
+N15-C再由ADR-005 ([memory/decisions/ADR-005-n15-boot-selector-metadata-v1.md](https://github.com/open-vela/contest2026_135_yongwangzhiqian/blob/e4f2df717defab9f6ad02adc662acd8cba086cf2/memory/decisions/ADR-005-n15-boot-selector-metadata-v1.md))冻结
 `BKOTA15C` append-only metadata ABI。portable selector对trusted A执行全部CRC16、padding、vectors、
 CP magic和full-pair SHA-256，并复用N15-B core完整验证B；坏metadata/candidate fail-closed，
 `PENDING_B`只报告candidate有效而不remap。team Tier-1 raw read和one-offset remap与exact v3.1.1.9

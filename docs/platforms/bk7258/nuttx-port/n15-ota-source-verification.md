@@ -15,7 +15,7 @@
 
 > **状态勘误：**本文记录的是后来被否决的 ADR-003 sector-swap 路线，保留其
 > source/model 证据，不再是 active implementation guide。项目已接受
-> ADR-004 (`memory/decisions/ADR-004-n15-official-contiguous-ab-layout.md`)，
+> ADR-004 ([memory/decisions/ADR-004-n15-official-contiguous-ab-layout.md](https://github.com/open-vela/contest2026_135_yongwangzhiqian/blob/e4f2df717defab9f6ad02adc662acd8cba086cf2/memory/decisions/ADR-004-n15-official-contiguous-ab-layout.md))，
 > 并完成 [N15-M 新布局板端迁移验证](../../../verification/bk7258/2026-08-03-n15-migration-board-verification.md)。
 > 本文中的“推荐”“下一步”和旧地址不得用于当前构建、恢复或烧录。
 >

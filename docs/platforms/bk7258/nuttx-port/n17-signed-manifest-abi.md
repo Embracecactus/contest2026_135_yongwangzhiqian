@@ -8,7 +8,7 @@
 - Status: Historical accepted ABI; its firmware and board-write gates were never enabled
 - Scope: recoverable N17-S software-root phase for the historical Tuya
   T5AI-Core identity (`board_id=bk7258-t5ai`), from historical decision
-  `memory/decisions/ADR-008-n17-phased-ota-authentication.md`; this ABI never
+  [memory/decisions/ADR-008-n17-phased-ota-authentication.md](https://github.com/open-vela/contest2026_135_yongwangzhiqian/blob/e4f2df717defab9f6ad02adc662acd8cba086cf2/memory/decisions/ADR-008-n17-phased-ota-authentication.md); this ABI never
   established a multi-board release contract
 - Historical SDK baseline: immutable official Beken v3.1.1.9
 - Date: 2026-08-06

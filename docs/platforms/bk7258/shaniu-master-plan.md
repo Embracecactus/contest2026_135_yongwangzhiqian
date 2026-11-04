@@ -3,8 +3,9 @@
 本文件保留历史计划、决策和分版本证据，不再维护当前状态或下一阶段入口。
 正文中的“当前”“待办”和优先级均属于各节当时的快照。
 板级当前事实与验收边界统一见 `boards/bk7258/CONFIGS.md`（可从
-[平台入口](README.md#事实所有权)进入）；当前目标由 `goal-objective.md` 和
-[桌面伙伴行为合同](shaniu-desktop-companion.md)约束。
+[平台入口](README.md#事实所有权)进入）；现役产品行为见
+[功能与证据清单](shaniu-feature-inventory.md)与[桌面伙伴行为合同](shaniu-desktop-companion.md)。
+本文中的任务顺序、授权和后续计划均为历史记录，不作为本次开发或设备操作的授权。
 
 ## 2026-09-20 晚：637/638 签名全镜像与实机验收（历史结论）
 
@@ -49,7 +50,7 @@
 - AIDK COM8 保留 635，通过 shell reset 验证配置/模型阈值/眼睛资源恢复与只读
   外设状态；未重新烧录、未重新认领。BT 早期告警仍在，完整语音/App/OTA 未重验。
 - 8 个开发 Skill 规范检查通过；两个硬件工具已实际使用。手机未连 ADB、声学
-  播放路由未确认，未将缺少条件的工作流标为通过。见[Skill 覆盖](shaniu-skill-capability-map.md#2026-09-20-补验覆盖)。
+  播放路由未确认，未将缺少条件的工作流标为通过。见[Skill 覆盖](https://github.com/open-vela/contest2026_135_yongwangzhiqian/blob/e4f2df717defab9f6ad02adc662acd8cba086cf2/docs/platforms/bk7258/shaniu-skill-capability-map.md#2026-09-20-补验覆盖)。
 
 ## 2026-09-20 代码与比赛材料发布收口
 
@@ -1066,7 +1067,7 @@ voice channel 仅有 PTT 录音控制，录音停止后提前回到 IDLE；播�
   就认定有可直接部署的成熟端点方案。真人现场唤醒、泛化和新路径首响均未验证。
 
 
-集中 Skill 沉淀已完成，能力分别归档，见[能力映射](shaniu-skill-capability-map.md)。原有 Android 连接、切页及音量 P0 保留。本轮按更新授权继续三词切换、云端模型配置、私人录音适配和板载按键/马达，不新增测试代码。
+集中 Skill 沉淀已完成，能力分别归档，见[能力映射](https://github.com/open-vela/contest2026_135_yongwangzhiqian/blob/e4f2df717defab9f6ad02adc662acd8cba086cf2/docs/platforms/bk7258/shaniu-skill-capability-map.md)。原有 Android 连接、切页及音量 P0 保留。本轮按更新授权继续三词切换、云端模型配置、私人录音适配和板载按键/马达，不新增测试代码。
 
 当前已核验实板：`18.6.363+525 / counter525 / pair=confirmed`；已覆盖安装 APK `0.5.15-shaniu-model`（code 20），SHA256 `25d260b9ccf0bf66a688327ff2ab5a2c840880b3f372a8907b608773503133c8`。525 完整镜像 `voice525-camera-owner-full/` SHA256 `e8990588a07ad680709be923d8902180244eb7774615609554e7337b555f8465`，同设备身份、信任、校准、配置与原模型保留。构建输入快照 `voice525-camera-owner-source/` 含 651 个输入及实际 AP/CP ELF，源码树 SHA256 `661a39109f9b66501442b327296f009525891a17652033d5f26c4c586a53bd5d` 与构建 manifest 一致。证据均在工作区 `out/shaniu-p0-20260913/`；设备绑定完整镜像和私人素材不公开。
 
@@ -2083,7 +2084,7 @@ v30 的原训练配方及构建输入仅封存在 442 归档，不能调用当�
 - Dolphin 已独立提交并推送至 `fork/feat/bk7258-dolphin`，提交
   `e3fb5672b1ac63570ff9873d0f26d34b69876832`。本节之后的傻妞修改不属于该提交。
 - 最近已有 AIDK 安装证据是 **418**，以
-  [流程审查报告的418签名核查及计数证据](chip-board-wrapper-review-20260910.md)
+  [流程审查报告的418签名核查及计数证据](https://github.com/open-vela/contest2026_135_yongwangzhiqian/blob/e4f2df717defab9f6ad02adc662acd8cba086cf2/docs/platforms/bk7258/chip-board-wrapper-review-20260910.md)
   为准；下方411启动、417候选和当时等待备份的内容属于历史检查点，不能继续作为
   最新版本或日常开发前置。本次未访问AIDK串口，未核实当前在线设备/手机版本。
 - 当前没有可用的匹配签名能力，限定查找已收口。418封存包保持原样；本批不查OTP、
@@ -3930,7 +3931,7 @@ Android 总览已接“认领设备与 Wi-Fi 配网”：系统文件选择器�
 源码与构建分层检查覆盖 Dolphin，正反例通过。实板仍为旧 411；新固件未部署，
 三板运行、触摸、SDIO 回归未完成，不能作为产品验收。
 详细命令、哈希索引、实际阻塞和恢复顺序见
-[chip-board 整改报告](chip-board-wrapper-review-20260910.md#整改实施检查点2026-09-10)。
+[chip-board 整改报告](https://github.com/open-vela/contest2026_135_yongwangzhiqian/blob/e4f2df717defab9f6ad02adc662acd8cba086cf2/docs/platforms/bk7258/chip-board-wrapper-review-20260910.md#整改实施检查点2026-09-10)。
 本轮未提交或推送，保留原有工作区成果。
 
 
