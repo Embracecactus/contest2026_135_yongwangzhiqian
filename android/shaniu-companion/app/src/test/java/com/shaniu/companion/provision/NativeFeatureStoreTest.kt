@@ -3,11 +3,44 @@ package com.shaniu.companion.provision
 
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
+import java.io.InputStream
 import java.util.Base64
 import org.junit.Assert.*
 import org.junit.Test
 
 class NativeFeatureStoreTest {
+    @Test fun boundedDownloadStopsWhenWholeDeadlineExpiresBetweenChunks() {
+        var now = 0L
+        val input = object : InputStream() {
+            private var sent = false
+            override fun read(): Int = -1
+            override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                if (sent) return -1
+                sent = true
+                buffer[offset] = 7
+                now = 30_000L
+                return 1
+            }
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            NativeFeatureStore.readBounded(input, 8, 30_000L, { now })
+        }
+    }
+
+    @Test fun boundedDownloadRejectsLateEofAfterDeadline() {
+        var now = 0L
+        val input = object : InputStream() {
+            override fun read(): Int = -1
+            override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                now = 30_000L
+                return -1
+            }
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            NativeFeatureStore.readBounded(input, 8, 30_000L, { now })
+        }
+    }
+
     private fun packageBytes(image: ByteArray = byteArrayOf(1, 2, 3), badDigest: Boolean = false,
                              abi: Int = 1, permissions: List<String> = listOf("display"),
                              results: List<String>? = null): ByteArray {

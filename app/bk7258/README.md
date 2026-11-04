@@ -104,7 +104,8 @@ turn/session 和整轮 cloud runtime 已退出正式构建。
 
 AIDK 的 SD NAND 只注册为 `/dev/mmcsd0`，不把 `/data` 误认为 SD NAND。
 BKDisplay 仅在持有 USBMODE 块设备 lease 时短暂挂载它，并在释放给 MSC
-之前完成卸载。双眼资源包的生成、首次拷贝、目录和回退契约见
+之前完成卸载。AIDK 当前产品配置启用 USBMODE；实际 USB MSC 文件导出仍须按同一
+固件候选分别完成板端验收。双眼资源包的生成、首次拷贝、目录和回退契约见
 [Shaniu eye assets](assets/display/README.md)。构建成功只证明源码与配置可链接；真实唤醒、
 云端交互、播放完成、再次监听和 App OTA 仍须在同一候选固件上分别验收。
 
@@ -143,10 +144,11 @@ bkhealth status
 芯片提供有效的 25 摄氏度参考原始码后，才输出 `temperature_mC` 和
 `calibrated=yes`。host 与目标构建通过仍不等于实板读数验收。
 
-## NFC 适配与非产品维护入口
+## NFC 场景与维护入口
 
-MFRC522 芯片驱动/总线适配已完成，但未接入本次板端产品交互。
-以下可选维护命令不是碰一碰认领通过的证明，不作为比赛演示前置。
+MFRC522 芯片驱动/总线适配已接入 NFC 场景服务和 App 的场景卡配置路径。
+NFC 不是认领、身份认证或授权凭据；以下维护命令只观察卡片在场状态，不替代产品
+场景的独立验收。
 
 `CONFIG_BK7258_APP_NFC=y` 在 CP 注册 `bknfc`，AP 的 `bknfc-v1`
 服务按次独占打开、读取并关闭 `/dev/nfc0`：
@@ -192,8 +194,8 @@ MMAP 缓冲区由 sole-owner 的最后一个 close 释放。2026-09-05 的 `18.6
 结束后 STREAMOFF/close。结果保存为卷内 `/recordings/video-<session>-<sequence>.avi`，
 命令输出精确文件名、帧数、采集毫秒数和 AVI 字节数。已有文件不覆盖，不格式化存储；
 单文件上限 64 MiB，写满、取帧超时、坏 JPEG 或关闭错误均报失败并尝试删除本次残片。
-异常断电不保证删除残片或修复 AVI 头。启用 USBMODE 的固件正常完成后可通过 USB MSC
-取走文件；当前 AIDK 配置未启用 USBMODE，尚需实板文件导出验收。
+异常断电不保证删除残片或修复 AVI 头。当前 AIDK 产品配置启用 USBMODE，正常完成后
+可通过 USB MSC 取走文件；文件导出路径仍须完成实板验收。
 
 录像与显示资产操作由 `bk7258_media_volume` 互斥，共用 `/mnt/sdnand` 挂载点；若启用 USBMODE，
 录像持有其 blockdev lease，USB MSC 与本地写入互斥。卸载失败保留 lease，下一次录像

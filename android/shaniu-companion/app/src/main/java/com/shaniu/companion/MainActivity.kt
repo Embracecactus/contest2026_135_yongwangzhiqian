@@ -65,7 +65,10 @@ class MainActivity : Activity() {
     private var touchActive = false
     private var renderDeferred = false
 
-    private val ioExecutor = Executors.newSingleThreadExecutor()
+    // DeviceControlSession owns one serialized BLE protocol lane. Downloads
+    // and file inspection must never occupy it before a close or request.
+    private val controlExecutor = Executors.newSingleThreadExecutor()
+    private val workerExecutor = Executors.newSingleThreadExecutor()
     internal val mainHandler = Handler(Looper.getMainLooper())
     // A worker owns imported files until the main-thread completion callback
     // explicitly transfers them to the selected-file fields.
@@ -444,7 +447,8 @@ class MainActivity : Activity() {
         directSubscriptions.clear()
         closeDirect()
         importedFileOwner.close()
-        ioExecutor.shutdown()
+        controlExecutor.shutdown()
+        workerExecutor.shutdown()
         mainHandler.removeCallbacksAndMessages(null)
         super.onDestroy()
     }
@@ -1450,11 +1454,11 @@ class MainActivity : Activity() {
         }
         val epoch = directEpoch
         otaMessage = "正在准备本机升级来源…"
-        val source = OtaSourceLease<OtaPackageServer> { server -> ioExecutor.execute { server.close() } }
+        val source = OtaSourceLease<OtaPackageServer> { server -> workerExecutor.execute { server.close() } }
         otaSource = source
         setOtaKeepAwake(true)
         render()
-        ioExecutor.execute {
+        workerExecutor.execute {
             val started = android.os.SystemClock.elapsedRealtime()
             val opened = runCatching { OtaPackageServer.open(applicationContext, file) }
             val failure = opened.exceptionOrNull()
@@ -1690,7 +1694,7 @@ class MainActivity : Activity() {
         directCandidates.clear()
         directMessage = "正在验证并连接傻妞…"
         directSession.connect(AndroidDeviceControlFactory(applicationContext, device, provisionedDeviceId,
-            ioExecutor, { action -> mainHandler.post { action() }; Unit }))
+            controlExecutor, { action -> mainHandler.post { action() }; Unit }))
     }
 
     fun dismissDirectDiscovery() {
@@ -2477,7 +2481,7 @@ class MainActivity : Activity() {
     private fun fetchNativeStore(url: String) {
         val editor = agentEditor ?: return
         val generation = directSession.current().generation
-        ioExecutor.execute {
+        workerExecutor.execute {
             try {
                 val entries = com.shaniu.companion.provision.NativeFeatureStore.fetchIndex(url)
                 mainHandler.post {
@@ -2496,7 +2500,7 @@ class MainActivity : Activity() {
     private fun downloadNativeFeature(entry: com.shaniu.companion.provision.NativeFeatureStore.Entry) {
         val editor = agentEditor ?: return
         val generation = directSession.current().generation
-        ioExecutor.execute {
+        workerExecutor.execute {
             try {
                 val request = com.shaniu.companion.provision.NativeFeatureStore.installRequest(
                     com.shaniu.companion.provision.NativeFeatureStore.fetchPackage(entry.packageUrl, entry.sha256), entry)
@@ -2633,7 +2637,7 @@ class MainActivity : Activity() {
                 val expected = controller.current().snapshot ?: return@requestSelected
                 val generation = directSession.current().generation
                 status.text = "正在读取配对请求"
-                ioExecutor.execute {
+                workerExecutor.execute {
                     val request = runCatching { contentResolver.openInputStream(uri)!!.use {
                         com.shaniu.companion.provision.PcPairingExchange.parse(readPcBytes(it, 1024), System.currentTimeMillis())
                     } }
@@ -2655,7 +2659,7 @@ class MainActivity : Activity() {
                                 if (preparingPair) return@setPositiveButton
                                 preparingPair = true
                                 importRequest.isEnabled = false
-                                ioExecutor.execute {
+                                workerExecutor.execute {
                                     val prepared = runCatching {
                                         com.shaniu.companion.provision.PcPairingDelivery.prepare(value, identity, expected, System.currentTimeMillis())
                                     }.getOrNull()
@@ -2692,7 +2696,7 @@ class MainActivity : Activity() {
                 val state = directSession.current()
                 val bytes = delivery?.response(controller.current(), state.peerIdentity.takeIf { state.authenticated }, System.currentTimeMillis())
                 if (bytes == null) { status.text = "授权未确认、连接已变化或请求过期，请先查询"; return@responseSelected }
-                ioExecutor.execute {
+                workerExecutor.execute {
                     val saved = runCatching { contentResolver.openOutputStream(uri, "wt")!!.use { it.write(bytes); it.flush() } }.isSuccess
                     mainHandler.post { if (pcEditor === controller) status.text = if (saved) "加密响应已导出；电脑仍需完成导入与设备鉴权" else "导出未确认，可在有效期内重试" }
                 }
@@ -2914,7 +2918,7 @@ class MainActivity : Activity() {
     private fun loadEyePack(open: () -> java.io.InputStream?, expectedSha: ByteArray? = null) {
         if (eyeImportPending) return
         eyeImportPending = true; eyeMessage = "正在检查眼睛素材包…"; render()
-        ioExecutor.execute {
+        workerExecutor.execute {
             val result = runCatching {
                 val file = java.io.File.createTempFile("eyes-selected-", ".bkep", cacheDir)
                 try {
@@ -2969,9 +2973,9 @@ class MainActivity : Activity() {
         val epoch = directEpoch
         configFlow = ConfigFlow.EYES; eyeCanceling = false; eyeApplySent = false
         eyeMessage = "正在准备 Wi-Fi 眼睛素材来源…"; render()
-        val source = OtaSourceLease<OtaPackageServer> { server -> ioExecutor.execute { server.close() } }
+        val source = OtaSourceLease<OtaPackageServer> { server -> workerExecutor.execute { server.close() } }
         eyeSource = source
-        ioExecutor.execute {
+        workerExecutor.execute {
             val opened = runCatching { OtaPackageServer.openAsset(applicationContext, file, assetSha256) }
             val server = opened.getOrNull()
             if (server != null && !source.publish(server)) {
@@ -3116,7 +3120,7 @@ class MainActivity : Activity() {
         inspectedFirmware = null
         firmwareInspectionPending = true
         firmwareInspectionMessage = null
-        ioExecutor.execute {
+        workerExecutor.execute {
             val inspected = runCatching {
                 val file = java.io.File.createTempFile("firmware-selected-", ".bkpack", cacheDir)
                 try {
@@ -3244,7 +3248,7 @@ class MainActivity : Activity() {
         busy = true
         lastAction = "正在清除本机绑定资料"
         render()
-        ioExecutor.execute {
+        workerExecutor.execute {
             val cleared = try {
                 // Remove the authoritative binding first. If this fails, keep
                 // the other stores intact so the user can retry coherently.

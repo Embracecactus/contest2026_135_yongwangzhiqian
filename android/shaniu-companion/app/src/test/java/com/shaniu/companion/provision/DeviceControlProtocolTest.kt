@@ -13,18 +13,22 @@ class DeviceControlProtocolTest {
             { _, snapshot -> states += snapshot })
         protocol.start(); protocol.receive(response(sent.last()))
         for (kind in listOf(26, 27, 28)) {
-            for ((offset, total) in listOf(0 to 17, 16 to 800, 4096 to 4111)) {
+            val reads = if (kind == 28)
+                listOf(0 to 17, 16 to 800, 4096 to 4195, 8192 to 8207)
+            else listOf(0 to 17, 16 to 800, 4096 to 4111)
+            for ((offset, total) in reads) {
                 assertTrue(protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_READ,
                     be32((kind shl 16) or offset)))
                 protocol.receive(response(sent.last(), flags = total))
                 assertEquals(total, states.last().configChunk!!.totalLength)
+                assertFalse(protocol.closed)
             }
             for (size in if (kind == 28) listOf(1, 32768) else listOf(1, 4095)) {
                 assertTrue(protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_BEGIN,
                     ByteBuffer.allocate(8).putInt(kind).putInt(size).array()))
                 protocol.receive(response(sent.last()))
             }
-            for (offset in listOf(1, 4112, 65520)) {
+            for (offset in if (kind == 28) listOf(1, 8208, 65520) else listOf(1, 4112, 65520)) {
                 assertThrows(IllegalArgumentException::class.java) {
                     protocol.requestPayload(DeviceControlProtocol.Command.CONFIG_READ,
                         be32((kind shl 16) or offset))
@@ -41,7 +45,7 @@ class DeviceControlProtocolTest {
     }
 
     @Test fun agentDocumentReadRejectsInvalidWireLength() {
-        for (kind in listOf(26, 27, 28)) for (total in listOf(16, 4112)) {
+        for (kind in listOf(26, 27, 28)) for (total in if (kind == 28) listOf(16, 8208) else listOf(16, 4112)) {
             val sent = mutableListOf<ByteArray>()
             val protocol = DeviceControlProtocol(ByteArray(32) { 42 }, { sent += it.copyOf() }, { _, _ -> })
             protocol.start(); protocol.receive(response(sent.last()))

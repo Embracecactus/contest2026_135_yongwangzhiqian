@@ -68,6 +68,23 @@ int main(void)
   assert(bkruntime_skills_store_load(buffer, sizeof(buffer), &actual,
                                      &revision) == 0);
   assert(actual == 0 && revision == 0);
+  assert(mkdir(TEST_ROOT, 0700) == 0);
+  assert(bkruntime_skills_store_load(buffer, sizeof(buffer), &actual,
+                                     &revision) == 0);
+  assert(actual == 0 && revision == 0);
+  FILE *pending = fopen(TEST_ROOT "/config.pending", "wb");
+  assert(pending != NULL && fputs("partial first save", pending) >= 0);
+  assert(fclose(pending) == 0);
+  assert(bkruntime_skills_store_load(buffer, sizeof(buffer), &actual,
+                                     &revision) == 0);
+  assert(actual == 0 && revision == 0);
+  g_force_unknown = 1;
+  assert(bkruntime_skills_store_commit(0, first, sizeof(first) - 1,
+                                       &revision) == -EINPROGRESS);
+  g_force_unknown = 0;
+  assert(bkruntime_skills_store_load(buffer, sizeof(buffer), &actual,
+                                     &revision) == 0);
+  assert(actual == 0 && revision == 0);
   assert(bkruntime_skills_store_commit(0, first, sizeof(first) - 1,
                                        &revision) == 0);
   assert(revision == 1);

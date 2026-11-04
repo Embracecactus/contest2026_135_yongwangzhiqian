@@ -1369,6 +1369,13 @@ def _source_provenance(
         dependencies["ai_agent"] = _source_tree_state(
             agent, ["."], changed_only=True
         )
+    if _enabled(_dotconfig(ap.root / "defconfig"), "CONFIG_MEDIA"):
+        media = _directory(
+            workspace / "frameworks/multimedia/media", "Media source"
+        )
+        dependencies["media"] = _source_tree_state(
+            media, ["."], changed_only=True
+        )
     return {
         **state,
         "scope": scopes,
@@ -1547,6 +1554,8 @@ def validate_provenance(value: object) -> dict[str, object]:
     dependency_names = {"nuttx", "apps"}
     if isinstance(row["dependencies"], dict) and "ai_agent" in row["dependencies"]:
         dependency_names.add("ai_agent")
+    if isinstance(row["dependencies"], dict) and "media" in row["dependencies"]:
+        dependency_names.add("media")
     dependencies = _manifest_mapping(
         row["dependencies"], dependency_names, "source dependencies"
     )

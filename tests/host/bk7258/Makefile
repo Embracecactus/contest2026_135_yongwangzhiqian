@@ -305,7 +305,7 @@ check-package-tools:
 # These regressions consume the manifest-pinned dependency sources. A stale
 # NuttX or SDK checkout must not silently exercise an obsolete implementation.
 
-check-review-regressions:
+check-review-regressions: run-agent-session-history-memory
 	python3 -m unittest test_kernel_compat test_bk7258_sdk_manifest \
 		test_bk7258_build_workspace test_deploy_confirmation
 	python3 ./test_audio_close_lifecycle.py --nuttx $(OPENVELA_ROOT)/nuttx
@@ -1984,6 +1984,15 @@ MEMORY_FACTS_RUNTIME_CFLAGS := \
 	-DPOLICY_ROOT='"/tmp/bk7258-memory-facts-runtime/policy"' \
 	-DSNAPSHOT_ROOT='"/tmp/bk7258-memory-facts-runtime/snapshot"' \
 	-DLEGACY_ROOT='"/tmp/bk7258-memory-facts-runtime/legacy"'
+AGENT_SESSION_HISTORY_ROOT := $(BUILD)/agent-session-history
+AGENT_SESSION_HISTORY_SOURCE := $(AGENT_SESSION_HISTORY_ROOT)/src/core/session_mgr.c
+AGENT_SESSION_HISTORY_PATCH := $(REPOSITORY_ROOT)/frameworks/patches/ai_agent/0001-session-history-read-errors.patch
+AGENT_SESSION_HISTORY_MEMORY_TARGET := $(BUILD)/test_agent_session_history_memory
+AGENT_SESSION_HISTORY_MEMORY_CFLAGS := \
+	-DPOLICY_ROOT='"/tmp/bk7258-agent-session-history-memory/policy"' \
+	-DSNAPSHOT_ROOT='"/tmp/bk7258-agent-session-history-memory/snapshot"' \
+	-DLEGACY_ROOT='"/tmp/bk7258-agent-session-history-memory/legacy"' \
+	-DCONFIG_EXAMPLES_AI_AGENT_VELA_DATA_DIR='"/tmp/bk7258-agent-session-history-memory/agent"'
 RUNTIME_SKILLS_STORE_TARGET := $(BUILD)/test_shaniu_runtime_skills_store
 RUNTIME_SKILLS_STORE_CFLAGS := \
 	-DBKRUNTIME_SKILLS_ROOT='"/tmp/bk7258-runtime-skills-store/runtime-skills"'
@@ -2028,6 +2037,40 @@ $(MEMORY_FACTS_RUNTIME_TARGET): test_shaniu_memory_facts_runtime.c \
 run-memory-facts: $(MEMORY_FACTS_TARGET) $(MEMORY_FACTS_RUNTIME_TARGET)
 	./$(MEMORY_FACTS_TARGET)
 	./$(MEMORY_FACTS_RUNTIME_TARGET)
+
+$(AGENT_SESSION_HISTORY_SOURCE): \
+		$(OPENVELA_ROOT)/packages/ai_agent/src/core/session_mgr.c \
+		$(AGENT_SESSION_HISTORY_PATCH) Makefile | $(BUILD)
+	mkdir -p $(dir $@)
+	printf '%s  %s\n' '132b0848384c89e4d7e15da63a3ecd5e5bc3914332adba0208d3eca474f4b93c' '$(OPENVELA_ROOT)/packages/ai_agent/src/core/session_mgr.c' | sha256sum --check
+	cp $(OPENVELA_ROOT)/packages/ai_agent/src/core/session_mgr.c $@
+	GIT_CEILING_DIRECTORIES=$(abspath $(BUILD)) git -C $(AGENT_SESSION_HISTORY_ROOT) apply --check $(AGENT_SESSION_HISTORY_PATCH)
+	GIT_CEILING_DIRECTORIES=$(abspath $(BUILD)) git -C $(AGENT_SESSION_HISTORY_ROOT) apply $(AGENT_SESSION_HISTORY_PATCH)
+
+$(AGENT_SESSION_HISTORY_MEMORY_TARGET): test_agent_session_history_memory.c \
+		$(AGENT_SESSION_HISTORY_SOURCE) \
+		$(VOICE_PACK_ROOT)/bk7258_agent_memory.c \
+		$(VOICE_PACK_ROOT)/bk7258_agent_memory_codec.c \
+		$(VOICE_PACK_ROOT)/bk7258_memory_facts.c \
+		$(VOICE_PACK_ROOT)/bk7258_provision_store.c $(VOICE_OTA_MBEDCRYPTO) | $(BUILD)
+	$(CC) $(VOICE_PACK_CFLAGS) $(AGENT_SESSION_HISTORY_MEMORY_CFLAGS) \
+		-Wno-error=format-truncation -D_GNU_SOURCE -pthread -I $(MOCKS) -I $(VOICE_PACK_ROOT) \
+		-I $(OPENVELA_ROOT)/packages/ai_agent/include \
+		-I $(OPENVELA_ROOT)/packages/ai_agent/src \
+		-I $(OPENVELA_ROOT)/apps/netutils/cjson/cJSON \
+		-I $(VOICE_OTA_MBEDTLS_SOURCE)/include $< \
+		$(AGENT_SESSION_HISTORY_SOURCE) $(VOICE_PACK_ROOT)/bk7258_agent_memory.c \
+		$(VOICE_PACK_ROOT)/bk7258_agent_memory_codec.c \
+		$(VOICE_PACK_ROOT)/bk7258_memory_facts.c \
+		$(VOICE_PACK_ROOT)/bk7258_provision_store.c \
+		$(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c \
+		-Wl,--wrap=fopen $(VOICE_OTA_MBEDCRYPTO) -lm -o $@
+
+.PHONY: run-agent-session-history-memory
+run-agent-session-history-memory: $(AGENT_SESSION_HISTORY_MEMORY_TARGET)
+	@set -eu; root=/tmp/bk7258-agent-session-history-memory; \
+	test ! -e "$$root"; trap 'rm -rf -- "$$root"' EXIT; \
+	./$(AGENT_SESSION_HISTORY_MEMORY_TARGET)
 
 $(RUNTIME_SKILLS_STORE_TARGET): test_shaniu_runtime_skills_store.c \
 		$(VOICE_PACK_ROOT)/bk7258_runtime_skills_store.c \

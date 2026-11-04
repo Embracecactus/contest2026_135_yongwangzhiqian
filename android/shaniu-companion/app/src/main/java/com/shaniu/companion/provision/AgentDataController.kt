@@ -131,7 +131,8 @@ internal class AgentDataController(
             header = chunk.bytes.copyOf()
             val input = ByteBuffer.wrap(header)
             val magic = input.int; val bytes = input.int
-            if (magic != 0x414a5631 || bytes !in 1..8191 || chunk.totalLength != 16 + bytes) {
+            val maxReadBytes = if (kind == 28) 8191 else 4095
+            if (magic != 0x414a5631 || bytes !in 1..maxReadBytes || chunk.totalLength != 16 + bytes) {
                 fail("设备数据格式不受支持"); return
             }
             body = ByteArray(bytes); offset = 0; phase = Phase.BODY; read(16); return

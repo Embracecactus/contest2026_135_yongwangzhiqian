@@ -40,7 +40,7 @@ KVDB 后端和 RPC 传输在这些测试中为替身，不证明持久化或实�
 WANT_WRITE 重试期间的独占、空闲读允许上行，以及故障/取消后的双向停止。
 `run-provision` 先提取工作区固定 NuttX 的 ACL 接收路径，检查完整包、分片与池复用的
 引用所有权；缺少源码时明确失败。随后运行供应 helper、产品 GATT 窗口、队列和连接代际测试，以及使用实际 mbedTLS 的
-认领、本地按键 owner、Wi-Fi/Gateway 试连、存储与回执、设置、身份、时间和 TLS 测试。
+认领、本地按键 owner、Wi-Fi/云服务配置连通性、存储与回执、设置、身份、时间和 TLS 测试。
 它需 CMake、OpenSSL 和工作区 mbedTLS 源码；构建产物、测试证书和私有存储都位于运行后
 自动清理的临时目录。不启动 LAN 服务，也不代表实板验收。
 
@@ -59,7 +59,10 @@ WANT_WRITE 重试期间的独占、空闲读允许上行，以及故障/取消�
 `boards/bk7258/common/partitions/bk7258/bk7258_ab_agent_onchip_persistent.csv`
 在 `build/layout/` 临时生成。BL1 公钥 fixture 是确定性的公钥字节，仅用于模拟验签
 ABI；它不是私钥、下载密钥或可部署信任根。BL2 不固定断言任何签名公钥，因为正式
-构建必须按每一代的新密钥生成对应源码。
+构建使用持续维护的身份和所选公钥输入；构建与交付物只记录相应来源和哈希，不生成、
+轮换或替代该身份。当前身份、板型和发布策略见
+[`boards/bk7258/CONFIGS.md`](../../../boards/bk7258/CONFIGS.md)，操作入口见
+[构建、发布与硬件证据 SOP](../../../docs/platforms/bk7258/nuttx-port/bk7258-build-flash-debug-sop.md)。
 
 ## 边界
 

@@ -102,7 +102,8 @@ internal class DeviceControlProtocol(
                 else ((kind in 1..2 || kind == 5 || kind == 7 || kind == 8) && offset % 16 == 0) ||
                     ((kind == 4 || kind == 6 || kind == 0x7fff) && offset == 0) ||
                     (kind == 21 && offset in 0..16 && offset % 16 == 0) ||
-                    (kind in 26..28 && offset in 0..4096 && offset % 16 == 0) ||
+                    (kind in 26..27 && offset in 0..4096 && offset % 16 == 0) ||
+                    (kind == 28 && offset in 0..8192 && offset % 16 == 0) ||
                     (kind == PC_APPROVAL_DECISION_KIND && offset in 0..1088 && offset % 16 == 0) }
             Command.CONFIG_BEGIN -> payload.size == 8 && ByteBuffer.wrap(payload).let {
                 val kind = it.int; val size = it.int
@@ -200,7 +201,8 @@ internal class DeviceControlProtocol(
                                 else -> flags == if (pendingReadReceipt) 32 else 64
                             })
                             if (pendingReadKind == PC_APPROVAL_DECISION_KIND) require(flags in 16..1104)
-                            else if (pendingReadKind in 26..28) require(flags in 17..4111)
+                            else if (pendingReadKind in 26..27) require(flags in 17..4111)
+                            else if (pendingReadKind == 28) require(flags in 17..8207)
                             else require(flags in 12..(when (pendingReadKind) { 7 -> 824; 8 -> 876; RESET_TRANSFER_KIND -> 28; else -> 393 }))
                             ConfigChunk(flags, input.copyOfRange(24, 40))
                         } else null

@@ -292,6 +292,17 @@ class BuildWorkspaceTest(unittest.TestCase):
             (self.workspace / name).symlink_to(
                 self.repository, target_is_directory=True
             )
+        media = self.workspace / "frameworks/multimedia/media"
+        media.mkdir(parents=True)
+        media_source = media / "media.c"
+        media_source.write_text("int media = 1;\n", encoding="utf-8")
+        subprocess.run(["git", "init", "-q", str(media)], check=True)
+        subprocess.run(["git", "-C", str(media), "add", "media.c"], check=True)
+        subprocess.run(
+            ["git", "-C", str(media), "-c", "user.name=Fixture",
+             "-c", "user.email=fixture@example.invalid", "commit", "-qm", "media"],
+            check=True,
+        )
         original = build_domain._source_provenance(self.repository, cp, ap, "shaniu")
         self.assertFalse(original["dirty"])
         self.assertIn("openvela.xml", original["scope"])
@@ -455,6 +466,35 @@ class BuildWorkspaceTest(unittest.TestCase):
         self.assertTrue(modified["dirty"])
         self.assertEqual(modified["input_count"], 1)
         self.assertNotEqual(agent_state["input_tree_sha256"], modified["input_tree_sha256"])
+
+        agent_source.write_text("int agent = 1;\n", encoding="utf-8")
+        (ap.root / "defconfig").write_text(
+            "CONFIG_EXAMPLES_AI_AGENT_VELA=y\nCONFIG_MEDIA=y\n", encoding="utf-8"
+        )
+        with_media = build_domain._source_provenance(
+            self.repository, cp, ap, "shaniu"
+        )
+        media_state = with_media["dependencies"]["media"]
+        self.assertEqual(
+            media_state["source_commit"],
+            subprocess.check_output(["git", "-C", str(media), "rev-parse", "HEAD"])
+            .decode().strip(),
+        )
+        self.assertFalse(media_state["dirty"])
+        self.assertEqual(media_state["input_count"], 0)
+        self.assertEqual(build_domain.validate_provenance(with_media), with_media)
+        media_source.write_text("int media = 2;\n", encoding="utf-8")
+        modified_media = build_domain._source_provenance(
+            self.repository, cp, ap, "shaniu"
+        )["dependencies"]["media"]
+        self.assertTrue(modified_media["dirty"])
+        self.assertEqual(modified_media["input_count"], 1)
+        self.assertNotEqual(
+            media_state["input_tree_sha256"], modified_media["input_tree_sha256"]
+        )
+        media.rename(self.root / "absent-media")
+        with self.assertRaisesRegex(build_domain.BuildError, "Media source"):
+            build_domain._source_provenance(self.repository, cp, ap, "shaniu")
         agent.rename(self.root / "absent-agent")
         with self.assertRaisesRegex(build_domain.BuildError, "AI Agent source"):
             build_domain._source_provenance(self.repository, cp, ap, "shaniu")

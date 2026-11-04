@@ -10,6 +10,13 @@
  */
 #define BKPROV_STORE_RECORD_MAX 32768u
 
+/* Native-app storage consumers and RPMsgFS admission share these names. */
+#define BKPROV_NATIVE_ROOT "/cpdata/shaniu/native-apps"
+#define BKPROV_NATIVE_SCHEDULE "/schedule"
+#define BKPROV_NATIVE_STATE_DIRECTORY "/state"
+#define BKPROV_NATIVE_STATE "/state/"
+#define BKPROV_NATIVE_LEGACY_STATE "/state-"
+
 /* One filesystem worker owns this store (AP may use CP RPMsgFS). root is a private
  * directory on the on-chip LittleFS, never an AP MSC/removable volume.
  * No mount, format, identity generation or network side effects occur here.

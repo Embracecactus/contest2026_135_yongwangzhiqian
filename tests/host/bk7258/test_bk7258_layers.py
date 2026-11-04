@@ -370,12 +370,34 @@ def test_include_gate_preprocessor_boundaries() -> None:
         )
 
 
+def test_inc_implementation_is_audited() -> None:
+    """An implementation fragment included by C must not bypass the gate."""
+
+    with tempfile.TemporaryDirectory(prefix="bk7258-layers-inc-") as temporary:
+        root = Path(temporary)
+        _fixture(root)
+        _write(
+            root,
+            "app/bk7258/entry.c",
+            '#include "unsafe.inc"\nint entry(void) { return unsafe(); }\n',
+        )
+        _write(
+            root,
+            "app/bk7258/unsafe.inc",
+            "int unsafe(void) { return BK7258_BOARD_LCD_BUS; }\n",
+        )
+        assert "APP_PHYSICAL_RESOURCE" in _codes_for(
+            root, "app/bk7258/unsafe.inc"
+        )
+
+
 def main() -> int:
     test_clean_fixture()
     test_all_boundary_failures()
     test_include_gate_whitespace_boundaries()
     test_include_gate_quoted_headers()
     test_include_gate_preprocessor_boundaries()
+    test_inc_implementation_is_audited()
     test_app_and_board_build_sdk_boundaries()
     test_legacy_exception_is_hash_bound()
     print("BK7258_LAYER_TEST_PASS")

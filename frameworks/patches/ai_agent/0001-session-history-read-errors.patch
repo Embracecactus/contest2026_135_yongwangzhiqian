@@ -1,0 +1,45 @@
+diff --git a/src/core/session_mgr.c b/src/core/session_mgr.c
+index 64d11f1d..383043e4 100644
+--- a/src/core/session_mgr.c
++++ b/src/core/session_mgr.c
+@@ -173,9 +173,17 @@ int session_get_history_json(const char *chat_id, char *buf, size_t size, int ma
+ 
+     FILE *f = fopen(path, "r");
+     if (!f) {
+-        snprintf(buf, size, "[]");
++        if (errno == ENOENT) {
++            snprintf(buf, size, "[]");
++            pthread_mutex_unlock(&s_session_lock);
++            return OK;
++        }
++        int open_error = errno;
++        syslog(LOG_ERR, "[%s] Cannot read session file %s: %d\n",
++               TAG, path, open_error);
+         pthread_mutex_unlock(&s_session_lock);
+-        return OK;
++        errno = open_error;
++        return ERROR;
+     }
+ 
+     /* VLA alternative: static ring buffer (max_msgs is bounded by caller) */
+@@ -201,7 +207,19 @@ int session_get_history_json(const char *chat_id, char *buf, size_t size, int ma
+         write_idx = (write_idx + 1) % max_msgs;
+         if (count < max_msgs) count++;
+     }
+-    fclose(f);
++    int read_error = ferror(f) ? (errno ? errno : EIO) : 0;
++    if (fclose(f) != 0 && read_error == 0) read_error = errno ? errno : EIO;
++    if (read_error != 0) {
++        int cleanup_start = (count < max_msgs) ? 0 : write_idx;
++        for (int i = 0; i < count; i++) {
++            cJSON_Delete(messages[(cleanup_start + i) % max_msgs]);
++        }
++        syslog(LOG_ERR, "[%s] Cannot finish reading session file %s: %d\n",
++               TAG, path, read_error);
++        pthread_mutex_unlock(&s_session_lock);
++        errno = read_error;
++        return ERROR;
++    }
+ 
+     cJSON *arr = cJSON_CreateArray();
+     int start = (count < max_msgs) ? 0 : write_idx;

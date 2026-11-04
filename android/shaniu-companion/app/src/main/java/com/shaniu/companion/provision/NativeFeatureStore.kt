@@ -4,6 +4,8 @@ package com.shaniu.companion.provision
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import java.net.URL
+import android.os.SystemClock
+import java.io.InputStream
 import javax.net.ssl.HttpsURLConnection
 import java.security.MessageDigest
 import java.security.KeyFactory
@@ -13,11 +15,19 @@ import java.security.spec.ECGenParameterSpec
 import java.security.spec.ECParameterSpec
 import java.security.spec.X509EncodedKeySpec
 import java.util.Base64
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 /** Strict, bounded parsing for packages fetched or selected by the user. */
 internal object NativeFeatureStore {
     const val MAX_PACKAGE_BYTES = 24_576
     private const val MAX_INDEX_BYTES = 65_536
+    private const val FETCH_TIMEOUT_MS = 30_000L
+    private const val CONNECT_TIMEOUT_MS = 10_000
+    private const val READ_TIMEOUT_MS = 15_000
+    private val fetchDeadlineExecutor = Executors.newSingleThreadScheduledExecutor { task ->
+        Thread(task, "ShaniuStoreDeadline").apply { isDaemon = true }
+    }
     data class Entry(val id: String, val name: String, val description: String, val version: Long,
                      val packageUrl: String, val sha256: String)
 
@@ -141,23 +151,61 @@ internal object NativeFeatureStore {
 
     private fun fetch(value: String, limit: Int): ByteArray {
         require(isHttps(value))
+        val deadline = SystemClock.elapsedRealtime() + FETCH_TIMEOUT_MS
         val connection = (URL(value).openConnection() as HttpsURLConnection).apply {
-            instanceFollowRedirects = false; connectTimeout = 10_000; readTimeout = 15_000
+            instanceFollowRedirects = false
+            connectTimeout = remainingTimeout(deadline, CONNECT_TIMEOUT_MS)
+            readTimeout = remainingTimeout(deadline, READ_TIMEOUT_MS)
         }
+        // URLConnection's read timeout is an inactivity bound.  This watchdog
+        // also interrupts a connected stream that keeps making slow progress.
+        val cancellation = fetchDeadlineExecutor.schedule(
+            { connection.disconnect() },
+            remainingTimeout(deadline, FETCH_TIMEOUT_MS.toInt()).toLong(),
+            TimeUnit.MILLISECONDS,
+        )
         return try {
             require(connection.responseCode == HttpsURLConnection.HTTP_OK)
             require(connection.contentLengthLong == -1L || connection.contentLengthLong in 1..limit.toLong())
             connection.inputStream.use { input ->
-            val result = java.io.ByteArrayOutputStream()
-            val buffer = ByteArray(4096)
-            while (true) {
-                val count = input.read(buffer)
-                if (count < 0) break
-                require(result.size() + count <= limit)
-                result.write(buffer, 0, count)
+                readBounded(input, limit, deadline, SystemClock::elapsedRealtime) {
+                    connection.readTimeout = remainingTimeout(deadline, READ_TIMEOUT_MS)
+                }
             }
-            result.toByteArray().also { require(it.isNotEmpty()) }
-        }} finally { connection.disconnect() }
+        } finally {
+            cancellation.cancel(false)
+            connection.disconnect()
+        }
+    }
+
+    /** Every blocking read is bounded by the remaining whole-download budget. */
+    internal fun readBounded(
+        input: InputStream,
+        limit: Int,
+        deadlineMs: Long,
+        nowMs: () -> Long,
+        beforeRead: () -> Unit = {},
+    ): ByteArray {
+        val result = java.io.ByteArrayOutputStream()
+        val buffer = ByteArray(4096)
+        while (true) {
+            require(nowMs() < deadlineMs)
+            beforeRead()
+            val count = input.read(buffer)
+            // Disconnect may surface as EOF.  It is not a successful complete
+            // download if the operation crossed its whole-download deadline.
+            require(nowMs() < deadlineMs)
+            if (count < 0) break
+            require(result.size() + count <= limit)
+            result.write(buffer, 0, count)
+        }
+        return result.toByteArray().also { require(it.isNotEmpty()) }
+    }
+
+    private fun remainingTimeout(deadlineMs: Long, capMs: Int): Int {
+        val remaining = deadlineMs - SystemClock.elapsedRealtime()
+        require(remaining > 0)
+        return minOf(remaining, capMs.toLong()).toInt().coerceAtLeast(1)
     }
 
     private fun text(array: com.google.gson.JsonArray, index: Int, limit: Int) {

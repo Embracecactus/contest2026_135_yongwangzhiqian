@@ -37,7 +37,7 @@
  ****************************************************************************/
 
 #ifndef BKNATIVE_ROOT
-#  define BKNATIVE_ROOT "/cpdata/shaniu/native-apps"
+#  define BKNATIVE_ROOT BKPROV_NATIVE_ROOT
 #endif
 
 #ifndef CONFIG_BK7258_NATIVE_PUBLISHER_SHA256
@@ -74,7 +74,7 @@
 #define BKNATIVE_PERMIT_LAST_V2 3u
 #define BKNATIVE_PERMIT_LAST_V3 5u
 
-#define BKNATIVE_SCHEDULE_ROOT BKNATIVE_ROOT "/schedule"
+#define BKNATIVE_SCHEDULE_ROOT BKNATIVE_ROOT BKPROV_NATIVE_SCHEDULE
 
 /****************************************************************************
  * Private Types
@@ -728,9 +728,11 @@ static int ensure_directory(const char *path)
 
 static void state_path(const char *id, char *path, size_t capacity)
 {
-  /* IDs are validated as [a-z0-9-], so they are safe path components. */
+  /* Keep the complete ID in its own component: the pinned NuttX requires
+   * intermediate components to be strictly shorter than NAME_MAX=32.
+   */
 
-  snprintf(path, capacity, BKNATIVE_ROOT "/state-%.31s", id);
+  snprintf(path, capacity, BKNATIVE_ROOT BKPROV_NATIVE_STATE "%.31s", id);
 }
 
 /* Loads up to size saved bytes; a missing or differently sized record
@@ -747,17 +749,33 @@ static int state_load(const char *id, uint8_t *out, uint32_t size)
   int ret;
 
   memset(out, 0, size);
-  state_path(id, path, sizeof(path));
-  ret = bkprov_store_open(&store, path);
-  if (ret == -ENOENT)
+  for (unsigned int attempt = 0; attempt < 2; attempt++)
     {
-      return 0;
-    }
+      if (!attempt)
+        {
+          state_path(id, path, sizeof(path));
+        }
+      else if (strlen(id) <= 25)
+        {
+          snprintf(path, sizeof(path), BKNATIVE_ROOT BKPROV_NATIVE_LEGACY_STATE
+                   "%.31s", id);
+        }
+      else
+        {
+          break;
+        }
 
-  if (!ret)
-    {
-      ret = bkprov_store_load(&store, record, sizeof(record), &length,
-                              &revision, NULL);
+      ret = bkprov_store_open(&store, path);
+      if (!ret)
+        {
+          ret = bkprov_store_load(&store, record, sizeof(record), &length,
+                                  &revision, NULL);
+        }
+
+      if (ret != -ENOENT)
+        {
+          break;
+        }
     }
 
   if (ret == -ENOENT)
@@ -771,6 +789,16 @@ static int state_load(const char *id, uint8_t *out, uint32_t size)
     }
 
   return ret;
+}
+
+static void state_remove_directory(const char *path)
+{
+  char file[128];
+  snprintf(file, sizeof(file), "%s/config.bin", path);
+  (void)unlink(file);
+  snprintf(file, sizeof(file), "%s/config.pending", path);
+  (void)unlink(file);
+  (void)rmdir(path);
 }
 
 static int state_save(const char *id, const uint8_t *data, uint32_t size)
@@ -789,7 +817,11 @@ static int state_save(const char *id, const uint8_t *data, uint32_t size)
   int ret;
 
   state_path(id, path, sizeof(path));
-  ret = ensure_directory(path);
+  ret = ensure_directory(BKNATIVE_ROOT BKPROV_NATIVE_STATE_DIRECTORY);
+  if (!ret)
+    {
+      ret = ensure_directory(path);
+    }
   if (!ret)
     {
       ret = bkprov_store_open(&store, path);
@@ -815,19 +847,29 @@ static int state_save(const char *id, const uint8_t *data, uint32_t size)
                                 4 + size);
     }
 
+  if (!ret && strlen(id) <= 25)
+    {
+      /* Retire the old short-ID path only after durable publication. */
+
+      snprintf(path, sizeof(path), BKNATIVE_ROOT BKPROV_NATIVE_LEGACY_STATE
+               "%.31s", id);
+      state_remove_directory(path);
+    }
+
   return ret;
 }
 
 static void state_remove(const char *id)
 {
   char path[96];
-  char file[128];
   state_path(id, path, sizeof(path));
-  snprintf(file, sizeof(file), "%s/config.bin", path);
-  (void)unlink(file);
-  snprintf(file, sizeof(file), "%s/config.pending", path);
-  (void)unlink(file);
-  (void)rmdir(path);
+  state_remove_directory(path);
+  if (strlen(id) <= 25)
+    {
+      snprintf(path, sizeof(path), BKNATIVE_ROOT BKPROV_NATIVE_LEGACY_STATE
+               "%.31s", id);
+      state_remove_directory(path);
+    }
 }
 
 static int schedule_commit_locked(const struct native_schedule_s *next)
@@ -883,6 +925,10 @@ static int schedule_commit_locked(const struct native_schedule_s *next)
     {
       g_schedule_revision++;
       memcpy(g_schedule, next, sizeof(g_schedule));
+    }
+  else if (ret == -EINPROGRESS)
+    {
+      g_schedule_error = ret;
     }
 
   free(serialized);
@@ -957,6 +1003,44 @@ static int schedule_load_locked(void)
     }
 
   cJSON_Delete(root);
+  return ret;
+}
+
+static int schedule_prune_locked(const struct native_info_s *apps,
+                                  unsigned int count)
+{
+  struct native_schedule_s next[BKNATIVE_SCHEDULE_MAX];
+  bool changed = false;
+
+  if (g_schedule_error)
+    {
+      return g_schedule_error;
+    }
+
+  memcpy(next, g_schedule, sizeof(next));
+  for (unsigned int slot = 0; slot < BKNATIVE_SCHEDULE_MAX; slot++)
+    {
+      bool installed = false;
+      for (unsigned int app = 0; next[slot].hash && app < count; app++)
+        {
+          installed = installed ||
+            bknative_app_hash(apps[app].id) == next[slot].hash;
+        }
+
+      if (next[slot].hash && !installed)
+        {
+          memset(&next[slot], 0, sizeof(next[slot]));
+          changed = true;
+        }
+    }
+
+  int ret = changed ? schedule_commit_locked(next) : 0;
+  if (changed && !ret)
+    {
+      g_revision++;
+      publish_locked();
+    }
+
   return ret;
 }
 
@@ -1101,6 +1185,15 @@ int bknative_init(void)
   /* A damaged schedule disables only scheduling; apps remain usable. */
 
   g_schedule_error = schedule_load_locked();
+  if (!g_schedule_error && !ret)
+    {
+      /* Reclaim orphaned slots left by older firmware before reinstalling
+       * the same app ID could make its old jobs runnable again.
+       */
+
+      g_schedule_error = schedule_prune_locked(g_apps, g_count);
+    }
+
   if (g_schedule_error)
     {
       syslog(LOG_WARNING, "BKNATIVE schedule load=%d\n", g_schedule_error);
@@ -1144,6 +1237,18 @@ static int commit(cJSON *next)
   if (strlen(serialized) > BKPROV_STORE_RECORD_MAX)
     {
       ret = -ENOSPC;
+      goto done;
+    }
+
+  /* Cancel removed apps' jobs durably before publishing the new catalog.
+   * If the catalog write later fails, the app stays installed with its jobs
+   * canceled; retrying uninstall is safe. An uncertain schedule write must
+   * be reconciled by init before either catalog or schedule can change.
+   */
+
+  ret = schedule_prune_locked(infos, count);
+  if (ret)
+    {
       goto done;
     }
 
@@ -1819,7 +1924,7 @@ int bknative_schedule_step(bool admitted)
 
   pthread_mutex_lock(&g_lock);
   uint32_t weekday = (g_clock_day + 4u) % 7u;
-  for (unsigned int slot = 0; !g_error && g_clock_valid &&
+  for (unsigned int slot = 0; !g_error && !g_schedule_error && g_clock_valid &&
        slot < BKNATIVE_SCHEDULE_MAX; slot++)
     {
       struct native_schedule_s *entry = &g_schedule[slot];

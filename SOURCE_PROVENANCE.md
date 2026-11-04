@@ -1,6 +1,24 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # 源码许可证与来源记录
 
+## 2026-11-04 Agent 会话历史读取的失败语义
+
+`frameworks/patches/ai_agent/0001-session-history-read-errors.patch` 是对
+`Embracecactus/packages_ai_agent` 固定提交
+`76c65bc6231a7eeb49c32f8938a3d005a4221776` 的
+`src/core/session_mgr.c`（SHA-256
+`132b0848384c89e4d7e15da63a3ecd5e5bc3914332adba0208d3eca474f4b93c`）的最小
+Apache-2.0 差分；保留该文件的 Xiaomi Apache-2.0 和 MimiClaw MIT 来源声明。
+它只把 `ENOENT` 定义为新会话的空历史；已有文件的打开、读取或关闭失败保持官方
+`ERROR + errno` 契约。`frameworks/cmake/agent_framework.cmake` 在构建目录复制
+并校验该唯一固定输入后应用补丁、替换 Agent target 的该一个编译单元；不会改写共享
+`packages/ai_agent` checkout，源哈希、补丁不适用或 target 布局漂移都会使配置失败。
+产品 `bkagent_memory_commit` 因而不会把不可读历史编码为新的持久快照。主机回归
+`tests/host/bk7258/test_agent_session_history_memory.c` 由既有 Makefile 在临时目录
+应用同一补丁后链接真实 `bkagent_memory_commit` 与 `session_mgr.c`；它以测试局部、
+按会话路径限定的 `fopen` 注入覆盖打开 `EIO` 和首行读取后的 `EIO`，逐次核对旧的
+持久快照 revision 不变，并在故障解除后验证正常读取可发布下一 revision。
+
 ## 2026-11-04 Android 启动图标：短发陪伴角色
 
 当前启动图标以虚构成年短发角色表达“我在”的陪伴主题。前景由内置图像生成工具按

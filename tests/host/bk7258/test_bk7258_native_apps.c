@@ -34,6 +34,8 @@ static int g_opens;
 static int g_closes;
 static int g_loader_mode;
 static int g_commit_failure;
+static int g_schedule_commit_failure;
+static int g_catalog_commit_failure;
 int __real_bkprov_store_commit(struct bkprov_store_s *store, uint64_t expected,
                                const uint8_t transaction[16], const void *bundle,
                                size_t size);
@@ -41,6 +43,10 @@ int __wrap_bkprov_store_commit(struct bkprov_store_s *store, uint64_t expected,
                                const uint8_t transaction[16], const void *bundle,
                                size_t size)
 {
+  if (g_schedule_commit_failure && strstr(store->directory, "/schedule"))
+    return g_schedule_commit_failure;
+  if (g_catalog_commit_failure && !strcmp(store->directory, "/tmp/bk7258-native-apps"))
+    return g_catalog_commit_failure;
   return g_commit_failure ? g_commit_failure :
     __real_bkprov_store_commit(store, expected, transaction, bundle, size);
 }
@@ -491,17 +497,36 @@ int main(void)
     assert(bknative_step(100, true, &out) == 1); bknative_post_events(BKNATIVE_EVENT_MOVED);
     assert(bknative_step(200, true, &out) == 0);
     struct bkprov_store_s store; uint8_t record[64]; size_t length; uint64_t revision;
-    assert(bkprov_store_open(&store, "/tmp/bk7258-native-apps/state-nudge") == 0 &&
+    assert(bkprov_store_open(&store, "/tmp/bk7258-native-apps/state/nudge") == 0 &&
            bkprov_store_load(&store, record, sizeof(record), &length, &revision, NULL) == 0 &&
            length == 20 && !memcmp(record, "NSV1", 4));
     uint32_t saved[4]; memcpy(saved, record + 4, 16);
     assert(saved[0] == 20001 && saved[1] == 2 && saved[2] == 2 && saved[3] == 3);
+    /* A previously deployed short-ID save remains readable until a durable
+     * write migrates it to the bounded state/<id> path.
+     */
+    assert(rename("/tmp/bk7258-native-apps/state/nudge", "/tmp/bk7258-native-apps/state-nudge") == 0);
+    assert(bknative_launch(bknative_app_hash("nudge"), 60) == 0);
+    assert(bknative_step(100, true, &out) == 1);
+    bknative_post_events(BKNATIVE_EVENT_MOVED);
+    g_commit_failure = -EIO;
+    assert(bknative_step(200, true, &out) == 0);
+    g_commit_failure = 0;
+    assert(access("/tmp/bk7258-native-apps/state-nudge/config.bin", F_OK) == 0);
+    assert(bknative_launch(bknative_app_hash("nudge"), 60) == 0);
+    assert(bknative_step(100, true, &out) == 1);
+    bknative_post_events(BKNATIVE_EVENT_MOVED);
+    assert(bknative_step(200, true, &out) == 0);
+    assert(access("/tmp/bk7258-native-apps/state-nudge", F_OK) != 0);
+    assert(bkprov_store_open(&store, "/tmp/bk7258-native-apps/state/nudge") == 0 &&
+           bkprov_store_load(&store, record, sizeof(record), &length, &revision, NULL) == 0);
+    memcpy(saved, record + 4, 16); assert(saved[3] == 4);
     /* A miss (timeout) is a clean completion with result 2 and no write. */
     uint64_t before = revision;
     assert(bknative_launch(bknative_app_hash("nudge"), 1) == 0);
     assert(bknative_step(100, true, &out) == 1 && bknative_step(1200, true, &out) == 0);
     bknative_catalog_read(&catalog); assert(catalog.last_value == 2);
-    assert(bkprov_store_open(&store, "/tmp/bk7258-native-apps/state-nudge") == 0 &&
+    assert(bkprov_store_open(&store, "/tmp/bk7258-native-apps/state/nudge") == 0 &&
            bkprov_store_load(&store, record, sizeof(record), &length, &revision, NULL) == 0 && revision == before);
     /* A failed save is reported but is not an app fault. */
     assert(bknative_launch(bknative_app_hash("nudge"), 60) == 0);
@@ -512,7 +537,7 @@ int main(void)
     g_loader_mode = 0; }
   /* An update keeps saved state; uninstall deletes it. */
   assert(install_with(&key, &random, "nudge", 2, 3, "\"display\",\"motion\",\"haptic\",\"clock\",\"storage\"],\"results\":[\"完成\",\"错过\"", image, image_size, state, sizeof(state)) == 0);
-  assert(access("/tmp/bk7258-native-apps/state-nudge/config.bin", F_OK) == 0);
+  assert(access("/tmp/bk7258-native-apps/state/nudge/config.bin", F_OK) == 0);
   /* Sit reminder: quiet while moving, nudges after stillness, done on move. */
   assert(install_with(&key, &random, "sit", 1, 3, "\"display\",\"motion\",\"haptic\"],\"results\":[\"起来了\",\"还没动\",\"一直在活动\"", image, image_size, state, sizeof(state)) == 0);
   { struct bknative_output_s out; g_loader_mode = 9;
@@ -568,10 +593,91 @@ int main(void)
     bknative_catalog_read(&catalog);
     assert(!catalog.schedule[0].app_hash && !catalog.schedule[1].app_hash && catalog.schedule[2].app_hash);
     g_loader_mode = 0; }
-  assert(bknative_read(state, sizeof(state)) == 0 && apply("uninstall", "\"id\":\"nudge\"", state, sizeof(state)) == 0);
-  assert(access("/tmp/bk7258-native-apps/state-nudge", F_OK) != 0);
-  /* Schedule entries for an uninstalled app remain visible but cannot run. */
-  assert(bknative_read(state, sizeof(state)) == 0 && strstr(state, "{\"id\":\"\",\"minute\":902"));
+  /* Uninstall cancels all matching jobs before changing the app catalog. */
+  {
+    uint32_t nudge = bknative_app_hash("nudge");
+    unsigned char old_schedule[1024];
+    size_t old_size;
+    FILE *saved;
+    assert(bknative_schedule_set(nudge, 1000, BKNATIVE_DAYS_ALL, 5) == 0);
+    assert(bknative_schedule_set(nudge, 1001, BKNATIVE_DAYS_ALL, 5) == 0);
+    assert(bknative_schedule_set(nudge, 1002, BKNATIVE_DAYS_ALL, 5) == -ENOSPC);
+    saved = fopen("/tmp/bk7258-native-apps/schedule/config.bin", "rb");
+    assert(saved);
+    old_size = fread(old_schedule, 1, sizeof(old_schedule), saved);
+    assert(old_size && old_size < sizeof(old_schedule) && fclose(saved) == 0);
+    for (int unknown = 0; unknown < 2; unknown++)
+      {
+        g_schedule_commit_failure = unknown ? -EINPROGRESS : -EIO;
+        assert(bknative_read(state, sizeof(state)) == 0);
+        assert(apply("uninstall", "\"id\":\"nudge\"", state, sizeof(state)) == g_schedule_commit_failure);
+        assert(bknative_read(state, sizeof(state)) == 0 &&
+               strstr(app_json(state, "nudge", entry, sizeof(entry)), "nudge"));
+        if (unknown)
+          {
+            bknative_set_clock(true, 1000, 20004);
+            assert(bknative_schedule_step(true) == 0);
+            assert(bknative_schedule_clear(nudge) == -EINPROGRESS);
+          }
+        g_schedule_commit_failure = 0;
+        assert(bknative_init() == 0);
+      }
+    assert(bknative_read(state, sizeof(state)) == 0 && apply("uninstall", "\"id\":\"nudge\"", state, sizeof(state)) == 0);
+    assert(access("/tmp/bk7258-native-apps/state/nudge", F_OK) != 0);
+    bknative_catalog_read(&catalog);
+    for (unsigned int slot = 0; slot < BKNATIVE_SCHEDULE_MAX; slot++)
+      assert(catalog.schedule[slot].app_hash != nudge);
+    assert(bknative_schedule_set(bknative_app_hash("decide"), 1002, BKNATIVE_DAYS_ALL, 5) == 0);
+
+    /* Boot also repairs orphaned records produced by previous firmware. */
+    saved = fopen("/tmp/bk7258-native-apps/schedule/config.bin", "wb");
+    assert(saved && fwrite(old_schedule, 1, old_size, saved) == old_size && fclose(saved) == 0);
+    for (int restart = 0; restart < 2; restart++)
+      {
+        assert(bknative_init() == 0);
+        bknative_catalog_read(&catalog);
+        for (unsigned int slot = 0; slot < BKNATIVE_SCHEDULE_MAX; slot++)
+          assert(catalog.schedule[slot].app_hash != nudge);
+      }
+    assert(install_with(&key, &random, "nudge", 3, 3, "\"display\",\"clock\",\"storage\"", image, image_size, state, sizeof(state)) == 0);
+    bknative_catalog_read(&catalog);
+    for (unsigned int slot = 0; slot < BKNATIVE_SCHEDULE_MAX; slot++)
+      assert(catalog.schedule[slot].app_hash != nudge);
+
+    /* A later catalog failure retains the app, with its jobs already canceled. */
+    assert(bknative_schedule_set(nudge, 1000, BKNATIVE_DAYS_ALL, 5) == 0);
+    g_catalog_commit_failure = -EIO;
+    assert(bknative_read(state, sizeof(state)) == 0 && apply("uninstall", "\"id\":\"nudge\"", state, sizeof(state)) == -EIO);
+    g_catalog_commit_failure = 0;
+    bknative_catalog_read(&catalog);
+    for (unsigned int slot = 0; slot < BKNATIVE_SCHEDULE_MAX; slot++)
+      assert(catalog.schedule[slot].app_hash != nudge);
+    assert(bknative_read(state, sizeof(state)) == 0 && apply("uninstall", "\"id\":\"nudge\"", state, sizeof(state)) == 0);
+  }
+
+  /* A full 31-byte ID can load, save and reload without truncating its name. */
+  {
+    const char *long_id = "abcdefghijklmnopqrstuvwxyzabcde";
+    struct bknative_output_s out;
+    assert(strlen(long_id) == 31);
+    assert(install_with(&key, &random, long_id, 1, 3,
+      "\"display\",\"motion\",\"haptic\",\"clock\",\"storage\"] ,\"results\":[\"done\",\"missed\"",
+      image, image_size, state, sizeof(state)) == 0);
+    g_loader_mode = 8;
+    bknative_set_clock(true, 600, 20005);
+    for (int pass = 0; pass < 2; pass++)
+      {
+        assert(bknative_launch(bknative_app_hash(long_id), 60) == 0);
+        assert(bknative_step(100, true, &out) == 1);
+        bknative_post_events(BKNATIVE_EVENT_MOVED);
+        assert(bknative_step(200, true, &out) == 0);
+      }
+    assert(access("/tmp/bk7258-native-apps/state/abcdefghijklmnopqrstuvwxyzabcde/config.bin", F_OK) == 0);
+    assert(bknative_read(state, sizeof(state)) == 0 && apply("uninstall",
+      "\"id\":\"abcdefghijklmnopqrstuvwxyzabcde\"", state, sizeof(state)) == 0);
+    assert(access("/tmp/bk7258-native-apps/state/abcdefghijklmnopqrstuvwxyzabcde", F_OK) != 0);
+    g_loader_mode = 0;
+  }
 
   /* Fault counts are boot-local: a restart reloads the record without them. */
   assert(bknative_init() == 0 && bknative_read(state, sizeof(state)) == 0 &&
