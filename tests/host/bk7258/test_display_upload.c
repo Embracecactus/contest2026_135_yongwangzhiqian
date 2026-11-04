@@ -21,9 +21,21 @@ static int sync_fault;
 static int close_fault;
 static int close_calls;
 static int directory_fault;
+static int interrupt_publish;
 ssize_t __real_write(int fd, const void *data, size_t size);
 int __real_fsync(int fd);
 int __real_close(int fd);
+int __real_rename(const char *from, const char *to);
+
+int __wrap_rename(const char *from, const char *to)
+{
+  int ret = __real_rename(from, to);
+  if (ret == 0 && interrupt_publish && strstr(from, "/.upload.bkep"))
+    {
+      _exit(23);
+    }
+  return ret;
+}
 
 ssize_t __wrap_write(int fd, const void *data, size_t size)
 {
@@ -77,6 +89,20 @@ static int remove_entry(const char *path, const struct stat *st, int type,
   return remove(path);
 }
 
+#ifndef UPLOAD_BASELINE
+static void append_pack(struct bkdisplay_upload_s *upload,
+                        const unsigned char *bytes, size_t size)
+{
+  for (size_t offset = 0; offset < size;)
+    {
+      size_t count = size - offset;
+      if (count > BKDISPLAY_UPLOAD_CHUNK_MAX) count = BKDISPLAY_UPLOAD_CHUNK_MAX;
+      assert(bkdisplay_upload_append(upload, offset, bytes + offset, count) == 0);
+      offset += count;
+    }
+}
+#endif
+
 int main(int argc, char **argv)
 {
   char root[] = "/tmp/bkdisplay-upload-XXXXXX";
@@ -105,12 +131,56 @@ int main(int argc, char **argv)
       assert(memcmp(kept, "owned", 5) == 0 && close(fd) == 0);
     }
 #ifndef UPLOAD_BASELINE
+  else if (strcmp(argv[2], "published-recover") == 0)
+    {
+      struct bkdisplay_upload_s upload = {0};
+      struct bkdisplay_store_selection_s selected;
+      struct bkdisplay_pack_s *pack = NULL;
+      pid_t child = fork();
+      int status;
+      assert(child >= 0);
+      if (child == 0)
+        {
+          interrupt_publish = 1;
+          assert(bkdisplay_upload_begin(&upload, root, size) == 0);
+          append_pack(&upload, bytes, size);
+          (void)bkdisplay_upload_finish(&upload, NULL);
+          _exit(99);
+        }
+      assert(waitpid(child, &status, 0) == child && WIFEXITED(status));
+      assert(WEXITSTATUS(status) == 23);
+      assert(bkdisplay_upload_recover(&upload, root) == 0);
+      assert(bkdisplay_store_open_installed(root, "shaniu-default-v1.bkep",
+                                            &selected, &pack) == 0);
+      bkdisplay_pack_close(pack);
+      snprintf(path, sizeof(path), "%s/shaniu/display/active.json", root);
+      assert(access(path, F_OK) < 0 && errno == ENOENT);
+      assert(bkdisplay_upload_begin(&upload, root, size) == 0);
+      append_pack(&upload, bytes, size);
+      assert(bkdisplay_upload_finish(&upload, NULL) == -EEXIST);
+      assert(bkdisplay_store_open_installed(root, "shaniu-default-v1.bkep",
+                                            &selected, &pack) == 0);
+      bkdisplay_pack_close(pack);
+    }
   else
     {
       struct bkdisplay_upload_s upload = {0};
       struct bkdisplay_upload_s competitor = {0};
       struct bkdisplay_store_selection_s selected;
       size_t offset = 0;
+      if (strcmp(argv[2], "staged-recover") == 0)
+        {
+          char staged[512];
+          /* Old firmware could stop between its two publication renames.
+           * The same name may also be an explicitly staged local install.
+           */
+          snprintf(staged, sizeof(staged),
+                   "%s/shaniu/display/staging/shaniu-default-v1.bkep", root);
+          fd = open(staged, O_CREAT | O_EXCL | O_WRONLY, 0600);
+          assert(fd >= 0 && write(fd, bytes, size) == (ssize_t)size);
+          assert(fsync(fd) == 0 && close(fd) == 0);
+          assert(bkdisplay_upload_recover(&upload, root) == 0);
+        }
       if (strcmp(argv[2], "preserve") == 0 ||
           strcmp(argv[2], "corrupt") == 0 ||
           strncmp(argv[2], "activate-", 9) == 0)
@@ -285,6 +355,17 @@ int main(int argc, char **argv)
         }
     }
 #endif
+  if (strcmp(argv[2], "staged-recover") == 0)
+    {
+      unsigned char *kept = malloc(size);
+      assert(kept != NULL);
+      snprintf(path, sizeof(path),
+               "%s/shaniu/display/staging/shaniu-default-v1.bkep", root);
+      fd = open(path, O_RDONLY);
+      assert(fd >= 0 && read(fd, kept, size) == (ssize_t)size);
+      assert(memcmp(kept, bytes, size) == 0 && close(fd) == 0);
+      free(kept);
+    }
   free(bytes);
   assert(nftw(root, remove_entry, 16, FTW_DEPTH | FTW_PHYS) == 0);
   puts("CONTRACT_PASS");

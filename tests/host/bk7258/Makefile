@@ -385,11 +385,13 @@ $(BUILD)/test_display_upload: test_display_upload.c \
 	$(DISPLAY_PACK_FIXTURE) $(BUILD)/upload-second.bkep | $(BUILD)
 	$(CC) $(VOICE_PACK_CFLAGS) test_display_upload.c \
 		$(VOICE_PACK_ROOT)/bk7258_display_pack.c $(VOICE_PACK_ROOT)/bk7258_display_store.c \
-		-I $(VOICE_PACK_ROOT) -Wl,--wrap=write,--wrap=fsync,--wrap=close -o $@
+		-I $(VOICE_PACK_ROOT) -Wl,--wrap=write,--wrap=fsync,--wrap=close,--wrap=rename -o $@
 
 run-display-upload: $(BUILD)/test_display_upload
 	./$(BUILD)/test_display_upload $(DISPLAY_PACK_FIXTURE) interrupted-recover
 	./$(BUILD)/test_display_upload $(DISPLAY_PACK_FIXTURE) active-recover
+	./$(BUILD)/test_display_upload $(DISPLAY_PACK_FIXTURE) staged-recover
+	./$(BUILD)/test_display_upload $(DISPLAY_PACK_FIXTURE) published-recover
 
 $(BUILD)/test_display_selection: test_display_selection.c \
 	$(VOICE_PACK_ROOT)/bk7258_display_store.c $(VOICE_PACK_ROOT)/bk7258_display_store.h \
@@ -2068,7 +2070,7 @@ $(AGENT_SESSION_HISTORY_MEMORY_TARGET): test_agent_session_history_memory.c \
 		$(VOICE_PACK_ROOT)/bk7258_memory_facts.c \
 		$(VOICE_PACK_ROOT)/bk7258_provision_store.c \
 		$(OPENVELA_ROOT)/apps/netutils/cjson/cJSON/cJSON.c \
-		-Wl,--wrap=fopen $(VOICE_OTA_MBEDCRYPTO) -lm -o $@
+		-Wl,--wrap=fopen,--wrap=cJSON_PrintUnformatted $(VOICE_OTA_MBEDCRYPTO) -lm -o $@
 
 .PHONY: run-agent-session-history-memory
 run-agent-session-history-memory: $(AGENT_SESSION_HISTORY_MEMORY_TARGET)

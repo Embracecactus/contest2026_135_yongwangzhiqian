@@ -317,6 +317,22 @@ origin, station ownership, Beken calibration/test tool roles and the production
 acceptance gates are defined by the maintained
 [RF calibration and factory-provisioning contract](../rf-calibration-and-factory-provisioning.md).
 
+A retained factory input can have an erased `persistent_data` volume and no
+first-use journal. Normal full recovery preserves both; successful boot and
+healthy CP/AP do not prove that the product can load an identity or advertise
+over BLE. Do not infer missing cloud configuration from an unmounted volume.
+
+When first-use initialization is required and explicitly authorized, use the
+existing `release full --factory-init` path and its `recommended_flash` factory
+derivative. This initializes the declared mutable ranges and creates a new
+device pairing identity; the phone must claim the new on-screen code. It is
+not a routine recovery flag for an already provisioned device.
+
+After a requested full download, check `bkdata status` for `littlefs=yes` and
+`bkprov status` for `identity=present` before accepting product initialization.
+For a phone-connectivity task, also verify actual discovery, claim and an
+authenticated fresh status read. A version/counter check alone is insufficient.
+
 ## Hardware boundary
 
 UART, J-Link and Flash transport remain in:

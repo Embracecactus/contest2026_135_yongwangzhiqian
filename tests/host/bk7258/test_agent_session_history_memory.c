@@ -4,10 +4,12 @@
 #include "bk7258_preferences.h"
 #include "bk7258_provision_store.h"
 #include "core/session_mgr.h"
+#include "cJSON.h"
 
 #include <assert.h>
 #include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 
@@ -22,6 +24,9 @@ enum fault_e { FAULT_NONE, FAULT_FOPEN_EIO, FAULT_MIDREAD_EIO };
 static enum fault_e g_fault;
 static const char *g_session_path;
 static size_t g_cookie_offset;
+static int g_cjson_fail_after = -1;
+static unsigned int g_cjson_allocations;
+static unsigned int g_cjson_faults;
 static const char g_cookie_line[] =
   "{\"role\":\"user\",\"content\":\"second-user\"}\n";
 
@@ -66,6 +71,60 @@ FILE *__wrap_fopen(const char *path, const char *mode)
   return __real_fopen(path, mode);
 }
 
+char *__real_cJSON_PrintUnformatted(const cJSON *item);
+
+char *__wrap_cJSON_PrintUnformatted(const cJSON *item)
+{
+  if (g_cjson_fail_after == -2 && cJSON_IsArray(item))
+    {
+      g_cjson_fail_after = -1;
+      g_cjson_faults++;
+      errno = ENOMEM;
+      return NULL;
+    }
+  return __real_cJSON_PrintUnformatted(item);
+}
+
+static void *fault_malloc(size_t size)
+{
+  g_cjson_allocations++;
+  if (g_cjson_fail_after == 0)
+    {
+      g_cjson_fail_after = -1;
+      g_cjson_faults++;
+      errno = ENOMEM;
+      return NULL;
+    }
+  if (g_cjson_fail_after > 0) g_cjson_fail_after--;
+  return malloc(size);
+}
+
+static void cjson_fault(int after)
+{
+  cJSON_Hooks hooks = { .malloc_fn = fault_malloc, .free_fn = free };
+  g_cjson_fail_after = after;
+  cJSON_InitHooks(&hooks);
+}
+
+static void cjson_fault_clear(void);
+
+static unsigned int cjson_export_allocations(void)
+{
+  char json[2048];
+
+  g_cjson_allocations = 0;
+  cjson_fault(-1);
+  assert(session_get_history_json("voice", json, sizeof(json), 6) == 0);
+  cjson_fault_clear();
+  return g_cjson_allocations;
+}
+
+static void cjson_fault_clear(void)
+{
+  cJSON_InitHooks(NULL);
+  g_cjson_fail_after = -1;
+}
+
 int bk7258_preferences_with_storage(int (*operation)(void *), void *context)
 {
   return operation(context);
@@ -99,11 +158,26 @@ static void expect_unchanged(const struct snapshot_state_s *before,
   struct snapshot_state_s after;
 
   g_fault = fault;
-  assert(bkagent_memory_commit(0, "second") != 0);
+  assert(bkagent_memory_commit(0, NULL) != 0);
   after = snapshot_state();
   assert(after.revision == before->revision && after.size == before->size);
   assert(!memcmp(after.bytes, before->bytes, after.size));
   g_fault = FAULT_NONE;
+}
+
+static void expect_cjson_unchanged(const struct snapshot_state_s *before,
+                                   int after)
+{
+  struct snapshot_state_s current;
+
+  g_cjson_faults = 0;
+  cjson_fault(after);
+  assert(bkagent_memory_commit(0, NULL) != 0);
+  assert(g_cjson_faults == 1);
+  cjson_fault_clear();
+  current = snapshot_state();
+  assert(current.revision == before->revision && current.size == before->size);
+  assert(!memcmp(current.bytes, before->bytes, current.size));
 }
 
 int main(void)
@@ -111,6 +185,7 @@ int main(void)
   static const uint8_t owner[32] = { 1 };
   unsigned char random = 1;
   struct snapshot_state_s before;
+  unsigned int allocation_points;
   char session_path[sizeof(TEST_SESSIONS) + 32];
 
   assert(mkdir(TEST_ROOT, 0700) == 0);
@@ -131,8 +206,18 @@ int main(void)
   g_session_path = session_path;
   expect_unchanged(&before, FAULT_FOPEN_EIO);
   expect_unchanged(&before, FAULT_MIDREAD_EIO);
-  assert(bkagent_memory_commit(0, "second") == 0);
+  allocation_points = cjson_export_allocations();
+  assert(allocation_points > 0 && allocation_points < 128);
+  for (unsigned int i = 0; i < allocation_points; i++)
+    expect_cjson_unchanged(&before, i);
+  g_cjson_faults = 0;
+  g_cjson_fail_after = -2;
+  expect_unchanged(&before, FAULT_NONE);
+  assert(g_cjson_faults == 1);
+  g_cjson_fail_after = -1;
+  assert(bkagent_memory_commit(0, NULL) == 0);
   assert(snapshot_state().revision == before.revision + 1);
-  puts("AGENT_SESSION_HISTORY_MEMORY_PASS");
+  printf("AGENT_SESSION_HISTORY_MEMORY_PASS allocation_points=%u\n",
+         allocation_points);
   return 0;
 }

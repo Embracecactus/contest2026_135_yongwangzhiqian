@@ -7,11 +7,15 @@ is described by the [feature inventory](../../docs/platforms/bk7258/shaniu-featu
 and the [desktop companion contract](../../docs/platforms/bk7258/shaniu-desktop-companion.md).
 Dated verification records retain their original version and evidence scope.
 
-- The owner AIDK now runs `0.7.131+777`, confirmed after a complete 8-MiB
-  download on 11-04. The image used the retained factory input, without a new
-  Flash readback or backup. CPU2 is online and the Supervisor reports zero
-  faults/recoveries in the captured window. Voice reports configuration
-  unavailable (`-11`); this is boot acceptance, not complete product acceptance.
+- The owner AIDK now runs `0.7.132+778` with App 59. The 11-04 download used
+  the retained factory input, without a new Flash readback or backup. An erased
+  data volume initially prevented identity loading and BLE discovery; the
+  owner then explicitly authorized first-use initialization and a new claim.
+  LittleFS, device identity, phone discovery, authenticated BLE and fresh
+  status readback now pass. CPU2 is online with zero Supervisor faults/recoveries
+  in the captured window. The owner subsequently confirmed real conversation
+  and photo capture, accepting this iteration. App OTA and physical power-loss
+  recovery were not exercised in this iteration.
   See the [three-round repair and full-download record](../../docs/verification/bk7258/2026-11-04-finals-review-repairs.md).
 - The 2026-10-25 reviewed team source was `930d75ae`. Its recorded validation covers
   three boards' CP/AP and unsigned BL1 builds, five SDK profiles, host checks,

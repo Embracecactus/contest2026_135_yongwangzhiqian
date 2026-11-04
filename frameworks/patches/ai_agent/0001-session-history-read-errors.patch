@@ -1,5 +1,5 @@
 diff --git a/src/core/session_mgr.c b/src/core/session_mgr.c
-index 64d11f1d..383043e4 100644
+index 64d11f1d..f7fe4a1b 100644
 --- a/src/core/session_mgr.c
 +++ b/src/core/session_mgr.c
 @@ -173,9 +173,17 @@ int session_get_history_json(const char *chat_id, char *buf, size_t size, int ma
@@ -22,7 +22,29 @@ index 64d11f1d..383043e4 100644
      }
  
      /* VLA alternative: static ring buffer (max_msgs is bounded by caller) */
-@@ -201,7 +207,19 @@ int session_get_history_json(const char *chat_id, char *buf, size_t size, int ma
+@@ -192,7 +200,20 @@ int session_get_history_json(const char *chat_id, char *buf, size_t size, int ma
+         if (line[0] == '\0') continue;
+ 
++        errno = 0;
+         cJSON *obj = cJSON_Parse(line);
+-        if (!obj) continue;
++        if (!obj) {
++            int parse_error = errno ? errno : EBADMSG;
++            int cleanup_start = (count < max_msgs) ? 0 : write_idx;
++            for (int i = 0; i < count; i++) {
++                cJSON_Delete(messages[(cleanup_start + i) % max_msgs]);
++            }
++            syslog(LOG_ERR, "[%s] Cannot parse session file %s: %d\n",
++                   TAG, path, parse_error);
++            fclose(f);
++            pthread_mutex_unlock(&s_session_lock);
++            errno = parse_error;
++            return ERROR;
++        }
+ 
+         if (count >= max_msgs) {
+             cJSON_Delete(messages[write_idx]);
+@@ -201,9 +221,30 @@ int session_get_history_json(const char *chat_id, char *buf, size_t size, int ma
          write_idx = (write_idx + 1) % max_msgs;
          if (count < max_msgs) count++;
      }
@@ -42,4 +64,51 @@ index 64d11f1d..383043e4 100644
 +    }
  
      cJSON *arr = cJSON_CreateArray();
++    if (!arr) {
++        int cleanup_start = (count < max_msgs) ? 0 : write_idx;
++        for (int i = 0; i < count; i++) {
++            cJSON_Delete(messages[(cleanup_start + i) % max_msgs]);
++        }
++        pthread_mutex_unlock(&s_session_lock);
++        errno = ENOMEM;
++        return ERROR;
++    }
      int start = (count < max_msgs) ? 0 : write_idx;
+     for (int i = 0; i < count; i++) {
+         int idx = (start + i) % max_msgs;
+@@ -212,11 +253,20 @@ int session_get_history_json(const char *chat_id, char *buf, size_t size, int ma
+         cJSON *entry = cJSON_CreateObject();
+         cJSON *role    = cJSON_GetObjectItem(src, "role");
+         cJSON *content = cJSON_GetObjectItem(src, "content");
+-        if (role && content) {
+-            cJSON_AddStringToObject(entry, "role",    role->valuestring);
+-            cJSON_AddStringToObject(entry, "content", content->valuestring);
++        if (!entry || (role && content &&
++            (!cJSON_AddStringToObject(entry, "role", role->valuestring) ||
++             !cJSON_AddStringToObject(entry, "content", content->valuestring))) ||
++            !cJSON_AddItemToArray(arr, entry)) {
++            cJSON_Delete(entry);
++            cJSON_Delete(arr);
++            int cleanup_start = (count < max_msgs) ? 0 : write_idx;
++            for (int j = 0; j < count; j++) {
++                cJSON_Delete(messages[(cleanup_start + j) % max_msgs]);
++            }
++            pthread_mutex_unlock(&s_session_lock);
++            errno = ENOMEM;
++            return ERROR;
+         }
+-        cJSON_AddItemToArray(arr, entry);
+     }
+ 
+     /* Cleanup ring buffer */
+@@ -233,7 +283,9 @@ int session_get_history_json(const char *chat_id, char *buf, size_t size, int ma
+         buf[size - 1] = '\0';
+         free(json_str);
+     } else {
+-        snprintf(buf, size, "[]");
++        pthread_mutex_unlock(&s_session_lock);
++        errno = ENOMEM;
++        return ERROR;
+     }
+ 
+     pthread_mutex_unlock(&s_session_lock);

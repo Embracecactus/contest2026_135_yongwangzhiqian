@@ -9,15 +9,17 @@
 `src/core/session_mgr.c`（SHA-256
 `132b0848384c89e4d7e15da63a3ecd5e5bc3914332adba0208d3eca474f4b93c`）的最小
 Apache-2.0 差分；保留该文件的 Xiaomi Apache-2.0 和 MimiClaw MIT 来源声明。
-它只把 `ENOENT` 定义为新会话的空历史；已有文件的打开、读取或关闭失败保持官方
-`ERROR + errno` 契约。`frameworks/cmake/agent_framework.cmake` 在构建目录复制
+文件不存在时返回新会话的空历史；已有文件的打开、读取、关闭、JSON 解析、组装或
+序列化失败均保持官方 `ERROR + errno` 契约，不以部分或空历史代替失败结果。
+`frameworks/cmake/agent_framework.cmake` 在构建目录复制
 并校验该唯一固定输入后应用补丁、替换 Agent target 的该一个编译单元；不会改写共享
 `packages/ai_agent` checkout，源哈希、补丁不适用或 target 布局漂移都会使配置失败。
-产品 `bkagent_memory_commit` 因而不会把不可读历史编码为新的持久快照。主机回归
+产品 `bkagent_memory_commit` 因而不会把读取或导出失败的历史编码为新的持久快照。主机回归
 `tests/host/bk7258/test_agent_session_history_memory.c` 由既有 Makefile 在临时目录
 应用同一补丁后链接真实 `bkagent_memory_commit` 与 `session_mgr.c`；它以测试局部、
-按会话路径限定的 `fopen` 注入覆盖打开 `EIO` 和首行读取后的 `EIO`，逐次核对旧的
-持久快照 revision 不变，并在故障解除后验证正常读取可发布下一 revision。
+按会话路径限定的 `fopen` 注入覆盖打开 `EIO` 和首行读取后的 `EIO`，并以 cJSON
+故障注入覆盖解析、组装和序列化内存不足。回归使用产品实际的 `reply=NULL` 提交，
+逐次核对旧快照 revision、长度和密文不变，故障解除后正常提交可发布下一 revision。
 
 ## 2026-11-04 Android 启动图标：短发陪伴角色
 
