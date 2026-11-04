@@ -275,8 +275,14 @@ class ResourceFlow(unittest.TestCase):
                         )
                 self.assertEqual(commands.count("cancel"), 1)
                 self.assertNotEqual(seen[-1]["state"], "canceled")
-                # Explicit independent read resolves the unknown, not local closure.
-                self.assertEqual(c.resource_status()["state"], "canceled")
+                # ACK loss returns before the native worker necessarily stops.
+                # Independent status reads resolve the unknown; local closure does not.
+                deadline = time.monotonic() + 5
+                status = c.resource_status()
+                while status["state"] == "canceling" and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                    status = c.resource_status()
+                self.assertEqual(status["state"], "canceled")
                 self.assertTrue(a.receipt.is_file())
             finally:
                 p.close()
