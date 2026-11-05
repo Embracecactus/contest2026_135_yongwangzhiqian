@@ -23,6 +23,11 @@ board-independent debugger.
   [BLE test advertiser](ble-advertiser/README.md)
 - Optional no-GUI BLE Central/GATT probe for Windows/WSL2:
   [BLE GATT client](ble-gatt-client/README.md)
+- Optional acoustic stimulus: `scripts/play_wav.py WAV --device N [--gain G]`
+  plays one 16-bit PCM WAV through a selected output device with Windows
+  Python and PyAudio, and prints only the WAV SHA-256, device and monotonic
+  playback timestamps. It never records audio; speaker-to-microphone
+  acceptance still needs target-side evidence.
 
 ## Requirements
 

@@ -53,8 +53,10 @@ CMD25，并在数据完成后发送 CMD12。SDK 补丁修正 TX FIFO 中断掩�
 `VIRTIO_RPMSG_F_CPUNAME` 与 `fw_rsc_config` CPU 名称扩展；当时的上游 BK7258
 代码已依赖它，而当时官方 NuttX 固定源码和自带补丁尚未完整包含该扩展。
 直接从官方源码重新展开 OpenAMP 会在既有 RPTUN 代码处编译失败；本次未
-纳入 OpenAMP 源码或兼容补丁，源码编译结果以既有缓存为前提。当时的 NuttX 改动在隔离副本应用；
-原 `nuttx/patches/README.md` 链接已删除，不能作为当前复现入口。
+纳入 OpenAMP 源码或兼容补丁，源码编译结果以既有缓存为前提。当时的 NuttX 改动保存在
+`nuttx/patches`，在隔离 NuttX 副本应用；该目录已在 `7079493e`（2026-09-16）退役，
+当前团队 NuttX 源码是经 manifest `linkfile` 映射到 `vendor/beken/nuttx` 的
+`nuttx/` 覆盖层。
 SDK rebuild 只修改临时克隆；固定 SDK checkout 保持不变。
 
 ```sh

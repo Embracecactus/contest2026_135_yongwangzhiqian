@@ -84,7 +84,7 @@ chip 层另拒绝 DMA 仍活动时的成功返回，并在失败清理前保存 
 SDK 原始仓库保持不变，补丁只应用于规范 SDK 重建入口创建的临时副本。
 这解释并修正了当前 DMA 路径的一项错误，不把所有历史 CPU FIFO 失败归因于同一问题。
 
-原始证据保留在本地 `out/bkvision-perf-v284/`（本次未发布），包括
+原始证据 `out/bkvision-perf-v284/`（原始产物不可用，仅保留本文记录的摘要），包括
 `mask-record60/serial.txt`、`avi-decode.json`、`fat-audit-after-record.txt` 和
 `mask-remove-repeat-record10/serial.txt`。该轮启用 MSC 维护模式、关闭 AP 显示服务；
 傻妞显示/摄像头共存及正式 USB OTA 配置需要后续独立验证，不能从本轮外推。
@@ -448,10 +448,18 @@ NuttX `mmcsd_transferready()` 在每次前序写完成后的传输前通过 CMD1
 
 ## 摄像头标准控制的收尾边界
 
+> 2026-11-04 现状：本节至 v249 记录 2026-09 的控制迁移。`nuttx/drivers/video/gc2145.c`、
+> `nuttx/patches/`、`sdk-profiles/*.patch` 与 `bkvision control-test` 已在
+> `129d4f9a`/`7079493e`（2026-09-16）移除；当前 AIDK 与 T5-Board imgsensor 不提供
+> `get_supported_value/get_value/set_value`，`bkvision` 只有 `snapshot`、`record`、
+> `check-record`。SDIO 完成判定修正以固定 SDK 提交 `eb0d425` 的修订形式保留；
+> DVP/GC2145 寄存器错误传播尚未进入固定 SDK，候选修正与主机证据见
+> [DVP 寄存器错误传播](../../verification/bk7258/2026-11-04-dvp-register-error-propagation.md)。
+
 应用继续使用 `/dev/video0` 的 V4L2 接口。曝光模式、曝光值、增益与帧间隔
 应由标准控制/参数 ioctl 进入 imgsensor；GC2145 寄存器与单位换算归通用
 NuttX 传感器驱动，DVP/DMA/I2C 及其互斥归 chip，供电和引脚绑定归 board。
-board imgsensor facade 的 get_supported_value/get_value/set_value 现转发到
+board imgsensor facade 的 get_supported_value/get_value/set_value 当时转发到
 通用 GC2145 控制模块；固定 1/30 仍是请求配置，不是有效帧率证明。
 
 迁移时必须解决 SDK open 重置传感器与控制应用时机的关系，避免双重状态所有者；
@@ -466,7 +474,7 @@ STREAMON/OFF、重复打开、录像回读及关闭后的系统健康；物理�
 
 ### 基础控制的实现与板测入口
 
-GC2145 控制逻辑现位于 `nuttx/drivers/video/gc2145.c`，由 board 的 imgsensor
+GC2145 控制逻辑当时位于 `nuttx/drivers/video/gc2145.c`，由 board 的 imgsensor
 回调转发；chip 的传感器访问锁覆盖整个选页/读写/恢复页面过程，并排斥
 open/close。支持自动/手动曝光、曝光行数、全局增益（unsigned 4.4，16 为 1 倍）、
 水平/垂直翻转。自动曝光开启时拒绝手动写曝光。绝对曝光时间和可变帧间隔
@@ -479,7 +487,7 @@ open/close。支持自动/手动曝光、曝光行数、全局增益（unsigned 
 旧服务端应拒绝它；没有图片数据通过 RPC。
 
 增益编号去歧义依赖 `nuttx/patches/video/0001-disambiguate-gain-controls.patch`，
-SDK 错误传播依赖 `ap-dvp-register-errors.patch`。当前完整构建使用隔离验证树；
+SDK 错误传播依赖 `ap-dvp-register-errors.patch`。当时完整构建使用隔离验证树；
 官方 NuttX checkout 未修改。主机测试覆盖传输错误、页面恢复、互斥和控制编号；
 不能替代板端读回及物理画面观察。
 
