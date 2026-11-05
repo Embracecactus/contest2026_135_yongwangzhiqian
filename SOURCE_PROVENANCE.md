@@ -3,15 +3,17 @@
 
 ## 2026-11-05 DVP/GC2145 寄存器错误传播（SDK 固定值）
 
-SDK 修复发布到 `Embracecactus/bk_avdk_smp` 的 `fix/dvp-register-errors`，提交
-`b22c0e06a968c2edf3214a28d4f58cf9859d321d`，父提交为此前固定的
+SDK 修复发布到 `Embracecactus/bk_avdk_smp` 的 `fix/dvp-register-errors-no-attribution`，提交
+`d6a9d1672534392e2f428751ba7c3b01920a2471`，父提交为此前固定的
 `eb0d4252a83f0ba88f0eb947fcfa2e36cbcb9bb4`（`v3.1.1.9`）。修改仅限
 `ap/components/bk_dvp/src/bk_dvp.c` 的 `bk_dvp_sensor_{read,write}_register()`
 与 `ap/components/bk_peripheral/src/dvp/dvp_gc2145.c` 的
 `gc2145_{read,write}_register()`：返回回调或 I2C helper 的实际结果，读失败不写
 输出；保留 Beken Apache-2.0。内容与 `7079493e` 退役的
 `ap-dvp-register-errors.patch` 等价，未恢复补丁目录或应用机制。
-版本仍为 `v3.1.1.9`，由 manifest 注解明确选择。六个 SDK profile 经现役 rebuild
+此次仅移除提交说明中的自动协作者尾注；与首次发布的 `b22c0e0` 相比，源码树、
+父提交、作者、提交者和时间戳完全相同。
+版本仍为 `v3.1.1.9`，由 manifest 注解明确选择。首次落地时六个 SDK profile 经现役 rebuild
 入口重建：三个 CP 摘要不变，`ap`、`ap-aidk`、`ap-sdio4` 更新已验收摘要。
 主机回归直接编译固定依赖的实际函数。依赖发布、库检查与主机验证不构成实板验收；
 见 [DVP 寄存器错误传播](docs/verification/bk7258/2026-11-04-dvp-register-error-propagation.md)。
