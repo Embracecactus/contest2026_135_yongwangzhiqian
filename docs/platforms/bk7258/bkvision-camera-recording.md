@@ -46,14 +46,15 @@ CMD25，并在数据完成后发送 CMD12。SDK 补丁修正 TX FIFO 中断掩�
 容量继续由 NuttX 解析 CSD。已测试的板卡报告 247808 个 512 字节扇区，
 即 126877696 字节（121 MiB），没有覆盖容量的常量或启动写入探针。
 
-## 复现构建
+## 历史缓存复现观察
 
-使用工作区的既有 OpenVela 依赖基线。该基线使用此前验证的 OpenAMP/libmetal 缓存，其中 OpenAMP 带有
-`VIRTIO_RPMSG_F_CPUNAME` 与 `fw_rsc_config` CPU 名称扩展；当前上游 BK7258
-代码已依赖它，而官方 NuttX 固定源码和自带补丁尚未完整包含该扩展。
+以下是当时工作区使用既有缓存完成录像构建的观察，不是当前源码复现的前提。当前冷构建遵循
+[构建、发布与硬件证据 SOP](nuttx-port/bk7258-build-flash-debug-sop.md#one-host-entry)。该历史基线使用此前验证的 OpenAMP/libmetal 缓存，其中 OpenAMP 带有
+`VIRTIO_RPMSG_F_CPUNAME` 与 `fw_rsc_config` CPU 名称扩展；当时的上游 BK7258
+代码已依赖它，而当时官方 NuttX 固定源码和自带补丁尚未完整包含该扩展。
 直接从官方源码重新展开 OpenAMP 会在既有 RPTUN 代码处编译失败；本次未
-纳入 OpenAMP 源码或兼容补丁，源码编译结果以既有缓存为前提。NuttX 改动保存在
-[`nuttx/patches`](../../../nuttx/patches/README.md)，在隔离 NuttX 副本应用。
+纳入 OpenAMP 源码或兼容补丁，源码编译结果以既有缓存为前提。当时的 NuttX 改动在隔离副本应用；
+原 `nuttx/patches/README.md` 链接已删除，不能作为当前复现入口。
 SDK rebuild 只修改临时克隆；固定 SDK checkout 保持不变。
 
 ```sh

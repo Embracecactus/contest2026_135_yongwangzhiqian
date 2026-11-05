@@ -36,9 +36,13 @@ Competition scope: **new hardware platform adaptation + AI hardware product inno
 > [CONFIGS.md](boards/bk7258/CONFIGS.md).
 
 The November 4 review repairs are built and package-verified in App 59 and
-firmware 778. The real board was then discovered, reclaimed and connected over
-authenticated BLE with state readback; the user confirmed dialogue and camera
-use. Those facts, hashes and limits are recorded in the
+firmware 778. Firmware 778 is the last board-accepted firmware: the real board
+was discovered, reclaimed and connected over authenticated BLE with state
+readback, and the user confirmed dialogue and camera use. Later PR #154
+(`95a4dfef`) changed state cleanup in `bk7258_native_apps.c`, so current source
+is not identical to the 778 build input; its host regression and CI cold build
+(41868851257) passed, with no new board evidence. Those facts, hashes
+and limits are recorded in the
 [repair record](docs/verification/bk7258/2026-11-04-finals-review-repairs.md);
 they are not OTA or power-loss-recovery acceptance.
 
