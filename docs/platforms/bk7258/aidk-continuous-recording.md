@@ -452,8 +452,10 @@ NuttX `mmcsd_transferready()` 在每次前序写完成后的传输前通过 CMD1
 > `nuttx/patches/`、`sdk-profiles/*.patch` 与 `bkvision control-test` 已在
 > `129d4f9a`/`7079493e`（2026-09-16）移除；当前 AIDK 与 T5-Board imgsensor 不提供
 > `get_supported_value/get_value/set_value`，`bkvision` 只有 `snapshot`、`record`、
-> `check-record`。SDIO 完成判定修正以固定 SDK 提交 `eb0d425` 的修订形式保留；
-> DVP/GC2145 寄存器错误传播尚未进入固定 SDK，候选修正与主机证据见
+> `check-record`。SDIO 完成判定修正以 SDK 提交 `eb0d425` 的修订形式保留。
+> 2026-11-05 起固定 SDK 为其子提交 `b22c0e0`，DVP/GC2145 寄存器读写错误传到
+> 调用者、读失败不发布值，SDK bundle 已重建；当前产品没有寄存器控制入口，
+> 未做实板验收。见
 > [DVP 寄存器错误传播](../../verification/bk7258/2026-11-04-dvp-register-error-propagation.md)。
 
 应用继续使用 `/dev/video0` 的 V4L2 接口。曝光模式、曝光值、增益与帧间隔

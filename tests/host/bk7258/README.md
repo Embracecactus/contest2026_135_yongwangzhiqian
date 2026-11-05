@@ -50,15 +50,17 @@ WANT_WRITE 重试期间的独占、空闲读允许上行，以及故障/取消�
 它需 CMake、OpenSSL 和工作区 mbedTLS 源码；构建产物、测试证书和私有存储都位于运行后
 自动清理的临时目录。不启动 LAN 服务，也不代表实板验收。
 
+`check-review-regressions` 还以工作区固定 SDK 运行
+`test_bk7258_dvp_register_errors.py`：原样编译团队 DVP 读写入口、SDK
+`bk_dvp_sensor_*_register()` 与 GC2145 回调，只在 I2C helper 注入故障，要求
+读写错误传到调用者、读失败不发布值且之后读写恢复。它不替代固件构建或实板
+验收，见 [DVP 寄存器错误传播](../../../docs/verification/bk7258/2026-11-04-dvp-register-error-propagation.md)。
+
 以下脚本不属于 `check` 门禁：
 
 - `voice_latency_benchmark.py`、`voice_latency_round11_benchmark.py` 复现
   2026-10-27 两份语音时延记录的主机受控对比；每次运行写入新的
   `out/voice-latency-*-host-<UTC>/`，时序结果不作为通过判据。
-- `test_bk7258_dvp_register_errors.py` 在 GC2145 I2C 边界注入故障，检查
-  寄存器读写错误传到调用者。固定 SDK `eb0d425` 下按预期失败；固定值更新后
-  加入 `check-review-regressions`，见
-  [DVP 寄存器错误传播](../../../docs/verification/bk7258/2026-11-04-dvp-register-error-propagation.md)。
 
 ## 当前覆盖
 
