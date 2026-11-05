@@ -314,6 +314,7 @@ check-review-regressions: run-agent-session-history-memory run-display-upload
 	python3 ./test_bk7258_i2c_lengths.py
 	python3 ./test_bk7258_cloud_tts_boundaries.py
 	python3 ./test_sdio_dma_completion.py --sdk $(OPENVELA_ROOT)/vendor/beken/bk_avdk_smp
+	python3 ./test_bk7258_dvp_register_errors.py --sdk $(OPENVELA_ROOT)/vendor/beken/bk_avdk_smp
 	$(MAKE) run-voice-tls-concurrency run-voice-tls-open-cancel run-tts-isolation
 
 all: $(TARGET) $(POLICY_TARGET) $(PM_ACTIVITY_TARGET) $(PM_REPLAY_TARGET) \
