@@ -276,6 +276,38 @@
   Moving or deleting a document requires checking its affected incoming links
   and claims, not a whole-repository link or status audit.
 
+## Evidence, artifacts and deletion
+
+- Where to look: layer and workflow rules here; current support in
+  `boards/bk7258/CONFIGS.md`; platform and SOP entry in
+  `docs/platforms/bk7258/README.md`; SoC contracts in `docs/chips/bk7258/`;
+  dated hardware/host verification in `docs/verification/bk7258/`; host test
+  records in `tests/host/bk7258/acceptance/`; historical designs in
+  `docs/platforms/bk7258/nuttx-port/`; raw serial captures of early bring-up
+  in `logs/bk7258-*`; AI coding logs in `logs/<github_login>/`.
+- A tracked verification record must not cite the workspace `out/`, an
+  ignored directory or `/tmp` as the only copy of evidence it depends on.  Copy
+  the reviewed raw hardware evidence (serial, session, HIL result) into
+  `docs/verification/<soc>/<date>-<topic>/` or
+  `tests/host/bk7258/acceptance/<id>-evidence-<date>/` with its SHA-256 when
+  the record is written; generated host results may instead cite the source
+  revision and command that regenerates them.  State unrecoverable evidence
+  explicitly; never recreate it.
+- Build trees, per-run contract outputs and variant `build-*` trees are local
+  regenerable output: keep them ignored, never cite them, and remove them when
+  their run is finished.  Retain the default incremental build directory, the
+  locked toolchain, SDK bundles and private datasets.
+- An experiment-only helper may stay untracked while its experiment runs.
+  Before a committed record depends on it, put reusable workflows in a `_lib`
+  domain behind `bk7258.py` or the owning Windows tool group. Record-specific
+  host reproduction harnesses belong in `tests/host/<soc>/`, with their source
+  revision and command documented. Remove obsolete entry points in the same
+  change.
+- Before deleting a tracked or user-owned file, check references (docs, code,
+  build files, CI, manifest `linkfile`, acceptance JSON), build and test
+  consumers, uncommitted edits and historical value.  Delete only with that
+  evidence; otherwise report the uncertainty and leave the file in place.
+
 ## Code style and comment conventions
 
 - Governing style per directory (do not apply one formatter to the whole

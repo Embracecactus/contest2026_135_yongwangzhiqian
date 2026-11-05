@@ -12,6 +12,10 @@ out/
 *.map
 *.bin
 *.su
+# Committed verification evidence keeps captured .su/.hex/.bin/.map bytes even
+# though those types are build products elsewhere.
+!/tests/host/bk7258/acceptance/**
+!/docs/verification/**
 
 # Operator-authorized private wake acknowledgement: 16 kHz mono PCM16LE.
 
