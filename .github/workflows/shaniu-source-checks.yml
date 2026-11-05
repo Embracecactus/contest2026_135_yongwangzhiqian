@@ -181,7 +181,7 @@ jobs:
           make -C tests/host/bk7258 run-cloud-config run-cloud-request \
             run-cloud-http test-control-session test-control-pair \
             run-agent-tts-queue run-voice-media-player run-agent-capture \
-            run-agent-funasr run-agent-final-stream run-agent-endpoint
+            run-agent-funasr run-agent-final-stream run-agent-endpoint native_apps
 
       - name: Enforce the selected contracts and collector selftests
         shell: bash

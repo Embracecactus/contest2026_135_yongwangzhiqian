@@ -275,11 +275,15 @@ class ResourceFlow(unittest.TestCase):
                         )
                 self.assertEqual(commands.count("cancel"), 1)
                 self.assertNotEqual(seen[-1]["state"], "canceled")
-                # ACK loss returns before the native worker necessarily stops.
+                # Cancel acceptance only sets a flag; the worker can still be
+                # receiving/writing before it publishes canceling or canceled.
                 # Independent status reads resolve the unknown; local closure does not.
                 deadline = time.monotonic() + 5
                 status = c.resource_status()
-                while status["state"] == "canceling" and time.monotonic() < deadline:
+                while (
+                    status["state"] in ("receiving", "writing", "canceling")
+                    and time.monotonic() < deadline
+                ):
                     time.sleep(0.01)
                     status = c.resource_status()
                 self.assertEqual(status["state"], "canceled")

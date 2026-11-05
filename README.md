@@ -28,8 +28,10 @@ openvela CP 实例，CPU1/CPU2 以 SMP 方式运行负责语音、显示和 Agen
 > [CONFIGS.md](boards/bk7258/CONFIGS.md) 维护。
 
 11 月 4 日三轮源码评审的 11 项缺陷及历史导出、资源发布中断两项补充问题已修复，
-回归、App 59 与 778 固件编译和签名包校验通过。实机设备发现、重新认领、蓝牙认证及状态回读通过；
-用户随后确认对话、拍照成功，并确认本轮验收通过。
+回归、App 59 与 778 固件编译和签名包校验通过。778 是最后完成实板验收的固件：设备发现、重新认领、
+蓝牙认证及状态回读通过，用户随后确认对话、拍照成功。后续 PR #154（`95a4dfef`）修改了
+`bk7258_native_apps.c` 的状态清理，当前源码不再与 778 构建输入相同；该变更的主机回归与
+CI 冷构建（41868851257）通过，没有新增实板证据。
 详见[修复、产物哈希与验收边界](docs/verification/bk7258/2026-11-04-finals-review-repairs.md)。
 
 官方模板要求 README 说明作品、方向、目录、运行方式与 AI Coding 使用；规则见[大赛总览](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/contest_overview.md)、[代码提交指南](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/code_submission_guide.md)和[AI 日志手册](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/ai_coding_log_guide.md)。本项目以 Claude Code/Codex 协助需求拆解、实现、诊断与文档；日志入口为 [`logs/README.md`](logs/README.md)。历史导出保留 collector 标签 `lijian`，本轮脱敏增量在 `logs/Embracecactus/`；两者不因当前 GitHub 用户名不同而改写身份字段。内部推理、上下文、媒体及敏感载荷不公开或脱敏/哈希，归集工具不会自动 push。211 份会话、113,146 条事件通过官方格式校验，公开快照的完整性限制见日志入口。
@@ -54,7 +56,7 @@ openvela CP 实例，CPU1/CPU2 以 SMP 方式运行负责语音、显示和 Agen
 | 电脑任务反馈 | 电脑用 `workbench task-run` 运行真实命令，结果交给傻妞 | 原生 USB；手机授予的 `tasks` 权限 | 实板：11-03 正常结束与超时取消回执均确认；屏幕与振感未人工确认 |
 | 电脑按需取景 | 浏览器工作台点“采一帧”、保存、取消后重拍 | 原生 USB；`camera` 权限 | 实板：11-03 两帧 640×480，[55 秒原速录屏](docs/verification/bk7258/2026-11-03-feature-validation/videos/board/camera-capture-cancel-recapture.mp4) |
 | 手机单次审批 | 电脑上的 AI 助手请求某条命令，等待批准时傻妞亮“!”，手机 owner 批准或拒绝 | 已认领的手机；电脑已有 `tasks` 权限 | 11-04 `0.7.129+775`：一次请求等待批准时双眼感叹号、批准后清除，`approved`、`authenticated=true`、返回 0；拒绝/超时/多轮未在 775 回归 |
-| 认领、配网、设置 | App 扫设备屏幕上的认领码，经认证蓝牙填写 Wi-Fi 与云服务 | 手机；认领本身不需要互联网 | 历史：637/641 认领、10-18 与 11-01 Mi 10 联调，及 11-04 App 58 只读云配置回读。当前：`0.7.132+778` 与 App 59 已完成发现、重新认领、认证控制连接和状态回读；用户确认对话、拍照成功。该记录不包含 App OTA 或实板断电恢复验收 |
+| 认领、配网、设置 | App 扫设备屏幕上的认领码，经认证蓝牙填写 Wi-Fi 与云服务 | 手机；认领本身不需要互联网 | 历史：637/641 认领、10-18 与 11-01 Mi 10 联调，及 11-04 App 58 只读云配置回读。最后实板验收：`0.7.132+778` 与 App 59 已完成发现、重新认领、认证控制连接和状态回读；用户确认对话、拍照成功。该记录不包含 App OTA 或实板断电恢复验收；当前源码另含 PR #154 的主机回归与 CI 冷构建（41868851257）已通过的状态清理改动，尚无实板证据 |
 | 资源与唤醒模型更新 | App 安装眼睛资源包（Wi-Fi）、切换或导入唤醒模型（蓝牙） | 手机与设备同一局域网 | 实板：641 资源安装与复位保持；模型切换有历史激活记录 |
 | App 固件升级（OTA） | App 选择 `.bkpack`，设备经 Wi-Fi 拉取并重启校验 | 签名信任与防回滚计数匹配 | 实板：634 首次真实 OTA；767 升级后自动重连通过；770 升级成功但自动重连失败 |
 | 签名原生小功能 | “帮我做个决定”等；App 安装第一方签名包 | 产品固件需配置发布者公钥指纹 | 主机测试；**当前产品配置的指纹为空，正式固件会拒绝安装** |
@@ -422,7 +424,7 @@ python3 tools/bk7258/bk7258.py verify package --package "$pkg"
 python3 tools/bk7258/bk7258.py verify trust --package "$pkg" --openssl /usr/bin/openssl
 ```
 
-产物：`out/bk7258/aidk_ai_toy/app__openvela_ap/<layout>/releases/mcuboot/` 下的
+产物：`../out/bk7258/aidk_ai_toy/app__openvela_ap/<layout>/releases/mcuboot/` 下的
 build manifest 与 ELF/BIN，`../out/shaniu-factory-software/` 下的 `release.json` 与
 `.bkpack`。没有板卡数据时 `release.json` 会写明 `same-device-hardware-data-required`：
 **这里没有可直接刷入任意板的 8 MiB 整片镜像**。整片镜像需要该板自己的硬件数据，
@@ -558,7 +560,7 @@ manifest 仍记录公开仓库 URL 与准确提交，并核对候选的 base/hea
 
 **已知限制**
 
-- 当前源码未完成整机全功能验收；`0.7.129+775` 的审批显示是历史限定验收。`0.7.132+778` 与 App 59 已完成下载、初始化、发现、重新认领、认证控制连接和状态回读，且用户确认对话、拍照成功；手机拒绝审批、实卡触发、动作与振感、App OTA 与实板断电恢复仍未验收。
+- 当前源码未完成整机全功能验收；`0.7.129+775` 的审批显示是历史限定验收。最后实板验收的 `0.7.132+778` 与 App 59 已完成下载、初始化、发现、重新认领、认证控制连接和状态回读，且用户确认对话、拍照成功。当前 HEAD 另含 PR #154（`95a4dfef`）的状态清理改动，主机回归与 CI 冷构建（41868851257）通过，尚无实板证据；手机拒绝审批、实卡触发、动作与振感、App OTA 与实板断电恢复仍未验收。
 - 原生小功能的产品发布者指纹未配置，正式固件不接受安装。
 - 未测量：功耗与续航、长期稳定性、真人多人唤醒率、整机声学（回声消除未实现，
   当前为半双工）、BOM 成本。770 的 OTA 后自动重连失败与 CPU1 心跳停止尚无共同根因。
