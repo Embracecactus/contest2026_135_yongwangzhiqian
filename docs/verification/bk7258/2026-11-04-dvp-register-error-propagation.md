@@ -136,3 +136,61 @@ Beken Apache-2.0。
 
 其他 SDK 传感器回调（如 GC0308、OV2640）及 GC2145 初始化表中的
 `SENSOR_I2C_WRITE` 同样忽略 I2C 结果；它们不经过上述寄存器 API，未纳入本修正。
+
+## 2026-11-05 落地
+
+本节记录修正进入固定 SDK 之后的事实；上文 `eb0d425` 下的失败结果保留为历史基线。
+本次仍未执行签名、烧录或实板测试。
+
+### 源码与固定值
+
+- SDK：`Embracecactus/bk_avdk_smp` 分支 `fix/dvp-register-errors`，提交
+  `b22c0e06a968c2edf3214a28d4f58cf9859d321d`，父提交
+  `eb0d4252a83f0ba88f0eb947fcfa2e36cbcb9bb4`。只修改 `bk_dvp.c` 与
+  `dvp_gc2145.c`，内容即上文补丁（按上文约定提取，SHA-256 `25bd23ee…`）。
+  `git ls-remote` 核对远端分支指向该提交；`fix/sdio-completion-mask` 仍为
+  `eb0d425`。
+- 团队 manifest 的 `vendor/beken/bk_avdk_smp` 改为上述 `revision` 与
+  `upstream="refs/heads/fix/dvp-register-errors"`，版本注解仍为 `v3.1.1.9`。
+
+### SDK profile
+
+每个 profile 运行
+`tools/bk7258/bk7258.py sdk rebuild --profile <profile> --source ../vendor/beken/bk_avdk_smp --jobs 24 --replace`，
+再运行 `sdk verify --profile <profile>`，六项均 PASS。CP 未假定不变，而是
+重建后比较：在新提交时间戳下仍逐树相同。AP bundle 含 `libbk_dvp.a` 与
+`libbk_peripheral.a`，摘要随修正改变。
+
+| Profile | 重建前 | 重建后 |
+|---|---|---|
+| `cp` | `b2282cc3…` | 不变 |
+| `cp-aidk` | `d62004bf…` | 不变 |
+| `cp-aidk-csi` | `79385513…` | 不变 |
+| `ap` | `a2a02442…` | `f6c5601e240019cc82127c02ed4e8fd9eb2eb5601fb129da9a91143243dda8cb` |
+| `ap-aidk` | `1b2ea2e5…` | `f0279315295392c9899c83f6849e20153986be75139a27d102d18b5037c4e593` |
+| `ap-sdio4` | `aaf6987b…` | `fcac84b16c0600e93a557edd2922a3e189ebf057d7cd166634ba370742a42afa` |
+
+### 主机与库
+
+- 不带 `--sdk-patch`，`test_bk7258_dvp_register_errors.py` 对修改后的真实
+  SDK checkout 退出 0；`test_bk7258_dvp_stop_buffers.py`、
+  `test_bk7258_i2c_lengths.py`、`test_sdio_dma_completion.py` 退出 0。
+- 该测试已加入 `check-review-regressions`，以 `$(OPENVELA_ROOT)/vendor/beken/bk_avdk_smp`
+  即 manifest 固定 checkout 为输入；本地完整目标退出 0。
+- 三个 AP bundle 反汇编：`gc2145_read_register` 在 I2C 返回非零时跳过写出并
+  返回该值，`gc2145_write_register` 尾调用 I2C 写；`bk_dvp_sensor_write_register`
+  尾调用回调，`bk_dvp_sensor_read_register` 读入栈上局部值，非零时不发布。
+
+### 固件构建
+
+`tools/bk7258/bk7258.py build --board aidk_ai_toy --boot direct --jobs 24`
+未签名构建退出 0。该次构建使用本地团队工作树（含所有者未提交工作），消费
+`ap-aidk` `f0279315…` 与 `cp-aidk` `d62004bf…`。AP ELF 链接了
+`gc2145_read/write_register`（经 `dvp_sensor_gc2145` 回调表保留），未链接
+`bk_dvp_sensor_*_register` 与 `bk7258_dvp_sensor_*`。SDK 源码中这两个回调的
+唯一调用者是未链接的 `bk_dvp_sensor_*_register`，因此当前产品镜像中的修正后
+回调不可达；闭源 SDK 库中的间接调用无法用此方法排除。
+
+### 未覆盖
+
+当前产品没有寄存器控制入口，未做实板读写故障验收；重新接入 V4L2 控制时须另做。
