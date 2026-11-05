@@ -194,3 +194,20 @@ Beken Apache-2.0。
 ### 未覆盖
 
 当前产品没有寄存器控制入口，未做实板读写故障验收；重新接入 V4L2 控制时须另做。
+
+## 2026-11-05 提交元数据整理
+
+当前 SDK 固定为 `d6a9d1672534392e2f428751ba7c3b01920a2471`，发布分支为
+`fix/dvp-register-errors-no-attribution`。这是上述首次落地提交
+`b22c0e06a968c2edf3214a28d4f58cf9859d321d` 的提交说明整理，仅移除自动协作者尾注；
+父提交、作者、提交者及时间戳不变，源码树均为
+`1ce40936e78d6163d811eb920f6803c75baabfe6`。本节之前的构建和实板限制保留原始记录身份。
+
+已审阅两个提交的原始 Git 对象并比较完整源码树：没有源码或配置差异，
+用于确定性构建的 `SOURCE_DATE_EPOCH` 也不变。SDK profile 的已验收摘要保持原值，
+本次未修改固件行为、签名身份或设备数据。
+
+本轮六个 `sdk verify --profile <profile>` 均通过，DVP 寄存器错误传播测试对
+实际固定 SDK（不带 `--sdk-patch`）通过，相关 DVP stop-buffers、I2C lengths
+和 SDIO completion 回归通过。既有 SDK bundle 未在本轮本地重复重建；
+构建输入的源码树与时间戳相同，库文件按既有 profile 摘要重新核验。未做实板测试。
