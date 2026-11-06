@@ -1068,7 +1068,7 @@ class MainActivity : Activity() {
         val old = wakeSensitivityPercent ?: return
         val generation = directSession.current().generation
         if (wakeSensitivityGeneration != generation) return
-        val values = listOf(50, 60, 65, 75, 85, 90)
+        val values = listOf(50, 60, 65, 70, 75, 85, 90)
         var desired = old
         directDialog = AlertDialog.Builder(this).setTitle("唤醒灵敏度")
             .setSingleChoiceItems(values.map { "%.2f".format(it / 100.0) }.toTypedArray(),

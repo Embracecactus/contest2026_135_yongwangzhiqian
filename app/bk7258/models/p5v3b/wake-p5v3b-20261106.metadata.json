@@ -1,0 +1,196 @@
+{
+  "schema": "bkvoice-kws-dataset-v1",
+  "model_sha256": "3cbfdfa0cf0cc73a3bb0f5885b7fa20fd3674695d0f615d6112d23c844d8d66a",
+  "frontend": "bkvoice-microfrontend-pcan-v2",
+  "labels": [
+    "silence",
+    "unknown",
+    "nihao_openvela"
+  ],
+  "model_authorization": {
+    "status": "candidate",
+    "training_data_authorization": "manifest_entry_consent_true"
+  },
+  "dataset_sha256": "unavailable-p5-diagnostic",
+  "frontend_inputs_sha256": {
+    "contest2026_135_yongwangzhiqian/app/bk7258/bk7258_voice_kws_frontend.c": "babcf17be84d285811f86c0e6edb0803c382ecd0e09b99ecc7339ea1495db279",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/frontend.c": "0598d172c3b75c81c55ca64652f5d179dba35939840af64af1b87b6200b64300",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/frontend_util.c": "06f926fdb4276f93c2f9b6ba2a00a2273a5f4f9039b8007cf289ce6438b207bc",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/fft.cc": "83340ac07d4281c7afaa0fe03bb2f886735176398e6845c4884e6598f7717f05",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/fft_util.cc": "65b3879e4599fe86c5764081bbc5daba72f03d86c8d8cdb0b2c1aa5c80c0ddab",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/kiss_fft_int16.cc": "54a210b219d680cb39e941790d0961628018094c8559be9ddbd25edb9c794b36",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/filterbank.c": "ee5274e05be0ac58d9e185b9b074d3682c09aa88695130498441a99d53626e19",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/filterbank_util.c": "b06f95eac9f5d53147896afe0e8deafc9984d68a68cf2f3118efd4da50fde8c8",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/log_lut.c": "057c040484526b8a6f84e95bb040d90da3f48d93e846ab8aa1c8e9f46c812e08",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/log_scale.c": "ffcc82bdb44df8e219c186f4137be1d90b9697ad98575fe48b4fc321958874dd",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/log_scale_util.c": "650875cbdfbbc89ae2627bfac7d29939d3d204822b1ddf2a8f6eaaf707cd2390",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/noise_reduction.c": "73b688d001dea7e9d543cf9d51549ea8c2a163f3b6145e6158adf208c5eea8ac",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/noise_reduction_util.c": "116afa4b0fb79cc83aea1a2eaf023c1f76ca6b64c172aec2014f8495f499672e",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/pcan_gain_control.c": "b0119d03931f312c10fce099cfef7e01874d5aad085069c1129de2c679e2cf60",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/pcan_gain_control_util.c": "4481862cc4d2dd2c8267791334ea9589ece77657d29231e3417d7c88574361bb",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/window.c": "9facbb75884f4bdd0f90d8d876e547d7213bb99344fa6ccb682e45290c36dbfa",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/window_util.c": "2c45a8445c53efcdb0d32e5c8a657fc5eb97df168bfac6ccc510874ca06aac07",
+    "apps/math/kissfft/kissfft/kiss_fft.c": "63ca2dc3c534833c52da1b17cfa6c2918c2a0b98a109f15fe90c29f1750a7a65",
+    "apps/math/kissfft/kissfft/tools/kiss_fftr.c": "71d0aaf7a49c7c6bc1f1a20e53a5b490ce52d1b2800b2db1e864e4bf82548826",
+    "contest2026_135_yongwangzhiqian/app/bk7258/bk7258_voice_kws_frontend.h": "b21464c6a7186098ad3ce9ffdc8199a6404ec42ea7da3e1233662c559119a583",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/bits.h": "10251fd508996bf0a3f0af34eed093d3edb83124204c1504db39f35987a015a0",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/frontend.h": "46ac313857158ea99148f648d4f3c45fca0e78b58757882b5b524803337a8fed",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/frontend_util.h": "a46432fb2dfd0af985a3d20ede2f6c9e3c0501500fd155491006c867c49cdce1",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/fft.h": "5d730a623766027dc2326a5131c65be6ec8c6c900f34a2d05d726a9475eab509",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/fft_util.h": "bd613d33db3795a43ab27e2155f6a47611ecc83c6ec6ff2ae1bec338a49ec928",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/kiss_fft_common.h": "d22e5539ae17c9e39627404b061928c7254a6b931cafb6ea02715012e8693cfa",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/kiss_fft_int16.h": "3ad494e50fab5f5a9e791a2997d29e6e250ae7ceee60c15fe6146f547ae20278",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/filterbank.h": "46159287a955c8ead10d73bb5e94c18679f9a805454f09f3f6979b0678fe333e",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/filterbank_util.h": "63bafdec450bfc89278fd0c93a6015d109d38f04ec35743ab222c471fa6e3302",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/log_lut.h": "38bc096e21af8494866080d66438454da2382ee910edbd4a36b77eb9e824a3c0",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/log_scale.h": "2c90d6bc5fd5620f4b30e9ceb61fef689bac358819b56b2b2aec3f8120363150",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/log_scale_util.h": "c3d096b028a3cb1230c6895cc51212114c79a825ed91996c7b934293f81a241a",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/noise_reduction.h": "f5f9b8c303f9c28357bf5ba17867b483ee0a2bf9c1732dc740834a7ca6ce66aa",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/noise_reduction_util.h": "e02d09d5873e5a5826da1d73b6a972af49dddc23b54db7245e52a4ba07a4a445",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/pcan_gain_control.h": "820ab1e4c8712661c0af4c5a579552b9cafb3ad6ea622329028a6f9430fbe575",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/pcan_gain_control_util.h": "9715d7b9c03ae534f28fa4598da26621b99c17a049a28099ed7ea68a987876e5",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/window.h": "e4ca258111c2b0ffbd9e702cb9586de095c5c86cca5709a13c1b85dc79026075",
+    "apps/mlearning/tflite-micro/tflite-micro/tensorflow/lite/experimental/microfrontend/lib/window_util.h": "d069df14ec078dcc45f61c4198fc050f0fe37439b1fd3c328400468a58e625a4",
+    "apps/math/kissfft/kissfft/kiss_fft.h": "a56e45e711bfa07376b4221329715dc2472a7ba9135478c196de5291cb7b0129",
+    "apps/math/kissfft/kissfft/_kiss_fft_guts.h": "dd5c9aecd44f4b1587a02424167fff8f70b5963537f10acfb5d87b6320319319",
+    "apps/math/kissfft/kissfft/tools/kiss_fftr.h": "4495841cc3b614b8211666dd4178e092ee0507a1999d20346c782ba04a88c5c5"
+  },
+  "wake_label": "nihao_openvela",
+  "wake_phrase": "你好，open-vela",
+  "diagnostic_runtime_rebind": {
+    "scope": "scratch-only reconstructed sidecar for local evaluation of owner P5; original training metadata not available",
+    "head_finetune": "P5 pointwise_4 + classifier retrained (ft3-l0.00001-L2.npz); quantizers unchanged"
+  },
+  "architecture_family": "streaming-tcn",
+  "streaming_contract": {
+    "schema": "bkvoice-causal-state-v1",
+    "step_feature_rows": 1,
+    "state_bytes": 7936,
+    "state_lifecycle": "zero real-valued states at boot, pause, gap and rearm; no wall-clock inference",
+    "state_transfer": "round-half-away-from-zero(out-real/input-scale)+input-zero; saturate int8",
+    "states": [
+      {
+        "shape": [
+          1,
+          8,
+          1,
+          32
+        ],
+        "input_quantization": [
+          17.02364730834961,
+          -128
+        ],
+        "output_quantization": [
+          17.02364730834961,
+          -128
+        ]
+      },
+      {
+        "shape": [
+          1,
+          16,
+          1,
+          32
+        ],
+        "input_quantization": [
+          3.1477749347686768,
+          -128
+        ],
+        "output_quantization": [
+          3.1477749347686768,
+          -128
+        ]
+      },
+      {
+        "shape": [
+          1,
+          32,
+          1,
+          32
+        ],
+        "input_quantization": [
+          1.9422277212142944,
+          -128
+        ],
+        "output_quantization": [
+          1.9422277212142944,
+          -128
+        ]
+      },
+      {
+        "shape": [
+          1,
+          64,
+          1,
+          32
+        ],
+        "input_quantization": [
+          0.907249391078949,
+          -128
+        ],
+        "output_quantization": [
+          0.907249391078949,
+          -128
+        ]
+      },
+      {
+        "shape": [
+          1,
+          128,
+          1,
+          32
+        ],
+        "input_quantization": [
+          0.7615638375282288,
+          -128
+        ],
+        "output_quantization": [
+          0.7615638375282288,
+          -128
+        ]
+      }
+    ]
+  },
+  "input_quantization": [
+    2.6156861782073975,
+    -128
+  ],
+  "output_quantization": [
+    0.00390625,
+    -128
+  ],
+  "input_shape": [
+    1,
+    1,
+    40,
+    1
+  ],
+  "output_shape": [
+    1,
+    3
+  ],
+  "artifact_name": "P5 v3b (2026-11-06)",
+  "source_metadata_sha256": "b97c98bd0398e058a07e697c192d056f49f66d07a49dc82d0f30c2fbeaf4c3c3",
+  "base_model_sha256": "5c82f8fe3752cb61134b15e0efe44d6d364a252f1f6cb2e846f1ed06786b4fdd",
+  "package": {
+    "filename": "wake-p5v3b-20261106.wkm",
+    "format": "WKM2",
+    "frontend_version": 2,
+    "bytes": 26852,
+    "sha256": "a3360a16b4d2b676691fc8bf626bd399dae1c4915d977201447382a0bd31347c"
+  },
+  "deployment_policy": {
+    "threshold_percent": 70,
+    "consecutive": 5,
+    "release_threshold_percent": 20,
+    "cooldown_ms": 1000,
+    "decision_interval_ms": 20,
+    "scope": "Owner AIDK selection; firmware built-in model and default policy unchanged."
+  },
+  "publication": {
+    "authorization": "Owner explicitly authorized deployment and repository publication of this model on 2026-11-06.",
+    "scope": "Model artifacts and aggregate metadata only; no private recordings, transcripts or dataset manifests.",
+    "provenance_limit": "Original P5 training metadata is unavailable. The retained sidecar was reconstructed for evaluation and head fine-tuning; it is not a complete reproducible training record.",
+    "license_limit": "Private input licenses and third-party rights are not granted by the repository source-code license."
+  }
+}

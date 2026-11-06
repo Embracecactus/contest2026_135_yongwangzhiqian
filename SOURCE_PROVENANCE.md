@@ -774,6 +774,24 @@ not a claim of atomic simultaneous three-axis conversion or physical calibration
 合成身份并执行握手。新增生产导出/生命周期适配为本项目原创，没有复制第三方代码。
 
 
+### P5 v3b selectable wake model (2026-11-06)
+
+`app/bk7258/models/p5v3b/` contains the owner-authorized P5 v3b INT8 model,
+its WKM2 import package and aggregate metadata. The base is the owner-provided
+P5 model (`5c82f8fe3752cb61134b15e0efe44d6d364a252f1f6cb2e846f1ed06786b4fdd`);
+v3b fine-tunes `pointwise_4` and the classifier with unchanged quantizers.
+The resulting model hash is
+`3cbfdfa0cf0cc73a3bb0f5885b7fa20fd3674695d0f615d6112d23c844d8d66a`.
+Original P5 training metadata is unavailable; the retained sidecar reconstructs
+the runtime contract and records the fine-tune, rather than establishing full
+training reproducibility. Dataset authorization is recorded as consented
+manifest entries. Private recordings, transcripts, manifests and the original
+P5 package are excluded from this publication. The source-code Apache-2.0
+license does not grant rights to private inputs or third-party datasets.
+The App threshold option and accompanying documentation are team-authored
+Apache-2.0 changes. Model selection does not replace the public builtin model.
+See the [deployment and evaluation record](docs/verification/bk7258/2026-11-06-p5v3b-deployment.md).
+
 ### KWS hard negative frame pooling
 
 The optional `max` negative-frame reduction in

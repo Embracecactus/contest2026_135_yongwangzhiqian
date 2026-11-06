@@ -13,8 +13,8 @@ android {
         applicationId = "com.shaniu.companion"
         minSdk = 29
         targetSdk = 35
-        versionCode = 59
-        versionName = "0.7.29-shaniu-finals-fixes"
+        versionCode = 60
+        versionName = "0.7.30-wake-threshold70"
         testInstrumentationRunner = "com.shaniu.companion.provision.ControlKeyInstrumentation"
     }
 

@@ -1,0 +1,374 @@
+{
+  "schema": "shaniu-wake-model-deployment/1",
+  "recorded_at": "2026-11-06T11:41:37.926945+00:00",
+  "source_base": "e34ee013e2fdfc57cab9cce63da01aa631c2fce8",
+  "model": {
+    "path": "app/bk7258/models/p5v3b/wake-p5v3b-20261106.tflite",
+    "sha256": "3cbfdfa0cf0cc73a3bb0f5885b7fa20fd3674695d0f615d6112d23c844d8d66a",
+    "bytes": 26712,
+    "package_sha256": "a3360a16b4d2b676691fc8bf626bd399dae1c4915d977201447382a0bd31347c",
+    "package_bytes": 26852,
+    "frontend": "bkvoice-microfrontend-pcan-v2",
+    "frontend_sources_checked": 41,
+    "frontend_source_mismatches": 0
+  },
+  "host_validation": {
+    "target": "tests/host/bk7258/test_bk7258_voice_kws_model.cc --candidate",
+    "result": "passed",
+    "stdout": "candidate_package=valid bytes=26852 frontend_version=2\ncandidate streaming=1 inputs=1764 arena_used=21824 max_tflite_score_error=0 reset=exact scope=native-host\ninference_calls=3528 median_us=20.746 p95_us=33.906 scope=native-host excludes_frontend_and_scheduling",
+    "inputs": 1764,
+    "inference_calls": 3528,
+    "arena_used_bytes": 21824,
+    "maximum_reference_score_error": 0,
+    "scope": "Native host TFLM, real package parser, retained private feature/score fixture; not board timing or acoustic acceptance.",
+    "raw_output_sha256": "c9d0e526d8c2474e9e926ff5b71207b14f3169b8d1afccaafe9b49e3f2530bac",
+    "private_fixture_sha256": {
+      "native-features.f32": "191d6e8b2a484d6bd44727bed5b47668f491ce3981e6e4426a48980bad541155",
+      "native-reference-scores.f32": "33bf3317fb926a5ce2eb93dd914ca71728c48181819fd5f5264b6cc14a7fa8be"
+    }
+  },
+  "android": {
+    "from_version_code": 59,
+    "to_version_code": 60,
+    "version_name": "0.7.30-wake-threshold70",
+    "apk_sha256": "b79d773463205e5220fc57dd3ea1530531e32b960f0255a60e978a2f20bcd903",
+    "installed_apk_bytes_match": true,
+    "same_signer_as_installed_app": true,
+    "install_result": "Success (adb install -r)",
+    "jvm_tests": {
+      "passed": 292,
+      "skipped": 9,
+      "failures": 0,
+      "errors": 0
+    },
+    "data_cleared": false,
+    "pairing_preserved_and_authenticated": true
+  },
+  "board": {
+    "target": "owner AIDK unit, authenticated through its existing bound phone",
+    "firmware": "0.7.132+778",
+    "firmware_flashed": false,
+    "before_model_sha256_prefix": "922eba91",
+    "before_threshold_percent": 90,
+    "active_model_sha256": "3cbfdfa0cf0cc73a3bb0f5885b7fa20fd3674695d0f615d6112d23c844d8d66a",
+    "model_readback": "你好，openvela · 模型 3cbfdfa0 已生效并回读确认",
+    "full_hash_verification": "App CONFIG_READ compares all 32 active-model hash bytes against the imported package before reporting this success.",
+    "threshold_percent": 70,
+    "threshold_readback": "设备门限 0.70（越低越易唤醒，也可能误唤醒）",
+    "final_state": {
+      "bluetooth": "authenticated",
+      "device": "online",
+      "wifi": "connected",
+      "voice_service": "ready",
+      "threshold_save_confirmed": true
+    },
+    "acoustic_test": "not_performed",
+    "reboot_persistence_test": "not_performed",
+    "board_arena_or_timing_measurement": "not_performed"
+  },
+  "ui_evidence": [
+    {
+      "artifact": "model-read-baseline.xml",
+      "sha256": "5e12762341a25e1650961bef2a062639e82a90ef1c3f7f73bb8a355d9a5aec49",
+      "retention": "Private original UI hierarchy retained; only relevant observations are published."
+    },
+    {
+      "artifact": "wake-import-observed.xml",
+      "sha256": "3947969d487f4fb1c6471a7563a83f0cdb6f5b012943a94ad2bd9487e5a70356",
+      "retention": "Private original UI hierarchy retained; only relevant observations are published."
+    },
+    {
+      "artifact": "threshold-read-baseline.xml",
+      "sha256": "9bdad43238d2cec74de769b47ea5d13fc3f0e8d9d8b5c9c9e4dcb7ef0de4d37c",
+      "retention": "Private original UI hierarchy retained; only relevant observations are published."
+    },
+    {
+      "artifact": "threshold60-choices.xml",
+      "sha256": "fe926c297e1319e3d380d0f3def421032c8b60034e016ada194629809afd3d1d",
+      "retention": "Private original UI hierarchy retained; only relevant observations are published."
+    },
+    {
+      "artifact": "threshold70-readback.xml",
+      "sha256": "dd2b8079e92bc582e3feb94debafc86e40296df69074c5f79c08eb90099fc225",
+      "retention": "Private original UI hierarchy retained; only relevant observations are published."
+    },
+    {
+      "artifact": "device-final.xml",
+      "sha256": "08ba1fdc6c97a79e45bca41a80f70d9d0beddbecca564d5192e0516ca55503ce",
+      "retention": "Private original UI hierarchy retained; only relevant observations are published."
+    },
+    {
+      "artifact": "firmware-baseline.xml",
+      "sha256": "df068a6a5948d0143722ddf2bcf5bf9245f942093b3b4fa44e140f273781e5e9",
+      "retention": "Private original UI hierarchy retained; only relevant observations are published."
+    }
+  ],
+  "evaluation_scope": "Previously examined reports used in candidate and policy selection; not a new blind holdout or independent-human generalization result.",
+  "evaluation_reports": [
+    {
+      "source_report": "p5v3b-t70.json",
+      "source_sha256": "09ffa67ce8876b7d675a95de961dbff300c54c9d826e3a4d900b7ae48abaffbf",
+      "model_sha256": "3cbfdfa0cf0cc73a3bb0f5885b7fa20fd3674695d0f615d6112d23c844d8d66a",
+      "policy": {
+        "consecutive": 5,
+        "cooldown_ms": 1000,
+        "release_threshold": 0.20000000298023224,
+        "threshold": 0.699999988079071
+      },
+      "split": "test",
+      "stream_metrics": {
+        "background_false_positives": 3,
+        "background_only_false_positives": 1,
+        "background_only_false_wakes_per_hour": 0.1624805361857694,
+        "background_only_listening_ms": 22156500,
+        "expected_wakes": 103,
+        "gap_ms": 0,
+        "group_scope": "shared-source diagnostic conditions; not independent speakers",
+        "listening_ms": 25388360,
+        "miss_rate": 0.5048543689320388,
+        "missed_wakes": 52,
+        "paused_ms": 0,
+        "repeated_wakes": 1,
+        "sessions": 246,
+        "strict_recall": 0.49514563106796117,
+        "wake_events": 55,
+        "word_end_latency": "unavailable_without_matched_word_end_annotations",
+        "groups": {
+          "demo-positive": {
+            "background_false_positives": 0,
+            "background_only_false_positives": 0,
+            "background_only_false_wakes_per_hour": null,
+            "background_only_listening_ms": 0,
+            "expected_wakes": 65,
+            "gap_ms": 0,
+            "listening_ms": 2889860,
+            "missed_wakes": 50,
+            "paused_ms": 0,
+            "repeated_wakes": 0,
+            "sessions": 5,
+            "source_groups": 5,
+            "strict_recall": 0.23076923076923078,
+            "wake_events": 15
+          },
+          "home-negative": {
+            "background_false_positives": 1,
+            "background_only_false_positives": 1,
+            "background_only_false_wakes_per_hour": 0.1624805361857694,
+            "background_only_listening_ms": 22156500,
+            "expected_wakes": 0,
+            "gap_ms": 0,
+            "listening_ms": 22156500,
+            "missed_wakes": 0,
+            "paused_ms": 0,
+            "repeated_wakes": 0,
+            "sessions": 203,
+            "source_groups": 203,
+            "strict_recall": null,
+            "wake_events": 1
+          },
+          "owner-positive": {
+            "background_false_positives": 2,
+            "background_only_false_positives": 0,
+            "background_only_false_wakes_per_hour": null,
+            "background_only_listening_ms": 0,
+            "expected_wakes": 38,
+            "gap_ms": 0,
+            "listening_ms": 342000,
+            "missed_wakes": 2,
+            "paused_ms": 0,
+            "repeated_wakes": 1,
+            "sessions": 38,
+            "source_groups": 1,
+            "strict_recall": 0.9473684210526315,
+            "wake_events": 39
+          }
+        }
+      },
+      "runtime": {
+        "engine": "tensorflow-lite",
+        "version": "2.19.0",
+        "inference": "python_tflite_callback_not_tflm_board_equivalence",
+        "decision_interval_ms": 20,
+        "resolver": "BUILTIN_REF",
+        "policy_source": "bkvoice_kws_default_stream_policy",
+        "scope": "continuous local detector; conversation suppression and recorder scheduling not simulated"
+      }
+    },
+    {
+      "source_report": "p5v3b-v70.json",
+      "source_sha256": "dd72ea2f4a62749bc2cb4fc69d9bb3ac6add050a7f39f1dba9c8cc2afdfbc855",
+      "model_sha256": "3cbfdfa0cf0cc73a3bb0f5885b7fa20fd3674695d0f615d6112d23c844d8d66a",
+      "policy": {
+        "consecutive": 5,
+        "cooldown_ms": 1000,
+        "release_threshold": 0.20000000298023224,
+        "threshold": 0.699999988079071
+      },
+      "split": "validation",
+      "stream_metrics": {
+        "background_false_positives": 0,
+        "background_only_false_positives": 0,
+        "background_only_false_wakes_per_hour": 0.0,
+        "background_only_listening_ms": 81000,
+        "expected_wakes": 18,
+        "gap_ms": 0,
+        "group_scope": "shared-source diagnostic conditions; not independent speakers",
+        "listening_ms": 243000,
+        "miss_rate": 0.0,
+        "missed_wakes": 0,
+        "paused_ms": 0,
+        "repeated_wakes": 0,
+        "sessions": 27,
+        "strict_recall": 1.0,
+        "wake_events": 18,
+        "word_end_latency": "unavailable_without_matched_word_end_annotations",
+        "groups": {
+          "unclassified": {
+            "background_false_positives": 0,
+            "background_only_false_positives": 0,
+            "background_only_false_wakes_per_hour": 0.0,
+            "background_only_listening_ms": 81000,
+            "expected_wakes": 18,
+            "gap_ms": 0,
+            "listening_ms": 243000,
+            "missed_wakes": 0,
+            "paused_ms": 0,
+            "repeated_wakes": 0,
+            "sessions": 27,
+            "source_groups": 22,
+            "strict_recall": 1.0,
+            "wake_events": 18
+          }
+        }
+      },
+      "runtime": {
+        "engine": "tensorflow-lite",
+        "version": "2.19.0",
+        "inference": "python_tflite_callback_not_tflm_board_equivalence",
+        "decision_interval_ms": 20,
+        "resolver": "BUILTIN_REF",
+        "policy_source": "bkvoice_kws_default_stream_policy",
+        "scope": "continuous local detector; conversation suppression and recorder scheduling not simulated"
+      }
+    },
+    {
+      "source_report": "evaluation-manifest-p5v3b-t70.json",
+      "source_sha256": "e44c741c8a99eab11b150836c503ab554ad2748da826f0a7f2ef141c60486bc8",
+      "model_sha256": "3cbfdfa0cf0cc73a3bb0f5885b7fa20fd3674695d0f615d6112d23c844d8d66a",
+      "policy": {
+        "consecutive": 5,
+        "cooldown_ms": 1000,
+        "release_threshold": 0.20000000298023224,
+        "threshold": 0.699999988079071
+      },
+      "split": "test",
+      "stream_metrics": {
+        "background_false_positives": 15,
+        "background_only_false_positives": 0,
+        "background_only_false_wakes_per_hour": 0.0,
+        "background_only_listening_ms": 108000,
+        "expected_wakes": 50,
+        "gap_ms": 0,
+        "group_scope": "shared-source diagnostic conditions; not independent speakers",
+        "listening_ms": 558000,
+        "miss_rate": 0.28,
+        "missed_wakes": 14,
+        "paused_ms": 0,
+        "repeated_wakes": 0,
+        "sessions": 62,
+        "strict_recall": 0.72,
+        "wake_events": 51,
+        "word_end_latency": "unavailable_without_matched_word_end_annotations",
+        "groups": {
+          "unclassified": {
+            "background_false_positives": 15,
+            "background_only_false_positives": 0,
+            "background_only_false_wakes_per_hour": 0.0,
+            "background_only_listening_ms": 108000,
+            "expected_wakes": 50,
+            "gap_ms": 0,
+            "listening_ms": 558000,
+            "missed_wakes": 14,
+            "paused_ms": 0,
+            "repeated_wakes": 0,
+            "sessions": 62,
+            "source_groups": 25,
+            "strict_recall": 0.72,
+            "wake_events": 51
+          }
+        }
+      },
+      "runtime": {
+        "engine": "tensorflow-lite",
+        "version": "2.19.0",
+        "inference": "python_tflite_callback_not_tflm_board_equivalence",
+        "decision_interval_ms": 20,
+        "resolver": "BUILTIN_REF",
+        "policy_source": "bkvoice_kws_default_stream_policy",
+        "scope": "continuous local detector; conversation suppression and recorder scheduling not simulated"
+      }
+    },
+    {
+      "source_report": "musan-background-evaluation-20260923-p5v3b-t70.json",
+      "source_sha256": "939d0d23b136a7951abed10a74d3dfcc7432833a67a5211b24e5e33184b7e2c7",
+      "model_sha256": "3cbfdfa0cf0cc73a3bb0f5885b7fa20fd3674695d0f615d6112d23c844d8d66a",
+      "policy": {
+        "consecutive": 5,
+        "cooldown_ms": 1000,
+        "release_threshold": 0.20000000298023224,
+        "threshold": 0.699999988079071
+      },
+      "split": "test",
+      "stream_metrics": {
+        "background_false_positives": 0,
+        "background_only_false_positives": 0,
+        "background_only_false_wakes_per_hour": 0.0,
+        "background_only_listening_ms": 36192900,
+        "expected_wakes": 20,
+        "gap_ms": 0,
+        "group_scope": "shared-source diagnostic conditions; not independent speakers",
+        "listening_ms": 36372900,
+        "miss_rate": 0.0,
+        "missed_wakes": 0,
+        "paused_ms": 0,
+        "repeated_wakes": 0,
+        "sessions": 181,
+        "strict_recall": 1.0,
+        "wake_events": 20,
+        "word_end_latency": "unavailable_without_matched_word_end_annotations",
+        "groups": {
+          "unclassified": {
+            "background_false_positives": 0,
+            "background_only_false_positives": 0,
+            "background_only_false_wakes_per_hour": 0.0,
+            "background_only_listening_ms": 36192900,
+            "expected_wakes": 20,
+            "gap_ms": 0,
+            "listening_ms": 36372900,
+            "missed_wakes": 0,
+            "paused_ms": 0,
+            "repeated_wakes": 0,
+            "sessions": 181,
+            "source_groups": 176,
+            "strict_recall": 1.0,
+            "wake_events": 20
+          }
+        }
+      },
+      "runtime": {
+        "engine": "tensorflow-lite",
+        "version": "2.19.0",
+        "inference": "python_tflite_callback_not_tflm_board_equivalence",
+        "decision_interval_ms": 20,
+        "resolver": "BUILTIN_REF",
+        "policy_source": "bkvoice_kws_default_stream_policy",
+        "scope": "continuous local detector; conversation suppression and recorder scheduling not simulated"
+      }
+    }
+  ],
+  "limitations": [
+    "Original P5 training metadata unavailable; reconstructed sidecar is not a complete training provenance record.",
+    "Private audio, transcripts and dataset manifests are not published.",
+    "Host reference equivalence and device model/threshold readback do not certify physical wake accuracy."
+  ]
+}

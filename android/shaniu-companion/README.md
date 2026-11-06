@@ -3,9 +3,12 @@
 [项目与视频](../../README.md) · [技术报告](../../docs/contest/技术报告-BK7258三核适配与傻妞AI伴侣.md) · [当前板级验收](../../boards/bk7258/CONFIGS.md) · [历史记录](../../docs/platforms/bk7258/shaniu-master-plan.md)
 
 原生 Kotlin 工程，包名 `com.shaniu.companion`。当前源码版本
-`0.7.28-shaniu-mimo-chat`（versionCode 58），Android 10+（minSdk 29），
+`0.7.30-wake-threshold70`（versionCode 60），Android 10+（minSdk 29），
 compile/target SDK 35。App 只承担配置和控制：设备完成配置后独立运行语音，
 关闭 App 不等于结束设备端交互会话。
+
+0.7.30 在“定制 → 回答与唤醒”增加 0.70 唤醒门限，供 P5 v3b 等已单独验证的
+模型使用。安装 App 不会自动导入模型或改变设备门限；模型导入后仍以设备回读为准。
 
 0.7.28 将默认对话模型更新为 `mimo-v2.6-flash`，并提示更换官方接口已停用的
 v2.5 对话模型；已有设备配置不会因安装 App 自动改写。旧固件协商 MTU 71 时使用

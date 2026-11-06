@@ -1,13 +1,21 @@
 # BK7258 CP/AP configuration seeds
 
-## Current verification status (2026-11-04)
+## Current verification status (2026-11-06)
 
 This is the single current board/profile acceptance summary. Product behavior
 is described by the [feature inventory](../../docs/platforms/bk7258/shaniu-feature-inventory.md)
 and the [desktop companion contract](../../docs/platforms/bk7258/shaniu-desktop-companion.md).
 Dated verification records retain their original version and evidence scope.
 
-- The owner AIDK now runs `0.7.132+778` with App 59. The 11-04 download used
+- On 11-06 the same owner AIDK remains on `0.7.132+778`, now with App 60
+  (`0.7.30-wake-threshold70`). App import activated P5 v3b (model
+  `3cbfdfa0cf0cc73a3bb0f5885b7fa20fd3674695d0f615d6112d23c844d8d66a`,
+  WKM2/frontend v2), with full model-hash comparison and 70% threshold readback.
+  The candidate is [published for explicit import](../../app/bk7258/models/p5v3b/README.md);
+  the builtin firmware model is unchanged. This verifies deployment, not a new
+  physical acoustic or reboot-persistence test. See the
+  [11-06 evidence](../../docs/verification/bk7258/2026-11-06-p5v3b-deployment.md).
+- The 11-04 baseline was `0.7.132+778` with App 59. That download used
   the retained factory input, without a new Flash readback or backup. An erased
   data volume initially prevented identity loading and BLE discovery; the
   owner then explicitly authorized first-use initialization and a new claim.
@@ -119,8 +127,8 @@ enrolled positive replay triggered and rearmed. A software restart retained P5
 and authenticated status returned `ready=true`, `runtime_error=0`. This is a
 same-unit personalization recovery on firmware 775 / App 58, not a replacement
 of the public builtin model or independent human/long-duration acceptance.
-Private model/audio remain excluded from Git. After any later recovery from an
-older full-device base, verify the selected model as well as network/cloud
+The original P5 package and private audio remain excluded from Git. After any
+later recovery from an older full-device base, verify the selected model as well as network/cloud
 settings. See the [bounded wake evidence](../../docs/verification/bk7258/2026-11-03-feature-validation/README.md#11-04-误唤醒与同机模型恢复).
 
 ## Configuration ownership
